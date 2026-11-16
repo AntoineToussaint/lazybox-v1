@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyToolPayload, briefItems, categoryOf, describeToolBrief, shortCommand, summarizeRun, summarizeTurn, turnActivity, unfolded, type ToolEntry, type TurnCache } from '../packages/surfaces/src/tool-lines.ts';
+import { plainLazybox } from '../packages/surfaces/src/lazybox-cli.ts';
 
 const ROOT = '/Users/me/ws/alpha';
 let clock = 0, ids = 0;
@@ -39,6 +40,26 @@ test('a command reads as its program and what it acts on, never a script', () =>
   ];
   for (const [command, short] of cases) assert.equal(shortCommand(command), short, command);
   assert.ok(shortCommand('x'.repeat(200)).length <= 60, 'bounded');
+});
+
+test('the Lazybox CLI by its full path or $LAZYBOX_V2_CLI reads as lazybox', () => {
+  // The briefing's fallback when another lazybox (V1's) comes first on the agent's PATH.
+  const forms = ['/Applications/Lazybox.app/Contents/Resources/runtime/bin/lazybox', '"$LAZYBOX_V2_CLI"', '$LAZYBOX_V2_CLI', '"${LAZYBOX_V2_CLI}"', `'/Users/me/Library/Application Support/Lazybox/bin/lazybox'`];
+  for (const rest of ['run -- go test ./...', 'run --raw -- git diff', 'artifact put plan.md --title Plan', 'workspace request-repo api']) {
+    const plain = `lazybox ${rest}`;
+    for (const cli of forms) {
+      const command = `${cli} ${rest}`;
+      assert.equal(plainLazybox(command), plain, command);
+      assert.equal(shortCommand(command), shortCommand(plain), command);
+      assert.equal(categoryOf(bash(command)), categoryOf(bash(plain)), command);
+      // As Codex reports it, wrapped in its shell (single-quoted, as shlex joins it).
+      if (!command.includes("'")) assert.equal(shortCommand(`/bin/zsh -lc '${command}'`), shortCommand(plain), `zsh -lc ${command}`);
+    }
+  }
+  assert.equal(categoryOf(bash('"$LAZYBOX_V2_CLI" run -- go test ./...')), 'test');
+  // Nothing else is rewritten: another program, or lazybox as a word in an argument.
+  for (const other of ['/usr/bin/notlazybox run', 'echo lazybox', 'cat /tmp/lazybox.log', 'ls /opt/lazybox/bin', 'echo $LAZYBOX_V2_CLI_DIR'])
+    assert.equal(plainLazybox(other), other, other);
 });
 
 test('what a call was for names the run: explore, tests, checks, installs, git', () => {

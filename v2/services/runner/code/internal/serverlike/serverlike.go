@@ -46,6 +46,10 @@ func MatchArgv(argv []string) (bool, string) {
 var (
 	separators = regexp.MustCompile(`&&|\|\||[;&|\n]`)
 	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+	// lazyboxCLI is the Lazybox CLI called by its full path (quoted when it
+	// has spaces) or through $LAZYBOX_V2_CLI: the agent briefing's fallback
+	// when another lazybox comes first on PATH. It reads as `lazybox`.
+	lazyboxCLI = regexp.MustCompile(`"[^"]*/lazybox"|'[^']*/lazybox'|"\$(?:LAZYBOX_V2_CLI|\{LAZYBOX_V2_CLI\})"|\$(?:\{LAZYBOX_V2_CLI\}|LAZYBOX_V2_CLI\b)`)
 )
 
 func simpleCommands(script string) []string {
@@ -58,7 +62,7 @@ func simpleCommands(script string) []string {
 // nothing but the program's base name.
 func words(command string) []string {
 	var out []string
-	for _, w := range strings.Fields(command) {
+	for _, w := range strings.Fields(lazyboxCLI.ReplaceAllString(command, "lazybox")) {
 		out = append(out, strings.Trim(w, `"'`))
 	}
 	for len(out) > 0 {
@@ -71,7 +75,7 @@ func words(command string) []string {
 			for len(out) > 0 && strings.HasPrefix(out[0], "-") { // sudo -E, env -i, npx -y
 				out = out[1:]
 			}
-		case w == "lazybox" && len(out) > 1 && out[1] == "run":
+		case path.Base(w) == "lazybox" && len(out) > 1 && out[1] == "run": // also by its full path
 			rest := out[2:]
 			out = nil
 			for i, r := range rest {

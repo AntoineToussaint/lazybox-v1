@@ -51,6 +51,10 @@ test('Move to background: a following lazybox run that listens, looks like a ser
   assert.equal(mayNeverEnd('go test ./...', 5000), false);
   assert.equal(mayNeverEnd('go test ./...', LONG_STEP_MS), true);
   assert.equal(mayNeverEnd('lazybox run -- npm run dev', LONG_STEP_MS), false);
+  // However the agent calls the CLI: by its full path, or through $LAZYBOX_V2_CLI when another lazybox shadows it.
+  for (const cli of ['/Applications/Lazybox.app/Contents/Resources/runtime/bin/lazybox', '"$LAZYBOX_V2_CLI"', '${LAZYBOX_V2_CLI}', '"/Users/me/Library/Application Support/Lazybox/bin/lazybox"'])
+    assert.equal(mayNeverEnd(`${cli} run -- npm run dev`, LONG_STEP_MS), false, cli);
+  assert.equal(mayNeverEnd('/usr/local/bin/notlazybox run -- go test', LONG_STEP_MS), true, 'only lazybox itself has its own bar');
 });
 
 test('output reads as lines: colour codes gone, redraws resolved', () => {

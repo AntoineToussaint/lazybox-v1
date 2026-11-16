@@ -17,10 +17,12 @@ import (
 
 // commandBriefing tells every coding agent how to run noisy commands. It is
 // part of the Runner, not the editable settings, so it changes with the
-// binary instead of needing a settings migration.
+// binary instead of needing a settings migration. cliPlaceholder stands for
+// the CLI's full path (briefing).
 const commandBriefing = `## Your Lazybox workspace
 You work inside a Lazybox workspace: your working directory holds one or more repositories, each a git worktree on this workspace's branch. Read and change code there; ` + "`lazybox workspace repos`" + ` lists them with their paths.
 - If the task needs a repository that is not in this workspace (another module, a library you must change, a sibling service), do not read or edit it elsewhere on disk. Ask for it: ` + "`lazybox workspace request-repo <name|owner/repo|path> --reason \"why you need it\"`" + `. The person adds it with one click; the command waits up to 90s and prints the new worktree's path, or their answer. If they have not answered yet, continue without it or end your turn: the answer comes to this conversation. Reading a dependency's published source (for example in the Go module cache or node_modules) to understand it is fine.
+- ` + "`lazybox`" + ` means Lazybox's own CLI: ` + "`lazybox --version`" + ` names "Lazybox V2". If a lazybox command answers "unknown command" or ` + "`lazybox --version`" + ` does not name Lazybox V2, your shell found another lazybox first on PATH: run this one by its full path instead, ` + "`\"" + cliPlaceholder + "\"`" + ` (also in ` + "`$LAZYBOX_V2_CLI`" + `), with the same arguments.
 
 ## Running commands in Lazybox
 Run tests, builds, linters, installs and other noisy commands as ` + "`lazybox run -- <command>`" + ` instead of calling them directly. The user sees the full output live in the Lazybox console. You receive a compact view: the exit status first, failures and errors kept, passing and progress lines dropped, and the path of a file with the full output whenever something was dropped or the command failed. The exit status is the command's own.
@@ -40,22 +42,15 @@ Plans, design docs, specs, reports, reviews and notes you write for the person a
 - Write GitHub-flavoured Markdown: headings, tables, task lists, fenced code with a language, ` + "```mermaid" + ` diagrams, and callouts as ` + "`> **Note**`" + `, ` + "`> **Warning**`" + ` or ` + "`> **Decision**`" + ` blockquotes.
 - Never put these documents in an external document tool or connector (Claude Docs, claude.ai artifacts, Notion, Google Docs, Confluence…) unless the person explicitly asks for that tool by name. Mention the artifact in your reply rather than pasting the whole document again.`
 
-// withCLI puts the lazybox CLI first on PATH so agents, and the commands they
-// start, run this Runner's CLI rather than another lazybox on the system.
-func (b *Bench) withCLI(env []string) []string {
-	if b.Config.CLIDir == "" {
-		return env
-	}
-	out := make([]string, 0, len(env)+1)
-	path := os.Getenv("PATH")
-	for _, entry := range env {
-		if value, ok := strings.CutPrefix(entry, "PATH="); ok {
-			path = value
-			continue
-		}
-		out = append(out, entry)
-	}
-	return append(out, "PATH="+b.Config.CLIDir+string(os.PathListSeparator)+path)
+// cliPlaceholder is replaced by the CLI's full path: the fallback for a shell
+// that reaches another lazybox first. A live session started before the shell
+// integration (agent_cli.go) gets it with its next message, as an update of
+// the shared instructions, and has no LAZYBOX_V2_CLI.
+const cliPlaceholder = "{{LAZYBOX_CLI}}"
+
+// briefing is commandBriefing for this Runner's CLI.
+func (b *Bench) briefing() string {
+	return strings.ReplaceAll(commandBriefing, cliPlaceholder, filepath.Join(b.Config.CLIDir, "lazybox"))
 }
 
 // outputEnv names the execution's directory for full-output files. The CLI

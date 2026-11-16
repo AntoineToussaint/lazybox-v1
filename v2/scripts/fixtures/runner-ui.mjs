@@ -243,6 +243,7 @@ export async function startRunnerFixture() {
   // Explicitly fake: no session host, tmux or process table behind them. Open
   // terminals are listed too, as the Runner lists their hosts.
   const processHosting = { configured: 'sessionhost', tmuxVersion: 'tmux 3.4', tmuxProblem: '', fallback: '' };
+  const versionInfo = { version: 'dev' };
   const usage = (cpuPercent, megabytes, processCount) => ({ cpuPercent, memoryBytes: String(megabytes * 1048576), processCount });
   const processes = [
     { id: 'host-agent-alpha', kind: 'agent', backend: 'sessionhost', state: 'running', attached: true, hostPid: 4101, programPid: 4102, uptimeSeconds: '8100', label: 'Fix the parser', workspaceId: 'alpha', workspaceName: 'Alpha feature', sessionId: 'alpha-session', conversationTitle: 'Fix the parser', provider: 'claude', usage: usage(3.2, 412, 5) },
@@ -434,6 +435,8 @@ actions:
     const error = (code, message) => { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code, message })); };
     if (method.includes('Artifact')) { if (artifactStore.handle(method, body, json, error) === false) error('unimplemented', `Unsupported fixture RPC ${method}`); return; }
     switch (method) {
+      // The Runner's version and which lazybox agents' shells reach (Settings → About).
+      case 'Version': return json(versionInfo);
       case 'GetRunnerSettings': return json({...runnerSettings,review:{reviewer:'',template:'',autoStart:false,...runnerSettings.review,defaultTemplate:'You are an independent reviewer ({{reviewer}}) of work {{author}} did.\n\n{{goal}}\n\n## What to review: {{scope}}\n\n{{diff}}\n\n{{report}}'}});
       case 'UpdateReviewRun': {
         mutations.push({method,body});const run=reviewOf(body.collectionId).runs.find(r=>r.id===body.reviewId);if(!run)return error('not_found','review not found');
@@ -924,7 +927,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

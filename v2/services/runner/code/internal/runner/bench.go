@@ -220,6 +220,9 @@ type Bench struct {
 	Browser *browser.Manager
 	// reviewAsks wakes agents waiting for an answer (review_loop.go).
 	reviewAsks *reviewAsks
+	// agentCLI is the shell integration that keeps this Runner's CLI first on
+	// agents' PATH, and the last probe of it (agent_cli.go).
+	agentCLI agentCLIState
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -796,6 +799,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	}
 	b.items[id] = e
 	b.mu.Unlock()
+	if parent == nil {
+		b.announceAgentCLI(e)
+	}
 	return e, nil
 }
 
@@ -993,6 +999,7 @@ func (b *Bench) shutdown(detach bool) error {
 		}
 		b.starts.Wait()
 		b.trims.Wait()
+		b.agentCLI.stop()
 		b.checkpointing.Wait()
 		b.watchers.Wait()
 		for _, e := range b.List() {

@@ -23,3 +23,10 @@ func String() string {
 	}
 	return Version
 }
+
+// Product names this Lazybox in `lazybox --version`, so an agent (or a
+// person) can tell this CLI from another lazybox on PATH, such as V1's.
+const Product = "Lazybox V2"
+
+// Line is what `lazybox --version` prints: "lazybox 0.2.0 (Lazybox V2)".
+func Line() string { return "lazybox " + String() + " (" + Product + ")" }

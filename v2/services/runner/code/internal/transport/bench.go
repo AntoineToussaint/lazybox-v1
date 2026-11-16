@@ -13,6 +13,7 @@ import (
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/agentshell"
 	"github.com/AntoineToussaint/lazybox/v2/internal/devices"
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitinspect"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
@@ -759,8 +760,26 @@ func (s *Service) WatchOutput(r *pb.WatchOutputRequest, stream grpc.ServerStream
 
 func grpcError(code codes.Code, err error) error { return status.Error(code, err.Error()) }
 
-func (s *Service) Version(context.Context, *pb.VersionRequest) (*pb.VersionResponse, error) {
-	return &pb.VersionResponse{Version: version.String()}, nil
+func (s *Service) Version(ctx context.Context, r *pb.VersionRequest) (*pb.VersionResponse, error) {
+	check, done := s.Bench.AgentCLI()
+	if r.WaitAgentCli {
+		wait, cancel := context.WithTimeout(ctx, 30*time.Second)
+		select {
+		case <-done:
+			check, _ = s.Bench.AgentCLI()
+		case <-wait.Done():
+		}
+		cancel()
+	}
+	return &pb.VersionResponse{Version: version.String(), AgentCli: wireAgentCLI(check)}, nil
+}
+
+// wireAgentCLI is which lazybox agents' shells reach, or nil before a probe.
+func wireAgentCLI(c *agentshell.Check) *pb.AgentCliCheck {
+	if c == nil {
+		return nil
+	}
+	return &pb.AgentCliCheck{Cli: c.CLI, Shell: c.Shell, Shadow: c.Shadow, ShadowIn: c.ShadowIn, Unfixed: c.Unfixed, Fixed: c.Fixed(), Notice: c.Notice(), Problem: c.Problem, CheckedAtUnixMillis: c.CheckedAt.UnixMilli()}
 }
 
 func (s *Service) ListHistory(ctx context.Context, r *pb.ListHistoryRequest) (*pb.ListHistoryResponse, error) {

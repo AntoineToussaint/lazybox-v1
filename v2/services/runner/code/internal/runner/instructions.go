@@ -21,7 +21,7 @@ func (b *Bench) sharedInstructions(provider, purpose string) sharedInstructions 
 		s.provider = prefs.CodexContext
 	}
 	if b.Config.CLIDir != "" && !agent.IsAssistant(purpose) {
-		s.briefing = commandBriefing
+		s.briefing = b.briefing()
 	}
 	return s
 }

@@ -88,7 +88,7 @@ func TestReleaseRunnerServesAndStops(t *testing.T) {
 	if info, err := os.Stat(endpoint); err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("endpoint file mode: %v %v", info.Mode(), err)
 	}
-	if got := strings.TrimSpace(runIn(t, env, runtime.CLI(), "--version")); got != "lazybox "+release {
+	if got := strings.TrimSpace(runIn(t, env, runtime.CLI(), "--version")); got != "lazybox "+release+" (Lazybox V2)" {
 		t.Fatalf("CLI version %q, release %s", got, release)
 	}
 	v, err := dial(tg).Version(context.Background(), connect.NewRequest(&pb.VersionRequest{}))

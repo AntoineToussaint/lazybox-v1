@@ -152,8 +152,18 @@ func (c *cli) diagnose(ctx context.Context) []check {
 		}
 	}
 
-	// GitHub, through the Runner.
+	// GitHub, and which lazybox agents reach, through the Runner.
 	if report.Reachable {
+		if t, err := loadTarget("", in.Paths.Endpoint(), false); err == nil {
+			probe, cancel := context.WithTimeout(ctx, 35*time.Second)
+			v, err := dial(t).Version(probe, connect.NewRequest(&pb.VersionRequest{WaitAgentCli: true}))
+			cancel()
+			if err != nil {
+				add(check{ID: "agent-cli", Title: "Agents' lazybox", Status: checkWarn, Detail: "could not ask the Runner: " + err.Error()})
+			} else {
+				add(agentCLICheck(v.Msg.AgentCli))
+			}
+		}
 		if t, err := loadTarget("", in.Paths.Endpoint(), false); err == nil {
 			probe, cancel := context.WithTimeout(ctx, 5*time.Second)
 			gh, err := dial(t).GetGitHubConnection(probe, connect.NewRequest(&pb.GetGitHubConnectionRequest{}))
@@ -177,6 +187,30 @@ func (c *cli) diagnose(ctx context.Context) []check {
 	add(diskCheck(in.Paths.Support))
 	add(c.pathCheck(in))
 	return checks
+}
+
+// agentCLICheck says which lazybox agents' shells reach: shell startup files
+// can put another one (V1's) first on PATH, which the Runner's shell
+// integration undoes.
+func agentCLICheck(a *pb.AgentCliCheck) check {
+	k := check{ID: "agent-cli", Title: "Agents' lazybox"}
+	switch {
+	case a == nil:
+		k.Status, k.Detail = checkWarn, "the Runner gives agents no lazybox CLI, or has not checked it yet"
+	case a.Problem != "":
+		k.Status, k.Detail = checkWarn, "could not check "+a.Shell+": "+a.Problem
+	case len(a.Unfixed) > 0:
+		k.Status, k.Detail = checkFail, strings.Join(a.Unfixed, "; ")
+		k.Fix = "Stop your shell startup files putting another lazybox first on PATH, or remove it. Until then agents call " + a.Cli + " by its full path."
+		if a.Shadow != "" {
+			k.Fix = "Remove or rename " + a.Shadow + ", or stop your shell startup files putting its directory first on PATH. Until then agents call " + a.Cli + " by its full path."
+		}
+	case a.Shadow != "":
+		k.Status, k.Detail = checkOK, a.Cli+" (your startup files put "+a.Shadow+" first in "+strings.Join(a.ShadowIn, ", ")+"; Lazybox puts its own back first for agents)"
+	default:
+		k.Status, k.Detail = checkOK, a.Cli
+	}
+	return k
 }
 
 func (c *cli) providerCheck(ctx context.Context, id, title, bundled, servicePath string) check {

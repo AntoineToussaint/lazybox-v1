@@ -7,6 +7,7 @@
  */
 import { fencedCode } from './context-menu-model';
 import { stripAnsi } from './ansi';
+import { plainLazybox } from './lazybox-cli';
 import { commandText, isFailure, type ToolEntry } from './tool-lines';
 
 /** Fence languages that hold shell commands. `console` and `shell-session` are transcripts: prompts, then output. */
@@ -265,14 +266,14 @@ function serverTask(task: string): boolean {
   return TASKS.has(task) || ['dev:', 'serve:', 'start:', 'watch:'].some(prefix => task.startsWith(prefix))
     || [':dev', ':serve', ':start', ':watch', '-watch', '_watch', ':up'].some(suffix => task.endsWith(suffix));
 }
-/** A simple command's words: quotes, assignments and wrappers (sudo, npx, uv run, `lazybox run --`) dropped; the program's base name lowercased. */
+/** A simple command's words: quotes, assignments and wrappers (sudo, npx, uv run, `lazybox run --` however lazybox is called) dropped; the program's base name lowercased. */
 function commandWords(command: string): string[] {
-  let out = command.split(/\s+/).filter(Boolean).map(word => word.replace(/^["']+|["']+$/g, ''));
+  let out = plainLazybox(command).split(/\s+/).filter(Boolean).map(word => word.replace(/^["']+|["']+$/g, ''));
   while (out.length) {
     const word = out[0];
     if (ASSIGNMENT.test(word)) out = out.slice(1);
     else if (WRAPPERS.has(baseName(word))) { out = out.slice(1); while (out.length && out[0].startsWith('-')) out = out.slice(1); }
-    else if (word === 'lazybox' && out[1] === 'run') {
+    else if (baseName(word) === 'lazybox' && out[1] === 'run') {
       const rest = out.slice(2); out = [];
       for (let i = 0; i < rest.length; i++) {
         if (rest[i] === '--') { out = rest.slice(i + 1); break; }

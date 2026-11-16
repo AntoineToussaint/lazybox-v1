@@ -74,7 +74,7 @@ func run() error {
 		global.PrintDefaults()
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
-		fmt.Println("lazybox " + version.String())
+		fmt.Println(version.Line())
 		return nil
 	}
 	if err := global.Parse(os.Args[1:]); err != nil {

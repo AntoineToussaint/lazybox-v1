@@ -1230,9 +1230,38 @@ message ResizeTerminalRequest {
   uint32 rows = 3;
 }
 
-message VersionRequest {}
+message VersionRequest {
+  // Wait (up to 30 seconds) for a probe of agent_cli in progress, as
+  // `lazybox doctor` does, instead of returning the last one.
+  bool wait_agent_cli = 1;
+}
 message VersionResponse {
   string version = 1;
+  // Which lazybox agents' shells reach. Unset when this Runner gives agents
+  // no CLI, or before its first probe finished.
+  AgentCliCheck agent_cli = 2;
+}
+// AgentCliCheck is which lazybox the shells agents run commands in reach.
+// Shell startup files can put another lazybox (V1's) first on PATH; the
+// Runner's shell integration puts its own back first (COMMAND_OUTPUT.md).
+message AgentCliCheck {
+  // This Runner's CLI: what agents should reach.
+  string cli = 1;
+  // The shell probed: the person's, which agents' commands run in.
+  string shell = 2;
+  // Another lazybox the person's startup files put first, without the
+  // integration, and the shells that do (`zsh -lc`, …). Empty when none.
+  string shadow = 3;
+  repeated string shadow_in = 4;
+  // Shells that reach something else even with the integration, with what
+  // they reach. Empty when every probed shell reaches the CLI.
+  repeated string unfixed = 5;
+  bool fixed = 6;
+  // What the person is told, or empty when nothing needs saying.
+  string notice = 7;
+  // Why the shell could not be probed at all.
+  string problem = 8;
+  int64 checked_at_unix_millis = 9;
 }
 
 // Credentials are submitted explicitly and retained only on the Runner.

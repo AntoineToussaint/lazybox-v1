@@ -254,11 +254,102 @@ outside a session); the Runner deletes and bounds that directory too.
 
 **Every coding agent is told about it.** The Runner appends a fixed briefing
 (`internal/runner/command_output.go`) after the editable Settings → Agents
-text, and puts the CLI first on the agent's PATH. Being part of the binary, it
-changes with releases without a settings migration. The same briefing tells agents to publish plans and reports with
-`lazybox artifact put` ([artifacts](ARTIFACTS.md)). The launcher builds the
-CLI from the Runner's own source; the Runner briefs agents only when the
-binary exists.
+text, and puts the CLI first on the agent's PATH (next section). Being part of
+the binary, it changes with releases without a settings migration. The same
+briefing tells agents to publish plans and reports with
+`lazybox artifact put` ([artifacts](ARTIFACTS.md)), and that `lazybox` is this
+CLI (`lazybox --version` prints `lazybox <version> (Lazybox V2)`): if a
+lazybox command answers `unknown command`, the agent's shell found another
+lazybox, and it calls this one by its full path, which the briefing names
+(also `$LAZYBOX_V2_CLI`). The launcher builds the CLI from the Runner's own
+source; the Runner briefs agents only when the binary exists.
+
+### Which lazybox agents run
+
+Putting the CLI first on the PATH an agent starts with is not enough. Claude
+Code and Codex run every command through the person's shell, and its startup
+files rebuild `PATH`: zsh reads `~/.zshenv` for every shell, scripts included,
+so `typeset -U path; path=(~/.local/bin ~/.cargo/bin ~/go/bin $path)` there puts
+`~/.cargo/bin` first; a login shell (Codex runs `zsh -lc`) also runs macOS's
+`path_helper` and `~/.zprofile` (mise, Homebrew's `shellenv`). V1 installs a
+`lazybox` in `~/.cargo/bin` or Homebrew, so `lazybox artifact put` ran V1's and
+failed with `unknown command artifact`. Every verb agents use was affected.
+
+The Runner therefore gives every agent, every command it starts and every
+workspace terminal a **shell integration** (`internal/agentshell`, files in
+`<state>/shell-integration/`), three hooks that each run after the person's own
+files and put the CLI back first:
+
+| Shell | Hook | Covers |
+|---|---|---|
+| zsh | `ZDOTDIR` at generated `.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`, `.zlogout`. Each runs the person's own file of that name (from their `ZDOTDIR`, or `HOME`, at top level so `typeset` keeps its meaning) with `ZDOTDIR` set as they had it, follows a `ZDOTDIR` their `.zshenv` sets, then points `ZDOTDIR` back and moves the CLI to the front. | `zsh -c`, `zsh -lc`, interactive shells (and before the first prompt, for prompt hooks), nested shells |
+| bash | `BASH_ENV`, which bash reads after its profile files for every non-interactive shell. It runs the person's own `BASH_ENV` first. | `bash -c`, `bash -lc`, bash scripts |
+| Claude Code | `CLAUDE_ENV_FILE`, a script Claude Code runs inside every Bash tool command after its shell snapshot. It runs the person's own `CLAUDE_ENV_FILE` first. | a snapshot that exports a PATH without the CLI (an `env.PATH` in the person's Claude settings), any shell |
+
+Also set: `LAZYBOX_V2_CLI` (the CLI's full path) and `LAZYBOX_V2_CLI_DIR`.
+The person's own `ZDOTDIR`, `BASH_ENV` and `CLAUDE_ENV_FILE` travel as
+`LAZYBOX_V2_USER_*` for the integration to chain to. An integration inherited
+from another Lazybox (a Runner started from a Lazybox terminal) is recognised
+by its marker file and never chained to itself.
+
+Why these and not the alternatives:
+
+- **The provider's own command wrapper** (Claude Code's
+  `CLAUDE_CODE_SHELL_PREFIX`) receives the whole command string, snapshot
+  `source` included, as one argument and must run it in a shell of its own,
+  which reads `~/.zshenv` again and then the snapshot: it cannot act after
+  either without rewriting the command. Codex's `shell_environment_policy.set`
+  sets variables in the environment the shell starts with, which its startup
+  files then override, exactly like the PATH the Runner already gave.
+- **Startup-file hooks** run after the person's files, are read by every
+  shell (nested ones too), and change nothing when nothing reorders PATH. They
+  are what terminals use for their shell integration (VS Code sets `ZDOTDIR`
+  the same way).
+- **The full path alone** (`$LAZYBOX_V2_CLI`) works in any shell but asks
+  every agent to remember it on every call; it is the fallback, not the fix.
+
+Verified with the real programs (November 2026, a `~/.zshenv` that puts
+`~/.cargo/bin` first): Codex 0.169 (`codex app-server` started as the Runner
+starts it, and `codex exec`, both against a stand-in model endpoint) runs
+commands as `/bin/zsh -lc` and reached another lazybox (mise's shim, and
+Homebrew's from a nested `bash -lc`) before the integration and this one
+after; Claude Code 2.1.311 (through the Agent SDK, as the worker runs it) and
+2.1.325 kept the CLI first through their shell snapshot (which exports the
+PATH Claude Code started with) but not in a nested `zsh -lc`, reached the V1
+lazybox when the Claude settings set `env.PATH` even with `ZDOTDIR` and
+`BASH_ENV` in place, and this one with `CLAUDE_ENV_FILE`. The Go tests
+(`internal/agentshell`, `internal/runner/agent_cli_test.go`) reproduce each
+case with a hostile home: `zsh -c`, `zsh -lc`, `zsh -ic`, nested shells,
+`bash -c`, `bash -lc` (macOS's bash 3.2 too) and Claude Code's Bash tool
+command line.
+
+**Checking it.** The Runner probes, through the person's shell (`$SHELL`, and
+bash when that is neither zsh nor bash, as Claude Code then uses bash),
+`command -v lazybox` with `-c` and `-l -c`, without the integration (what the
+startup files do) and with it (what agents get), at most every 10 minutes, in
+the background. When another lazybox comes first:
+
+- if the integration fixes every shell, the first new conversation shows a
+  Runner line saying so, once per shadowing lazybox;
+- if it does not (a shell none of the hooks reach), every new conversation
+  says so and gives the full path, which agents are briefed to use.
+
+**Settings → About → Agents** shows the result (`Version` RPC, `agent_cli`), and
+`lazybox doctor` checks it (*Agents' lazybox*, failing when a shell stays
+unfixed).
+
+**Sessions that outlive a Runner restart.** A session host keeps the
+environment its agent started with. One started with the integration reads its
+files again for every command, so a newer Runner's files apply to its next
+command. One started before the integration existed keeps only the CLI first
+on its initial PATH: its agent gets the briefing's full-path fallback with its
+next message (the instructions update, step 3 of the roadmap), and a new
+conversation gets the integration.
+
+The UI reads the CLI the same however it was called: the live bar, tool lines
+and Smart activity, Run buttons and the server rules (`serverlike`, mirrored by
+`code-run.ts`, `lazybox-cli.ts`) take `/full/path/lazybox`, `"$LAZYBOX_V2_CLI"`
+and `${LAZYBOX_V2_CLI}` as `lazybox`.
 
 ## Roadmap
 
@@ -278,6 +369,14 @@ binary exists.
 
 - The CLI is built when the launcher starts. A Go change to the CLI needs a
   relaunch; the Runner itself hot-reloads.
+- The shell integration covers zsh, bash and Claude Code's Bash tool. A
+  shell that reads none of its hooks (`sh -l`, which reads `~/.profile` and
+  `/etc/profile`; an interactive bash; fish, which neither Claude Code nor
+  Codex runs commands in) can still find another lazybox first; the probe
+  reports it and agents fall back to the full path. A Codex
+  `shell_environment_policy` with `include_only` that drops `ZDOTDIR` and
+  `BASH_ENV` (and the `LAZYBOX_V2_*` the CLI needs to reach the Runner) defeats
+  it too.
 - Codex's `workspace-write` sandbox may block the CLI's connection to the
   Runner. The command still runs and the agent still gets its view; the
   report says the console did not receive it.

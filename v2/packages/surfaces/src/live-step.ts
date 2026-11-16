@@ -1,6 +1,7 @@
 import type { CommandStatus, JournalEvent } from '@lazybox/protocol';
 import { actionLabel } from './subagent-model';
 import { serverLike, serverLikeArgv } from './code-run';
+import { plainLazybox } from './lazybox-cli';
 
 /** The main agent's tool call in progress, from its journal. */
 export type RootStep = { id: string; name: string; input: unknown; startedAt?: number };
@@ -97,11 +98,12 @@ export function offersBackground(command: Pick<CommandStatus, 'canBackground' | 
 }
 
 /**
- * Whether a shell step the agent runs itself (not through `lazybox run`)
+ * Whether a shell step the agent runs itself (not through `lazybox run`,
+ * however it calls lazybox)
  * may never end: it looks like a server or a watcher, or it has run long.
  */
 export function mayNeverEnd(script: string | undefined, runningForMs: number): boolean {
-  if (!script || /\blazybox\s+run\b/.test(script)) return false;
+  if (!script || /\blazybox\s+run\b/.test(plainLazybox(script))) return false;
   return serverLike(script).server || runningForMs >= LONG_STEP_MS;
 }
 

@@ -81,7 +81,7 @@ func (c *cli) version(args []string) error {
 	if c.json {
 		return c.printJSON(info)
 	}
-	c.out("lazybox %s\n", info["version"])
+	c.out("%s\n", version.Line())
 	if app := info["app"]; app != "" {
 		c.out("%s\n", c.paint(dim, app))
 	}

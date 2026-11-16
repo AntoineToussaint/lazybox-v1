@@ -9,6 +9,7 @@
  */
 
 import { browserVerb, describeBrowserCall } from './browser-model';
+import { plainLazybox } from './lazybox-cli';
 
 export type ToolStatus = 'running' | 'completed' | 'failed' | 'unknown';
 export type DiffStat = { added: number; removed: number; files: string[] };
@@ -491,7 +492,8 @@ const briefPath = (path: string) => path.length > 24 && path.includes('/') && /[
 export type ParsedCommand = { program: string; words: string[]; written?: string };
 /** What a shell command mainly runs: the program and its words, past setup (`cd`, env) and wrappers. */
 export function parseCommand(command: string): ParsedCommand | undefined {
-  let text = command.trim();
+  // The Lazybox CLI by its full path or $LAZYBOX_V2_CLI reads as `lazybox`.
+  let text = plainLazybox(command.trim());
   // `/bin/zsh -lc "…"` (how Codex reports commands) is what is inside it.
   const wrapped = /^(?:\S*\/)?(?:ba|z|da)?sh\s+-l?c\s+(['"])([\s\S]*)\1\s*$/.exec(text);
   if (wrapped) text = wrapped[2];

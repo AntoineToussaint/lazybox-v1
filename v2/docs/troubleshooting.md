@@ -15,6 +15,7 @@ something — then ask `lazybox doctor` (the installation) or `lazybox debug`
 - [Setup or an action does not start](#setup-or-an-action-does-not-start)
 - [Pull requests are unavailable](#pull-requests-are-unavailable)
 - [The CLI cannot find the Runner](#the-cli-cannot-find-the-runner)
+- [An agent says `unknown command` for a lazybox command](#an-agent-says-unknown-command-for-a-lazybox-command)
 - [The launcher exited after a Go edit (Dev)](#the-launcher-exited-after-a-go-edit-dev)
 
 ## The installation: `lazybox doctor`
@@ -26,8 +27,9 @@ lazybox doctor
 For the installed app ([Install](install.md)). It checks the release,
 the Runner service (installed, running, answering on this Mac only), that the
 app, the CLI and the Runner are the same version, the bundled Node and Claude
-worker, Claude Code, Codex, `git` and `gh` on the PATH agents get, your GitHub
-connection and free disk space, and prints the fix beside anything wrong. The
+worker, Claude Code, Codex, `git` and `gh` on the PATH agents get, which
+`lazybox` agents' shells reach (*Agents' lazybox*), your GitHub connection and
+free disk space, and prints the fix beside anything wrong. The
 setup window runs the same checks (**Run diagnostics**) when the app cannot
 reach its Runner. `lazybox service logs -f` follows the Runner's log;
 `lazybox service restart` gives you a fresh Runner and keeps your agents.
@@ -153,6 +155,30 @@ Lazybox app once (or `lazybox service install`), start `make -C v2 working`
 (or `dev`) from a checkout, or pass `--endpoint <state>/endpoint.json`. `lazybox runners` lists the Runners it knows
 and which is live. Inside an agent or a workspace terminal, the CLI only uses
 that place's own limited credential; your own commands there fail with exit 4.
+
+## An agent says `unknown command` for a lazybox command
+
+`unknown command artifact` (or `run`, `workspace`, `review`…) means the agent's
+shell ran another `lazybox`, usually V1's in `~/.cargo/bin` or Homebrew, which
+your shell startup files (`~/.zshenv`, `~/.zprofile`, mise, Homebrew's
+`shellenv`, macOS's `path_helper`) put first on `PATH`. `lazybox --version`
+tells them apart: this one prints `lazybox <version> (Lazybox V2)`.
+
+Lazybox handles it for you: every agent, every command it starts and every
+workspace terminal gets a shell integration that runs your startup files and
+then puts this Lazybox's CLI back first, for zsh, bash and Claude Code's Bash
+tool ([command output](../COMMAND_OUTPUT.md#which-lazybox-agents-run)). When
+your files shadow it, the first new conversation says so in a Runner line, and
+**Settings → About → Agents** and `lazybox doctor` (*Agents' lazybox*) show
+what was found. Nothing to do then.
+
+If they say the integration could not fix a shell, every new conversation says
+so, and agents are told to call the CLI by its full path (`$LAZYBOX_V2_CLI`).
+To fix it for good, remove or rename the other `lazybox`, or stop your startup
+files from putting its directory before the others. A conversation started
+before Lazybox had the integration keeps its old environment: its agent gets
+the full path with its next message ("Instructions updated"), and a new
+conversation gets the integration.
 
 ## The launcher exited after a Go edit (Dev)
 

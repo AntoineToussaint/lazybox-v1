@@ -255,6 +255,8 @@ export function runnerNotice(record: JournalEvent): string {
   if (event?.type === 'runner_reattached')
     return 'The Runner restarted and re-attached to this agent. Nothing was interrupted.';
   if (event?.type === 'code_reverted') return event.text;
+  // Another lazybox comes first on agents' PATH (internal/agentshell): what Lazybox did about it.
+  if (event?.type === 'cli_notice') return event.text;
   if (event?.type === 'request_resolved' && event.status === 'outcome_unknown_after_restart')
     return 'The Runner restarted while a command the agent started was in flight. Its outcome is unknown, so it was not run again; the agent was told to check before retrying.';
   return '';

@@ -14,6 +14,8 @@ import assert from 'node:assert/strict';
 import { startRunnerFixture, defaultModelPrices } from './fixtures/runner-ui.mjs';
 
 const fixture = await startRunnerFixture();
+// A ~/.zshenv that puts V1's lazybox first: the Runner's shell integration fixed it.
+fixture.versionInfo.agentCli = { cli: '/Applications/Lazybox.app/Contents/Resources/runtime/bin/lazybox', shell: '/bin/zsh', shadow: '/Users/me/.cargo/bin/lazybox', shadowIn: ['zsh -c', 'zsh -lc'], unfixed: [], fixed: true, problem: '', checkedAtUnixMillis: String(Date.now()), notice: 'Your shell startup files put another lazybox first on PATH (/Users/me/.cargo/bin/lazybox, in zsh -c, zsh -lc). Lazybox puts its own back first in every agent and workspace terminal shell, so agents run this Lazybox\'s lazybox; nothing to do.' };
 fixture.runnerSettings.prices = defaultModelPrices();
 const now = Math.floor(Date.now() / 1000);
 const limited = (id, label, resetAt, extra = {}) => ({ id, provider: 'claude', label, managed: true, isolation: 'environment', availability: { state: 'exhausted', plan: 'max', observedAtUnixMillis: String(Date.now() - 600_000), windows: [{ name: 'five_hour', durationMinutes: '300', usedPercent: 100, resetAt: String(resetAt) }, { name: 'seven_day', durationMinutes: '10080', usedPercent: 64, resetAt: String(now + 300_000) }], ...extra } });
@@ -162,15 +164,27 @@ try {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Edit model price' })).toHaveCount(0);
 
+  // About says which lazybox agents reach, and what Lazybox did about another one first on PATH.
+  await page.getByRole('tab', { name: 'About', exact: true }).click();
+  const agents = page.locator('.settings-page').getByText('lazybox for agents', { exact: true }).locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," settings-row ")][1]');
+  await expect(agents).toContainText('/Users/me/.cargo/bin/lazybox');
+  await expect(agents).toContainText('nothing to do');
+  await expect(agents.getByRole('status')).toHaveText('Fixed');
+  fixture.versionInfo.agentCli = { ...fixture.versionInfo.agentCli, fixed: false, unfixed: ['sh -lc finds /usr/local/bin/lazybox'], notice: 'Agents\' shells reach another lazybox before this Lazybox\'s (sh -lc finds /usr/local/bin/lazybox), even with Lazybox\'s shell integration. Agents are told to call it by its full path.' };
+  await page.getByRole('tab', { name: 'Runner', exact: true }).click();
+  await page.getByRole('tab', { name: 'About', exact: true }).click();
+  await expect(agents.getByRole('status')).toHaveText('Needs full path');
+  await expect(agents).toContainText('sh -lc finds /usr/local/bin/lazybox');
+
   // Every section fits a phone without sideways scrolling.
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const tab of ['Subscriptions', 'Pricing', 'Repositories', 'Agents & workspaces', 'Workspaces', 'Process', 'Notifications', 'Shortcuts', 'Devices', 'Runner']) {
+  for (const tab of ['Subscriptions', 'Pricing', 'Repositories', 'Agents & workspaces', 'Workspaces', 'Process', 'Notifications', 'Shortcuts', 'Devices', 'Runner', 'About']) {
     await page.getByRole('tab', { name: tab, exact: true }).click();
     await page.waitForTimeout(250);
     assert.ok(await page.locator('.settings-page').evaluate(n => n.scrollWidth <= n.clientWidth), `${tab} scrolls sideways on a phone`);
     await expect(page.getByRole('tab', { name: tab, exact: true })).toBeInViewport();
   }
   assert.deepEqual(errors, []);
-  console.log('PASS: pricing table (no overlap, no sideways scroll at 1440/900/480/360px, search, sort, edit, add, confirmed remove), subscription "back at" line, one automatic refresh after a passed reset, keyboard section navigation, phone layout of every section. Fake Runner only.');
+  console.log('PASS: pricing table (no overlap, no sideways scroll at 1440/900/480/360px, search, sort, edit, add, confirmed remove), subscription "back at" line, one automatic refresh after a passed reset, About says which lazybox agents reach (fixed / needs full path), keyboard section navigation, phone layout of every section. Fake Runner only.');
 } catch (error) { await page?.screenshot({ path: '.cache/settings-polish-failure.png', fullPage: true }); throw error; }
 finally { await browser?.close(); await server.close(); await fixture.close(); }

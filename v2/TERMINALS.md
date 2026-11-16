@@ -115,12 +115,15 @@ Login shell       session leader, the terminal as its controlling terminal
   added.
 - A login shell rebuilds `PATH` from your profile (macOS `path_helper`,
   Homebrew, mise, cargo), which can put another `lazybox`, such as V1's, first.
-  For zsh the Runner sets `ZDOTDIR` to a generated `.zshenv`
-  (`<state>/terminal-shell/zsh/`) that restores your own `ZDOTDIR`, sources
-  your `.zshenv`, and puts the Runner's CLI first on `PATH` once, before the
-  first prompt, after all your startup files ran. Other shells start with the
-  CLI first on `PATH`, which a profile may reorder: `command -v lazybox` shows
-  which one runs.
+  The terminal gets the same shell integration as agents
+  ([command output](COMMAND_OUTPUT.md#which-lazybox-agents-run)): for zsh,
+  `ZDOTDIR` points at generated startup files
+  (`<state>/shell-integration/zsh/`) that each run your own, with your
+  `ZDOTDIR`, then put the Runner's CLI first on `PATH`, once more before the
+  first prompt for prompt hooks such as mise's. `ZDOTDIR` keeps pointing there
+  so a nested `zsh` does the same; your history file stays where it was. Bash
+  scripts and `bash -c` get `BASH_ENV`. `command -v lazybox` shows which one
+  runs.
 - `OpenTerminal` takes a request key: a retried request returns the shell it
   already started instead of starting a second one.
 - Deleting a workspace hangs up its terminals (revoking their credentials) and

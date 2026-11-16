@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema } from '@lazybox/protocol';
 import { appendTranscript, emptyTranscript } from '../packages/surfaces/src/transcript-model.ts';
+import { agentCliStatus } from '../packages/surfaces/src/lazybox-cli.ts';
 test('diagnostic limits never truncate conversation text or prompts', () => {
  let state=emptyTranscript();
  const add=(type:string,text:string,turnId='turn')=>{state=appendTranscript(state,create(JournalEventSchema,{cursor:state.cursor+1n,event:{type,text,turnId}}));};
@@ -89,6 +90,19 @@ test('runner restarts surface what they leave uncertain, and only that',()=>{
  assert.match(state.messages[4].text,/outcome is unknown/);
  assert.match(state.messages[5].text,/not sent again/);
  assert.equal(state.messages[1].text,'Deploying','a restart notice must not merge into the reply around it');
+});
+
+test('another lazybox ahead on agents\' PATH: a Runner line in the conversation, a status in Settings',()=>{
+ let state=emptyTranscript();
+ const add=(fields:Record<string,unknown>)=>{state=appendTranscript(state,create(JournalEventSchema,{cursor:state.cursor+1n,...fields}));};
+ const text='Your shell startup files put another lazybox first on PATH (/Users/me/.cargo/bin/lazybox, in zsh -c). Lazybox puts its own back first in every agent and workspace terminal shell, so agents run this Lazybox\'s lazybox; nothing to do.';
+ add({event:{type:'cli_notice',status:'fixed',text}});
+ add({event:{type:'message_delta',text:'Hello',turnId:'t'}});
+ assert.deepEqual(state.messages.map(m=>[m.type,m.text]),[['notice',text],['message_delta','Hello']]);
+ assert.deepEqual(agentCliStatus({problem:'',unfixed:[],shadow:''}),{label:'OK',tone:'ok'});
+ assert.deepEqual(agentCliStatus({problem:'',unfixed:[],shadow:'/Users/me/.cargo/bin/lazybox'}),{label:'Fixed',tone:'ok'});
+ assert.deepEqual(agentCliStatus({problem:'',unfixed:['sh -lc finds /usr/local/bin/lazybox'],shadow:'/usr/local/bin/lazybox'}),{label:'Needs full path',tone:'warn'});
+ assert.equal(agentCliStatus({problem:'timed out',unfixed:[],shadow:''}).tone,'warn');
 });
 
 test('consecutive harmless restarts collapse into one line',()=>{

@@ -44,6 +44,6 @@ func (b *Bench) OpenTerminal(collectionID, directory string, cols, rows uint16, 
 	if directory != "" {
 		title += " / " + directory
 	}
-	env := b.shellIntegration(shell, b.withCLI(terminals.Environment(os.Environ(), collectionID)))
+	env := b.withCLI(terminals.Environment(os.Environ(), collectionID))
 	return b.Terminals.Start(terminals.Spec{CollectionID: collectionID, Directory: directory, Cwd: cwd, Title: title, Shell: shell, Env: env, Cols: cols, Rows: rows, Prepare: b.terminalCredential(collectionID)}, requestKey)
 }
