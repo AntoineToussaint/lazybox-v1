@@ -1,6 +1,7 @@
 import type { AgentEvent, Session } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 import { accountLabel, awaitingFirstMessage } from './agent-status';
+import { isLimitState, resetTime } from './subscription-model';
 
 /**
  * What a conversation asks of the person, in the order it matters:
@@ -86,7 +87,10 @@ const faults: Record<string, string> = {
 };
 export function faultSummary(session: Session): string {
   const account = session.account?.state || '';
-  if (['auth_required', 'exhausted', 'throttled', 'billing_error', 'context_full', 'budget_exceeded'].includes(account)) return accountLabel(account);
+  if (['auth_required', 'exhausted', 'throttled', 'billing_error', 'context_full', 'budget_exceeded'].includes(account)) {
+    const reset = isLimitState(account) && !session.closed ? resetTime(session.account?.resetAt) : '';
+    return accountLabel(account) + (reset ? ` · resets ${reset}` : '');
+  }
   if (session.fault) return faults[session.fault] || lastLine(session.fault.replaceAll('_', ' '));
   return 'The agent reported a failure';
 }
@@ -110,7 +114,7 @@ export function deriveAttention(session: Session, seenAt = 0): Attention {
   const fault = session.fault && session.fault !== 'native_exit_unconfirmed';
   if (fault || session.status === 'failed' || interruptedByRestart(session)) {
     const restart = !fault && session.status !== 'failed';
-    return { ...base, state: 'failed', unread: at > seenAt, reason: restart ? 'Interrupted' : 'Failed', line: restart ? 'The Runner stopped during this turn and could not re-attach' : faultSummary(session) };
+    return { ...base, state: 'failed', unread: at > seenAt, reason: restart ? 'Interrupted' : isLimitState(session.fault) && !session.closed ? 'Limit reached' : 'Failed', line: restart ? 'The Runner stopped during this turn and could not re-attach' : faultSummary(session) };
   }
   if (!session.closed && !awaitingFirstMessage(session) && (session.busy || session.queued > 0 || ['running', 'starting', 'switching_profile'].includes(session.status))) {
     return { ...base, state: 'working', unread: false, reason: session.status === 'switching_profile' ? 'Switching subscription' : 'Working', line: message };

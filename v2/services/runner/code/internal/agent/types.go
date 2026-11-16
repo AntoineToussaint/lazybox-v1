@@ -232,3 +232,22 @@ type Session interface {
 // RuntimeSettings preserves provider-resolved policies across a same-provider handoff.
 // The payload is private and opaque to the generic supervisor.
 type RuntimeSettings interface{ SessionSettings() json.RawMessage }
+
+// ProfileSwitcher sessions move to another account profile of the same
+// provider when the person asks, keeping the execution (the subscription
+// rotation layer implements it).
+type ProfileSwitcher interface {
+	// SwitchProfile continues on profile id. continueTurn says the latest
+	// request is unfinished (it failed at a limit, or is running) and must be
+	// continued now; otherwise the checkpoint travels with the next message.
+	// The current profile retries in place instead.
+	SwitchProfile(id string, continueTurn bool) error
+	// SetRotation replaces the pool switched to automatically at a limit.
+	SetRotation(ids []string) error
+}
+
+// LimitFault reports whether a session fault is an account limit a profile
+// switch (or a reset) resolves, rather than a fault to reconcile.
+func LimitFault(fault string) bool {
+	return fault == "exhausted" || fault == "throttled" || fault == "auth_required" || fault == "billing_error"
+}

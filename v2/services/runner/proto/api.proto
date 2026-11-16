@@ -54,6 +54,14 @@ service RunnerService {
   // Continues the conversation in a new agent started with another permission
   // mode, for an agent whose running worker cannot change mode live.
   rpc RestartWithPermission(RestartWithPermissionRequest) returns (SessionResponse);
+  // Owner only. Moves a live conversation to another signed-in subscription of
+  // its provider and continues the same conversation: the same execution,
+  // workspace, commands and queued messages, with a portable checkpoint for the
+  // new account. The current subscription retries in place (after a reset).
+  rpc SwitchSubscription(SwitchSubscriptionRequest) returns (SessionResponse);
+  // Owner only. Turns automatic switching at a subscription limit on or off
+  // for a conversation that already runs, or for every running one.
+  rpc SetSessionRotation(SetSessionRotationRequest) returns (SessionResponse);
   rpc GetSession(SessionRequest) returns (SessionResponse);
   rpc Apply(ApplyRequest) returns (Receipt);
   rpc CloseSession(SessionRequest) returns (SessionResponse);
@@ -342,6 +350,21 @@ message RestartWithPermissionRequest {
   string session_id = 1;
   // ask, read-only or yolo.
   string mode = 2;
+}
+message SwitchSubscriptionRequest {
+  string session_id = 1;
+  // A configured profile of the conversation's provider. Its current profile
+  // retries the interrupted request on the same subscription.
+  string profile_id = 2;
+  // Also switch automatically from now on when a subscription reaches a limit.
+  bool enable_rotation = 3;
+}
+message SetSessionRotationRequest {
+  string session_id = 1;
+  bool enabled = 2;
+  // Apply to every running conversation of this provider that did not opt
+  // out, and include every subscription of the provider in automatic switching.
+  bool all_sessions = 3;
 }
 message ResumeSessionRequest {
   string session_id = 1;

@@ -44,9 +44,46 @@ Native reset times permit a later probe. A throttled account without a native
 reset receives a 60-second probe delay; exhaustion with no known reset stays
 unavailable until a subsequent provider observation. Unknown errors, context
 limits, local turn/budget limits, billing problems, and retry-in-progress
-notifications do not trigger rotation. If no account is eligible, the failure
-remains visible; this implementation does not run a timer to automatically
-resume a blocked conversation when capacity returns.
+notifications do not trigger rotation. If no account is eligible, the
+conversation stops at the limit and says so; the Runner itself runs no timer to
+resume it when capacity returns.
+
+### Switching on request
+
+The owner can move a running conversation at any time (`SwitchSubscription`,
+owner only; agent and terminal credentials are refused). It uses the same
+attempt mechanism as automatic rotation, in the same execution: the old native
+process is closed before the new one starts, credentials are resolved first so
+a profile that cannot start never costs the running agent, and the new account
+starts from the same portable checkpoint. An interrupted request (the
+conversation stopped at a limit, or a turn is running) is continued at once; an
+idle conversation starts no turn, and the checkpoint travels with the next
+message instead (durable across a Runner restart). Choosing the conversation's
+current subscription after its reset continues the same native conversation in
+place. The person may pick a subscription whose last observation is a limit:
+a refusal comes back as a limit again.
+
+At an account limit (exhausted, throttled, sign-in or billing) a conversation
+still accepts messages: they are journaled once, wait in the queue and are
+delivered after the switch or the retry, after the interrupted request. No
+operation is replayed. Other faults still refuse messages until reconciled.
+
+`SetSessionRotation` turns automatic switching on or off for a running
+conversation (its pool is resolved as for a new conversation on its current
+subscription, honouring Settings exclusions, and saved with it). With
+`all_sessions` it applies to every running conversation of the provider that
+did not opt out when it started, and turning it on takes the provider's
+subscriptions back into automatic switching in Settings.
+
+In the conversation, an automatic switch is one quiet line ("Switched to Work ·
+Personal resets at 6:00 PM"). Without one, a single card names the limit and its
+reset, offers the best other subscription first (a picker when there are
+several, with each one's state and reset), **Wait for reset**, and **Always
+switch automatically** (on by default; the first time, one question offers it
+for every conversation). Waiting continues the request on the same subscription
+at the reset while the conversation is open in a window, or the next time it is
+opened; this is the client's timer, not the Runner's. The session ⋯ menu has
+**Switch subscription…** at any time. Provider tokens are never shown.
 
 Use **Settings → Subscriptions → Add subscription** in the main workspace,
 or enroll on the Runner host using `lazybox account-login` as described in

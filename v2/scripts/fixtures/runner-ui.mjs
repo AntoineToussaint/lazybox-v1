@@ -27,6 +27,8 @@ export async function startRunnerFixture() {
     const match=from=>{const positions=[];let j=0;for(let i=from;i<lower.length&&j<q.length;i++)if(lower[i]===q[j]){positions.push(i);j++;}return j===q.length?positions:null;};
     const inName=q.includes('/')?null:match(base);const positions=inName||match(0);if(!positions)return null;return {path,positions,score:(inName?100:0)-path.length};};
   const eventStreams=new Map();
+  // Messages a conversation accepted while at a subscription limit, by operation.
+  const waitingMessages=new WeakMap();
   // A saved conversation's journal is finite: after `complete()` the stream ends
   // like the Runner's does at EOF, instead of staying open for live events.
   const openEvents=id=>{const channel={events:[],clients:new Set(),done:false,push(event){const record={cursor:String(this.events.length+1),event};this.events.push(record);for(const res of this.clients)res.write(frame({...record,retained:record.cursor}));},complete(){this.done=true;for(const res of this.clients)res.end(frame({},2));this.clients.clear();}};eventStreams.set(id,channel);return channel;};
@@ -323,7 +325,38 @@ export async function startRunnerFixture() {
         for (const p of orphans) processes.splice(processes.indexOf(p), 1);
         return json({ stopped: orphans.length, inventory: processInventory() });
       }
-      case 'Apply': mutations.push({ method, body }); return json({ operationId: body.operationId, delivery: 'accepted' });
+      case 'Apply': {
+        mutations.push({ method, body });
+        // Like the Runner: at a subscription limit a message is accepted and
+        // waits in the queue (journaled once), delivered after the switch.
+        const session=sessions.find(s=>s.id===body.sessionId);
+        if(session&&['exhausted','throttled','auth_required','billing_error'].includes(session.fault)&&body.message){
+          const queued=waitingMessages.get(session)||new Map();waitingMessages.set(session,queued);
+          if(!queued.has(body.operationId)){queued.set(body.operationId,body.message.text);session.queued=(session.queued||0)+1;eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text});}
+        }
+        return json({ operationId: body.operationId, delivery: 'accepted' });
+      }
+      // A switch continues the same conversation: the fixture journals what the
+      // Runner does (switching, switched with its origin) and clears the limit.
+      case 'SwitchSubscription': {
+        mutations.push({method,body});const session=sessions.find(s=>s.id===body.sessionId);if(!session)return error('not_found','Missing conversation');
+        if(session.closed)return error('failed_precondition','the conversation has ended; resume it to continue');
+        const target=profiles.find(p=>p.id===body.profileId);if(!target)return error('failed_precondition','subscription not found');
+        const from=session.profileId,channel=eventStreams.get(session.id),data=value=>Buffer.from(JSON.stringify(value)).toString('base64');
+        const resetAt=Number(session.account?.resetAt||0),fromState=session.account?.state||'available';
+        if(from===target.id){channel?.push({type:'profile_changed',text:from,status:'retry_same_profile',providerDataJson:data({from,fromState,resetAt,requested:true})});}
+        else{channel?.push({type:'profile_switching',status:'requested'});channel?.push({type:'profile_changed',text:target.id,status:'checkpoint_handoff',providerDataJson:data({from,fromState,resetAt,requested:true})});}
+        if(body.enableRotation)session.rotationProfileIds=profiles.filter(p=>p.provider===target.provider&&p.isolation==='environment'&&p.id!==target.id).map(p=>p.id);
+        Object.assign(session,{profileId:target.id,fault:'',status:'running',busy:true,queued:0,account:{state:'unknown'}});waitingMessages.delete(session);
+        return json({session});
+      }
+      case 'SetSessionRotation': {
+        mutations.push({method,body});const session=sessions.find(s=>s.id===body.sessionId);if(!session)return error('not_found','Missing conversation');
+        const provider=profiles.find(p=>p.id===session.profileId)?.provider||session.provider;
+        const pool=id=>body.enabled?profiles.filter(p=>p.provider===provider&&p.isolation==='environment'&&p.id!==id).map(p=>p.id):[];
+        for(const s of body.allSessions?sessions.filter(s=>!s.closed&&(s.provider||profiles.find(p=>p.id===s.profileId)?.provider)===provider):[session])s.rotationProfileIds=pool(s.profileId);
+        return json({session});
+      }
       case 'CloseSession': mutations.push({ method, body }); return error('failed_precondition', 'Closing a surface must not close a session');
       default: return error('unimplemented', `Unsupported fixture RPC ${method}`);
     }

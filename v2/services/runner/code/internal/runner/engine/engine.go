@@ -221,7 +221,10 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 		}
 		return old.receipt, nil
 	}
-	if e.state.Closed || e.state.Fault != "" {
+	// A message sent while a subscription is at its limit waits in the queue:
+	// it is delivered, once, when the conversation continues on another
+	// subscription or after the reset.
+	if e.state.Closed || (e.state.Fault != "" && !(op.Kind == agent.Message && agent.LimitFault(e.state.Fault))) {
 		e.mu.Unlock()
 		return agent.Receipt{}, errors.New("session is closed or faulted")
 	}
@@ -432,6 +435,12 @@ func (e *Engine) receive() {
 				ev.AgentID = pending.AgentID
 			}
 			delete(e.state.Pending, ev.RequestID)
+		case "profile_changed":
+			// A checkpoint or a retry delivered now is a turn: queued messages
+			// wait for it. Otherwise the next queued message carries it.
+			if rootEvent && ev.Status != "checkpoint_next_message" {
+				e.state.Busy = true
+			}
 		case "failure":
 			if !rootEvent {
 				break
@@ -451,7 +460,7 @@ func (e *Engine) receive() {
 			return
 		}
 		e.commit(ev)
-		if ev.Type == "turn_ended" && rootEvent {
+		if (ev.Type == "turn_ended" || ev.Type == "profile_changed") && rootEvent {
 			go e.dispatch()
 		}
 	}
@@ -514,6 +523,48 @@ func (e *Engine) persistLocked() error {
 		}
 	}
 	return e.persistDurableLocked()
+}
+
+// SwitchProfile continues the conversation on another subscription of its
+// provider, or on the same one after its limit reset. It is refused for an
+// ended conversation and for a fault other than an account limit, which must
+// be reconciled first. Delivery waits for the switch: nothing queued reaches
+// the old subscription once it begins.
+func (e *Engine) SwitchProfile(id string) error {
+	e.opMu.Lock()
+	defer e.opMu.Unlock()
+	e.mu.Lock()
+	state := e.state
+	detaching := e.detaching
+	e.mu.Unlock()
+	switch {
+	case state.Closed || detaching:
+		return errors.New("the conversation has ended; resume it to continue")
+	case state.Fault != "" && !agent.LimitFault(state.Fault):
+		return errors.New("the conversation must be reconciled before it can continue: " + state.Fault)
+	case state.Agents["root"].Status == agent.Switching:
+		return errors.New("the conversation is already switching subscription")
+	case id == state.Profile && state.Fault == "":
+		// Retrying in place is for a request a limit interrupted, never a running turn.
+		return errors.New("the conversation already uses this subscription")
+	}
+	switcher, ok := e.provider.(agent.ProfileSwitcher)
+	if !ok {
+		return agent.ErrUnsupported
+	}
+	// An interrupted or running request continues now; an idle conversation
+	// hands over with the next message.
+	return switcher.SwitchProfile(id, state.Fault != "" || state.Busy)
+}
+
+// SetRotation replaces the subscriptions this conversation switches to
+// automatically at a limit.
+func (e *Engine) SetRotation(ids []string) error {
+	switcher, ok := e.provider.(agent.ProfileSwitcher)
+	if !ok {
+		return agent.ErrUnsupported
+	}
+	return switcher.SetRotation(ids)
 }
 
 // HostID is the session host running the provider's native process, or "".

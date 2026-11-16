@@ -1,7 +1,8 @@
 import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
+import { failureSentence, isLimitState, switchNote, type SwitchNote } from './subscription-model';
 
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number }[]; count?: number };
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number }[]; count?: number; switched?: SwitchNote };
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'' });
 
@@ -53,6 +54,15 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       next.appendToLast = false;
       continue;
     }
+    // A switch of subscription is one quiet line. A limit is not a message at
+    // all: the conversation's limit card says it while it matters, and the
+    // switch line keeps the record.
+    if (event.type === 'profile_changed') {
+      add({ id: record.cursor.toString(), type: 'switched', text: '', turnId: event.turnId, switched: switchNote(event.text, event.status, providerData(event.providerDataJson)) });
+      next.appendToLast = false;
+      continue;
+    }
+    if (event.type === 'failure' && (isLimitState(event.status) || isLimitState(event.account?.state))) { next.appendToLast = false; continue; }
     const files = event.type === 'operation_accepted' ? providerData(event.providerDataJson).files as TranscriptMessage['files'] : undefined;
     if (event.type === 'message_delta' && event.text) {
       if (next.appendToLast && last?.type === 'message_delta' && last.turnId === event.turnId) {
@@ -61,7 +71,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       } else add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId });
       next.appendToLast = true;
     } else if ((event.type === 'operation_accepted' || event.type === 'failure') && (event.text || files?.length)) {
-      add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId, files });
+      add({ id: record.cursor.toString(), type: event.type, text: event.type === 'failure' ? failureSentence(event.status, event.text) : event.text, turnId: event.turnId, files });
       next.appendToLast = false;
     } else if (BOUNDARY_TYPES.has(event.type) || (event.type === 'activity' && event.status === 'tool')) {
       next.appendToLast = false;

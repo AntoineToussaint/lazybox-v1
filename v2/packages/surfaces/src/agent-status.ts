@@ -1,4 +1,5 @@
 import type { Session } from '@lazybox/protocol';
+import { limitStatus } from './subscription-model';
 export function statusLabel(status: string): string {
   return ({ starting: 'Starting', ready: 'Ready', running: 'Running', waiting_input: 'Waiting for your answer', waiting_approval: 'Waiting for approval', done: 'Turn done', interrupted: 'Interrupted', failed: 'Needs attention', stopped: 'Session ended', unknown: 'Status unknown', switching_profile: 'Switching subscription' } as Record<string, string>)[status] || 'Status unknown';
 }
@@ -19,6 +20,8 @@ export function sessionStatus(session?: Session): string {
   if (session.fault === 'native_exit_unconfirmed') return 'Status unknown';
   if (session.historical && session.status === 'interrupted') return 'Interrupted';
   if (session.closed) return 'Saved';
+  const limit = limitStatus(session);
+  if (limit) return limit;
   if (awaitingFirstMessage(session)) return 'Ready';
   if (session.status) return statusLabel(session.status);
   if (session.fault) return 'Needs attention';

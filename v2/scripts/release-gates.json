@@ -42,7 +42,8 @@
     { "id": "mermaid-viewer", "scope": "ui", "script": "test:mermaid-viewer" },
     { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" },
     { "id": "prompt-navigation", "scope": "ui", "script": "test:prompt-navigation" },
-    { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" }
+    { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },
+    { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

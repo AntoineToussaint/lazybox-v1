@@ -108,6 +108,11 @@ func (e *Engine) observe(ev agent.Event) {
 			e.state.Fault = ""
 			e.state.Account = &agent.AccountObservation{State: "unknown"}
 			a.Status = agent.Starting
+			if ev.Status == "checkpoint_next_message" {
+				// Nothing runs until the person's next message.
+				a.Status = agent.Ready
+				phase("", "")
+			}
 		}
 	case "failure":
 		a.Status = agent.Failed

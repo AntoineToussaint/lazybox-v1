@@ -1,5 +1,6 @@
 import type { JournalEvent, Session } from '@lazybox/protocol';
 import { awaitingFirstMessage, statusLabel } from './agent-status';
+import { limitStatus } from './subscription-model';
 
 /**
  * What a conversation is doing right now, in one short phrase that moves while
@@ -91,6 +92,9 @@ export function liveStatus(session: Session | undefined, now: number, events?: r
     const question = session.pending[0] ? session.pending[0].type === 'question' : session.status === 'waiting_input';
     return fixed('waiting', question ? 'Waiting for your answer' : 'Waiting for approval');
   }
+  // A subscription limit is a decision for the person, not a failure.
+  const limit = limitStatus(session, now);
+  if (limit) return session.status === 'switching_profile' ? timed(limit, millis(session.agents.find(a => a.id === 'root')?.phaseSinceUnixMillis), now) : fixed('waiting', limit);
   if (session.fault || session.status === 'failed') return fixed('failed', 'Needs attention');
   if (session.status === 'switching_profile') return timed('Switching subscription', millis(session.agents.find(a => a.id === 'root')?.phaseSinceUnixMillis), now);
   if (awaitingFirstMessage(session)) return fixed('idle', 'Ready');

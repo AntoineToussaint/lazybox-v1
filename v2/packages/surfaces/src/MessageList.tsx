@@ -5,11 +5,15 @@ import './message-list.css';
 import type { FileLink } from './file-reference';
 import type { TranscriptMessage } from './transcript-model';
 import type { ReplayProgress } from './transcript-cache';
+import { switchedLine } from './subscription-model';
 
-const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void }) {
+const ownName = (id: string) => id;
+
+const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile, nameFor = ownName }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; nameFor?(id: string): string }) {
+  if (m.type === 'switched' && m.switched) return <div className="subscription-switched" role="note"><span>{switchedLine(m.switched, nameFor)}</span></div>;
   if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
   return <article className={'message ' + m.type} data-message-id={m.id}>
-    <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Provider failure' : m.type === 'notice' ? 'Runner' : agentName}</span>
+    <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>
     <RichContent text={m.text} onOpenFile={onOpenFile}/>
     {m.files?.length ? <ul className="sent-files" aria-label="Sent attachments">{m.files.map((file, i) => <li key={i}>↳ {file.name} · {Math.ceil(file.size / 1024)} KiB</li>)}</ul> : null}
   </article>;
@@ -21,11 +25,11 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile 
  * is added as the reader scrolls toward it. A render of the window that hosts
  * it (a keystroke in the composer) does not touch the rows.
  */
-export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; onShowEarlier(): void }) {
+export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier, nameFor }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; onShowEarlier(): void; /** A subscription's name by profile ID, for switch lines. */ nameFor?(id: string): string }) {
   const hidden = Math.max(0, messages.length - visible);
   return <>
     {hidden > 0 && <button type="button" className="show-earlier" onClick={onShowEarlier}>Show earlier messages <small>{hidden.toLocaleString()} more</small></button>}
-    {messages.slice(hidden).map(m => <MessageRow key={m.id} message={m} agentName={agentName} onOpenFile={onOpenFile}/>)}
+    {messages.slice(hidden).map(m => <MessageRow key={m.id} message={m} agentName={agentName} onOpenFile={onOpenFile} nameFor={nameFor}/>)}
   </>;
 });
 

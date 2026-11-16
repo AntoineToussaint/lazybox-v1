@@ -176,6 +176,12 @@ const (
 	// RunnerServiceRestartWithPermissionProcedure is the fully-qualified name of the RunnerService's
 	// RestartWithPermission RPC.
 	RunnerServiceRestartWithPermissionProcedure = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
+	// RunnerServiceSwitchSubscriptionProcedure is the fully-qualified name of the RunnerService's
+	// SwitchSubscription RPC.
+	RunnerServiceSwitchSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/SwitchSubscription"
+	// RunnerServiceSetSessionRotationProcedure is the fully-qualified name of the RunnerService's
+	// SetSessionRotation RPC.
+	RunnerServiceSetSessionRotationProcedure = "/lazybox.bench.v1.RunnerService/SetSessionRotation"
 	// RunnerServiceGetSessionProcedure is the fully-qualified name of the RunnerService's GetSession
 	// RPC.
 	RunnerServiceGetSessionProcedure = "/lazybox.bench.v1.RunnerService/GetSession"
@@ -330,6 +336,14 @@ type RunnerServiceClient interface {
 	// Continues the conversation in a new agent started with another permission
 	// mode, for an agent whose running worker cannot change mode live.
 	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Moves a live conversation to another signed-in subscription of
+	// its provider and continues the same conversation: the same execution,
+	// workspace, commands and queued messages, with a portable checkpoint for the
+	// new account. The current subscription retries in place (after a reset).
+	SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Turns automatic switching at a subscription limit on or off
+	// for a conversation that already runs, or for every running one.
+	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -679,6 +693,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
 			connect.WithClientOptions(opts...),
 		),
+		switchSubscription: connect.NewClient[gen.SwitchSubscriptionRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceSwitchSubscriptionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SwitchSubscription")),
+			connect.WithClientOptions(opts...),
+		),
+		setSessionRotation: connect.NewClient[gen.SetSessionRotationRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceSetSessionRotationProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetSessionRotation")),
+			connect.WithClientOptions(opts...),
+		),
 		getSession: connect.NewClient[gen.SessionRequest, gen.SessionResponse](
 			httpClient,
 			baseURL+RunnerServiceGetSessionProcedure,
@@ -936,6 +962,8 @@ type runnerServiceClient struct {
 	listHistory                  *connect.Client[gen.ListHistoryRequest, gen.ListHistoryResponse]
 	resumeSession                *connect.Client[gen.ResumeSessionRequest, gen.SessionResponse]
 	restartWithPermission        *connect.Client[gen.RestartWithPermissionRequest, gen.SessionResponse]
+	switchSubscription           *connect.Client[gen.SwitchSubscriptionRequest, gen.SessionResponse]
+	setSessionRotation           *connect.Client[gen.SetSessionRotationRequest, gen.SessionResponse]
 	getSession                   *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	apply                        *connect.Client[gen.ApplyRequest, gen.Receipt]
 	closeSession                 *connect.Client[gen.SessionRequest, gen.SessionResponse]
@@ -1212,6 +1240,16 @@ func (c *runnerServiceClient) RestartWithPermission(ctx context.Context, req *co
 	return c.restartWithPermission.CallUnary(ctx, req)
 }
 
+// SwitchSubscription calls lazybox.bench.v1.RunnerService.SwitchSubscription.
+func (c *runnerServiceClient) SwitchSubscription(ctx context.Context, req *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.switchSubscription.CallUnary(ctx, req)
+}
+
+// SetSessionRotation calls lazybox.bench.v1.RunnerService.SetSessionRotation.
+func (c *runnerServiceClient) SetSessionRotation(ctx context.Context, req *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.setSessionRotation.CallUnary(ctx, req)
+}
+
 // GetSession calls lazybox.bench.v1.RunnerService.GetSession.
 func (c *runnerServiceClient) GetSession(ctx context.Context, req *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.getSession.CallUnary(ctx, req)
@@ -1434,6 +1472,14 @@ type RunnerServiceHandler interface {
 	// Continues the conversation in a new agent started with another permission
 	// mode, for an agent whose running worker cannot change mode live.
 	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Moves a live conversation to another signed-in subscription of
+	// its provider and continues the same conversation: the same execution,
+	// workspace, commands and queued messages, with a portable checkpoint for the
+	// new account. The current subscription retries in place (after a reset).
+	SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Turns automatic switching at a subscription limit on or off
+	// for a conversation that already runs, or for every running one.
+	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -1779,6 +1825,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceSwitchSubscriptionHandler := connect.NewUnaryHandler(
+		RunnerServiceSwitchSubscriptionProcedure,
+		svc.SwitchSubscription,
+		connect.WithSchema(runnerServiceMethods.ByName("SwitchSubscription")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetSessionRotationHandler := connect.NewUnaryHandler(
+		RunnerServiceSetSessionRotationProcedure,
+		svc.SetSessionRotation,
+		connect.WithSchema(runnerServiceMethods.ByName("SetSessionRotation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceGetSessionHandler := connect.NewUnaryHandler(
 		RunnerServiceGetSessionProcedure,
 		svc.GetSession,
@@ -2081,6 +2139,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceResumeSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceRestartWithPermissionProcedure:
 			runnerServiceRestartWithPermissionHandler.ServeHTTP(w, r)
+		case RunnerServiceSwitchSubscriptionProcedure:
+			runnerServiceSwitchSubscriptionHandler.ServeHTTP(w, r)
+		case RunnerServiceSetSessionRotationProcedure:
+			runnerServiceSetSessionRotationHandler.ServeHTTP(w, r)
 		case RunnerServiceGetSessionProcedure:
 			runnerServiceGetSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceApplyProcedure:
@@ -2348,6 +2410,14 @@ func (UnimplementedRunnerServiceHandler) ResumeSession(context.Context, *connect
 
 func (UnimplementedRunnerServiceHandler) RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartWithPermission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SwitchSubscription is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetSessionRotation is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {

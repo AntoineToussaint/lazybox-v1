@@ -258,7 +258,8 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 			return errors.New("message required")
 		}
 		state := e.Engine.Snapshot()
-		if state.Closed || state.Fault != "" {
+		// At a subscription limit a message waits in the queue (see engine.Apply).
+		if state.Closed || (state.Fault != "" && !agent.LimitFault(state.Fault)) {
 			return errors.New("session is closed or faulted")
 		}
 		if len(m.Attachments) > 0 && !state.Capabilities.Files {
@@ -676,6 +677,32 @@ func (s *Service) RestartWithPermission(ctx context.Context, r *pb.RestartWithPe
 func (s *Service) ResumeSession(ctx context.Context, r *pb.ResumeSessionRequest) (*pb.SessionResponse, error) {
 	e, err := s.Bench.Resume(ctx, r.SessionId, r.ProcessesStopped)
 	if err != nil {
+		return nil, rpcError(err)
+	}
+	return s.sessionResponse(ctx, e)
+}
+
+// SwitchSubscription continues a running conversation on another subscription
+// of its provider (or retries on its own after a reset), in the same execution.
+func (s *Service) SwitchSubscription(ctx context.Context, r *pb.SwitchSubscriptionRequest) (*pb.SessionResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	if err = s.Bench.SwitchSubscription(ctx, e, r.ProfileId, r.EnableRotation); err != nil {
+		return nil, rpcError(err)
+	}
+	return s.sessionResponse(ctx, e)
+}
+
+// SetSessionRotation turns automatic switching at a limit on or off for a
+// running conversation, or for every running one of its provider.
+func (s *Service) SetSessionRotation(ctx context.Context, r *pb.SetSessionRotationRequest) (*pb.SessionResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	if err = s.Bench.SetSessionRotation(ctx, e, r.Enabled, r.AllSessions); err != nil {
 		return nil, rpcError(err)
 	}
 	return s.sessionResponse(ctx, e)
