@@ -36,6 +36,9 @@ try{
  await expect(rail.getByRole('button')).toHaveCount(turns);
  // A prompt far back in history, not mounted when the conversation opened.
  assert.equal(await pane.locator('.message.operation_accepted').filter({hasText:'Question 3:'}).count(),0,'early prompts start unmounted');
+ // The chip is one of the chat header's tools: it covers no part of the transcript, and says what it counts.
+ {const chip=page.getByRole('button',{name:'Your prompts',exact:true});await expect(page.locator('.chat-heading').getByRole('button',{name:'Your prompts',exact:true})).toHaveText(/^\d+ prompts$/);
+  const c=await chip.boundingBox(),m=await page.locator('.messages').first().boundingBox();if(c.y+c.height>m.y+1&&c.y<m.y+m.height)throw new Error('the prompts chip overlaps the transcript');}
  await page.getByRole('button',{name:'Your prompts',exact:true}).click();
  const list=page.getByRole('dialog',{name:'Jump to a prompt'});
  await expect(list.getByRole('searchbox',{name:'Find a prompt'})).toBeFocused();

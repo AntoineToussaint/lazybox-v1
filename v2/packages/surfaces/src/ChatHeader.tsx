@@ -86,6 +86,8 @@ export function ChatHeader({ agentName, session, sessionID, title, status, model
       </div>
     </div>
     <div className="chat-heading-actions">
+      {/* The conversation's "N prompts" jump list lives here (PromptNavigator), not over the transcript. */}
+      <span className="prompt-jump-slot" data-prompt-jump-slot=""/>
       {sessionID && inspection}
       {onOpenChat && <button className="icon-button" aria-label="Open chat window ↗" title="Open in a separate window" onClick={onOpenChat}><Icon name="external"/></button>}
       {menu}

@@ -21,3 +21,11 @@
 @media (prefers-reduced-motion:reduce){.message-flash{animation:none;box-shadow:0 0 0 1px var(--accent-solid-hover)}.prompt-rail button{transition:none}}
 @media (max-width:700px){.prompt-rail{display:none}}
 .messages:focus{outline:none}
+/* In the chat header the chip is one of its tools: no shadow, no overlap, its list opens under it. */
+.prompt-jump-slot{display:inline-flex;align-items:center;flex:none}
+.prompt-jump-slot:empty{display:none}
+.prompt-jump.in-header{position:relative;top:auto;right:auto}
+.prompt-jump.in-header .prompt-jump-toggle{height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;box-shadow:none;color:inherit;opacity:1;white-space:nowrap}
+.prompt-jump.in-header .prompt-jump-toggle:hover,.prompt-jump.in-header .prompt-jump-toggle[aria-expanded=true]{background:var(--surface-hover);color:var(--text)}
+.prompt-jump.in-header .prompt-jump-list{top:32px;z-index:30}
+.chat-heading[data-narrow] .prompt-jump-noun{display:none}

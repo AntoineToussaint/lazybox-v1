@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './Icons';
 import type { TranscriptMessage } from './transcript-model';
 import './prompt-navigator.css';
@@ -13,6 +14,10 @@ export function PromptNavigator({ messages, paneRef, onReveal }: { messages: Tra
  const prompts = useMemo(() => messages.map((message, index) => ({ message, index })).filter(({ message }) => message.type === 'operation_accepted' && message.text.trim()), [messages]);
  const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [active, setActive] = useState(0);
  const search = useRef<HTMLInputElement>(null);
+ // The chip belongs to the chat's header, where it covers nothing; floating over the transcript it sat on
+ // whatever scrolled under it. A window without that header keeps it in the transcript's corner.
+ const [slot, setSlot] = useState<Element | null>(null);
+ useLayoutEffect(() => { setSlot(paneRef.current?.closest('.agent-window')?.querySelector('[data-prompt-jump-slot]') || null); });
  const latest = useRef({ prompts, onReveal }); latest.current = { prompts, onReveal };
 
  // The prompt at or above the top of the view. Unmounted earlier history is above it.
@@ -66,8 +71,8 @@ export function PromptNavigator({ messages, paneRef, onReveal }: { messages: Tra
   <nav className="prompt-rail" aria-label="Your prompts">
    {prompts.map(({ message, index }, k) => <button key={message.id} type="button" style={{ top: `${(index / last) * 100}%` }} title={`#${k + 1} · ${firstLine(message.text)}`} aria-label={`Prompt ${k + 1}: ${firstLine(message.text)}`} onClick={() => onReveal(message.id)}/>)}
   </nav>
-  <div className="prompt-jump">
-   <button type="button" className="prompt-jump-toggle" aria-expanded={open} aria-label="Your prompts" title="Your prompts · Alt+↑ / Alt+↓" onClick={() => setOpen(value => !value)}><Icon name="chat" size={14}/><span>{prompts.length}</span></button>
+  {(() => { const jump = <div className={`prompt-jump${slot ? ' in-header' : ''}`}>
+   <button type="button" className="prompt-jump-toggle" aria-expanded={open} aria-label="Your prompts" title="Your prompts · Alt+↑ / Alt+↓" onClick={() => setOpen(value => !value)}><Icon name="chat" size={14}/><span>{prompts.length}<span className="prompt-jump-noun"> prompts</span></span></button>
    {open && <div className="prompt-jump-list" role="dialog" aria-label="Jump to a prompt" onKeyDown={event => {
     if (event.key === 'Escape') { event.preventDefault(); setOpen(false); }
     else if (event.key === 'ArrowDown') { event.preventDefault(); setActive(value => Math.min(filtered.length - 1, value + 1)); }
@@ -83,6 +88,7 @@ export function PromptNavigator({ messages, paneRef, onReveal }: { messages: Tra
     </ul>
     <footer>↑↓ choose · Enter jump · Alt+↑/↓ anywhere in the chat</footer>
    </div>}
-  </div>
+  </div>;
+   return slot ? createPortal(jump, slot) : jump; })()}
  </>;
 }
