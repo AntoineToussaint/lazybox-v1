@@ -60,7 +60,9 @@ try{
  // Drag a tab to the front (both in view, so the strip does not scroll mid-drag).
  await tabs(0).nth(0).click();
  await tabs(0).nth(1).dragTo(tabs(0).nth(0),{targetPosition:{x:4,y:10}});
- await expect(tabs(0).nth(0)).toHaveAttribute('title','api/package.json');
+ // A tab is told by its path (data-tab); its title is set aside while the pointer
+ // rests on it, as the window's tooltip shows it (tooltips.ts).
+ await expect(tabs(0).nth(0)).toHaveAttribute('data-tab','api/package.json');
 
  // Edit: the tab and the tree mark unsaved changes; Cmd/Ctrl+S saves through the Runner.
  await tabs(0).filter({hasText:'main.go'}).click();
@@ -114,7 +116,7 @@ try{
  await expect(finder.getByRole('option').first().locator('mark')).not.toHaveCount(0);
  await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
  await expect(finder).toHaveCount(0);
- await expect(tabs(0).filter({hasText:'routes.ts'})).toHaveAttribute('title','web/src/routes.ts');
+ await expect(tabs(0).filter({hasText:'routes.ts'})).toHaveAttribute('data-tab','web/src/routes.ts');
  assert.ok(fixture.calls.some(call=>call.method==='SearchWorkspaceFiles'&&call.body.query==='rts'));
 
  // Links an agent writes resolve on the Runner: a bare name opens its only match...
@@ -128,7 +130,7 @@ try{
  await expect(chooser.getByRole('listitem')).toHaveCount(2);await expect(chooser.getByRole('listitem').first()).toBeFocused();
  await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
  await expect(chooser).toHaveCount(0);
- await expect(tabs(0).filter({hasText:'config.toml'})).toHaveCount(1);await expect(tabs(0).filter({hasText:'config.toml'})).toHaveAttribute('title','web/config.toml');
+ await expect(tabs(0).filter({hasText:'config.toml'})).toHaveCount(1);await expect(tabs(0).filter({hasText:'config.toml'})).toHaveAttribute('data-tab','web/config.toml');
  // ...and only a reference to nothing is reported.
  await page.getByRole('button',{name:'gone',exact:true}).click();
  await expect(page.getByRole('alert').filter({hasText:'Nothing named “missing.json”'})).toBeVisible();
