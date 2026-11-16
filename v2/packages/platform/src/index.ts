@@ -1,6 +1,12 @@
 /** Navigation belongs to a particular native window, not to its execution. */
 export type SurfaceTarget = { sessionId: string; commandId: string; commandsOpen: boolean; collectionId?: string; panelId?: string; artifactId?: string; webId?: string; webUrl?: string };
 export type ChatTarget = { panelId: string; collectionId: string; sessionId: string };
+/**
+ * A chat window going back into the window it was detached from: the person
+ * asked to put it back (that window shows it and comes forward), or closed it
+ * (it is put back quietly, never lost).
+ */
+export type ChatReturn = { panelId: string; collectionId: string; reason: 'put-back' | 'closed' };
 export type ArtifactTarget = { collectionId: string; artifactId: string };
 /** A conversation that needs the person, as a native notification. */
 export type AttentionNotice = { key: string; title: string; body: string; collectionId: string; sessionId: string };
@@ -96,7 +102,14 @@ export type WorkspaceHost = AttentionHost & PowerHost & {
   webViews?: NativeWebViews;
   /** Opens a web page in its own window, with the viewer's toolbar. */
   openWebWindow?(target: WebWindowTarget): Promise<void>;
- reconnect?(): Promise<void>; /** Before Restart Runner: follow the restarted Runner, even on a new port, without reloading. */ expectRunnerRestart?(): Promise<void>;  openWorkspace?(collectionId: string): Promise<void>; chooseRepositoryFolder?(): Promise<string | null>; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; openChat(target: ChatTarget): Promise<void>; /** An artifact page in its own window; reuses that artifact's window when open. */ openArtifact?(target: ArtifactTarget): Promise<void>; dockChat(panelId: string): Promise<void> };
+ reconnect?(): Promise<void>; /** Before Restart Runner: follow the restarted Runner, even on a new port, without reloading. */ expectRunnerRestart?(): Promise<void>;  openWorkspace?(collectionId: string): Promise<void>; chooseRepositoryFolder?(): Promise<string | null>; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; openChat(target: ChatTarget): Promise<void>; /** An artifact page in its own window; reuses that artifact's window when open. */ openArtifact?(target: ArtifactTarget): Promise<void>;
+  /** Closes a chat's own window and brings this window forward, where the chat now is. */
+  dockChat(panelId: string): Promise<void>;
+  /** Chats of this window whose own window asks to come back, or closed; returns the unsubscribe. */
+  onChatReturn?(listener: (request: ChatReturn) => void): () => void;
+  /** Whether a chat's own window is still open: a saved layout's chat whose window is gone comes back. */
+  chatWindowOpen?(panelId: string): Promise<boolean>;
+};
 export type ViewStateStore = {
   key: string;
   /** Resolved authority scope shared by panels moved between native windows. */
@@ -110,6 +123,8 @@ export type ViewStateStore = {
 };
 export type SurfaceHost = {
   saveTarget(target: SurfaceTarget): Promise<void>;
+  /** A chat's own window: put it back in the window it came from, and close this one. */
+  putBack?(): Promise<void>;
   reopenAgent(): Promise<void>;
   reopenClosed(): Promise<void>;
   reconnect(): Promise<void>;

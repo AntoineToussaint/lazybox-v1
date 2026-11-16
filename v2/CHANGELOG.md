@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.2] - 2026-11-17 · Put windows back where they came from
+
+- **Put back in main window** A chat in its own window and a panel group opened in a new window now lead with a labelled Put back in main window button (or ⇧⌘D, or Window → Put Back in Main Window): the panel returns exactly where it was, and the main window comes forward on it.
+- **Closing a window puts it back** Closing a chat's window or a panel's window returns its panel to the main window; nothing is lost, even when the window closed while the main window was not open.
+- **In other windows** A quiet strip under the header lists what is open in other windows, with Show, Put back and Put all back; the command palette has Put all windows back and Put … back in main window for each.
+- **The sidebar keeps its width** Switching to a workspace whose page has no panel docked beside the sidebar (all closed, floating or in other windows) no longer stretches the sidebar across the page: an empty area with the page's options takes the rest.
+
 ## [2026-11-17.1] - 2026-11-17 · Servers never hold up a conversation
 
 - **Servers go to the background** When an agent starts a dev server or a watcher with lazybox run, it moves to the background once it is up (after 20 seconds, when it listens on a port or looks like a server): the agent carries on, the server keeps running, and it shows in Command output and Processes with its port and Stop.

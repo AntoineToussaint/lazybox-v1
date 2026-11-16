@@ -8,13 +8,13 @@ import { WorkspaceRepositories } from './WorkspaceRepositories';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import type { Collection } from '@lazybox/protocol';
-import type { ViewStateStore, WorkspaceHost } from '@lazybox/platform';
+import type { ChatReturn, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
 import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { useCommandRuns } from './command-runs';
 import { requestTerminal } from './TerminalPanel';
-import { retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnChat, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, PANEL_LIMIT, type DockSide, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, PANEL_LIMIT, type DockSide, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
@@ -28,7 +28,7 @@ import { CommandCenter } from './CommandCenter';
 import { useWorkspaceCommands } from './useWorkspaceCommands';
 import { builtinPanels, sentence, type PanelModule, type PanelTitle } from './PanelRegistry';
 import { WorkspaceHeader } from './WorkspaceHeader';
-import { DetachedTabs } from './DetachedTabs';
+import { OtherWindows, type OtherWindow } from './OtherWindows';
 import { NewConversationDialog } from './NewConversationDialog';
 import { LayoutConfiguration, PageConfig } from './PageEditor';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
@@ -48,7 +48,7 @@ import { PowerLayer } from './PowerLayer';
 import { DockLayout, type DockHandle } from './DockLayout';
 import { GroupActions, groupMenuItems, LayoutMenu, PanelsMenu, type GroupCommands } from './DockMenus';
 import { useContextMenuContribution } from './ContextMenu';
-import { bindings } from './actions';
+import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBinding } from './actions';
 import { provideLayoutCommands, type LayoutCommand } from './layout-commands';
 import { applyTemplate, builtinPresets, DEFAULT_PRESET, parseSavedLayouts, templateOf, type LayoutPreset } from './layout-presets';
 import { requestAsk } from './help-requests';
@@ -381,17 +381,52 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     catch (error) { changePage(before); setError(String(error)); }
     finally { setPending(''); }
   };
+  /** A chat back from its own window: where it was, on its page, in front; its window closes and this one comes forward. */
   const bringBack = async (panel: Panel) => {
     if (!host || pending) return;
     setPending(panel.id);
     try {
       await host.dockChat(panel.id);
-      const live = livePage();
-      changePage(returnChat(live, panel.id, live.selection));
+      const back = returnDetached(current.current, panel.id);
+      if (back && commit({ ...back.layout, selectedPage: back.page })) { setSettings(false); focusAfter.current = { panel: panel.id }; }
     }
     catch (error) { setError(String(error)); }
     finally { setPending(''); }
   };
+  /**
+   * A chat window asked to go back, or was closed: the chat returns where it
+   * was. Put back, this window shows it (switching to its page, or to its
+   * workspace when this window shows another); closed, it returns quietly.
+   */
+  const chatReturned = useRef<(request: ChatReturn) => void>(() => {});
+  chatReturned.current = ({ panelId, collectionId, reason }) => {
+    if (locked) return;
+    const shown = reason === 'put-back';
+    const back = returnDetached(current.current, panelId);
+    if (back) {
+      if (commit({ ...back.layout, selectedPage: shown ? back.page : current.current.selectedPage }) && shown) { setSettings(false); focusAfter.current = { panel: panelId }; }
+      return;
+    }
+    // Saved with another workspace's pages: this window shows a different one now.
+    if (fixedWorkspaceId || !collectionId || collectionId === workspaceID || !viewState) return;
+    try {
+      const saved = viewState.getItem(workspaceKey(collectionId));
+      const other = saved ? returnDetached(repairLayout(retireMonitor(parseLayout(saved))), panelId) : undefined;
+      if (!other) return;
+      viewState.setItem(workspaceKey(collectionId), JSON.stringify({ ...other.layout, selectedPage: shown ? other.page : other.layout.selectedPage }));
+      if (shown) { setSettings(false); select({ collectionId, sessionId: '', commandId: '' }); focusAfter.current = { panel: panelId }; }
+    } catch (error) { setError(`Could not put the chat back: ${String(error)}`); }
+  };
+  useEffect(() => host?.onChatReturn?.(request => chatReturned.current(request)), [host]);
+  // A saved chat whose window is gone (closed while this window was, or not restored) comes back to the page.
+  useEffect(() => {
+    if (!host?.chatWindowOpen) return;
+    let live = true;
+    for (const { panel } of detachedChats(current.current)) {
+      void host.chatWindowOpen(panel.id).then(open => { if (!open && live) chatReturned.current({ panelId: panel.id, collectionId: workspaceID, reason: 'closed' }); }).catch(() => {});
+    }
+    return () => { live = false; };
+  }, [host, workspaceID]);
   // One sidebar width for every workspace (see DockLayout).
   const [sidebarWidth, setSidebarWidth] = useState(() => { const saved = Number(readPreference(viewState, 'workspace.sidebar-width')); return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : SIDEBAR_DEFAULT; });
   const saveSidebarWidth = (width: number) => { const next = clampSidebar(width); setSidebarWidth(next); try { writePreference(viewState, 'workspace.sidebar-width', String(next)); } catch { /* a convenience */ } };
@@ -412,15 +447,6 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const terminalReady = !!workspaceID && collections.find(value => value.id === workspaceID)?.state === 'ready';
   const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) || mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
   const detachedPanels = allPanels(page).filter(p => p.detached);
-  const navigator = useWorkspaceCommands({
-    root: viewState?.root || '', main: !fixedWorkspaceId, collections, selection: page.selection, workspaceId: workspaceID, workbench, registry,
-    canStartConversation: !!info && !pending && canShowNewSession, terminalReady, canOpenWorkspaceWindow: !!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId,
-    showSession, selectWorkspace: select, closeSettings: () => setSettings(false),
-    showPanel: kind => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : void showModule(kind),
-    openSettings: tab => { setSettingsTab(tab as SettingsTab); setSettings(true); },
-    newConversation: () => beginConversation(), openWorkspaceWindow: () => void host?.openWorkspace?.(workspaceID),
-    toggleEditing: () => { if (!settings) setEditing(value => !value); }, toggleConfiguring: () => { if (!settings) { setJSON(JSON.stringify(current.current, null, 2)); setConfiguring(value => !value); } },
-  });
   const titleOf = (panel: Panel) => {
     const base = liveTitles[panel.id]?.text || registry[panel.kind]?.title || panel.kind;
     if (panel.kind !== 'chat') return base;
@@ -428,6 +454,34 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     return session?.title?.trim() || base;
   };
   const iconOf = (panel: Panel) => registry[panel.kind]?.icon || 'file';
+  // Panels of this workspace in windows of their own: chats (of any page) and the page's popped-out groups.
+  const later = useRef({ bringBack }); later.current = { bringBack };
+  const otherWindows: OtherWindow[] = [
+    ...detachedChats(layout).map(({ panel }) => ({ id: panel.id, title: titleOf(panel), icon: iconOf(panel),
+      show: () => void host?.openChat({ panelId: panel.id, ...pinnedTarget(panel) }).catch(error => setError(String(error))),
+      putBack: () => later.current.bringBack(panel), kind: 'chat' as const })),
+    ...page.popouts.map(group => { const front = group.panels.find(value => value.id === group.active) || group.panels[0]; return { id: group.id,
+      title: titleOf(front) + (group.panels.length > 1 ? ` +${group.panels.length - 1}` : ''), icon: iconOf(front),
+      show: () => dock.current?.focusWindow(group.id), putBack: () => dock.current?.dockBack(group.id), kind: 'popout' as const }; }),
+  ];
+  // Popped-out groups first: a chat put back after them finds its neighbours in place.
+  const putAllBack = async () => {
+    const all = otherWindows;
+    await Promise.all(all.filter(item => item.kind === 'popout').map(item => item.putBack()));
+    for (const item of all.filter(item => item.kind === 'chat')) await item.putBack();
+  };
+  useKeyboardAction('window.put-all-back', putAllBack, () => otherWindows.length > 0 && !locked);
+  // ⇧⌘D (or the Window menu) with a popped-out group's window in front: that group goes back.
+  useKeyboardAction('window.put-back', () => { const group = dock.current?.focusedPopout(); if (group) dock.current?.dockBack(group); }, () => !!dock.current?.focusedPopout());
+  const navigator = useWorkspaceCommands({
+    root: viewState?.root || '', main: !fixedWorkspaceId, collections, selection: page.selection, workspaceId: workspaceID, workbench, registry,
+    windows: otherWindows, canStartConversation: !!info && !pending && canShowNewSession, terminalReady, canOpenWorkspaceWindow: !!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId,
+    showSession, selectWorkspace: select, closeSettings: () => setSettings(false),
+    showPanel: kind => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : void showModule(kind),
+    openSettings: tab => { setSettingsTab(tab as SettingsTab); setSettings(true); },
+    newConversation: () => beginConversation(), openWorkspaceWindow: () => void host?.openWorkspace?.(workspaceID),
+    toggleEditing: () => { if (!settings) setEditing(value => !value); }, toggleConfiguring: () => { if (!settings) { setJSON(JSON.stringify(current.current, null, 2)); setConfiguring(value => !value); } },
+  });
   const kindIcons = useMemo(() => Object.fromEntries(Object.entries(registry).map(([kind, module]) => [kind, module.icon])), [registry]);
   const togglePin = (panel: Panel) => {
     const target = resolveTarget(panel, page.selection);
@@ -461,7 +515,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   // The first binding of each, in shortcut() notation for menus.
   const menuKey = (id: 'layout.split' | 'layout.close' | 'layout.maximize') => (bindings(keymap[id])[0] || '').replace(/\bMeta\+/g, 'Mod+');
-  const layoutKeys = { split: menuKey('layout.split'), close: menuKey('layout.close'), maximize: menuKey('layout.maximize') };
+  const putBackKeys = bindings(keymap['window.put-back'])[0] ? displayBinding(bindings(keymap['window.put-back'])[0]).join(' ') : '';
+  const layoutKeys = { split: menuKey('layout.split'), close: menuKey('layout.close'), maximize: menuKey('layout.maximize'), putBack: putBackKeys };
   // Right-clicking a tab opens its group's menu, through the shared context menu.
   useContextMenuContribution<{ panelTab?: string }>('dock-tab', context => {
     const id = context.detail?.panelTab, group = id ? dock.current?.groupOf(id) : undefined;
@@ -556,7 +611,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       onToggleEditing={() => setEditing(value => !value)}
       onToggleConfiguring={() => { setJSON(JSON.stringify(layout, null, 2)); setConfiguring(value => !value); }}
       onShowModule={kind => kind === 'terminal' ? showTerminal() : kind === 'web' ? void openWeb({ url: '', newPanel: true }) : void showModule(kind)}/>
-    {!settings && detachedPanels.length > 0 && <DetachedTabs panels={detachedPanels} selection={page.selection} sessions={info?.sessions} onOpen={p => void detach(p)} onDock={p => void bringBack(p)}/>}
+    {!settings && <OtherWindows windows={otherWindows} putBackKeys={putBackKeys} onPutAllBack={putAllBack}/>}
     {repositoryWorkspace && <WorkspaceRepositories workspace={collections.find(value => value.id === repositoryWorkspace.id) || repositoryWorkspace} onClose={() => setRepositoryWorkspace(undefined)} onSaved={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder}/>}
     <NewConversationDialog open={newSession} quickStart={quickStart} workspaceID={workspaceID} workspaceName={collections.find(value => value.id === workspaceID)?.name} viewState={sessionStore}
       onQuickStart={() => setQuickStart(true)} onClose={() => setNewSession(false)} onStarted={showNewSession}/>
@@ -588,6 +643,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
               onArrange={next => changePage({ ...livePage(), ...next })}
               onClose={closePanel}
               onRestore={groupID => setMinimized(groupID, false)}
+              onPopoutKey={(event, groupID) => {
+                const pressed = canonicalKey(chordFromEvent(event));
+                if (!bindings(keymap['window.put-back']).some(binding => canonicalBinding(binding) === pressed)) return;
+                event.preventDefault(); dock.current?.dockBack(groupID);
+              }}
               renderActions={(group, handle) => <GroupActions group={group} handle={handle} commands={groupCommands} keys={layoutKeys}/>}
               empty={<div className="module-empty dock-empty-state">
                 <h3>No panels on this page</h3>

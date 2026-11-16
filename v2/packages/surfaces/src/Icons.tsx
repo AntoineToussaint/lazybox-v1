@@ -8,6 +8,8 @@ const paths: Record<string, string[]> = {
   terminal: ['m5 7 4 5-4 5', 'M12 17h7'],
   plus: ['M12 5v14', 'M5 12h14'],
   external: ['M14 4h6v6', 'm20 4-9 9', 'M10 4H4v16h16v-6'],
+  // A window's content going back into the main window (the reverse of external).
+  'put-back': ['M20 4l-8 8', 'M12 6v6h6', 'M10 4H4v16h16v-6'],
   sliders: ['M4 7h6', 'M14 7h6', 'M4 17h10', 'M18 17h2', 'M10 4v6', 'M14 14v6'],
   refresh: ['M20 8a8 8 0 1 0 0 8', 'M20 3v5h-5'],
   chevron: ['m8 10 4 4 4-4'],

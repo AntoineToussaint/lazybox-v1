@@ -2,7 +2,7 @@
 // saved layouts and the layout command seam. The UI is covered by test-docking.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { childPixels, fromDockview, sameSizes, structureKey, toDockview } from '../packages/surfaces/src/dock-bridge.ts';
+import { childPixels, EMPTY_CONTENT, fromDockview, needsEmptyContent, sameSizes, structureKey, toDockview } from '../packages/surfaces/src/dock-bridge.ts';
 import { applyTemplate, builtinPresets, parseSavedLayouts, sameTemplate, templateKinds, templateOf } from '../packages/surfaces/src/layout-presets.ts';
 import { layoutCommands, provideLayoutCommands, runLayoutCommand } from '../packages/surfaces/src/layout-commands.ts';
 import { defaultLayout, fitWidth, groups, insertDocked, minimumWidth, minWidthOf, panels, parseLayout, shownPanels, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
@@ -28,6 +28,23 @@ test('a page goes to dockview and back unchanged: groups, tabs, front tab, share
   assert.equal(structureKey(back), structureKey(page));
   assert.ok(sameSizes(back.layout, page.layout, 0.01), JSON.stringify([back.layout, page.layout]));
   assert.deepEqual(groups(back.layout).map(group => [group.active, !!group.minimized]), groups(page.layout).map(group => [group.active, !!group.minimized]));
+});
+
+test('a page whose docked panels are the sidebar alone keeps the sidebar at its width beside an empty content area, never saved', () => {
+  const sidebar = groups(work().layout)[0];
+  const page = { ...work(), layout: sidebar, floating: [{ group: groups(work().layout)[1], box: { left: 400, top: 40, width: 500, height: 400 } }] };
+  assert.equal(needsEmptyContent(page), true);
+  assert.equal(needsEmptyContent(work()), false);
+  const json = toDockview(page, geometry);
+  const root = json.grid.root as { data: { size: number; data: { id: string; views: string[] } }[] };
+  assert.deepEqual(root.data.map(leaf => leaf.size), [280, 1120], 'the sidebar at its width, the empty area the rest');
+  assert.deepEqual(root.data[1].data.views, [EMPTY_CONTENT]);
+  // On a narrow window the sidebar still leaves the empty area some room.
+  const narrow = toDockview(page, { ...geometry, width: 300 }).grid.root as { data: { size: number }[] };
+  assert.ok(narrow.data[1].size >= 48);
+  const back = fromDockview(json, overlayOf(page));
+  assert.equal(structureKey(back), structureKey(page), 'the empty area is not part of the page');
+  assert.equal(JSON.stringify(back).includes(EMPTY_CONTENT), false);
 });
 
 test('the sidebar takes its fixed width and a minimized group its tab bar, whatever their share', () => {

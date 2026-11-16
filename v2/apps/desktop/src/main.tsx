@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, configureVoice, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
-import type { AppHost, AppInfo, AttentionDestination, AttentionHost, AvailableUpdate, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
+import type { AppHost, AppInfo, ChatReturn, AttentionDestination, AttentionHost, AvailableUpdate, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
 import { FirstRun } from './FirstRun';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact' | 'web'; notice: string; viewState: Record<string,string> };
@@ -142,6 +142,8 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     reopenAgent: () => invoke<void>('reopen_agent'),
     reopenClosed: () => invoke<void>('reopen_closed'),
     reconnect: () => invoke<void>('reconnect_view'),
+    // A chat's window only: the host closes it and tells the window it came from (host.rs `return_chat`).
+    putBack: () => invoke<void>('return_chat'),
   }), []);
   const retained = useRef(new Map(Object.entries(bootstrap.viewState)));
   const pendingWrites = useRef(Promise.resolve());
@@ -171,6 +173,13 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     copySignInCode: code => invoke<void>('copy_sign_in_code', { code }),
     openChat: target => invoke<void>('open_chat', target),
     dockChat: panelId => invoke<void>('dock_chat', { panelId }),
+    // A chat window put back or closed: the host tells the window that owns it (host.rs `chat_owner`).
+    onChatReturn(listener) {
+      let disposed = false, stop: (() => void) | undefined;
+      void getCurrentWebview().listen<ChatReturn>('chat-return', event => listener(event.payload)).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+      return () => { disposed = true; stop?.(); };
+    },
+    chatWindowOpen: panelId => invoke<boolean>('chat_window_open', { panelId }),
     openArtifact: target => invoke<void>('open_artifact', target),
     openLink,
     app: desktopApp,
@@ -220,7 +229,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
   const action = async (callback: () => Promise<void>) => { try { await callback(); setError(''); } catch (error) { setError(String(error)); } };
   return <div className="desktop-root">
     {bootstrap.kind === 'web' ? <WebWindow id={bootstrap.target.webId || 'web'} url={bootstrap.target.webUrl || ''} viewState={viewState} webViews={desktopWebViews} applicationName={bootstrap.applicationName} onDock={url => invoke<void>('dock_web', { url })}/> : <>
-    {bootstrap.kind !== 'workspace' && <WindowControls applicationName={bootstrap.applicationName} onWorkspace={() => void action(host.reopenAgent)} onReopenClosed={() => void action(host.reopenClosed)} onReconnect={() => void action(host.reconnect)}/>}
+    {bootstrap.kind !== 'workspace' && <WindowControls applicationName={bootstrap.applicationName} viewState={viewState} onPutBack={bootstrap.kind === 'chat' ? () => void action(host.putBack!) : undefined} onWorkspace={() => void action(host.reopenAgent)} onReopenClosed={() => void action(host.reopenClosed)} onReconnect={() => void action(host.reconnect)}/>}
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {bootstrap.kind === 'artifact' ? <ArtifactWindow connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner, renew }} collectionId={bootstrap.target.collectionId || ''} artifactId={bootstrap.target.artifactId || ''}/> : bootstrap.kind === 'workspace' ? <Workspace
       fixedWorkspaceId={bootstrap.fixedWorkspaceId || undefined}

@@ -426,7 +426,10 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     let builder = if label == "main" || label.starts_with("workspace-") {
         let handle = app.clone();
         let title = format!("{name} — Panel");
-        builder.on_new_window(move |url, features| popout_window(&handle, &url, features, &title))
+        let opener = label.to_string();
+        builder.on_new_window(move |url, features| {
+            popout_window(&handle, &url, features, &title, &opener)
+        })
     } else {
         builder
     };
@@ -638,8 +641,14 @@ pub fn open_workspace(app: tauri::AppHandle, collection_id: String) -> Result<()
     })?;
     open(&app, &label)
 }
+/// A workspace window takes a chat back from its window: that window closes
+/// and the calling window comes forward, where the chat now is.
 #[tauri::command]
-pub fn dock_chat(app: tauri::AppHandle, panel_id: String) -> Result<(), String> {
+pub fn dock_chat(app: tauri::AppHandle, window: Webview, panel_id: String) -> Result<(), String> {
+    let caller = window.label().to_string();
+    if !is_workspace_window(&caller) {
+        return Err("Only a workspace window takes a chat back".into());
+    }
     if !crate::layout::valid_id(&panel_id) {
         return Err("Invalid chat panel identity".into());
     }
@@ -653,7 +662,7 @@ pub fn dock_chat(app: tauri::AppHandle, panel_id: String) -> Result<(), String> 
         }
         Ok(())
     })?;
-    open(&app, "main")
+    open(&app, &caller)
 }
 /// One menu entry for an action of the web UI's action registry
 /// (`packages/surfaces/src/actions.ts`): the registry, not this file, decides
@@ -671,7 +680,7 @@ pub struct ActionMenuItem {
     pub separator_before: bool,
 }
 
-const ACTION_SECTIONS: [&str; 3] = ["File", "Go", "Help"];
+const ACTION_SECTIONS: [&str; 4] = ["File", "Go", "Window", "Help"];
 
 /// The app menu: the platform defaults, the window commands, and the action
 /// registry's entries by section.
@@ -729,7 +738,18 @@ fn build_menu(
         if items.is_empty() {
             continue;
         }
-        let submenu = Submenu::new(app, section, true)?;
+        // The platform's Window menu (macOS) takes the window actions, after its own.
+        let existing = (section == "Window")
+            .then(|| menu.get(tauri::menu::WINDOW_SUBMENU_ID))
+            .flatten()
+            .and_then(|item| item.as_submenu().cloned());
+        if let Some(window_menu) = &existing {
+            window_menu.append(&PredefinedMenuItem::separator(app)?)?;
+        }
+        let submenu = match existing {
+            Some(window_menu) => window_menu,
+            None => Submenu::new(app, section, true)?,
+        };
         for (index, item) in items.into_iter().enumerate() {
             if item.separator_before && index > 0 {
                 submenu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -753,7 +773,9 @@ fn build_menu(
             };
             submenu.append(&entry)?;
         }
-        menu.append(&submenu)?;
+        if menu.get(submenu.id()).is_none() {
+            menu.append(&submenu)?;
+        }
     }
     Ok(menu)
 }
@@ -877,6 +899,7 @@ fn popout_window(
     url: &tauri::Url,
     features: tauri::webview::NewWindowFeatures,
     title: &str,
+    opener: &str,
 ) -> tauri::webview::NewWindowResponse<tauri::Wry> {
     use std::sync::atomic::AtomicU64;
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -892,7 +915,12 @@ fn popout_window(
         .min_inner_size(320.0, 200.0)
         .build();
     match built {
-        Ok(window) => tauri::webview::NewWindowResponse::Create { window },
+        Ok(window) => {
+            if let Ok(mut openers) = POPOUT_OPENERS.lock() {
+                openers.insert(label, opener.to_string());
+            }
+            tauri::webview::NewWindowResponse::Create { window }
+        }
         Err(error) => {
             report(app, format!("Could not open the panel's window: {error}"));
             tauri::webview::NewWindowResponse::Deny
@@ -900,9 +928,134 @@ fn popout_window(
     }
 }
 
+/// The workspace window that drew each popped-out panel window: the Window
+/// menu's **Put Back in Main Window** for a popout in front runs there.
+static POPOUT_OPENERS: Mutex<std::collections::BTreeMap<String, String>> =
+    Mutex::new(std::collections::BTreeMap::new());
+
+/// The window a menu action runs in: the one in front, or for a popped-out
+/// panel window (which runs no script) the workspace window that draws it.
+fn menu_target(focused: Option<String>) -> String {
+    match focused {
+        Some(label) if label.starts_with("popout-") => POPOUT_OPENERS
+            .lock()
+            .ok()
+            .and_then(|openers| openers.get(&label).cloned())
+            .unwrap_or_else(|| "main".to_string()),
+        Some(label) => label,
+        None => "main".to_string(),
+    }
+}
+
+/// The window a detached chat goes back to: the workspace window of its
+/// workspace when one is open (it shows that workspace), else the main window.
+pub fn chat_owner(layout: &Layout, chat_label: &str) -> String {
+    let collection = layout
+        .surfaces
+        .get(chat_label)
+        .map(|surface| surface.target.collection_id.clone())
+        .unwrap_or_default();
+    let workspace = format!("workspace-{collection}");
+    if !collection.is_empty() && layout.surfaces.get(&workspace).is_some_and(|s| s.open) {
+        workspace
+    } else {
+        "main".to_string()
+    }
+}
+
+/// What a chat window's owner is told when the chat goes back (`ChatReturn`
+/// in `@lazybox/platform`).
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChatReturn {
+    panel_id: String,
+    collection_id: String,
+    reason: &'static str,
+}
+
+/// Tells the window that owns a chat window's panel that it goes back;
+/// returns that window's label.
+fn notify_chat_return(
+    app: &tauri::AppHandle,
+    chat_label: &str,
+    reason: &'static str,
+) -> Result<String, String> {
+    let (owner, collection_id) = {
+        let host = app.state::<Host>();
+        let layout = host.layout.lock().map_err(|e| e.to_string())?;
+        let collection = layout
+            .surfaces
+            .get(chat_label)
+            .map(|surface| surface.target.collection_id.clone())
+            .unwrap_or_default();
+        (chat_owner(&layout, chat_label), collection)
+    };
+    let panel_id = chat_label
+        .strip_prefix("chat-")
+        .ok_or("Not a chat window")?
+        .to_string();
+    app.emit_to(
+        tauri::EventTarget::webview(owner.as_str()),
+        "chat-return",
+        ChatReturn {
+            panel_id,
+            collection_id,
+            reason,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(owner)
+}
+
+/// A chat's own window asks to go back where it came from: its owner puts the
+/// panel back and comes forward, and this window closes. The chat is the
+/// calling window's own (its label), so a window can only put itself back.
+#[tauri::command]
+pub fn return_chat(app: tauri::AppHandle, window: Webview) -> Result<(), String> {
+    let label = window.label().to_string();
+    if !label.starts_with("chat-") {
+        return Err("Only a chat window can be put back".into());
+    }
+    let owner = notify_chat_return(&app, &label, "put-back")?;
+    if let Some(window) = app.get_window(&label) {
+        window.close().map_err(|e| e.to_string())?;
+    }
+    open(&app, &owner)
+}
+
+/// Whether a chat panel's own window is open: a workspace window puts back a
+/// saved chat whose window is gone.
+#[tauri::command]
+pub fn chat_window_open(
+    window: Webview,
+    host: State<'_, Host>,
+    panel_id: String,
+) -> Result<bool, String> {
+    if !is_workspace_window(window.label()) {
+        return Err("Only a workspace window asks about its chat windows".into());
+    }
+    if !crate::layout::valid_id(&panel_id) {
+        return Err("Invalid chat panel identity".into());
+    }
+    let layout = host.layout.lock().map_err(|e| e.to_string())?;
+    Ok(layout
+        .surfaces
+        .get(&format!("chat-{panel_id}"))
+        .is_some_and(|surface| surface.open))
+}
+
+fn is_workspace_window(label: &str) -> bool {
+    label == "main" || label.starts_with("workspace-")
+}
+
 pub fn window_event(window: &tauri::Window, event: &WindowEvent) {
     // Popped-out panel windows belong to their opener, not to the window layout.
     if window.label().starts_with("popout-") {
+        if matches!(event, WindowEvent::Destroyed)
+            && let Ok(mut openers) = POPOUT_OPENERS.lock()
+        {
+            openers.remove(window.label());
+        }
         return;
     }
     let app = window.app_handle();
@@ -924,6 +1077,12 @@ pub fn window_event(window: &tauri::Window, event: &WindowEvent) {
     let label = window.label();
     let result = match event {
         WindowEvent::CloseRequested { .. } => {
+            // Closing a chat's window puts the chat back: it is never lost.
+            if label.starts_with("chat-")
+                && let Err(error) = notify_chat_return(app, label, "closed")
+            {
+                report(app, error);
+            }
             let captured = geometry(window).ok();
             mutate(app, |layout| {
                 if let Some(geometry) = captured {
@@ -988,12 +1147,12 @@ pub fn menu_event(app: &tauri::AppHandle, id: &str) {
     if let Some(action) = id.strip_prefix("action:") {
         // The window in front runs it; with none in front, the main window.
         // Windows, not webview windows: a window showing a Web panel holds more than one webview.
-        let label = app
-            .windows()
-            .into_iter()
-            .find(|(_, w)| w.is_focused().unwrap_or(false))
-            .map(|(label, _)| label)
-            .unwrap_or_else(|| "main".to_string());
+        let label = menu_target(
+            app.windows()
+                .into_iter()
+                .find(|(_, w)| w.is_focused().unwrap_or(false))
+                .map(|(label, _)| label),
+        );
         if let Err(error) = app.emit_to(label.as_str(), "menu-action", action) {
             report(app, error.to_string());
         }
@@ -1089,6 +1248,54 @@ mod tests {
         for label in ["popout-1", "popout-42"] {
             assert!(!patterns.iter().any(|p| p.matches(label)), "{label}");
         }
+    }
+    /// A chat goes back to the workspace window of its workspace when one is
+    /// open, else to the main window; a menu action with a popped-out panel
+    /// window in front runs in the window that draws it.
+    #[test]
+    fn a_chat_goes_back_to_the_window_that_shows_its_workspace() {
+        let mut layout = Layout::default();
+        let chat = layout
+            .chat(Target {
+                panel_id: "panel-1".into(),
+                session_id: "session".into(),
+                collection_id: "alpha".into(),
+                ..Target::default()
+            })
+            .expect("chat");
+        assert_eq!(chat_owner(&layout, &chat), "main");
+        let workspace = layout
+            .workspace(Target {
+                collection_id: "alpha".into(),
+                ..Target::default()
+            })
+            .expect("workspace");
+        assert_eq!(
+            chat_owner(&layout, &chat),
+            "main",
+            "a closed workspace window owns nothing"
+        );
+        layout.mark_open(&workspace).expect("open");
+        assert_eq!(chat_owner(&layout, &chat), workspace);
+        assert_eq!(chat_owner(&layout, "chat-unknown"), "main");
+        assert!(is_workspace_window("main") && is_workspace_window("workspace-alpha"));
+        for label in [
+            "chat-panel-1",
+            "console-x",
+            "popout-1",
+            "web-x",
+            "artifact-x",
+        ] {
+            assert!(!is_workspace_window(label), "{label}");
+        }
+        POPOUT_OPENERS
+            .lock()
+            .expect("openers")
+            .insert("popout-7".into(), "workspace-alpha".into());
+        assert_eq!(menu_target(Some("popout-7".into())), "workspace-alpha");
+        assert_eq!(menu_target(Some("popout-8".into())), "main");
+        assert_eq!(menu_target(Some("chat-panel-1".into())), "chat-panel-1");
+        assert_eq!(menu_target(None), "main");
     }
     #[test]
     fn only_the_apps_own_popout_page_opens_a_panel_window() {

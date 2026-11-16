@@ -311,3 +311,20 @@
 .window-error{max-width:640px;margin:12vh auto;padding:28px;border:1px solid var(--line-bold);border-radius:12px;background:var(--surface-hover);color:var(--text-soft)}.window-error h2{margin:0 0 8px;font-size:calc(18px * var(--text-scale))}.window-error p{color:var(--text-subtle);font-size:calc(13px * var(--text-scale))}.window-error-actions{display:flex;gap:10px;margin:16px 0}.window-error pre{max-height:240px;overflow:auto;font-size:calc(11px * var(--code-scale));color:var(--text-subtle);white-space:pre-wrap}
 
 .console-size{display:inline-flex;gap:2px}.console-size .icon-button{min-width:26px;font-size:calc(11px * var(--text-scale));font-weight:600;color:var(--text-muted)}
+/* Panels of the page in windows of their own (OtherWindows.tsx): one quiet line under the header. */
+.other-windows{display:flex;align-items:center;gap:10px;min-height:30px;padding:3px 12px;border-bottom:1px solid var(--line-subtle);background:var(--surface-sunken);font-size:calc(11px * var(--text-scale));color:var(--text-muted);overflow:hidden;flex-shrink:0}
+.other-windows-label{display:inline-flex;align-items:center;gap:6px;color:var(--text-faint);white-space:nowrap}
+.other-windows ul{display:flex;align-items:center;gap:6px;margin:0;padding:0;list-style:none;min-width:0;overflow-x:auto;scrollbar-width:none}
+.other-window{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 3px 0 8px;border:1px solid var(--line-subtle);border-radius:6px;background:var(--surface);white-space:nowrap;color:var(--text-soft)}
+.other-window>svg{flex-shrink:0;color:var(--text-muted)}
+.other-window-title{max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.other-windows button{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border:0;border-radius:4px;background:transparent;color:var(--text-muted);font-size:calc(11px * var(--text-scale));cursor:pointer;white-space:nowrap}
+.other-windows button:hover{background:var(--surface-selected);color:var(--text)}
+.other-windows .other-window-put-back{color:var(--accent)}
+.other-windows .other-window-put-back:hover{background:var(--accent-bg);color:var(--accent-strong)}
+.other-windows .other-windows-all{margin-left:auto;border:1px solid var(--line-subtle);height:22px;color:var(--text-soft)}
+.other-windows button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.detached-message-actions{display:flex;justify-content:center;gap:8px;margin-top:16px}
+.detached-message-actions button{display:inline-flex;align-items:center;gap:6px}
+.detached-message-actions .primary{background:var(--accent-solid);border-color:var(--accent-solid);color:var(--on-accent-solid)}
+.detached-message-actions .primary:hover:not(:disabled){background:var(--accent-solid-hover)}

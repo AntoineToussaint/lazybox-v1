@@ -13,7 +13,14 @@
  */
 export type ViewTarget = { collectionId: string; sessionId: string; commandId: string };
 export type Binding = { mode: 'follow' } | { mode: 'pinned'; target: ViewTarget };
-export type Panel = { id: string; kind: string; binding: Binding; detached: boolean };
+export type Panel = { id: string; kind: string; binding: Binding; detached: boolean; origin?: PanelOrigin };
+/**
+ * Where a panel sat before it went to a window of its own, so putting it back
+ * returns it there: as a tab of the group it left (at its place among the
+ * tabs), or, when that group went with it, beside the groups that were next
+ * to it, on the same side and with the same share.
+ */
+export type PanelOrigin = { group: string; index: number; beside?: string[]; side?: DockSide; share?: number; /** The group beside it was minimized (command output below a chat): it is again. */ minimized?: boolean };
 /** Panels shown as tabs in one place; `active` is the one in front. A minimized group shows only its tabs. */
 export type Group = { type: 'group'; id: string; panels: Panel[]; active: string; minimized?: boolean };
 /** Children side by side ('row') or stacked ('column'); `sizes` are their shares, summing to 1. */
@@ -347,7 +354,8 @@ export function routeChat(page: WorkspacePage, selection: ViewTarget, newID: () 
 const content = (panel: Panel) => !sidebarKinds.has(panel.kind) && panel.kind !== 'console';
 /**
  * A chat moving to its own window: it leaves the page, unless it is the last
- * content panel, which stays as a card so the workspace list does not fill the page.
+ * content panel, which stays as a card so the workspace list does not fill the
+ * page. It remembers where it was (`originOf`), so putting it back returns it there.
  */
 export function detachChat(page: WorkspacePage, panelID: string, target: ViewTarget): WorkspacePage {
   const panel = shownPanels(page).find(value => value.id === panelID);
@@ -355,17 +363,110 @@ export function detachChat(page: WorkspacePage, panelID: string, target: ViewTar
   const moved: Panel = { ...panel, binding: { mode: 'pinned', target: { ...target } }, detached: true };
   const others = shownPanels(page).filter(value => value.id !== panelID && content(value) && !value.detached);
   if (!others.length) return mapPagePanels(page, value => value.id === panelID ? moved : value);
-  return { ...removeFromPage(page, panelID), detached: [...page.detached, moved] };
+  const origin = originOf(page.layout, panelID);
+  return { ...removeFromPage(page, panelID), detached: [...page.detached, { ...moved, ...(origin ? { origin } : {}) }] };
 }
-/** A chat brought back from its window rejoins the page, unless another panel already shows that conversation. */
+/** A chat brought back from its window rejoins the page where it was (`placeBack`), unless another panel already shows that conversation. */
 export function returnChat(page: WorkspacePage, panelID: string, selection: ViewTarget): WorkspacePage {
   const panel = allPanels(page).find(value => value.id === panelID);
   if (!panel) return page;
   const session = resolveTarget(panel, selection).sessionId;
   if (visibleChats(page).some(other => other.id !== panelID && resolveTarget(other, selection).sessionId === session)) return removeFromPage(page, panelID);
-  const back = { ...panel, detached: false };
+  const { origin, ...rest } = panel, back: Panel = { ...rest, detached: false };
   if (!page.detached.some(value => value.id === panelID)) return mapPagePanels(page, value => value.id === panelID ? back : value);
-  return { ...page, detached: page.detached.filter(value => value.id !== panelID), layout: insertDocked(page.layout, back, 'right', 0.5) };
+  return placeBack({ ...page, detached: page.detached.filter(value => value.id !== panelID) }, back, origin);
+}
+/**
+ * Where a docked panel sits, to put it back there later: its group and place
+ * among the tabs and, for a panel alone in its group (the group leaves with
+ * it), the groups beside it in its split, which side of them it was on and
+ * its share of the space the two took.
+ */
+export function originOf(root: LayoutNode | null, panelID: string): PanelOrigin | undefined {
+  // (A minimized neighbour in a column loses its minimized state once alone in a row; it is remembered here.)
+  const group = groups(root).find(value => value.panels.some(panel => panel.id === panelID));
+  if (!group) return undefined;
+  const origin: PanelOrigin = { group: group.id, index: group.panels.findIndex(panel => panel.id === panelID) };
+  if (group.panels.length > 1) return origin;
+  let found: Pick<PanelOrigin, 'beside' | 'side' | 'share'> | undefined;
+  const visit = (node: LayoutNode | null) => {
+    if (found || node?.type !== 'split') return;
+    const index = node.children.findIndex(child => child.type === 'group' && child.id === group.id);
+    if (index < 0) { node.children.forEach(visit); return; }
+    const row = node.direction === 'row', previous = node.children[index - 1], next = node.children[index + 1];
+    // Prefer the neighbour that is not the sidebar: the panel belongs to the content area.
+    const sibling = previous && (!next || !isSidebar(previous))
+      ? { node: previous, size: node.sizes[index - 1], side: (row ? 'right' : 'bottom') as DockSide }
+      : next ? { node: next, size: node.sizes[index + 1], side: (row ? 'left' : 'top') as DockSide } : undefined;
+    if (!sibling) return;
+    const share = node.sizes[index] / (node.sizes[index] + sibling.size);
+    found = { beside: groups(sibling.node).map(value => value.id), side: sibling.side, share: round(Math.min(0.9, Math.max(0.1, share))), ...(sibling.node.type === 'group' && sibling.node.minimized ? { minimized: true } : {}) };
+  };
+  visit(root);
+  return { ...origin, ...found };
+}
+/** The deepest node that holds every group of `ids` still on the page. */
+function holderOf(root: LayoutNode | null, ids: ReadonlySet<string>): LayoutNode | undefined {
+  const present = groups(root).filter(group => ids.has(group.id)).map(group => group.id);
+  if (!root || !present.length) return undefined;
+  const holds = (node: LayoutNode) => { const inside = new Set(groups(node).map(group => group.id)); return present.every(id => inside.has(id)); };
+  let node: LayoutNode = root;
+  for (;;) {
+    if (node.type === 'group') return node;
+    const child: LayoutNode | undefined = node.children.find(holds);
+    if (!child) return node;
+    node = child;
+  }
+}
+/** The group with the most room in the content area (never the sidebar, nor a minimized group), by shares. */
+export function largestGroup(root: LayoutNode | null): Group | undefined {
+  let best: { group: Group; area: number } | undefined;
+  const visit = (node: LayoutNode, area: number) => {
+    if (node.type === 'group') { if (!isSidebar(node) && !node.minimized && (!best || area > best.area)) best = { group: node, area }; return; }
+    node.children.forEach((child, index) => visit(child, area * node.sizes[index]));
+  };
+  if (root) visit(root, 1);
+  return best?.group;
+}
+/**
+ * A panel coming back from its own window: into the group it left, at its
+ * place among the tabs; else beside the groups it was next to, on the same
+ * side and with its share; else beside the largest group; on an empty page,
+ * the page.
+ */
+export function placeBack(page: WorkspacePage, panel: Panel, origin?: PanelOrigin): WorkspacePage {
+  const { origin: _, ...plain } = panel, back: Panel = { ...plain, detached: false };
+  const home = origin && pageGroups(page).find(group => group.id === origin.group);
+  if (origin && home) return mapPageGroups(page, group => group.id === home.id ? { ...group, panels: [...group.panels.slice(0, origin.index), back, ...group.panels.slice(origin.index)], active: back.id, minimized: false } : group);
+  const leaf = groupFor(back, pageGroups(page).map(group => group.id));
+  const beside = origin?.beside && origin.side ? holderOf(page.layout, new Set(origin.beside)) : undefined;
+  if (page.layout && beside && origin?.side) {
+    const placed = replaceNode(page.layout, beside, edge(beside, leaf, origin.side, origin.share ?? 0.5));
+    const column = origin.side === 'top' || origin.side === 'bottom';
+    return { ...page, layout: origin.minimized && column && beside.type === 'group' ? mapGroups(placed, group => group.id === beside.id ? { ...group, minimized: true } : group) : placed };
+  }
+  const largest = largestGroup(page.layout);
+  if (page.layout && largest) return { ...page, layout: replaceNode(page.layout, largest, edge(largest, leaf, 'right', 0.5)) };
+  return { ...page, layout: insertDocked(page.layout, back, 'right', 0.5) };
+}
+function replaceNode(root: LayoutNode, from: LayoutNode, to: LayoutNode): LayoutNode {
+  const visit = (node: LayoutNode): LayoutNode => node === from ? to : node.type === 'group' ? node : { ...node, children: node.children.map(visit) };
+  return normalize(visit(root))!;
+}
+/**
+ * Put a chat back from its own window, in whichever page of `layout` holds
+ * it: the layout with the chat docked again and the page it is on, or
+ * undefined when no page has it in a window (it was put back already).
+ */
+export function returnDetached(layout: WorkspaceLayout, panelID: string): { layout: WorkspaceLayout; page: string } | undefined {
+  const page = layout.pages.find(value => allPanels(value).some(panel => panel.id === panelID && panel.detached));
+  if (!page) return undefined;
+  const next = returnChat(page, panelID, page.selection);
+  return { layout: { ...layout, pages: layout.pages.map(value => value.id === page.id ? next : value) }, page: page.id };
+}
+/** Every chat of `layout` that is in a window of its own, with the page it belongs to. */
+export function detachedChats(layout: WorkspaceLayout): { page: WorkspacePage; panel: Panel }[] {
+  return layout.pages.flatMap(page => allPanels(page).filter(panel => panel.detached).map(panel => ({ page, panel })));
 }
 /** A detached panel already showing this conversation, so selecting it focuses that window. */
 export function detachedFor(page: WorkspacePage, selection: ViewTarget): Panel | undefined {
@@ -445,12 +546,19 @@ function parseGroup(value: unknown, panelIDs: Set<string>, groupIDs: Set<string>
   return { type: 'group', id: value.id, panels: parsed, active: value.active, ...(value.minimized ? { minimized: true } : {}) };
 }
 function parsePanel(p: unknown, panelIDs: Set<string>): Panel {
-  if (!object(p) || !keys(p, ['id', 'kind', 'binding', 'detached']) || !id(p.id) || panelIDs.has(p.id) || typeof p.kind !== 'string' || !kindPattern.test(p.kind) || typeof p.detached !== 'boolean' || !object(p.binding)) throw new Error('Invalid panel');
+  if (!object(p) || !keys(p, ['id', 'kind', 'binding', 'detached', 'origin']) || !id(p.id) || panelIDs.has(p.id) || typeof p.kind !== 'string' || !kindPattern.test(p.kind) || typeof p.detached !== 'boolean' || !object(p.binding)) throw new Error('Invalid panel');
   panelIDs.add(p.id);
   const bindingValid = p.binding.mode === 'follow' ? keys(p.binding, ['mode']) : p.binding.mode === 'pinned' && keys(p.binding, ['mode', 'target']) && validTarget(p.binding.target);
   if (!bindingValid) throw new Error('Invalid panel binding');
   if (p.detached && !(p.kind === 'chat' && p.binding.mode === 'pinned' && !!(p.binding.target as ViewTarget).sessionId)) throw new Error('Only a chat pinned to a conversation opens in its own window');
-  return { id: p.id, kind: p.kind, binding: p.binding as Binding, detached: p.detached };
+  const origin = p.origin === undefined ? undefined : parseOrigin(p.origin);
+  return { id: p.id, kind: p.kind, binding: p.binding as Binding, detached: p.detached, ...(origin && p.detached ? { origin } : {}) };
+}
+function parseOrigin(value: unknown): PanelOrigin {
+  if (!object(value) || !keys(value, ['group', 'index', 'beside', 'side', 'share', 'minimized']) || (value.minimized !== undefined && typeof value.minimized !== 'boolean') || !id(value.group) || !Number.isInteger(value.index) || (value.index as number) < 0 || (value.index as number) > PANEL_LIMIT
+    || (value.beside !== undefined && !(Array.isArray(value.beside) && value.beside.length <= PANEL_LIMIT && value.beside.every(item => id(item))))
+    || (value.side !== undefined && !isDockSide(value.side)) || (value.share !== undefined && !(finite(value.share) && value.share > 0 && value.share < 1))) throw new Error('Invalid panel origin');
+  return { group: value.group as string, index: value.index as number, ...(value.beside ? { beside: value.beside as string[] } : {}), ...(value.side ? { side: value.side as DockSide } : {}), ...(value.share !== undefined ? { share: value.share as number } : {}), ...(value.minimized ? { minimized: true } : {}) };
 }
 function parseNode(value: unknown, depth: number, panelIDs: Set<string>, groupIDs: Set<string>): LayoutNode {
   if (depth > DEPTH_LIMIT) throw new Error('Page layout is nested too deeply');

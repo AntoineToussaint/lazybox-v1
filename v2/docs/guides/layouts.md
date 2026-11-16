@@ -46,6 +46,13 @@ Use a second screen:
 - An artifact → **Open in its own window**; a Web panel → **⋯ → Move to a new
   window**, and back.
 
+To put a panel back where it was, use **Put back in main window** at the top of
+its window, press `⇧⌘D` there, or just close the window. In the main window,
+**In other windows** under the header lists what is away: **Show** brings that
+window forward, **Put back** returns it, **Put all back** returns them all. The
+command palette (`⌘K`) has *Put all windows back* and *Put … back in main
+window* for each one.
+
 A conversation shows in at most one chat panel per page; choosing a conversation
 reuses the page's chat panel.
 

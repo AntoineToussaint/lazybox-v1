@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.2',
+    date: '2026-11-17',
+    title: 'Put windows back where they came from',
+    items: [
+      { title: 'Put back in main window', body: 'A chat in its own window and a panel group opened in a new window now lead with a labelled Put back in main window button (or ⇧⌘D, or Window → Put Back in Main Window): the panel returns exactly where it was, and the main window comes forward on it.' },
+      { title: 'Closing a window puts it back', body: 'Closing a chat\'s window or a panel\'s window returns its panel to the main window; nothing is lost, even when the window closed while the main window was not open.' },
+      { title: 'In other windows', body: 'A quiet strip under the header lists what is open in other windows, with Show, Put back and Put all back; the command palette has Put all windows back and Put … back in main window for each.' },
+      { title: 'The sidebar keeps its width', body: 'Switching to a workspace whose page has no panel docked beside the sidebar (all closed, floating or in other windows) no longer stretches the sidebar across the page: an empty area with the page\'s options takes the rest.' },
+    ],
+  },
+  {
     id: '2026-11-17.1',
     date: '2026-11-17',
     title: 'Servers never hold up a conversation',

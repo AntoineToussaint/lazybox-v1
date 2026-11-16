@@ -3,7 +3,7 @@ import { SessionSchema } from '@lazybox/protocol';
 import { mergeConversations } from '../packages/surfaces/src/conversation-model.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activatePanel, adoptGeometry, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedFor, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
+import { activatePanel, adoptGeometry, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedChats, detachedFor, largestGroup, returnDetached, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapGroups, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
 
 const kinds = (node: LayoutNode | null): unknown => !node ? null : node.type === 'group' ? node.panels.map(panel => panel.kind).join('+') : [node.direction, node.children.map(kinds)];
 const sizes = (node: LayoutNode | null): unknown => !node || node.type === 'group' ? null : [node.sizes, node.children.map(sizes)];
@@ -112,6 +112,65 @@ test('chats: one panel per conversation, routed, detached into their own window 
   // Brought back where another panel shows that conversation: it goes, rather than duplicating.
   const dup = { ...away, layout: insertDocked(away.layout, follow('f', 'chat'), 'right') };
   assert.equal(allPanels(returnChat(dup, 'w-work-chat', target('s'))).some(panel => panel.id === 'w-work-chat'), false);
+});
+
+test('a chat put back from its window returns where it was', () => {
+  const chatGroup = (panel: Panel): Group => ({ type: 'group', id: `g-${panel.id}`, panels: [panel], active: panel.id });
+  const sidebar: Group = { type: 'group', id: 'g-side', panels: [follow('side', 'collections')], active: 'side' };
+  const editor = chatGroup(follow('ed', 'editor')), files = chatGroup(follow('fi', 'files')), output = { ...chatGroup(follow('out', 'console')) };
+  const page = (layout: LayoutNode): WorkspacePage => ({ ...emptyPage('p', 'Work', target('s'), layout) });
+  const chat = follow('c', 'chat');
+  // Beside the sidebar: chat | editor in a row, output below both.
+  const layout: LayoutNode = { type: 'split', direction: 'row', sizes: [0.2, 0.8], children: [sidebar,
+    { type: 'split', direction: 'column', sizes: [0.7, 0.3], children: [{ type: 'split', direction: 'row', sizes: [0.6, 0.4], children: [chatGroup(chat), editor] }, output] }] };
+  const before = page(layout);
+  const away = detachChat(before, 'c', target('s'));
+  const origin = away.detached[0].origin!;
+  assert.deepEqual({ beside: origin.beside, side: origin.side, share: origin.share }, { beside: ['g-ed'], side: 'left', share: 0.6 }, 'remembers its neighbour, side and share');
+  assert.doesNotThrow(() => reparse(away), 'the origin is saved with the page');
+  assert.deepEqual(reparse(away).detached[0].origin, origin);
+  const back = returnChat(away, 'c', target('s'));
+  assert.deepEqual(kinds(back.layout), kinds(before.layout), 'back in the same place');
+  assert.deepEqual(sizes(back.layout), sizes(before.layout), 'with the same sizes');
+  assert.equal(allPanels(back).find(panel => panel.id === 'c')!.origin, undefined, 'the origin is dropped once back');
+
+  // A tab of a group comes back as a tab, at its place, in front.
+  const tabs: LayoutNode = { type: 'split', direction: 'row', sizes: [0.2, 0.8], children: [sidebar, { type: 'group', id: 'g-work', panels: [follow('ed', 'editor'), chat, follow('fi', 'files')], active: 'ed' }] };
+  const tabbed = returnChat(detachChat(page(tabs), 'c', target('s')), 'c', target('s'));
+  const group = groups(tabbed.layout).find(value => value.id === 'g-work')!;
+  assert.deepEqual(group.panels.map(panel => panel.id), ['ed', 'c', 'fi']);
+  assert.equal(group.active, 'c');
+
+  // Its neighbour moved meanwhile: it goes beside that neighbour wherever it now is.
+  const moved = { ...away, layout: { type: 'split', direction: 'row', sizes: [0.2, 0.5, 0.3], children: [sidebar, output, editor] } as LayoutNode };
+  assert.deepEqual(kinds(returnChat(moved, 'c', target('s')).layout), ['row', ['collections', 'console', 'chat', 'editor']]);
+
+  // Its neighbours are gone: beside the largest group (never the sidebar or a minimized group).
+  const gone = { ...away, layout: { type: 'split', direction: 'row', sizes: [0.2, 0.3, 0.5], children: [sidebar, files, { ...output, minimized: false }] } as LayoutNode };
+  assert.deepEqual(kinds(returnChat(gone, 'c', target('s')).layout), ['row', ['collections', 'files', 'console', 'chat']]);
+  assert.equal(largestGroup({ type: 'split', direction: 'row', sizes: [0.6, 0.4], children: [sidebar, files] })!.id, 'g-fi', 'the sidebar is never the largest');
+  // A page emptied meanwhile takes it whole.
+  assert.deepEqual(kinds(returnChat({ ...away, layout: null }, 'c', target('s')).layout), 'chat');
+
+  // From a saved layout: the page that holds it, whichever is selected.
+  const saved = { version: 2 as const, selectedPage: 'other', pages: [away, emptyPage('other', 'Other', target('s'), editor)] };
+  const returned = returnDetached(saved, 'c')!;
+  assert.equal(returned.page, 'p');
+  assert.equal(allPanels(returned.layout.pages[0]).find(panel => panel.id === 'c')!.detached, false);
+  assert.equal(returnDetached(returned.layout, 'c'), undefined, 'already back: nothing to do');
+  assert.deepEqual(detachedChats(saved).map(value => value.panel.id), ['c']);
+  // Command output minimized below the chat is minimized again when the chat comes back above it,
+  // although it could not stay minimized alone in the row meanwhile.
+  const withOutput = page({ type: 'split', direction: 'row', sizes: [0.2, 0.5, 0.3], children: [sidebar, { type: 'split', direction: 'column', sizes: [0.7, 0.3], children: [chatGroup(chat), { ...output, minimized: true }] }, editor] });
+  const outputAway = detachChat(withOutput, 'c', target('s'));
+  assert.equal(outputAway.detached[0].origin!.minimized, true);
+  const unminimized = { ...outputAway, layout: mapGroups(outputAway.layout, group => ({ ...group, minimized: undefined })) };
+  const outputBack = returnChat(unminimized, 'c', target('s'));
+  assert.deepEqual(kinds(outputBack.layout), kinds(withOutput.layout));
+  assert.equal(groups(outputBack.layout).find(group => group.id === 'g-out')!.minimized, true);
+  // An origin that does not validate is refused, not guessed at.
+  const bad = JSON.parse(JSON.stringify(away)); bad.detached[0].origin.side = 'diagonal';
+  assert.throws(() => reparse(bad));
 });
 
 test('repair on load: duplicate chats removed, popped-out groups docked back', () => {

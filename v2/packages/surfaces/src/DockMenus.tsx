@@ -122,7 +122,7 @@ export type GroupCommands = {
   /** Chat: stay on this conversation, or follow the selected one. */
   togglePin?(panel: Panel): void;
 };
-type Keys = { split: string; close: string; maximize: string };
+type Keys = { split: string; close: string; maximize: string; /** Put back in main window, as the person's keys show it (⇧⌘D). */ putBack?: string };
 /** A group's menu: the ⋯ beside its tabs and a tab's context menu show the same items. Shortcuts are in `shortcut()` notation. */
 export function groupMenuItems(group: GroupView, handle: DockHandle, commands: GroupCommands, keys: Keys): MenuItem[] {
   const panel = group.active;
@@ -136,7 +136,9 @@ export function groupMenuItems(group: GroupView, handle: DockHandle, commands: G
     docked && { label: 'Float over the page', icon: 'float', run: () => handle.float(panel.id) },
     docked
       ? { label: 'Open in new window', icon: 'external', disabled: commands.canOpenWindow(panel) ? false : 'Not available here', run: () => commands.openWindow(panel, handle) }
-      : { label: 'Back into the page', icon: 'back', run: () => handle.dockBack(group.id) },
+      : group.location === 'popout'
+        ? { label: 'Put back in main window', icon: 'put-back', run: () => handle.dockBack(group.id) }
+        : { label: 'Dock into the page', icon: 'back', run: () => handle.dockBack(group.id) },
     !!commands.togglePin && panel.kind === 'chat' && { label: panel.binding.mode === 'pinned' ? 'Follow the selected conversation' : 'Stay on this conversation', icon: 'target', run: () => commands.togglePin!(panel) },
     'separator',
     ...dockSides.map(side => ({ label: `Dock ${side}`, icon: `dock-${side}`, className: 'dock-option', run: () => commands.dockTo(panel, side) })),
@@ -144,14 +146,19 @@ export function groupMenuItems(group: GroupView, handle: DockHandle, commands: G
     commands.canClose(panel) && { label: `Close ${name}`, icon: 'close', danger: true, shortcut: keys.close, run: () => commands.close(panel) },
   ];
 }
-/** Right of a group's tabs: maximize (or back into the page), and the group menu. */
+/**
+ * Right of a group's tabs: maximize, and the group menu. A group floating over
+ * the page docks back with an arrow; a group in a window of its own leads with
+ * **Put back in main window**, labelled, since that window has no other way back.
+ */
 export function GroupActions({ group, handle, commands, keys }: { group: GroupView; handle: DockHandle; commands: GroupCommands; keys: Keys }) {
   const panel = group.active;
   if (!panel) return null;
   const name = commands.title(panel);
   return <>
     {group.location === 'grid' && <button className="icon-button dock-maximize" aria-label={group.maximized ? 'Restore layout' : `Maximize ${name}`} title={group.maximized ? 'Restore layout' : 'Maximize · double-click a tab'} onClick={() => handle.toggleMaximize(panel.id)}><Icon name={group.maximized ? 'restore' : 'maximize'} size={14}/></button>}
-    {group.location !== 'grid' && <button className="icon-button dock-back" aria-label={`Bring ${name} back`} title="Back into the page" onClick={() => handle.dockBack(group.id)}><Icon name="back" size={14}/></button>}
+    {group.location === 'floating' && <button className="icon-button dock-back" aria-label={`Dock ${name} into the page`} title="Dock into the page" onClick={() => handle.dockBack(group.id)}><Icon name="back" size={14}/></button>}
+    {group.location === 'popout' && <button type="button" className="dock-put-back" title={`Put ${name} back where it was in the main window, and close this window${keys.putBack ? ` (${keys.putBack})` : ''}`} onClick={() => handle.dockBack(group.id)}><Icon name="put-back" size={13}/><span>Put back in main window</span></button>}
     <ActionMenu className="dock-group-menu" label={`${name} panel actions`}>
       <ActionMenuItems icons items={groupMenuItems(group, handle, commands, keys)}/>
     </ActionMenu>

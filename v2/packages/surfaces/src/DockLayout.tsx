@@ -6,9 +6,9 @@ import './dock.css';
 import { iconElement } from './Icons';
 import { focusWhenShown } from './focus';
 import { refreshNativeWebViews } from './native-web-view';
-import { fromDockview, groupStates, paramsOf, PANEL_COMPONENT, sameSizes, structureKey, TAB_COMPONENT, toDockview, type Overlay, type PanelParams } from './dock-bridge';
+import { EMPTY_CONTENT, fromDockview, groupStates, needsEmptyContent, paramsOf, PANEL_COMPONENT, sameSizes, structureKey, TAB_COMPONENT, toDockview, type Overlay, type PanelParams } from './dock-bridge';
 import { clampSidebar, SIDEBAR_MAX, SIDEBAR_MIN } from './PanelLayout';
-import { fitWidth, groups, minWidthOf, sidebarAt, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
+import { fitWidth, groups, isSidebar, minWidthOf, sidebarAt, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
 
 type Arranged = Pick<WorkspacePage, 'layout' | 'floating' | 'popouts'>;
 /** What a group's header actions and menus need to know about it. */
@@ -33,8 +33,12 @@ export type DockHandle = {
   /** Opens the panel's group in its own window (same page process: nothing remounts). */
   popout(panelID: string): Promise<boolean>;
   float(panelID: string): void;
-  /** A floating or popped-out group back into the page. */
-  dockBack(groupID: string): void;
+  /** A floating or popped-out group back into the page; a popped-out one goes where it was, and the page comes forward on it. */
+  dockBack(groupID: string): Promise<void>;
+  /** Brings a popped-out group's window to the front. */
+  focusWindow(groupID: string): void;
+  /** The popped-out group whose window has the focus, if any. */
+  focusedPopout(): string | undefined;
   focusPanel(panelID: string): void;
   /** The group a panel is in, as its menus see it. */
   groupOf(panelID: string): GroupView | undefined;
@@ -59,6 +63,8 @@ type Props = {
   /** A minimized group's tab was clicked. */
   onRestore(groupID: string): void;
   renderActions(group: GroupView, handle: DockHandle): ReactNode;
+  /** A key pressed in a popped-out group's window (its document is not this one: the page's keys do not see it). */
+  onPopoutKey?(event: KeyboardEvent, groupID: string): void;
   popoutUrl: string;
   empty: ReactNode;
 };
@@ -83,6 +89,13 @@ const overlayOf = (page: Arranged): Overlay => {
 const parents = (node: LayoutNode | null, into = new Map<string, 'row' | 'column'>()) => {
   if (node?.type === 'split') for (const child of node.children) { if (child.type === 'group') into.set(child.id, node.direction); parents(child, into); }
   return into;
+};
+
+/** The page's sidebar group and its side: at an edge of the root row, or alone (beside the empty content area). */
+const sidebarOf = (layout: LayoutNode | null): { group: Group; at: 'first' | 'last' } | undefined => {
+  if (layout && isSidebar(layout)) return { group: layout as Group, at: 'first' };
+  const at = sidebarAt(layout);
+  return at && layout?.type === 'split' ? { group: layout.children[at === 'first' ? 0 : layout.children.length - 1] as Group, at } : undefined;
 };
 
 /**
@@ -110,6 +123,8 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const closes = useRef(new Map<string, HTMLButtonElement>());
   const size = useRef({ width: 0, height: 0 });
   const [actionHosts, setActionHosts] = useState(() => new Map<string, HTMLElement>());
+  /** Where the empty content area (`EMPTY_CONTENT`) draws the page's empty state. */
+  const [emptyHost, setEmptyHost] = useState<HTMLElement>();
   const [, setVersion] = useState(0);
   const bump = () => setVersion(value => value + 1);
 
@@ -121,7 +136,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const applyConstraints = () => {
     const dock = api.current, page = latest.current.page;
     if (!dock) return;
-    const at = sidebarAt(page.layout), sidebar = at && page.layout?.type === 'split' ? page.layout.children[at === 'first' ? 0 : page.layout.children.length - 1] as Group : undefined;
+    const sidebar = sidebarOf(page.layout)?.group;
     const direction = parents(page.layout), states = groupStates(page);
     silently(() => {
       for (const group of dock.groups) {
@@ -212,6 +227,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
       const content = contents.current.get(panel.id), host = latest.current.hostFor(panel);
       if (content && host.parentNode !== content) content.replaceChildren(host);
     }
+    emptyContent(dock, target);
     applied.current = target;
     applyConstraints();
     restoreSizes(before);
@@ -221,11 +237,28 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     const after = read();
     if (after && !sameArrangement(after, target)) latest.current.onArrange(after);
   };
+  /**
+   * The empty content area beside a sidebar left alone: added or removed in
+   * place as the page needs it. It has no tab bar and takes no drop (a panel
+   * dropped in it would hide under its missing tabs): panels dock beside it.
+   */
+  const emptyContent = (dock: DockviewApi, target: Arranged) => {
+    const placeholder = dock.getPanel(EMPTY_CONTENT), need = needsEmptyContent(target);
+    silently(() => {
+      if (need && !placeholder) {
+        const sidebar = sidebarOf(target.layout)?.group.id;
+        dock.addPanel({ id: EMPTY_CONTENT, component: PANEL_COMPONENT, tabComponent: TAB_COMPONENT, title: '', position: sidebar && dock.getGroup(sidebar) ? { referenceGroup: sidebar, direction: 'right' } : { direction: 'right' } });
+      }
+      if (!need && placeholder) dock.removePanel(placeholder);
+      const group = dock.getPanel(EMPTY_CONTENT)?.group;
+      if (group) { group.header.hidden = true; group.locked = 'no-drop-target'; group.element.classList.add('dock-group-empty-content'); }
+    });
+  };
   /** Adds and removes panels without a rebuild, while a group is in its own window. */
   const incremental = (dock: DockviewApi, target: Arranged) => {
     const want = new Map([...groupStates(target).values()].flatMap(group => group.panels.map(panel => [panel.id, group] as const)));
     silently(() => {
-      for (const panel of [...dock.panels]) if (!want.has(panel.id)) dock.removePanel(panel);
+      for (const panel of [...dock.panels]) if (!want.has(panel.id) && panel.id !== EMPTY_CONTENT) dock.removePanel(panel);
       const have = new Set(dock.panels.map(panel => panel.id));
       for (const [id, group] of want) {
         if (have.has(id)) continue;
@@ -243,8 +276,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const decorateSashes = () => {
     const dock = api.current, root = container.current;
     if (!dock || !root) return;
-    const page = latest.current.page, at = sidebarAt(page.layout);
-    const sidebarID = at && page.layout?.type === 'split' ? (page.layout.children[at === 'first' ? 0 : page.layout.children.length - 1] as Group).id : '';
+    const page = latest.current.page, sidebarID = sidebarOf(page.layout)?.group.id || '';
     for (const sash of root.querySelectorAll<HTMLElement>('.dv-sash')) {
       const split = sash.closest('.dv-split-view-container'), views = split ? [...split.querySelectorAll<HTMLElement>(':scope > .dv-view-container > .dv-view')] : [];
       const index = [...(sash.parentElement?.children || [])].indexOf(sash);
@@ -283,6 +315,11 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
       theme, dndStrategy: 'pointer', defaultRenderer: 'always', disableAutoResizing: true, popoutUrl: latest.current.popoutUrl,
       groupIdGenerator: () => `g-${crypto.randomUUID().slice(0, 12)}`,
       createComponent: ({ id }) => {
+        if (id === EMPTY_CONTENT) {
+          const area = document.createElement('div');
+          area.className = 'dock-empty-content';
+          return { element: area, init: () => setEmptyHost(area), dispose: () => setEmptyHost(host => host === area ? undefined : host) };
+        }
         const content = document.createElement('div');
         content.className = 'dock-panel-content';
         content.dataset.dockPanel = id;
@@ -363,10 +400,10 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
         if (!next) return;
         decorateSashes(); bump();
         // The sidebar's edge was dragged: that width becomes everyone's.
-        const page = latest.current.page, at = sidebarAt(next.layout);
-        if (at && next.layout?.type === 'split') {
-          const sidebar = dock.getGroup((next.layout.children[at === 'first' ? 0 : next.layout.children.length - 1] as Group).id);
-          if (sidebar && Math.abs(sidebar.api.width - latest.current.sidebarWidth) > 1 && sidebarAt(page.layout) === at) {
+        const page = latest.current.page, found = sidebarOf(next.layout);
+        if (found) {
+          const sidebar = dock.getGroup(found.group.id);
+          if (sidebar && Math.abs(sidebar.api.width - latest.current.sidebarWidth) > 1 && sidebarOf(page.layout)?.at === found.at) {
             // Only a divider the person dragged changes it; a drop that squeezed it is undone.
             if (dividerDrag) latest.current.onSidebarWidth(clampSidebar(sidebar.api.width));
             else applyConstraints();
@@ -399,7 +436,14 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     });
     const subscriptions = [webOnly, dock.onWillDragPanel(dragging(true)), dock.onWillDragGroup(dragging(true)), dock.onDidDrop(dragging(false)), dock.onDidLayoutChange(dragging(false)),
       { dispose: () => { element.removeEventListener('keydown', tabKey); element.removeEventListener('pointerdown', pressed, true); window.removeEventListener('pointerup', lifted, true); clearTimeout(released); } },
-      dock.onDidLayoutChange(event => report([...event.reasons].every(reason => reason === 'geometry') ? 200 : 0)), dock.onDidMaximizedGroupChange(() => { bump(); refreshNativeWebViews(); }), dock.onDidActiveGroupChange(bump), dock.onDidAddPopoutGroup(() => { bump(); refreshNativeWebViews(); }), dock.onDidRemovePopoutGroup(() => { bump(); refreshNativeWebViews(); })];
+      dock.onDidLayoutChange(event => report([...event.reasons].every(reason => reason === 'geometry') ? 200 : 0)), dock.onDidMaximizedGroupChange(() => { bump(); refreshNativeWebViews(); }), dock.onDidActiveGroupChange(bump), dock.onDidAddPopoutGroup(event => { bump(); refreshNativeWebViews(); listenInPopout(event.window); }), dock.onDidRemovePopoutGroup(() => { bump(); refreshNativeWebViews(); })];
+    // Keys pressed in a popped-out window go to `onPopoutKey`, with the group that window holds.
+    function listenInPopout(popout: Window | undefined) {
+      popout?.addEventListener('keydown', event => {
+        const group = dock.getPopouts().find(value => value.window === popout)?.group;
+        if (group) latest.current.onPopoutKey?.(event, group.id);
+      });
+    }
     const observer = new ResizeObserver(() => {
       const box = element.getBoundingClientRect(), next = { width: Math.round(box.width), height: Math.round(box.height) };
       if (!next.width || !next.height || (next.width === size.current.width && next.height === size.current.height)) return;
@@ -426,6 +470,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     if (!dock) return;
     silently(() => {
       for (const panel of dock.panels) {
+        if (panel.id === EMPTY_CONTENT) continue;
         const saved = panelFrom(panel.id, panel.params), title = latest.current.titleOf(saved);
         if (panel.title !== title) panel.api.setTitle(title);
         const close = closes.current.get(panel.id), label = latest.current.closeLabel?.(saved, title) ?? `Close ${title} panel`;
@@ -461,7 +506,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     cycleGroups: step => {
       const dock = api.current;
       if (!dock || !dock.groups.length) return;
-      const order = dock.groups, index = order.findIndex(group => group === dock.activeGroup);
+      const order = dock.groups.filter(group => !group.panels.some(panel => panel.id === EMPTY_CONTENT)), index = order.findIndex(group => group === dock.activeGroup);
       const next = order[(index + step + order.length) % order.length];
       next.api.setActive();
       if (next.activePanel) handle.focusPanel(next.activePanel.id);
@@ -478,15 +523,38 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
       const box = container.current!.getBoundingClientRect();
       dock.addFloatingGroup(panel.group.panels.length > 1 ? panel : panel.group, { x: Math.round(box.width * 0.2), y: 48, width: Math.round(box.width * 0.5), height: Math.round(box.height * 0.6) });
     },
-    dockBack: groupID => {
+    dockBack: async groupID => {
       const dock = api.current, group = dock?.getGroup(groupID);
       if (!dock || !group) return;
-      if (group.api.location.type === 'popout') { group.api.getWindow().close(); return; }
+      if (group.api.location.type === 'popout') {
+        // Closing its window puts the group back where it was (dockview's reference group); the page comes forward on it.
+        const front = group.activePanel?.id, popout = group.api.getWindow();
+        const back = new Promise<void>(resolve => {
+          const finish = () => {
+            done.dispose(); clearTimeout(timer);
+            // Reported at once, so what is put back next (Put all back) finds this group in place.
+            const next = read();
+            if (next && !sameArrangement(next, latest.current.page)) latest.current.onArrange(next);
+            resolve();
+          };
+          const done = dock.onDidRemovePopoutGroup(event => { if (event.group === group || event.id === groupID) finish(); });
+          // A window that never reports closing does not hold up what comes after it.
+          const timer = window.setTimeout(finish, 2000);
+        });
+        popout.close();
+        window.focus();
+        await back;
+        if (front) requestAnimationFrame(() => handle.focusPanel(front));
+        return;
+      }
       // Into the page beside its largest docked group.
       const docked = dock.groups.filter(value => value.api.location.type === 'grid' && value !== group).sort((a, b) => b.api.width * b.api.height - a.api.width * a.api.height)[0];
       if (docked) group.api.moveTo({ group: docked, position: 'right' });
       else group.api.moveTo({ position: 'center' });
     },
+    focusWindow: groupID => { const group = api.current?.getGroup(groupID); if (group?.api.location.type === 'popout') group.api.getWindow().focus(); },
+    // While this page has the focus no popped-out window does (the palette here does not offer to put one back).
+    focusedPopout: () => document.hasFocus() ? undefined : api.current?.getPopouts().find(popout => { try { return popout.window.document.hasFocus(); } catch { return false; } })?.group.id,
     focusPanel: panelID => {
       const panel = api.current?.getPanel(panelID);
       if (!panel) return;
@@ -505,6 +573,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   return <div className="dock-layout">
     <div ref={container} className="dock-container"/>
     {empty && <div className="dock-empty">{props.empty}</div>}
+    {emptyHost && needsEmptyContent(props.page) && createPortal(props.empty, emptyHost)}
     {dock && [...actionHosts].map(([id, element]) => { const group = dock.getGroup(id); return group ? createPortal(props.renderActions(view(group as DockviewGroupPanel), handle), element, id) : null; })}
   </div>;
 });

@@ -1,7 +1,12 @@
-import type { AttentionDestination, AttentionHost, ChatTarget, NotificationPermission, WorkspaceHost } from '@lazybox/platform';
+import type { AttentionDestination, AttentionHost, ChatReturn, ChatTarget, NotificationPermission, WorkspaceHost } from '@lazybox/platform';
 
-/** Browser test host. Reconnect to existing views across an opener reload/close. */
-export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTarget, notifies = false): WorkspaceHost {
+/**
+ * Browser test host. Reconnect to existing views across an opener reload/close.
+ * A chat's window (`chat`) answers its owner on a broadcast channel: focus,
+ * dock and ping; it asks to go back with `putBack`, and says when it goes away.
+ * The owner hears both through `onChatReturn`.
+ */
+export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTarget, notifies = false): WorkspaceHost & { putBack?(): Promise<void> } {
   const attention = notifies ? browserAttention() : {};
   const channel = new BroadcastChannel(`lazybox-views:${scope}`);
   const waiting = new Map<string, (value: { ok: boolean; error?: string }) => void>();
@@ -10,7 +15,9 @@ export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTa
     const value = event.data;
     if (!value || typeof value.requestId !== 'string') return;
     if (value.reply) { waiting.get(value.requestId)?.(value); return; }
+    if (value.action === 'return' || value.action === 'leaving') { if (!chat) returned(value); return; }
     if (!chat || value.panelId !== chat.panelId) return;
+    if (value.action === 'ping') { channel.postMessage({ requestId: value.requestId, reply: true, ok: true }); return; }
     if (value.action === 'focus' && (value.sessionId !== chat.sessionId || value.collectionId !== chat.collectionId)) {
       channel.postMessage({ requestId: value.requestId, reply: true, ok: false, error: 'An existing chat window has another target. Bring it back before retargeting.' }); return;
     }
@@ -18,10 +25,28 @@ export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTa
     channel.postMessage({ requestId: value.requestId, reply: true, ok: true });
     if (value.action === 'dock') window.close(); else window.focus();
   };
+  // A chat window going away (closed, or reloading): its owner checks a moment later whether it is still there.
+  let putting = false;
+  if (chat) window.addEventListener('pagehide', () => { if (!putting) channel.postMessage({ requestId: crypto.randomUUID(), action: 'leaving', panelId: chat.panelId, collectionId: chat.collectionId }); }, { once: true });
   window.addEventListener('pagehide', () => channel.close(), { once: true });
-  const request = (action: string, target: Partial<ChatTarget> & { panelId: string }): Promise<boolean> => new Promise((resolve, reject) => {
+  const reopened = new Map<string, number>();
+  const returnListeners = new Set<(request: ChatReturn) => void>();
+  const emit = (request: ChatReturn) => { for (const listener of returnListeners) listener(request); };
+  function returned(value: { action: string; panelId?: unknown; collectionId?: unknown }) {
+    if (typeof value.panelId !== 'string') return;
+    const panelId = value.panelId, collectionId = typeof value.collectionId === 'string' ? value.collectionId : '';
+    if (value.action === 'return') { windows.delete(panelId); window.focus(); emit({ panelId, collectionId, reason: 'put-back' }); return; }
+    // Gone, or only reloading: a reloaded window answers again once it is up. One
+    // opened again for this panel meanwhile is a new window, not the one that left.
+    const left = Date.now();
+    setTimeout(() => void request('ping', { panelId }, 1500).then(open => { if (!open && !((reopened.get(panelId) ?? 0) >= left)) emit({ panelId, collectionId, reason: 'closed' }); }), 300);
+  }
+  // A chat window this page opened, closed by the person.
+  const watch = setInterval(() => { for (const [panelId, child] of windows) if (child.closed) { windows.delete(panelId); emit({ panelId, collectionId: '', reason: 'closed' }); } }, 500);
+  window.addEventListener('pagehide', () => clearInterval(watch), { once: true });
+  const request = (action: string, target: Partial<ChatTarget> & { panelId: string }, wait = 250): Promise<boolean> => new Promise((resolve, reject) => {
     const requestId = crypto.randomUUID();
-    const timer = setTimeout(() => { waiting.delete(requestId); resolve(false); }, 250);
+    const timer = setTimeout(() => { waiting.delete(requestId); resolve(false); }, wait);
     waiting.set(requestId, value => { clearTimeout(timer); waiting.delete(requestId); if (value.ok) resolve(true); else reject(new Error(value.error)); });
     channel.postMessage({ requestId, action, ...target });
   });
@@ -39,6 +64,8 @@ export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTa
       void opened;
     },
     async openChat(target) {
+      // A window this panel had before is not this one: its closing says nothing about the new one.
+      reopened.set(target.panelId, Date.now()); windows.delete(target.panelId);
       if (await request('focus', target)) return;
       const url = new URL(location.href);
       url.search = new URLSearchParams({ view: 'chat', panel: target.panelId, collection: target.collectionId, session: target.sessionId }).toString();
@@ -65,11 +92,20 @@ export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTa
       opened.focus();
     },
     async dockChat(panelId) {
-      if (await request('dock', { panelId })) return;
-      const child = windows.get(panelId);
-      if (child?.closed) { windows.delete(panelId); return; }
-      throw new Error('The detached browser view did not respond. Reopen it before bringing it back.');
+      windows.delete(panelId);
+      // A window that does not answer is gone already (closed, or not reopened after a reload): the chat comes back all the same.
+      await request('dock', { panelId });
+      window.focus();
     },
+    onChatReturn(listener) { returnListeners.add(listener); return () => { returnListeners.delete(listener); }; },
+    chatWindowOpen: panelId => request('ping', { panelId }, 600),
+    ...(chat ? {
+      async putBack() {
+        putting = true;
+        channel.postMessage({ requestId: crypto.randomUUID(), action: 'return', panelId: chat.panelId, collectionId: chat.collectionId });
+        window.close();
+      },
+    } : {}),
   };
 }
 

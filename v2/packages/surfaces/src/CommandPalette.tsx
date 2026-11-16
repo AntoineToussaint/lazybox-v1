@@ -131,6 +131,10 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
       key: `panel:${panel.kind}`, kind: 'panel', title: `Show ${panel.title}`, detail: 'Panel', extra: panel.title, icon: <Icon name={panel.icon} size={15}/>,
       run: () => navigator.showPanel!(panel.kind),
     }));
+    const windowItems: Item[] = (navigator.windows || []).map(item => ({
+      key: `window:${item.id}`, kind: 'panel', title: `Put ${item.title} back in main window`, detail: 'In another window', extra: `${item.title} dock attach return window`, icon: <Icon name="put-back" size={15}/>,
+      run: () => item.putBack(),
+    }));
     const artifactItems: Item[] = navigator.showPanel ? artifacts.map(artifact => ({
       key: `artifact:${artifact.id}`, kind: 'artifact', title: artifact.title || 'Untitled artifact', detail: `Artifact · ${artifact.kind || artifact.format}`, extra: artifact.trackedPath, icon: <Icon name="artifact" size={15}/>,
       run: () => { if (!openArtifact({ collectionId: artifact.collectionId, artifactId: artifact.id })) navigator.showPanel!('artifacts'); },
@@ -141,7 +145,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     })) : [];
     // The person's own actions (POWER.md), after the built-in ones.
     actions.push(...userPaletteItems().map(item => ({ ...item, icon: <Icon name={item.icon || 'play'} size={15}/> })));
-    return { actions, conversations, workspaces, settings, panels, artifactItems, missionItems };
+    return { actions, conversations, workspaces, settings, panels: [...windowItems, ...panels], artifactItems, missionItems };
   }, [keymap, navigator, inbox.rows, artifacts, missions.missions, workspaceId, userActions]);
 
   const fileItem = (path: string): Item => {

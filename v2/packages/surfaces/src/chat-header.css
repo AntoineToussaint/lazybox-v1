@@ -97,3 +97,9 @@
 .chat-heading-meta .subagent-attention::before{content:none}
 .chat-heading-meta .subagent-attention button{min-height:0!important;height:18px;line-height:calc(16px * var(--text-scale));font-size:calc(11px * var(--text-scale))!important}
 .chat-heading-meta .subagent-attention-show{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+/* A chat's own window leads with the way back (WindowControls.tsx). */
+.native-toolbar .put-back-button{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid var(--accent-solid);border-radius:6px;background:var(--accent-solid);color:var(--on-accent-solid);font-size:calc(11px * var(--text-scale));font-weight:550;white-space:nowrap}
+.native-toolbar .put-back-button:hover{background:var(--accent-solid-hover);border-color:var(--accent-solid-hover)}
+.native-toolbar .put-back-button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.native-toolbar .window-menu button{display:flex;align-items:center;gap:8px}
+.window-root{display:contents}

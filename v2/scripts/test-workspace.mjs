@@ -126,11 +126,11 @@ try {
   // The only content panel stays as a card, so the workspace list does not fill the page.
   await expect(chat.getByRole('heading', { name: 'Chat is in its own window', exact: true })).toBeVisible();
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0);
-  await expect(page.locator('.detached-tabs')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'In other windows' })).toBeVisible();
   await expect(popup.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await popup.getByRole('textbox', { name: 'Message', exact: true }).fill('draft from detached chat');
   let closed = popup.waitForEvent('close');
-  await page.locator('.detached-tabs').getByRole('button', { name: 'Bring back', exact: true }).click(); await closed;
+  await page.getByRole('region', { name: 'In other windows' }).getByRole('button', { name: /^Put .* back$/ }).click(); await closed;
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
   popupPromise = page.waitForEvent('popup');
   await chat.getByRole('button', { name: 'Open chat window ↗', exact: true }).click(); popup = await popupPromise;
@@ -141,10 +141,10 @@ try {
   // The only content panel stays as a card, so the workspace list does not fill the page.
   await expect(chat.getByRole('heading', { name: 'Chat is in its own window', exact: true })).toBeVisible();
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0);
-  await expect(page.locator('.detached-tabs')).toBeVisible();
-  await page.locator('.detached-tabs').getByRole('button', { name: /Chat in separate window/ }).click();
+  await expect(page.getByRole('region', { name: 'In other windows' })).toBeVisible();
+  await page.getByRole('region', { name: 'In other windows' }).getByRole('button', { name: /^Show / }).click();
   await expect(popup.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
-  closed = popup.waitForEvent('close'); await page.locator('.detached-tabs').getByRole('button', { name: 'Bring back', exact: true }).click(); await closed;
+  closed = popup.waitForEvent('close'); await page.getByRole('region', { name: 'In other windows' }).getByRole('button', { name: /^Put .* back$/ }).click(); await closed;
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
   // The chat brought back stays pinned to its conversation; choosing conversations in the
   // sidebar reuses it and never stacks a second panel on the same conversation.

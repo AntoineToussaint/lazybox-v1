@@ -82,6 +82,7 @@
     { "id": "activity-detail", "scope": "ui", "script": "test:activity-detail" },
     { "id": "code-run", "scope": "ui", "script": "test:code-run" },
     { "id": "docking", "scope": "ui", "script": "test:docking" },
+    { "id": "reattach", "scope": "ui", "script": "test:reattach" },
     { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" }
   ],
   "external": [

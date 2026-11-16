@@ -184,7 +184,7 @@ try{
  await tree.locator('[data-path="api/package.json"]').dblclick();
  await expect(popup.locator('section.workspace-panel.panel-editor').getByRole('tab')).toHaveCount(2);
  const closed=popup.waitForEvent('close');
- await popup.getByRole('button',{name:/^Bring Editor back$/}).click();
+ await popup.getByRole('button',{name:'Put back in main window'}).click();
  await closed;
  await expect(page.locator('section.workspace-panel.panel-editor')).toBeVisible();
  assert.equal(await page.locator('section.workspace-panel.panel-editor').getAttribute('data-identity'),'editor');

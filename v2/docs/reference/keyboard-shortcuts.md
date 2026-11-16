@@ -87,6 +87,8 @@ Open the parts of the workspace in front.
 | Previous panel group | `⌃⇧⇥` | `Ctrl+Shift+⇥` |
 | Float the active panel over the page | — | — |
 | Open the active panel in a new window | — | — |
+| Put back in main window | `⇧⌘D` | `Ctrl+Shift+D` |
+| Put all windows back | — | — |
 | Minimize or restore the active panel group | — | — |
 | Show a panel… | — | — |
 | Change the layout… | — | — |

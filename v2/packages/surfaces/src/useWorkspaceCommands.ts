@@ -16,6 +16,8 @@ type Commands = {
   workspaceId: string;
   workbench?: Workbench;
   registry: Readonly<Record<string, PanelModule>>;
+  /** Panels in windows of their own, each of which the palette can put back. */
+  windows?: { id: string; title: string; icon: string; putBack(): void }[];
   canStartConversation: boolean;
   terminalReady: boolean;
   canOpenWorkspaceWindow: boolean;
@@ -58,10 +60,12 @@ export function useWorkspaceCommands(commands: Commands): CommandNavigator {
     if (target.sessionId) showSession(target);
     else if (target.collectionId !== workspaceId) selectWorkspace(target);
   };
+  // The palette's list changes when a window comes or goes, not on every render.
+  const windowsKey = (commands.windows || []).map(item => `${item.id}:${item.title}`).join('|');
   const panels = useMemo(() => Object.entries(commands.registry).filter(([kind]) => !pageOnly.has(kind)).map(([kind, module]) => ({ kind, title: module.title, icon: module.icon || 'file' })), [commands.registry]);
   return useMemo(() => ({
-    collections: commands.collections, current: commands.selection, workbench: commands.workbench, panels,
+    collections: commands.collections, current: commands.selection, workbench: commands.workbench, panels, windows: commands.windows,
     goTo, showPanel: (kind: string) => latest.current.showPanel(kind),
     openSettings: commands.main ? (tab: string) => latest.current.openSettings(tab) : undefined,
-  }), [commands.collections, commands.selection, commands.workbench, panels, commands.main]);
+  }), [commands.collections, commands.selection, commands.workbench, panels, commands.main, windowsKey]);
 }

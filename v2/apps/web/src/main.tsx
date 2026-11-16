@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AgentWindow, ArtifactWindow, RemoteApp, WebWindow, Workspace, WindowErrorBoundary, installLinkRouting, openInViewer } from '@lazybox/surfaces';
+import { AgentWindow, ArtifactWindow, RemoteApp, WebWindow, WindowControls, Workspace, WindowErrorBoundary, installLinkRouting, openInViewer } from '@lazybox/surfaces';
 import { browserWorkspaceHost, dockWebPage, onDockedWebPage } from './browser-host';
 
 // A paired phone (REMOTE.md): served by the Runner's device gateway, it never
@@ -26,7 +26,7 @@ const viewState = { key: mode === 'chat' ? `${panelScope}:panel:${panelId}` : mo
 // A web window moved back: its page opens in the main window's Web panel.
 if (mode === 'workspace' && !initial.get('workspaceWindow')) onDockedWebPage(scope, url => openInViewer(url, true));
 const host = browserWorkspaceHost(scope, token, mode === 'chat' ? { panelId, sessionId: initial.get('session') || '', collectionId: initial.get('collection') || '' } : undefined, mode === 'workspace' && !initial.get('workspaceWindow'));
-createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}>{mode === 'web' ? <WebWindow id={initial.get('web') || 'page'} url={initial.get('url') || ''} viewState={viewState} onDock={async url => { dockWebPage(scope, url); window.close(); }}/> : mode === 'artifact' ? <ArtifactWindow connection={{ baseUrl: location.origin, token }} collectionId={initial.get('collection') || ''} artifactId={initial.get('artifact') || ''}/> : mode === 'workspace' ? <Workspace fixedWorkspaceId={initial.get('workspaceWindow') ? initial.get('collection') || undefined : undefined} connection={{ baseUrl: location.origin, token }} viewState={viewState} host={host} initialTarget={{ collectionId: initial.get('collection') || '', sessionId: initial.get('session') || '', commandId: '' }}/>: <AgentWindow
+createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}>{mode === 'web' ? <WebWindow id={initial.get('web') || 'page'} url={initial.get('url') || ''} viewState={viewState} onDock={async url => { dockWebPage(scope, url); window.close(); }}/> : mode === 'artifact' ? <ArtifactWindow connection={{ baseUrl: location.origin, token }} collectionId={initial.get('collection') || ''} artifactId={initial.get('artifact') || ''}/> : mode === 'workspace' ? <Workspace fixedWorkspaceId={initial.get('workspaceWindow') ? initial.get('collection') || undefined : undefined} connection={{ baseUrl: location.origin, token }} viewState={viewState} host={host} initialTarget={{ collectionId: initial.get('collection') || '', sessionId: initial.get('session') || '', commandId: '' }}/>: <div className={mode === 'chat' ? 'desktop-root' : 'window-root'}>{mode === 'chat' && <WindowControls applicationName="Lazybox" viewState={viewState} onPutBack={() => void host.putBack?.()} onWorkspace={() => window.opener?.focus()}/>}<AgentWindow
   connection={{ baseUrl: location.origin, token }}
   agent="claude"
   collectionId={initial.get('collection') || undefined}
@@ -46,5 +46,5 @@ createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErr
     const url = new URL(location.href); url.searchParams.set('session', session); url.searchParams.set('command', command);
     url.hash = new URLSearchParams({ token }).toString(); window.open(url, '_blank', 'noopener');
   }}
-/>}</WindowErrorBoundary></React.StrictMode>);
+/></div>}</WindowErrorBoundary></React.StrictMode>);
 }

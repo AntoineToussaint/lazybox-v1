@@ -264,7 +264,11 @@ how you arrange it:
 - **Drag a divider** to resize; a focused divider moves with the arrow keys
   and says its size. The Workspaces sidebar keeps **one width in pixels** for
   every workspace and window size: only dragging its own edge changes it, and
-  a panel dropped beside it does not squeeze it.
+  a panel dropped beside it does not squeeze it. A page whose only docked
+  panel is the sidebar (every other one closed, floating or in its own window)
+  shows an empty content area beside it with the page's empty state
+  (`EMPTY_CONTENT` in `dock-bridge.ts`, never saved), rather than a sidebar
+  across the page (`test:layout-stability` switches seven such pages).
 - **Double-click a tab** (or ⇧⌘M, or `] ] m`) to maximize its group; again to restore.
 - **Right-click a tab**, or **⋯** beside the tabs, for the group menu: Split
   right / down, Maximize, Minimize (to its tab bar, in a column; click the tab
@@ -286,8 +290,7 @@ how you arrange it:
 - **Open in new window** puts a group in a window of its own. Its panels stay
   the same panels, run by the main window: an editor keeps its unsaved edits,
   a terminal its shell, Files and the Editor keep sharing one workbench
-  (opening a file from Files or a chat goes to the Editor in that window). The
-  back arrow on the group, or closing the window, brings it back. A chat opens
+  (opening a file from Files or a chat goes to the Editor in that window). A chat opens
   instead in its own native window, which survives the main window, as
   before; a Web panel uses its own **Move to a new window** (its native view
   belongs to one window, so it is not popped out or dropped into a popped-out
@@ -295,6 +298,22 @@ how you arrange it:
   panel's native view steps aside while a tab is dragged and under a group
   floating over it, and follows its panel when the dock moves, maximizes or
   floats it.
+- **Putting a window back.** Every panel in a window of its own goes back the
+  same ways, to where it was: its group and place among the tabs, else beside
+  the groups it sat next to with the same side and share, else beside the
+  largest group (`placeBack` in `workspace-model.ts`; a popped-out group
+  returns to the group it left, dockview's reference group). In that window:
+  the labelled **Put back in main window** button (a chat's window toolbar, a
+  popped-out group's tab bar), ⇧⌘D (*Put back in main window*, rebindable, in
+  the Window menu of the desktop app), or closing the window — closing never
+  loses a panel. In the main window: the quiet **In other windows** strip under
+  the header lists each one with **Show** (its window to the front) and **Put
+  back**, plus **Put all back** with more than one; the palette offers *Put
+  … back in main window* for each and *Put all windows back*. A chat
+  goes back to the window it came from (the desktop host tells that window:
+  `return_chat`, `chat-return`), which comes forward on it. A saved chat whose
+  window is gone (closed while the main window was, or not restored) comes back
+  to the page when it loads.
 - **Layout** in the header applies a preset, shown as a picture: Chat focus
   (the default), Chat + Changes, Chat + Editor + Terminal, Review (Changes,
   Editor, Chat), Everything. **Save current layout as…** keeps the arrangement
@@ -367,7 +386,7 @@ layout; a layout that cannot be read is left untouched, with a notice and
 
 A conversation shows in at most one chat panel per page. Choosing a
 conversation reuses the page's chat panel, including one brought back from its
-own window (pinned to its conversation); **Bring back** removes the returning
+own window (pinned to its conversation); putting a chat back removes the returning
 panel when the page already shows that conversation; and saved pages with
 duplicate chat panels are repaired when they load.
 

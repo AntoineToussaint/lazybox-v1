@@ -156,6 +156,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             host::open_workspace,
             host::open_artifact,
             host::dock_chat,
+            host::return_chat,
+            host::chat_window_open,
             host::reopen_agent,
             host::set_action_menu,
             host::reopen_closed,

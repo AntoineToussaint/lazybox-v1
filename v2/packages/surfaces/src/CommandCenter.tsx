@@ -28,6 +28,8 @@ export type CommandNavigator = {
   workbench?: Workbench;
   panels?: { kind: string; title: string; icon: string }[];
   showPanel?(kind: string): void;
+  /** Panels in windows of their own: "Put <title> back in main window". */
+  windows?: { id: string; title: string; icon: string; putBack(): void }[];
   openSettings?(tab: string): void;
 };
 

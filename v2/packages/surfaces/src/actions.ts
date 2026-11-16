@@ -18,7 +18,7 @@ import type { MenuAction } from './context-menu-model';
  */
 export type ActionScope = 'global' | 'navigation' | 'agent';
 export type ActionGroup = 'General' | 'Go to' | 'Workspace' | 'Layout' | 'Conversation' | 'Voice' | 'Sidebar' | 'Message box';
-export type MenuSection = 'File' | 'Go' | 'Help';
+export type MenuSection = 'File' | 'Go' | 'Window' | 'Help';
 export type ActionDefinition = {
   id: string;
   title: string;
@@ -90,6 +90,9 @@ const tail = [
   { id: 'layout.previous-group', title: 'Previous panel group', group: 'Layout', icon: 'back', keys: 'Ctrl+Shift+Tab', scope: 'global', keywords: 'dock pane focus cycle' },
   { id: 'layout.float', title: 'Float the active panel over the page', group: 'Layout', icon: 'float', keys: '', scope: 'global', keywords: 'dock pane window overlay' },
   { id: 'layout.window', title: 'Open the active panel in a new window', group: 'Layout', icon: 'external', keys: '', scope: 'global', keywords: 'dock pane pop out detach second screen' },
+  // Panels in windows of their own (a chat's window, a popped-out group): back where they came from.
+  { id: 'window.put-back', title: 'Put back in main window', group: 'Layout', icon: 'put-back', keys: 'Mod+Shift+d', scope: 'global', keywords: 'dock attach reattach return window detached popout pop in bring back', menu: { section: 'Window', title: 'Put Back in Main Window' } },
+  { id: 'window.put-all-back', title: 'Put all windows back', group: 'Layout', icon: 'put-back', keys: '', scope: 'global', keywords: 'dock attach reattach return windows detached popouts bring back every' },
   { id: 'layout.minimize', title: 'Minimize or restore the active panel group', group: 'Layout', icon: 'minimize', keys: '', scope: 'global', keywords: 'dock pane collapse' },
   { id: 'layout.panels', title: 'Show a panel…', group: 'Layout', icon: 'panels', keys: '', scope: 'global', keywords: 'dock add open reopen panel' },
   { id: 'layout.presets', title: 'Change the layout…', group: 'Layout', icon: 'layout', keys: '', scope: 'global', keywords: 'dock preset arrangement save' },

@@ -56,7 +56,9 @@ function DetachedMessage({ canDetach, pending, onOpen, onDock }: { canDetach: bo
     <Icon name="external" size={24}/>
     <h3>Chat is in its own window</h3>
     <p>Your conversation continues there.</p>
-    <button disabled={!canDetach || pending} onClick={onOpen}>Open chat window ↗</button>
-    <button disabled={!canDetach || pending} onClick={onDock}>Bring chat back here</button>
+    <div className="detached-message-actions">
+      <button className="primary" disabled={!canDetach || pending} onClick={onDock}><Icon name="put-back" size={14}/>Put back here</button>
+      <button disabled={!canDetach || pending} onClick={onOpen}><Icon name="external" size={14}/>Show its window</button>
+    </div>
   </div>;
 }

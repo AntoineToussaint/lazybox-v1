@@ -14,6 +14,15 @@ type GroupPanelViewState = NonNullable<NonNullable<SerializedDockview['floatingG
 import { groups, isSidebar, normalize, type Binding, type Box, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
 
 export const PANEL_COMPONENT = 'panel';
+/**
+ * The content area of a page whose docked panels are only the sidebar (every
+ * other panel closed, floating or in a window): an empty group beside the
+ * sidebar, so the sidebar keeps its width instead of filling the page. It is
+ * dockview's only (no params): reading the layout back drops it, so it is never saved.
+ */
+export const EMPTY_CONTENT = 'lazybox-empty-content';
+/** Whether a page's docked arrangement is the sidebar alone, which then needs `EMPTY_CONTENT` beside it. */
+export const needsEmptyContent = (page: Pick<WorkspacePage, 'layout'>) => !!page.layout && isSidebar(page.layout);
 export const TAB_COMPONENT = 'tab';
 /** What dockview keeps for each panel: enough to rebuild the saved panel. */
 export type PanelParams = { kind: string; binding: Binding; detached?: boolean };
@@ -68,6 +77,12 @@ export function toDockview(page: Arranged, geometry: Geometry): SerializedDockvi
   const width = Math.max(1, Math.round(geometry.width)), height = Math.max(1, Math.round(geometry.height));
   let grid: SerializedDockview['grid'];
   if (!page.layout) grid = { root: { type: 'branch', data: [], size: height }, width, height, orientation: 'HORIZONTAL' as never };
+  else if (needsEmptyContent(page)) {
+    // The sidebar at its width, and the empty content area taking the rest.
+    const sidebar = Math.min(geometry.sidebarWidth, Math.max(MIN_PX, width - MIN_PX));
+    states[EMPTY_CONTENT] = { id: EMPTY_CONTENT, contentComponent: PANEL_COMPONENT, tabComponent: TAB_COMPONENT, title: '' };
+    grid = { root: { type: 'branch', size: height, data: [{ type: 'leaf', data: groupState(page.layout as Group), size: sidebar }, { type: 'leaf', data: { id: `g-${EMPTY_CONTENT}`, views: [EMPTY_CONTENT], activeView: EMPTY_CONTENT }, size: width - sidebar }] }, width, height, orientation: 'HORIZONTAL' as never };
+  }
   else if (page.layout.type === 'group') grid = { root: { type: 'branch', size: height, data: [{ type: 'leaf', data: groupState(page.layout), size: width }] }, width, height, orientation: 'HORIZONTAL' as never };
   else {
     const row = page.layout.direction === 'row';
