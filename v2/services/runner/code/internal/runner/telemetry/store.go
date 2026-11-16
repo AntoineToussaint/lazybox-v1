@@ -60,6 +60,7 @@ func Open(path string) (*SQLite, error) {
  CREATE INDEX IF NOT EXISTS usage_conversation ON usage(json_extract(body,'$.scope.conversation'));
  CREATE INDEX IF NOT EXISTS contexts_conversation ON contexts(json_extract(body,'$.scope.conversation'));
  CREATE TABLE IF NOT EXISTS baselines (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS commands (id TEXT PRIMARY KEY, workspace TEXT NOT NULL, execution TEXT NOT NULL, body TEXT NOT NULL);
  UPDATE usage SET body=json_set(body,'$.status','interrupted','$.reason','Runner stopped before final usage') WHERE json_extract(body,'$.status')='pending';`)
 	if err != nil {
 		db.Close()
@@ -93,6 +94,44 @@ func (s *SQLite) Put(ctx context.Context, r Record) error {
 	// A late partial/duplicate stream cannot erase a committed terminal snapshot.
 	_, err = s.db.ExecContext(ctx, `INSERT INTO usage VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=json_set(excluded.body,'$.scope',json_extract(usage.body,'$.scope')) WHERE json_extract(usage.body,'$.status')!='complete' OR (json_extract(excluded.body,'$.source')='sdk' AND json_extract(excluded.body,'$.tokens.output')>json_extract(usage.body,'$.tokens.output'))`, r.ID, r.Scope.Workspace, r.Scope.Execution, string(data))
 	return err
+}
+
+// PutCommand records one `lazybox run`; a repeated ID replaces it.
+func (s *SQLite) PutCommand(ctx context.Context, c CommandRun) error {
+	if c.ID == "" || len(c.ID) > 1024 || c.Scope.Execution == "" {
+		return errors.New("invalid command observation")
+	}
+	if c.ObservedAt.IsZero() {
+		c.ObservedAt = time.Now().UTC()
+	}
+	data, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO commands VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body`, c.ID, c.Scope.Workspace, c.Scope.Execution, string(data))
+	return err
+}
+
+// Commands lists the recorded runs of one execution in the order first recorded.
+func (s *SQLite) Commands(ctx context.Context, execution string) ([]CommandRun, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT body FROM commands WHERE execution=? ORDER BY rowid`, execution)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CommandRun{}
+	for rows.Next() {
+		var body string
+		var c CommandRun
+		if err = rows.Scan(&body); err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal([]byte(body), &c); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 func (s *SQLite) PutContext(ctx context.Context, c ContextSnapshot) error {
 	if !validScope(c.Scope) || c.Agent == "" {

@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestRepositoryWireRetainsLogicalIdentity(t *testing.T) {
@@ -46,7 +47,7 @@ func collectionService(t *testing.T) (*Service, *agenttest.Adapter) {
 			t.Fatalf("git fixture: %v %s", err, data)
 		}
 	}
-	b, err := runner.New(runner.Config{State: t.TempDir(), WorktreeRoot: t.TempDir(), Repositories: []collections.Repository{{ID: "api", Path: path}}})
+	b, err := runner.New(runner.Config{State: t.TempDir(), OutputFallbackRoot: t.TempDir(), WorktreeRoot: t.TempDir(), Repositories: []collections.Repository{{ID: "api", Path: path}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,6 +194,29 @@ func TestPipeAlsoRetainsCollectionUntilCaptureCompletes(t *testing.T) {
 	}
 	if _, err := s.ArchiveCollection(ctx, &pb.CollectionRequest{CollectionId: c.Id}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRunReportReachesTheConsoleThroughCommandStatus(t *testing.T) {
+	s, _ := collectionService(t)
+	c := createTestCollection(t, s)
+	ctx := context.Background()
+	e, err := s.Bench.OpenCollection("claude-default", c.Id, "", accounts.Options{}, "direct", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipe, err := s.RegisterPipe(ctx, &pb.RegisterPipeRequest{SessionId: e.ID, Title: "go test ./..."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := &pb.CommandReport{ExitCode: 1, OutputBytes: 1 << 20, AgentBytes: 2150, Filter: "go-test", OutputPath: "/state/go-1.log"}
+	status, err := s.FinishPipe(ctx, &pb.FinishPipeRequest{CommandId: pipe.Id, Report: report})
+	if err != nil || !proto.Equal(status.Report, report) || status.ExitCode != nil {
+		t.Fatalf("finish: %v %v", err, status)
+	}
+	list, err := s.ListCommands(ctx, &pb.ListCommandsRequest{SessionId: e.ID})
+	if err != nil || len(list.Commands) != 1 || !proto.Equal(list.Commands[0].Report, report) {
+		t.Fatalf("list: %v %v", err, list)
 	}
 }
 

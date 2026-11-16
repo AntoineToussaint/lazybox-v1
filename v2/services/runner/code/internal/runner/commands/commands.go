@@ -36,6 +36,19 @@ type Status struct {
 	ExitCode *int   `json:"exitCode,omitempty"`
 	Signal   string `json:"signal,omitempty"`
 	Error    string `json:"error,omitempty"`
+	// Report is what a `lazybox run` gave its agent; pipes only.
+	Report *Report `json:"report,omitempty"`
+}
+
+// Report compares what a `lazybox run` gave its agent with what the command
+// printed. The exit status is the command's own, reported by the CLI that ran
+// it: a pipe's capture alone never observes one.
+type Report struct {
+	ExitCode    int    `json:"exitCode"`
+	OutputBytes uint64 `json:"outputBytes"`
+	AgentBytes  uint64 `json:"agentBytes"`
+	Filter      string `json:"filter,omitempty"`
+	OutputPath  string `json:"outputPath,omitempty"`
 }
 
 type Output struct {
@@ -237,7 +250,14 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	return c, nil
 }
 
-func ptr(s Status) *Status { s.Spec.Env = nil; return &s }
+func ptr(s Status) *Status {
+	s.Spec.Env = nil
+	if s.Report != nil {
+		report := *s.Report
+		s.Report = &report
+	}
+	return &s
+}
 func (m *Manager) Get(id string) (*Command, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -288,12 +308,15 @@ func (c *Command) Publish(offset uint64, data []byte) error {
 	return c.write("merged", data, &offset)
 }
 
-func (c *Command) finish(exit *int, signal string, cause error) {
+func (c *Command) finish(exit *int, signal string, cause error) { c.complete(exit, signal, cause, nil) }
+
+func (c *Command) complete(exit *int, signal string, cause error, report *Report) {
 	c.once.Do(func() {
 		c.mu.Lock()
 		c.status.Done = true
 		c.status.ExitCode = exit
 		c.status.Signal = signal
+		c.status.Report = report
 		if cause != nil {
 			c.status.Error = cause.Error()
 		}
@@ -307,11 +330,20 @@ func (c *Command) finish(exit *int, signal string, cause error) {
 }
 
 // FinishPipe establishes capture EOF, never an upstream process exit status.
-func (c *Command) FinishPipe(cause error) error {
+func (c *Command) FinishPipe(cause error) error { return c.FinishPipeWith(cause, nil) }
+
+// FinishPipeWith also records what a `lazybox run` gave its agent. The report
+// is kept beside the status, not as its exit code: the Runner did not observe
+// the process.
+func (c *Command) FinishPipeWith(cause error, report *Report) error {
 	if c.Status().Mode != "pipe" {
 		return errors.New("managed command owns its completion")
 	}
-	c.finish(nil, "", cause)
+	if report != nil {
+		copied := *report
+		report = &copied
+	}
+	c.complete(nil, "", cause, report)
 	return nil
 }
 

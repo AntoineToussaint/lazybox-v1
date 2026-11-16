@@ -46,13 +46,17 @@ runs the command itself, so it knows the real exit status and keeps stdout and
 stderr apart. It:
 
 1. streams every byte to the session's console as it arrives;
-2. saves the full output to a private file;
+2. saves the full output to a private file in the session's output directory
+   (see Retention below);
 3. gives the agent a compact view built by
    [gortk](https://github.com/codefly-dev/gortk): a first line with the
    command and exit status, the output with passing and progress lines
    dropped and secrets masked, what was dropped, and the full-output path
    when anything was dropped or the command failed;
-4. exits with the command's own status.
+4. exits with the command's own status;
+5. reports to the Runner, when it closes the console capture, what the agent
+   received: its exit status, the size of the agent's view against the full
+   output, the gortk filter and the full-output path.
 
 Commands get no stdin, so nothing waits for input. If the Runner is
 unreachable, the command still runs and the agent still gets its view.
@@ -60,6 +64,25 @@ unreachable, the command still runs and the agent still gets its view.
 
 `cmd | lazybox log` is unchanged: a transparent tee for output from a producer
 lazybox did not start. It cannot know the exit status, so `run` is preferred.
+
+**The console follows runs.** When a command starts in the session being
+viewed, a collapsed "Command output" panel opens on it, without taking focus
+from the composer. It opens once per command: closed again, it stays closed
+until the next run, and commands that existed before the session was opened
+never open it. Each run's header reads, for example, `exit 1 · agent saw
+2.1 KiB of 1.4 MiB (go-test filter)`, with the full-output path to copy. The
+Runner records the same numbers in telemetry (`commands` table, one row per
+run) to measure savings (step 6).
+
+**Retention.** The Runner gives every execution
+`LAZYBOX_V2_OUTPUT_DIR=<state>/command-output/<execution id>`. Deleting a
+conversation deletes the directories of all its executions. Both output roots
+together are bounded (1 GiB by default, `commandOutputBudget` in the Runner
+config): after each run the oldest files are deleted first, but never a file
+modified in the last hour, so a path the agent was just given stays readable.
+When the variable is absent, or its directory is not writable, the CLI falls
+back to `$TMPDIR/lazybox-output/<execution id>` (or `$TMPDIR/lazybox-output`
+outside a session); the Runner deletes and bounds that directory too.
 
 **Every coding agent is told about it.** The Runner appends a fixed briefing
 (`internal/runner/command_output.go`) after the editable Settings → Agents
@@ -76,10 +99,10 @@ binary exists.
 | 2 | Briefing and PATH for every coding agent; launcher builds the CLI for Dev and staged releases | Done |
 | 3 | **Deliver changed instructions to live sessions.** A session is stale when a current shared section (Settings text, provider text, command briefing) is missing from what it started with and it has not received this update. The chat shows a note; the update travels with the next message as its own block, worded as a replacement (Claude: a text block ahead of the user's; Codex: an input item, since this `turn/start` has no context field). Recorded per conversation and inherited by resumes, so it is sent once. Removing text from Settings is not propagated. | Done |
 | 4 | **Live permission change** from the session menu (Ask / Read only / YOLO). Claude: `setPermissionMode()`, and while in YOLO the worker approves tool requests itself, so sessions started without the bypass flag still switch. Codex: `approvalPolicy`/`sandboxPolicy` on following turns. Saved to the session record, so resume and account rotation keep it. A request already waiting still needs one answer. | Done |
-| 5 | **Console polish.** Open the console when a run starts in the viewed session; label each run with what the agent received (bytes in → out, filter, exit); open the full-output file from the console. | Planned |
-| 6 | **Measure before going further.** Record per-run bytes in/out and the gortk filter in telemetry. Judge by cost per completed task and failure rate, not bytes saved. | Planned |
+| 5 | **Console polish.** Open the console when a run starts in the viewed session; label each run with what the agent received (bytes in → out, filter, exit); open the full-output file from the console. | Done, except opening the file: the console copies its path, since a browser view cannot open local files and the desktop shell has no open-file action yet |
+| 6 | **Measure before going further.** Record per-run bytes in/out and the gortk filter in telemetry. Judge by cost per completed task and failure rate, not bytes saved. | Recording done (telemetry `commands`); no report or analysis yet |
 | 7 | **Opt-in automatic wrapping** of known noisy commands (test, build, lint, install) through a Claude `PreToolUse` rewrite and the Codex equivalent. Only with step 6 showing a benefit; fall back to the original command on any wrapper error to avoid retry loops. | Later |
-| 8 | **Retention.** Delete full-output files with their session; bound total size. Today they live in the system temp directory. | Planned |
+| 8 | **Retention.** Delete full-output files with their session; bound total size. | Done |
 
 ## Known limits
 
@@ -88,6 +111,15 @@ binary exists.
 - Codex's `workspace-write` sandbox may block the CLI's connection to the
   Runner. The command still runs and the agent still gets its view; the
   report says the console did not receive it.
+- That sandbox lets a command write only in the workspace and the temp
+  directories, so under Codex in Ask mode full-output files land in the temp
+  fallback rather than the Runner's state. They are still deleted with the
+  conversation and bounded, but the system may also clear the temp directory
+  on its own. A Codex agent that changes `TMPDIR` writes where the Runner does
+  not look.
+- The console opens only for runs it sees start while the session is viewed:
+  it polls every 1.5 s, so a run that starts while switching sessions is in
+  the list but does not open the panel.
 - The compact view is built from the first 32 MiB of each stream. The console
   and the file keep everything.
 - Commands needing a terminal (TUIs, password prompts) are out of scope; the

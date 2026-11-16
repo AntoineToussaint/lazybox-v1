@@ -60,6 +60,18 @@ type ContextSnapshot struct {
 	Categories []Category `json:"categories,omitempty"`
 	ObservedAt time.Time  `json:"observedAt"`
 }
+
+// CommandRun is what one `lazybox run` gave its agent against what the command
+// printed: the evidence for judging output compression (COMMAND_OUTPUT.md).
+type CommandRun struct {
+	ID          string    `json:"id"`
+	Scope       Scope     `json:"scope"` // Execution is required; the rest when known.
+	Filter      string    `json:"filter"`
+	ExitCode    int       `json:"exitCode"`
+	OutputBytes uint64    `json:"outputBytes"`
+	AgentBytes  uint64    `json:"agentBytes"`
+	ObservedAt  time.Time `json:"observedAt"`
+}
 type Query struct {
 	Workspace, Execution, Conversation string
 	Prices                             Pricer
@@ -89,6 +101,7 @@ type Store interface {
 	PutContext(context.Context, ContextSnapshot) error
 	Report(context.Context, Query) (Report, error)
 	LatestModel(context.Context, string) (string, error)
+	PutCommand(context.Context, CommandRun) error
 	Close() error
 }
 type Pricer interface{ Price(Record) Record }

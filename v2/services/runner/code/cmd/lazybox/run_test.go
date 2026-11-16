@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,63 @@ func TestRunStreamsEverythingToConsoleAndKeepsExitStatus(t *testing.T) {
 	saved, readErr := os.ReadFile(path)
 	if readErr != nil || !strings.Contains(string(saved), "visible") || !strings.Contains(string(saved), "broken") {
 		t.Fatalf("full output file incomplete: %v %q", readErr, saved)
+	}
+}
+
+func TestRunReportsToTheConsoleWhatTheAgentReceived(t *testing.T) {
+	c := &recordingConsole{}
+	var stdout bytes.Buffer
+	dir := t.TempDir()
+	// Far more output than the compact view keeps.
+	script := "for i in $(seq 1 4000); do echo \"ok   example.com/pkg$i 0.01s\"; done; echo '--- FAIL: TestX'; exit 1"
+	err := runCommand(context.Background(), c, nil, runOptions{session: "execution", outputDir: dir}, []string{"sh", "-c", script}, &stdout, &bytes.Buffer{})
+	var exit processExit
+	if !errors.As(err, &exit) || exit != 1 {
+		t.Fatalf("exit status not preserved: %v", err)
+	}
+	r := c.finished.GetReport()
+	if r == nil {
+		t.Fatal("the capture closed without a report")
+	}
+	if r.ExitCode != 1 || r.OutputBytes != uint64(c.published.Len()) || r.AgentBytes != uint64(stdout.Len()) || r.Filter == "" {
+		t.Fatalf("report does not match the run: %+v (published %d, agent %d)", r, c.published.Len(), stdout.Len())
+	}
+	if r.AgentBytes >= r.OutputBytes {
+		t.Fatalf("the agent should have received a compact view: %+v", r)
+	}
+	if !strings.HasPrefix(r.OutputPath, dir+string(os.PathSeparator)) || !strings.Contains(stdout.String(), r.OutputPath) {
+		t.Fatalf("report must name the file the agent was pointed at: %+v %q", r, stdout.String())
+	}
+	stdout.Reset()
+	c = &recordingConsole{}
+	if err = runCommand(context.Background(), c, nil, runOptions{session: "execution", outputDir: dir, raw: true}, []string{"sh", "-c", "echo raw"}, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	if r = c.finished.GetReport(); r.Filter != "raw" || r.ExitCode != 0 || r.OutputBytes != 4 {
+		t.Fatalf("raw run report: %+v", r)
+	}
+}
+
+func TestRunFallsBackToTheTempDirectoryWhenTheSessionDirectoryIsNotWritable(t *testing.T) {
+	temp := t.TempDir()
+	t.Setenv("TMPDIR", temp)
+	blocked := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(blocked, nil, 0o600); err != nil { // a file where the directory should be
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	if err := runCommand(context.Background(), nil, errors.New("offline"), runOptions{session: "EXECUTION1", outputDir: filepath.Join(blocked, "EXECUTION1")}, []string{"sh", "-c", "echo hi; exit 2"}, &stdout, &bytes.Buffer{}); err == nil {
+		t.Fatal("exit status lost")
+	}
+	if want := filepath.Join(temp, "lazybox-output", "EXECUTION1") + string(os.PathSeparator); !strings.Contains(stdout.String(), want) {
+		t.Fatalf("full output should fall back under the session's id in the temp directory (%s): %q", want, stdout.String())
+	}
+	stdout.Reset()
+	if err := runCommand(context.Background(), nil, errors.New("offline"), runOptions{session: "../escape", outputDir: ""}, []string{"sh", "-c", "exit 2"}, &stdout, &bytes.Buffer{}); err == nil {
+		t.Fatal("exit status lost")
+	}
+	if want := filepath.Join(temp, "lazybox-output") + string(os.PathSeparator) + "sh-"; !strings.Contains(stdout.String(), want) {
+		t.Fatalf("an unsafe session id must not name a directory: %q", stdout.String())
 	}
 }
 

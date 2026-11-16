@@ -463,6 +463,22 @@ message PublishRequest {
 message FinishPipeRequest {
   string command_id = 1;
   string capture_error = 2;
+  // What a `lazybox run` gave its agent. Absent for a plain pipe (`lazybox log`).
+  CommandReport report = 3;
+}
+// CommandReport is what a `lazybox run` gave the agent compared with what the
+// command printed, so the console can label the run and telemetry can measure it.
+message CommandReport {
+  // The command's own exit status, which a pipe's capture cannot observe.
+  int32 exit_code = 1;
+  // Everything the command printed, stdout and stderr.
+  uint64 output_bytes = 2;
+  // The size of the view the agent received.
+  uint64 agent_bytes = 3;
+  // The gortk filter that built the view: "passthrough" when none matched, "raw" for --raw.
+  string filter = 4;
+  // The file holding the full output; empty when it could not be saved.
+  string output_path = 5;
 }
 message CommandStatus {
   string id = 1;
@@ -475,6 +491,7 @@ message CommandStatus {
   string signal = 8;
   string capture_error = 9;
   repeated string argv = 10;
+  CommandReport report = 11;
 }
 message ListCommandsRequest {
   string session_id = 1;

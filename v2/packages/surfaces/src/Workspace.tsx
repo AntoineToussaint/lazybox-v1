@@ -16,6 +16,7 @@ import { ChatPanel } from './AgentWindow';
 import { ConversationList } from './ConversationList';
 import { CollectionPanel } from './CollectionPanel';
 import { CommandPanel } from './CommandPanel';
+import { useCommandRuns } from './command-runs';
 import { mergeConversations } from './conversation-model';
 import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
@@ -134,6 +135,15 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   useEffect(() => {
     if (onTargetChange) void Promise.resolve(onTargetChange(page.selection)).catch(error => setError(String(error)));
   }, [onTargetChange, page.selection.collectionId, page.selection.sessionId, page.selection.commandId]);
+  // A run starting in the viewed session opens the console on it, once per run:
+  // closing the console keeps it closed until the next run. Focus stays put.
+  useCommandRuns(api, page.selection.sessionId, commandId => {
+    const live = current.current.pages.find(value => value.id === page.id);
+    if (!live || locked || editing || live.selection.sessionId !== page.selection.sessionId) return;
+    const follows = (panel: Panel) => panel.kind === 'console' && panel.binding.mode === 'follow' && !panel.detached;
+    if (!panels(live.layout).some(follows)) return;
+    changePage({ ...live, selection: { ...live.selection, commandId }, layout: mapPanels(live.layout, panel => follows(panel) ? { ...panel, collapsed: false } : panel) });
+  });
   const canShowNewSession = panels(page.layout).some(p => p.kind === 'chat' && p.binding.mode === 'follow' && !p.detached) || panels(page.layout).length < 12;
   const showSession = (selection: ViewTarget) => {
     setMobilePanelId('');
