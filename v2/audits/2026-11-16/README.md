@@ -85,6 +85,10 @@ docs, Cursor/Copilot/Devin changelogs, herdr.dev).
 | Scheduled / triggered agents | ✗ | ✓ | ✗ | ✓ | ✓ | ◐ | ✓ | ✓ |
 | Programmable control plane (API/MCP) | ◐ CLI + API | ✓ | ✓ | ✓ | ? | ✓ | ? | ? |
 
+The interface itself — agents list, panes, palette, terminal, theming —
+against herdr's desktop and phone apps, with a prioritized list of UI
+changes: [herdr-gui.md](herdr-gui.md).
+
 Market notes that matter for strategy: Conductor was acquired by Meta on
 Nov 4 and partly reversed course on Nov 13; Vibe Kanban, Crystal and Terragon
 shut down or were abandoned this year. Local-first, open state formats are a
