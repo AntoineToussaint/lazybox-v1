@@ -59,20 +59,16 @@ export function useBrowserWatch(api: RunnerClient, sessionId: string): BrowserWa
   return { ...watch, adopt };
 }
 
-// Settings → Browser, read once per window and kept fresh by saves.
+// Settings → Browser, read once per window when a browser first starts, and
+// kept fresh by saves. A window whose agents never browse never reads them.
 let cached: BrowserSettings | undefined;
-const listeners = new Set<(settings: BrowserSettings) => void>();
+let loading: Promise<BrowserSettings | undefined> | undefined;
 /** Tells every reader of the browser settings in this window about a save. */
-export function publishBrowserSettings(settings: BrowserSettings) { cached = settings; for (const listener of listeners) listener(settings); }
-/** The Runner's browser settings, loaded on first use. */
-export function useBrowserSettings(api: RunnerClient): BrowserSettings | undefined {
-  const [settings, setSettings] = useState(cached);
-  useEffect(() => {
-    listeners.add(setSettings);
-    if (!cached) void api.getBrowserSettings({}).then(publishBrowserSettings, () => { /* the default (show the panel) applies */ });
-    return () => { listeners.delete(setSettings); };
-  }, [api]);
-  return settings;
+export function publishBrowserSettings(settings: BrowserSettings) { cached = settings; }
+function browserSettings(api: RunnerClient): Promise<BrowserSettings | undefined> {
+  if (cached) return Promise.resolve(cached);
+  // The default (show the panel) applies when the read fails; a later start reads again.
+  return loading ??= api.getBrowserSettings({}).then(settings => { publishBrowserSettings(settings); return settings; }, () => undefined).finally(() => { loading = undefined; });
 }
 
 // Conversations whose browser this window has seen, and how: a browser that
@@ -84,7 +80,6 @@ const seen = new Map<string, boolean>();
  * a panel the person closes stays closed until the agent opens a browser again.
  */
 export function useBrowserAutoShow(api: RunnerClient, conversation: string, state: BrowserState | undefined, show?: () => void) {
-  const settings = useBrowserSettings(api);
   const latest = useRef(show); latest.current = show;
   const live = browsing(state);
   useEffect(() => {
@@ -92,6 +87,9 @@ export function useBrowserAutoShow(api: RunnerClient, conversation: string, stat
     const before = seen.get(conversation);
     seen.set(conversation, live);
     // First sight is not a start: a window opening on a browsing conversation does not move panels.
-    if (before === false && live && settings?.showPanel !== false) latest.current?.();
+    if (before !== false || !live) return;
+    let current = true;
+    void browserSettings(api).then(settings => { if (current && settings?.showPanel !== false) latest.current?.(); });
+    return () => { current = false; };
   }, [conversation, live]);
 }
