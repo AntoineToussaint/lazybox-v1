@@ -68,7 +68,10 @@ try{
 
  // Open in console: the workspace's command output shows it.
  await bar.getByRole('button',{name:'Open in console'}).click();
- await expect(page.locator('.command-panel')).toContainText('CHECK_TAIL_LINE');await page.screenshot({path:'.cache/subagents-live-bar-console.png'});
+ await expect(page.locator('.command-panel')).toContainText('CHECK_TAIL_LINE');
+ // The console says the command is running and can stop it itself.
+ await expect(page.locator('.command-panel .console-state [role=status]')).toHaveText('Running');
+ await expect(page.locator('.command-panel').getByRole('button',{name:'Stop',exact:true})).toBeVisible();await page.screenshot({path:'.cache/subagents-live-bar-console.png'});
  {const box=await bar.boundingBox(),pane=await chat.locator('.messages').boundingBox();assert.ok(pane.y+pane.height<=box.y+1,'a short chat keeps the bar clear of the messages');}
 
  // Stop says what it stops: the command, not the turn.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AgentRequestCard, type RequestCardProps } from './RequestCards';
 import { follow, type RunnerClient } from '@lazybox/client-core';
 import type { CommandStatus } from '@lazybox/protocol';
@@ -16,7 +16,12 @@ export function RequestCard(props: RequestCardProps) {
 
 /** onSendToAgent adds text to the viewed conversation's message and returns
  * "" or why it could not. Offered for runs from a workspace terminal. */
-export function Console({ api, command, onOpenViewer, viewState, onError, onSendToAgent }: { api: RunnerClient; command: string; onOpenViewer?: () => void; viewState?: ViewStateStore; onError?: (error: string) => void; onSendToAgent?: (text: string) => string }) {
+/**
+ * One command's output. `toolbar` makes it the compact, docked form: what the
+ * host passes (the command picker) leads a single row with the outcome, Stop,
+ * find and copy, so a short panel is output, not chrome.
+ */
+export function Console({ api, command, onOpenViewer, viewState, onError, onSendToAgent, toolbar }: { api: RunnerClient; command: string; onOpenViewer?: () => void; viewState?: ViewStateStore; onError?: (error: string) => void; onSendToAgent?: (text: string) => string; toolbar?: ReactNode }) {
   const [text, setText] = useState('');
   const [status, setStatus] = useState('Connecting');
   const [metadata, setMetadata] = useState<CommandStatus>();
@@ -84,15 +89,21 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     onOpenViewer && { label: 'Open output in a window', icon: 'external', run: onOpenViewer },
     fromTerminal && onSendToAgent && { label: 'Send to agent', icon: 'send', disabled: !metadata?.done ? 'Available when the output ends' : !view && 'This run has no compact view', run: sendToAgent },
   ], { commandId: command });
-  return <section className="console" onContextMenu={menu}><div className="panel-title"><div><span className="eyebrow">{runtimeEyebrow || (fromTerminal ? 'From your terminal' : 'Shared console')}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="close" size={12}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status">{outcome.text}</span></span></div>
+  const size = formatBytes(offset);
+  const state = <span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="stop" size={11}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status" title={`${size} of output so far`}>{outcome.text}</span></span>;
+  return <section className={`console${toolbar ? ' console-docked' : ''}`} onContextMenu={menu}>{!toolbar && <div className="panel-title"><div><span className="eyebrow">{runtimeEyebrow || (fromTerminal ? 'From your terminal' : 'Shared console')}</span><h2>{metadata?.title || 'Command output'}</h2></div>{state}</div>}
     {/* Shown in every console, including the workspace's (which hides the title): what an agent gets, and the hand-over. */}
     {(report || (fromTerminal && onSendToAgent)) && <div className="command-meta">{fromTerminal && <span className="command-origin">From your terminal</span>}
       {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report, fromTerminal)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy log path</button>}</p>}
       {fromTerminal && onSendToAgent && <p className="command-share"><button className="primary" disabled={!metadata.done || !view} title={shareTitle} onClick={sendToAgent}>Send to agent</button>{handed ? <small role={handed.ok ? 'status' : 'alert'} className={handed.ok ? '' : 'error-text'}>{handed.text}</small> : <small>{metadata.done ? view ? `The agent gets ${formatBytes(report!.agentBytes)}, not the ${formatBytes(report!.outputBytes)} above.` : '' : 'You can send it to an agent when the output ends.'}</small>}</p>}</div>}
-    <div className="console-tools"><input aria-label="Search output" placeholder="Find in output…" value={search} onChange={e => { setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/><button onClick={() => navigator.clipboard.writeText(stripAnsi(text)).catch(error => onError?.(String(error)))}>Copy</button>{onOpenViewer && <button onClick={onOpenViewer}>Open viewer ↗</button>}</div>
+    <div className="console-tools">{toolbar}{toolbar && state}<input aria-label="Search output" placeholder="Find in output…" value={search}
+      onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); restoreScroll.current = null; saveView('', followOutput); } }}
+      onChange={e => { setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/>{toolbar
+        ? <><button className="icon-button" aria-label="Copy output" title="Copy the output" disabled={!text} onClick={() => copyText(stripAnsi(text), 'Copied output')}><Icon name="copy" size={14}/></button>{onOpenViewer && <button className="icon-button" aria-label="Open output in a window" title="Open this output in its own window" onClick={onOpenViewer}><Icon name="external" size={14}/></button>}</>
+        : <><button onClick={() => navigator.clipboard.writeText(stripAnsi(text)).catch(error => onError?.(String(error)))}>Copy</button>{onOpenViewer && <button onClick={onOpenViewer}>Open viewer ↗</button>}</>}</div>
     <pre ref={pane} tabIndex={0} className="output" data-testid="console-output" onWheel={() => { restoreScroll.current = null; }} onScroll={event => { const node = event.currentTarget; const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 24; if (restoreScroll.current !== null) return; if (atEnd !== followOutput) setFollowOutput(atEnd); saveView(search, atEnd); }}>{text ? <AnsiText text={text} filter={search}/> : 'Waiting for output…'}</pre>
     {!followOutput && text && <button className="console-jump" onClick={() => { setFollowOutput(true); restoreScroll.current = null; pane.current?.scrollTo({ top: pane.current.scrollHeight }); saveView(search, true); }}>↓ Latest output</button>}
-    <footer><span className="mono">{command.slice(0, 12)} · {offset.toString()} bytes</span><span>{metadata?.captureError || (metadata?.done ? metadata.exitCode === undefined ? report && !report.piped ? `Exit ${report.exitCode}` : 'Capture EOF · upstream exit unknown' : `Exit ${metadata.exitCode}${metadata.signal ? ' · ' + metadata.signal : ''}` : 'Running')}</span></footer>
+    <footer><span className="mono" title={`Command ${command}`}>{size} of output</span><span>{metadata?.captureError || (metadata?.done ? metadata.exitCode === undefined ? report && !report.piped ? `Exit ${report.exitCode}` : 'Capture EOF · upstream exit unknown' : `Exit ${metadata.exitCode}${metadata.signal ? ' · ' + metadata.signal : ''}` : 'Running')}</span></footer>
     <small className="retention">Showing up to the last 512 KiB. Full retained output is available through command reads until the configured spool budget is exhausted.</small>
   </section>;
 }

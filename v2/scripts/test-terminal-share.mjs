@@ -58,7 +58,7 @@ try {
   await expect(composer).toHaveValue(expected);
   await expect(composer).toBeFocused();
   assert.equal(await composer.evaluate(box => box.selectionStart), expected.length, 'the cursor goes after the added output');
-  await expect(panel.getByRole('status')).toContainText('Added 247 B to your message');
+  await expect(panel.locator('.command-share').getByRole('status')).toContainText('Added 247 B to your message');
   await expect(chat.locator('.composer-handover')).toContainText('Review it, add what you want, and send.');
   assert.ok(!(await composer.inputValue()).includes('FULL_OUTPUT_ONLY_MARKER'), 'the agent never gets the full output');
   assert.equal(fixture.mutations.filter(m => m.method === 'Apply').length, 0, 'nothing is sent until the person sends');

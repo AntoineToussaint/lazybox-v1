@@ -136,17 +136,24 @@
 .embedded-chat .event-detail{display:none}
 .embedded-chat .session-setup{max-width:500px;padding:50px 30px}.embedded-chat .session-setup h2{font-size:24px;letter-spacing:-.7px}.embedded-chat .session-setup p{font-size:12px;color:#898b99}.embedded-chat .open-form{gap:18px;margin-top:24px}.embedded-chat .session-options{border-color:#3a3945;background:#202128;padding:12px}.embedded-chat .session-options summary{font-size:10px;color:#9c96b0}.embedded-chat .setup-row,.embedded-chat .options-grid{gap:14px}
 .command-panel{display:flex;flex-direction:column;flex:1;min-height:0;background:#191a20}
-.command-picker{padding:10px 18px;border-bottom:1px solid var(--line)}
-.command-picker>select{font-size:11px;background:transparent;border:0;padding:0;color:#a2a3b1}
-.command-panel .console{display:flex;flex-direction:column;flex:1;min-height:100px;margin:0;border:0;border-radius:0;background:#17181e}
-.command-panel .console>.panel-title{display:none}
-.command-panel .console-tools{gap:10px;padding:7px 18px;border-color:var(--line);background:#1b1c23}
-.command-panel .console-tools label{font-size:10px;color:#7f818e}
-.command-panel .console-tools input:not([type=checkbox]){max-width:180px;border-color:#34353e;background:#202128;font-size:10px;padding:5px 8px}
-.command-panel .console-tools button{font-size:10px;padding:4px 7px;color:#898b99}
-.command-panel .output{flex:1;min-height:90px;height:auto;margin:0;background:#17181e;color:#b6b7c7;font-size:11px;line-height:1.8;padding:16px 20px}
-.command-panel .console footer{padding:8px 18px;font-size:9px;border-color:var(--line);color:#747783}
-.command-panel .retention{display:none}
+/* The docked console is one row of controls (which command, how it ended, Stop, find, copy) and then output. */
+.command-panel .console{display:flex;flex-direction:column;flex:1;min-height:0;margin:0;border:0;border-radius:0;background:#17181e}
+.command-panel .console-tools{order:-1;flex:none;flex-wrap:wrap;gap:6px 8px;min-height:38px;padding:5px 10px 5px 16px;border-bottom:1px solid var(--line);background:#1b1c23}
+.command-panel .command-picker{flex:1 1 180px;min-width:0;display:flex;flex-direction:row;align-items:center;padding:0;border:0}
+.command-panel .command-picker>select{width:100%;min-width:0;font-size:12px;background-color:transparent;border:0;padding:4px 22px 4px 0;color:#d3d4de;text-overflow:ellipsis}
+.command-panel .console-state{flex:none;gap:6px}
+.command-panel .console-state .pill{padding:2px 9px;font-size:11px;white-space:nowrap;max-width:none}
+.command-panel .console-tools input:not([type=checkbox]){flex:0 1 180px;min-width:90px;width:auto;border-color:#34353e;background:#202128;font-size:12px;padding:4px 8px}
+.command-panel .console-tools .icon-button{flex:none;width:26px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:5px;background:transparent;color:#9698a5}
+.command-panel .console-tools .icon-button:hover:not(:disabled){background:#2b2c34;color:#ececf2}
+.command-panel .console-tools .icon-button:disabled{opacity:.4}
+.command-panel .command-meta{flex:none;padding:5px 16px;border-color:var(--line)}
+.command-panel .command-report{font-size:11px}
+.command-panel .command-report button{font-size:11px}
+.command-panel .output{flex:1;min-height:0;height:auto;margin:0;background:#17181e;color:#c3c4d2;font-size:12px;line-height:1.6;padding:10px 16px}
+/* The pill says how it ended and the report line the sizes: no second status row. */
+.command-panel .console>footer,.command-panel .retention{display:none}
+.command-panel>.console-tools+.module-empty,.command-panel>.module-empty{margin:auto;padding:16px;max-width:52ch;text-align:center}
 .page-config{display:flex;align-items:end;gap:10px;padding:12px 16px;border-bottom:1px solid #494252;background:#24222c;flex-shrink:0;flex-wrap:wrap}
 .page-config form{display:flex;align-items:end;gap:7px}.page-config input{max-width:150px}.page-config label{font-size:10px}.page-config button{font-size:10px;padding:7px 9px}
 .panel-config{display:flex;gap:5px;flex-wrap:wrap;width:100%;padding:6px 0}.panel-config button{font-size:9px;padding:4px 6px}

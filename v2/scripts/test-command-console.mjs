@@ -40,9 +40,18 @@ try {
   const report = page.getByTestId('command-report');
   await expect(report).toContainText('Exit 1 · the agent got a 2.1 KiB summary of 1.4 MiB (go-test filter)');
   await expect(page.locator('.command-panel select')).toHaveValue(run.id);
-  await expect(page.locator('.command-panel footer')).toContainText('Exit 1');
+  await expect(page.locator('.command-panel .console-state [role=status]')).toHaveText('Failed · exit 1');
   await expect(composer).toBeFocused();
   await expect(composer).toHaveValue('typing while the agent runs tests');
+  // The docked console is output, not chrome: the output keeps most of the panel and ends inside it.
+  {
+    const panel = await page.locator('.command-panel').boundingBox(), output = await page.getByTestId('console-output').boundingBox();
+    assert.ok(output.height >= panel.height * 0.55, `the output gets most of the panel (${Math.round(output.height)} of ${Math.round(panel.height)}px)`);
+    assert.ok(output.y + output.height <= panel.y + panel.height + 1, 'the output ends inside the panel');
+    assert.ok(panel.y + panel.height <= page.viewportSize().height + 1, 'the panel ends inside the window');
+    // No raw command id is shown to people.
+    await expect(page.locator('.command-panel')).not.toContainText(run.id.slice(0, 12));
+  }
 
   // Hidden by the user, it stays hidden: the next run does not reopen it.
   await hide.click();
