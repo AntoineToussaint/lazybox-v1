@@ -50,7 +50,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   console: { title: 'Command output', icon: 'output', Component: CommandPanel },
   terminal: { title: 'Terminal', icon: 'terminal', Component: ({workspaceId,collections,viewState}) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState}/> },
   assistant: { title: 'Ask Lazybox', icon: 'chat', Component: AssistantModule },
-  changes: { title: 'Changes', icon: 'branch', Component: ({workspaceId}) => <ChangesPanel key={workspaceId} workspaceId={workspaceId}/> },
+  changes: { title: 'Changes', icon: 'branch', Component: ({workspaceId,viewState}) => <ChangesPanel key={workspaceId} workspaceId={workspaceId} viewState={viewState}/> },
   usage: { title: 'Usage & cost', icon: 'sliders', Component: ({workspaceId}) => <TelemetryPanel workspaceId={workspaceId}/> },
   sessions: { title: 'Sessions', icon: 'history', Component: ({workspaceId,target,onTarget}) => <ConversationList collectionId={workspaceId} target={target} onTarget={onTarget}/> },
 };

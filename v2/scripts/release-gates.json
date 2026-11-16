@@ -31,6 +31,7 @@
     { "id": "sidebar-polish", "scope": "ui", "script": "test:sidebar-polish" },
     { "id": "resume-continuity", "scope": "ui", "script": "test:resume-continuity" },
     { "id": "navigation-snippets", "scope": "ui", "script": "test:navigation-snippets" },
+    { "id": "vim-editing", "scope": "ui", "script": "test:vim-editing" },
     { "id": "dogfood", "scope": "ui", "script": "test:dogfood" },
     { "id": "responsive-shell", "scope": "ui", "script": "test:responsive-shell" },
     { "id": "inbox", "scope": "ui", "script": "test:inbox" }

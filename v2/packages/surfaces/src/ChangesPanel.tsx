@@ -1,6 +1,7 @@
 import { FilePreview } from './FilePreview';
 import { CodeBlock } from './RichContent';
 import { useEffect, useState } from 'react';
+import type { ViewStateStore } from '@lazybox/platform';
 import type { ChangedFile, RepositoryChanges, WorkspaceDiff } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 
@@ -20,7 +21,7 @@ const age = (unix: bigint) => {
 /** A workspace-scoped read-only projection. All Git operations belong to Runner.
  * It shows what the branch committed since the workspace started, then what is
  * still uncommitted: an agent's work is usually in both. */
-export function ChangesPanel({workspaceId}:{workspaceId:string}) {
+export function ChangesPanel({workspaceId,viewState}:{workspaceId:string;viewState?:ViewStateStore}) {
  const {api}=useRunner();
  const [preview,setPreview]=useState<string>();
  const [repos,setRepos]=useState<RepositoryChanges[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
@@ -79,6 +80,6 @@ export function ChangesPanel({workspaceId}:{workspaceId:string}) {
   </section>)}</nav>
    <div className="diff-view">{selection?<><header><strong>{selection.member}/{selection.path}</strong><button onClick={()=>setPreview(`${selection.member}/${selection.path}`)}>Open file</button>{!selection.committed&&<label><input type="checkbox" checked={staged} onChange={event=>setStaged(event.target.checked)}/> Staged</label>}</header><div className="diff-comparison">{selection.committed?(compare===START?'Workspace start → latest commit':`${compare} (merge base) → latest commit`):staged?'Last commit → staged':'Staged → working tree (uncommitted)'}</div>{diffError?<p role="alert" className="error">{diffError}</p>:!diff?<p role="status">Loading diff…</p>:<>{diff.truncated&&<p role="status">Preview limited to 1 MiB.</p>}{diff.binary?<p>Binary file · text preview unavailable</p>:diff.text?<CodeBlock text={diff.text} language="diff" label="File diff"/>:<p className="module-empty">No {selection.committed?'branch':staged?'staged':'unstaged'} diff for this file. Refresh if the agent has changed it.</p>}</>}</>:<div className="diff-empty"><h3>{loading?'Reading changes…':'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}</div>
   </div>
- {preview&&<FilePreview workspaceId={workspaceId} reference={{path:preview}} onClose={()=>setPreview(undefined)}/>}
+ {preview&&<FilePreview workspaceId={workspaceId} reference={{path:preview}} viewState={viewState} onClose={()=>setPreview(undefined)}/>}
  </section>;
 }

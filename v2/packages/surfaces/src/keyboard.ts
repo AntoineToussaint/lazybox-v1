@@ -116,6 +116,43 @@ export function saveKeymap(map: Keymap, store?: ViewStateStore) {
   writePreference(store, storageKey, JSON.stringify(map));
   window.dispatchEvent(new Event("lazybox-keymap"));
 }
+/** The first key of every global sequence (the leader, such as "]"), as
+ * KeyboardEvent.key: Vim editing leaves these to the keyboard dispatcher. */
+export function leaderKeys(map: Keymap): string[] {
+  return [...new Set(keyboardActions.filter((a) => a.scope === "global").map((a) => map[a.id].trim().split(/\s+/)[0]).map((key) => (key === "Space" ? " " : key)))];
+}
+/** Opt-in Vim editing, separately for the message box and the file editor. */
+export type VimPreferences = { composer: boolean; editor: boolean };
+const vimKey = "vim-editing:v1";
+export function readVimPreferences(store?: ViewStateStore): VimPreferences {
+  try {
+    const raw = JSON.parse(readPreference(store, vimKey) || "{}");
+    return { composer: raw?.composer === true, editor: raw?.editor === true };
+  } catch {
+    return { composer: false, editor: false };
+  }
+}
+export function saveVimPreferences(preferences: VimPreferences, store?: ViewStateStore) {
+  writePreference(store, vimKey, JSON.stringify({ composer: !!preferences.composer, editor: !!preferences.editor }));
+  window.dispatchEvent(new Event("lazybox-keymap"));
+}
+export function useVimPreferences(store?: ViewStateStore): VimPreferences {
+  const [preferences, setPreferences] = useState(() => readVimPreferences(store));
+  useEffect(() => {
+    const reload = () => setPreferences((previous) => {
+      const next = readVimPreferences(store);
+      return previous.composer === next.composer && previous.editor === next.editor ? previous : next;
+    });
+    reload();
+    window.addEventListener("lazybox-keymap", reload);
+    window.addEventListener("storage", reload);
+    return () => {
+      window.removeEventListener("lazybox-keymap", reload);
+      window.removeEventListener("storage", reload);
+    };
+  }, [store]);
+  return preferences;
+}
 /** A user-defined entry in the ]] menu: one key that sends or inserts a snippet. */
 export type MenuEntry = { key: string; label: string; snippet: string; mode: "send" | "insert" };
 /** What the ]] menu shows while a sequence is in progress. */
@@ -197,6 +234,8 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
       reset();
     };
     const keydown = (e: KeyboardEvent) => {
+      // A key another handler consumed (a Vim command, say) still ends a pending sequence.
+      if (e.defaultPrevented && sequence.length) reset();
       if (
         e.isComposing ||
         e.repeat ||
@@ -240,7 +279,9 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
         if (!matches.length) return;
       }
       // A lone closing bracket remains ordinary text. Only the completed leader removes it.
-      if (agent && sequence.length === 0 && key === "]") {
+      // In Vim normal or visual mode the message box takes no typing, so the bracket is only the leader.
+      const literal = agent && !["normal", "visual"].includes(target.dataset.vimMode || "");
+      if (literal && sequence.length === 0 && key === "]") {
         sequence = next;
         typed = target as HTMLTextAreaElement;
         return;

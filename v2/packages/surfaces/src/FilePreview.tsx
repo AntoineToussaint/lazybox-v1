@@ -6,11 +6,14 @@ import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { RichContent } from './RichContent';
 import type { FileLink } from './file-reference';
+import type { ViewStateStore } from '@lazybox/platform';
+import { useVimPreferences } from './keyboard';
 
 const CodeEditor = lazy(() => import('./CodeEditor'));
 
-export function FilePreview({workspaceId, reference, onClose}:{workspaceId:string;reference:FileLink;onClose():void}) {
+export function FilePreview({workspaceId, reference, viewState, onClose}:{workspaceId:string;reference:FileLink;viewState?:ViewStateStore;onClose():void}) {
  const {api}=useRunner();
+ const vim=useVimPreferences(viewState).editor;
  const [path,setPath]=useState(reference.path);
  const dialog=useRef<HTMLDialogElement>(null),lifetime=useRef<AbortController>(null);
  const [file,setFile]=useState<WorkspaceFile>(),[draft,setDraft]=useState(''),[error,setError]=useState('');
@@ -34,11 +37,13 @@ export function FilePreview({workspaceId, reference, onClose}:{workspaceId:strin
   else if(action==='reload')void load(lifetime.current!.signal);
   else {setDraft(file?.text||'');setEditing(false);setError('');}
  };
+ /** Resolves to false when the file could not be saved. */
  const save=async()=>{
-  if(!file||!editing||saving||!dirty)return;
+  if(!file||!editing||saving)return false;
+  if(!dirty)return true;
   const signal=lifetime.current!.signal;setSaving(true);setError('');
-  try{const value=await api.saveWorkspaceFile({collectionId:workspaceId,path:file.path,text:draft,expectedVersion:file.version},{signal,timeoutMs:15000});if(!signal.aborted){setFile(value);setDraft(value.text);setDiscard(undefined);}}
-  catch(error){if(!signal.aborted)setError(ConnectError.from(error).rawMessage);}
+  try{const value=await api.saveWorkspaceFile({collectionId:workspaceId,path:file.path,text:draft,expectedVersion:file.version},{signal,timeoutMs:15000});if(!signal.aborted){setFile(value);setDraft(value.text);setDiscard(undefined);}return !signal.aborted;}
+  catch(error){if(!signal.aborted)setError(ConnectError.from(error).rawMessage);return false;}
   finally{if(!signal.aborted)setSaving(false);}
  };
  const markdown=/\.(md|markdown|mdown)$/i.test(file?.path||path);
@@ -56,7 +61,7 @@ export function FilePreview({workspaceId, reference, onClose}:{workspaceId:strin
   <div className={'file-preview-content'+(showSource?' source-view':'')}>
    {loading&&!file?<p role="status">Loading…</p>:file?.directory?<DirectoryListing path={file.path} entries={file.entries} truncated={file.truncated} onOpen={setPath}/>:file?.binary?<p>Binary file · text preview unavailable.</p>:file&&<>
     {file.truncated&&<p role="status">Preview limited to 1 MiB. Editing is unavailable.</p>}
-    {showSource?<Suspense fallback={<p role="status">Loading editor…</p>}><CodeEditor path={file.path} value={draft} readOnly={!editing||saving||loading} line={reference.line} onChange={setDraft} onSave={()=>void save()}/></Suspense>:<RichContent text={file.text}/>}
+    {showSource?<Suspense fallback={<p role="status">Loading editor…</p>}><CodeEditor path={file.path} value={draft} readOnly={!editing||saving||loading} line={reference.line} vim={vim} onChange={setDraft} onSave={save} onQuit={force=>act('close',force)}/></Suspense>:<RichContent text={file.text}/>}
    </>}
   </div>
  </DraggableDialog>;

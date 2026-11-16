@@ -293,6 +293,22 @@
 
 .runner-divider{display:flex;align-items:center;gap:10px;margin:6px 0 14px;font-size:11px;color:#7d8494;white-space:nowrap}.runner-divider:before,.runner-divider:after{content:"";flex:1;border-top:1px solid #30323b}
 .composer-chip{align-self:center;margin-right:auto;padding:2px 8px;border:1px solid #4a4566;border-radius:10px;font-size:11px;color:#b9b1dc;background:#2a2737;cursor:help;white-space:nowrap}
+/* Vim editing: a quiet chip for the mode, a block cursor in normal mode. */
+.vim-mode-chip{align-self:center;flex:none;padding:1px 7px;border:1px solid #3d3f4b;border-radius:5px;font:600 10px/1.6 var(--font-mono);letter-spacing:.06em;color:#8b8d99;white-space:nowrap;cursor:help}
+.vim-mode-chip[data-mode=normal]{color:#ece8ff;background:#3a3456;border-color:#5a5190}
+.vim-mode-chip[data-mode=visual]{color:#211d2e;background:#d9c08f;border-color:#d9c08f}
+.composer textarea[data-vim-mode=normal]::selection{background:#b9afe3;color:#1b1c22}
+.composer textarea[data-vim-mode=normal],.composer textarea[data-vim-mode=visual]{caret-color:#b9afe3}
+.vim-settings{margin-top:28px;border-top:1px solid #33343e;padding-top:20px}.vim-settings .vim-toggle{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start;margin:12px 0;cursor:pointer}.vim-settings .vim-toggle input{appearance:none;-webkit-appearance:none;position:relative;width:30px;height:18px;min-width:0;padding:0;margin:1px 0 0;border:1px solid #4a4b57;border-radius:9px;background:#2a2b33;cursor:pointer;transition:background .15s,border-color .15s}.vim-settings .vim-toggle input::before{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#8b8d99;transition:transform .15s,background .15s}.vim-settings .vim-toggle input:checked{background:#5a5190;border-color:#7a6fc0}.vim-settings .vim-toggle input:checked::before{transform:translateX(12px);background:#ece8ff}.vim-settings .vim-toggle input:focus-visible{outline:2px solid #aaa1ce;outline-offset:2px}.vim-settings .vim-toggle span{font-size:13px;color:#dedee8}.vim-settings .vim-toggle small{grid-column:2;font-size:12px;color:#999ba7}
+.code-editor-frame{display:flex;flex-direction:column;flex:1;min-height:0}
+.vim-status{display:flex;align-items:center;gap:10px;min-height:26px;padding:3px 12px;border-top:1px solid #30313a;background:#202128;font:11px/1.5 var(--font-mono);color:#a7a9b5}
+.vim-status .vim-status-bar{display:flex!important;flex:1;align-items:center;gap:10px;min-width:0}
+.vim-status .vim-status-bar>span:first-child{flex:none;padding:0 6px;border-radius:4px;background:#3a3456;color:#ece8ff;font-weight:600;letter-spacing:.04em}
+.vim-status .vim-status-bar>span:first-child:empty{display:none}
+.vim-status .vim-status-bar input{width:min(420px,60vw);border:0;padding:0 2px;background:transparent;color:#ece8ff;font:inherit;outline:none}
+.vim-status .vim-notification{color:#e2c58f}
+.vim-status .vim-status-help{margin-left:auto;color:#6f7280;white-space:nowrap}
+@media(max-width:600px){.vim-status .vim-status-help{display:none}}
 .changes-group{margin:6px 0 14px}.changes-group h4{margin:10px 0 4px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a8f9c}
 .changes-commits{margin:0 0 6px;font-size:11px;color:#9aa0ad}.changes-commits summary{cursor:pointer;padding:2px 0}.changes-commits ol{list-style:none;margin:4px 0 8px;padding:0;display:grid;gap:3px}.changes-commits li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline}.changes-commits li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c7cad3}.changes-commits li small{color:#7d8494}
 .changes-panel>header{flex-wrap:wrap;gap:12px}.changes-compare{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:12px;color:#9aa0ad}.changes-compare select{padding:5px 8px;border:1px solid #3b3b47;border-radius:6px;background:#202127;color:#e2e2e9;font-size:12px;max-width:240px}

@@ -401,6 +401,40 @@ A single `]` remains draft text. IME composition and ordinary form fields are no
 navigation targets. Bindings are client preferences persisted through the host's
 view-state store; they do not change the Runner's permissions or agent settings.
 
+### Vim editing
+
+Settings → Shortcuts has two opt-in switches, applied immediately and persisted
+with the other keyboard preferences: **Vim editing in the message box** and
+**Vim editing in the file editor**.
+
+The message box gets a small modal layer (`composer-vim.ts`, unit-tested in
+`scripts/composer-vim.test.ts`). An empty box starts in insert mode, which is the
+plain textarea: typing, IME composition, paste, attachments, snippets and the saved
+draft behave exactly as without Vim, and Enter keeps the configured send key.
+Esc switches to normal mode, shown by a `NORMAL` chip and a block cursor. Normal
+mode supports `i a A I o O`, `h j k l w b e 0 ^ $ gg G`, `x X dd dw D cw cc C yy p P`,
+operators with any of those motions (`d c y`), counts (`3w`, `2dd`, `d2w`), `u` and
+Ctrl-r (one insert is one undo step), visual mode `v` with `y d c`, and Enter sends.
+Cmd/Alt shortcuts stay with the browser; a paste in normal mode lands at the cursor.
+Vim edits go through the same input path as typing, so the draft persists. The
+leader's first key (`]` by default) is never a Vim command: `]]` opens the menu from
+normal and visual mode without inserting a bracket, and from insert mode the first
+`]` is text until the second removes it, as before. When a send empties the box the
+next message starts in insert mode.
+
+The Monaco file editor uses `monaco-vim` 0.4.4 (CodeMirror's Vim keymap) with a
+status line for the mode, pending keys and the `:` prompt. `:w` saves through the
+normal save path, `:q` closes through the unsaved-changes guard, `:q!` discards,
+and `:wq`/`:x` save then close (staying open if the save fails). Esc inside the
+editor always stays there: it leaves insert or visual mode and never closes the
+window; Esc elsewhere in the window still closes it. While Vim is on, Monaco uses
+its textarea input rather than Chromium's EditContext, which delivered keys typed
+just before Esc after Vim had left insert mode (dropped or reordered text).
+monaco-vim imports `monaco-editor/esm/vs/...` paths that monaco-editor 0.55+ no
+longer exports; `scripts/monaco-vim-compat.mjs` is a labelled Vite stopgap mapping
+them to the exported paths, wired into both app configs and the editor UI tests.
+`npm run test:vim-editing` covers both surfaces in WebKit and Chromium.
+
 ## Snippets
 
 The composer snippet icon and the configurable snippet shortcut open the same
