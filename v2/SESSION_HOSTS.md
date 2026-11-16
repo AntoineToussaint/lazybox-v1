@@ -116,6 +116,10 @@ notices in the conversation.
   attached: a program this Runner cannot supervise must not keep writing in a
   workspace. The record of a host it cannot reach is removed only if the host
   is gone; a slow or interrupted probe is reported and the host left alone.
+  "Attached" means a client in this Runner's process holds the host
+  (`sessionhost.Held`), never the host's own report: a host counts a crashed
+  or detached predecessor as attached until it has read that connection's
+  close, which can take longer than a Runner restart.
 - A newer client attaching to a host supersedes the old one and tells it so; the
   superseded Runner stands down and never stops a program it no longer owns.
 - A host whose program exited while no Runner was attached keeps the remaining
@@ -224,6 +228,7 @@ directory, in `hosts/` and `command-hosts/`.
 - Review fixes, each failing without its fix:
   `TestOrphanSweepLeavesAHostItCouldNotProbe`,
   `TestRunnerThatDoesNotAdoptStopsAPredecessorsAgents`,
+  `TestSweepStopsAHostThatStillShowsAPredecessorAttached`,
   `TestExitedAgentHostKeepsOutputUntilRecorded`,
   `TestReattachedRunnerUsesFreshRequestIDs`,
   `TestOrphanedHostWithAFullBufferExits`,

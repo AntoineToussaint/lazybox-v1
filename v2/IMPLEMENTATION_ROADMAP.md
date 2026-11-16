@@ -48,7 +48,7 @@ Inspected evidence (capabilities still require integration tests):
   The installed executable reports `development`, so it is **not** a pinned
   distribution qualified by that source SHA. Read-only `service status --json`
   succeeded against an unused label. The new adapter fingerprints its executable.
-- Lazybox uses Codefly go-grpc service agent `0.1.69`, SDK Go `0.4.0`, and the
+- Lazybox uses Codefly go-grpc service agent `0.1.70`, SDK Go `0.4.0`, and the
   core version pinned in `go.mod`. Generated transport already exists.
 - Runtime checkout `dedd4b10bdab44abcf7b578b20ddf63281d28344`:
   published `clients/go`, `modules/runtime/services/tasks/proto`, implementation

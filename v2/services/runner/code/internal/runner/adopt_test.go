@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -370,6 +371,57 @@ func TestRunnerThatDoesNotAdoptStopsAPredecessorsAgents(t *testing.T) {
 	}
 	pid := orphan.AgentPID()
 	_ = orphan.Detach()
+	b := fixtureBench(t, state)
+	defer b.Close()
+	if err = b.StopUnclaimedHosts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	stoppedEventually(t, pid)
+}
+
+// A host that still counts a predecessor's connection as attached (it has not
+// read that connection's close yet) is not claimed by this Runner, so the sweep
+// stops it. The predecessor's connection is held open here so the host's view
+// stays stale for the whole sweep, as it may after a crash under load.
+func TestSweepStopsAHostThatStillShowsAPredecessorAttached(t *testing.T) {
+	state := t.TempDir()
+	cleanupHosts(t, state)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	root := filepath.Join(state, "hosts")
+	orphan, err := sessionhost.Launch(ctx, root, sessionhost.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = orphan.Spawn(ctx, sessionhost.Spec{Path: "/bin/sleep", Args: []string{"300"}, Cwd: state}); err != nil {
+		t.Fatal(err)
+	}
+	pid, id := orphan.AgentPID(), orphan.ID()
+	record, err := sessionhost.ReadRecord(filepath.Join(root, id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	predecessor, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(record.Port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer predecessor.Close()
+	if err = json.NewEncoder(predecessor).Encode(map[string]any{"op": "hello", "token": record.Token, "protocol": record.Protocol, "ack": 0}); err != nil {
+		t.Fatal(err)
+	}
+	_ = orphan.Detach()
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		status, err := sessionhost.Probe(ctx, root, id)
+		if err == nil && status.Attached {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("the predecessor's connection never attached: %+v %v", status, err)
+		}
+	}
+	if sessionhost.Held(root, id) {
+		t.Fatal("this process still counts a host it detached from")
+	}
 	b := fixtureBench(t, state)
 	defer b.Close()
 	if err = b.StopUnclaimedHosts(ctx); err != nil {

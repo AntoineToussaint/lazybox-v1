@@ -61,7 +61,7 @@ Phone testing includes background/foreground transitions and connection recovery
 
 ## Contracts and integration choices
 
-The implemented Runner communication stack is Protobuf with generated Go and TypeScript clients, hosted by Codefly `go-grpc:0.1.69`. A single gRPC implementation serves native calls and Codefly's generated Connect/browser listener. Network resolution, health, generation, and lifecycle belong to Codefly. Go Hub/Runner communication can use gRPC; browser-based clients use unary operations and server streams. See [RPC and agent interfaces](INTERFACES.md) for the proposal and browser limitations.
+The implemented Runner communication stack is Protobuf with generated Go and TypeScript clients, hosted by Codefly `go-grpc:0.1.70`, whose listeners bind the host the endpoint carrier names (loopback in a native run). A single gRPC implementation serves native calls and Codefly's generated Connect/browser listener. Network resolution, health, generation, and lifecycle belong to Codefly. Go Hub/Runner communication can use gRPC; browser-based clients use unary operations and server streams. See [RPC and agent interfaces](INTERFACES.md) for the proposal and browser limitations.
 
 Local database choice, schema migrations, authentication, artifact storage, and deployment remain explicit decisions in [Decisions](DECISIONS.md). They are not settled by the language/framework selection.
 

@@ -242,7 +242,11 @@ func (b *Bench) StopUnclaimedHosts(ctx context.Context) error { return b.stopOrp
 
 // stopOrphanHosts stops hosts nothing attached to: agents no adopted execution
 // claimed and commands the command manager did not adopt. This Runner holds the
-// state lock, so no other Runner can be their client.
+// state lock, so no other Runner can be their client: a host is claimed only if
+// this process holds it (sessionhost.Held). The host's own "attached" is not
+// evidence of a claim: a host counts a crashed or detached predecessor as
+// attached until it has read that connection's close, and trusting it left
+// such a host's agent running, supervised by no one, until the orphan limit.
 func (b *Bench) stopOrphanHosts(ctx context.Context) error {
 	var errs []error
 	for _, root := range []string{b.Config.HostRoot, b.Config.CommandHostRoot} {
@@ -252,7 +256,7 @@ func (b *Bench) stopOrphanHosts(ctx context.Context) error {
 			continue
 		}
 		for _, id := range ids {
-			status, err := sessionhost.Probe(ctx, root, id)
+			_, err := sessionhost.Probe(ctx, root, id)
 			if sessionhost.Gone(err) {
 				// A stale record of a host that died, for example with its machine.
 				_ = sessionhost.Forget(root, id)
@@ -264,7 +268,7 @@ func (b *Bench) stopOrphanHosts(ctx context.Context) error {
 				errs = append(errs, fmt.Errorf("probe session host %s: %w", id, err))
 				continue
 			}
-			if status.Attached {
+			if sessionhost.Held(root, id) {
 				continue
 			}
 			if err = sessionhost.Stop(ctx, root, id); err != nil {

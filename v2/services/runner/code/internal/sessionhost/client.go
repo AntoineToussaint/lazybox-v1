@@ -48,6 +48,45 @@ type Client struct {
 	readErr error
 	done    chan struct{}
 	once    sync.Once
+	// held ends this client's count in holders, once, when its connection ends.
+	held sync.Once
+}
+
+// holders counts this process's open client connections per host directory.
+// The Runner holding the state lock is the only legitimate client of its
+// hosts, so whether a client in this process holds a host is what decides that
+// the host is claimed. The host's own view does not: it learns that a
+// predecessor's connection closed only once it reads the close, which can lag
+// the kernel by longer than a Runner restart takes.
+var holders = struct {
+	sync.Mutex
+	n map[string]int
+}{n: map[string]int{}}
+
+func hold(dir string) {
+	holders.Lock()
+	holders.n[filepath.Clean(dir)]++
+	holders.Unlock()
+}
+
+func (c *Client) unhold() {
+	c.held.Do(func() {
+		dir := filepath.Clean(c.dir)
+		holders.Lock()
+		if holders.n[dir]--; holders.n[dir] <= 0 {
+			delete(holders.n, dir)
+		}
+		holders.Unlock()
+	})
+}
+
+// Held reports whether a client in this process is attached to the host: one
+// launched or attached here whose connection was neither detached nor ended by
+// the host (superseded, released or gone).
+func Held(root, id string) bool {
+	holders.Lock()
+	defer holders.Unlock()
+	return holders.n[filepath.Clean(filepath.Join(root, id))] > 0
 }
 
 // Options tune a new host. Zero values select the defaults.
@@ -195,12 +234,15 @@ func dial(ctx context.Context, dir string, record Record, ack uint64) (*Client, 
 		}
 		return nil, errors.New(c.welcome.Text)
 	}
+	hold(dir)
 	go c.read(dec)
 	return c, nil
 }
 
 func (c *Client) read(dec *json.Decoder) {
 	defer close(c.frames)
+	// The host closes a superseded or released client's connection.
+	defer c.unhold()
 	for {
 		var f frame
 		if err := dec.Decode(&f); err != nil {
@@ -326,6 +368,7 @@ func (c *Client) receive(ctx context.Context) (frame, error) {
 
 // Detach closes this connection and leaves the host and its agent running.
 func (c *Client) Detach() error {
+	c.unhold()
 	c.once.Do(func() { close(c.done) })
 	return c.conn.Close()
 }

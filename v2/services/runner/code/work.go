@@ -22,6 +22,9 @@ func init() { WithConfigure(configureRunner) }
 // configureRunner adds execution behavior through Codefly's generated seam;
 // the scaffold owns listeners, network resolution, health, and shutdown.
 func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean, error) {
+	if err := requireLoopbackListeners(ctx, config); err != nil {
+		return nil, err
+	}
 	cfg := runner.Config{}
 	if path := os.Getenv("LAZYBOX_V2_CONFIG"); path != "" {
 		data, err := os.ReadFile(path)

@@ -271,7 +271,7 @@ async function launch(environmentRoot, channel) {
       : spawn(join(app, 'Contents/MacOS/lazybox-v2-desktop'), ['--endpoint', paths.endpoint], { env: buildEnv, stdio: 'inherit' });
     desktop.on('error', error => console.error(`Desktop launch failed: ${error.message}`));
     console.log(`${paths.productName} is running. State: ${paths.state}\nClosing the desktop leaves this Runner alive. Ctrl+C here stops this environment's Runner.`);
-    if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, and Codefly rebuilds/restarts Go. Runner restarts interrupt active Dev executions.`);
+    if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, and Codefly rebuilds/restarts Go. A Runner restart does not stop Dev agents or their managed commands: the restarted Runner re-attaches to their session hosts.`);
     const result = await finished;
     if (result.code !== 0 && !stopping) throw failure || new Error(`Runner exited (${result.signal || result.code})`);
   } finally {

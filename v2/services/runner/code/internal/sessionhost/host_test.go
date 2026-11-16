@@ -539,13 +539,41 @@ func TestProbeDoesNotSupersedeTheAttachedClient(t *testing.T) {
 		t.Fatal("probe took over the attached client")
 	}
 	_ = c.Detach()
-	time.Sleep(50 * time.Millisecond)
-	if status, err = Probe(deadline(t), dir, c.ID()); err != nil || status.Attached {
-		t.Fatalf("detached host still reported attached: %+v %v", status, err)
-	}
+	// The host notices the closed connection when it reads it, not at once.
+	eventually(t, "detached host still reported attached", func() bool {
+		status, err = Probe(deadline(t), dir, c.ID())
+		return err == nil && !status.Attached
+	})
 	if !alive(pid) {
 		t.Fatal("agent stopped")
 	}
+}
+
+// Held is this process's own, immediate view of which hosts it is a client of.
+func TestHeldFollowsThisProcesssConnection(t *testing.T) {
+	dir := root(t)
+	c, _ := started(t, dir)
+	id := c.ID()
+	if !Held(dir, id) {
+		t.Fatal("a launched host is not held")
+	}
+	_ = c.Detach()
+	if Held(dir, id) {
+		t.Fatal("a detached host is still held")
+	}
+	again, err := Attach(deadline(t), dir, id, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !Held(dir, id) || Held(dir, "AAAAAAAAAAAAAAAAAAAA") {
+		t.Fatal("held is not per host")
+	}
+	// Stopping supersedes the client and ends its connection.
+	if err = Stop(deadline(t), dir, id); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "a host whose connection ended is still held", func() bool { return !Held(dir, id) })
+	_ = again.Detach()
 }
 
 func TestHostWhoseStateWasDeletedStopsItsAgent(t *testing.T) {

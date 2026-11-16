@@ -83,7 +83,7 @@ Codefly binds temporary ports and injects endpoint carriers. The Runner resolves
 
 `BENCH_STATE` selects the isolated state directory; the Makefile default is `v2/.cache/bench`. `make run BENCH_STATE=/absolute/test-state` overrides it. Each Runner locks its state directory and writes an owner-only `endpoint.json` containing its actual URL and bearer. With no configured state, the service creates a fresh OS temporary directory. Stopping the Runner ends owned processes; it retains evidence files. Remove a test directory only after its Runner has stopped and its evidence is no longer needed.
 
-The generated Codefly listener currently binds all interfaces even for a native endpoint carrier. Application RPCs require the private bearer on **both** protocols; health is public. This is an experimental local authority with no Hub enrollment or production TLS configuration. Native listener scope is a Codefly-owned limitation, not a separate application listener.
+The Runner's gRPC and Connect listeners answer on loopback only. Codefly decides the bind host: go-grpc `0.1.70` and later bind the host the service's own endpoint carrier names, `localhost` in a native run (`0.1.69` bound every interface). The Runner refuses to start if any listener's host is not loopback, including an empty one, which binds every interface (`listen.go`; `TestRunnerListenersAnswerOnlyOnLoopback` dials each port from this machine's non-loopback addresses). Application RPCs also require the private bearer on **both** protocols; health is public. This is an experimental local authority with no Hub enrollment or production TLS configuration.
 
 ## Runner options and metering gateway
 

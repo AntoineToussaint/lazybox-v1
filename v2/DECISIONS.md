@@ -110,7 +110,7 @@ Use explicit transition tables and example races before encoding the model.
 
 **Status:** open. **Needed for:** V2 005 and M1.
 
-The Runner now uses Codefly `go-grpc:0.1.69`: Protobuf with generated Go/TypeScript clients, one native gRPC service implementation, and Codefly's Connect listener transcoding to that same implementation. The user requested reusing this service framework on 2026-10-27. The local React browser path has runtime evidence. Use unary commands and server streams for browser clients; evaluate a Runner-initiated gRPC bidirectional control stream for Hub/Runner traffic. [Interfaces](INTERFACES.md) records the proposal. Browser and iPhone streaming behavior must be verified rather than assuming native gRPC is portable to them.
+The Runner now uses Codefly `go-grpc:0.1.70` (0.1.69 until 2026-11-16, whose listeners bound every interface): Protobuf with generated Go/TypeScript clients, one native gRPC service implementation, and Codefly's Connect listener transcoding to that same implementation. The user requested reusing this service framework on 2026-10-27. The local React browser path has runtime evidence. Use unary commands and server streams for browser clients; evaluate a Runner-initiated gRPC bidirectional control stream for Hub/Runner traffic. [Interfaces](INTERFACES.md) records the proposal. Browser and iPhone streaming behavior must be verified rather than assuming native gRPC is portable to them.
 
 Settle schema generation, capability negotiation, event ordering, snapshot boundaries, replay retention, and cursor recovery. Define idempotency and conflict semantics independently of transport.
 
