@@ -25,7 +25,7 @@ try{
  const chat=page.locator('.embedded-chat').first(),header=chat.locator('.chat-heading');
  await expect(header.locator('.conversation-title')).toContainText('Fix the flaky login test');
  await expect(header).toContainText('claude-fable-5-1');
- await expect(header.locator('.chat-status')).toContainText('Running · Bash');
+ await expect(header.locator('.chat-status')).toContainText('Running a command');
  await expect(chat.locator('.agent-inspection-bar')).toHaveCount(0);
  await expect(header.getByRole('button',{name:'Context and token cost'})).toBeVisible();
  await expect(header.locator('[aria-label="View tools and activity"]')).toHaveAttribute('data-empty','true');
@@ -37,7 +37,7 @@ try{
  // The sidebar row moves with the agent: its step and a ticking time.
  const alphaRow=page.locator('.workspace-row').filter({hasText:'Alpha feature'});
  const rowStatus=alphaRow.locator('.workspace-agent-status');
- await expect(rowStatus).toHaveText(/^Running · Bash · \d+s$/);
+ await expect(rowStatus).toHaveText(/^Running a command · \d+s$/);
  const first=await rowStatus.textContent();await expect.poll(()=>rowStatus.textContent(),{timeout:4000}).not.toBe(first);
  await page.screenshot({path:'.cache/chat-polish-header.png'});
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -46,7 +46,7 @@ try{
 
  // The inbox says the same thing for a working conversation.
  await page.getByRole('button',{name:/^Inbox/}).click();const inbox=page.getByRole('dialog',{name:'Inbox'});
- await expect(inbox.locator('.inbox-item[data-state=working]').first()).toContainText(/Running · Bash/);
+ await expect(inbox.locator('.inbox-item[data-state=working]').first()).toContainText(/Running a command/);
  await inbox.getByRole('button',{name:'Close inbox'}).click();
 
  // Rename in place: Enter saves.

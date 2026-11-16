@@ -26,10 +26,31 @@ export function elapsedLabel(ms: number): string {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
+const toolWords: Record<string, string> = {
+  bash: 'Running a command', shell: 'Running a command', exec_command: 'Running a command', command: 'Running a command', lazybox_command: 'Running a command', local_shell: 'Running a command',
+  read: 'Reading files', read_file: 'Reading files', view: 'Reading files', notebookread: 'Reading a notebook',
+  edit: 'Editing files', multiedit: 'Editing files', write: 'Writing files', apply_patch: 'Editing files', notebookedit: 'Editing a notebook',
+  grep: 'Searching the code', glob: 'Finding files', ls: 'Listing files', search: 'Searching',
+  webfetch: 'Reading a web page', websearch: 'Searching the web', web_search: 'Searching the web',
+  task: 'Running a sub-agent', agent: 'Running a sub-agent', todowrite: 'Updating its plan', update_plan: 'Updating its plan',
+  update_settings: 'Proposing a settings change', read_settings: 'Reading settings',
+};
+/**
+ * A tool as a person says it: "Running a command", not "mcp__lazybox__command".
+ * MCP tools (mcp__server__tool) use the tool's words, else "Using <server>".
+ */
+export function toolLabel(tool: string): string {
+  const mcp = /^mcp__(.+?)__(.+)$/.exec(tool);
+  const name = (mcp ? mcp[2] : tool).toLowerCase();
+  if (toolWords[name]) return toolWords[name];
+  if (mcp) return `Using ${mcp[1].replace(/^lazybox_?/, 'Lazybox ').replaceAll('_', ' ').trim()} · ${mcp[2].replaceAll('_', ' ')}`;
+  return `Using ${tool.replaceAll('_', ' ')}`;
+}
+
 /** A step's words, without timing. Unknown phases read as working. */
 export function phaseLabel(phase: string, tool = ''): string {
   switch (phase) {
-    case 'tool': return tool ? `Running · ${tool}` : 'Running a tool';
+    case 'tool': return tool ? toolLabel(tool) : 'Running a tool';
     case 'thinking': return 'Thinking';
     case 'responding': return 'Writing';
     case 'requesting': return 'Waiting for the model';

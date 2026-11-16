@@ -28,8 +28,8 @@ test('a working agent says what it does and for how long, from the Runner phase'
   const s = session({ busy: true, status: 'running', agents: [{ phase: 'tool', tool: 'Bash', since: 10_000 }] });
   const live = liveStatus(s, 22_000);
   assert.equal(live.tone, 'busy');
-  assert.equal(live.text, 'Running · Bash · 12s');
-  assert.equal(live.label, 'Running · Bash', 'the announced label does not tick');
+  assert.equal(live.text, 'Running a command · 12s');
+  assert.equal(live.label, 'Running a command', 'the announced label does not tick');
   assert.equal(liveStatus(session({ busy: true, status: 'running', agents: [{ phase: 'thinking' }] }), 1).text, 'Thinking…');
 });
 
@@ -38,7 +38,7 @@ test('the journal refines the step: the earliest consecutive report is when it b
   assert.deepEqual(phaseFromEvents(events), { phase: 'tool', tool: 'Bash', at: 3_000 });
   assert.equal(phaseFromEvents([...events, event('turn_ended', 5_000)]), undefined, 'an ended turn has no step');
   const s = session({ busy: true, status: 'running', agents: [{ phase: 'working', since: 500 }] });
-  assert.equal(liveStatus(s, 9_000, events).text, 'Running · Bash · 6s');
+  assert.equal(liveStatus(s, 9_000, events).text, 'Running a command · 6s');
   assert.equal(liveStatus(s, 9_000, [...events, event('message_delta', 8_000, { text: 'ok' })]).text, 'Writing · 1s');
   const stale = liveStatus(session({ busy: true, status: 'running', agents: [{ status: 'running' }] }), 9_000, [...events, event('turn_ended', 8_000, { status: 'completed' })]);
   assert.equal(stale.tone, 'idle', 'a turn the journal saw end stops moving before the next poll');
@@ -122,4 +122,13 @@ test('a conversation titled after its folder has no title; the branch leads inst
   assert.equal(branchSummary(two)?.detail, '+1 branch');
   assert.equal(branchSummary(undefined), undefined);
   assert.equal(conversationDetails(session({ provider: 'claude' }), [], false), 'Claude', 'an unknown model is left out');
+});
+
+test('tools read as words, MCP tools included', async () => {
+  const { toolLabel } = await import('../packages/surfaces/src/live-status.ts');
+  assert.equal(toolLabel('mcp__lazybox__command'), 'Running a command');
+  assert.equal(toolLabel('Read'), 'Reading files');
+  assert.equal(toolLabel('Task'), 'Running a sub-agent');
+  assert.equal(toolLabel('mcp__github__create_issue'), 'Using github · create issue');
+  assert.equal(toolLabel('custom_tool'), 'Using custom tool');
 });
