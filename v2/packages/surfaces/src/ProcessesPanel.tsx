@@ -1,3 +1,4 @@
+import { peekProps } from './peek-model';
 import { useEffect, useRef, useState } from 'react';
 import type { HostedProcess, ProcessHosting, ProcessInventory } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
@@ -127,7 +128,7 @@ function ProcessRow({ process: p, showWorkspace, canOpen, onOpen, onCopy, onStop
     p.usage && p.usage.processCount > 2 && plural(p.usage.processCount, 'process', 'processes'),
     backendLabel(p.backend),
   ].filter(Boolean);
-  return <li className={`process-row tone-${state.tone}`} aria-label={`${p.label}, ${state.label}`} onContextMenu={contextMenu('process', () => [
+  return <li className={`process-row tone-${state.tone}`} aria-label={`${p.label}, ${state.label}`} tabIndex={0} {...peekProps({ kind: 'process', processId: p.id, title: p.label })} onContextMenu={contextMenu('process', () => [
     canOpen && { label: 'Open', icon: p.kind === 'agent' ? 'chat' : p.kind === 'command' ? 'output' : 'terminal', run: onOpen },
     p.attachCommand && { label: 'Copy attach command', icon: 'terminal', run: onCopy },
     { label: 'Copy PID', icon: 'copy', run: () => copyText(String(p.programPid || p.hostPid), 'Copied PID') },

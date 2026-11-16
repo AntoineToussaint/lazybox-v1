@@ -1,3 +1,4 @@
+import { peekProps } from './peek-model';
 import { ActionMenu } from './ActionMenu';
 import { ActionMenuItems } from './ActionMenuItems';
 import { contextMenu } from './ContextMenu';
@@ -157,6 +158,7 @@ export function WorkspaceRow({
       ) : (
         <button
           className="workspace-link"
+          {...(featured ? peekProps({ kind: "conversation", sessionId: featured.id, workspaceId: workspace.id, title: featured.title }) : {})}
           data-navigation-item
           aria-current={selected ? "page" : undefined}
           onClick={onSelect}

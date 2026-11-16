@@ -20,7 +20,8 @@ export function GitLine({ git, fallback, empty = false }: { git?: RowGit; fallba
     return <small className="workspace-git is-pending" title={fallback?.title}>
       <Icon name="branch" size={11}/>
       <span className="workspace-git-branch">{fallback?.name || 'Reading git state…'}</span>
-      {fallback?.detail && <span className="workspace-git-more">{fallback.detail}</span>}
+      {/* "+1 branch" reads "+1", as the answered line does; the repository count is the line above. */}
+      {fallback?.detail.startsWith('+') && <span className="workspace-git-more">{fallback.detail.replace(/ branch(es)?$/, '')}</span>}
     </small>;
   }
   return <small className={`workspace-git${git.problem ? ' has-problem' : ''}`} title={git.title} data-git-line="">

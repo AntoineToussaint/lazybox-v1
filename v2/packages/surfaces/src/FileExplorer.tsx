@@ -1,3 +1,4 @@
+import { peekProps } from './peek-model';
 import { useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import { FileIcon } from './DirectoryListing';
@@ -139,7 +140,7 @@ function Explorer({ workbench, members: names, root }: { workbench: Workbench; m
   <div ref={tree} className="file-tree" role="tree" aria-label="Workspace files" onKeyDown={keydown}>
    {rows.map(row => row.kind === 'status'
     ? <div key={`status:${row.path}:${row.text}`} className={'tree-status' + (row.error ? ' is-error' : '')} style={{ paddingLeft: 30 + row.depth * 14 }} role={row.error ? 'alert' : undefined}>{row.text}{row.error && <button onClick={() => void workbench.loadFolder(row.path)}>Retry</button>}</div>
-    : <div key={row.path} data-path={row.path} role="treeitem" aria-level={row.depth + 1} aria-expanded={row.directory ? expanded.has(row.path) : undefined} aria-selected={row.path === state.selected} aria-current={!row.directory && row.path === active ? 'true' : undefined} tabIndex={row.path === cursor ? 0 : -1}
+    : <div key={row.path} data-path={row.path} {...(row.directory ? {} : peekProps({ kind: 'file', workspaceId: workbench.workspaceId, path: row.path }))} role="treeitem" aria-level={row.depth + 1} aria-expanded={row.directory ? expanded.has(row.path) : undefined} aria-selected={row.path === state.selected} aria-current={!row.directory && row.path === active ? 'true' : undefined} tabIndex={row.path === cursor ? 0 : -1}
       className={'tree-row' + (row.directory ? ' is-folder' : '') + (row.repository ? ' is-repository' : '') + (row.path === active ? ' is-active' : '')} style={{ paddingLeft: 6 + row.depth * 14 }} title={row.path}
       draggable={!row.directory} onDragStart={event => { event.dataTransfer.setData('application/x-lazybox-path', row.path); event.dataTransfer.setData('text/plain', row.path); event.dataTransfer.effectAllowed = 'copy'; }}
       onContextMenu={event => { workbench.select(row.path); contextMenu('file', () => fileItems(workbench, row, root), { path: row.path, directory: row.directory, workspaceId: workbench.workspaceId }, `${row.path} actions`)(event); }}

@@ -62,6 +62,7 @@
     { "id": "context-menus", "scope": "ui", "script": "test:context-menus" },
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
     { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },
+    { "id": "peek", "scope": "ui", "script": "test:peek" },
     { "id": "onboarding", "scope": "ui", "script": "test:onboarding" },
     { "id": "split-diff", "scope": "ui", "script": "test:split-diff" }
   ],

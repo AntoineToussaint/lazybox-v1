@@ -135,6 +135,18 @@ or not, whatever it holds:
    and elapsed time. The title gives way first, then the status's words; the
    time is never cut. Provider, model and account are the tooltip.
 
+**Peek.** Alt-click a peekable row, press Space on it (like Quick Look), or
+choose **Peek** in its context menu to see the item live over the current page
+without navigating: a conversation (its latest messages, status, a message box
+and Stop turn; a workspace row peeks the conversation it speaks for), a
+process (facts, its output, Stop behind a confirmation), a command's output,
+an artifact, a mission task, or a file in Files. In the peek ← and → step
+through the rows around it, ⌘↵ (Ctrl+Enter) opens it here, Space or Esc
+closes it and focus returns to the row last shown. The overlay moves by its
+header and resizes from its corner. A sub-agent card peeks in the
+conversation's own floating sub-agent panel. Rows opt in with `data-peek`
+(`peekProps` in `peek-model.ts`); the overlay is `Peek.tsx`.
+
 Example workspace:
 
 ```text

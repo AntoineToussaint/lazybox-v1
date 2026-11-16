@@ -1,3 +1,4 @@
+import { peekProps } from './peek-model';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -103,7 +104,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
               'separator',
               { label: 'Mark all seen', icon: 'checkAll', disabled: !unseen.length, run: () => markSeen(unseen) },
             ], { sessionId: row.session.id, workspaceId: row.session.collectionId })}>
-            <button className="inbox-row" aria-current={row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' })}>
+            <button className="inbox-row" {...peekProps({ kind: 'conversation', sessionId: row.session.id, workspaceId: row.session.collectionId, title: row.session.title })} aria-current={row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' })}>
               <AttentionIcon state={row.state}/><span className="sr-only">{attentionTitle[row.state]}{row.unread ? ', unread' : ''}: </span>
               <span className="inbox-main">
                 <span className="inbox-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationTitle(row.session) || 'New conversation'}</strong></span>

@@ -182,7 +182,9 @@ export const SubagentCard = memo(function SubagentCard({ id }: { id: string }) {
   return <section ref={card} className="subagent-card" data-status={status} data-nested={agent.depth > 0 || undefined} data-agent-id={id} aria-label={`Sub-agent: ${title}`} onKeyDown={keys}
     onContextMenu={contextMenu<SubagentMenuDetail>('subagent', () => subagentItems(view, agent, title), { agentId: id, kind: agent.kind }, `${title} actions`)}>
     <div className="subagent-head">
-      <button type="button" className="subagent-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={toggle}>
+      <button type="button" className="subagent-toggle" aria-expanded={expanded} aria-controls={bodyId} aria-keyshortcuts="Alt+Click Space"
+        onClick={event => { if (event.altKey) { event.preventDefault(); view.open(id, 'float'); return; } toggle(); }}
+        onKeyDown={event => { if (event.key === ' ' && !event.repeat) { event.preventDefault(); view.open(id, 'float'); } }}>
         <SubagentMark status={status}/>
         <SubagentName agent={agent} view={view}/>
         <span className="subagent-chevron" aria-hidden="true"><Icon name="chevronRight" size={14}/></span>

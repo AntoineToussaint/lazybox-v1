@@ -38,6 +38,8 @@ import { usePanelHosts } from './usePanelHosts';
 import { useWorkspaceCatalog } from './useWorkspaceCatalog';
 import { useTurnChangesHost } from './turn-checkpoints';
 import { Onboarding } from './Onboarding';
+import { PeekHost } from './Peek';
+import { openArtifact } from './artifact-events';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -382,6 +384,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         </div>
         {!settings && shownPanels.map(panel => createPortal(renderPanel(panel), panelHosts.hostFor(panel), panelHosts.slotOf(panel)))}
       </>}
+    <PeekHost navigation={{ showSession, showModule: kind => void showModule(kind), showTerminal, openArtifact: (collectionId, artifactId) => { if (!openArtifact({ collectionId, artifactId })) showModule('artifacts'); },
+      openFile: (collectionId, path, line) => { if (!workbench || collectionId !== workspaceID) return false; workbench.open(path, { line, focus: true }); return true; } }}/>
     <Onboarding viewState={viewState} collections={collections} collectionsLoaded={catalogLoaded} automatic={!fixedWorkspaceId} onOpenSettings={tab => { if (fixedWorkspaceId) return; setSettingsTab(tab); setSettings(true); }}/>
     {quickOpen && workbench && <QuickOpen key={workbench.workspaceId} workbench={workbench} onClose={() => setQuickOpen(false)}/>}
     {quickLook && workspaceID && <FilePreview key={`${workspaceID}:${quickLook.path}`} workspaceId={workspaceID} reference={quickLook} viewState={viewState} onClose={() => setQuickLook(undefined)}/>}

@@ -264,6 +264,31 @@ change, it is noted as an overlap, not a duplicate.
 9. **P1-7 Light theme, tokens, zoom and fonts.** Lazybox is hard-coded dark; herdr follows the system.
 10. **P1-6 Peek a conversation or sub-agent without navigating.** herdr peek; extend the sub-agent cards branch rather than duplicating it.
 
+## Status (same day)
+
+Shipped on `feat/v2-command-output` after this comparison was written:
+
+- **P1-5 — done.** Workspace rows have four fixed lines: name, repositories,
+  a git line (branch, uncommitted, not pushed, to pull, behind the default
+  branch, PR with a checks dot) from the new owner-only
+  `ListWorkspaceGitSummaries`, and the conversation's title with one status
+  mark and its elapsed time. Provider and model are the tooltip; no more "C.".
+  Ahead of the spaces mod: PR and checks state, and behind-default.
+- **P1-6 — done, without the terminal escape hatch** (no terminal emulator,
+  below). Alt-click, Space (Quick Look) or "Peek" in the context menu on a
+  conversation, process, command, artifact, mission task or file opens it
+  live over the page; ← → step through the list, ⌘↵ opens it here, Space or
+  Esc closes. A conversation can be answered from the peek; a process
+  stopped. A sub-agent card peeks in its own floating panel.
+- **P2-6 — done.** Changes has Unified / Split (remembered), word-level
+  highlights, folded unchanged lines, `n`/`p` hunks and Viewed checkboxes;
+  review comments work in both layouts. The diff row above (line 130) is now
+  a Lazybox lead.
+- **P2-1 — done, partly.** A first-run welcome (subscription, workspace, the
+  five keys, docs) and What's new once per release from bundled notes, both
+  reopenable from Help and the command palette. Not done: phone pairing and a
+  keyboard-preset choice in the welcome, media in release notes, self-update.
+
 ## Decision: no terminal emulator
 
 Lazybox V2 does not compete as a terminal emulator (owner's decision,

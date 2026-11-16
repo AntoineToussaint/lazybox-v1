@@ -1,0 +1,57 @@
+/* Peek (Peek.tsx): the live item over the page. Movable by its header,
+   resizable from its corner, closed with Esc, Space or ×. */
+.peek-dialog.draggable-dialog[open]{display:flex;flex-direction:column;width:min(860px,calc(100vw - 32px));height:min(72dvh,760px);min-width:min(420px,calc(100vw - 16px));min-height:260px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);padding:0;gap:0;overflow:hidden;resize:both;border:1px solid var(--peek-border,#3a3a46);border-radius:12px;background:var(--peek-bg,#1b1c22);color:var(--text,#e4e3ed);box-shadow:0 24px 80px #000a}
+.peek-dialog::backdrop{background:var(--peek-backdrop,#0b0b0f8c)}
+.peek-dialog>.peek-header{display:flex;align-items:center;gap:10px;padding:10px 12px 10px 14px;border-bottom:1px solid var(--peek-line,#2c2d36);flex:none;cursor:grab}
+.peek-dialog.dialog-dragging>.peek-header{cursor:grabbing}
+.peek-kind{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:var(--peek-chip,#26272f);color:var(--accent,#aaa1ce);flex:none}
+.peek-heading{display:flex;flex-direction:column;min-width:0;flex:1}
+.peek-heading small{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#8f919d)}
+.peek-heading h2{margin:0;font-size:14px;font-weight:600;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.peek-nav{display:inline-flex;gap:2px}
+.peek-nav .icon-button svg{transform:rotate(90deg)}
+.peek-nav .peek-next svg{transform:rotate(-90deg)}
+.peek-dialog .icon-button{width:28px;height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:0;background:transparent;color:var(--muted,#9a9caa)}
+.peek-dialog .icon-button:hover:not(:disabled){background:var(--nav-hover,#2a2b33);color:var(--text,#e4e3ed)}
+.peek-dialog .icon-button:disabled{opacity:.35}
+.peek-open{font-size:12px;padding:5px 10px;border-radius:6px;white-space:nowrap}
+.peek-body{flex:1;min-height:0;overflow:auto;padding:12px 16px;outline:none;display:flex;flex-direction:column}
+.peek-keys{display:flex;gap:16px;flex:none;padding:7px 14px;border-top:1px solid var(--peek-line,#2c2d36);font-size:11px;color:var(--muted,#8f919d)}
+.peek-keys kbd{display:inline-block;min-width:16px;padding:0 4px;margin-right:3px;border:1px solid var(--peek-border,#3a3a46);border-bottom-width:2px;border-radius:4px;font:10.5px/15px var(--font-ui,system-ui);text-align:center;color:var(--text,#c9cbd6)}
+@media (max-width:640px){.peek-keys{display:none}.peek-open{padding:5px 8px}}
+
+.peek-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12px;color:var(--muted,#9a9caa);margin-bottom:10px}
+.peek-chip{padding:1px 8px;border-radius:999px;background:var(--peek-chip,#26272f);color:var(--text,#c9cbd6);font-size:11px;text-transform:capitalize}
+.peek-loading,.peek-empty{color:var(--muted,#8f919d);font-size:13px;margin:auto}
+.peek-problem{color:var(--attention-failed,#ec8c94);font-size:12px}
+.peek-notice{color:var(--muted,#9a9caa);font-size:11px}
+.peek-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 12px}
+.peek-actions button,.peek-stop{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;font-size:12px;border-radius:6px;border:1px solid var(--peek-border,#3a3b45);background:var(--peek-chip,#26272f);color:var(--text,#d8d8e2);cursor:pointer}
+.peek-actions button.danger{border-color:#7a3440;background:#3a1f25;color:#ffd9de}
+.peek-confirm{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--muted,#b6b7c2)}
+
+.peek-conversation{display:flex;flex-direction:column;min-height:0;flex:1}
+.peek-transcript{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+.peek-transcript .message{max-width:none}
+.peek-composer{display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:end;padding-top:10px;margin-top:8px;border-top:1px solid var(--peek-line,#2c2d36)}
+.peek-composer textarea{resize:none;min-height:40px;max-height:140px;padding:8px 10px;border-radius:8px;border:1px solid var(--peek-border,#3a3b45);background:var(--peek-input,#14151a);color:var(--text,#e4e3ed);font:13px/1.45 var(--font-ui,system-ui)}
+.peek-composer textarea:focus{outline:2px solid var(--accent,#8f7bd8);outline-offset:0;border-color:transparent}
+.peek-composer button{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px}
+.peek-composer small{grid-column:1/-1}
+.peek-composer-closed{margin:10px 0 0;font-size:12px;color:var(--muted,#9a9caa)}
+
+.peek-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px 16px;margin:0 0 12px}
+.peek-facts div{min-width:0}
+.peek-facts dt{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#8f919d)}
+.peek-facts dd{margin:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.peek-command .console,.peek-process .console{min-height:240px}
+
+.peek-document{font-size:13px;line-height:1.6}
+.peek-task section{margin:10px 0}
+.peek-task h3{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#8f919d)}
+.peek-reason{margin:0 0 8px;font-size:13px;color:var(--text,#d8d8e2)}
+.peek-folder{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.peek-folder li{display:flex;align-items:center;gap:6px}
+.peek-file{min-height:0}
+/* A focused peekable row that is not a link or button shows where Space goes. */
+[data-peek][tabindex]:focus-visible{outline:2px solid var(--accent,#aaa1ce);outline-offset:-2px}

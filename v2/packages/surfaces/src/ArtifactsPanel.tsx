@@ -1,3 +1,4 @@
+import { peekProps } from './peek-model';
 import { useContext, useMemo, useRef, useState } from 'react';
 import type { Artifact, Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -64,7 +65,7 @@ export function ArtifactsPanel({ workspaceId, collections, viewState, target, on
         {shown.map((artifact, i) => {
           const kind = asKind(artifact.kind);
           const active = artifact.id === selected;
-          return <li key={artifact.id} role="option" aria-selected={active} data-artifact-id={artifact.id} tabIndex={active || (!current && i === 0) ? 0 : -1}
+          return <li key={artifact.id} role="option" aria-selected={active} data-artifact-id={artifact.id} {...peekProps({ kind: 'artifact', workspaceId, artifactId: artifact.id, title: artifact.title })} tabIndex={active || (!current && i === 0) ? 0 : -1}
             className="artifact-row" onClick={() => setSelected(artifact.id)}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(artifact.id); } if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); setDeleting(artifact); } if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); rowMenu(artifact, { x: r.left + 24, y: r.bottom - 4 }, event.currentTarget); } }}
             onContextMenu={event => { if (event.shiftKey) return; event.preventDefault(); rowMenu(artifact, menuPoint(event), event.currentTarget); }}>

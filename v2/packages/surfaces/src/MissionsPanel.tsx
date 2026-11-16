@@ -1,3 +1,4 @@
+import { peekProps } from './peek-model';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ConnectError } from '@lazybox/client-core';
 import type { Collection, Mission, MissionEvidence, MissionTask, Session } from '@lazybox/protocol';
@@ -179,7 +180,7 @@ function TaskCard({ task, goal, now, collections, titles, onOpen, onEvidence, on
   const label: Record<string, string> = { assign: task.attempts.length ? 'Assign again…' : 'Assign…', report: 'Report done…', accept: 'Accept', reject: 'Ask for changes…', open: 'Open conversation' };
   const run: Record<string, () => void> = { assign: onAssign, report: onReport, accept: onAccept, reject: onReject, open: onOpen };
   const blockedBy = task.blockedBy.map(id => titles.find(t => t.id === id)?.title || id);
-  return <li className={`mission-card status-${task.status}`} data-task={task.id} aria-label={`${task.title}, ${statusLabel[task.status] || task.status}${task.trust ? ', ' + trustLabel[task.trust] : ''}`}>
+  return <li className={`mission-card status-${task.status}`} data-task={task.id} tabIndex={0} {...peekProps({ kind: 'mission-task', taskId: task.id, title: task.title })} aria-label={`${task.title}, ${statusLabel[task.status] || task.status}${task.trust ? ', ' + trustLabel[task.trust] : ''}`}>
     <div className="mission-card-head">
       <button type="button" className="mission-card-title" aria-expanded={expanded} onClick={() => setExpanded(v => !v)}><strong>{task.title}</strong></button>
       <TaskMenu task={task} onCancel={onCancel} onAssign={onAssign}/>
