@@ -169,6 +169,13 @@ try {
  await expect(page.locator('.panel-terminal')).toHaveCount(0);
  await expect(page.locator('.panel-chat')).toBeVisible();
  assert.equal(calls('OpenTerminal').length,opened);
+ // A shell that exits cleanly closes its tab, and the panel with the last one.
+ await page.setViewportSize({width:1300,height:850});
+ await page.getByRole('button',{name:'Open terminal',exact:true}).click();
+ const last=page.locator('.panel-terminal').getByTestId('terminal');await expect(last).toBeVisible();
+ await last.click();await page.keyboard.type('exit');await page.keyboard.press('Enter');
+ await expect(page.locator('.panel-terminal')).toHaveCount(0);
+ await expect(page.locator('.panel-chat')).toBeVisible();
  assert.deepEqual(errors,[]);
- console.log('PASS terminal: header opens a shell docked right, focuses rather than duplicates, fitted size, ordered input, member directory, close, re-attach after reload, × close and reopen, dock via menu and keyboard, layout survives reload, remembered dock side, drag to dock with Escape cancel, neighbours stay mounted, collapsed side strip, phone close.');
+ console.log('PASS terminal: exit closes the tab and panel, header opens a shell docked right, focuses rather than duplicates, fitted size, ordered input, member directory, close, re-attach after reload, × close and reopen, dock via menu and keyboard, layout survives reload, remembered dock side, drag to dock with Escape cancel, neighbours stay mounted, collapsed side strip, phone close.');
 } finally {await browser?.close();await server.close();await fixture.close();}

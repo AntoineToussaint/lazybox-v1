@@ -23,7 +23,7 @@ const inputLimit = 32 << 10;
 
 const exitText = (status: TerminalStatus) => status.error || (status.signal ? `Shell ended by ${status.signal}` : status.exitCode === undefined ? 'Shell ended' : `Shell exited with code ${status.exitCode}`);
 
-export function TerminalPanel({ workspaceId, collections, viewState }: { workspaceId: string; collections: Collection[]; viewState?: ViewStateStore }) {
+export function TerminalPanel({ workspaceId, collections, viewState, onClosePanel }: { workspaceId: string; collections: Collection[]; viewState?: ViewStateStore; onClosePanel?(): void }) {
   const { api } = useRunner();
   const collection = collections.find(value => value.id === workspaceId);
   const key = viewState ? `${viewState.key}:terminal` : '';
@@ -59,6 +59,12 @@ export function TerminalPanel({ workspaceId, collections, viewState }: { workspa
   const close = async (id: string) => {
     try { await api.closeTerminal({ terminalId: id }); await refresh(); }
     catch (error) { setError(String(error)); }
+  };
+  // A shell that exits cleanly (exit, Ctrl+D) closes its tab like any terminal
+  // app; the panel closes with the last one. A failure stays to be read.
+  const exitedCleanly = async (id: string) => {
+    await close(id);
+    if (!listed.current.some(terminal => terminal.id !== id && !terminal.done)) onClosePanel?.();
   };
   useEffect(() => {
     known.current = null; setTerminals([]); setError(''); setListError('');
@@ -105,13 +111,15 @@ export function TerminalPanel({ workspaceId, collections, viewState }: { workspa
           <button aria-label="New terminal" title="New terminal" disabled={!ready || opening} onClick={() => void open()}><Icon name="plus" size={14}/><span>New terminal</span></button>
         </span>
       </div>
-      {current ? <TerminalView key={current.id} api={api} terminal={current} focusRef={focusView} onSize={value => { size.current = value; }} onError={setError}/>
+      {current ? <TerminalView key={current.id} api={api} terminal={current} focusRef={focusView} onCleanExit={() => void exitedCleanly(current.id)} onSize={value => { size.current = value; }} onError={setError}/>
         : <p className="module-empty">{ready ? 'No terminal is open in this workspace. A terminal runs your login shell on the Runner, in the directory you choose, and keeps running when the Runner restarts.' : 'The workspace is not ready for a terminal.'}{ready && <><br/><button className="primary" disabled={opening} onClick={() => void open()}>Start terminal</button></>}</p>}
     </>}
   </section>;
 }
 
-function TerminalView({ api, terminal, focusRef, onSize, onError }: { api: RunnerClient; terminal: TerminalStatus; focusRef: { current: (() => void) | null }; onSize(size: { cols: number; rows: number }): void; onError(error: string): void }) {
+function TerminalView({ api, terminal, focusRef, onSize, onError, onCleanExit }: { api: RunnerClient; terminal: TerminalStatus; focusRef: { current: (() => void) | null }; onSize(size: { cols: number; rows: number }): void; onError(error: string): void; onCleanExit?(): void }) {
+  const cleanExit = useRef(onCleanExit); cleanExit.current = onCleanExit;
+  const startedLive = useRef(!terminal.done);
   const host = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<TerminalStatus>(terminal);
   const [connection, setConnection] = useState('Connecting');
@@ -162,6 +170,8 @@ function TerminalView({ api, terminal, focusRef, onSize, onError }: { api: Runne
             if (event.status?.done && !event.data.length) {
               done = true; view.options.disableStdin = true; view.options.cursorBlink = false;
               view.write(`\r\n\x1b[2m[${exitText(event.status)}]\x1b[0m\r\n`);
+              // Seen ending live (not an old exited shell reopened): close after a beat.
+              if (startedLive.current && event.status.exitCode === 0 && !event.status.signal && !event.status.error) setTimeout(() => cleanExit.current?.(), 400);
             }
           }
           if (done || signal.aborted) return;

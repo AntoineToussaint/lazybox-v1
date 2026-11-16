@@ -32,6 +32,8 @@ export type ModuleProps = {
   onShowSession?(target: ViewTarget): void;
   onShowPanel?(kind: string, target?: ViewTarget): void;
   onShowModule?(kind: 'terminal' | 'changes'): void;
+  /** Closes this panel (a terminal panel whose last shell exited cleanly). */
+  onClosePanel?(): void;
 };
 export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
 
@@ -67,7 +69,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   collections: { title: 'Workspaces', icon: 'collections', Component: CollectionPanel },
   chat: { title: 'Agent chat', icon: 'chat', Component: ChatModule },
   console: { title: 'Command output', icon: 'output', Component: CommandPanel },
-  terminal: { title: 'Terminal', icon: 'terminal', Component: ({ workspaceId, collections, viewState }) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState}/> },
+  terminal: { title: 'Terminal', icon: 'terminal', Component: ({ workspaceId, collections, viewState, onClosePanel }) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState} onClosePanel={onClosePanel}/> },
   assistant: { title: 'Ask Lazybox', icon: 'chat', Component: AssistantModule },
   changes: { title: 'Changes', icon: 'branch', Component: ({ workspaceId, viewState, target, onShowSession }) => <ChangesPanel key={workspaceId} workspaceId={workspaceId} sessionId={target.collectionId === workspaceId ? target.sessionId : ''} onShowSession={onShowSession} viewState={viewState}/> },
   usage: { title: 'Usage & cost', icon: 'sliders', Component: ({ workspaceId }) => <TelemetryPanel workspaceId={workspaceId}/> },

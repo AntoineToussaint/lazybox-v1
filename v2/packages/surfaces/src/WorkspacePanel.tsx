@@ -68,7 +68,8 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
         : definition
           ? <definition.Component {...module} target={target} viewState={store}
             onTarget={panel.kind === 'collections' ? next => next.sessionId ? actions.showSession(next) : onTarget(next) : onTarget}
-            onOpenChat={panel.kind === 'chat' && canDetach && target.sessionId ? () => actions.detach(panel) : undefined}/>
+            onOpenChat={panel.kind === 'chat' && canDetach && target.sessionId ? () => actions.detach(panel) : undefined}
+            onClosePanel={panel.kind === 'terminal' ? () => actions.close(panel) : undefined}/>
           : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}
     </div>}
   </section>;

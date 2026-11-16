@@ -248,7 +248,7 @@ export async function startRunnerFixture() {
       case 'WriteTerminal': {
         const t=terminals.get(body.terminalId);if(!t||t.done)return error(t?'failed_precondition':'not_found','Terminal unavailable');
         const text=Buffer.from(body.data||'','base64').toString();t.input.push(text);
-        for(const character of text){if(character==='\r'){const line=t.line;t.line='';terminalOutput(t,`\r\nran: ${line}\r\n$ `);}else{t.line+=character;terminalOutput(t,character);}}
+        for(const character of text){if(character==='\r'){const line=t.line;t.line='';if(line==='exit'){terminalOutput(t,'\r\nexit\r\n');t.done=true;for(const client of t.clients)client.end(Buffer.concat([frame({offset:String(t.output.length),status:terminalStatus(t)}),frame({},2)]));break;}terminalOutput(t,`\r\nran: ${line}\r\n$ `);}else{t.line+=character;terminalOutput(t,character);}}
         return json(terminalStatus(t));
       }
       case 'ResizeTerminal': {const t=terminals.get(body.terminalId);if(!t)return error('not_found','Terminal missing');Object.assign(t,{cols:body.cols,rows:body.rows});t.resizes.push([body.cols,body.rows]);return json(terminalStatus(t));}
