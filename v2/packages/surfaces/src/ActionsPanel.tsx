@@ -97,6 +97,20 @@ function Log({ command, viewState }: { command: string; viewState?: ViewStateSto
   return <div className="runtime-log">{error && <p className="runtime-notice tone-warn" role="alert">{error}</p>}<Console key={command} api={api} command={command} viewState={viewState} onError={setError}/></div>;
 }
 
+/**
+ * What a row runs. One line reads as one line; a script of several lines keeps
+ * its lines (joined on one line it is not the script any more) behind its
+ * first line, which opens it.
+ */
+function Script({ run, label, where }: { run: string; label: string; where?: string }) {
+  const lines = run.replace(/\s+$/, '').split('\n');
+  if (lines.length < 2) return <code className="runtime-run" title={where ? `${run} (in ${where})` : run}>{run}</code>;
+  return <details className="runtime-script">
+    <summary aria-label={`${label}, ${lines.length} lines`} title={where ? `Runs in ${where}` : undefined}><code className="runtime-run">{lines[0]}</code><small>{lines.length} lines</small></summary>
+    <pre className="mono" aria-label={label}>{lines.join('\n')}</pre>
+  </details>;
+}
+
 function SetupRow({ setup, store, busy, now, open, onLogs, onReview, viewState }: { setup: WorkspaceSetup; store: RuntimeStore; busy: boolean; now: number; open: boolean; onLogs(): void; onReview(): void; viewState?: ViewStateStore }) {
   const state = setupLabel(setup), live = isLive(setup.runState);
   const ran = !!setup.runState?.commandId;
@@ -105,7 +119,7 @@ function SetupRow({ setup, store, busy, now, open, onLogs, onReview, viewState }
       {live ? <span className="run-spinner" aria-hidden="true"/> : <span className={`run-state-dot tone-${state.tone}`} aria-hidden="true"/>}
       <div className="runtime-text">
         <div className="runtime-title"><strong>Setup</strong><span className={`runtime-state tone-${state.tone}`}>{state.text}</span>{live && <span className="runtime-elapsed">{elapsed(setup.runState?.startedAtUnixMillis || 0n, now)}</span>}{setup.source === 'settings' && <span className="runtime-badge">yours</span>}</div>
-        <code className="runtime-run" title={setup.run}>{setup.run}</code>
+        <Script run={setup.run} label={`${setup.member} setup script`}/>
         {setup.copiedFiles.length > 0 && <span className="runtime-files">Copied from your checkout: {setup.copiedFiles.join(', ')}</span>}
         {setup.missingFiles.length > 0 && <span className="runtime-files tone-warn-text"><Icon name="alert" size={12}/> Not in your checkout, so not copied: {setup.missingFiles.join(', ')}</span>}
         {live && setup.runState?.lastLine && <span className="runtime-last mono" title={setup.runState.lastLine}>{setup.runState.lastLine}</span>}
@@ -137,7 +151,7 @@ function ActionRow({ action, all, store, busy, now, open, onLogs, onPreview, isD
           {!action.concurrent && <span className="runtime-badge" title="Starting it here stops it in your other workspaces">one at a time</span>}
           {action.source === 'settings' && <span className="runtime-badge">yours</span>}
         </div>
-        <code className="runtime-run" title={action.cwd ? `${action.run} (in ${action.cwd})` : action.run}>{action.run}</code>
+        <Script run={action.run} label={`${action.name} script`} where={action.cwd}/>
         <span className="runtime-facts">
           {action.port > 0 && <span className="mono" title="Its LAZYBOX_PORT">port {action.port}</span>}
           {action.url && (live ? <button type="button" className="link-button mono" onClick={onPreview} title="Open in the Preview panel">{action.url}</button> : <span className="mono">{action.url}</span>)}

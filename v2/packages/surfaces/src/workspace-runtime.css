@@ -151,3 +151,13 @@
 .runtime-repository textarea{width:100%;box-sizing:border-box;font-size:calc(12px * var(--text-scale))}
 .runtime-settings .runtime-check{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:calc(12px * var(--text-scale))}
 .runtime-repository>summary{min-height:28px}
+/* A script of several lines: its first line and a count, opening to the whole script as written. */
+.runtime-script{min-width:0}
+.runtime-script>summary{display:flex;align-items:center;gap:8px;min-width:0;min-height:22px;cursor:pointer;list-style:none}
+.runtime-script>summary::-webkit-details-marker{display:none}
+.runtime-script>summary::before{content:'›';flex:none;color:var(--text-muted);transition:transform .12s}
+.runtime-script[open]>summary::before{transform:rotate(90deg)}
+.runtime-script>summary>.runtime-run{flex:0 1 auto;min-width:0}
+.runtime-script>summary>small{flex:none;font-size:calc(10.5px * var(--text-scale));color:var(--text-muted);padding:0 6px;border-radius:9px;background:var(--surface-selected)}
+.runtime-script>pre{margin:4px 0 2px;padding:8px 10px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:6px;background:var(--code-bg);color:var(--code-text);font-size:calc(11.5px * var(--code-scale));line-height:1.5;white-space:pre;tab-size:2}
+@media (prefers-reduced-motion:reduce){.runtime-script>summary::before{transition:none}}

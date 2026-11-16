@@ -173,6 +173,51 @@ try {
     }
   }
 
+  // 7. A question card taller than the window scrolls inside itself; its answer row stays in view.
+  {
+    const beta = fixture.sessions[1];
+    const options = prefix => Array.from({ length: 6 }, (_, i) => ({ label: `${prefix} option ${i + 1}`, description: 'A description long enough to take a line of its own in the card.' }));
+    const question = { type: 'question', requestId: 'question-tall', text: 'AskUserQuestion', providerDataJson: Buffer.from(JSON.stringify({ tool: 'AskUserQuestion', toolUseId: 'ask-tall', input: { questions: [{ question: 'Which database should the cache use?', header: 'Database', multiSelect: false, options: options('Database') }, { question: 'Which checks should run before merge?', header: 'Checks', multiSelect: true, options: options('Check') }] } })).toString('base64') };
+    Object.assign(beta, { busy: true, status: 'waiting_input', pending: [question] });
+    fixture.openEvents(beta.id).push(question);
+    const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage(); page.setDefaultTimeout(15000);
+    await page.goto(url.replace('collection=alpha&session=alpha-session', 'collection=beta&session=beta-session'));
+    const card = page.locator('.request.question-card'), send = card.getByRole('button', { name: 'Send answer' });
+    await expect(card).toContainText('Check option 6');
+    const messages = await page.locator('.panel-chat .messages').boundingBox(), box = await card.boundingBox();
+    assert.ok(box.height <= messages.height + 1, `the card fits the conversation's height (${Math.round(box.height)} of ${Math.round(messages.height)}px)`);
+    assert.ok(await card.evaluate(node => node.scrollHeight > node.clientHeight + 20), 'this card has more than fits, and scrolls inside itself');
+    // The answer row is on screen at the top of the card's scroll and at its end.
+    for (const top of [0, 100000]) {
+      await card.evaluate((node, value) => { node.scrollTop = value; }, top);
+      const now = await card.boundingBox(), button = await send.boundingBox();
+      assert.ok(button.y >= now.y && button.y + button.height <= now.y + now.height + 1 && button.y + button.height <= 900, 'Send answer stays inside the card and the window');
+    }
+    await expect(card.getByText('Check option 6', { exact: true })).toBeVisible();
+    await page.screenshot({ path: '.cache/polish-pass-question.png' });
+    await page.context().close();
+  }
+
+  // 8. A setup script of several lines keeps its lines in the Actions panel, behind its first line.
+  {
+    const script = 'set -euo pipefail\nnpm ci\nnpm run build:proto\ncp .env.example .env';
+    fixture.runtimeFor('alpha').setups[0].run = script;
+    const page = await open({ width: 1440, height: 900 });
+    await page.locator('.workspace-header-actions summary[aria-label="Page actions"]').click();
+    await page.locator('.workspace-header-actions .show-panel', { hasText: 'Actions' }).click();
+    const row = page.locator('[data-runtime-row^="setup:"]').first(), disclosure = row.locator('.runtime-script');
+    await expect(disclosure.locator('summary')).toContainText('set -euo pipefail');
+    await expect(disclosure.locator('summary')).toContainText('4 lines');
+    await expect(disclosure.locator('summary')).not.toContainText('npm ci');
+    await disclosure.locator('summary').click();
+    const pre = disclosure.locator('pre');
+    await expect(pre).toBeVisible();
+    assert.equal(await pre.evaluate(node => node.textContent), script, 'the script is shown as written');
+    assert.equal(await pre.evaluate(node => getComputedStyle(node).whiteSpace), 'pre');
+    assert.ok((await pre.boundingBox()).height >= 4 * 14, 'four lines are four lines');
+    await page.context().close();
+  }
+
   assert.deepEqual(errors, []);
   console.log('PASS polish pass: a narrow chat keeps its title and a whole message box; a phone reaches every page tab and keeps the step on one row; a page opened from the header closes with its ×; the header fits half a screen. Fixture only.');
 } finally { await browser?.close(); await server.close(); await fixture.close(); }

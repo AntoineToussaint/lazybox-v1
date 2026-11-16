@@ -74,3 +74,7 @@ button.danger:hover{background:var(--danger-line)}
 .request .approval-what .code-block pre{overflow-x:hidden;max-height:min(320px,40dvh)}
 /* Disclosures are controls: a row tall enough to hit. */
 .request .request-metadata>summary{display:flex;align-items:center;min-height:24px;cursor:pointer}
+/* A question card never outgrows the window: long questions scroll inside the card while its
+   answer row (the progress and Send answer) stays in view at the bottom. */
+.request.question-card{max-height:max(260px,calc(100dvh - 370px));overflow-y:auto;overscroll-behavior:contain}
+.request.question-card>.question-footer{position:sticky;bottom:-16px;z-index:1;margin:14px -18px -16px;padding:10px 18px 14px;background:var(--surface);border-top:1px solid var(--line-subtle);border-radius:0 0 10px 10px}
