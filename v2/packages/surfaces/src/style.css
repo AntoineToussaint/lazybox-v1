@@ -161,3 +161,10 @@ small{color:#87929f;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:600px){.file-preview-dialog>[data-dialog-drag-handle]{padding:10px}.file-preview-dialog .file-preview-content{padding:12px}.file-preview-dialog .file-preview-toolbar{padding:6px 10px}}
 .messages{overflow-anchor:none}
 .messages-content{display:flow-root;min-width:0}
+
+.console-state{display:flex;align-items:center;gap:8px}
+.console-stop{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid #6b3a3f;border-radius:12px;background:#3a2226;color:#f3b7bb;font-size:11px}
+.console-stop:hover{background:#4a2a30}
+.pill.run-running{color:#b6a8f0;border-color:#4b4370}.pill.run-ok{color:#8ad48b;border-color:#2f5a35}.pill.run-failed{color:#f0747a;border-color:#6b3a3f}.pill.run-stopped{color:#e9c46a;border-color:#5f5130}
+.console{position:relative}
+.console-jump{position:absolute;right:18px;bottom:44px;z-index:2;padding:4px 10px;border:1px solid #42434e;border-radius:12px;background:#23242cee;color:#d6d8e0;font-size:11px;box-shadow:0 6px 18px #0006}

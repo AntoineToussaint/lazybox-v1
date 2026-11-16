@@ -36,7 +36,7 @@ try {
   const run = fixture.startRun('alpha-session', 'go test ./...', { exitCode: 1, outputBytes: '1468006', agentBytes: '2150', filter: 'go-test', outputPath: '/state/command-output/alpha-session/go-1.log' });
   await expect(hide).toBeVisible({ timeout: 5000 });
   const report = page.getByTestId('command-report');
-  await expect(report).toContainText('exit 1 · agent saw 2.1 KiB of 1.4 MiB (go-test filter)');
+  await expect(report).toContainText('Exit 1 · the agent got a 2.1 KiB summary of 1.4 MiB (go-test filter)');
   await expect(page.locator('.command-panel select')).toHaveValue(run.id);
   await expect(page.locator('.command-panel footer')).toContainText('Exit 1');
   await expect(composer).toBeFocused();
@@ -53,8 +53,8 @@ try {
   const next = fixture.startRun('alpha-session', 'npm test', { exitCode: 0, outputBytes: '120', agentBytes: '180', filter: 'passthrough', outputPath: '' });
   await expect(hide).toBeVisible({ timeout: 5000 });
   await expect(page.locator('.command-panel select')).toHaveValue(next.id);
-  await expect(report).toContainText('exit 0 · agent saw 180 B of 120 B (no filter)');
-  await expect(report.getByRole('button', { name: 'Copy full-output path' })).toHaveCount(0);
+  await expect(report).toContainText('Exit 0 · the agent got all of it (120 B)');
+  await expect(report.getByRole('button', { name: 'Copy log path' })).toHaveCount(0);
 
   // A run in another session leaves this console alone.
   await hide.click();

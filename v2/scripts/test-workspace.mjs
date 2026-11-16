@@ -98,13 +98,14 @@ try {
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Finish customizing', exact: true }).click();
   await page.getByRole('textbox', { name: 'Search output', exact: true }).fill('fixture');
-  await page.getByRole('checkbox', { name: 'Follow', exact: true }).uncheck();
+  // Scrolling up stops following the output; a button brings you back to the latest.
+  await page.locator('[data-testid=console-output]').first().evaluate(node => { node.scrollTop = 0; node.dispatchEvent(new Event('scroll')); });
   await mkdir('.cache', { recursive: true }); await page.screenshot({ path: '.cache/workspace-work.png', fullPage: true });
   await expect(page.getByRole('button',{name:'Monitor',exact:true})).toHaveCount(0);
   await collection.selectOption('beta'); await session.selectOption('beta-session');
   await page.getByRole('button',{name:'Show command output',exact:true}).click();
   await expect(page.getByRole('textbox', { name: 'Search output', exact: true })).toHaveValue('');
-  await expect(page.getByRole('checkbox', { name: 'Follow', exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: '↓ Latest output', exact: true })).toHaveCount(0);
   await expect(page.locator('.collection-panel')).not.toContainText('No standalone conversations yet.');
   await page.screenshot({ path: '.cache/workspace-secondary.png', fullPage: true });
   await page.reload();
@@ -115,7 +116,6 @@ try {
   await expect(collection).toHaveValue('alpha'); await expect(session).toHaveValue('alpha-session');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await expect(page.getByRole('textbox', { name: 'Search output', exact: true })).toHaveValue('fixture');
-  await expect(page.getByRole('checkbox', { name: 'Follow', exact: true })).not.toBeChecked();
 
   let popupPromise = page.waitForEvent('popup');
   await chat.getByRole('button', { name: 'Open chat window ↗', exact: true }).click();

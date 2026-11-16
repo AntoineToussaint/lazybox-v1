@@ -14,10 +14,12 @@ export function formatBytes(value: bigint | number): string {
 // e.g. "exit 1 · agent saw 2.1 KiB of 1.4 MiB (go-test filter)". A run from a
 // workspace terminal reached no agent yet: its label says what one would get.
 export function reportSummary(report: CommandReport, fromTerminal = false): string {
-  const filter = report.filter === 'raw' ? 'raw output' : !report.filter || report.filter === 'passthrough' ? 'no filter' : `${report.filter} filter`;
-  const outcome = report.piped ? 'piped, exit unknown' : `exit ${report.exitCode}`;
-  const view = fromTerminal ? `agent view ${formatBytes(report.agentBytes)} of ${formatBytes(report.outputBytes)}` : `agent saw ${formatBytes(report.agentBytes)} of ${formatBytes(report.outputBytes)}`;
-  return `${outcome} · ${view} (${filter})`;
+  const filter = report.filter && report.filter !== 'passthrough' && report.filter !== 'raw' ? ` (${report.filter} filter)` : '';
+  const outcome = report.piped ? 'Piped, exit unknown' : `Exit ${report.exitCode}`;
+  const who = fromTerminal ? 'an agent would get' : 'the agent got';
+  // A view no smaller than the output is the whole output (plus its header).
+  const view = report.agentBytes >= report.outputBytes ? `${who} all of it (${formatBytes(report.outputBytes)})` : `${who} a ${formatBytes(report.agentBytes)} summary of ${formatBytes(report.outputBytes)}${filter}`;
+  return `${outcome} · ${view}`;
 }
 
 /** A workspace run: published from a workspace terminal, not by an agent. */

@@ -7,6 +7,7 @@ import { readConsoleState, writeConsoleState } from './view-state';
 import { composeRunMessage, formatBytes, isWorkspaceRun, reportSummary } from './command-runs';
 import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
 import { AnsiText, stripAnsi } from './ansi';
+import { Icon } from './Icons';
 
 export function RequestCard({ request, api, session, onError }: { request: AgentEvent; api: RunnerClient; session: string; onError: (s: string) => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -77,6 +78,14 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     }
   }, [text, followOutput, status]);
   const report = metadata?.report;
+  const running = !!metadata && !metadata.done;
+  // What happened, in words: never a stale "exit 0" for a command still running.
+  const outcome = !metadata ? { tone: 'idle', text: status === 'Connecting' ? 'Connecting…' : status }
+    : running ? { tone: 'running', text: 'Running' }
+    : metadata.captureError ? { tone: 'failed', text: 'Output incomplete' }
+    : metadata.signal ? { tone: 'stopped', text: `Stopped (${metadata.signal})` }
+    : metadata.exitCode === undefined ? (report && !report.piped ? (report.exitCode === 0 ? { tone: 'ok', text: 'Finished' } : { tone: 'failed', text: `Failed · exit ${report.exitCode}` }) : { tone: 'idle', text: 'Ended' })
+    : metadata.exitCode === 0 ? { tone: 'ok', text: 'Finished' } : { tone: 'failed', text: `Failed · exit ${metadata.exitCode}` };
   const fromTerminal = !!metadata && isWorkspaceRun(metadata);
   const [handed, setHanded] = useState<{ ok: boolean; text: string }>();
   useEffect(() => setHanded(undefined), [command]);
@@ -87,13 +96,14 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     setHanded(problem ? { ok: false, text: problem } : { ok: true, text: `Added ${formatBytes(report!.agentBytes)} to your message. Review it and send when ready.` });
   };
   const shareTitle = !metadata?.done ? 'Available when the output ends.' : !view ? 'This run has no compact view: its output did not end cleanly.' : `Adds the compact view (${formatBytes(report!.agentBytes)}: outcome and failures first, plus the full-output path) to your message. You decide when to send it.`;
-  return <section className="console"><div className="panel-title"><div><span className="eyebrow">{fromTerminal ? 'From your terminal' : 'Shared console'}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="pill">{status}</span></div>
+  return <section className="console"><div className="panel-title"><div><span className="eyebrow">{fromTerminal ? 'From your terminal' : 'Shared console'}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="close" size={12}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status">{outcome.text}</span></span></div>
     {/* Shown in every console, including the workspace's (which hides the title): what an agent gets, and the hand-over. */}
     {(report || (fromTerminal && onSendToAgent)) && <div className="command-meta">{fromTerminal && <span className="command-origin">From your terminal</span>}
-      {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report, fromTerminal)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy full-output path</button>}</p>}
+      {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report, fromTerminal)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy log path</button>}</p>}
       {fromTerminal && onSendToAgent && <p className="command-share"><button className="primary" disabled={!metadata.done || !view} title={shareTitle} onClick={sendToAgent}>Send to agent</button>{handed ? <small role={handed.ok ? 'status' : 'alert'} className={handed.ok ? '' : 'error-text'}>{handed.text}</small> : <small>{metadata.done ? view ? `The agent gets ${formatBytes(report!.agentBytes)}, not the ${formatBytes(report!.outputBytes)} above.` : '' : 'You can send it to an agent when the output ends.'}</small>}</p>}</div>}
-    <div className="console-tools"><label><input type="checkbox" checked={followOutput} onChange={e => { setFollowOutput(e.target.checked); restoreScroll.current = null; saveView(search, e.target.checked); }}/> Follow</label><input aria-label="Search output" placeholder="Find in output…" value={search} onChange={e => { setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/><button onClick={() => navigator.clipboard.writeText(stripAnsi(text)).catch(error => onError?.(String(error)))}>Copy</button>{onOpenViewer && <button onClick={onOpenViewer}>Open viewer ↗</button>}</div>
-    <pre ref={pane} tabIndex={0} className="output" data-testid="console-output" onWheel={() => { restoreScroll.current = null; }} onScroll={() => { if (!followOutput && restoreScroll.current === null) saveView(search, false); }}>{text ? <AnsiText text={text} filter={search}/> : 'Waiting for output…'}</pre>
+    <div className="console-tools"><input aria-label="Search output" placeholder="Find in output…" value={search} onChange={e => { setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/><button onClick={() => navigator.clipboard.writeText(stripAnsi(text)).catch(error => onError?.(String(error)))}>Copy</button>{onOpenViewer && <button onClick={onOpenViewer}>Open viewer ↗</button>}</div>
+    <pre ref={pane} tabIndex={0} className="output" data-testid="console-output" onWheel={() => { restoreScroll.current = null; }} onScroll={event => { const node = event.currentTarget; const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 24; if (restoreScroll.current !== null) return; if (atEnd !== followOutput) setFollowOutput(atEnd); saveView(search, atEnd); }}>{text ? <AnsiText text={text} filter={search}/> : 'Waiting for output…'}</pre>
+    {!followOutput && text && <button className="console-jump" onClick={() => { setFollowOutput(true); restoreScroll.current = null; pane.current?.scrollTo({ top: pane.current.scrollHeight }); saveView(search, true); }}>↓ Latest output</button>}
     <footer><span className="mono">{command.slice(0, 12)} · {offset.toString()} bytes</span><span>{metadata?.captureError || (metadata?.done ? metadata.exitCode === undefined ? report && !report.piped ? `Exit ${report.exitCode}` : 'Capture EOF · upstream exit unknown' : `Exit ${metadata.exitCode}${metadata.signal ? ' · ' + metadata.signal : ''}` : 'Running')}</span></footer>
     <small className="retention">Showing up to the last 512 KiB. Full retained output is available through command reads until the configured spool budget is exhausted.</small>
   </section>;

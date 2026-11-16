@@ -40,11 +40,11 @@ try {
   await expect(hide).toBeVisible({ timeout: 5000 });
   const panel = page.locator('.command-panel');
   await expect(panel.locator('select')).toHaveValue(run.id);
-  await expect(panel.locator('select option:checked')).toHaveText('go test ./... · from your terminal · completed');
+  await expect(panel.locator('select option:checked')).toHaveText('✓ go test ./... · from your terminal · completed');
   await expect(panel.locator('.command-origin')).toBeVisible();
   await expect(panel.locator('.command-origin')).toHaveText('From your terminal');
   await expect(page.getByTestId('command-report')).toBeVisible();
-  await expect(page.getByTestId('command-report')).toContainText('piped, exit unknown · agent view 247 B of 1.4 MiB (go-test filter)');
+  await expect(page.getByTestId('command-report')).toContainText('Piped, exit unknown · an agent would get a 247 B summary of 1.4 MiB (go-test filter)');
   await expect(page.getByTestId('console-output')).toContainText('FULL_OUTPUT_ONLY_MARKER');
   await expect(panel.locator('footer')).toContainText('upstream exit unknown');
   await expect(composer).toBeFocused();

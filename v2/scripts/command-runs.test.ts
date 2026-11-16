@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 import { RunTracker, appendToDraft, composeRunMessage, formatBytes, isWorkspaceRun, reportSummary } from '../packages/surfaces/src/command-runs.ts';
 
 test('a run is labelled with what its agent received, in the sizes the agent was shown', () => {
-  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 1, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' })), 'exit 1 · agent saw 2.1 KiB of 1.4 MiB (go-test filter)');
-  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 0, agentBytes: 40n, outputBytes: 12n, filter: 'passthrough' })), 'exit 0 · agent saw 40 B of 12 B (no filter)');
-  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 0, agentBytes: 5000n, outputBytes: 4096n, filter: 'raw' })), 'exit 0 · agent saw 4.9 KiB of 4.0 KiB (raw output)');
+  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 1, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' })), 'Exit 1 · the agent got a 2.1 KiB summary of 1.4 MiB (go-test filter)');
+  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 0, agentBytes: 40n, outputBytes: 12n, filter: 'passthrough' })), 'Exit 0 · the agent got all of it (12 B)');
+  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 0, agentBytes: 5000n, outputBytes: 4096n, filter: 'raw' })), 'Exit 0 · the agent got all of it (4.0 KiB)');
   assert.equal(formatBytes(1023), '1023 B');
 });
 
@@ -21,8 +21,8 @@ test('each command opens the console once, and commands that already existed nev
 });
 
 test('a run from a workspace terminal says what an agent would get, and when the exit status is unknown', () => {
-  assert.equal(reportSummary(create(CommandReportSchema, { piped: true, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' }), true), 'piped, exit unknown · agent view 2.1 KiB of 1.4 MiB (go-test filter)');
-  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 2, agentBytes: 300n, outputBytes: 9000n, filter: 'passthrough' }), true), 'exit 2 · agent view 300 B of 8.8 KiB (no filter)');
+  assert.equal(reportSummary(create(CommandReportSchema, { piped: true, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' }), true), 'Piped, exit unknown · an agent would get a 2.1 KiB summary of 1.4 MiB (go-test filter)');
+  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 2, agentBytes: 300n, outputBytes: 9000n, filter: 'passthrough' }), true), 'Exit 2 · an agent would get a 300 B summary of 8.8 KiB');
   assert.ok(isWorkspaceRun({ sessionId: '', collectionId: 'alpha' }));
   assert.ok(!isWorkspaceRun({ sessionId: 'alpha-session', collectionId: '' }));
 });

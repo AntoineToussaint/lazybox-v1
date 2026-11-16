@@ -21,10 +21,11 @@ export function CommandPanel({ target, onTarget, viewState, onOpenViewer }: { ta
     void update(); const timer = setInterval(() => void update(), 1500);
     return () => { control.abort(); clearInterval(timer); };
   }, [api, target.sessionId]);
-  const selected = target.commandId || commands.at(-1)?.id || '';
+  // A command still running is what you want to see, even when a later one already finished.
+  const selected = target.commandId || [...commands].reverse().find(command => !command.done)?.id || commands.at(-1)?.id || '';
   return <section className="command-panel">{error && <div className="error" role="alert">{error}</div>}
     {!target.sessionId ? <p className="module-empty">Select an existing session to inspect its command output.</p> : <>
-      <label className="command-picker">Command<select value={selected} onChange={event => onTarget({ ...target, commandId: event.target.value })}><option value="">Select command</option>{commands.map(command => <option key={command.id} value={command.id}>{command.title} · {isWorkspaceRun(command) ? 'from your terminal · ' : ''}{command.done ? 'completed' : 'running'}</option>)}</select></label>
+      <label className="command-picker">Command<select value={selected} onChange={event => onTarget({ ...target, commandId: event.target.value })}><option value="">Select command</option>{commands.map(command => <option key={command.id} value={command.id}>{command.done ? (command.exitCode === 0 || (command.exitCode === undefined && command.report?.exitCode === 0) ? '✓ ' : command.signal ? '■ ' : '✗ ') : '● '}{command.title} · {isWorkspaceRun(command) ? 'from your terminal · ' : ''}{command.done ? 'completed' : 'running'}</option>)}</select></label>
       {selected && commands.some(command => command.id === selected) ? <Console key={selected} api={api} command={selected} viewState={viewState} onError={setError} onSendToAgent={text => offerToComposer(target.sessionId, text) ? '' : 'Show this conversation’s chat on the page to add the output to your message.'} onOpenViewer={onOpenViewer ? async () => { try { await onOpenViewer(target.sessionId, selected); } catch (error) { setError(String(error)); } } : undefined}/> : <p className="module-empty">{selected ? 'The saved command is unavailable in this session.' : 'No captured commands. This viewer does not start a process.'}</p>}
     </>}
   </section>;
