@@ -192,7 +192,11 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
   const clear = () => { setRestoreRequest(undefined); try {viewState?.setItem(`${storageKey}:request`, '');} catch {} dismissed.current.add(flowID); rememberFlow(''); setFlow(undefined); setLabel(''); attempt.current = undefined; setError(''); close(); };
   const cancel = async () => {
     if (!flowID) return;
-    try { setFlow(await api.cancelSubscriptionEnrollment({ enrollmentId: flowID }, { signal: lifetime.current!.signal, timeoutMs: 10000 })); }
+    try {
+      const next = await api.cancelSubscriptionEnrollment({ enrollmentId: flowID }, { signal: lifetime.current!.signal, timeoutMs: 10000 });
+      // The person asked to cancel: nothing to report, the dialog just closes.
+      if (next.state === 'cancelled') clear(); else setFlow(next);
+    }
     catch { setError('Could not confirm cancellation. The sign-in request remains visible.'); }
   };
   const copyCode = async () => {
@@ -329,7 +333,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
           {flow.userCode && <div className="device-code-control"><input className="device-code" aria-label="Sign-in code" readOnly value={flow.userCode} onFocus={event => event.currentTarget.select()}/><button onClick={() => void copyCode()}>{copied ? 'Copied' : 'Copy code'}</button><span className="copy-status" role="status">{copied ? 'Code copied to clipboard' : ''}</span>{copyError && <p role="alert">{copyError}</p>}</div>}
           <button className="primary" onClick={() => void open()}>Open sign-in page <Icon name="external"/></button>
           <small role="status">Waiting for sign-in…</small>
-        </> : flow?.state === 'added' ? <><span className="enrollment-check">✓</span><h3>Subscription added</h3><p>{flow.label} is available to sessions on this Runner.</p><button className="primary" onClick={clear}>Done</button></> : flow?.state === 'failed' || flow?.state === 'cancelled' || flow?.state === 'expired' ? <><h3>{flow.state === 'cancelled' ? 'Sign-in cancelled' : flow.state === 'expired' ? 'Sign-in request expired' : 'Could not add subscription'}</h3><p>{flow.error}</p><button onClick={clear}>Close</button></> : <p role="status">{flow?.state === 'cancelling' ? 'Cancelling sign-in…' : 'Preparing sign-in…'}</p>}
+        </> : flow?.state === 'added' ? <><span className="enrollment-check">✓</span><h3>Subscription added</h3><p>{flow.label} is available to sessions on this Runner.</p><button className="primary" onClick={clear}>Done</button></> : flow?.state === 'failed' || flow?.state === 'cancelled' || flow?.state === 'expired' ? <><h3>{flow.state === 'cancelled' ? 'Sign-in cancelled' : flow.state === 'expired' ? 'Sign-in request expired' : 'Could not add subscription'}</h3>{flow.error && <p>{flow.error}</p>}<div className="enrollment-actions"><button className="primary" onClick={() => { const label0 = label; clear(); setLabel(label0); setAdding(true); }}>Try again</button><button onClick={clear}>Close</button></div></> : <p role="status">{flow?.state === 'cancelling' ? 'Cancelling sign-in…' : 'Preparing sign-in…'}</p>}
         {!terminal(flow?.state) && <button className="cancel-sign-in" disabled={flow?.state === 'cancelling'} onClick={() => void cancel()}>Cancel sign-in</button>}
       </div>}
     </DraggableDialog>

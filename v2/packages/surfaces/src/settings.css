@@ -235,3 +235,5 @@ p.settings-empty[role=status]{border-style:solid;border-color:transparent;text-a
 .chat-settings-preview{padding:14px 16px;display:flex;flex-direction:column;gap:6px;font-size:calc(13px * var(--text-scale));color:var(--s-text)}
 .chat-settings-preview>p{margin:0;line-height:1.55}
 .chat-settings-preview .tool-lines{margin:0}
+
+.enrollment-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}

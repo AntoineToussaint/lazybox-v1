@@ -117,7 +117,8 @@ try {
  await page.getByRole('button',{name:'Add subscription',exact:true}).click();dialog=page.getByRole('dialog');
  await dialog.getByLabel('Provider',{exact:true}).selectOption('codex');await dialog.getByLabel('Account name',{exact:true}).fill('Cancelled');await dialog.getByRole('button',{name:'Continue with Codex',exact:true}).click();
  await expect(dialog.getByRole('textbox',{name:'Sign-in code',exact:true})).toHaveValue('AUTH-FIXTURE-CODE');await dialog.getByRole('button',{name:'Cancel sign-in',exact:true}).click();
- await expect(dialog.getByRole('heading',{name:'Sign-in cancelled',exact:true})).toBeVisible();await dialog.getByRole('button',{name:'Close',exact:true}).click();
+ // Cancelling is what the person asked for: the dialog closes, with no dead-end "Sign-in cancelled" screen.
+ await expect(dialog).toBeHidden();
  await expect(page.getByRole('article',{name:'Cancelled subscription',exact:true})).toHaveCount(0);
  await page.screenshot({path:'.cache/settings-subscriptions-added.png',fullPage:true});
  // Settings → Process shows the effective orchestration process, read-only: phases left to right, then role cards.
