@@ -6,7 +6,7 @@ Claude and Codex all day: it keeps every agent of every workspace in view, shows
 what each one actually did, and keeps them running when the app or its Runner
 restarts.
 
-> **Preview.** V2 installs as a Mac app ([INSTALL.md](INSTALL.md)) once its
+> **Preview.** V2 installs as a Mac app ([INSTALL.md](docs/install.md)) once its
 > first release is published; until then, build it from source on macOS. The
 > `lazybox` formula on Homebrew is V1, the terminal PR inbox
 > ([its docs](https://lazybox.ai/docs/)).
@@ -58,7 +58,7 @@ file ([guide](docs/guides/automate.md)).
 
 ## Install
 
-**[INSTALL.md](INSTALL.md)**: the disk image or `brew install --cask
+**[INSTALL.md](docs/install.md)**: the disk image or `brew install --cask
 AntoineToussaint/lazybox/lazybox-v2`, the first run (the background Runner and
 the `lazybox` command), updates, `lazybox doctor` and uninstalling. Building
 from source, for Dev and Working: [Getting started](docs/getting-started.md#build-from-source).

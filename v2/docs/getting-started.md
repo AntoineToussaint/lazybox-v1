@@ -20,7 +20,7 @@ explains and sets up its background service, the **Runner**, and offers to
 put the `lazybox` command on your PATH. It brings its own Runner, Claude
 worker and Node; you need `git` and the agents you use (Claude Code, Codex)
 signed in. Updates arrive in the app. Everything else — where things are,
-unsigned builds, uninstalling — is in [INSTALL.md](../INSTALL.md).
+unsigned builds, uninstalling — is in [Install](install.md).
 
 No release is published yet. Until then, build it from source.
 

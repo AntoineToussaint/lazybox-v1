@@ -23,7 +23,7 @@ something — then ask `lazybox doctor` (the installation) or `lazybox debug`
 lazybox doctor
 ```
 
-For the installed app ([INSTALL.md](../INSTALL.md)). It checks the release,
+For the installed app ([Install](install.md)). It checks the release,
 the Runner service (installed, running, answering on this Mac only), that the
 app, the CLI and the Runner are the same version, the bundled Node and Claude
 worker, Claude Code, Codex, `git` and `gh` on the PATH agents get, your GitHub

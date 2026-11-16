@@ -21,7 +21,7 @@ export function sectionOf(path: string) {
   return SECTIONS.find(([pattern]) => pattern.test(path))?.[1] || 'Help';
 }
 const ORDER = ['Start', 'Guides', 'Reference', 'Help'];
-const FIRST = ['README.md', 'getting-started.md', '../INSTALL.md', 'concepts.md'];
+const FIRST = ['README.md', 'getting-started.md', 'install.md', 'concepts.md'];
 
 /** The first heading, or the file name. */
 export function titleOf(path: string, text: string) {
@@ -51,7 +51,7 @@ export function resolveDocLink(from: string, href: string, known: (path: string)
   const parts = from.split('/').slice(0, -1);
   for (const part of decodeURIComponent(rawPath).split('/')) {
     if (part === '' || part === '.') continue;
-    // Above docs/ the path keeps its "..": the app also bundles ../INSTALL.md.
+    // Above docs/ the path keeps its "..".
     if (part === '..' && parts.length && parts[parts.length - 1] !== '..') parts.pop(); else parts.push(part);
   }
   let path = parts.join('/');

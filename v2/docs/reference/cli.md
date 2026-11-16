@@ -80,7 +80,7 @@ current directory inside its folder or one of its worktrees), or the one
 
 ## The installation
 
-For the installed app ([INSTALL.md](../../INSTALL.md)):
+For the installed app ([Install](../install.md)):
 
 | Command | What it does |
 | --- | --- |

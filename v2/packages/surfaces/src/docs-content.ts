@@ -5,10 +5,10 @@ import { orderPages, sectionOf, titleOf, type DocPage } from './docs-model';
  * and images load on demand, so they cost nothing until Help → Documentation
  * opens. docs/internal is for people working on Lazybox, not in the app.
  */
-const pages = import.meta.glob(['../../../docs/**/*.md', '!../../../docs/internal/**', '../../../INSTALL.md'], { query: '?raw', import: 'default' }) as Record<string, () => Promise<string>>;
+const pages = import.meta.glob(['../../../docs/**/*.md', '!../../../docs/internal/**'], { query: '?raw', import: 'default' }) as Record<string, () => Promise<string>>;
 const images = import.meta.glob('../../../docs/**/*.{png,jpg,jpeg,gif,webp,svg}', { query: '?url', import: 'default' }) as Record<string, () => Promise<string>>;
 const PREFIX = '../../../docs/';
-/** A page's path relative to docs/ ("guides/chat.md", or "../INSTALL.md"). */
+/** A page's path relative to docs/ ("guides/chat.md", "install.md"). */
 const docPath = (key: string) => key.startsWith(PREFIX) ? key.slice(PREFIX.length) : '../' + key.slice('../../../'.length);
 
 let loaded: Promise<DocPage[]> | undefined;
