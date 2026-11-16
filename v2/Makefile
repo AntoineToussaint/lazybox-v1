@@ -126,6 +126,15 @@ runner-service-plan runner-service-install runner-service-start runner-service-s
 working-client:
 	node scripts/runner-service.mjs client
 
+# export-repo: begin
+# The standalone V2 repository's tree at REF (default HEAD) in DEST; the export
+# leaves this block out. make export-repo DEST=<dir> [REF=<commit-ish>]
+.PHONY: export-repo
+export-repo:
+	@test -n '$(DEST)' || { echo 'make export-repo DEST=<dir> [REF=<commit-ish>]'; exit 2; }
+	node scripts/export-repo.mjs --dest '$(DEST)' $(if $(REF),--ref '$(REF)')
+# export-repo: end
+
 .PHONY: test-repositories
 test-repositories: deps
 	npm run test:repositories
