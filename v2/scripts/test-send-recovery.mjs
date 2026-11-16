@@ -52,6 +52,13 @@ try{
  assert.ok(JSON.stringify(sent).includes('I want to do MCP'),'the draft text is sent');
  assert.ok(!JSON.stringify(sent).includes('CleanShot'),'the removed file is not sent');
  await expect(composer).toHaveValue('');
+ // A conversation the Runner refuses says why instead of swallowing Enter.
+ const other=fixture.sessions[1];Object.assign(other,{fault:'provider delivery failed; reconcile before continuing',busy:false,status:'failed'});
+ await page.goto(url.replace(`collection=${session.collectionId}`,`collection=${other.collectionId}`).replace(`session=${session.id}`,`session=${other.id}`));
+ const otherComposer=page.getByRole('textbox',{name:'Message',exact:true});
+ await otherComposer.fill('anything');const refused=applies();await otherComposer.press('Enter');
+ await expect(page.getByRole('alert').filter({hasText:'Resume it or start a new conversation to continue.'})).toBeVisible();
+ assert.equal(applies(),refused,'a refused conversation sends nothing');
  assert.deepEqual(errors,[]);
- console.log('PASS: lost attachment after reload is explained (Enter → reason, Attach again…, Send without it); a provider error does not block the next message.');
+ console.log('PASS: lost attachment after reload is explained (Enter → reason, Attach again…, Send without it); a provider error does not block the next message; a refused conversation says why.');
 }finally{await browser?.close();await server.close();await fixture.close();}

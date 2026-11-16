@@ -55,7 +55,7 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
 }) {
   const vimEditing = useVimPreferences(viewState).composer;
   const reservedKeys = useMemo(() => leaderKeys(keymap), [keymap]);
-  const vim = useComposerVim({ textarea, enabled: vimEditing, value: message, resetKey: sessionID, reserved: reservedKeys, onSend: () => { if (canSend || missingFiles.length > 0) textarea.current?.form?.requestSubmit(); } });
+  const vim = useComposerVim({ textarea, enabled: vimEditing, value: message, resetKey: sessionID, reserved: reservedKeys, onSend: () => { if (canSend || missingFiles.length > 0 || !!message.trim()) textarea.current?.form?.requestSubmit(); } });
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (onRecallKey(event, vim.mode)) return; vim.textareaProps.onKeyDown?.(event); };
   // A pasted image (a screenshot, say) attaches like a dropped file; a text paste stays native.
   const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {

@@ -36,7 +36,7 @@ import { MessageArea } from './MessageArea';
 import { SubscriptionControls } from './SubscriptionSwitch';
 import { Composer } from './Composer';
 import { ConsoleWindow, EventLog, SessionCommands } from './SessionCommands';
-import { sessionLimit, subscriptionName, turnFault } from './subscription-model';
+import { faultSentence, sessionLimit, subscriptionName, turnFault } from './subscription-model';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -99,7 +99,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       else { const next = message + (message && !message.endsWith('\n') ? '\n' : '') + snippet.body; setMessage(next); persistDraft(next, files, missingFiles); requestAnimationFrame(() => composer.current?.focus()); }
     }, error => setError(String(error)));
   });
-  useKeyboardAction('chat.send', () => { const focused = document.activeElement as HTMLTextAreaElement; if (focused === composer.current && (canSend || missingFiles.length > 0)) focused.form?.requestSubmit(); });
+  useKeyboardAction('chat.send', () => { const focused = document.activeElement as HTMLTextAreaElement; if (focused === composer.current && (canSend || missingFiles.length > 0 || !!message.trim())) focused.form?.requestSubmit(); });
 
   const assistant = purpose !== 'coding';
   const [sessionID, setSessionID] = useState(initialSessionId);
@@ -186,6 +186,16 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     const text = snippetText ?? message;
     // Never swallow Enter: say what is in the way.
     if (!snippetText && !sendingRef.current && !sending && missingFiles.length && (message.trim() || files.length)) { setError(`Attach ${missingFiles.length === 1 ? missingFiles[0].name : 'the files'} again, or remove ${missingFiles.length === 1 ? 'it' : 'them'}, to send.`); return false; }
+    // Any other refusal says why: a message that cannot go must never look sent.
+    if (!snippetText && (message.trim() || files.length) && !canSend) {
+      const why = sendingRef.current || sending ? 'Still sending your previous message…'
+        : !session ? 'Still connecting to this conversation…'
+        : !canCompose ? (session.recoveryRequired ? 'This conversation needs recovery first: use Resume above.' : session.resumeBlocked ? 'This conversation cannot be continued from here.' : 'This conversation has ended.')
+        : session.fault ? `${faultSentence(session.fault)} Resume it or start a new conversation to continue.`
+        : '';
+      if (why) setError(why);
+      return false;
+    }
     if (sendingRef.current || !(snippetText ? canCompose && (!session?.fault || limited || continuesAfterError) && !sending && !message.trim() && !files.length && !missingFiles.length : canSend)) return false;
     sendingRef.current = true; setSending(true); setError(''); jumpToLatest();
     const signal = lifetime.current!.signal;
@@ -205,7 +215,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         // and operation identity under the successor before sending any bytes.
         writeDraft(viewState, destination, { text, files: files.map(file => ({ name: file.name, size: file.size, lastModified: file.lastModified })), operationId: attempt.id });
       }
-      await api.apply({ sessionId: destination, operationId: attempt.id, operation: { case: 'message', value: { text, attachments } } }, { signal });
+      // A delivery that never answers (a Runner restarting mid-request) must not
+      // block sending forever. The operation id is kept, so sending again cannot
+      // deliver the message twice.
+      const deadline = AbortSignal.timeout(30_000);
+      try { await api.apply({ sessionId: destination, operationId: attempt.id, operation: { case: 'message', value: { text, attachments } } }, { signal: AbortSignal.any([signal, deadline]) }); }
+      catch (e) { if (deadline.aborted && !signal.aborted) throw new Error('The Runner did not confirm this message within 30 seconds. Press Enter to send it again: it will not be delivered twice.'); throw e; }
       savePrompt(viewState, text, session?.conversationId || sessionID); recall.reset();
       if (!signal.aborted) { setMessage(''); setFiles([]); setUncertainSend(''); sendAttempt.current = null; persistDraft('', [], []); if (destination !== sessionID) { writeDraft(viewState, destination, { text: '', files: [], operationId: '' }); setSessionID(destination); onSessionChange?.(destination); refresh(); } }
       return !signal.aborted;
