@@ -63,7 +63,11 @@ try {
   const options = palette.getByRole('option');
 
   // ⌘K from the message box: the empty palette documents its prefixes and leads with what needs you.
-  await page.locator('[data-agent-composer]').focus();
+  // The message box is disabled until the conversation has loaded, and a disabled box takes no focus.
+  const composer = page.locator('[data-agent-composer]');
+  await expect(composer).toBeEnabled();
+  await composer.focus();
+  await expect(composer).toBeFocused();
   await page.keyboard.press(`${mod}+k`);
   await expect(palette).toBeVisible();
   await expect(search).toBeFocused();
