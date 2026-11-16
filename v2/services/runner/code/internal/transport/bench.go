@@ -106,10 +106,18 @@ func wireSession(e *runner.Execution) *pb.Session {
 	w.ResumeBlocked = e.Saved.ResumeBlocked
 	w.CreatedAtUnixMillis = e.Saved.CreatedAt.UnixMilli()
 	for _, a := range engine.SortedActivities(s.Agents) {
-		w.Agents = append(w.Agents, &pb.AgentActivity{Id: a.ID, ParentId: a.ParentID, NativeId: a.NativeID, Name: a.Name, Kind: a.Kind, Status: string(a.Status), LastTurnStatus: a.LastTurnStatus, UpdatedAtUnixMillis: a.UpdatedAt.UnixMilli()})
+		w.Agents = append(w.Agents, wireActivity(a))
 	}
+	w.LastMessage = s.LastMessage
 	for _, p := range s.Pending {
 		w.Pending = append(w.Pending, wireEvent(p))
+	}
+	return w
+}
+func wireActivity(a agent.Activity) *pb.AgentActivity {
+	w := &pb.AgentActivity{Id: a.ID, ParentId: a.ParentID, NativeId: a.NativeID, Name: a.Name, Kind: a.Kind, Status: string(a.Status), LastTurnStatus: a.LastTurnStatus, UpdatedAtUnixMillis: a.UpdatedAt.UnixMilli()}
+	if !a.TurnEndedAt.IsZero() {
+		w.TurnEndedAtUnixMillis = a.TurnEndedAt.UnixMilli()
 	}
 	return w
 }

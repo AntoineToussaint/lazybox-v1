@@ -8,6 +8,8 @@ import { useRunner } from './RunnerContext';
 import { sessionStatus } from './agent-status';
 import { conversationDetails, sessionAccountLabel, mergeConversations } from './conversation-model';
 import type { ViewTarget } from './workspace-model';
+import { useUnread } from './useAttention';
+import './inbox.css';
 
 /** Selecting a conversation attaches a reader; it never starts execution. */
 export function ConversationList({ collectionId = '', target, onTarget, compact = false, hideWhenEmpty = false, heading, allWorkspaces = false, sessions: supplied }: { sessions?: Session[]; allWorkspaces?: boolean; compact?: boolean; hideWhenEmpty?: boolean; heading?: string; collectionId?: string; target: ViewTarget; onTarget(target: ViewTarget): void }) {
@@ -21,6 +23,7 @@ export function ConversationList({ collectionId = '', target, onTarget, compact 
   const [more, setMore] = useState(false);
   const [loading,setLoading]=useState(true);
   const [unsupported, setUnsupported] = useState(false);
+  const unread = useUnread();
   useEffect(() => {
     if (supplied) {setLoading(false); return;}
     const control = new AbortController();
@@ -57,9 +60,9 @@ export function ConversationList({ collectionId = '', target, onTarget, compact 
     {error && !connectionError && <p className="error" role="alert">Could not load saved conversations.</p>}
     {unsupported && !collectionId && <p className="module-empty">Live conversations · saved history requires a Runner update.</p>}
     {allWorkspaces && <input autoFocus type="search" className="conversation-filter" aria-label="Search all conversation titles" placeholder="Search all conversation titles…" maxLength={120} value={search} onChange={event => { setSearch(event.target.value); setPageCount(1); }}/> }
-    <nav aria-label={allWorkspaces ? 'All conversations' : collectionId ? 'Workspace conversations' : 'Conversations'}>{visible.map(session => <div className="conversation-row" key={session.id}><button className="conversation-link" aria-current={target.sessionId===session.id?'page':undefined} onClick={() => onTarget({ collectionId: session.collectionId, sessionId: session.id, commandId: '' })}>
-      <span className={`session-dot status-${session.closed?'saved':session.status}`} title={sessionStatus(session)}/><span className="conversation-label"><strong>{session.title || 'Untitled conversation'}</strong><small className="conversation-agent" title={conversationDetails(session,info?.profiles||[])+' · '+sessionStatus(session)}>{session.model?`${session.provider==='codex'?'Codex':'Claude'} · ${session.model}`:session.provider==='codex'?'Codex':'Claude'}{info?.profiles.find(profile=>profile.id===session.profileId)?.label&&session.profileId!=='claude-default'&&session.profileId!=='codex-default'?` · ${sessionAccountLabel(session,info?.profiles.find(profile=>profile.id===session.profileId))}`:''}</small><span className={session.closed||['ready','done','stopped'].includes(session.status)?'sr-only':'conversation-state'}>{sessionStatus(session)}</span></span>
-    </button><ActionMenu className="conversation-actions" label={`Actions for conversation ${session.title||session.id}`} ><button className="danger" onClick={event=>{event.currentTarget.closest('details')!.open=false;setDeleting(session);}}>Delete conversation…</button></ActionMenu></div>)}</nav>
+    <nav aria-label={allWorkspaces ? 'All conversations' : collectionId ? 'Workspace conversations' : 'Conversations'}>{visible.map(session => { const marker = unread(session); return <div className="conversation-row" data-unread={marker || undefined} key={session.id}><button className="conversation-link" aria-current={target.sessionId===session.id?'page':undefined} onClick={() => onTarget({ collectionId: session.collectionId, sessionId: session.id, commandId: '' })}>
+      <span className={`session-dot status-${session.closed?'saved':session.status}${marker ? ` unread unread-${marker}` : ''}`} title={marker ? (marker === 'failed' ? 'Failed · unread' : 'Ready for review · unread') : sessionStatus(session)}/>{marker && <span className="sr-only">{marker === 'failed' ? 'Failed, unread' : 'Ready for review, unread'}</span>}<span className="conversation-label"><strong>{session.title || 'Untitled conversation'}</strong><small className="conversation-agent" title={conversationDetails(session,info?.profiles||[])+' · '+sessionStatus(session)}>{session.model?`${session.provider==='codex'?'Codex':'Claude'} · ${session.model}`:session.provider==='codex'?'Codex':'Claude'}{info?.profiles.find(profile=>profile.id===session.profileId)?.label&&session.profileId!=='claude-default'&&session.profileId!=='codex-default'?` · ${sessionAccountLabel(session,info?.profiles.find(profile=>profile.id===session.profileId))}`:''}</small><span className={session.closed||['ready','done','stopped'].includes(session.status)?'sr-only':'conversation-state'}>{sessionStatus(session)}</span></span>
+    </button><ActionMenu className="conversation-actions" label={`Actions for conversation ${session.title||session.id}`} ><button className="danger" onClick={event=>{event.currentTarget.closest('details')!.open=false;setDeleting(session);}}>Delete conversation…</button></ActionMenu></div>; })}</nav>
     {!error && !loading && !visible.length && <p className="module-empty">{search ? 'No conversation titles match this search.' : collectionId ? 'No conversations in this workspace yet.' : 'No standalone conversations yet.'}</p>}
     {deleting&&<DeleteConversationDialog session={deleting} onClose={()=>setDeleting(undefined)} onDeleted={()=>{setDeleted(previous=>new Set([...previous,deleting.id]));setHistory(previous=>previous.filter(row=>row.id!==deleting.id));if(target.sessionId===deleting.id)onTarget({...target,sessionId:'',commandId:''});setDeleting(undefined);}}/>}
     {more && <button onClick={() => setPageCount(value => value + 1)}>Show more conversations</button>}

@@ -1,4 +1,5 @@
 import {KeyboardSettings} from './KeyboardSettings';
+import { NotificationSettings } from './NotificationSettings';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Profile, SubscriptionEnrollment, UsageWindow } from '@lazybox/protocol';
@@ -35,7 +36,7 @@ function resetLabel(epoch: bigint) {
   return hours >= 24 ? `Resets in ${Math.floor(hours / 24)}d ${hours % 24}h` : hours ? `Resets in ${hours}h ${minutes % 60}m` : `Resets in ${minutes}m`;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'pricing' | 'keyboard' | 'runner';
+export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'pricing' | 'notifications' | 'keyboard' | 'runner';
 export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepositoryFolder, tab: shownTab, onTab }: { chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; tab?: SettingsTab; onTab?(tab: SettingsTab): void }) {
   const { api, info, refresh } = useRunner();
   const [ownTab, setOwnTab] = useState<SettingsTab>('subscriptions');
@@ -162,7 +163,8 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
   const pending = !!flowID && !terminal(flow?.state);
   return <section className="settings-page" aria-labelledby="settings-title">
     <header className="settings-title"><div><span className="settings-eyebrow">YOUR WORKSPACE</span><h1 id="settings-title">Settings</h1></div></header>
-    <nav className="settings-tabs" role="tablist" aria-label="Settings sections"><button id="subscriptions-tab" role="tab" aria-selected={tab === 'subscriptions'} onClick={() => setTab('subscriptions')} aria-controls="subscriptions-panel">Subscriptions</button><button id="repositories-tab" role="tab" aria-selected={tab === 'repositories'} aria-controls="repositories-panel" onClick={() => setTab('repositories')}>Repositories</button><button role="tab" id="agents-tab" aria-selected={tab==='agents'} aria-controls="agents-panel" onClick={()=>setTab('agents')}>Agents & workspaces</button><button role="tab" id="pricing-tab" aria-selected={tab==='pricing'} aria-controls="pricing-panel" onClick={()=>setTab('pricing')}>Pricing</button><button role="tab" aria-selected={tab==='keyboard'} onClick={()=>setTab('keyboard')}>Shortcuts</button><button role="tab" id="runner-tab" aria-selected={tab==='runner'} aria-controls="runner-panel" onClick={()=>setTab('runner')}>Runner</button></nav>
+    <nav className="settings-tabs" role="tablist" aria-label="Settings sections"><button id="subscriptions-tab" role="tab" aria-selected={tab === 'subscriptions'} onClick={() => setTab('subscriptions')} aria-controls="subscriptions-panel">Subscriptions</button><button id="repositories-tab" role="tab" aria-selected={tab === 'repositories'} aria-controls="repositories-panel" onClick={() => setTab('repositories')}>Repositories</button><button role="tab" id="agents-tab" aria-selected={tab==='agents'} aria-controls="agents-panel" onClick={()=>setTab('agents')}>Agents & workspaces</button><button role="tab" id="pricing-tab" aria-selected={tab==='pricing'} aria-controls="pricing-panel" onClick={()=>setTab('pricing')}>Pricing</button><button role="tab" id="notifications-tab" aria-selected={tab==='notifications'} aria-controls="notifications-panel" onClick={()=>setTab('notifications')}>Notifications</button><button role="tab" aria-selected={tab==='keyboard'} onClick={()=>setTab('keyboard')}>Shortcuts</button><button role="tab" id="runner-tab" aria-selected={tab==='runner'} aria-controls="runner-panel" onClick={()=>setTab('runner')}>Runner</button></nav>
+    {tab==='notifications'&&<section role="tabpanel" id="notifications-panel" aria-labelledby="notifications-tab"><NotificationSettings/></section>}
     {tab==='keyboard'&&<KeyboardSettings store={viewState}/>}
     {tab==='runner'&&<section role="tabpanel" id="runner-panel" aria-labelledby="runner-tab"><RunnerSection/></section>}
     {tab==='agents'&&<section role="tabpanel" id="agents-panel" aria-labelledby="agents-tab"><AgentSettings/></section>}

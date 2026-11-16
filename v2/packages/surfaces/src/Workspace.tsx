@@ -27,6 +27,8 @@ import { Icon } from './Icons';
 import { sessionStatus } from './agent-status';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
 import { RestartNotice, RunnerIndicator } from './RunnerControl';
+import { AttentionCenter } from './Inbox';
+import { AttentionScope } from './useAttention';
 
 export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void };
 export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
@@ -56,7 +58,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
 const pagePanels = new Set(['collections', 'chat', 'changes']);
 const sentence = (title: string) => title.charAt(0).toLowerCase() + title.slice(1);
 type Props = { modules?: Readonly<Record<string, PanelModule>>; fixedWorkspaceId?: string; connection: RunnerConnection; viewState?: ViewStateStore; initialTarget?: ViewTarget; host?: WorkspaceHost; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onTargetChange?(target: ViewTarget): Promise<void> | void };
-export function Workspace(props: Props) { return <RunnerProvider connection={props.connection} expectRestart={props.host?.expectRunnerRestart}><RepositoryHostContext.Provider value={props.host||{}}><WorkspaceView {...props}/></RepositoryHostContext.Provider></RunnerProvider>; }
+export function Workspace(props: Props) { return <RunnerProvider connection={props.connection} expectRestart={props.host?.expectRunnerRestart}><AttentionScope root={props.viewState?.root} host={props.host}><RepositoryHostContext.Provider value={props.host||{}}><WorkspaceView {...props}/></RepositoryHostContext.Provider></AttentionScope></RunnerProvider>; }
 
 function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = emptyTarget(), host, onOpenViewer, onTargetChange }: Props) {
   const keyboardHint=useKeyboardNavigation(viewState);
@@ -392,6 +394,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       <div className="workspace-brand"><span className="brand-mark">l<span>↗</span></span><strong>lazybox</strong></div>
       <nav aria-label="Pages">{layout.pages.map(value => <button key={value.id} disabled={!!pending} className={!settings && value.id === page.id ? 'selected' : ''} onClick={() => { setSettings(false); commit({ ...layout, selectedPage: value.id }); }}>{value.name}</button>)}{!fixedWorkspaceId&&<button className={settings ? 'selected' : ''} onClick={() => setSettings(true)}>Settings</button>}</nav>
       <div className="workspace-header-actions">
+        <AttentionCenter collections={collections} selection={page.selection} viewState={viewState} onOpen={target => { setSettings(false); showSession(target); }}/>
         <button className="toolbar-action" disabled={!workspaceID} aria-label="Review changes" title="Review changes" onClick={showChanges}><Icon name="branch"/><span>Changes</span></button>
         <button className="toolbar-action" disabled={!terminalReady} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={showTerminal}><Icon name="terminal"/><span>Terminal</span></button>
         <button className="toolbar-action new-conversation-action" disabled={!info || !!pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={() => beginConversation()}><Icon name="plus"/><span>New conversation</span></button>

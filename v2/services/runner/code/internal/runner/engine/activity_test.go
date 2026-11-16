@@ -7,7 +7,10 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent/agenttest"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 )
 
 func TestChildEventsDoNotReplaceRootOrResolveItsTurn(t *testing.T) {
@@ -83,5 +86,44 @@ func TestCloseFailureIsVisibleAndDoesNotClaimStopped(t *testing.T) {
 	snap := e.Snapshot()
 	if snap.Fault != "native_exit_unconfirmed" || snap.Status != agent.Unknown {
 		t.Fatalf("false stopped state: %+v", snap)
+	}
+}
+
+func TestLastMessageAndTurnEndKeepWhatTheMainAgentLastSaid(t *testing.T) {
+	e, s := bench(t, true)
+	s.Events <- agent.Event{Type: "turn_started"}
+	s.Events <- agent.Event{Type: "message_delta", Text: "Looking at the tests"}
+	s.Events <- agent.Event{Type: "activity", Status: "tool"}
+	s.Events <- agent.Event{Type: "message_delta", Text: "All tests pass.\n"}
+	s.Events <- agent.Event{Type: "message_delta", Text: "Ready for review."}
+	s.Events <- agent.Event{Type: "message_delta", AgentID: "child", Text: "CHILD_PRIVATE"}
+	s.Events <- agent.Event{Type: "marker-1"}
+	await(t, e, "marker-1")
+	snap := e.Snapshot()
+	if snap.LastMessage != "All tests pass.\nReady for review." {
+		t.Fatalf("last message: %q", snap.LastMessage)
+	}
+	if !snap.Agents["root"].TurnEndedAt.IsZero() {
+		t.Fatal("a running turn has no end time")
+	}
+	before := time.Now().UTC()
+	s.Events <- agent.Event{Type: "turn_ended", Status: "completed"}
+	await(t, e, "turn_ended")
+	ended := e.Snapshot().Agents["root"].TurnEndedAt
+	if ended.Before(before) {
+		t.Fatalf("turn end not recorded: %v", ended)
+	}
+	// A status report after the turn moves UpdatedAt, never the turn end.
+	s.Events <- agent.Event{Type: "agent_status", Status: "ready"}
+	s.Events <- agent.Event{Type: "marker-2"}
+	await(t, e, "marker-2")
+	if got := e.Snapshot().Agents["root"]; !got.TurnEndedAt.Equal(ended) || got.Status != agent.Done {
+		t.Fatalf("status report moved the turn end: %+v", got)
+	}
+	s.Events <- agent.Event{Type: "message_delta", Text: strings.Repeat("é", 400)}
+	s.Events <- agent.Event{Type: "marker-3"}
+	await(t, e, "marker-3")
+	if got := e.Snapshot().LastMessage; got != strings.Repeat("é", lastMessageLimit/2) || !utf8.ValidString(got) {
+		t.Fatalf("bounded tail: %d bytes, valid %v", len(got), utf8.ValidString(got))
 	}
 }

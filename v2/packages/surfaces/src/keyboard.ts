@@ -21,6 +21,7 @@ export const keyboardActions = [
     keys: "] ] c",
   },
   { id: "snippets.open", label: "Snippets", scope: "global", keys: "] ] s" },
+  { id: "inbox.open", label: "Inbox", scope: "global", keys: "] ] i" },
   {
     id: "navigation.next",
     label: "Next entry",

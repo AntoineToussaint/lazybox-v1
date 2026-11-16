@@ -5,6 +5,8 @@ import { conversationDetails } from "./conversation-model";
 import { sessionStatus } from "./agent-status";
 import { Icon } from "./Icons";
 import { useRunner } from "./RunnerContext";
+import { useUnread } from "./useAttention";
+import "./inbox.css";
 
 /** Row actions retain their original workspace identity, independently of navigation. */
 export function WorkspaceRow({
@@ -41,8 +43,10 @@ export function WorkspaceRow({
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
   const action = useRef<HTMLDetailsElement>(null);
+  const unread = useUnread();
+  const marker = conversation ? unread(conversation) : "";
   return (
-    <div className="workspace-row" onContextMenu={event => {
+    <div className="workspace-row" data-unread={marker || undefined} onContextMenu={event => {
       if (editing || !action.current) return;
       event.preventDefault();
       for (const menu of document.querySelectorAll<HTMLDetailsElement>('.workspace-actions[open]')) menu.open = false;
@@ -135,8 +139,9 @@ export function WorkspaceRow({
                 }
               >
                 <span
-                  className={`session-dot status-${conversation.closed ? "saved" : conversation.status}`}
+                  className={`session-dot status-${conversation.closed ? "saved" : conversation.status}${marker ? ` unread unread-${marker}` : ""}`}
                 />
+                {marker && <span className="sr-only">{marker === "failed" ? "Failed, unread" : "Ready for review, unread"}</span>}
                 <span className="workspace-agent-label">{conversation.provider === "codex" ? "Codex" : "Claude"}
                 {conversation.model ? ` · ${conversation.model}` : ""}</span>
                 <span className="workspace-agent-status">

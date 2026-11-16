@@ -14,7 +14,8 @@ const panelId = initial.get('panel') || '';
 const storage = mode === 'agent' ? sessionStorage : localStorage;
 const panelScope=`${scope}:workspace:${initial.get('collection') || 'home'}`;
 const viewState = { key: mode === 'chat' ? `${panelScope}:panel:${panelId}` : mode === 'workspace' ? `${scope}:main` : scope, scope: mode==='chat'?panelScope:scope, root: scope, getItem: (key: string) => storage.getItem(key), setItem: (key: string, value: string) => storage.setItem(key, value) };
-const host = browserWorkspaceHost(scope, token, mode === 'chat' ? { panelId, sessionId: initial.get('session') || '', collectionId: initial.get('collection') || '' } : undefined);
+// Only the main workspace view notifies; a workspace window or a chat window would repeat it.
+const host = browserWorkspaceHost(scope, token, mode === 'chat' ? { panelId, sessionId: initial.get('session') || '', collectionId: initial.get('collection') || '' } : undefined, mode === 'workspace' && !initial.get('workspaceWindow'));
 createRoot(document.getElementById('root')!).render(<React.StrictMode>{mode === 'workspace' ? <Workspace fixedWorkspaceId={initial.get('workspaceWindow') ? initial.get('collection') || undefined : undefined} connection={{ baseUrl: location.origin, token }} viewState={viewState} host={host} initialTarget={{ collectionId: initial.get('collection') || '', sessionId: initial.get('session') || '', commandId: '' }}/>: <AgentWindow
   connection={{ baseUrl: location.origin, token }}
   agent="claude"

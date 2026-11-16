@@ -21,7 +21,10 @@ The catalog covers core Go/TypeScript/contracts/worker checks, native desktop
 checks and all isolated UI fixtures, including continuity, scrolling, navigation,
 activity and sidebar tests previously omitted by staging. The responsive-shell
 gate covers desktop/tablet/phone navigation, visible composition controls and
-retained chat DOM/drafts/event readers across panel switches and resize. Every npm `test:`
+retained chat DOM/drafts/event readers across panel switches and resize. The inbox
+gate covers attention counts across workspaces, grouping, keyboard, mark-seen,
+opening in the owning workspace, sidebar unread markers and notifications on
+watched transitions only. Every npm `test:`
 script must be admitted, declared an exact alias, or explicitly classified as
 requiring a live environment. Adding a test without classifying it fails the
 catalog check. This does not imply that every conceivable test already exists.

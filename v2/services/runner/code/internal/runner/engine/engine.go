@@ -37,6 +37,8 @@ type Snapshot struct {
 	Agents            map[string]agent.Activity `json:"agents"`
 	Account           *agent.AccountObservation `json:"account,omitempty"`
 	ActivityTruncated bool                      `json:"activityTruncated"`
+	// LastMessage is the tail of the main agent's latest message.
+	LastMessage string `json:"lastMessage,omitempty"`
 }
 
 type Engine struct {
@@ -66,6 +68,8 @@ type Engine struct {
 	detaching   bool
 	detachOnce  sync.Once
 	detachErr   error
+	// messageOpen is whether the next main-agent delta continues LastMessage.
+	messageOpen bool
 }
 
 func New(ctx context.Context, adapter agent.Adapter, open agent.Open, spool *journal.Journal) (*Engine, error) {
@@ -439,6 +443,7 @@ func (e *Engine) receive() {
 				e.state.Fault = "provider_failure"
 			}
 		}
+		e.recordMessage(ev)
 		e.observe(ev)
 		ok := e.appendLocked(ev)
 		e.mu.Unlock()

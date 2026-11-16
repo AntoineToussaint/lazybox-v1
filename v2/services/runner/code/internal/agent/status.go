@@ -29,6 +29,9 @@ type Activity struct {
 	Status         Status    `json:"status"`
 	LastTurnStatus string    `json:"lastTurnStatus,omitempty"`
 	UpdatedAt      time.Time `json:"updatedAt"`
+	// TurnEndedAt is when the agent's last turn ended. Unlike UpdatedAt, no
+	// status report or Runner restart moves it.
+	TurnEndedAt time.Time `json:"turnEndedAt,omitzero"`
 }
 
 // AccountObservation only contains provider-reported account and availability facts, never

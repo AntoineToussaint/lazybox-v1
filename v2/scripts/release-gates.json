@@ -32,7 +32,8 @@
     { "id": "resume-continuity", "scope": "ui", "script": "test:resume-continuity" },
     { "id": "navigation-snippets", "scope": "ui", "script": "test:navigation-snippets" },
     { "id": "dogfood", "scope": "ui", "script": "test:dogfood" },
-    { "id": "responsive-shell", "scope": "ui", "script": "test:responsive-shell" }
+    { "id": "responsive-shell", "scope": "ui", "script": "test:responsive-shell" },
+    { "id": "inbox", "scope": "ui", "script": "test:inbox" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

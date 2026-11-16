@@ -21,6 +21,7 @@ import type { SurfaceTarget, ViewStateStore } from '@lazybox/platform';
 import { readDraft, writeDraft, readLaunchChoices, writeLaunchChoices, type FileReference } from './view-state';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
 import { Icon } from './Icons';
+import { AttentionScope, useMarkViewed } from './useAttention';
 export type { RunnerConnection } from './RunnerContext';
 import './style.css';
 import { sessionStatus, statusLabel, accountLabel } from './agent-status';
@@ -59,7 +60,7 @@ export function AgentWindow(props: AgentWindowProps) {
   // A detached chat is visually embedded but still owns its window's keyboard
   // dispatcher. Workspace-hosted panels use their Workspace's dispatcher.
   const keyboardHint = useKeyboardNavigation(props.viewState);
-  return <RunnerProvider connection={props.connection}><ChatPanel {...props} keyboardHint={keyboardHint}/></RunnerProvider>;
+  return <RunnerProvider connection={props.connection}><AttentionScope root={props.viewState?.root}><ChatPanel {...props} keyboardHint={keyboardHint}/></AttentionScope></RunnerProvider>;
 }
 
 export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, keyboardHint = null }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: KeyHint | null }) {
@@ -96,6 +97,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const [sessionID, setSessionID] = useState(initialSessionId);
   const transcript = useTranscript(api, sessionID, !!info);
   const [session, setSession] = useState<Session | undefined>(transcript.reader.session);
+  useMarkViewed(session, mode === 'agent');
   const { recent: events, messages: conversation, status: stream } = transcript;
   const scroll=useChatScroll(transcript.reader,conversation,session?.pending.length);
   const {visibleMessages,followingLatest,jumpToLatest}=scroll;

@@ -2303,8 +2303,10 @@ type AgentActivity struct {
 	Status              string `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
 	LastTurnStatus      string `protobuf:"bytes,7,opt,name=last_turn_status,json=lastTurnStatus,proto3" json:"last_turn_status,omitempty"`
 	UpdatedAtUnixMillis int64  `protobuf:"varint,8,opt,name=updated_at_unix_millis,json=updatedAtUnixMillis,proto3" json:"updated_at_unix_millis,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// When the agent's last turn ended; 0 before its first turn ends.
+	TurnEndedAtUnixMillis int64 `protobuf:"varint,9,opt,name=turn_ended_at_unix_millis,json=turnEndedAtUnixMillis,proto3" json:"turn_ended_at_unix_millis,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *AgentActivity) Reset() {
@@ -2389,6 +2391,13 @@ func (x *AgentActivity) GetLastTurnStatus() string {
 func (x *AgentActivity) GetUpdatedAtUnixMillis() int64 {
 	if x != nil {
 		return x.UpdatedAtUnixMillis
+	}
+	return 0
+}
+
+func (x *AgentActivity) GetTurnEndedAtUnixMillis() int64 {
+	if x != nil {
+		return x.TurnEndedAtUnixMillis
 	}
 	return 0
 }
@@ -3531,8 +3540,10 @@ type Session struct {
 	// The shared agent instructions changed since this session received them;
 	// the update is delivered with the next message.
 	InstructionsPending bool `protobuf:"varint,33,opt,name=instructions_pending,json=instructionsPending,proto3" json:"instructions_pending,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// The tail of the main agent's latest message, at most 512 bytes.
+	LastMessage   string `protobuf:"bytes,34,opt,name=last_message,json=lastMessage,proto3" json:"last_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Session) Reset() {
@@ -3794,6 +3805,13 @@ func (x *Session) GetInstructionsPending() bool {
 		return x.InstructionsPending
 	}
 	return false
+}
+
+func (x *Session) GetLastMessage() string {
+	if x != nil {
+		return x.LastMessage
+	}
+	return ""
 }
 
 type Repository struct {
@@ -9925,7 +9943,7 @@ const file_api_proto_rawDesc = "" +
 	"\awindows\x18\x05 \x03(\v2\x1d.lazybox.bench.v1.UsageWindowR\awindows\x12\x12\n" +
 	"\x04plan\x18\x06 \x01(\tR\x04plan\x125\n" +
 	"\x17observed_at_unix_millis\x18\a \x01(\x03R\x14observedAtUnixMillis\x12\x14\n" +
-	"\x05email\x18\b \x01(\tR\x05email\"\xf8\x01\n" +
+	"\x05email\x18\b \x01(\tR\x05email\"\xb2\x02\n" +
 	"\rAgentActivity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -9934,7 +9952,8 @@ const file_api_proto_rawDesc = "" +
 	"\x04kind\x18\x05 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06status\x18\x06 \x01(\tR\x06status\x12(\n" +
 	"\x10last_turn_status\x18\a \x01(\tR\x0elastTurnStatus\x123\n" +
-	"\x16updated_at_unix_millis\x18\b \x01(\x03R\x13updatedAtUnixMillis\"\x96\x01\n" +
+	"\x16updated_at_unix_millis\x18\b \x01(\x03R\x13updatedAtUnixMillis\x128\n" +
+	"\x19turn_ended_at_unix_millis\x18\t \x01(\x03R\x15turnEndedAtUnixMillis\"\x96\x01\n" +
 	"\x12ListHistoryRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\rR\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\rR\x06offset\x12(\n" +
@@ -10029,7 +10048,8 @@ const file_api_proto_rawDesc = "" +
 	"\n" +
 	"agent_kind\x18\f \x01(\tR\tagentKind\x12\x1b\n" +
 	"\tnative_id\x18\r \x01(\tR\bnativeId\x12>\n" +
-	"\aaccount\x18\x0e \x01(\v2$.lazybox.bench.v1.AccountObservationR\aaccount\"\xed\t\n" +
+	"\aaccount\x18\x0e \x01(\v2$.lazybox.bench.v1.AccountObservationR\aaccount\"\x90\n" +
+	"\n" +
 	"\aSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -10070,7 +10090,8 @@ const file_api_proto_rawDesc = "" +
 	"permission\x18\x1f \x01(\tR\n" +
 	"permission\x12\x1a\n" +
 	"\bworkflow\x18  \x01(\tR\bworkflow\x121\n" +
-	"\x14instructions_pending\x18! \x01(\bR\x13instructionsPending\"\xa3\x01\n" +
+	"\x14instructions_pending\x18! \x01(\bR\x13instructionsPending\x12!\n" +
+	"\flast_message\x18\" \x01(\tR\vlastMessage\"\xa3\x01\n" +
 	"\n" +
 	"Repository\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +

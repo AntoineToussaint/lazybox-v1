@@ -25,6 +25,15 @@ const paths: Record<string, string[]> = {
   'dock-right': ['M3 4h18v16H3z', 'M16 7h2v10h-2z'],
   'dock-top': ['M3 4h18v16H3z', 'M6 7h12v2H6z'],
   'dock-bottom': ['M3 4h18v16H3z', 'M6 15h12v2H6z'],
+  inbox: ['M4 13 6.5 5h11L20 13', 'M4 13v6h16v-6', 'M4 13h4l1.5 2.5h5L16 13h4'],
+  check: ['m5 12 4.5 4.5L19 7'],
+  checkAll: ['m2 12 4.5 4.5L16 7', 'm11 15.5 1 1L22 7'],
+  ask: ['M4 4h16v12H9l-5 4z', 'M10 8.4a2 2 0 1 1 2.7 1.9c-.5.2-.7.6-.7 1.1v.3', 'M12 13.6h.01'],
+  alert: ['M12 8v5', 'M12 16.5h.01', 'M10.3 4.2 2.8 17.5a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z'],
+  eye: ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6'],
+  working: ['M12 3a9 9 0 1 0 9 9'],
+  done: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18', 'm8.5 12 2.5 2.5 4.5-5'],
+  bell: ['M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9', 'M10 19.5a2 2 0 0 0 4 0'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;

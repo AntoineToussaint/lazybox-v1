@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
@@ -126,5 +127,16 @@ func TestDefaultSessionKeepsNativePermissionAndCurrentProfile(t *testing.T) {
 	}
 	if a.Session.Open.Permission != "" || a.Session.Open.Profile != "claude-default" || a.Session.Open.Gateway != nil || r.Session.ProfileId != "claude-default" {
 		t.Fatal("default session overrides configured native permissions, account, or route")
+	}
+}
+
+func TestWireActivityReportsTurnEndOnlyOnceATurnEnded(t *testing.T) {
+	updated := time.UnixMilli(2_000)
+	if got := wireActivity(agent.Activity{ID: "root", Status: agent.Running, UpdatedAt: updated}); got.TurnEndedAtUnixMillis != 0 || got.UpdatedAtUnixMillis != 2_000 {
+		t.Fatalf("a running turn reported an end: %+v", got)
+	}
+	ended := wireActivity(agent.Activity{ID: "root", Status: agent.Done, UpdatedAt: updated, TurnEndedAt: time.UnixMilli(1_500)})
+	if ended.TurnEndedAtUnixMillis != 1_500 || ended.Status != "done" {
+		t.Fatalf("turn end not wired: %+v", ended)
 	}
 }

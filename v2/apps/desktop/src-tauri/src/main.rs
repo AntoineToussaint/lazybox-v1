@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fs, path::Path};
+mod attention;
 mod host;
 mod layout;
 mod placement;
@@ -111,6 +112,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .manage(attention::Attention::default())
         .invoke_handler(tauri::generate_handler![
             host::runner_bootstrap,
             host::save_view_state,
@@ -125,9 +128,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             host::reopen_agent,
             host::reopen_closed,
             host::reconnect_view,
-            host::expect_runner_restart
+            host::expect_runner_restart,
+            attention::notify_attention,
+            attention::take_attention_destination,
+            attention::set_attention_badge
         ])
-        .setup(host::setup)
+        .setup(|app| {
+            attention::setup(app.handle())?;
+            host::setup(app)
+        })
         .on_window_event(host::window_event)
         .on_menu_event(|app, event| host::menu_event(app, event.id().as_ref()))
         .build(tauri::generate_context!())?;

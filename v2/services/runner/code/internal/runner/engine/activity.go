@@ -3,6 +3,7 @@ package engine
 import (
 	"sort"
 	"time"
+	"unicode/utf8"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 )
@@ -50,6 +51,7 @@ func (e *Engine) observe(ev agent.Event) {
 		a.Status = agent.Running
 	case "turn_ended":
 		a.Status, a.LastTurnStatus = agent.TurnStatus(ev.Status), ev.Status
+		a.TurnEndedAt = time.Now().UTC()
 	case "question":
 		a.Status = agent.WaitingInput
 	case "approval":
@@ -105,6 +107,48 @@ func (e *Engine) observe(ev agent.Event) {
 		observation := *ev.Account
 		e.state.Account = &observation
 	}
+}
+
+// lastMessageLimit bounds the retained tail of the main agent's latest message.
+const lastMessageLimit = 512
+
+// recordMessage keeps the tail of the main agent's latest message, so a list
+// of conversations can say what each one last said without reading its
+// transcript. Message boundaries match the transcript's: a turn, a request or
+// a tool call between deltas starts a new message.
+func (e *Engine) recordMessage(ev agent.Event) {
+	if ev.AgentID != "" && ev.AgentID != "root" {
+		return
+	}
+	switch ev.Type {
+	case "message_delta":
+		if ev.Text == "" {
+			return
+		}
+		text := ev.Text
+		if e.messageOpen {
+			text = e.state.LastMessage + text
+		}
+		e.state.LastMessage, e.messageOpen = tail(text, lastMessageLimit), true
+	case "turn_started", "turn_ended", "session_closed", "approval", "question", "request_resolved":
+		e.messageOpen = false
+	case "activity":
+		if ev.Status == "tool" {
+			e.messageOpen = false
+		}
+	}
+}
+
+// tail returns at most limit bytes from the end of text, on a rune boundary.
+func tail(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	cut := len(text) - limit
+	for cut < len(text) && !utf8.RuneStart(text[cut]) {
+		cut++
+	}
+	return text[cut:]
 }
 
 func snapshotStatus(s Snapshot) agent.Status {

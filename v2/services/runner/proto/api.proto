@@ -223,6 +223,8 @@ message AgentActivity {
   string status = 6;
   string last_turn_status = 7;
   int64 updated_at_unix_millis = 8;
+  // When the agent's last turn ended; 0 before its first turn ends.
+  int64 turn_ended_at_unix_millis = 9;
 }
 message ListHistoryRequest { uint32 limit = 1; uint32 offset = 2; optional string collection_id = 3; string search = 4; }
 message RenameConversationRequest { string session_id = 1; string title = 2; }
@@ -324,6 +326,8 @@ message Session {
   // The shared agent instructions changed since this session received them;
   // the update is delivered with the next message.
   bool instructions_pending = 33;
+  // The tail of the main agent's latest message, at most 512 bytes.
+  string last_message = 34;
 }
 
 message Repository {
