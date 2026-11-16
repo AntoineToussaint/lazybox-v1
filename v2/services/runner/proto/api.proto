@@ -80,6 +80,10 @@ service RunnerService {
   rpc WriteTerminal(WriteTerminalRequest) returns (TerminalStatus);
   rpc ResizeTerminal(ResizeTerminalRequest) returns (TerminalStatus);
   rpc CloseTerminal(TerminalRequest) returns (TerminalStatus);
+  // Owner only. Asks the launcher that supervises this Runner to start it
+  // again: the Runner records the request and stops exactly as on any restart,
+  // detaching (never stopping) agents, managed commands and terminals.
+  rpc RestartRunner(RestartRunnerRequest) returns (RestartRunnerResponse);
 }
 
 message InfoRequest {}
@@ -159,6 +163,15 @@ message InfoResponse {
   AttachmentLimits attachment_limits = 6;
   repeated SubscriptionEnrollment pending_enrollments = 7;
   bool shared_subscriptions = 8;
+  // A supervising launcher will start this Runner again after RestartRunner.
+  bool restart_available = 9;
+  // Random per Runner process: a new value means a new process is serving.
+  string instance_id = 10;
+}
+message RestartRunnerRequest {}
+message RestartRunnerResponse {
+  // The process that is stopping; Info reports another one once its successor serves.
+  string instance_id = 1;
 }
 message AttachmentLimits {
   uint32 max_files = 1;

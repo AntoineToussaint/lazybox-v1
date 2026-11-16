@@ -210,6 +210,39 @@ export async function promote(environmentRoot, id) {
   await saveJSON(currentPath, { id, previous, promotedAt: new Date().toISOString() });
   console.log(`Working release pinned to ${id}. No processes, credentials, or databases were changed. Restart working explicitly to adopt it.`);
 }
+// The Runner's restart contract (services/runner/code/internal/restart): before
+// it exits for a restart the person asked for in the app, it records a request
+// here. Its presence after an exit, and only then, means "start it again".
+export function restartRequestPath(paths) { return join(paths.directory, 'restart-request.json'); }
+export async function takeRestartRequest(path) {
+  let data;
+  try { data = await readFile(path, 'utf8'); }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  await rm(path, { force: true });
+  try { return JSON.parse(data).version === 1; } catch { return false; }
+}
+// Keep one Runner serving for the life of the environment. start() launches a
+// Runner and resolves once it serves ({ finished }), or undefined when the
+// environment is stopping. A requested restart starts the next Runner without
+// touching the desktop or watchers; any other exit ends the environment as
+// before: a failure throws, a clean exit returns.
+export async function superviseRunner({ start, restartRequest, stopping, onReady = () => {}, log = console.log }) {
+  for (let restarts = 0; ; restarts++) {
+    // A request left by an earlier launch must never turn a later crash into a restart.
+    await rm(restartRequest, { force: true });
+    const run = await start();
+    if (!run) return;
+    if (restarts === 0) await onReady(); else log('Runner restarted. Agents, commands and terminals were re-attached.');
+    const result = await run.finished;
+    if (stopping()) return;
+    if (await takeRestartRequest(restartRequest)) {
+      log('Restart requested from the app: starting the Runner again. Agents, commands and terminals keep running.');
+      continue;
+    }
+    if (result.code !== 0) throw result.failure || new Error(`Runner exited (${result.signal || result.code})`);
+    return;
+  }
+}
 async function launch(environmentRoot, channel) {
   const paths = environmentPaths(environmentRoot, channel);
   const unlock = await acquireLock(paths.lock);
@@ -239,41 +272,49 @@ async function launch(environmentRoot, channel) {
     try { await writeFile(paths.config, JSON.stringify({ profiles: [] }, null, 2), { flag: 'wx', mode: 0o600 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
     // Both roots are resolved from the selected environment. Codefly allocates
     // independent ports; neither channel borrows another channel's endpoint.
-    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState, cliDir });
-    let previousToken = ''; try { previousToken = JSON.parse(await readFile(paths.endpoint, 'utf8')).token; } catch { /* first launch */ }
-    runner = spawnProcessGroup('codefly', args, { cwd: source, env: buildEnv, stdio: 'inherit' });
-    let exited = false, failure;
-    finished = new Promise(resolve => {
-      runner.once('exit', (code, signal) => { exited = true; resolve({ code, signal }); });
-      runner.once('error', error => { failure = error; exited = true; resolve({ code: 1 }); });
-    });
+    const restartRequest = restartRequestPath(paths);
+    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState, cliDir, restartRequest });
     process.on('SIGINT', stop); process.on('SIGTERM', stop);
-    const deadline = Date.now() + 180_000;
-    let ready = false;
-    while (Date.now() < deadline && !exited && !stopping) {
-      try {
-        const endpoint = JSON.parse(await readFile(paths.endpoint, 'utf8'));
-        if (endpoint.token !== previousToken) {
-          const response = await fetch(endpoint.url + '/lazybox.bench.v1.RunnerService/Info', { method: 'POST', headers: { Authorization: `Bearer ${endpoint.token}`, 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1' }, body: '{}', signal: AbortSignal.timeout(1000) });
-          if (response.ok) {
-            const info = await response.json();
-            if (subscriptionState && !info.sharedSubscriptions) { failure = new Error('This release does not support the selected shared subscription store. Stage and promote an updated release.'); break; }
-            ready = true; break;
+    // One Runner process: spawn it and wait until its new endpoint answers Info.
+    const start = async () => {
+      let previousToken = ''; try { previousToken = JSON.parse(await readFile(paths.endpoint, 'utf8')).token; } catch { /* first launch */ }
+      runner = spawnProcessGroup('codefly', args, { cwd: source, env: buildEnv, stdio: 'inherit' });
+      let exited = false, failure;
+      finished = new Promise(resolve => {
+        runner.once('exit', (code, signal) => { exited = true; resolve({ code, signal, failure }); });
+        runner.once('error', error => { failure = error; exited = true; resolve({ code: 1, failure }); });
+      });
+      if (stopping) runner.kill('SIGINT');
+      const deadline = Date.now() + 180_000;
+      let ready = false;
+      while (Date.now() < deadline && !exited && !stopping) {
+        try {
+          const endpoint = JSON.parse(await readFile(paths.endpoint, 'utf8'));
+          if (endpoint.token !== previousToken) {
+            const response = await fetch(endpoint.url + '/lazybox.bench.v1.RunnerService/Info', { method: 'POST', headers: { Authorization: `Bearer ${endpoint.token}`, 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1' }, body: '{}', signal: AbortSignal.timeout(1000) });
+            if (response.ok) {
+              const info = await response.json();
+              if (subscriptionState && !info.sharedSubscriptions) { failure = new Error('This release does not support the selected shared subscription store. Stage and promote an updated release.'); break; }
+              ready = true; break;
+            }
           }
-        }
-      } catch { /* startup is not yet ready */ }
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
-    if (stopping) return;
-    if (!ready) throw failure || new Error('Runner did not become ready; inspect its startup output');
-    desktop = channel === 'dev'
-      ? spawn(join(source, 'node_modules/.bin/tauri'), ['dev', '--config', JSON.stringify(desktopDevConfig(paths, ui.url)), '--', '--', '--endpoint', paths.endpoint], { cwd: join(source, 'apps/desktop'), env: { ...buildEnv, CARGO_TARGET_DIR: join(environmentRoot, 'build', 'dev') }, stdio: 'inherit', detached: true })
-      : spawn(join(app, 'Contents/MacOS/lazybox-v2-desktop'), ['--endpoint', paths.endpoint], { env: buildEnv, stdio: 'inherit' });
-    desktop.on('error', error => console.error(`Desktop launch failed: ${error.message}`));
-    console.log(`${paths.productName} is running. State: ${paths.state}\nClosing the desktop leaves this Runner alive. Ctrl+C here stops this environment's Runner.`);
-    if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, and Codefly rebuilds/restarts Go. A Runner restart does not stop Dev agents or their managed commands: the restarted Runner re-attaches to their session hosts.`);
-    const result = await finished;
-    if (result.code !== 0 && !stopping) throw failure || new Error(`Runner exited (${result.signal || result.code})`);
+        } catch { /* startup is not yet ready */ }
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      if (stopping) return undefined;
+      if (!ready) throw failure || new Error('Runner did not become ready; inspect its startup output');
+      return { finished };
+    };
+    // The desktop and watchers start once and outlive any requested restart.
+    const onReady = () => {
+      desktop = channel === 'dev'
+        ? spawn(join(source, 'node_modules/.bin/tauri'), ['dev', '--config', JSON.stringify(desktopDevConfig(paths, ui.url)), '--', '--', '--endpoint', paths.endpoint], { cwd: join(source, 'apps/desktop'), env: { ...buildEnv, CARGO_TARGET_DIR: join(environmentRoot, 'build', 'dev') }, stdio: 'inherit', detached: true })
+        : spawn(join(app, 'Contents/MacOS/lazybox-v2-desktop'), ['--endpoint', paths.endpoint], { env: buildEnv, stdio: 'inherit' });
+      desktop.on('error', error => console.error(`Desktop launch failed: ${error.message}`));
+      console.log(`${paths.productName} is running. State: ${paths.state}\nClosing the desktop leaves this Runner alive. Ctrl+C here stops this environment's Runner; Restart Runner in the app starts it again here.`);
+      if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, and Codefly rebuilds/restarts Go. A Runner restart does not stop Dev agents or their managed commands: the restarted Runner re-attaches to their session hosts.`);
+    };
+    await superviseRunner({ start, restartRequest, stopping: () => stopping, onReady });
   } finally {
     await Promise.all([stopProcessGroup(channel === 'dev' ? desktop : undefined), stopProcessGroup(worker)]);
     await ui?.server.close();

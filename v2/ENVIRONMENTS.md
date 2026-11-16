@@ -33,6 +33,28 @@ that outlives the Runner, and the reloaded Runner re-attaches to it. Managed
 commands an agent started keep running the same way. History and managed subscriptions remain in
 persistent storage. Changing the launcher or dependencies still needs a relaunch.
 
+### Restart the Runner from the app
+
+Settings → **Runner** (also reached by clicking the Runner status in the
+workspace header) offers **Restart Runner** for a Dev or Working Runner started
+by `make -C v2 dev` or `make -C v2 working`. After a confirmation, the Runner
+records a restart request in `<environment>/restart-request.json`
+(`LAZYBOX_V2_RESTART_REQUEST`, set by `scripts/runner-command.mjs` only for this
+launcher) and stops through its ordinary shutdown, detaching agents, managed
+commands and terminals exactly as any restart does. The launcher sees the exit,
+finds the request, and runs Codefly again; the desktop and the Dev watchers keep
+running, and the ownership lock stays held. Any other Runner exit still stops
+the environment. A restarted Runner that does not become ready stops it too,
+as a first launch would.
+
+The new Runner usually gets a different port. The app follows it without
+reloading: Restart Runner arms the desktop to adopt the next Runner its private
+locator names (same Runner identity, loopback origin only), so drafts and
+selection stay as they were. The workspace shows *Restarting…* rather than a
+disconnection, then *Runner restarted*, or the reason a restart was refused.
+`RestartRunner` is the owner's alone: an agent's scoped credential is denied,
+and terminals hold no Runner credential.
+
 Known Codefly limitation (CLI v0.1.212 / go-grpc v0.1.69): a Go edit that
 does not compile exits the launcher instead of waiting for the corrected edit.
 Fix the compile error and rerun `make -C v2 dev`. Successful compilable edits
@@ -128,6 +150,11 @@ is intentional. `working-client` checks the private endpoint's authenticated
 Runner Info before opening the app. A process marked healthy by a supervisor
 without a product probe is not evidence that the Runner is ready. During startup,
 retry client attachment after Codefly finishes building/starting the service.
+
+Restart Runner in the app is unavailable for the service, which nothing would
+start again (`--restart never`); Settings → Runner says so. Restart it with
+`make -C v2 runner-service-stop` and then `make -C v2 runner-service-start`;
+agents keep running across that restart too.
 
 Automatic restart and login start are disabled in this slice. They must not hide
 the outstanding agent resource-ownership/crash-cleanup gate. This provides

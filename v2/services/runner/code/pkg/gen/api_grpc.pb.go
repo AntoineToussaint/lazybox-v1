@@ -91,6 +91,7 @@ const (
 	RunnerService_WriteTerminal_FullMethodName                = "/lazybox.bench.v1.RunnerService/WriteTerminal"
 	RunnerService_ResizeTerminal_FullMethodName               = "/lazybox.bench.v1.RunnerService/ResizeTerminal"
 	RunnerService_CloseTerminal_FullMethodName                = "/lazybox.bench.v1.RunnerService/CloseTerminal"
+	RunnerService_RestartRunner_FullMethodName                = "/lazybox.bench.v1.RunnerService/RestartRunner"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -173,6 +174,10 @@ type RunnerServiceClient interface {
 	WriteTerminal(ctx context.Context, in *WriteTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
 	ResizeTerminal(ctx context.Context, in *ResizeTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
 	CloseTerminal(ctx context.Context, in *TerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
+	// Owner only. Asks the launcher that supervises this Runner to start it
+	// again: the Runner records the request and stops exactly as on any restart,
+	// detaching (never stopping) agents, managed commands and terminals.
+	RestartRunner(ctx context.Context, in *RestartRunnerRequest, opts ...grpc.CallOption) (*RestartRunnerResponse, error)
 }
 
 type runnerServiceClient struct {
@@ -929,6 +934,16 @@ func (c *runnerServiceClient) CloseTerminal(ctx context.Context, in *TerminalReq
 	return out, nil
 }
 
+func (c *runnerServiceClient) RestartRunner(ctx context.Context, in *RestartRunnerRequest, opts ...grpc.CallOption) (*RestartRunnerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RestartRunnerResponse)
+	err := c.cc.Invoke(ctx, RunnerService_RestartRunner_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1009,6 +1024,10 @@ type RunnerServiceServer interface {
 	WriteTerminal(context.Context, *WriteTerminalRequest) (*TerminalStatus, error)
 	ResizeTerminal(context.Context, *ResizeTerminalRequest) (*TerminalStatus, error)
 	CloseTerminal(context.Context, *TerminalRequest) (*TerminalStatus, error)
+	// Owner only. Asks the launcher that supervises this Runner to start it
+	// again: the Runner records the request and stops exactly as on any restart,
+	// detaching (never stopping) agents, managed commands and terminals.
+	RestartRunner(context.Context, *RestartRunnerRequest) (*RestartRunnerResponse, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1231,6 +1250,9 @@ func (UnimplementedRunnerServiceServer) ResizeTerminal(context.Context, *ResizeT
 }
 func (UnimplementedRunnerServiceServer) CloseTerminal(context.Context, *TerminalRequest) (*TerminalStatus, error) {
 	return nil, status.Error(codes.Unimplemented, "method CloseTerminal not implemented")
+}
+func (UnimplementedRunnerServiceServer) RestartRunner(context.Context, *RestartRunnerRequest) (*RestartRunnerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestartRunner not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -2503,6 +2525,24 @@ func _RunnerService_CloseTerminal_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_RestartRunner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestartRunnerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RestartRunner(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RestartRunner_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RestartRunner(ctx, req.(*RestartRunnerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2777,6 +2817,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CloseTerminal",
 			Handler:    _RunnerService_CloseTerminal_Handler,
+		},
+		{
+			MethodName: "RestartRunner",
+			Handler:    _RunnerService_RestartRunner_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

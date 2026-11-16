@@ -36,7 +36,7 @@ type authorityFixture struct {
 	client pb.RunnerServiceClient
 }
 
-func newAuthorityFixture(t *testing.T) *authorityFixture {
+func newAuthorityFixture(t *testing.T, configure ...func(*Service)) *authorityFixture {
 	t.Helper()
 	b, err := runner.New(runner.Config{State: t.TempDir(), OutputFallbackRoot: t.TempDir(), Address: "http://runner.invalid"})
 	if err != nil {
@@ -44,7 +44,11 @@ func newAuthorityFixture(t *testing.T) *authorityFixture {
 	}
 	t.Cleanup(func() { _ = b.Close() })
 	server := grpc.NewServer(LocalAuthority(ownerToken, b)...)
-	pb.RegisterRunnerServiceServer(server, &Service{Bench: b})
+	service := &Service{Bench: b}
+	for _, c := range configure {
+		c(service)
+	}
+	pb.RegisterRunnerServiceServer(server, service)
 	listener := bufconn.Listen(1 << 20)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(func() { server.Stop(); listener.Close() })

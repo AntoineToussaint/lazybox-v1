@@ -1,7 +1,7 @@
 # Agents outlive the Runner
 
 **Requirement.** Restarting the Runner (promoting a release, a Dev hot reload,
-a crash, `launchctl kickstart`) is a no-op for running agents and the commands
+Restart Runner in the app, a crash, `launchctl kickstart`) is a no-op for running agents and the commands
 they started. The next Runner re-attaches to the same native processes, with
 their turn, pending approvals, queued messages and command output intact.
 "History plus resume" is the fallback, not the plan.
@@ -141,6 +141,11 @@ notices in the conversation.
   and the Codefly service. Ephemeral test Runners keep the old contract: their
   agents and commands stop with them, and at startup they stop any agent host
   a crashed predecessor left behind.
+- `RestartRunner` (owner only, `internal/restart`) records a request for the
+  launcher and then takes the same SIGTERM shutdown, so it detaches exactly as
+  above. It is offered only when a launcher declared it will start the Runner
+  again (`LAZYBOX_V2_RESTART_REQUEST`) and agents are kept; see
+  [ENVIRONMENTS.md](ENVIRONMENTS.md#restart-the-runner-from-the-app).
 
 ## Upgrades
 

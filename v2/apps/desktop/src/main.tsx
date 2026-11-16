@@ -9,7 +9,7 @@ import type { SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console'; notice: string; viewState: Record<string,string> };
 const fetchRunner: typeof globalThis.fetch = (input, init) => nativeFetch(input, { ...init, maxRedirections: 0 });
 
-function DesktopWindow({ bootstrap }: { bootstrap: Bootstrap }) {
+function DesktopWindow({ bootstrap, followRestart }: { bootstrap: Bootstrap; followRestart(): void }) {
   const [error, setError] = useState(bootstrap.notice);
   const host = useMemo<SurfaceHost>(() => ({
     saveTarget: target => invoke<void>('save_surface', { target }),
@@ -30,13 +30,16 @@ function DesktopWindow({ bootstrap }: { bootstrap: Bootstrap }) {
   const saveTarget = useCallback((target: SurfaceTarget) => host.saveTarget(target), [host]);
   const workspaceHost = useMemo<WorkspaceHost>(() => ({
     reconnect: () => invoke<void>('reconnect_view'),
+    // Arm the host to adopt the restarted Runner's locator (possibly a new port)
+    // and reread it promptly; the window keeps its state, nothing reloads.
+    expectRunnerRestart: async () => { await invoke<void>('expect_runner_restart'); followRestart(); },
     openWorkspace: collectionId => invoke<void>('open_workspace', { collectionId }),
     chooseRepositoryFolder: () => invoke<string | null>('choose_repository_folder'),
     openSignIn: url => invoke<void>('open_sign_in', { url }),
     copySignInCode: code => invoke<void>('copy_sign_in_code', { code }),
     openChat: target => invoke<void>('open_chat', target),
     dockChat: panelId => invoke<void>('dock_chat', { panelId }),
-  }), []);
+  }), [followRestart]);
   const saveSelection = useCallback((target: { collectionId: string; sessionId: string; commandId: string }) => host.saveTarget({ ...target, commandsOpen: false }), [host]);
   const openViewer = useCallback((sessionId: string, commandId: string) => invoke<void>('open_console', { sessionId, commandId }), []);
   useEffect(() => {
@@ -75,14 +78,20 @@ function DesktopWindow({ bootstrap }: { bootstrap: Bootstrap }) {
 function DesktopApp() {
   const [bootstrap, setBootstrap] = useState<Bootstrap>();
   const [error, setError] = useState('');
+  // Until this time, reread the endpoint every second: a requested restart is under way.
+  const following = useRef(0);
+  const followRestart = useCallback(() => { following.current = Date.now() + 300_000; }, []);
   useEffect(() => {
-    let disposed = false, reading = false;
+    let disposed = false, reading = false, ticks = 0, seen = '';
     const read = async () => {
       if (reading) return;
       reading = true;
       try {
         const next = await invoke<Bootstrap>('runner_bootstrap');
         if (!disposed) {
+          // The restarted Runner is adopted: back to the ordinary pace.
+          if (seen && seen !== next.url + ' ' + next.token) following.current = 0;
+          seen = next.url + ' ' + next.token;
           // Retain the component tree, drafts and selection across a backend
           // rebuild. Changing the bearer recreates only the RPC clients.
           setBootstrap(current => current?.token === next.token && current?.url === next.url ? current : next);
@@ -92,10 +101,10 @@ function DesktopApp() {
       finally { reading = false; }
     };
     void read();
-    const timer = setInterval(() => void read(), 3000);
+    const timer = setInterval(() => { if (++ticks % 3 === 0 || Date.now() < following.current) void read(); }, 1000);
     return () => { disposed = true; if (timer) clearInterval(timer); };
   }, []);
-  if (bootstrap) return <>{error&&<div className="error" role="alert">{error}<button onClick={()=>void invoke('reconnect_view').catch(e=>setError(String(e)))}>Reconnect this window</button></div>}<DesktopWindow bootstrap={bootstrap}/></>;
+  if (bootstrap) return <>{error&&<div className="error" role="alert">{error}<button onClick={()=>void invoke('reconnect_view').catch(e=>setError(String(e)))}>Reconnect this window</button></div>}<DesktopWindow bootstrap={bootstrap} followRestart={followRestart}/></>;
   return <p role={error ? 'alert' : 'status'}>{error ? `Unable to restore this window: ${error}` : 'Restoring your windows…'}</p>;
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><DesktopApp/></React.StrictMode>);

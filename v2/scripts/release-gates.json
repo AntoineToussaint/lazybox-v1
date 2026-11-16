@@ -23,6 +23,7 @@
     { "id": "command-console", "scope": "ui", "script": "test:command-console" },
     { "id": "terminal", "scope": "ui", "script": "test:terminal" },
     { "id": "terminal-share", "scope": "ui", "script": "test:terminal-share" },
+    { "id": "runner-restart", "scope": "ui", "script": "test:runner-restart" },
     { "id": "workspace-actions", "scope": "ui", "script": "test:workspace-actions" },
     { "id": "stabilization", "scope": "ui", "script": "test:stabilization" },
     { "id": "editor-navigation", "scope": "ui", "script": "test:editor-navigation" },

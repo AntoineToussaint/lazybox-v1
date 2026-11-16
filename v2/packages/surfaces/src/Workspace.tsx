@@ -25,7 +25,8 @@ import './workspace.css';
 import './workspace-shell.css';
 import { Icon } from './Icons';
 import { sessionStatus } from './agent-status';
-import { SettingsPage } from './SettingsPage';
+import { SettingsPage, type SettingsTab } from './SettingsPage';
+import { RestartNotice, RunnerIndicator } from './RunnerControl';
 
 export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void };
 export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
@@ -55,11 +56,11 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
 const pagePanels = new Set(['collections', 'chat', 'changes']);
 const sentence = (title: string) => title.charAt(0).toLowerCase() + title.slice(1);
 type Props = { modules?: Readonly<Record<string, PanelModule>>; fixedWorkspaceId?: string; connection: RunnerConnection; viewState?: ViewStateStore; initialTarget?: ViewTarget; host?: WorkspaceHost; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onTargetChange?(target: ViewTarget): Promise<void> | void };
-export function Workspace(props: Props) { return <RunnerProvider connection={props.connection}><RepositoryHostContext.Provider value={props.host||{}}><WorkspaceView {...props}/></RepositoryHostContext.Provider></RunnerProvider>; }
+export function Workspace(props: Props) { return <RunnerProvider connection={props.connection} expectRestart={props.host?.expectRunnerRestart}><RepositoryHostContext.Provider value={props.host||{}}><WorkspaceView {...props}/></RepositoryHostContext.Provider></RunnerProvider>; }
 
 function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = emptyTarget(), host, onOpenViewer, onTargetChange }: Props) {
   const keyboardHint=useKeyboardNavigation(viewState);
-  const { connection, api, info, connecting, error: connectionError, refresh: refreshRunner } = useRunner();
+  const { connection, api, info, error: connectionError, refresh: refreshRunner, restart } = useRunner();
   const registry=useMemo(()=>({...builtinPanels,...modules}),[modules]);
   const [workspaceID,setWorkspaceID]=useState(()=>fixedWorkspaceId || initialTarget.collectionId || viewState?.getItem(`${viewState.key}:active-workspace`) || '');
   const workspaceKey=(id:string)=>`${viewState?.scope || viewState?.key}:workspace:${id || 'home'}:pages`;
@@ -75,6 +76,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const [navigatorOpen, setNavigatorOpen] = useState(false);
   const [mobilePanelId, setMobilePanelId] = useState('');
   const [settings, setSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('subscriptions');
   const [newSession, setNewSession] = useState(false);
   const [quickStart, setQuickStart] = useState(false);
   const sessionStore=useMemo(()=>viewState ? {...viewState,scope:`${viewState.scope || viewState.key}:workspace:${workspaceID || 'home'}`} : undefined,[viewState,workspaceID]);
@@ -393,7 +395,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         <button className="toolbar-action" disabled={!workspaceID} aria-label="Review changes" title="Review changes" onClick={showChanges}><Icon name="branch"/><span>Changes</span></button>
         <button className="toolbar-action" disabled={!terminalReady} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={showTerminal}><Icon name="terminal"/><span>Terminal</span></button>
         <button className="toolbar-action new-conversation-action" disabled={!info || !!pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={() => beginConversation()}><Icon name="plus"/><span>New conversation</span></button>
-        <span className={'runner-indicator' + (connectionError ? ' offline' : '')} title={connectionError || (connecting ? 'Connecting to Runner' : 'Runner connected')}><i/>{connecting ? 'Connecting' : 'Connected'}</span>
+        <RunnerIndicator onOpen={fixedWorkspaceId ? undefined : () => { setSettingsTab('runner'); setSettings(true); }}/>
         <ActionMenu label="Page actions">
           {workspaceID&&host?.openWorkspace&&!fixedWorkspaceId&&<button onClick={()=>void host.openWorkspace!(workspaceID)}>Open workspace window</button>}
           <button disabled={settings} onClick={() => setEditing(value => !value)}>{editing ? 'Finish customizing' : 'Customize page'}</button>
@@ -411,8 +413,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       {newSession && !quickStart && <button className="quick-start-option" onClick={() => setQuickStart(true)}>Start with last settings</button>}
       {newSession && <ChatPanel autoStart={quickStart} viewState={sessionStore} embedded emptyWorkspace={!workspaceID} collectionId={workspaceID} showCommands={false} onSessionChange={showNewSession}/>}
     </DraggableDialog>
-    {(error || connectionError) && <div className="error" role="alert">{connectionError ? <><strong>Runner disconnected.</strong> Reconnecting automatically… <details><summary>Connection details</summary>{connectionError}</details></> : error}<button onClick={()=>{if(host?.reconnect)void host.reconnect().catch(e=>setError(String(e)));else refresh();}}>Retry now</button></div>}
-    {settings ? <SettingsPage chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/> : <>
+    <RestartNotice/>
+    {/* A restart the person asked for explains the dropped connection; RestartNotice says so instead. */}
+    {(error || (connectionError && restart.phase !== 'restarting')) && <div className="error" role="alert">{connectionError && restart.phase !== 'restarting' ? <><strong>Runner disconnected.</strong> Reconnecting automatically… <details><summary>Connection details</summary>{connectionError}</details></> : error}<button onClick={()=>{if(host?.reconnect)void host.reconnect().catch(e=>setError(String(e)));else refresh();}}>Retry now</button></div>}
+    {settings ? <SettingsPage tab={settingsTab} onTab={setSettingsTab} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/> : <>
     {locked && <button onClick={() => commit(defaultLayout({...initialTarget,collectionId:workspaceID}), true)}>Reset retained layout</button>}
     {configuring && <section className="layout-json"><div className="inspector-heading"><strong>Page configuration</strong><button className="icon-button" aria-label="Close layout configuration" onClick={() => setConfiguring(false)}>×</button></div><label className="sr-only" htmlFor="page-config-json">Page configuration</label><textarea id="page-config-json" value={json} onChange={event => setJSON(event.target.value)} spellCheck={false}/><button disabled={hasDetached || !!pending} onClick={() => { try { if (commit(parseLayout(json), true)) setConfiguring(false); } catch (error) { setError(String(error)); } }}>Import layout</button><small>Panel references and arrangement only. Your account and permissions stay unchanged.</small></section>}
     <div className="workspace-context">

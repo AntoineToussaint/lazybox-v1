@@ -243,6 +243,9 @@ const (
 	// RunnerServiceCloseTerminalProcedure is the fully-qualified name of the RunnerService's
 	// CloseTerminal RPC.
 	RunnerServiceCloseTerminalProcedure = "/lazybox.bench.v1.RunnerService/CloseTerminal"
+	// RunnerServiceRestartRunnerProcedure is the fully-qualified name of the RunnerService's
+	// RestartRunner RPC.
+	RunnerServiceRestartRunnerProcedure = "/lazybox.bench.v1.RunnerService/RestartRunner"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -323,6 +326,10 @@ type RunnerServiceClient interface {
 	WriteTerminal(context.Context, *connect.Request[gen.WriteTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
 	ResizeTerminal(context.Context, *connect.Request[gen.ResizeTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
 	CloseTerminal(context.Context, *connect.Request[gen.TerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	// Owner only. Asks the launcher that supervises this Runner to start it
+	// again: the Runner records the request and stops exactly as on any restart,
+	// detaching (never stopping) agents, managed commands and terminals.
+	RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -762,6 +769,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("CloseTerminal")),
 			connect.WithClientOptions(opts...),
 		),
+		restartRunner: connect.NewClient[gen.RestartRunnerRequest, gen.RestartRunnerResponse](
+			httpClient,
+			baseURL+RunnerServiceRestartRunnerProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RestartRunner")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -838,6 +851,7 @@ type runnerServiceClient struct {
 	writeTerminal                *connect.Client[gen.WriteTerminalRequest, gen.TerminalStatus]
 	resizeTerminal               *connect.Client[gen.ResizeTerminalRequest, gen.TerminalStatus]
 	closeTerminal                *connect.Client[gen.TerminalRequest, gen.TerminalStatus]
+	restartRunner                *connect.Client[gen.RestartRunnerRequest, gen.RestartRunnerResponse]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1195,6 +1209,11 @@ func (c *runnerServiceClient) CloseTerminal(ctx context.Context, req *connect.Re
 	return c.closeTerminal.CallUnary(ctx, req)
 }
 
+// RestartRunner calls lazybox.bench.v1.RunnerService.RestartRunner.
+func (c *runnerServiceClient) RestartRunner(ctx context.Context, req *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error) {
+	return c.restartRunner.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -1273,6 +1292,10 @@ type RunnerServiceHandler interface {
 	WriteTerminal(context.Context, *connect.Request[gen.WriteTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
 	ResizeTerminal(context.Context, *connect.Request[gen.ResizeTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
 	CloseTerminal(context.Context, *connect.Request[gen.TerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	// Owner only. Asks the launcher that supervises this Runner to start it
+	// again: the Runner records the request and stops exactly as on any restart,
+	// detaching (never stopping) agents, managed commands and terminals.
+	RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1708,6 +1731,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("CloseTerminal")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceRestartRunnerHandler := connect.NewUnaryHandler(
+		RunnerServiceRestartRunnerProcedure,
+		svc.RestartRunner,
+		connect.WithSchema(runnerServiceMethods.ByName("RestartRunner")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -1852,6 +1881,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceResizeTerminalHandler.ServeHTTP(w, r)
 		case RunnerServiceCloseTerminalProcedure:
 			runnerServiceCloseTerminalHandler.ServeHTTP(w, r)
+		case RunnerServiceRestartRunnerProcedure:
+			runnerServiceRestartRunnerHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2143,4 +2174,8 @@ func (UnimplementedRunnerServiceHandler) ResizeTerminal(context.Context, *connec
 
 func (UnimplementedRunnerServiceHandler) CloseTerminal(context.Context, *connect.Request[gen.TerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CloseTerminal is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartRunner is not implemented"))
 }

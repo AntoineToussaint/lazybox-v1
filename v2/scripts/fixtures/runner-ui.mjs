@@ -51,8 +51,12 @@ export async function startRunnerFixture() {
   const terminalOutput=(t,text)=>{const offset=t.output.length;const data=Buffer.from(text);t.output=Buffer.concat([t.output,data]);for(const res of t.clients)res.write(frame({offset:String(offset),data:data.toString('base64'),status:terminalStatus(t)}));};
 
   let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[]};
+  // The fake Runner process. RestartRunner answers, then the "process" is down
+  // for restartMs (every RPC fails as unavailable) before a new instance serves.
+  const runner = { instanceId: randomUUID(), restartAvailable: true, restartError: '', restartMs: 1500, down: false, restarts: 0 };
   const server = createServer(async (req, res) => {
     if (req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unauthenticated', message: 'Fixture bearer required' })); return; }
+    if (runner.down) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unavailable', message: 'Fixture Runner is restarting' })); return; }
     const method = req.url.split('/').at(-1); let body;
     try {
       const chunks = []; for await (const chunk of req) chunks.push(chunk);
@@ -96,7 +100,15 @@ export async function startRunnerFixture() {
       case 'ListSnippets': return json({snippets:[{key:'review',category:'Review',description:'Review this change',body:'Review the current change carefully.',origin:'built-in'},{key:'test',category:'Testing',description:'Run tests',body:'Run the relevant tests.',origin:'global'}]});
       case 'GetTelemetry': return json({groups:[],contexts:[],recent:[]});
       case 'RenameCollection': { const workspace=collections.find(c=>c.id===body.collectionId);if(!workspace)return error('not_found','workspace missing');workspace.name=body.name;mutations.push({method,body});return json({collection:workspace}); }
-      case 'Info': return json({ profiles, pendingEnrollments: [...enrollments.values()].filter(flow => flow.state === 'awaiting_login').map(({ id, state, provider, label, profileId }) => ({ id, state, provider, label, profileId })), sessions, attachmentLimits: { maxFiles: 4, maxFileBytes: '20971520', maxMessageBytes: '20971520' } });
+      case 'RestartRunner': {
+        mutations.push({ method, body });
+        if (!runner.restartAvailable) return error('failed_precondition', 'this Runner was not started by a launcher that can start it again; restart it where it runs');
+        if (runner.restartError) return error('internal', runner.restartError);
+        const stopping = runner.instanceId; runner.restarts++;
+        setTimeout(() => { runner.down = true; setTimeout(() => { runner.instanceId = randomUUID(); runner.down = false; }, runner.restartMs); }, 50);
+        return json({ instanceId: stopping });
+      }
+      case 'Info': return json({ restartAvailable: runner.restartAvailable, instanceId: runner.instanceId, profiles, pendingEnrollments: [...enrollments.values()].filter(flow => flow.state === 'awaiting_login').map(({ id, state, provider, label, profileId }) => ({ id, state, provider, label, profileId })), sessions, attachmentLimits: { maxFiles: 4, maxFileBytes: '20971520', maxMessageBytes: '20971520' } });
       case 'AddSubscription': {
         mutations.push({ method, body });
         const id = `enrollment-${body.requestKey}`;
@@ -208,5 +220,5 @@ export async function startRunnerFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'lazybox-workspace-ui-'));
   const endpoint = join(directory, 'endpoint.json');
   await writeFile(endpoint, JSON.stringify({ url, token }), { mode: 0o600 });
-  return { terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
+  return { runner, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
 }

@@ -13,6 +13,7 @@ use std::{
         Mutex,
         atomic::{AtomicBool, Ordering},
     },
+    time::{Duration, Instant},
 };
 use tauri::{
     Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
@@ -29,7 +30,16 @@ pub struct Host {
     pub layout: Mutex<Layout>,
     pub quitting: AtomicBool,
     pub notice: Mutex<String>,
+    /// Armed by Restart Runner: the bearer the stopping Runner held and how
+    /// long to wait for its successor. While armed, the next Runner the same
+    /// private locator names is adopted even on a newly allocated origin,
+    /// which otherwise needs an explicit Retry.
+    pub restart: Mutex<Option<(String, Instant)>>,
 }
+
+/// How long a requested restart may take before the window stops following
+/// the locator to a new origin (Dev may rebuild the Runner first).
+const RESTART_FOLLOW: Duration = Duration::from_secs(300);
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -214,6 +224,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         layout: Mutex::new(layout),
         quitting: AtomicBool::new(false),
         notice: Mutex::new(notice),
+        restart: Mutex::new(None),
     });
     let menu = Menu::default(app.handle())?;
     let surfaces = Submenu::with_items(
@@ -424,12 +435,14 @@ pub fn runner_bootstrap(
     Ok(WindowBootstrap {
         view_state: host.views.lock().map_err(|e| e.to_string())?.values.clone(),
         connection: match &host.reload_endpoint {
-            Some(path) => host
-                .connection
-                .lock()
-                .map_err(|e| e.to_string())?
-                .refreshed(path)
-                .map_err(|e| e.to_string())?,
+            Some(path) => {
+                follow_restart(&window, &host, path)?;
+                host.connection
+                    .lock()
+                    .map_err(|e| e.to_string())?
+                    .refreshed(path)
+                    .map_err(|e| e.to_string())?
+            }
             None => host.connection.lock().map_err(|e| e.to_string())?.clone(),
         },
         target: surface.target.clone(),
@@ -582,26 +595,75 @@ pub fn reconnect_view(window: WebviewWindow, host: State<'_, Host>) -> Result<()
     if let Some(path) = &host.reload_endpoint {
         let mut current = host.connection.lock().map_err(|e| e.to_string())?;
         let next = current.reconnected(path).map_err(|e| e.to_string())?;
-        if next.url != current.url {
-            window
-                .app_handle()
-                .add_capability(
-                    CapabilityBuilder::new(format!(
-                        "reconnected-{:x}",
-                        Sha256::digest(next.url.as_bytes())
-                    ))
-                    .windows(["main", "workspace-*", "console-*", "chat-*"])
-                    .permission_scoped(
-                        "http:default",
-                        vec![serde_json::json!({"url":format!("{}{RPC_PATH}*",next.url)})],
-                        Vec::<serde_json::Value>::new(),
-                    ),
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        *current = next;
+        adopt(&window, &mut current, next)?;
     }
     window.reload().map_err(|e| e.to_string())
+}
+
+/// Install the HTTP scope for a connection's origin, then make it current.
+fn adopt(window: &WebviewWindow, current: &mut Bootstrap, next: Bootstrap) -> Result<(), String> {
+    if next.url != current.url {
+        window
+            .app_handle()
+            .add_capability(
+                CapabilityBuilder::new(format!(
+                    "reconnected-{:x}",
+                    Sha256::digest(next.url.as_bytes())
+                ))
+                .windows(["main", "workspace-*", "console-*", "chat-*"])
+                .permission_scoped(
+                    "http:default",
+                    vec![serde_json::json!({"url":format!("{}{RPC_PATH}*",next.url)})],
+                    Vec::<serde_json::Value>::new(),
+                ),
+            )
+            .map_err(|e| e.to_string())?;
+    }
+    *current = next;
+    Ok(())
+}
+
+/// The person asked this Runner to restart. Its launcher starts the next one,
+/// which may get a new port; follow it from the same private locator, for the
+/// same Runner identity, once, without reloading any window.
+#[tauri::command]
+pub fn expect_runner_restart(host: State<'_, Host>) -> Result<(), String> {
+    let Some(path) = &host.reload_endpoint else {
+        return Err("This window has no Runner locator to follow a restart through".into());
+    };
+    // The running Runner's bearer as its locator names it now: the connection
+    // may still hold an older one, since a hot reload's bearer is only read.
+    let token = Bootstrap::read(path).map_err(|e| e.to_string())?.token;
+    *host.restart.lock().map_err(|e| e.to_string())? =
+        Some((token, Instant::now() + RESTART_FOLLOW));
+    Ok(())
+}
+
+/// While a requested restart is armed, adopt the successor the locator names.
+/// Every window's periodic bootstrap read runs this, so whichever reads first
+/// moves them all; the rest then see an unchanged origin.
+fn follow_restart(
+    window: &WebviewWindow,
+    host: &Host,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    let mut armed = host.restart.lock().map_err(|e| e.to_string())?;
+    let Some((previous, deadline)) = armed.clone() else {
+        return Ok(());
+    };
+    if Instant::now() >= deadline {
+        *armed = None;
+        return Ok(());
+    }
+    let mut current = host.connection.lock().map_err(|e| e.to_string())?;
+    if let Some(next) = current
+        .restarted(path, &previous)
+        .map_err(|e| e.to_string())?
+    {
+        adopt(window, &mut current, next)?;
+        *armed = None;
+    }
+    Ok(())
 }
 
 pub fn window_event(window: &tauri::Window, event: &WindowEvent) {

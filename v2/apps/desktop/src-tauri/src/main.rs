@@ -69,6 +69,15 @@ impl Bootstrap {
             ..self.clone()
         })
     }
+
+    // After a requested restart, the successor is the Runner the same locator
+    // names with a bearer other than the stopping one's (`previous`). Until it
+    // writes its locator there is nothing to adopt; once it has, it may serve
+    // on a newly allocated origin, accepted exactly as an explicit reconnect.
+    fn restarted(&self, path: &Path, previous: &str) -> Result<Option<Self>, Box<dyn Error>> {
+        let next = self.reconnected(path)?;
+        Ok((next.token != previous).then_some(next))
+    }
 }
 
 fn validate_endpoint(value: &str) -> Result<String, Box<dyn Error>> {
@@ -115,7 +124,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             host::dock_chat,
             host::reopen_agent,
             host::reopen_closed,
-            host::reconnect_view
+            host::reconnect_view,
+            host::expect_runner_restart
         ])
         .setup(host::setup)
         .on_window_event(host::window_event)
@@ -266,5 +276,49 @@ mod tests {
         )
         .expect("write");
         assert!(old.reconnected(file.path()).is_err());
+    }
+
+    #[test]
+    fn requested_restart_follows_only_the_successor_the_same_locator_names() {
+        let file = tempfile::NamedTempFile::new().expect("fixture");
+        let old = Bootstrap {
+            url: "http://127.0.0.1:12345".into(),
+            token: "stopping".into(),
+            runner_id: "runneridentity0001".into(),
+            working_directory: "/fixture".into(),
+            session_id: "saved".into(),
+        };
+        // The stopping Runner's locator: nothing to adopt yet.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:12345","token":"stopping","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        assert!(
+            old.restarted(file.path(), "stopping")
+                .expect("read")
+                .is_none()
+        );
+        // Its successor, on a newly allocated port, is adopted with the saved target.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:23456","token":"successor","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        let next = old
+            .restarted(file.path(), "stopping")
+            .expect("read")
+            .expect("successor");
+        assert_eq!(next.url, "http://127.0.0.1:23456");
+        assert_eq!(next.token, "successor");
+        assert_eq!(next.session_id, "saved");
+        // Another Runner's identity or a non-loopback origin is never followed.
+        for invalid in [
+            r#"{"url":"http://127.0.0.1:23456","token":"other","runnerId":"someotherrunner0002"}"#,
+            r#"{"url":"http://example.com:23456","token":"other","runnerId":"runneridentity0001"}"#,
+        ] {
+            fs::write(file.path(), invalid).expect("write");
+            assert!(old.restarted(file.path(), "stopping").is_err());
+        }
     }
 }

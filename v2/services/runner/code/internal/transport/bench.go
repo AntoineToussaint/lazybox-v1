@@ -30,6 +30,29 @@ type Service struct {
 	Inspector gitinspect.Inspector
 	pb.UnimplementedRunnerServiceServer
 	Bench *runner.Bench
+	// Restart is the launcher that starts this Runner again after RestartRunner;
+	// nil when nothing would (a plain `codefly run`, a test, a Codefly service).
+	Restart Restarter
+}
+
+// Restarter records a restart request and begins the Runner's ordinary
+// shutdown (restart.Supervisor).
+type Restarter interface{ Request() error }
+
+// instance names this Runner process. A client that asked for a restart knows
+// the new process serves once Info reports another one.
+var instance = commands.ID()
+
+// RestartRunner is the owner's alone (it is not on the agent allowlist). The
+// Runner stops exactly as on any restart; its launcher starts it again.
+func (s *Service) RestartRunner(context.Context, *pb.RestartRunnerRequest) (*pb.RestartRunnerResponse, error) {
+	if s.Restart == nil {
+		return nil, status.Error(codes.FailedPrecondition, "this Runner was not started by a launcher that can start it again; restart it where it runs")
+	}
+	if err := s.Restart.Request(); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.RestartRunnerResponse{InstanceId: instance}, nil
 }
 
 func rpcError(err error) error {
@@ -119,7 +142,7 @@ func (s *Service) Info(ctx context.Context, r *pb.InfoRequest) (*pb.InfoResponse
 	if err := s.Bench.ReloadProfiles(); err != nil {
 		return nil, rpcError(err)
 	}
-	w := &pb.InfoResponse{SharedSubscriptions: s.Bench.Config.SubscriptionState != s.Bench.Config.State, DefaultModel: s.Bench.Config.Defaults.Model, DefaultPermission: s.Bench.Config.Defaults.Permission, AttachmentLimits: &pb.AttachmentLimits{MaxFiles: attachments.MaxFiles, MaxFileBytes: attachments.MaxFileBytes, MaxMessageBytes: attachments.MaxMessageBytes}}
+	w := &pb.InfoResponse{InstanceId: instance, RestartAvailable: s.Restart != nil, SharedSubscriptions: s.Bench.Config.SubscriptionState != s.Bench.Config.State, DefaultModel: s.Bench.Config.Defaults.Model, DefaultPermission: s.Bench.Config.Defaults.Permission, AttachmentLimits: &pb.AttachmentLimits{MaxFiles: attachments.MaxFiles, MaxFileBytes: attachments.MaxFileBytes, MaxMessageBytes: attachments.MaxMessageBytes}}
 	for _, p := range s.Bench.Profiles() {
 		w.Profiles = append(w.Profiles, s.wireProfile(p))
 	}

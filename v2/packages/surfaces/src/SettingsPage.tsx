@@ -9,6 +9,7 @@ import { Icon } from './Icons';
 import './settings.css';
 import { RepositoryBrowser } from './RepositoryBrowser';
 import { AgentSettings, PricingSettings } from './RunnerSettings';
+import { RunnerSection } from './RunnerControl';
 
 
 function bareWindowName(window: UsageWindow) {
@@ -34,9 +35,11 @@ function resetLabel(epoch: bigint) {
   return hours >= 24 ? `Resets in ${Math.floor(hours / 24)}d ${hours % 24}h` : hours ? `Resets in ${hours}h ${minutes % 60}m` : `Resets in ${minutes}m`;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepositoryFolder }: { chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void> }) {
+export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'pricing' | 'keyboard' | 'runner';
+export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepositoryFolder, tab: shownTab, onTab }: { chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; tab?: SettingsTab; onTab?(tab: SettingsTab): void }) {
   const { api, info, refresh } = useRunner();
-  const [tab, setTab] = useState<'subscriptions' | 'repositories' | 'agents' | 'pricing' | 'keyboard'>('subscriptions');
+  const [ownTab, setOwnTab] = useState<SettingsTab>('subscriptions');
+  const tab = shownTab || ownTab, setTab = (next: SettingsTab) => { setOwnTab(next); onTab?.(next); };
   const storageKey = `${viewState?.scope || viewState?.key}:subscription-enrollment`;
   const [flowID, setFlowID] = useState(() => { try { return viewState?.getItem(storageKey) || ''; } catch { return ''; } });
   const [restoreRequest, setRestoreRequest] = useState<{ key: string; provider: string } | undefined>(() => { try { const value = JSON.parse(viewState?.getItem(`${storageKey}:request`) || 'null'); return value && typeof value.key === 'string' && ['codex', 'claude'].includes(value.provider) ? value : undefined; } catch { return undefined; } });
@@ -159,8 +162,9 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
   const pending = !!flowID && !terminal(flow?.state);
   return <section className="settings-page" aria-labelledby="settings-title">
     <header className="settings-title"><div><span className="settings-eyebrow">YOUR WORKSPACE</span><h1 id="settings-title">Settings</h1></div></header>
-    <nav className="settings-tabs" role="tablist" aria-label="Settings sections"><button id="subscriptions-tab" role="tab" aria-selected={tab === 'subscriptions'} onClick={() => setTab('subscriptions')} aria-controls="subscriptions-panel">Subscriptions</button><button id="repositories-tab" role="tab" aria-selected={tab === 'repositories'} aria-controls="repositories-panel" onClick={() => setTab('repositories')}>Repositories</button><button role="tab" id="agents-tab" aria-selected={tab==='agents'} aria-controls="agents-panel" onClick={()=>setTab('agents')}>Agents & workspaces</button><button role="tab" id="pricing-tab" aria-selected={tab==='pricing'} aria-controls="pricing-panel" onClick={()=>setTab('pricing')}>Pricing</button><button role="tab" aria-selected={tab==='keyboard'} onClick={()=>setTab('keyboard')}>Shortcuts</button></nav>
+    <nav className="settings-tabs" role="tablist" aria-label="Settings sections"><button id="subscriptions-tab" role="tab" aria-selected={tab === 'subscriptions'} onClick={() => setTab('subscriptions')} aria-controls="subscriptions-panel">Subscriptions</button><button id="repositories-tab" role="tab" aria-selected={tab === 'repositories'} aria-controls="repositories-panel" onClick={() => setTab('repositories')}>Repositories</button><button role="tab" id="agents-tab" aria-selected={tab==='agents'} aria-controls="agents-panel" onClick={()=>setTab('agents')}>Agents & workspaces</button><button role="tab" id="pricing-tab" aria-selected={tab==='pricing'} aria-controls="pricing-panel" onClick={()=>setTab('pricing')}>Pricing</button><button role="tab" aria-selected={tab==='keyboard'} onClick={()=>setTab('keyboard')}>Shortcuts</button><button role="tab" id="runner-tab" aria-selected={tab==='runner'} aria-controls="runner-panel" onClick={()=>setTab('runner')}>Runner</button></nav>
     {tab==='keyboard'&&<KeyboardSettings store={viewState}/>}
+    {tab==='runner'&&<section role="tabpanel" id="runner-panel" aria-labelledby="runner-tab"><RunnerSection/></section>}
     {tab==='agents'&&<section role="tabpanel" id="agents-panel" aria-labelledby="agents-tab"><AgentSettings/></section>}
     {tab==='pricing'&&<section role="tabpanel" id="pricing-panel" aria-labelledby="pricing-tab"><PricingSettings/></section>}
     {tab === 'repositories' && <section role="tabpanel" id="repositories-panel" aria-labelledby="repositories-tab"><RepositoryBrowser chooseRepositoryFolder={chooseRepositoryFolder}/></section>}

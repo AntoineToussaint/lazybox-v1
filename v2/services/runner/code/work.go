@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/restart"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
 	"github.com/AntoineToussaint/lazybox/v2/internal/transport"
@@ -136,7 +137,16 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 	if keepAgents {
 		shutdown = bench.Detach
 	}
-	config.Service = &transport.Service{Bench: bench}
+	service := &transport.Service{Bench: bench}
+	// A launcher that will start this Runner again names where it reads the
+	// request; RestartRunner then stops through the shutdown above.
+	supervisor, err := restart.FromEnvironment(keepAgents)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "V2 Runner: restart from the app is unavailable: %v\n", err)
+	} else if supervisor != nil {
+		service.Restart = supervisor
+	}
+	config.Service = service
 	config.GRPCServerOptions = append(config.GRPCServerOptions, transport.LocalAuthority(token, bench)...)
 	config.MaxMessageBytes = 36 << 20
 	fmt.Printf("V2 Runner endpoint file: %s\n", endpoint)

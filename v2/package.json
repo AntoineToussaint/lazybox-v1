@@ -50,7 +50,8 @@
     "test:dogfood": "node scripts/test-dogfood.mjs",
     "test:responsive-shell": "node scripts/test-responsive-shell.mjs",
     "test:terminal": "node scripts/test-terminal.mjs",
-    "test:terminal-share": "node scripts/test-terminal-share.mjs"
+    "test:terminal-share": "node scripts/test-terminal-share.mjs",
+    "test:runner-restart": "node scripts/test-runner-restart.mjs"
   },
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",
