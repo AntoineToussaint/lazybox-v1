@@ -64,7 +64,8 @@
     "test:send-recovery": "node scripts/test-send-recovery.mjs",
     "test:chat-polish": "node scripts/test-chat-polish.mjs",
     "test:subscription-switch": "node scripts/test-subscription-switch.mjs",
-    "test:sidebar-width": "node scripts/test-sidebar-width.mjs"
+    "test:sidebar-width": "node scripts/test-sidebar-width.mjs",
+    "test:editor-wrap": "node scripts/test-editor-wrap.mjs"
   },
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",

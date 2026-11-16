@@ -53,6 +53,11 @@ const viewStates=new Map<string,monaco.editor.ICodeEditorViewState>();
 const applied=new Map<string,number>();
 
 export type Reveal={line?:number;nonce:number};
+/** Prose wraps by default, code does not; Alt+Z toggles it for that kind of file, remembered and applied to every open editor. */
+const prose=(path:string)=>/\.(md|mdx|markdown|txt|text|rst|adoc|log)$/i.test(path)||!/\.[^/]+$/.test(path);
+const wrapKey=(path:string)=>`lazybox:editor.word-wrap.${prose(path)?'prose':'code'}`;
+const wrapFor=(path:string):'on'|'off'=>{let saved:string|null=null;try{saved=localStorage.getItem(wrapKey(path));}catch{/* a convenience */}return saved==='on'||saved==='off'?saved:prose(path)?'on':'off';};
+const wrapEvent='lazybox:editor-word-wrap';
 /** `onSave` resolves to false when the file was not saved. With `vim`, Esc
  * belongs to the editor (Vim users press it reflexively to be sure they are in
  * normal mode), and :q closes through the dialog's unsaved-changes guard. */
@@ -64,18 +69,21 @@ export default function CodeEditor({path,value,readOnly,line,vim=false,modelKey,
  useEffect(()=>{
   const {model,release}=acquireModel(modelKey,path,value);
   if(model.getValue()!==value)replaceText(model,value);
-  const editor=monaco.editor.create(container.current!,{model,theme:'lazybox',readOnly,automaticLayout:true,minimap:{enabled:false},fontSize:13,lineHeight:21,padding:{top:14,bottom:14},scrollBeyondLastLine:false,wordWrap:'off',renderLineHighlight:'line',tabSize:2,ariaLabel:'File source editor',fixedOverflowWidgets:true});
+  const editor=monaco.editor.create(container.current!,{model,theme:'lazybox',readOnly,automaticLayout:true,minimap:{enabled:false},fontSize:13,lineHeight:21,padding:{top:14,bottom:14},scrollBeyondLastLine:false,wordWrap:wrapFor(path),wrappingIndent:'same',renderLineHighlight:'line',tabSize:2,ariaLabel:'File source editor',fixedOverflowWidgets:true});
   instance.current=editor;
   const view=modelKey&&viewKey?modelKey+'|'+viewKey:'';
   const subscription=editor.onDidChangeModelContent(()=>change.current(editor.getValue()));
   // An action, not addCommand: Monaco routes addCommand to the newest editor
   // when several are open, so a save would land in the wrong group.
   const saving=editor.addAction({id:'lazybox.save',label:'Save file',keybindings:[monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS],run:()=>{save.current();}});
+  const wrapping=editor.addAction({id:'lazybox.wordWrap',label:'Toggle word wrap',keybindings:[monaco.KeyMod.Alt|monaco.KeyCode.KeyZ],run:()=>{const next=editor.getOption(monaco.editor.EditorOption.wordWrap)==='off'?'on':'off';try{localStorage.setItem(wrapKey(path),next);}catch{/* a convenience */}window.dispatchEvent(new CustomEvent(wrapEvent,{detail:wrapKey(path)}));}});
+  const applyWrap=(event:Event)=>{if((event as CustomEvent<string>).detail===wrapKey(path))editor.updateOptions({wordWrap:wrapFor(path)});};
+  window.addEventListener(wrapEvent,applyWrap);
   const focus=editor.onDidFocusEditorText(()=>focused.current?.());
   const remembered=view?viewStates.get(view):undefined;
   if(remembered)editor.restoreViewState(remembered);
   if(line){editor.setPosition({lineNumber:line,column:1});editor.revealLineInCenter(line);}
-  return()=>{if(view){const state=editor.saveViewState();if(state)viewStates.set(view,state);}subscription.dispose();saving.dispose();focus.dispose();editor.dispose();release();instance.current=null;};
+  return()=>{if(view){const state=editor.saveViewState();if(state)viewStates.set(view,state);}subscription.dispose();saving.dispose();wrapping.dispose();window.removeEventListener(wrapEvent,applyWrap);focus.dispose();editor.dispose();release();instance.current=null;};
  },[path,modelKey,viewKey]);
  useEffect(()=>{
   const editor=instance.current;if(!editor||!reveal)return;

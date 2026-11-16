@@ -45,7 +45,8 @@
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },
     { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" },
     { "id": "send-recovery", "scope": "ui", "script": "test:send-recovery" },
-    { "id": "sidebar-width", "scope": "ui", "script": "test:sidebar-width" }
+    { "id": "sidebar-width", "scope": "ui", "script": "test:sidebar-width" },
+    { "id": "editor-wrap", "scope": "ui", "script": "test:editor-wrap" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }
