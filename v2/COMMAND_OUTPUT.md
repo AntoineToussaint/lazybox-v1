@@ -62,6 +62,71 @@ Commands get no stdin, so nothing waits for input. If the Runner is
 unreachable, the command still runs and the agent still gets its view.
 `--raw` gives the agent the full output for diffs and JSON.
 
+The command runs under a process guard (`internal/processguard`, as managed
+commands do): it and everything it starts are one process group, stopped as
+one, and swept when the command exits. A server started with `&` inside a
+`lazybox run` therefore ends with the run; start the server itself with
+`lazybox run` instead (next section).
+
+### Servers and watchers
+
+A server, a watcher or a log follower never exits, so whatever waits on it
+hangs: the agent's turn, the message the person queued behind it, a Run
+button. `lazybox run` (`run_background.go`) gives every command a grace period
+(20 seconds; `--wait=DURATION` sets it). A command still running after it
+goes on **in the background** when it listens on a TCP port (its process
+tree's listening sockets: `lsof`, or `/proc` on Linux,
+`internal/listenports`) or looks like a server or watcher by its command line
+(`npm run dev`, `pnpm start`, `make up`, `vite`, `rails s`, `uvicorn`,
+`docker compose up` without `-d`, `tail -f`, `--watch`, …:
+`internal/serverlike`, whose vectors the client's Run buttons share). A
+command that is neither keeps being waited for (a long test run, say), and
+moves as soon as it opens a port. `--background` moves any command once it
+has run two seconds (so a command that fails at once still reports its
+failure); `--wait` keeps it in the foreground until it exits. A command that
+ends within the grace period is an ordinary run, whatever it looks like.
+
+Moving keeps the **same process**: `lazybox run` hands the process guard and
+the command's output pipes to a follower (this CLI again, in a session of its
+own, so the agent's tool or the person's terminal ending does not end it) and
+returns at once with exit 0 and a report, for example:
+
+```
+[lazybox] npm run dev → running in the background as command 4F2K… after 20.1s: it listens on port 5173
+[lazybox] listening on http://localhost:5173
+[lazybox] latest output:
+  VITE v5.4.0  ready in 1203 ms
+  ➜  Local:   http://localhost:5173/
+[lazybox] output so far (2.1 KiB, still growing): <state>/command-output/<execution>/npm-….log
+[lazybox] the output streams to the Lazybox console. Stop it: lazybox stop 4F2K… · your commands: lazybox ls
+```
+
+The latest lines have colour codes and secrets removed. The follower keeps
+publishing to the same console run and appending to the same file, reports
+the command's ports and process to the Runner (`FollowPipe`), and records its
+exit (`FinishPipe`, with the signal when it was stopped). The console run
+reads *Running in the background · port 5173*; Processes lists it (backend
+*lazybox run*) with Stop. If the follower dies, the guard's helper stops the
+command's group: nothing is orphaned. From a workspace terminal the report
+goes to the terminal and the prompt comes back; without a Runner the command
+still moves, and the report says how to stop it (`kill -TERM -PGID`).
+
+**Stopping and moving from Lazybox.** A `lazybox run` follows its console run
+(`FollowPipe`, a long poll), foreground or background. `CancelCommand` (Stop
+in the console, the live bar, Processes; `lazybox stop ID`) reaches it there:
+SIGTERM to the group, SIGKILL after 5 seconds. `BackgroundCommand` (the owner's
+alone: **Move to background** in the live bar) moves a foreground run at once,
+whatever it is. A followed run outlives a Runner restart: the next Runner
+reopens it where its output stopped, the follower resumes publishing (keeping
+up to 8 MiB it could not send meanwhile, and saying what it dropped beyond
+that), and a run nothing hears from for 90 seconds is ended as *stopped
+reporting*.
+
+**Inside an agent**, `lazybox ls` lists the agent's own commands (running
+first, a background server with its URL, then the last five that ended) and
+`lazybox stop ID` stops one; the agent's credential lists and stops its own
+commands only. The agent briefing says all this in two sentences.
+
 `cmd | lazybox log` is unchanged for agents: a transparent tee for output from
 a producer lazybox did not start. It cannot know the exit status, so `run` is
 preferred.
@@ -107,6 +172,14 @@ output lines are dropped) has a **Run** split button beside Copy
   failure and reacts. During a turn the message waits in the Runner's queue and
   the block says "Queued — runs after the current turn". The block then shows
   the agent's run from its matching tool call: running, ran ✓, failed ✗.
+  A block that looks like a server or watcher (the same rules as
+  `lazybox run`, `serverLike` in `code-run.ts`) asks instead "Start this in the
+  background (it keeps running) and tell me when it is ready:"; when a
+  workspace action runs the same command, "Start the workspace action
+  `api/dev` (it runs this) and tell me when it is ready:", so the agent uses
+  `start_action`. Its chip reads *Sent to Claude · starting…*, then *running
+  in the background · port 5173* with **Open preview**, from the agent's tool
+  call (a `lazybox run` report, or a `start`/`start_action` that returned).
 - **Run myself…** (the ▾ menu, the block's right-click menu, ⌥Enter) opens a
   confirm card under the block: the script, editable; the folder (the
   workspace root or one of its repositories, by default the conversation's);
@@ -116,7 +189,16 @@ output lines are dropped) has a **Run** split button beside Copy
   its `cwd`, which the Runner requires to be inside the conversation's folder),
   and the console opens on it. The block shows Running, ✓ exit 0 or ✗ exit N;
   a failure offers **Ask the agent to fix**, which adds the script and the last
-  60 lines of its output to the message box for the person to send.
+  60 lines of its output to the message box for the person to send. A server
+  or watcher block is started the same way and never waited for: the card says
+  it keeps running in the background, and the chip reads *Running ·
+  starting…*, then *Running · port 3000* (the Runner reads a managed
+  command's listening ports, `CommandStatus.ports`) with **Open preview** (the
+  Web panel, or the browser), Show output and Stop. When a workspace action
+  runs the same command (equal once `$LAZYBOX_*` arguments, a trailing `--`
+  and a leading `cd <repository> &&` are set aside), Run myself starts the
+  action instead (**Start action**: it gets the workspace's own port and shows
+  in Run and Preview), and the chip follows the action.
 
 `StartCommand` is the owner's alone, so a read-only or Plan conversation runs
 a person's command too: the mode bounds the agent, and the person could type
@@ -163,6 +245,7 @@ binary exists.
 | 6 | **Measure before going further.** Record per-run bytes in/out and the gortk filter in telemetry. Judge by cost per completed task and failure rate, not bytes saved. | Recording done (telemetry `commands`); no report or analysis yet |
 | 7 | **Opt-in automatic wrapping** of known noisy commands (test, build, lint, install) through a Claude `PreToolUse` rewrite and the Codex equivalent. Only with step 6 showing a benefit; fall back to the original command on any wrapper error to avoid retry loops. | Later |
 | 8 | **Retention.** Delete full-output files with their session; bound total size. | Done |
+| 9 | **Servers and watchers never block.** `lazybox run` moves a command that still runs after its grace period and listens on a port or looks like a server to the background (same process, a follower); Stop and Move to background from Lazybox; `lazybox ls`/`stop` for agents; Run buttons start servers in the background; queued messages can be sent now or steered. | Done |
 
 ## Known limits
 
@@ -184,3 +267,18 @@ binary exists.
   and the file keep everything.
 - Commands needing a terminal (TUIs, password prompts) are out of scope; the
   interactive shell is roadmap R3.
+- A server whose listening socket belongs to another process tree (Docker's
+  daemon for `docker compose up`, say) has no port in the report or the
+  console; the command line still moves it to the background.
+- The server heuristics are a guess: a command with a server's name that ends
+  on its own within the grace period is an ordinary run, and one with an
+  unusual name is moved only once it listens on a port.
+- Claude's own Bash tool (not `lazybox run`) cannot be moved: the live bar
+  offers Interrupt, with a hint to start servers with `lazybox run`.
+- A command in the background is a running command of its conversation:
+  continuing the conversation from a checkpoint waits until it is stopped, as
+  for any running command, and ending or deleting the conversation stops it.
+- Not verified: a real agent's turn returning through Claude's Bash or Codex's
+  shell tool after a move (the tests run the CLI directly), Codex's
+  `workspace-write` sandbox around the follower, and Linux's `/proc` port
+  lookup outside its unit test.

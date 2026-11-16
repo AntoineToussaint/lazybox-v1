@@ -4,7 +4,7 @@ import { follow, type RunnerClient } from '@lazybox/client-core';
 import type { CommandStatus } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { readConsoleState, writeConsoleState } from './view-state';
-import { composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSummary } from './command-runs';
+import { composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSummary, runningLabel } from './command-runs';
 import { AnsiText, stripAnsi } from './ansi';
 import { Icon } from './Icons';
 import { contextMenu, copyText, showMenuNotice } from './ContextMenu';
@@ -63,7 +63,7 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
   const running = !!metadata && !metadata.done;
   // What happened, in words: never a stale "exit 0" for a command still running.
   const outcome = !metadata ? { tone: 'idle', text: status === 'Connecting' ? 'Connecting…' : status }
-    : running ? { tone: 'running', text: 'Running' }
+    : running ? { tone: 'running', text: runningLabel(metadata) }
     : metadata.captureError ? { tone: 'failed', text: 'Output incomplete' }
     : metadata.signal ? { tone: 'stopped', text: `Stopped (${metadata.signal})` }
     : metadata.exitCode === undefined ? (report && !report.piped ? (report.exitCode === 0 ? { tone: 'ok', text: 'Finished' } : { tone: 'failed', text: `Failed · exit ${report.exitCode}` }) : { tone: 'idle', text: 'Ended' })

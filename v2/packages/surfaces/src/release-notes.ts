@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.1',
+    date: '2026-11-17',
+    title: 'Servers never hold up a conversation',
+    items: [
+      { title: 'Servers go to the background', body: 'When an agent starts a dev server or a watcher with lazybox run, it moves to the background once it is up (after 20 seconds, when it listens on a port or looks like a server): the agent carries on, the server keeps running, and it shows in Command output and Processes with its port and Stop.' },
+      { title: 'Move to background', body: 'The live bar offers it for a server the agent is still waiting on; Processes and the console stop it like any command.' },
+      { title: 'Run a server from a code block', body: 'Run asks the agent to start it in the background, Run myself starts it there; the block shows its port with Open preview and Stop, and uses the workspace\'s action when one runs the same command.' },
+      { title: 'Queued messages you can act on', body: 'A message you send while the agent works waits above the message box: Send now stops the current step and sends it next, and Codex conversations can Steer it into the running turn.' },
+    ],
+  },
+  {
     id: '0.1.0',
     date: '2026-11-17',
     title: 'Install Lazybox like any Mac app',

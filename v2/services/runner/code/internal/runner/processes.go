@@ -47,7 +47,13 @@ type HostedProcess struct {
 	AttachCommand string
 	// Usage sums the host and every process under it.
 	Usage *ProcessUsage
+	// Ports are the TCP ports a command's processes listen on.
+	Ports []uint32
 }
+
+// runProcessPrefix marks a `lazybox run` that went on in the background: it
+// has no session host, so its id is this prefix and its command's id.
+const runProcessPrefix = "run:"
 
 // ProcessUsage is a process tree's share of the machine, from one ps sample.
 type ProcessUsage struct {
@@ -125,6 +131,7 @@ func (b *Bench) Processes(ctx context.Context) (ProcessInventory, error) {
 		case "command":
 			if status, ok := commandHosts[p.ID]; ok {
 				p.CommandID, p.Label, p.ExecutionID = status.ID, commands.Label(status.Spec), status.Spec.SessionID
+				p.Ports = b.CommandPorts(ctx, status)
 				if e := executions[status.Spec.SessionID]; e != nil {
 					p.WorkspaceID, p.Provider = e.CollectionID, e.Profile.Provider
 					p.ConversationTitle = b.conversationTitle(ctx, e.ID)
@@ -147,6 +154,30 @@ func (b *Bench) Processes(ctx context.Context) (ProcessInventory, error) {
 			pids = append(pids, p.HostPID)
 		}
 		inventory.Processes = append(inventory.Processes, *p)
+	}
+	// A `lazybox run` in the background runs under no session host; its CLI
+	// follows it and stops it when asked.
+	for _, status := range b.Commands.List("") {
+		if status.Mode != "pipe" || !status.Following || !status.Background || status.Done {
+			continue
+		}
+		p := HostedProcess{ID: runProcessPrefix + status.ID, Kind: "command", Backend: "run", State: "running", Attached: true, HostPID: status.PID, ProgramPID: status.PID, Label: commands.Label(status.Spec), CommandID: status.ID, ExecutionID: status.Spec.SessionID, WorkspaceID: status.Spec.CollectionID, Ports: status.Ports}
+		if status.StartedAt > 0 {
+			p.Uptime = time.Since(time.UnixMilli(status.StartedAt)).Truncate(time.Second)
+		}
+		if e := executions[status.Spec.SessionID]; e != nil {
+			p.WorkspaceID, p.Provider = e.CollectionID, e.Profile.Provider
+			p.ConversationTitle = b.conversationTitle(ctx, e.ID)
+		}
+		if p.WorkspaceID != "" && b.Collections != nil {
+			if w, err := b.Collections.Get(p.WorkspaceID); err == nil {
+				p.WorkspaceName = w.Name
+			}
+		}
+		if p.HostPID > 0 {
+			pids = append(pids, p.HostPID)
+		}
+		inventory.Processes = append(inventory.Processes, p)
 	}
 	if usage, err := sampleProcesses(ctx, pids); err == nil {
 		for i := range inventory.Processes {
@@ -222,6 +253,13 @@ var ErrProcessNotFound = fmt.Errorf("hosted process not found: %w", os.ErrNotExi
 // session is closed (the conversation stays and can continue), a command is
 // cancelled, a terminal is closed. A host no Runner holds is stopped directly.
 func (b *Bench) StopProcess(ctx context.Context, id string) error {
+	if command, ok := strings.CutPrefix(id, runProcessPrefix); ok {
+		c, err := b.Commands.Get(command)
+		if err != nil {
+			return ErrProcessNotFound
+		}
+		return c.Cancel()
+	}
 	for _, root := range b.hostRoots() {
 		ids, err := b.hosting.Hosts(root.root)
 		if err != nil {

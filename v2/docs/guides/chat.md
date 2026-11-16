@@ -14,7 +14,12 @@ it did.
 ## Send, steer and stop
 
 - `Enter` sends, `Shift+Enter` starts a new line. A message sent while the agent
-  works is **queued** and delivered when the turn ends.
+  works is **queued** and delivered when the turn ends. Queued messages wait
+  above the message box (*Queued — Claude is busy (Running a command · 5m)*),
+  each with **Send now**, which stops the agent's current step and sends yours
+  next (it asks first and names the step; `Esc` keeps waiting), and, for
+  Codex, **Steer**, which hands it to the running turn without stopping it.
+  Claude cannot take a message mid-turn, and the strip says so.
 - **Dictate** instead of typing: hold `⌥Space` and speak, or click the
   microphone in the message box — see [Voice](voice.md).
 - **Attach** files with the paperclip, by dropping them on the chat, or by
@@ -95,7 +100,13 @@ Keys work while the chat has focus, never while you are typing.
 - **The live bar** at the bottom of a running conversation says what is
   happening now, in words, with the command and the folder it runs in, the last
   lines of its output, and the right stop button (**Stop command** for a
-  command Lazybox runs, otherwise **Interrupt**).
+  command Lazybox runs, otherwise **Interrupt**). A server or watcher the agent
+  started with `lazybox run` in the foreground (it listens on a port, looks
+  like a server, or has been quiet for 20 seconds) offers **Move to
+  background**: the agent's turn goes on and the command keeps running, in
+  Command output and Processes. Agents' `lazybox run` does this by itself after
+  20 seconds. For the agent's own shell step that may never end, the bar
+  suggests interrupting and asking it to use `lazybox run`.
 - **Each finished turn** ends with a quiet marker: *Turn 2 · 3 files changed*,
   with **Show changes in this turn** and **Revert to before this turn…** in its
   menu. See [checkpoints](review-agent-work.md#undo-a-turn-checkpoints).
@@ -125,6 +136,12 @@ A shell block in the agent's answer (`bash`, `sh`, `zsh`, `console`…) has
   It runs in [Command output](#follow-what-it-does), and the block shows
   *Running*, *✓ exit 0* or *✗ exit 2*; after a failure, **Ask Claude to fix**
   adds the script and the end of its output to your message.
+- **A server or watcher** (`npm run dev`, `docker compose up`, `--watch`…)
+  never ends, so nothing waits for it: **Run** asks the agent to start it in
+  the background and tell you when it is ready, and **Run myself** starts it in
+  the background. The block then reads *Running · port 3000* with **Open
+  preview** and **Stop**. If a workspace action runs the same command, Run
+  myself starts that action instead, on the workspace's own port.
 
 Focus a block (`Tab`) and press `Enter` to run it through the agent, `⌥Enter`
 to run it yourself. `]] r` runs the latest block of the conversation. Commands

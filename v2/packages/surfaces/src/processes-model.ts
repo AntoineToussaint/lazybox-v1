@@ -44,12 +44,19 @@ export function processState(p: HostedProcess): { label: string; tone: 'ok' | 'i
   }
 }
 
-export const backendLabel = (backend: string) => backend === 'tmux' ? 'tmux' : 'session host';
+/** What hosts a process: tmux, a session host, or (for a `lazybox run` that went on in the background) the CLI that started it. */
+export const backendLabel = (backend: string) => backend === 'tmux' ? 'tmux' : backend === 'run' ? 'lazybox run' : 'session host';
+
+/** "listening on :3000", "listening on :3000, :3001": where a process serves, or ''. */
+export function listeningLabel(ports: readonly number[] | undefined): string {
+  return ports?.length ? `listening on ${ports.map(port => `:${port}`).join(', ')}` : '';
+}
 
 /** What stopping does, said before it happens. */
 export function stopConsequence(p: HostedProcess): string {
   if (!p.attached) return 'No Runner supervises this process. Stopping it ends it and everything it started.';
   if (p.kind === 'agent') return 'The agent’s process ends and its conversation stops. The conversation stays in your history: continue it to start a new process.';
+  if (p.kind === 'command' && p.backend === 'run') return 'The command gets SIGTERM, then SIGKILL after 5 seconds, with everything it started. Its output so far stays in the console.';
   if (p.kind === 'command') return 'The command and everything it started are stopped. Its output so far stays in the console.';
   return 'The shell is hung up, as closing its terminal tab does: programs it started get SIGHUP.';
 }

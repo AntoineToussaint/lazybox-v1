@@ -45,7 +45,7 @@ you are reaching it under another name or address.
 
 | Verb | What it does |
 |---|---|
-| `ls [--all]` | Workspaces, their conversations and agents with live state (needs input, failed, working, review, idle, ended), sub-agents still running. `--all` lists every registered Runner, grouped by Runner. |
+| `ls [--all]` | Workspaces, their conversations and agents with live state (needs input, failed, working, review, idle, ended), sub-agents still running. `--all` lists every registered Runner, grouped by Runner. Inside an agent: its own commands instead, running first (a server in the background with its URL), then the last five that ended. |
 | `inbox [--all]` | What needs you, in order: needs input › failed › working › ready for review, with the `approve`/`deny` line for each pending approval. |
 | `runners` | Registered Runners, live or not, and which one the CLI uses. |
 | `send <conversation> [text\|-]` | Send a message. Text from the arguments, or stdin with `-` or when piped. An ended conversation is resumed first. `--steer` steers the running turn. |
@@ -54,7 +54,7 @@ you are reaching it under another name or address.
 | `workspace request-repo <name\|owner/repo\|path> --reason WHY [--no-wait] [--timeout 90s]` | For agents: ask the person to add a repository to this workspace instead of reaching outside it ([WORKSPACES.md](../../../../WORKSPACES.md#when-an-agent-needs-another-repository)). Matched against the catalog; adds nothing itself. Waits for the answer: the new worktree's path (exit 0), declined with the reason (exit 4), no answer yet (exit 5, the answer comes later as a message in the conversation). |
 | `new <name> --repo R [--repo R…] [--branch B]` | Create a workspace from catalog repositories (`owner/name`, catalog name, identity or path). Progress on stderr, the new id on stdout. |
 | `approve\|deny <request\|conversation>` | Answer a pending approval, by request id (or its suffix after `:`), or by conversation when it has exactly one. Questions are answered in the app. |
-| `stop <conversation\|command> [--agent ID] [--end]` | Interrupt the running turn; `--agent` stops one sub-agent; `--end` ends the conversation (resumable). A command id cancels that command. |
+| `stop <conversation\|command> [--agent ID] [--end]` | Interrupt the running turn; `--agent` stops one sub-agent; `--end` ends the conversation (resumable). A command id cancels that command (SIGTERM to its group, SIGKILL after 5s), a `lazybox run` in the background included. Inside an agent: only its own commands. |
 | `wait <conversation> --until idle\|needs-input [--timeout 30m]` | Block until reached (exit 0); exit 5 on timeout; exit 1 if the turn failed, or ended without asking when waiting for input. |
 | `watch <conversation\|workspace> [--since CURSOR\|DURATION] [--tail N]` | Follow events live as a timeline: time, agent or sub-agent, event, short text; streamed message deltas are folded into one line. Shows the last `--tail` (20) events first; `--since 0`/`--since 10m` replays from a cursor or a time. A workspace follows every live conversation and picks up new ones. `--json` prints NDJSON, one record per journal record (deltas included, `replay: true` for history). Colour only on a terminal, never with `NO_COLOR`. |
 | `debug <conversation> [--events N]` | Diagnosis from the journal and the Runner's state: busy/queued/fault/status, pending requests, sub-agents, the last N lifecycle events (turns, accepted operations, receipts, failures, re-attachments, agent status) and findings in plain words — "the last turn ended by an interrupt you sent at 16:59", "fault X blocks messages", "a message has been queued behind the running turn for 5m", "no event for 12m while a turn runs". |
@@ -130,8 +130,9 @@ lazybox wait "fix the tests" --until idle --timeout 20m && lazybox debug "fix th
 ## Security
 
 Owner verbs need the owner's endpoint (`<state>/endpoint.json`, 0600). An
-agent's credential reaches only its own console (`run`, `log`) and its own
-workspace's artifacts (`artifact`); a workspace terminal's only its own runs;
+agent's credential reaches only its own console (`run`, `log`), its own
+commands (`ls`, `stop`) and its own workspace's artifacts (`artifact`); a
+workspace terminal's only its own runs;
 a hook's only what its file grants (`read`, `respond`, `start` — what a paired
 phone with those grants may do, less `Info`). None of them gains a verb from
 this CLI: the Runner enforces the allowlists (`internal/transport/auth.go`,
@@ -143,6 +144,15 @@ In a Lazybox workspace terminal no flag is needed: `cmd 2>&1 | lazybox log
 [--title CMD] [--to CONVERSATION]` and `lazybox run [--to CONVERSATION] --
 cmd` publish to the workspace's console with the terminal's own credential.
 See `v2/TERMINALS.md` and `v2/COMMAND_OUTPUT.md`.
+
+`lazybox run` moves a server or watcher to the background once it has run
+20 seconds and listens on a TCP port or looks like one (`npm run dev`,
+`docker compose up`, `--watch`): it returns at once with the command's id,
+URL, latest output and output file, and the command keeps running and
+streaming to the console. `--wait` keeps it in the foreground until it exits
+(`--wait=2m` waits that long first); `--background` moves it as soon as it has
+started. `lazybox stop ID` stops it (`v2/COMMAND_OUTPUT.md`, "Servers and
+watchers").
 
 `lazybox artifact put|get|list` publishes and reads workspace artifacts
 (`v2/ARTIFACTS.md`).

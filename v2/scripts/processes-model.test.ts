@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { HostedProcess } from '@lazybox/protocol';
-import { formatMemory, formatUptime, groupProcesses, processState, stopConsequence } from '../packages/surfaces/src/processes-model.ts';
+import { backendLabel, formatMemory, formatUptime, groupProcesses, listeningLabel, processState, stopConsequence } from '../packages/surfaces/src/processes-model.ts';
 
 const process = (fields: Partial<HostedProcess>) => ({ id: 'h', kind: 'agent', backend: 'sessionhost', state: 'running', attached: true, hostPid: 1, programPid: 2, uptimeSeconds: 0n, label: 'x', workspaceId: '', workspaceName: '', sessionId: '', conversationTitle: '', provider: '', commandId: '', terminalId: '', attachCommand: '', ...fields }) as HostedProcess;
 
@@ -32,4 +32,14 @@ test('state and stop consequence say what matters', () => {
   assert.match(stopConsequence(process({})), /conversation stays in your history/);
   assert.match(stopConsequence(process({ kind: 'terminal' })), /SIGHUP/);
   assert.match(stopConsequence(process({ attached: false })), /No Runner supervises/);
+  assert.match(stopConsequence(process({ kind: 'command', backend: 'run' })), /SIGTERM, then SIGKILL/);
+});
+
+test('a lazybox run in the background says what hosts it and where it listens', () => {
+  assert.equal(backendLabel('run'), 'lazybox run');
+  assert.equal(backendLabel('tmux'), 'tmux');
+  assert.equal(backendLabel('sessionhost'), 'session host');
+  assert.equal(listeningLabel([3000]), 'listening on :3000');
+  assert.equal(listeningLabel([3000, 3001]), 'listening on :3000, :3001');
+  assert.equal(listeningLabel([]), '');
 });

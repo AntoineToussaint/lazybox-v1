@@ -193,7 +193,15 @@ Ask mode the person approves the tool call; it never bypasses script approval.
 Agents cannot approve scripts, stop actions or change runtime settings: those
 RPCs are not on the agent or terminal allowlists
 (`TestWorkspaceRuntimeRPCsAreTheOwnersAlone`), and the agent briefing tells
-agents to use `start_action` for a workspace's dev server.
+agents to use `start_action` for a workspace's dev server (and `lazybox run`,
+which moves servers to the background, for any other;
+[command output](COMMAND_OUTPUT.md#servers-and-watchers)).
+
+A shell block in an agent's message that runs an action's command (equal
+once `$LAZYBOX_*` arguments, a trailing `--` and a leading `cd <repository>
+&&` are set aside) is the action: **Run myself** starts the action
+(`StartWorkspaceAction`) rather than a plain command, and **Run** asks the
+agent to start the action by name.
 
 ## RPCs
 

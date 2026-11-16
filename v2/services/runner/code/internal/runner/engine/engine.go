@@ -21,17 +21,19 @@ type accepted struct {
 	adopted bool
 }
 type Snapshot struct {
-	Title             string                    `json:"title,omitempty"`
-	Purpose           string                    `json:"purpose"`
-	ID                string                    `json:"id"`
-	Profile           string                    `json:"profile"`
-	Reference         string                    `json:"reference"`
-	GatewayID         string                    `json:"gatewayId,omitempty"`
-	Capabilities      agent.Capabilities        `json:"capabilities"`
-	Busy              bool                      `json:"busy"`
-	Closed            bool                      `json:"closed"`
-	Fault             string                    `json:"fault,omitempty"`
-	Queued            int                       `json:"queued"`
+	Title        string             `json:"title,omitempty"`
+	Purpose      string             `json:"purpose"`
+	ID           string             `json:"id"`
+	Profile      string             `json:"profile"`
+	Reference    string             `json:"reference"`
+	GatewayID    string             `json:"gatewayId,omitempty"`
+	Capabilities agent.Capabilities `json:"capabilities"`
+	Busy         bool               `json:"busy"`
+	Closed       bool               `json:"closed"`
+	Fault        string             `json:"fault,omitempty"`
+	Queued       int                `json:"queued"`
+	// QueuedMessages are the messages waiting for the turn in progress.
+	QueuedMessages    []QueuedMessage           `json:"queuedMessages,omitempty"`
 	Pending           map[string]agent.Event    `json:"pending"`
 	Status            agent.Status              `json:"status"`
 	Agents            map[string]agent.Activity `json:"agents"`
@@ -40,6 +42,16 @@ type Snapshot struct {
 	// LastMessage is the tail of the main agent's latest message.
 	LastMessage string `json:"lastMessage,omitempty"`
 }
+
+// QueuedMessage is a message accepted while the agent was busy.
+type QueuedMessage struct {
+	OperationID string    `json:"operationId"`
+	Text        string    `json:"text"`
+	QueuedAt    time.Time `json:"queuedAt,omitzero"`
+}
+
+// queuedPreview bounds a queued message's text in a snapshot.
+const queuedPreview = 280
 
 type Engine struct {
 	responses map[string]bool
@@ -74,6 +86,8 @@ type Engine struct {
 	// is running, or "" when it began before this engine (an adopted turn).
 	hooks  TurnHooks
 	turnOp string
+	// queuedAt is when each queued message was accepted.
+	queuedAt map[string]time.Time
 }
 
 // TurnHooks observe the main agent's turns, for code checkpoints.
@@ -143,6 +157,17 @@ func (e *Engine) Snapshot() Snapshot {
 func (e *Engine) snapshotLocked() Snapshot {
 	s := e.state
 	s.Queued = len(e.queue)
+	s.QueuedMessages = nil
+	for _, op := range e.queue {
+		if op.Kind != agent.Message {
+			continue
+		}
+		text := []rune(op.Text)
+		if len(text) > queuedPreview {
+			text = append(text[:queuedPreview-1], '…')
+		}
+		s.QueuedMessages = append(s.QueuedMessages, QueuedMessage{OperationID: op.ID, Text: string(text), QueuedAt: e.queuedAt[op.ID]})
+	}
 	s.Pending = map[string]agent.Event{}
 	for k, v := range e.state.Pending {
 		s.Pending[k] = v
@@ -339,6 +364,10 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 			e.state.Fault = ""
 		}
 		e.queue = append(e.queue, op)
+		if e.queuedAt == nil {
+			e.queuedAt = map[string]time.Time{}
+		}
+		e.queuedAt[op.ID] = time.Now()
 		e.persistDurableLocked()
 		e.mu.Unlock()
 		go e.dispatch()
@@ -366,6 +395,102 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	return r, err
 }
 
+// Ways DeliverQueued delivers a queued message.
+const (
+	// DeliverNow interrupts the turn in progress; the message is the next turn.
+	DeliverNow = "now"
+	// DeliverSteer sends the message into the running turn (Capabilities.Steer).
+	DeliverSteer = "steer"
+)
+
+// ErrNotQueued means the message is no longer waiting: it was delivered, or
+// the turn ended and it started its own.
+var ErrNotQueued = errors.New("that message is no longer queued")
+
+// DeliverQueued delivers a queued message ahead of its turn. DeliverNow moves
+// it to the head of the queue and interrupts the running turn, so it is the
+// next turn; with no turn running it is dispatched at once. DeliverSteer takes
+// it out of the queue and sends it into the running turn; if the provider
+// refuses, it goes back to the head of the queue and the error is returned.
+func (e *Engine) DeliverQueued(ctx context.Context, id, how string) (agent.Receipt, error) {
+	if how != DeliverNow && how != DeliverSteer {
+		return agent.Receipt{}, errors.New(`delivery must be "now" or "steer"`)
+	}
+	e.mu.Lock()
+	at := -1
+	for i, op := range e.queue {
+		if op.ID == id && op.Kind == agent.Message {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		e.mu.Unlock()
+		return agent.Receipt{}, ErrNotQueued
+	}
+	if e.state.Closed || e.state.Fault != "" {
+		e.mu.Unlock()
+		return agent.Receipt{}, errors.New("session is closed or faulted")
+	}
+	op := e.queue[at]
+	if how == DeliverSteer {
+		if !e.state.Capabilities.Steer {
+			e.mu.Unlock()
+			return agent.Receipt{}, agent.ErrUnsupported
+		}
+		if !e.state.Busy {
+			e.mu.Unlock()
+			return agent.Receipt{}, errors.New("no active turn")
+		}
+		e.queue = append(e.queue[:at:at], e.queue[at+1:]...)
+		queuedAt := e.queuedAt[op.ID]
+		delete(e.queuedAt, op.ID)
+		e.persistDurableLocked()
+		e.mu.Unlock()
+		e.opMu.Lock()
+		steer := op
+		steer.Kind = agent.Steer
+		r, err := e.provider.Apply(e.ctx, steer)
+		e.opMu.Unlock()
+		r.ID = op.ID
+		e.mu.Lock()
+		if err != nil {
+			// Not delivered: the message keeps its place, first in line.
+			e.queue = append([]agent.Operation{op}, e.queue...)
+			if !queuedAt.IsZero() {
+				e.queuedAt[op.ID] = queuedAt
+			}
+			e.persistDurableLocked()
+			e.mu.Unlock()
+			go e.dispatch()
+			return agent.Receipt{}, err
+		}
+		if r.Delivery == "" {
+			r.Delivery = "accepted"
+		}
+		old := e.ops[op.ID]
+		old.receipt = r
+		e.ops[op.ID] = old
+		e.appendLocked(map[string]any{"type": "receipt", "receipt": r})
+		e.mu.Unlock()
+		return r, nil
+	}
+	e.queue = append(append([]agent.Operation{op}, e.queue[:at]...), e.queue[at+1:]...)
+	e.persistDurableLocked()
+	busy := e.state.Busy
+	e.mu.Unlock()
+	if !busy {
+		go e.dispatch()
+		return agent.Receipt{ID: op.ID, Delivery: "accepted"}, nil
+	}
+	// The interrupt ends the turn; the dispatch that follows takes this message.
+	r, err := e.Apply(ctx, agent.Operation{ID: op.ID[:min(len(op.ID), 120)] + ":now", Kind: agent.Interrupt})
+	if err != nil {
+		return r, err
+	}
+	return agent.Receipt{ID: op.ID, Delivery: "accepted"}, nil
+}
+
 func (e *Engine) dispatch() {
 	e.opMu.Lock()
 	defer e.opMu.Unlock()
@@ -376,6 +501,7 @@ func (e *Engine) dispatch() {
 	}
 	op := e.queue[0]
 	e.queue = e.queue[1:]
+	delete(e.queuedAt, op.ID)
 	e.persistDurableLocked()
 	e.state.Busy = true
 	e.observe(agent.Event{Type: "agent_status", Status: string(agent.Starting)})

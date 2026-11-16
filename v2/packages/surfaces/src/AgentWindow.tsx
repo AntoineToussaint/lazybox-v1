@@ -39,6 +39,7 @@ import { contextMenu } from './ContextMenu';
 import { ResumeBar, TranscriptNotice } from './SessionNotices';
 import { useSubagentHost } from './SubagentHost';
 import { LiveBar } from './LiveBar';
+import { QueuedMessages } from './QueuedMessages';
 import { SubagentContext } from './subagent-view';
 import { BackgroundWorkButton, SubagentAttention } from './SubagentTray';
 import { SubagentPanel } from './SubagentPanel';
@@ -484,6 +485,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/></CodeRunContext.Provider>
           {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} viewState={viewState} onInterrupt={() => void interrupt()}
             onOpenCommand={openCommand}/>}
+          {!transcript.error && !disconnected && <QueuedMessages api={api} session={session} sessionID={sessionID} live={live} agentName={agentName} activity={transcript.activity}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}

@@ -310,7 +310,8 @@ func TestTerminalCredentialIsDeniedEveryRPCOffTheAllowlist(t *testing.T) {
 	for method := range terminalRPCs {
 		allowed[method] = true
 	}
-	if len(allowed) != 3 || !allowed[pb.RunnerService_RegisterPipe_FullMethodName] || !allowed[pb.RunnerService_Publish_FullMethodName] || !allowed[pb.RunnerService_FinishPipe_FullMethodName] {
+	if len(allowed) != 5 || !allowed[pb.RunnerService_RegisterPipe_FullMethodName] || !allowed[pb.RunnerService_Publish_FullMethodName] || !allowed[pb.RunnerService_FinishPipe_FullMethodName] ||
+		!allowed[pb.RunnerService_FollowPipe_FullMethodName] || !allowed[pb.RunnerService_CancelCommand_FullMethodName] {
 		t.Fatalf("terminal allowlist changed; review it deliberately: %v", allowed)
 	}
 	desc := pb.RunnerService_ServiceDesc

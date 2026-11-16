@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.1] - 2026-11-17 · Servers never hold up a conversation
+
+- **Servers go to the background** When an agent starts a dev server or a watcher with lazybox run, it moves to the background once it is up (after 20 seconds, when it listens on a port or looks like a server): the agent carries on, the server keeps running, and it shows in Command output and Processes with its port and Stop.
+- **Move to background** The live bar offers it for a server the agent is still waiting on; Processes and the console stop it like any command.
+- **Run a server from a code block** Run asks the agent to start it in the background, Run myself starts it there; the block shows its port with Open preview and Stop, and uses the workspace's action when one runs the same command.
+- **Queued messages you can act on** A message you send while the agent works waits above the message box: Send now stops the current step and sends it next, and Codex conversations can Steer it into the running turn.
+
 ## [0.1.0] - 2026-11-17 · Install Lazybox like any Mac app
 
 - **A real installer** Download the disk image, drag Lazybox to Applications and open it, or brew install --cask lazybox-v2 from the lazybox tap. Nothing else to install: the app brings its Runner, the Claude worker and the Node it runs on.

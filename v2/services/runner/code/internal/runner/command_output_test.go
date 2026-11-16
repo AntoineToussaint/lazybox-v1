@@ -117,7 +117,7 @@ func TestRunReportIsKeptForTheConsoleAndTelemetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	report := commands.Report{ExitCode: 1, OutputBytes: 1 << 20, AgentBytes: 2048, Filter: "go-test", OutputPath: filepath.Join(b.Config.OutputRoot, e.ID, "go-1.log")}
-	if err = b.FinishPipe(pipe, nil, &report); err != nil {
+	if err = b.FinishPipe(pipe, nil, "", &report); err != nil {
 		t.Fatal(err)
 	}
 	if got := pipe.Status().Report; got == nil || *got != report {
@@ -131,7 +131,7 @@ func TestRunReportIsKeptForTheConsoleAndTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.FinishPipe(plain, nil, nil); err != nil || plain.Status().Report != nil {
+	if err = b.FinishPipe(plain, nil, "", nil); err != nil || plain.Status().Report != nil {
 		t.Fatalf("a plain pipe has no report: %v %+v", err, plain.Status())
 	}
 	if runs, _ = b.Telemetry.(*telemetry.SQLite).Commands(context.Background(), e.ID); len(runs) != 1 {

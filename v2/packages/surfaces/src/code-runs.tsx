@@ -17,8 +17,9 @@
  */
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
-import type { Collection, CommandStatus, Session } from '@lazybox/protocol';
-import { agentRun, fixRequestMessage, placeholdersIn, runArgv, runRequestMessage, runTitle, scriptOf, shellScript, isShellLanguage } from './code-run';
+import type { Collection, CommandStatus, Session, WorkspaceAction, WorkspaceRuntime } from '@lazybox/protocol';
+import { agentRun, fixRequestMessage, matchingAction, placeholdersIn, runArgv, runRequestMessage, runTitle, scriptOf, serverLike, shellScript, isShellLanguage } from './code-run';
+import { openInBrowser, openInViewer } from './web-links';
 import { openContextMenu, showMenuNotice } from './ContextMenu';
 import type { MenuItem } from './context-menu-model';
 import { Icon } from './Icons';
@@ -34,15 +35,19 @@ export type RunActions = {
   /** Shows a command of this conversation in the Command output console. */
   openOutput?(commandId: string): void;
 };
-type AgentRecord = { messageId: string; script: string; inline: boolean; queued: boolean; sawQueue: boolean; at: number };
-type SelfRecord = { messageId: string; script: string; inline: boolean; commandId: string; cwd: string };
+/** start: Run asked to start a server or watcher in the background. */
+type AgentRecord = { messageId: string; script: string; inline: boolean; queued: boolean; sawQueue: boolean; at: number; start?: boolean };
+/** action: the workspace action (key) Run myself started instead of the script. */
+type SelfRecord = { messageId: string; script: string; inline: boolean; commandId: string; cwd: string; action?: string };
 type Memory = { agent: AgentRecord[]; self: SelfRecord[] };
 /** What was run from each conversation, kept while the app runs so a remounted chat still shows it. */
 const memory = new Map<string, Memory>();
 const remembered = (sessionId: string) => { let entry = memory.get(sessionId); if (!entry) { entry = { agent: [], self: [] }; memory.set(sessionId, entry); } return entry; };
 
-export type AgentRunView = { state: 'queued' | 'sent' | 'running' | 'ok' | 'failed'; exitCode?: number };
-export type SelfRunView = { commandId: string; state: 'running' | 'ok' | 'failed' | 'stopped'; exitCode?: number; signal?: string; folder: string };
+/** start: the request asked to start a server or watcher in the background; `background`: it runs there now, on `port` when known. */
+export type AgentRunView = { state: 'queued' | 'sent' | 'running' | 'ok' | 'failed' | 'background'; exitCode?: number; start?: boolean; port?: number };
+/** server: it keeps running (a server or a watcher), with its port and address once it listens; action: the workspace action it is. */
+export type SelfRunView = { commandId: string; state: 'running' | 'ok' | 'failed' | 'stopped'; exitCode?: number; signal?: string; folder: string; server?: boolean; port?: number; url?: string; action?: string };
 export type RunView = { agent?: AgentRunView; self?: SelfRunView; confirming: boolean };
 export type Folder = { label: string; path: string };
 
@@ -59,6 +64,9 @@ export class CodeRuns {
   private messages: readonly TranscriptMessage[] = [];
   private actions?: RunActions;
   private commands = new Map<string, CommandStatus>();
+  /** The workspace's actions, to start the one a block stands for. */
+  private runtime?: WorkspaceRuntime;
+  private runtimeFor = '';
   private confirm?: { messageId: string; script: string; inline: boolean; at: number };
   private listeners = new Set<() => void>();
   private timer?: ReturnType<typeof setInterval>;
@@ -75,7 +83,11 @@ export class CodeRuns {
     this.actions = actions;
     let changed = false;
     if (messages !== this.messages) { this.messages = messages; changed = true; }
-    if (workspace !== this.workspace) { this.workspace = workspace; changed = true; }
+    if (workspace !== this.workspace) {
+      this.workspace = workspace; changed = true;
+      // A workspace known now: read its actions, to match blocks to them.
+      if (this.attached && workspace?.id && this.runtimeFor !== workspace.id) queueMicrotask(() => void this.refresh());
+    }
     if (agentName !== this.agentName) { this.agentName = agentName; changed = true; }
     if (session !== this.session) {
       this.session = session; changed = true;
@@ -111,13 +123,15 @@ export class CodeRuns {
     const local = this.memory.agent.filter(run => run.messageId === messageId && run.script === script).at(-1);
     const derived = agentRun(this.messages, messageId, script);
     let agent: AgentRunView | undefined;
-    if (local?.queued && !derived?.outcome) agent = { state: 'queued' };
-    else if (derived?.outcome) agent = { state: derived.outcome.state, exitCode: derived.outcome.exitCode };
-    else if (derived || local) agent = { state: 'sent' };
+    const start = derived ? derived.kind === 'start' : !!local?.start;
+    if (local?.queued && !derived?.outcome) agent = { state: 'queued', start };
+    else if (derived?.outcome) agent = { state: derived.outcome.state, exitCode: derived.outcome.exitCode, start, ...(derived.outcome.port ? { port: derived.outcome.port } : {}) };
+    else if (derived || local) agent = { state: 'sent', start };
     return { agent, self: this.selfView(messageId, script), confirming };
   }
   private selfView(messageId: string, script: string): SelfRunView | undefined {
     const local = this.memory.self.filter(run => run.messageId === messageId && run.script === script).at(-1);
+    if (local?.action) return this.actionView(local);
     let command = local && this.commands.get(local.commandId);
     if (!local) {
       // After a reload: the conversation's latest run of this script belongs to the latest message that has it.
@@ -126,10 +140,28 @@ export class CodeRuns {
       if (!command) return undefined;
     }
     const folder = this.folderLabel(command?.cwd || local?.cwd || '');
-    if (!command || !command.done) return { commandId: local?.commandId || command!.id, state: 'running', folder };
+    if (!command || !command.done) {
+      // A server never ends: it says where it listens instead of waiting for an exit.
+      const port = command?.ports[0], server = serverLike(script).server || !!port;
+      return { commandId: local?.commandId || command!.id, state: 'running', folder, ...(server ? { server } : {}), ...(port ? { port, url: `http://localhost:${port}` } : {}) };
+    }
     const exitCode = command.exitCode;
     return { commandId: command.id, folder, state: command.signal ? 'stopped' : exitCode === 0 ? 'ok' : 'failed', exitCode, signal: command.signal || undefined };
   }
+  /** A workspace action Run myself started: its state, port and address, as the workspace runtime says. */
+  private actionView(local: SelfRecord): SelfRunView {
+    const action = this.runtime?.actions.find(entry => entry.key === local.action);
+    const run = action?.runState;
+    const base = { commandId: run?.commandId || local.commandId, folder: action?.member || this.folderLabel(local.cwd), server: true, action: local.action, ...(action?.port ? { port: action.port } : {}), ...(action?.url ? { url: action.url } : {}) };
+    switch (run?.state) {
+      case 'succeeded': return { ...base, state: 'ok', exitCode: run.exitCode ?? 0 };
+      case 'failed': return { ...base, state: 'failed', exitCode: run.exitCode };
+      case 'stopped': return { ...base, state: 'stopped', signal: run.signal || undefined };
+      default: return { ...base, state: 'running' };
+    }
+  }
+  /** The workspace action a script stands for: Run myself starts it instead (it gets the workspace's port, and shows in Run and Preview). */
+  actionFor(script: string): WorkspaceAction | undefined { return this.runtime ? matchingAction(this.runtime.actions, script) : undefined; }
   private lastMessageWith(script: string): string {
     for (let i = this.messages.length - 1; i >= 0; i--) if (this.messages[i].type === 'message_delta' && this.messages[i].text.includes(script)) return this.messages[i].id;
     return '';
@@ -175,12 +207,14 @@ export class CodeRuns {
   async askAgent(messageId: string, script: string, language: string, inline = false) {
     if (!this.actions) return;
     const busy = !!this.session?.busy;
+    // A server or watcher never ends: the agent starts it in the background, by its workspace action when there is one.
+    const action = this.actionFor(script), server = serverLike(script).server || !!action?.url;
     try {
-      const how = await this.actions.send(runRequestMessage(script, language));
+      const how = await this.actions.send(runRequestMessage(script, language, { server, action: server ? action?.key : undefined }));
       if (how === 'drafted') return;
-      this.memory.agent.push({ messageId, script, inline, queued: busy, sawQueue: false, at: Date.now() });
+      this.memory.agent.push({ messageId, script, inline, queued: busy, sawQueue: false, at: Date.now(), start: server });
       this.emit();
-      showMenuNotice(busy ? 'Queued — runs after the current turn' : `Sent to ${this.agentName}`);
+      showMenuNotice(busy ? (server ? 'Queued — starts after the current turn' : 'Queued — runs after the current turn') : `Sent to ${this.agentName}`);
     } catch (error) { showMenuNotice(`Could not send: ${String(error instanceof Error ? error.message : error)}`); }
   }
   openConfirm(messageId: string, script: string, inline = false) { this.confirm = { messageId, script, inline, at: Date.now() }; this.emit(); }
@@ -189,6 +223,21 @@ export class CodeRuns {
   /** Run myself, once confirmed: a command of this conversation, shown in its console. Resolves to '' or why it did not start. */
   async runMyself(messageId: string, original: string, script: string, cwd: string): Promise<string> {
     const inline = !!this.confirm?.inline;
+    const reason = (error: unknown) => String(error instanceof Error ? error.message : error).replace(/^\[\w+\]\s*/, '');
+    const action = this.actionFor(script), workspace = this.workspaceId();
+    if (action && workspace) {
+      try {
+        const result = await this.api.startWorkspaceAction({ collectionId: workspace, action: action.key });
+        if (result.runtime) this.runtime = result.runtime;
+        const started = result.runtime?.actions.find(entry => entry.key === action.key)?.runState;
+        if (started?.error) return started.error;
+        this.memory.self.push({ messageId, script: original, inline, commandId: started?.commandId || '', cwd, action: action.key });
+        this.confirm = undefined;
+        this.emit();
+        this.follow();
+        return '';
+      } catch (error) { return reason(error); }
+    }
     try {
       const status = await this.api.startCommand({ sessionId: this.sessionId, title: runTitle(script), argv: runArgv(script), cwd });
       this.commands.set(status.id, status);
@@ -199,12 +248,21 @@ export class CodeRuns {
       this.actions?.openOutput?.(status.id);
       this.follow();
       return '';
-    } catch (error) { return String(error instanceof Error ? error.message : error).replace(/^\[\w+\]\s*/, ''); }
+    } catch (error) { return reason(error); }
   }
-  stop(commandId: string) {
+  /** Stops a run: a workspace action through the runtime, else its command. */
+  stop(commandId: string, action?: string) {
+    const workspace = this.workspaceId();
+    if (action && workspace) {
+      void this.api.stopWorkspaceAction({ collectionId: workspace, action }).then(result => { if (result.runtime) { this.runtime = result.runtime; this.emit(); } showMenuNotice('Stopping…'); }, error => showMenuNotice(`Could not stop: ${String(error)}`));
+      return;
+    }
     void this.api.cancelCommand({ commandId }).then(() => showMenuNotice('Stopping…'), error => showMenuNotice(`Could not stop: ${String(error)}`));
   }
   openOutput(commandId: string) { this.actions?.openOutput?.(commandId); }
+  /** Shows what a server serves: in this window's Web panel when it has one, else in the browser. */
+  openPreview(url: string) { if (!openInViewer(url)) void openInBrowser(url); }
+  private workspaceId() { return this.workspace?.id || this.session?.collectionId || ''; }
   /** Ask the agent to fix a failed run: the script, where it ran, how it ended and the end of its output join the message box. */
   async askToFix(commandId: string, script: string) {
     const command = this.commands.get(commandId);
@@ -228,18 +286,30 @@ export class CodeRuns {
   private async refresh() {
     if (this.listing || !this.attached) return;
     this.listing = true;
+    // The workspace's actions: once, to match blocks to them, then while an action someone started from a block runs.
+    const workspace = this.workspaceId();
+    if (workspace && (this.runtimeFor !== workspace || this.memory.self.some(run => run.action))) {
+      this.runtimeFor = workspace;
+      try {
+        const runtime = await this.api.getWorkspaceRuntime({ collectionId: workspace });
+        const states = (value?: WorkspaceRuntime) => JSON.stringify(value?.actions.map(a => [a.key, a.runState?.state, a.runState?.commandId]) || null);
+        const changed = states(runtime) !== states(this.runtime);
+        this.runtime = runtime;
+        if (changed) this.emit();
+      } catch { /* No workspace actions (or an older Runner): blocks run as commands. */ }
+    }
     try {
       const { commands } = await this.api.listCommands({ sessionId: this.sessionId });
       let changed = false;
       for (const command of commands) {
         if (command.sessionId !== this.sessionId || !scriptOf(command.argv)) continue;
         const known = this.commands.get(command.id);
-        if (!known || known.done !== command.done || known.exitCode !== command.exitCode || known.signal !== command.signal || known.offset !== command.offset) { this.commands.set(command.id, command); changed = true; }
+        if (!known || known.done !== command.done || known.exitCode !== command.exitCode || known.signal !== command.signal || known.offset !== command.offset || known.ports.join() !== command.ports.join()) { this.commands.set(command.id, command); changed = true; }
       }
       if (changed) this.emit();
     } catch { /* The next poll retries; a block keeps its last state. */ }
     finally { this.listing = false; }
-    const running = [...this.commands.values()].some(command => !command.done);
+    const running = [...this.commands.values()].some(command => !command.done) || this.memory.self.some(run => run.action && this.actionView(run).state === 'running');
     if (running) this.follow();
     else if (this.timer) { clearInterval(this.timer); this.timer = undefined; }
   }
@@ -285,14 +355,17 @@ export function useRunnableBlock(text: string, language: string, runnable: boole
   const signature = useSyncExternalStore(host ? host.subscribe : noSubscribe, () => host ? host.signature(messageId, script) : '');
   if (!host || !script) return undefined;
   const view = JSON.parse(signature) as RunView;
+  // A server or watcher never ends: Run asks to start it in the background, and says so.
+  const server = serverLike(script).server;
   const ask = () => void host.askAgent(messageId, script, language);
   const myself = () => { const why = host.whyNotRunMyself(); if (why) showMenuNotice(why); else host.openConfirm(messageId, script); };
   const menu = (): MenuItem[] => [
-    { label: `Ask ${host.agentName} to run it`, icon: 'send', shortcut: 'Enter', run: ask },
+    { label: server ? `Ask ${host.agentName} to start it in the background` : `Ask ${host.agentName} to run it`, icon: 'send', shortcut: 'Enter', run: ask },
     { label: 'Run myself…', icon: 'terminal', shortcut: 'Alt+Enter', disabled: host.whyNotRunMyself() || undefined, run: myself },
   ];
   const header = <span className="code-run" role="group" aria-label="Run">
-    <button type="button" className="code-run-main" title={`Ask ${host.agentName} to run this and report back`} aria-label={`Run: ask ${host.agentName} to run this`} onClick={ask}><Icon name="play" size={10}/>Run</button>
+    <button type="button" className="code-run-main" title={server ? `This keeps running (a server or a watcher): ask ${host.agentName} to start it in the background and say when it is ready` : `Ask ${host.agentName} to run this and report back`}
+      aria-label={server ? `Run: ask ${host.agentName} to start this in the background` : `Run: ask ${host.agentName} to run this`} onClick={ask}><Icon name="play" size={10}/>Run</button>
     <button type="button" className="code-run-more" title="More ways to run" aria-label="More ways to run" aria-haspopup="menu"
       onClick={event => { const box = event.currentTarget.getBoundingClientRect(); openContextMenu({ x: box.left, y: box.bottom + 4 }, menu(), { keyboard: event.detail === 0, target: event.currentTarget, label: 'Run' }); }}><Icon name="chevron" size={10}/></button>
   </span>;
@@ -328,20 +401,25 @@ function RunStatus({ host, view, script }: { host: CodeRuns; view: RunView; scri
   const { agent, self } = view;
   if (!agent && !self) return null;
   const name = host.agentName;
-  const agentText = !agent ? '' : agent.state === 'queued' ? 'Queued — runs after the current turn'
-    : agent.state === 'running' ? `Sent to ${name} · running…`
+  const agentText = !agent ? '' : agent.state === 'queued' ? (agent.start ? 'Queued — starts after the current turn' : 'Queued — runs after the current turn')
+    : agent.state === 'running' ? (agent.start ? `Sent to ${name} · starting…` : `Sent to ${name} · running…`)
+    : agent.state === 'background' ? `Sent to ${name} · running in the background${agent.port ? ` · port ${agent.port}` : ''}`
     : agent.state === 'ok' ? `Sent to ${name} · ran ✓`
     : agent.state === 'failed' ? `Sent to ${name} · failed ✗${agent.exitCode !== undefined ? ` exit ${agent.exitCode}` : ''}`
     : `Sent to ${name}`;
-  const selfText = !self ? '' : self.state === 'running' ? 'Running' : self.state === 'ok' ? `✓ exit ${self.exitCode ?? 0}` : self.state === 'stopped' ? `■ Stopped${self.signal ? ` (${self.signal})` : ''}` : `✗ exit ${self.exitCode ?? '?'}`;
+  // A server's run never ends: "Running · port 3000" says where it listens, not that it is still on its way to a result.
+  const selfText = !self ? '' : self.state === 'running' ? (self.server && self.port ? `Running · port ${self.port}` : self.server ? 'Running · starting…' : 'Running') : self.state === 'ok' ? `✓ exit ${self.exitCode ?? 0}` : self.state === 'stopped' ? `■ Stopped${self.signal ? ` (${self.signal})` : ''}` : `✗ exit ${self.exitCode ?? '?'}`;
+  const agentTone = agent?.state === 'background' ? 'running' : agent?.state;
   return <div className="code-run-status">
-    {agent && <span className={`code-run-chip tone-${agent.state}`} role="status" title={agent.state === 'queued' ? `${name} gets it when the turn in progress ends.` : `Asked ${name} to run this.`}>
-      {agent.state === 'running' || agent.state === 'queued' ? <span className="code-run-dot" aria-hidden/> : <Icon name="send" size={10}/>}{agentText}</span>}
+    {agent && <span className={`code-run-chip tone-${agentTone}`} role="status" title={agent.state === 'queued' ? `${name} gets it when the turn in progress ends.` : agent.start ? `Asked ${name} to start this in the background.` : `Asked ${name} to run this.`}>
+      {agent.state === 'running' || agent.state === 'queued' || agent.state === 'background' ? <span className="code-run-dot" aria-hidden/> : <Icon name="send" size={10}/>}{agentText}</span>}
+    {agent?.state === 'background' && agent.port && !self && <button type="button" className="code-run-link" onClick={() => host.openPreview(`http://localhost:${agent.port}`)}><Icon name="eye" size={10}/>Open preview</button>}
     {self && <span className="code-run-self">
-      <span className={`code-run-chip tone-${self.state}`} role="status" title={self.folder ? `You ran this in ${self.folder}` : 'You ran this'}>
-        {self.state === 'running' ? <span className="code-run-dot" aria-hidden/> : <Icon name="terminal" size={10}/>}{selfText}{self.folder && <small>in {self.folder}</small>}</span>
-      {host.canOpenOutput() && <button type="button" className="code-run-link" onClick={() => host.openOutput(self.commandId)}>Show output</button>}
-      {self.state === 'running' && <button type="button" className="code-run-link" onClick={() => host.stop(self.commandId)}><Icon name="stop" size={10}/>Stop</button>}
+      <span className={`code-run-chip tone-${self.state}`} role="status" title={self.action ? `You started the workspace action ${self.action}` : self.folder ? `You ran this in ${self.folder}` : 'You ran this'}>
+        {self.state === 'running' ? <span className="code-run-dot" aria-hidden/> : <Icon name="terminal" size={10}/>}{selfText}{self.action ? <small>action {self.action}</small> : self.folder && <small>in {self.folder}</small>}</span>
+      {self.state === 'running' && self.url && <button type="button" className="code-run-link" title={self.url} onClick={() => host.openPreview(self.url!)}><Icon name="eye" size={10}/>Open preview</button>}
+      {host.canOpenOutput() && self.commandId && <button type="button" className="code-run-link" onClick={() => host.openOutput(self.commandId)}>Show output</button>}
+      {self.state === 'running' && <button type="button" className="code-run-link" onClick={() => host.stop(self.commandId, self.action)}><Icon name="stop" size={10}/>Stop</button>}
       {self.state === 'failed' && <button type="button" className="code-run-fix" onClick={() => void host.askToFix(self.commandId, script)}><Icon name="sparkle" size={10}/>Ask {name} to fix</button>}
     </span>}
   </div>;
@@ -359,11 +437,13 @@ function RunConfirm({ host, messageId, script }: { host: CodeRuns; messageId: st
   const [starting, setStarting] = useState(false);
   const form = useRef<HTMLFormElement>(null), area = useRef<HTMLTextAreaElement>(null), run = useRef<HTMLButtonElement>(null);
   // What the conversation allows can change while the card is open (it connects, it ends, its mode changes).
-  useSyncExternalStore(host.subscribe, () => `${host.whyNotRunMyself()}|${host.readOnlyMode()}|${host.folders().length}`);
+  useSyncExternalStore(host.subscribe, () => `${host.whyNotRunMyself()}|${host.readOnlyMode()}|${host.folders().length}|${host.actionFor(script)?.key || ''}`);
   const placeholders = placeholdersIn(script), left = placeholders.filter(value => draft.includes(value));
   const why = !draft.trim() ? 'There is nothing to run.' : left.length ? `Replace ${left.join(', ')} first.` : host.whyNotRunMyself();
   const mode = host.readOnlyMode();
   const folders = host.folders();
+  // The same command as a workspace action: starting the action gets the workspace's own port, and it shows in Run and Preview.
+  const action = host.actionFor(draft), server = !action && serverLike(draft).server;
   const openedAt = host.confirmOpenedAt(messageId, script);
   useLayoutEffect(() => {
     form.current?.scrollIntoView({ block: 'nearest' });
@@ -388,16 +468,18 @@ function RunConfirm({ host, messageId, script }: { host: CodeRuns; messageId: st
       else if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && (event.target as HTMLElement).tagName !== 'BUTTON' && (event.target as HTMLElement).tagName !== 'SELECT') { event.preventDefault(); event.stopPropagation(); void submit(); }
     }}>
     <div className="code-run-confirm-head"><strong>Run myself</strong><small>Runs as you, in this conversation’s command output. {host.agentName} is not involved.</small></div>
+    {action && <p className="code-run-note" role="note"><Icon name="play" size={12}/><span>Starts the workspace action <strong>{action.key}</strong>{action.port ? ` on port ${action.port}` : ''}: it gets the workspace’s own port, and shows in Run and Preview.</span></p>}
+    {server && <p className="code-run-note" role="note"><Icon name="play" size={12}/><span>This keeps running (a server or a watcher). It runs in the background; stop it here or in Processes.</span></p>}
     {mode && <p className="code-run-warning" role="note"><Icon name="alert" size={12}/>This conversation is {mode === 'plan' ? 'in Plan mode' : 'read-only'}: {host.agentName} may not change anything here, but this command runs as you and can.</p>}
     {placeholders.length > 0 && <p className={`code-run-warning${left.length ? '' : ' is-done'}`} role="note"><Icon name={left.length ? 'pencil' : 'check'} size={12}/>{left.length ? <>Fill in {left.map((value, i) => <code key={i}>{value}</code>)} before running.</> : 'Placeholders filled in.'}</p>}
     <label className="code-run-field"><span>Script</span>
       <textarea ref={area} value={draft} spellCheck={false} autoCapitalize="off" autoCorrect="off" rows={Math.min(10, draft.split('\n').length)} onChange={event => { setDraft(event.target.value); setError(''); }}/></label>
-    {folders.length > 0 && <label className="code-run-field"><span>Folder</span>
+    {folders.length > 0 && !action && <label className="code-run-field"><span>Folder</span>
       <select value={folder} onChange={event => setFolder(event.target.value)}>{folders.map(entry => <option key={entry.path} value={entry.path}>{entry.label} — {shortPath(entry.path)}</option>)}</select></label>}
     {error && <p className="code-run-error" role="alert">{error}</p>}
     <div className="code-run-confirm-actions">
       <button type="button" onClick={cancel}>Cancel <kbd>Esc</kbd></button>
-      <button ref={run} type="submit" className="primary" disabled={starting} aria-disabled={!!why} title={why || 'Run this script in the chosen folder'}>{starting ? 'Starting…' : <>Run <kbd>↵</kbd></>}</button>
+      <button ref={run} type="submit" className="primary" disabled={starting} aria-disabled={!!why} title={why || (action ? `Start the workspace action ${action.key}` : 'Run this script in the chosen folder')}>{starting ? 'Starting…' : <>{action ? 'Start action' : 'Run'} <kbd>↵</kbd></>}</button>
     </div>
   </form>;
 }

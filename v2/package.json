@@ -100,6 +100,7 @@
     "test:power-actions": "node scripts/test-power-actions.mjs",
     "test:activity-detail": "node scripts/test-activity-detail.mjs",
     "test:code-run": "node scripts/test-code-run.mjs",
+    "test:queued-messages": "node scripts/test-queued-messages.mjs",
     "test:appearance": "node --import tsx scripts/test-appearance.mjs",
     "tokenize-css": "node --import tsx scripts/tokenize-css.ts",
     "test:docking": "node scripts/test-docking.mjs",

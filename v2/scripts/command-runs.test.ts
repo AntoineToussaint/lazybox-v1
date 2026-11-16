@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { CommandReportSchema } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RunTracker, appendToDraft, composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSummary, runOrigin } from '../packages/surfaces/src/command-runs.ts';
+import { RunTracker, appendToDraft, composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSummary, runOrigin, runningLabel } from '../packages/surfaces/src/command-runs.ts';
 
 test('a run is labelled with what its agent received, in the sizes the agent was shown', () => {
   assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 1, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' })), 'Exit 1 · the agent got a 2.1 KiB summary of 1.4 MiB (go-test filter)');
@@ -44,4 +44,11 @@ test('actions and setup scripts are labelled as such, never as terminal runs', (
   assert.equal(runOrigin({ sessionId: '', collectionId: 'alpha', origin: 'setup' }), 'setup · ');
   assert.equal(runOrigin({ sessionId: 'alpha-session', collectionId: '', origin: '' }), '');
   assert.ok(isRuntimeRun({ origin: 'archive' }) && !isRuntimeRun({ origin: 'terminal' }));
+});
+
+test('a running command says where it listens, and when it went on in the background', () => {
+  assert.equal(runningLabel({ background: false, ports: [] }), 'Running');
+  assert.equal(runningLabel({ background: false, ports: [3000] }), 'Running · port 3000');
+  assert.equal(runningLabel({ background: true, ports: [3000] }), 'Running in the background · port 3000');
+  assert.equal(runningLabel({ background: true, ports: [] }), 'Running in the background');
 });

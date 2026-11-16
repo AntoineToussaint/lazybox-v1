@@ -76,6 +76,7 @@ func (b *Bench) restore(r sessionstore.Record) (*Execution, error) {
 	state.Closed = true
 	state.Busy = false
 	state.Queued = 0
+	state.QueuedMessages = nil
 	state.Pending = map[string]agent.Event{}
 	for id, a := range state.Agents {
 		if a.Status == agent.Running || a.Status == agent.Starting || a.Status == agent.WaitingInput || a.Status == agent.WaitingApproval {

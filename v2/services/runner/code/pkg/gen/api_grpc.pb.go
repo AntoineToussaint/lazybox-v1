@@ -92,6 +92,8 @@ const (
 	RunnerService_ReadCommand_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ReadCommand"
 	RunnerService_WaitCommand_FullMethodName                  = "/lazybox.bench.v1.RunnerService/WaitCommand"
 	RunnerService_CancelCommand_FullMethodName                = "/lazybox.bench.v1.RunnerService/CancelCommand"
+	RunnerService_BackgroundCommand_FullMethodName            = "/lazybox.bench.v1.RunnerService/BackgroundCommand"
+	RunnerService_FollowPipe_FullMethodName                   = "/lazybox.bench.v1.RunnerService/FollowPipe"
 	RunnerService_WatchOutput_FullMethodName                  = "/lazybox.bench.v1.RunnerService/WatchOutput"
 	RunnerService_OpenTerminal_FullMethodName                 = "/lazybox.bench.v1.RunnerService/OpenTerminal"
 	RunnerService_ListTerminals_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListTerminals"
@@ -270,6 +272,17 @@ type RunnerServiceClient interface {
 	ReadCommand(ctx context.Context, in *ReadCommandRequest, opts ...grpc.CallOption) (*ReadCommandResponse, error)
 	WaitCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	CancelCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
+	// Moves a `lazybox run` that is still in the foreground to the background:
+	// the agent's (or the person's) call returns now with a report, and the
+	// command keeps running, its output still streaming to the console. Only a
+	// run whose CLI follows the Runner (CommandStatus.can_background) can move.
+	BackgroundCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
+	// The `lazybox run` that publishes a pipe reports its state (foreground or
+	// background, its process, its listening ports) and waits up to wait_ms for
+	// what the Runner asks of it: stop the command, or move it to the
+	// background. Calling it makes the pipe followed: a Runner restart keeps it,
+	// and CancelCommand stops it through its CLI.
+	FollowPipe(ctx context.Context, in *FollowPipeRequest, opts ...grpc.CallOption) (*FollowPipeResponse, error)
 	WatchOutput(ctx context.Context, in *WatchOutputRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OutputEvent], error)
 	// Workspace terminals: a person's interactive shell, never an agent's.
 	OpenTerminal(ctx context.Context, in *OpenTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
@@ -1202,6 +1215,26 @@ func (c *runnerServiceClient) CancelCommand(ctx context.Context, in *CommandRequ
 	return out, nil
 }
 
+func (c *runnerServiceClient) BackgroundCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CommandStatus)
+	err := c.cc.Invoke(ctx, RunnerService_BackgroundCommand_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) FollowPipe(ctx context.Context, in *FollowPipeRequest, opts ...grpc.CallOption) (*FollowPipeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowPipeResponse)
+	err := c.cc.Invoke(ctx, RunnerService_FollowPipe_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) WatchOutput(ctx context.Context, in *WatchOutputRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OutputEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &RunnerService_ServiceDesc.Streams[2], RunnerService_WatchOutput_FullMethodName, cOpts...)
@@ -2107,6 +2140,17 @@ type RunnerServiceServer interface {
 	ReadCommand(context.Context, *ReadCommandRequest) (*ReadCommandResponse, error)
 	WaitCommand(context.Context, *CommandRequest) (*CommandStatus, error)
 	CancelCommand(context.Context, *CommandRequest) (*CommandStatus, error)
+	// Moves a `lazybox run` that is still in the foreground to the background:
+	// the agent's (or the person's) call returns now with a report, and the
+	// command keeps running, its output still streaming to the console. Only a
+	// run whose CLI follows the Runner (CommandStatus.can_background) can move.
+	BackgroundCommand(context.Context, *CommandRequest) (*CommandStatus, error)
+	// The `lazybox run` that publishes a pipe reports its state (foreground or
+	// background, its process, its listening ports) and waits up to wait_ms for
+	// what the Runner asks of it: stop the command, or move it to the
+	// background. Calling it makes the pipe followed: a Runner restart keeps it,
+	// and CancelCommand stops it through its CLI.
+	FollowPipe(context.Context, *FollowPipeRequest) (*FollowPipeResponse, error)
 	WatchOutput(*WatchOutputRequest, grpc.ServerStreamingServer[OutputEvent]) error
 	// Workspace terminals: a person's interactive shell, never an agent's.
 	OpenTerminal(context.Context, *OpenTerminalRequest) (*TerminalStatus, error)
@@ -2516,6 +2560,12 @@ func (UnimplementedRunnerServiceServer) WaitCommand(context.Context, *CommandReq
 }
 func (UnimplementedRunnerServiceServer) CancelCommand(context.Context, *CommandRequest) (*CommandStatus, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelCommand not implemented")
+}
+func (UnimplementedRunnerServiceServer) BackgroundCommand(context.Context, *CommandRequest) (*CommandStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method BackgroundCommand not implemented")
+}
+func (UnimplementedRunnerServiceServer) FollowPipe(context.Context, *FollowPipeRequest) (*FollowPipeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FollowPipe not implemented")
 }
 func (UnimplementedRunnerServiceServer) WatchOutput(*WatchOutputRequest, grpc.ServerStreamingServer[OutputEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchOutput not implemented")
@@ -4047,6 +4097,42 @@ func _RunnerService_CancelCommand_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).CancelCommand(ctx, req.(*CommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_BackgroundCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).BackgroundCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_BackgroundCommand_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).BackgroundCommand(ctx, req.(*CommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_FollowPipe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FollowPipeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).FollowPipe(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_FollowPipe_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).FollowPipe(ctx, req.(*FollowPipeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -5695,6 +5781,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelCommand",
 			Handler:    _RunnerService_CancelCommand_Handler,
+		},
+		{
+			MethodName: "BackgroundCommand",
+			Handler:    _RunnerService_BackgroundCommand_Handler,
+		},
+		{
+			MethodName: "FollowPipe",
+			Handler:    _RunnerService_FollowPipe_Handler,
 		},
 		{
 			MethodName: "OpenTerminal",

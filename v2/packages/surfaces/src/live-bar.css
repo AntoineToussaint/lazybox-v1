@@ -26,6 +26,13 @@
 .live-bar>.subagent-tray,.live-bar-error{flex:none}
 .live-bar-quiet{color:var(--text-faint);font-style:italic}
 .live-bar-error{margin:0;color:var(--attention-failed,var(--danger));font-size:calc(11px * var(--text-scale))}
+/* A step that may never end, and what moving one to the background did: one quiet line each. */
+.live-bar-hint,.live-bar-notice{flex:none;display:flex;align-items:flex-start;gap:6px;margin:0;color:var(--text-muted);font-size:calc(11px * var(--text-scale));line-height:1.45}
+.live-bar-hint>svg{flex:none;margin-top:2px;color:var(--warn-soft,var(--text-muted))}
+.live-bar-notice>svg{flex:none;margin-top:2px;color:var(--ok)}
+.live-bar-hint code{font-family:var(--font-mono,ui-monospace,monospace);font-size:calc(11px * var(--code-scale));background:var(--surface-selected);padding:0 4px;border-radius:4px}
+.live-bar-notice>span{flex:1 1 auto;min-width:0}
+.live-bar .live-bar-notice .icon-button{flex:none;width:20px;height:20px;min-width:0;padding:0!important;border:0;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--text-muted)}
 .live-bar .subagent-tray{padding:2px 0 0}
 .live-bar-row+.subagent-tray,.live-bar-output-frame+.subagent-tray{border-top:1px solid var(--line-subtle);padding-top:6px;margin-top:2px}
 @media (max-width:720px){

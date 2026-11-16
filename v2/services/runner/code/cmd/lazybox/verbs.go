@@ -152,6 +152,14 @@ func (c *cli) ls(args []string) error {
 	if _, err := c.parse(f, args); err != nil {
 		return err
 	}
+	if !*all {
+		// An agent sees its own commands, not the person's conversations.
+		if cl, err := c.dial(); err == nil {
+			if session := c.agentSession(cl); session != "" {
+				return c.agentLs(cl, session)
+			}
+		}
+	}
 	var listings []jsonListing
 	err := c.each(*all, func(cl *client) error {
 		k, err := loadCatalog(c.ctx, cl)
@@ -622,6 +630,10 @@ func (c *cli) stop(args []string) error {
 	cl, err := c.dial()
 	if err != nil {
 		return err
+	}
+	if session := c.agentSession(cl); session != "" && *agentID == "" && !*end {
+		// An agent stops its own commands (`lazybox ls` lists them).
+		return c.agentStop(cl, positional[0])
 	}
 	k, err := loadCatalog(c.ctx, cl)
 	if err != nil {

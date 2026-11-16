@@ -28,6 +28,8 @@
 .code-run-confirm{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--accent-line);border-radius:8px;background:var(--surface);box-shadow:0 1px 0 var(--line)}
 .code-run-confirm-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}.code-run-confirm-head small{color:var(--text-muted)}
 .code-run-warning{display:flex;align-items:flex-start;gap:6px;margin:0;padding:6px 8px;border-radius:6px;background:var(--warn-bg);border:1px solid var(--warn-line-subtle,var(--warn-line));color:var(--text-soft)}
+.code-run-note{display:flex;align-items:flex-start;gap:6px;margin:0;padding:6px 8px;border-radius:6px;background:var(--accent-bg);border:1px solid var(--accent-line);color:var(--text-soft)}
+.code-run-note svg{flex:none;margin-top:2px;color:var(--accent-strong)}
 .code-run-warning.is-done{background:var(--ok-bg);border-color:var(--ok-line-subtle,var(--ok-line))}
 .code-run-warning svg{flex:none;margin-top:2px}
 .code-run-warning code{font-family:var(--font-mono);margin:0 2px}

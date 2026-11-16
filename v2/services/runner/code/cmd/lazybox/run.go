@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -51,6 +50,16 @@ type runOptions struct {
 	// collection and to make a workspace run (see pipeTarget).
 	collection, to string
 	raw            bool
+	// grace is how long a command runs before it may go on in the background
+	// (zero selects defaultGrace); wait keeps it in the foreground until it
+	// exits (--wait); background moves it as soon as it has started
+	// (--background). See run_background.go.
+	grace      time.Duration
+	wait       bool
+	background bool
+	// endpoint is the Runner's, for the process that follows a command in the
+	// background; zero without a Runner.
+	endpoint endpoint
 }
 
 // pipeTarget is where a run or a log is published: an execution's console
@@ -85,12 +94,24 @@ func runVerb(ctx context.Context, endpointPath string, args []string, stdout, st
 	flags.StringVar(&o.title, "title", "", "console title (default: the command line)")
 	flags.StringVar(&o.outputDir, "output-dir", os.Getenv("LAZYBOX_V2_OUTPUT_DIR"), "directory for full-output files (default: the session's, set by the Runner; else system temp)")
 	flags.BoolVar(&o.raw, "raw", false, "give the agent the full output instead of the compact view")
+	wait := &waitFlag{o: &o}
+	flags.Var(wait, "wait", "keep a server or watcher in the foreground until it exits; --wait=DURATION waits that long before moving it to the background (default 20s)")
+	flags.BoolVar(&o.background, "background", false, "move the command to the background as soon as it has started (it keeps running; lazybox stop ID ends it)")
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: lazybox run [--title T] [--raw] [--to CONVERSATION] -- COMMAND [ARGS...]")
+		fmt.Fprintln(stderr, "Usage: lazybox run [--title T] [--raw] [--wait[=DURATION] | --background] [--to CONVERSATION] -- COMMAND [ARGS...]")
+		fmt.Fprintln(stderr, "A command still running after 20s that listens on a TCP port or looks like a server or watcher (npm run dev, docker compose up, --watch, …) goes on in the background: lazybox run returns with its id, port and output file.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if rest := flags.Args(); o.wait && len(rest) > 1 && rest[1] == "--" {
+		if _, err := time.ParseDuration(rest[0]); err == nil {
+			return fmt.Errorf("write --wait=%s: a bare --wait waits for the exit", rest[0])
+		}
+	}
+	if o.wait && o.background {
+		return errors.New("--wait and --background contradict each other")
 	}
 	var c console
 	var unavailable error
@@ -100,6 +121,7 @@ func runVerb(ctx context.Context, endpointPath string, args []string, stdout, st
 	if address, err := readEndpoint(endpointPath); err != nil {
 		unavailable = err
 	} else {
+		o.endpoint = address
 		client := genconnect.NewRunnerServiceClient(newHTTPClient(address.Token), address.URL)
 		c = client
 		if o.session == "" && !scopedEnvironment(os.Getenv) {
@@ -151,21 +173,10 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 	}
 
 	started := time.Now()
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	// No stdin: a command waiting for input would hang the agent's turn.
-	cmd.Stdout, cmd.Stderr = s.stream(&s.out), s.stream(&s.err)
-	code := 0
-	if err := cmd.Run(); err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
-			code = exit.ExitCode()
-		} else {
-			code = 127
-			fmt.Fprintf(s.stream(&s.err), "lazybox: could not start %s: %v\n", argv[0], err)
-		}
-		if code < 0 { // killed by a signal
-			code = 1
-		}
+	f := &foreground{ctx: ctx, c: c, o: o, target: target, argv: argv, line: line, title: title, s: s, stdout: stdout, stderr: stderr, started: started}
+	code, moved, err := f.run()
+	if moved || err != nil {
+		return err // It runs on in the background; the report is written.
 	}
 	elapsed := time.Since(started)
 
@@ -305,7 +316,13 @@ type sink struct {
 	path       string
 	total      int64
 	out, err   buffer
+	// tail is the end of both streams as they arrived, for the report of a
+	// run that goes on in the background.
+	tail []byte
 }
+
+// tailLimit bounds sink.tail.
+const tailLimit = 16 << 10
 
 type buffer struct {
 	data    []byte
@@ -326,6 +343,10 @@ func (w streamWriter) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.total += int64(len(p))
+	s.tail = append(s.tail, p...)
+	if over := len(s.tail) - tailLimit; over > 0 {
+		s.tail = append(s.tail[:0], s.tail[over:]...)
+	}
 	if w.b.echo != nil {
 		_, _ = w.b.echo.Write(p)
 	}

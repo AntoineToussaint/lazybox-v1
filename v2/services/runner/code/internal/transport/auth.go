@@ -53,6 +53,20 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 		r, ok := req.(*pb.FinishPipeRequest)
 		return ok && ownsCommand(agents, who.session, r.CommandId)
 	},
+	// A `lazybox run` follows its own pipe (stop, background); `lazybox ls`
+	// and `lazybox stop` see and stop the execution's own commands only.
+	pb.RunnerService_FollowPipe_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.FollowPipeRequest)
+		return ok && ownsCommand(agents, who.session, r.CommandId)
+	},
+	pb.RunnerService_CancelCommand_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.CommandRequest)
+		return ok && ownsCommand(agents, who.session, r.CommandId)
+	},
+	pb.RunnerService_ListCommands_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.ListCommandsRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
 	pb.RunnerService_ListArtifacts_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.ListArtifactsRequest)
 		return ok && inOwnWorkspace(agents, who.session, r.CollectionId)
@@ -111,6 +125,14 @@ var terminalRPCs = map[string]func(agents AgentCredentials, who principal, req a
 	},
 	pb.RunnerService_FinishPipe_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.FinishPipeRequest)
+		return ok && openedBy(agents, who.terminal, r.CommandId)
+	},
+	pb.RunnerService_FollowPipe_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.FollowPipeRequest)
+		return ok && openedBy(agents, who.terminal, r.CommandId)
+	},
+	pb.RunnerService_CancelCommand_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.CommandRequest)
 		return ok && openedBy(agents, who.terminal, r.CommandId)
 	},
 }
@@ -197,12 +219,12 @@ func authorize(ctx context.Context, owner string, agents AgentCredentials, metho
 		if allowed := terminalRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {
 			return who, nil
 		}
-		return principal{}, status.Error(codes.PermissionDenied, "a terminal credential may only publish command output to its own workspace")
+		return principal{}, status.Error(codes.PermissionDenied, "a terminal credential may only publish command output to its own workspace and stop the runs it started")
 	}
 	if allowed := agentRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {
 		return who, nil
 	}
-	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish its own session's console output, use its own workspace's artifacts, and ask the person to add a repository to its own workspace")
+	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish and follow its own session's console output, list and stop its own commands, use its own workspace's artifacts, and ask the person to add a repository to its own workspace")
 }
 
 // LocalAuthority protects the experimental Runner's execution authority on

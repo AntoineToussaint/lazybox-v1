@@ -179,6 +179,63 @@ try{
  await messages.click({position:{x:5,y:5}});
  await page.keyboard.press(']');await page.keyboard.press(']');await page.keyboard.press('r');
  await expect.poll(()=>applies().length).toBe(5);
+
+ // ── Servers and watchers never end: Run asks to start one in the background, and the block follows it there.
+ push({type:'message_delta',text:'\n\nStart the app:\n\n```bash\nnpx vite --port 5173\n```\n\nAnd the API:\n\n```bash\nnpm run dev\n```'});
+ await expect(blocks).toHaveCount(6);
+ const vite=blocks.nth(4),api=blocks.nth(5);
+ await vite.getByRole('button',{name:'Run: ask Claude to start this in the background'}).click();
+ await expect.poll(()=>applies().length).toBe(6);
+ const startRequest='Start this in the background (it keeps running) and tell me when it is ready:\n```bash\nnpx vite --port 5173\n```';
+ assert.equal(applies()[5].body.message.text,startRequest);
+ await expect(vite.locator('.code-run-chip')).toHaveText('Sent to Claude');
+ push({type:'operation_accepted',text:startRequest,operationId:applies()[5].body.operationId});
+ push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'vite-1',name:'Bash',status:'running',input:{command:'lazybox run -- npx vite --port 5173'}})});
+ await expect(vite.locator('.code-run-chip')).toHaveText('Sent to Claude · starting…');
+ push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'vite-1',status:'completed',exitCode:0,output:'[lazybox] npx vite --port 5173 → running in the background as command VITE1 · listening on http://localhost:5173 · output: /tmp/vite.log · stop: `lazybox stop VITE1`'})});
+ await expect(vite.locator('.code-run-chip')).toHaveText('Sent to Claude · running in the background · port 5173');
+ await expect(vite.getByRole('button',{name:'Open preview'})).toBeVisible();
+ // A workspace action that runs the same command: Run asks for the action, so the agent uses start_action.
+ await api.getByRole('button',{name:'Run: ask Claude to start this in the background'}).click();
+ await expect.poll(()=>applies().length).toBe(7);
+ assert.equal(applies()[6].body.message.text,'Start the workspace action `api/dev` (it runs this) and tell me when it is ready:\n```bash\nnpm run dev\n```');
+
+ // ── Run myself on a server: it never waits for an exit; it says where it listens, with Open preview and Stop.
+ fixture.power.holdCommands=true;
+ await vite.focus();await page.keyboard.press('Alt+Enter');
+ const serverCard=vite.getByRole('form',{name:'Run this yourself'});
+ await expect(serverCard.getByRole('note').first()).toHaveText('This keeps running (a server or a watcher). It runs in the background; stop it here or in Processes.');
+ await serverCard.getByRole('button',{name:/^Run/}).click();
+ await expect.poll(()=>starts().length).toBe(5);
+ const serverRun=fixture.commands.at(-1);
+ const serverChip=vite.locator('.code-run-self .code-run-chip');
+ await expect(serverChip).toHaveText(/^Running · starting…/);
+ serverRun.ports=[5173];
+ await expect(serverChip).toHaveText(/^Running · port 5173/,{timeout:5000});
+ const selfRun=vite.locator('.code-run-self');
+ await expect(selfRun.getByRole('button',{name:'Open preview'})).toBeVisible();
+ await page.screenshot({path:'.cache/code-run-server.png'});
+ await selfRun.getByRole('button',{name:'Open preview'}).click();
+ await expect(page.getByRole('textbox',{name:'Address',exact:true}).first()).toHaveValue('http://localhost:5173/');
+ await selfRun.getByRole('button',{name:'Stop'}).click();
+ await expect.poll(()=>fixture.mutations.findLast(m=>m.method==='CancelCommand')?.body.commandId).toBe(serverRun.id);
+ await expect(serverChip).toHaveText(/^■ Stopped \(SIGTERM\)/,{timeout:5000});
+ fixture.power.holdCommands=false;
+
+ // ── Run myself on the action's command starts the workspace action: its own port, shown in Run and Preview.
+ await api.focus();await page.keyboard.press('Alt+Enter');
+ const actionCard=api.getByRole('form',{name:'Run this yourself'});
+ await expect(actionCard.getByRole('note').first()).toHaveText(`Starts the workspace action api/dev on port ${fixture.previewPort}: it gets the workspace’s own port, and shows in Run and Preview.`);
+ await expect(actionCard.getByRole('combobox',{name:'Folder'})).toHaveCount(0);
+ await actionCard.getByRole('button',{name:/^Start action/}).click();
+ await expect.poll(()=>fixture.mutations.filter(m=>m.method==='StartWorkspaceAction').at(-1)?.body).toEqual({collectionId:'alpha',action:'api/dev'});
+ assert.equal(starts().length,5,'the action ran, not a command');
+ const actionChip=api.locator('.code-run-self .code-run-chip');
+ await expect(actionChip).toHaveText(`Running · port ${fixture.previewPort}action api/dev`);
+ await page.screenshot({path:'.cache/code-run-action.png'});
+ await api.locator('.code-run-self').getByRole('button',{name:'Stop'}).click();
+ await expect.poll(()=>fixture.mutations.some(m=>m.method==='StopWorkspaceAction'&&m.body.action==='api/dev')).toBe(true);
+ await expect(actionChip).toHaveText(/^■ Stopped/,{timeout:5000});
  assert.deepEqual(errors,[]);
- console.log('PASS: shell blocks in agent messages get Run (the exact block sent at once or queued behind the turn, the agent\'s run followed to ✓) and Run myself (confirm card with script and folder, started in the chosen repository, console opened, outcome on the block, a failure handed to the message box); placeholders must be filled in; read-only warns and still runs; inline commands run from their menu, bare subcommands with their program; palette and ] ] r run the last block. Fixture only.');
+ console.log('PASS: shell blocks in agent messages get Run (the exact block sent at once or queued behind the turn, the agent\'s run followed to ✓) and Run myself (confirm card with script and folder, started in the chosen repository, console opened, outcome on the block, a failure handed to the message box); placeholders must be filled in; read-only warns and still runs; inline commands run from their menu, bare subcommands with their program; palette and ] ] r run the last block; servers: Run asks to start them in the background (by the workspace action when one runs the same command) and follows them there with their port; Run myself never waits, shows Running · port, Open preview and Stop, and starts the matching workspace action instead. Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}

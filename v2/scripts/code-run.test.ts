@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentRun, fixRequestMessage, inlineCommand, isShellLanguage, outputTail, pathProgramsIn, placeholdersIn, programAt, requestedScript, runArgv, runRequestMessage, runsScript, runTitle, scriptOf, shellBlocksIn, shellScript, standaloneCommand } from '../packages/surfaces/src/code-run.ts';
+import { readFileSync } from 'node:fs';
+import { agentRun, backgroundReport, fixRequestMessage, inlineCommand, isShellLanguage, matchingAction, normalCommand, outputTail, requestKind, serverLike, serverLikeArgv, START_REQUEST, pathProgramsIn, placeholdersIn, programAt, requestedScript, runArgv, runRequestMessage, runsScript, runTitle, scriptOf, shellBlocksIn, shellScript, standaloneCommand } from '../packages/surfaces/src/code-run.ts';
 
 test('shell blocks are the shell languages, transcripts included', () => {
   for (const language of ['bash', 'sh', 'shell', 'zsh', 'console', 'shell-session', 'BASH']) assert.ok(isShellLanguage(language), language);
@@ -75,7 +76,7 @@ test("the agent's run of a block is its matching tool call after the request", (
     { id: '2', type: 'operation_accepted', text: runRequestMessage(script, 'bash'), operationId: 'op-1' },
     { id: '3', type: 'tools', text: '', tools: [tool('a', 'git status', 'completed', 0)] },
   ];
-  assert.deepEqual(agentRun(messages, '1', script), { operationId: 'op-1', outcome: undefined });
+  assert.deepEqual(agentRun(messages, '1', script), { operationId: 'op-1', kind: 'run', outcome: undefined });
   messages.push({ id: '4', type: 'tools', text: '', tools: [tool('b', 'cd /w && lazybox run -- obin login --profile dev', 'running')] });
   assert.deepEqual(agentRun(messages, '1', script)?.outcome, { state: 'running' });
   messages[3].tools![0] = tool('b', 'cd /w && lazybox run -- obin login --profile dev', 'completed', 2);
@@ -106,4 +107,59 @@ test('running it yourself: one shell, a short title, and the end of the output f
   assert.match(message, /^I ran this myself in `api` and it failed \(exit 2\):\n```sh\nmake test\n```\nThe last 60 lines of its output:\n```text\nline 40\n/);
   assert.match(message, /line 99\n```\nFind out why and fix it\.$/);
   assert.match(fixRequestMessage({ script: 'sleep 9', folder: '', signal: 'SIGTERM', output: '', truncated: false }), /^I ran this myself and it was stopped \(SIGTERM\):[\s\S]*\(no output\)/);
+});
+
+// The Runner's own vectors (services/runner/code/internal/serverlike): Go and
+// this mirror read the same file, so `lazybox run` and Run on a block agree.
+test('servers and watchers: the same rules as the Runner, on its shared vectors', () => {
+  const vectors = JSON.parse(readFileSync(new URL('../services/runner/code/internal/serverlike/testdata/commands.json', import.meta.url), 'utf8')) as { script: string; server: boolean }[];
+  assert.ok(vectors.length >= 40);
+  for (const { script, server } of vectors) assert.equal(serverLike(script).server, server, script);
+  assert.equal(serverLike('cd web && npm run dev').reason, 'npm run dev');
+  assert.equal(serverLikeArgv(['/bin/sh', '-lc', 'cd web && npm run dev']).server, true);
+  assert.equal(serverLikeArgv(['docker', 'compose', 'up', '-d']).server, false);
+});
+
+test('a server is asked to start in the background, by its workspace action when there is one, and recognized back', () => {
+  const start = runRequestMessage('npm run dev', 'bash', { server: true });
+  assert.equal(start, `${START_REQUEST}\n\`\`\`bash\nnpm run dev\n\`\`\``);
+  assert.equal(requestKind(start), 'start');
+  assert.equal(requestedScript(start), 'npm run dev');
+  const action = runRequestMessage('npm run dev', 'sh', { server: true, action: 'api/dev' });
+  assert.match(action, /^Start the workspace action `api\/dev` \(it runs this\) and tell me when it is ready:\n```sh\nnpm run dev\n```$/);
+  assert.equal(requestKind(action), 'start');
+  assert.equal(requestedScript(action), 'npm run dev');
+  assert.equal(requestKind(runRequestMessage('make test')), 'run');
+});
+
+test('a start the agent moved to the background reads as running there, with its port', () => {
+  const script = 'npm run dev';
+  const report = '[lazybox] npm run dev → running in the background as command ABC123 · listening on http://localhost:5173 · output: /tmp/x.log · stop: `lazybox stop ABC123`';
+  assert.deepEqual(backgroundReport(report), { commandId: 'ABC123', port: 5173 });
+  assert.equal(backgroundReport('[lazybox] make test → exit 0'), undefined);
+  type Tool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; input: Record<string, unknown>; output?: string; exitCode?: number };
+  const messages: { id: string; type: string; text: string; operationId?: string; tools?: Tool[] }[] = [
+    { id: '1', type: 'message_delta', text: '```bash\nnpm run dev\n```' },
+    { id: '2', type: 'operation_accepted', text: runRequestMessage(script, 'bash', { server: true }), operationId: 'op-1' },
+    { id: '3', type: 'tools', text: '', tools: [{ id: 'a', name: 'Bash', status: 'running', input: { command: 'lazybox run -- npm run dev' } }] },
+  ];
+  assert.deepEqual(agentRun(messages, '1', script)?.outcome, { state: 'running' });
+  messages[2].tools![0] = { id: 'a', name: 'Bash', status: 'completed', input: { command: 'lazybox run -- npm run dev' }, output: report, exitCode: 0 };
+  assert.deepEqual(agentRun(messages, '1', script), { operationId: 'op-1', kind: 'start', outcome: { state: 'background', port: 5173 } });
+  // An action request is answered by the command tool's start_action.
+  const byAction = [messages[0], { id: '2', type: 'operation_accepted', text: runRequestMessage(script, 'sh', { server: true, action: 'api/dev' }) },
+    { id: '3', type: 'tools', text: '', tools: [{ id: 'b', name: 'mcp__lazybox__command', status: 'completed' as const, input: { action: 'start_action', name: 'api/dev' } }] }];
+  assert.deepEqual(agentRun(byAction, '1', script)?.outcome, { state: 'background' });
+});
+
+test('a block stands for the workspace action with the same command', () => {
+  assert.equal(normalCommand('npm run dev -- --port $LAZYBOX_PORT'), 'npm run dev');
+  assert.equal(normalCommand('pnpm storybook -p ${LAZYBOX_PORT_1}'), 'pnpm storybook');
+  assert.equal(normalCommand('cd api && npm run dev', 'api'), 'npm run dev');
+  const actions = [{ key: 'api/dev', member: 'api', run: 'npm run dev -- --port $LAZYBOX_PORT', blocked: '' }, { key: 'web/storybook', member: 'web', run: 'pnpm storybook -p $LAZYBOX_PORT_1', blocked: 'Approve web’s scripts first' }];
+  assert.equal(matchingAction(actions, 'npm run dev')?.key, 'api/dev');
+  assert.equal(matchingAction(actions, 'cd api && npm  run dev')?.key, 'api/dev');
+  assert.equal(matchingAction(actions, 'pnpm storybook'), undefined, 'a blocked action runs as a command');
+  assert.equal(matchingAction(actions, 'npm run dev:api'), undefined);
+  assert.equal(matchingAction(actions, 'npm ci\nnpm run dev'), undefined, 'a longer script is not the action');
 });

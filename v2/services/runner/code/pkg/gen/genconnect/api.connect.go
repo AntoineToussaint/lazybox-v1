@@ -246,6 +246,12 @@ const (
 	// RunnerServiceCancelCommandProcedure is the fully-qualified name of the RunnerService's
 	// CancelCommand RPC.
 	RunnerServiceCancelCommandProcedure = "/lazybox.bench.v1.RunnerService/CancelCommand"
+	// RunnerServiceBackgroundCommandProcedure is the fully-qualified name of the RunnerService's
+	// BackgroundCommand RPC.
+	RunnerServiceBackgroundCommandProcedure = "/lazybox.bench.v1.RunnerService/BackgroundCommand"
+	// RunnerServiceFollowPipeProcedure is the fully-qualified name of the RunnerService's FollowPipe
+	// RPC.
+	RunnerServiceFollowPipeProcedure = "/lazybox.bench.v1.RunnerService/FollowPipe"
 	// RunnerServiceWatchOutputProcedure is the fully-qualified name of the RunnerService's WatchOutput
 	// RPC.
 	RunnerServiceWatchOutputProcedure = "/lazybox.bench.v1.RunnerService/WatchOutput"
@@ -575,6 +581,17 @@ type RunnerServiceClient interface {
 	ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error)
 	WaitCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	CancelCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// Moves a `lazybox run` that is still in the foreground to the background:
+	// the agent's (or the person's) call returns now with a report, and the
+	// command keeps running, its output still streaming to the console. Only a
+	// run whose CLI follows the Runner (CommandStatus.can_background) can move.
+	BackgroundCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// The `lazybox run` that publishes a pipe reports its state (foreground or
+	// background, its process, its listening ports) and waits up to wait_ms for
+	// what the Runner asks of it: stop the command, or move it to the
+	// background. Calling it makes the pipe followed: a Runner restart keeps it,
+	// and CancelCommand stops it through its CLI.
+	FollowPipe(context.Context, *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error)
 	WatchOutput(context.Context, *connect.Request[gen.WatchOutputRequest]) (*connect.ServerStreamForClient[gen.OutputEvent], error)
 	// Workspace terminals: a person's interactive shell, never an agent's.
 	OpenTerminal(context.Context, *connect.Request[gen.OpenTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
@@ -1204,6 +1221,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("CancelCommand")),
 			connect.WithClientOptions(opts...),
 		),
+		backgroundCommand: connect.NewClient[gen.CommandRequest, gen.CommandStatus](
+			httpClient,
+			baseURL+RunnerServiceBackgroundCommandProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("BackgroundCommand")),
+			connect.WithClientOptions(opts...),
+		),
+		followPipe: connect.NewClient[gen.FollowPipeRequest, gen.FollowPipeResponse](
+			httpClient,
+			baseURL+RunnerServiceFollowPipeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("FollowPipe")),
+			connect.WithClientOptions(opts...),
+		),
 		watchOutput: connect.NewClient[gen.WatchOutputRequest, gen.OutputEvent](
 			httpClient,
 			baseURL+RunnerServiceWatchOutputProcedure,
@@ -1743,6 +1772,8 @@ type runnerServiceClient struct {
 	readCommand                  *connect.Client[gen.ReadCommandRequest, gen.ReadCommandResponse]
 	waitCommand                  *connect.Client[gen.CommandRequest, gen.CommandStatus]
 	cancelCommand                *connect.Client[gen.CommandRequest, gen.CommandStatus]
+	backgroundCommand            *connect.Client[gen.CommandRequest, gen.CommandStatus]
+	followPipe                   *connect.Client[gen.FollowPipeRequest, gen.FollowPipeResponse]
 	watchOutput                  *connect.Client[gen.WatchOutputRequest, gen.OutputEvent]
 	openTerminal                 *connect.Client[gen.OpenTerminalRequest, gen.TerminalStatus]
 	listTerminals                *connect.Client[gen.ListTerminalsRequest, gen.ListTerminalsResponse]
@@ -2180,6 +2211,16 @@ func (c *runnerServiceClient) WaitCommand(ctx context.Context, req *connect.Requ
 // CancelCommand calls lazybox.bench.v1.RunnerService.CancelCommand.
 func (c *runnerServiceClient) CancelCommand(ctx context.Context, req *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error) {
 	return c.cancelCommand.CallUnary(ctx, req)
+}
+
+// BackgroundCommand calls lazybox.bench.v1.RunnerService.BackgroundCommand.
+func (c *runnerServiceClient) BackgroundCommand(ctx context.Context, req *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return c.backgroundCommand.CallUnary(ctx, req)
+}
+
+// FollowPipe calls lazybox.bench.v1.RunnerService.FollowPipe.
+func (c *runnerServiceClient) FollowPipe(ctx context.Context, req *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error) {
+	return c.followPipe.CallUnary(ctx, req)
 }
 
 // WatchOutput calls lazybox.bench.v1.RunnerService.WatchOutput.
@@ -2664,6 +2705,17 @@ type RunnerServiceHandler interface {
 	ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error)
 	WaitCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	CancelCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// Moves a `lazybox run` that is still in the foreground to the background:
+	// the agent's (or the person's) call returns now with a report, and the
+	// command keeps running, its output still streaming to the console. Only a
+	// run whose CLI follows the Runner (CommandStatus.can_background) can move.
+	BackgroundCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// The `lazybox run` that publishes a pipe reports its state (foreground or
+	// background, its process, its listening ports) and waits up to wait_ms for
+	// what the Runner asks of it: stop the command, or move it to the
+	// background. Calling it makes the pipe followed: a Runner restart keeps it,
+	// and CancelCommand stops it through its CLI.
+	FollowPipe(context.Context, *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error)
 	WatchOutput(context.Context, *connect.Request[gen.WatchOutputRequest], *connect.ServerStream[gen.OutputEvent]) error
 	// Workspace terminals: a person's interactive shell, never an agent's.
 	OpenTerminal(context.Context, *connect.Request[gen.OpenTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
@@ -3289,6 +3341,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("CancelCommand")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceBackgroundCommandHandler := connect.NewUnaryHandler(
+		RunnerServiceBackgroundCommandProcedure,
+		svc.BackgroundCommand,
+		connect.WithSchema(runnerServiceMethods.ByName("BackgroundCommand")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceFollowPipeHandler := connect.NewUnaryHandler(
+		RunnerServiceFollowPipeProcedure,
+		svc.FollowPipe,
+		connect.WithSchema(runnerServiceMethods.ByName("FollowPipe")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceWatchOutputHandler := connect.NewServerStreamHandler(
 		RunnerServiceWatchOutputProcedure,
 		svc.WatchOutput,
@@ -3897,6 +3961,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceWaitCommandHandler.ServeHTTP(w, r)
 		case RunnerServiceCancelCommandProcedure:
 			runnerServiceCancelCommandHandler.ServeHTTP(w, r)
+		case RunnerServiceBackgroundCommandProcedure:
+			runnerServiceBackgroundCommandHandler.ServeHTTP(w, r)
+		case RunnerServiceFollowPipeProcedure:
+			runnerServiceFollowPipeHandler.ServeHTTP(w, r)
 		case RunnerServiceWatchOutputProcedure:
 			runnerServiceWatchOutputHandler.ServeHTTP(w, r)
 		case RunnerServiceOpenTerminalProcedure:
@@ -4346,6 +4414,14 @@ func (UnimplementedRunnerServiceHandler) WaitCommand(context.Context, *connect.R
 
 func (UnimplementedRunnerServiceHandler) CancelCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CancelCommand is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) BackgroundCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.BackgroundCommand is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) FollowPipe(context.Context, *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.FollowPipe is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) WatchOutput(context.Context, *connect.Request[gen.WatchOutputRequest], *connect.ServerStream[gen.OutputEvent]) error {

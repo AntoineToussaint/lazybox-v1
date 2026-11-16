@@ -51,6 +51,63 @@ type Guard struct {
 	outcome Outcome
 	err     error
 	output  []*capture
+	// pid is an adopted helper's (Adopt); a started guard's is its command's.
+	pid int
+	// handMu orders Release with the start of Wait's read of the outcome:
+	// exactly one of them gets the result pipe.
+	handMu   sync.Mutex
+	released bool
+	reading  bool
+}
+
+// ErrReleased means the guard handed its helper to another process (Release):
+// that process stops it and reads its outcome now.
+var ErrReleased = errors.New("owned process was handed over to another owner")
+
+// PID is the helper's process ID, which is also the process group of the
+// program and everything it starts. It identifies the tree to inspect (its
+// listening ports, say), never one to signal: Interrupt and Stop do that.
+func (g *Guard) PID() int {
+	if g.cmd != nil && g.cmd.Process != nil {
+		return g.cmd.Process.Pid
+	}
+	return g.pid
+}
+
+// Release hands the helper to another owner, for a program that must outlive
+// this process (a `lazybox run` that moves to the background). It returns the
+// lifetime pipe's write end and the outcome pipe's read end, to pass to the
+// new owner (as inherited descriptors), which rebuilds the guard with Adopt.
+// Afterwards this guard neither stops the helper nor reads its outcome: Stop
+// is a no-op and Wait returns ErrReleased. The caller closes its copies once
+// the new owner holds them. Only a guard whose program writes to files the
+// caller passed (no output this guard copies) can be released, and only
+// before Wait has started reading the outcome.
+func (g *Guard) Release() (live, result *os.File, err error) {
+	if len(g.output) > 0 {
+		return nil, nil, errors.New("a guard that copies its program's output cannot be handed over")
+	}
+	g.handMu.Lock()
+	defer g.handMu.Unlock()
+	if g.reading {
+		return nil, nil, errors.New("the owned program already exited")
+	}
+	g.liveMu.Lock()
+	defer g.liveMu.Unlock()
+	if g.stopped || g.released {
+		return nil, nil, errors.New("owned process is already stopping or handed over")
+	}
+	g.released = true
+	g.stopped = true // Stop must not close the pipe the new owner holds.
+	return g.live, g.result, nil
+}
+
+// Adopt rebuilds a released guard in its new owner from the descriptors
+// Release returned and the helper's pid. Interrupt, Stop and Wait work as on
+// the original; Wait reads the program's outcome from the helper, which is no
+// longer this process's child, so it cannot also reap it.
+func Adopt(live, result *os.File, pid int) *Guard {
+	return &Guard{live: live, result: result, pid: pid}
 }
 
 type capture struct {
@@ -192,7 +249,17 @@ func (g *Guard) Interrupt() error {
 }
 
 func (g *Guard) waitResult() (Outcome, error) {
+	if g.cmd == nil {
+		return g.waitAdopted()
+	}
 	err := g.cmd.Wait()
+	g.handMu.Lock()
+	if g.released {
+		g.handMu.Unlock()
+		return Outcome{}, ErrReleased
+	}
+	g.reading = true
+	g.handMu.Unlock()
 	_ = g.Stop()
 	drainErr := g.drain()
 	defer g.result.Close()
@@ -225,6 +292,22 @@ func (g *Guard) waitResult() (Outcome, error) {
 		return outcome, ErrCleanupUnconfirmed
 	}
 	return outcome, ErrCleanupUnconfirmed
+}
+
+// waitAdopted reads the outcome an adopted helper writes once its program
+// exits. The helper then sweeps the group and exits; with no child to reap,
+// the outcome itself is the evidence.
+func (g *Guard) waitAdopted() (Outcome, error) {
+	defer g.result.Close()
+	var outcome Outcome
+	if err := json.NewDecoder(io.LimitReader(g.result, 4096)).Decode(&outcome); err != nil {
+		_ = g.Stop()
+		return outcome, ErrCleanupUnconfirmed
+	}
+	if outcome.Error != "" {
+		return outcome, errors.New(outcome.Error)
+	}
+	return outcome, nil
 }
 
 func (g *Guard) drain() error {

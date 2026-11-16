@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { CommandStatusSchema, JournalEventSchema, type JournalEvent } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commandParts, outputLines, rootStep, runningCommand, stepDetail } from '../packages/surfaces/src/live-step.ts';
+import { commandParts, LONG_STEP_MS, mayNeverEnd, offersBackground, outputLines, QUIET_MS, rootStep, runningCommand, stepDetail } from '../packages/surfaces/src/live-step.ts';
 
 let cursor = 0n;
 const record = (type: string, data?: unknown, extra: Record<string, string> = {}): JournalEvent => create(JournalEventSchema, {
@@ -34,6 +34,23 @@ test('the running managed command is this conversation\'s own, newest first', ()
   const command = (id: string, done: boolean, sessionId = 's', origin = '') => create(CommandStatusSchema, { id, done, sessionId, origin });
   assert.equal(runningCommand([command('a', false), command('b', true), command('c', false)], 's')?.id, 'c');
   assert.equal(runningCommand([command('a', false, 'other'), command('w', false, 's', 'action')], 's'), undefined, 'workspace runs and other conversations are not this turn\'s');
+  // A server `lazybox run` moved to the background is not the turn's step any more.
+  assert.equal(runningCommand([command('a', false), create(CommandStatusSchema, { id: 'bg', done: false, sessionId: 's', background: true })], 's')?.id, 'a');
+});
+
+test('Move to background: a following lazybox run that listens, looks like a server, or has gone quiet', () => {
+  const run = (fields: Record<string, unknown>) => create(CommandStatusSchema, { id: 'r', sessionId: 's', mode: 'pipe', canBackground: true, title: 'go test ./...', ...fields });
+  assert.equal(offersBackground(run({}), 0), false, 'a test run that prints is waited for');
+  assert.equal(offersBackground(run({ ports: [3000] }), 0), true, 'a listening port says server');
+  assert.equal(offersBackground(run({ title: 'npm run dev' }), 0), true, 'so does a dev server');
+  assert.equal(offersBackground(run({}), QUIET_MS), true, 'and output quiet for a while');
+  assert.equal(offersBackground(run({ canBackground: false, ports: [3000] }), QUIET_MS), false, 'only a run whose CLI follows the Runner can move');
+  assert.equal(offersBackground(run({ background: true, ports: [3000] }), QUIET_MS), false);
+  // The agent's own shell step: a server, or a step that has run long, may never end; a lazybox run has its own bar.
+  assert.equal(mayNeverEnd('npm run dev', 0), true);
+  assert.equal(mayNeverEnd('go test ./...', 5000), false);
+  assert.equal(mayNeverEnd('go test ./...', LONG_STEP_MS), true);
+  assert.equal(mayNeverEnd('lazybox run -- npm run dev', LONG_STEP_MS), false);
 });
 
 test('output reads as lines: colour codes gone, redraws resolved', () => {

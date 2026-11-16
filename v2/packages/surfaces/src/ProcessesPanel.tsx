@@ -5,7 +5,7 @@ import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { requestTerminal } from './TerminalPanel';
-import { backendLabel, formatMemory, formatUptime, groupProcesses, processState, stopConsequence } from './processes-model';
+import { backendLabel, formatMemory, formatUptime, groupProcesses, listeningLabel, processState, stopConsequence } from './processes-model';
 import type { ViewTarget } from './workspace-model';
 import './processes.css';
 import { contextMenu, copyText } from './ContextMenu';
@@ -121,6 +121,7 @@ function ProcessRow({ process: p, showWorkspace, canOpen, onOpen, onCopy, onStop
     showWorkspace ? p.workspaceName : '',
   ].filter(place => place && place !== p.label);
   const facts = [
+    listeningLabel(p.ports),
     `PID ${p.programPid || p.hostPid}`,
     formatUptime(p.uptimeSeconds) && `up ${formatUptime(p.uptimeSeconds)}`,
     p.usage && `${p.usage.cpuPercent.toFixed(1)}% CPU`,
@@ -139,7 +140,7 @@ function ProcessRow({ process: p, showWorkspace, canOpen, onOpen, onCopy, onStop
     <div className="process-text">
       <div className="process-title"><strong title={p.label}>{p.label}</strong>{state.label !== 'Running' && <span className={`process-state tone-${state.tone}`}>{state.label}</span>}</div>
       {!!where.length && <span className="process-where">{where.join(' · ')}</span>}
-      <span className="process-facts mono" title={`Session host PID ${p.hostPid}${p.programPid ? `, program PID ${p.programPid}` : ''}`}>{facts.join(' · ')}</span>
+      <span className="process-facts mono" title={p.backend === 'run' ? `A lazybox run that went on in the background; program PID ${p.programPid}` : `Session host PID ${p.hostPid}${p.programPid ? `, program PID ${p.programPid}` : ''}`}>{facts.join(' · ')}</span>
     </div>
     <div className="process-actions">
       {canOpen && <button type="button" onClick={onOpen} aria-label={`Open ${p.label}`}>Open</button>}

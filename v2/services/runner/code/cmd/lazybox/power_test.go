@@ -643,6 +643,7 @@ func TestAgentCredentialIsDeniedOwnerVerbs(t *testing.T) {
 		t.Fatal("agent has no endpoint")
 	}
 	env := map[string]string{"LAZYBOX_V2_ENDPOINT": endpoint, "LAZYBOX_V2_SESSION_ID": "x"}
+	// `ls` lists the agent's own commands (agent_commands_test.go); here the session is not its own.
 	for _, args := range [][]string{{"ls"}, {"send", "agent", "hi"}, {"inbox"}, {"hooks", "runs"}, {"actions"}} {
 		out := r.cli(env, "", args...)
 		if out.code != exitDenied || !strings.Contains(out.err.Error(), "scoped credential") {

@@ -53,9 +53,12 @@ dropped from agent and command environments, so an owner endpoint exported in
 the Runner's shell does not leak through either.
 
 The transport (`internal/transport/auth.go`, `agentRPCs`) accepts that
-credential for nine RPCs only: the ones `lazybox run` and `lazybox log`
-publish a console with (`RegisterPipe` for its own execution, and `Publish`
-and `FinishPipe` for pipes that execution owns); the ones `lazybox artifact`
+credential for twelve RPCs only: the ones `lazybox run` and `lazybox log`
+publish a console with (`RegisterPipe` for its own execution, and `Publish`,
+`FinishPipe` and `FollowPipe` for pipes that execution owns); the ones
+`lazybox ls` and `lazybox stop` use on the execution's own commands
+(`ListCommands` for its own execution, without the workspace's runs, and
+`CancelCommand` for commands it owns); the ones `lazybox artifact`
 uses on its own execution's workspace (`ListArtifacts`, `GetArtifact`,
 `PutArtifact`); and the ones `lazybox workspace` asks for a repository with
 (`ListWorkspaceRepositories` for its own workspace, `RequestRepository` for

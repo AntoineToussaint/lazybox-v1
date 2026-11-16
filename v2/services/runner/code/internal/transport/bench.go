@@ -122,6 +122,13 @@ func wireSession(e *runner.Execution) *pb.Session {
 		w.Agents = append(w.Agents, wireActivity(a))
 	}
 	w.LastMessage = s.LastMessage
+	for _, q := range s.QueuedMessages {
+		m := &pb.QueuedMessage{OperationId: q.OperationID, Text: q.Text}
+		if !q.QueuedAt.IsZero() {
+			m.QueuedAtUnixMillis = q.QueuedAt.UnixMilli()
+		}
+		w.QueuedMessages = append(w.QueuedMessages, m)
+	}
 	for _, p := range s.Pending {
 		w.Pending = append(w.Pending, wireEvent(p))
 	}
@@ -142,7 +149,11 @@ func wireActivity(a agent.Activity) *pb.AgentActivity {
 	return w
 }
 func wireStatus(s commands.Status) *pb.CommandStatus {
-	w := &pb.CommandStatus{Id: s.ID, SessionId: s.Spec.SessionID, CollectionId: s.Spec.CollectionID, ShareWith: s.Spec.ShareWith, Title: s.Spec.Title, Argv: s.Spec.Argv, Cwd: s.Spec.Cwd, Mode: s.Mode, Offset: s.Offset, Done: s.Done, Signal: s.Signal, CaptureError: s.Error}
+	w := &pb.CommandStatus{Id: s.ID, SessionId: s.Spec.SessionID, CollectionId: s.Spec.CollectionID, ShareWith: s.Spec.ShareWith, Title: s.Spec.Title, Argv: s.Spec.Argv, Cwd: s.Spec.Cwd, Mode: s.Mode, Offset: s.Offset, Done: s.Done, Signal: s.Signal, CaptureError: s.Error,
+		Background: s.Background && !s.Done, CanBackground: s.CanBackground(), StartedAtUnixMillis: s.StartedAt, Pid: int32(s.PID)}
+	if !s.Done {
+		w.Ports = s.Ports
+	}
 	if s.Spec.TerminalID != "" {
 		w.Origin = "terminal"
 	}
@@ -352,6 +363,20 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		prompt = o.Steer
 	case *pb.ApplyRequest_Interrupt:
 		op.Kind = agent.Interrupt
+	case *pb.ApplyRequest_DeliverQueued:
+		// A message already accepted (and in the prompt log): only its turn changes.
+		queue, ok := e.Engine.(queueRuntime)
+		if !ok {
+			return nil, rpcError(agent.ErrUnsupported)
+		}
+		receipt, err := queue.DeliverQueued(ctx, o.DeliverQueued.GetOperationId(), o.DeliverQueued.GetHow())
+		if errors.Is(err, engine.ErrNotQueued) {
+			return nil, grpcError(codes.FailedPrecondition, err)
+		}
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &pb.Receipt{OperationId: receipt.ID, Delivery: receipt.Delivery, ProviderId: receipt.ProviderID, Error: receipt.Error}, nil
 	case *pb.ApplyRequest_StopAgent:
 		op.Kind = agent.StopAgent
 		op.AgentID = o.StopAgent.GetAgentId()
@@ -393,6 +418,11 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		_ = s.Bench.CodeRevertNoteDelivered(e, reverted)
 	}
 	return &pb.Receipt{OperationId: receipt.ID, Delivery: receipt.Delivery, ProviderId: receipt.ProviderID, Error: receipt.Error}, nil
+}
+
+// queueRuntime is a live session whose queued messages can be delivered early.
+type queueRuntime interface {
+	DeliverQueued(ctx context.Context, operationID, how string) (agent.Receipt, error)
 }
 
 func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStreamingServer[pb.JournalEvent]) error {
@@ -580,7 +610,7 @@ func (s *Service) FinishPipe(ctx context.Context, r *pb.FinishPipeRequest) (*pb.
 	if r := r.Report; r != nil {
 		report = &commands.Report{ExitCode: int(r.ExitCode), OutputBytes: r.OutputBytes, AgentBytes: r.AgentBytes, Filter: r.Filter, OutputPath: r.OutputPath, AgentView: r.AgentView, Piped: r.Piped}
 	}
-	if err = s.Bench.FinishPipe(c, cause, report); err != nil {
+	if err = s.Bench.FinishPipe(c, cause, r.Signal, report); err != nil {
 		return nil, rpcError(err)
 	}
 	return wireStatus(c.Status()), nil
@@ -588,17 +618,69 @@ func (s *Service) FinishPipe(ctx context.Context, r *pb.FinishPipeRequest) (*pb.
 func (s *Service) ListCommands(ctx context.Context, r *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
 	w := &pb.ListCommandsResponse{}
 	for _, c := range s.Bench.Commands.List(r.SessionId) {
-		w.Commands = append(w.Commands, listedStatus(c))
+		w.Commands = append(w.Commands, s.listedCommand(ctx, c))
+	}
+	// An agent lists only its own commands (`lazybox ls`): the workspace's
+	// runs come from the person's terminals.
+	if who, _ := ctx.Value(principalKey{}).(principal); who.session != "" && !who.owner {
+		return w, nil
 	}
 	// A conversation's console also shows its workspace's runs.
 	if r.SessionId != "" {
 		if e, err := s.Bench.Get(r.SessionId); err == nil && e.CollectionID != "" {
 			for _, c := range s.Bench.Commands.ListWorkspace(e.CollectionID) {
-				w.Commands = append(w.Commands, listedStatus(c))
+				w.Commands = append(w.Commands, s.listedCommand(ctx, c))
 			}
 		}
 	}
 	return w, nil
+}
+
+// listedCommand is a listed command with the ports it listens on now.
+func (s *Service) listedCommand(ctx context.Context, c commands.Status) *pb.CommandStatus {
+	w := listedStatus(c)
+	if !c.Done {
+		w.Ports = s.Bench.CommandPorts(ctx, c)
+		if c.Mode == "managed" && w.Pid == 0 {
+			if command, err := s.Bench.Commands.Get(c.ID); err == nil {
+				w.Pid = int32(command.PID())
+			}
+		}
+	}
+	return w
+}
+
+// FollowPipe is a `lazybox run` following its pipe: it reports its state and
+// waits for the Runner's request (stop, move to the background).
+func (s *Service) FollowPipe(ctx context.Context, r *pb.FollowPipeRequest) (*pb.FollowPipeResponse, error) {
+	c, err := s.Bench.Commands.Get(r.CommandId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	ports := r.Ports
+	if len(ports) > 64 {
+		ports = ports[:64]
+	}
+	reply, err := c.Follow(ctx, commands.FollowUpdate{Background: r.Background, PID: int(r.Pid), Ports: ports}, time.Duration(r.WaitMs)*time.Millisecond)
+	if errors.Is(err, commands.ErrRestarting) {
+		return nil, grpcError(codes.Unavailable, err)
+	}
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.FollowPipeResponse{Stop: reply.Stop, Background: reply.Background, Offset: reply.Offset}, nil
+}
+
+// BackgroundCommand moves a foreground `lazybox run` to the background.
+func (s *Service) BackgroundCommand(ctx context.Context, r *pb.CommandRequest) (*pb.CommandStatus, error) {
+	c, err := s.Bench.Commands.Get(r.CommandId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	if err = c.RequestBackground(); err != nil {
+		return nil, grpcError(codes.FailedPrecondition, err)
+	}
+	return wireStatus(c.Status()), nil
 }
 
 // ClaimCommandShare hands a shared run to the first message box that asks.

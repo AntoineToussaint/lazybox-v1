@@ -187,7 +187,9 @@ boundary: an agent runs as your OS user ([resource ownership](RESOURCE_OWNERSHIP
 ## What an agent may do with the CLI
 
 An agent's `lazybox` holds its execution's scoped credential, not yours. It
-may publish its own console (`lazybox run`, `lazybox log`), its workspace's
+may publish its own console (`lazybox run`, `lazybox log`), list and stop its
+own commands (`lazybox ls`, `lazybox stop ID`: the servers and watchers its
+`lazybox run` moved to the background), its workspace's
 artifacts (`lazybox artifact`), and work with its workspace's repositories:
 `lazybox workspace repos` lists them, and `lazybox workspace request-repo
 <name|owner/repo|path> --reason "…"` asks you to add one it needs instead of

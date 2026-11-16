@@ -61,13 +61,15 @@ Each terminal gets its own credential, never the owner's: anything started in
 the shell, such as an agent CLI run by hand, runs with what the shell holds.
 The shell's `LAZYBOX_V2_ENDPOINT` names `<state>/terminal-endpoints/<terminal
 id>.json` (mode 0600: the Runner URL and a token bound to that terminal). The
-token is accepted for three RPCs only (`internal/transport/auth.go`,
+token is accepted for five RPCs only (`internal/transport/auth.go`,
 `terminalRPCs`):
 
 - `RegisterPipe` for a run in **this terminal's workspace** (optionally shared
   with one of its conversations), never in a conversation's own console or in
   another workspace;
-- `Publish` and `FinishPipe` for runs **this terminal** opened.
+- `Publish`, `FinishPipe` and `FollowPipe` for runs **this terminal** opened,
+  and `CancelCommand` to stop one (a server `lazybox run` moved to the
+  background, see [command output](COMMAND_OUTPUT.md#servers-and-watchers)).
 
 It cannot send, approve, answer, read conversations, open terminals or change
 settings; every other RPC, including any added later, answers

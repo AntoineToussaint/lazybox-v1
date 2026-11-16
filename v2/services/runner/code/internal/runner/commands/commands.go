@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -59,6 +60,24 @@ type Status struct {
 	Error    string `json:"error,omitempty"`
 	// Report is what a `lazybox run` gave its agent; pipes only.
 	Report *Report `json:"report,omitempty"`
+	// StartedAt is when the command was registered (Unix milliseconds).
+	StartedAt int64 `json:"startedAt,omitempty"`
+	// Following: the `lazybox run` that publishes this pipe follows the
+	// Runner (FollowPipe), so a stop and a move to the background reach it
+	// and the pipe outlives a Runner restart.
+	Following bool `json:"following,omitempty"`
+	// Background: that run went on in the background (a server or watcher).
+	Background bool `json:"background,omitempty"`
+	// PID and Ports are what that run last reported: its process (group) and
+	// the TCP ports its processes listen on.
+	PID   int      `json:"pid,omitempty"`
+	Ports []uint32 `json:"ports,omitempty"`
+}
+
+// CanBackground reports a `lazybox run` still in the foreground that the
+// Runner can move to the background.
+func (state Status) CanBackground() bool {
+	return state.Mode == "pipe" && state.Following && !state.Background && !state.Done
 }
 
 // Report compares what a `lazybox run` gave its agent with what the command
@@ -111,6 +130,13 @@ type Command struct {
 	seq         uint64
 	detaching   bool
 	following   chan struct{}
+
+	// A followed pipe: what the Runner asks of its `lazybox run`, the channel
+	// closed to wake a waiting FollowPipe, and when the run was last heard.
+	stopRequested       bool
+	backgroundRequested bool
+	wake                chan struct{}
+	lastSeen            time.Time
 }
 
 type Manager struct {
@@ -126,7 +152,13 @@ type Manager struct {
 	// follow: shutdown waits for them, or it would see a command with no host
 	// yet and miss the program that starts a moment later.
 	starting sync.WaitGroup
+	// quit ends the watch on followed pipes (watchFollowers).
+	quit chan struct{}
 }
+
+// followSilence is how long a followed pipe may go without hearing from its
+// `lazybox run` (which asks at least every 25 seconds) before it is ended.
+var followSilence = 90 * time.Second
 
 // beforeSpawn is a test seam: it runs just before a hosted command spawns.
 var beforeSpawn = func() {}
@@ -170,7 +202,7 @@ func NewHostedOn(dir string, perCommandBudget int64, maxLive int, hostRoot strin
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	m := &Manager{dir: dir, limit: perCommandBudget, maxLive: maxLive, hostRoot: hostRoot, backend: sessionhost.Use(backend), items: map[string]*Command{}}
+	m := &Manager{dir: dir, limit: perCommandBudget, maxLive: maxLive, hostRoot: hostRoot, backend: sessionhost.Use(backend), items: map[string]*Command{}, quit: make(chan struct{})}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -226,6 +258,17 @@ func NewHostedOn(dir string, perCommandBudget int64, maxLive int, hostRoot strin
 			c.adopt()
 			continue
 		}
+		if !state.Done && state.Mode == "pipe" && state.Following {
+			// A `lazybox run` that follows the Runner keeps publishing after
+			// the restart; if it stopped too, watchFollowers ends the pipe.
+			spool.Dispose()
+			if spool, err = journal.Open(filepath.Join(dir, entry.Name()), perCommandBudget); err != nil {
+				m.Detach()
+				return nil, err
+			}
+			m.items[state.ID] = &Command{spool: spool, status: state, finished: make(chan struct{}), wake: make(chan struct{}), lastSeen: time.Now()}
+			continue
+		}
 		if !state.Done {
 			state.Done = true
 			state.Error = "command ownership unconfirmed after Runner restart"
@@ -235,7 +278,35 @@ func NewHostedOn(dir string, perCommandBudget int64, maxLive int, hostRoot strin
 		c.once.Do(func() {})
 		m.items[state.ID] = c
 	}
+	go m.watchFollowers()
 	return m, nil
+}
+
+// watchFollowers ends a followed pipe whose `lazybox run` went silent: its
+// CLI was killed, or the machine slept through it.
+func (m *Manager) watchFollowers() {
+	tick := time.NewTicker(followSilence / 6)
+	defer tick.Stop()
+	for {
+		select {
+		case <-m.quit:
+			return
+		case <-tick.C:
+		}
+		m.mu.Lock()
+		var silent []*Command
+		for _, c := range m.items {
+			c.mu.Lock()
+			if c.status.Following && !c.status.Done && !c.detaching && time.Since(c.lastSeen) > followSilence {
+				silent = append(silent, c)
+			}
+			c.mu.Unlock()
+		}
+		m.mu.Unlock()
+		for _, c := range silent {
+			c.complete(nil, "", errors.New("its lazybox run stopped reporting: the command may still be running outside Lazybox"), nil)
+		}
+	}
 }
 
 func ID() string { return rand.Text() }
@@ -285,7 +356,7 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if err != nil {
 		return nil, err
 	}
-	c := &Command{spool: spool, finished: make(chan struct{}), status: Status{ID: id, Spec: spec, Mode: "pipe"}, hostRoot: m.hostRoot, hostBackend: m.backend}
+	c := &Command{spool: spool, finished: make(chan struct{}), status: Status{ID: id, Spec: spec, Mode: "pipe", StartedAt: time.Now().UnixMilli()}, hostRoot: m.hostRoot, hostBackend: m.backend, wake: make(chan struct{})}
 	if len(spec.Argv) > 0 {
 		c.status.Mode = "managed"
 	}
@@ -372,6 +443,9 @@ func (c *Command) Status() Status { c.mu.Lock(); defer c.mu.Unlock(); return *pt
 func (c *Command) write(channel string, data []byte, expected *uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.detaching {
+		return errors.New("the Runner is restarting; publish again in a moment")
+	}
 	if c.status.Done || c.status.Error != "" {
 		return errors.New("command capture is complete or failed")
 	}
@@ -433,6 +507,12 @@ func (c *Command) FinishPipe(cause error) error { return c.FinishPipeWith(cause,
 // is kept beside the status, not as its exit code: the Runner did not observe
 // the process.
 func (c *Command) FinishPipeWith(cause error, report *Report) error {
+	return c.FinishPipeSignalled(cause, "", report)
+}
+
+// FinishPipeSignalled is FinishPipeWith for a run whose command a signal ended
+// (a stop), as its `lazybox run` saw it.
+func (c *Command) FinishPipeSignalled(cause error, signal string, report *Report) error {
 	if c.Status().Mode != "pipe" {
 		return errors.New("managed command owns its completion")
 	}
@@ -443,8 +523,128 @@ func (c *Command) FinishPipeWith(cause error, report *Report) error {
 			return errors.New("the agent view exceeds 64 KiB")
 		}
 	}
-	c.complete(nil, "", cause, report)
+	if len(signal) > 32 {
+		return errors.New("invalid signal name")
+	}
+	c.complete(nil, signal, cause, report)
 	return nil
+}
+
+// FollowUpdate is what a `lazybox run` reports when it follows its pipe.
+type FollowUpdate struct {
+	Background bool
+	PID        int
+	Ports      []uint32
+}
+
+// FollowReply is what the Runner asks of it: stop the command, or move it to
+// the background; Offset is the output the Runner holds.
+type FollowReply struct {
+	Stop, Background bool
+	Offset           uint64
+}
+
+// MaxFollowWait bounds one FollowPipe wait.
+const MaxFollowWait = 30 * time.Second
+
+// ErrRestarting means the Runner is handing its commands to the next one: a
+// `lazybox run` asks again in a moment.
+var ErrRestarting = errors.New("the Runner is restarting; ask again in a moment")
+
+// ErrEnded means Lazybox ended the pipe (it was stopped, its conversation
+// deleted, or the Runner closed): nobody follows the command any more.
+var ErrEnded = errors.New("command capture is complete or failed")
+
+// Follow records a `lazybox run`'s state and waits up to wait for a request
+// (CancelCommand, RequestBackground). The first call makes the pipe followed.
+func (c *Command) Follow(ctx context.Context, update FollowUpdate, wait time.Duration) (FollowReply, error) {
+	if len(update.Ports) > 64 || update.PID < 0 {
+		return FollowReply{}, errors.New("invalid run state")
+	}
+	wait = min(max(wait, 0), MaxFollowWait)
+	c.mu.Lock()
+	if c.status.Mode != "pipe" {
+		c.mu.Unlock()
+		return FollowReply{}, errors.New("only a pipe is followed")
+	}
+	if c.detaching {
+		c.mu.Unlock()
+		return FollowReply{}, ErrRestarting
+	}
+	if c.status.Done {
+		c.mu.Unlock()
+		return FollowReply{}, ErrEnded
+	}
+	if c.wake == nil {
+		c.wake = make(chan struct{})
+	}
+	c.lastSeen = time.Now()
+	if update.Background {
+		c.backgroundRequested = false
+	}
+	ports := append([]uint32(nil), update.Ports...)
+	slices.Sort(ports)
+	if !c.status.Following || c.status.Background != update.Background || c.status.PID != update.PID || !slices.Equal(c.status.Ports, ports) {
+		c.status.Following, c.status.Background, c.status.PID, c.status.Ports = true, update.Background, update.PID, ports
+		if _, err := c.spool.Append(Output{Type: "status", Offset: c.status.Offset, Status: ptr(c.status)}); err != nil {
+			c.mu.Unlock()
+			return FollowReply{}, err
+		}
+	}
+	reply := func() FollowReply {
+		return FollowReply{Stop: c.stopRequested, Background: c.backgroundRequested && !c.status.Background, Offset: c.status.Offset}
+	}
+	if r := reply(); r.Stop || r.Background || wait == 0 {
+		c.mu.Unlock()
+		return r, nil
+	}
+	wake := c.wake
+	c.mu.Unlock()
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-wake:
+	case <-c.finished:
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lastSeen = time.Now()
+	return reply(), nil
+}
+
+// RequestBackground asks a foreground `lazybox run` to move to the background.
+func (c *Command) RequestBackground() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.status.CanBackground() {
+		return errors.New("only a lazybox run still in the foreground can move to the background")
+	}
+	c.backgroundRequested = true
+	c.wakeLocked()
+	return nil
+}
+
+func (c *Command) wakeLocked() {
+	if c.wake != nil {
+		close(c.wake)
+	}
+	c.wake = make(chan struct{})
+}
+
+// PID is the managed command's process (its group leader), or what a
+// followed run reported; 0 when not known.
+func (c *Command) PID() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch {
+	case c.host != nil:
+		return c.host.AgentPID()
+	case c.process != nil:
+		return c.process.PID()
+	}
+	return c.status.PID
 }
 
 type writer struct {
@@ -727,6 +927,13 @@ func (c *Command) Cancel() error {
 		return nil
 	case detaching:
 		return errors.New("command is owned by another Runner")
+	case host == nil && process == nil && c.Status().Following:
+		// A `lazybox run` stops its own command when it next asks (FollowPipe).
+		c.mu.Lock()
+		c.stopRequested = true
+		c.wakeLocked()
+		c.mu.Unlock()
+		return nil
 	case host != nil:
 		// The host applies the command's grace period itself, so a stop
 		// in progress completes even if this Runner goes away.
@@ -838,6 +1045,9 @@ func (m *Manager) Detach() error { return m.shutdown(true) }
 
 func (m *Manager) shutdown(detach bool) error {
 	m.mu.Lock()
+	if !m.closed && m.quit != nil {
+		close(m.quit)
+	}
 	m.closed = true
 	m.mu.Unlock()
 	m.starting.Wait()
@@ -850,6 +1060,15 @@ func (m *Manager) shutdown(detach bool) error {
 	var failures []error
 	for _, c := range items {
 		if c.Status().Mode != "managed" {
+			if state := c.Status(); detach && state.Following && !state.Done {
+				// Its `lazybox run` keeps the command; the next Runner reopens the pipe.
+				c.mu.Lock()
+				c.detaching = true
+				c.wakeLocked()
+				c.mu.Unlock()
+				_ = c.spool.Close()
+				continue
+			}
 			_ = c.FinishPipe(errors.New("runner closed"))
 			continue
 		}

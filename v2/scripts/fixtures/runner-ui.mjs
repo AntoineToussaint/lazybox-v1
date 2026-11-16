@@ -151,8 +151,11 @@ export async function startRunnerFixture() {
     { id: 'host-command-beta', kind: 'command', backend: 'tmux', state: 'running', attached: true, hostPid: 4201, programPid: 4202, uptimeSeconds: '95', label: 'go test ./...', workspaceId: 'beta', workspaceName: 'Beta release', sessionId: 'beta-session', conversationTitle: 'Ship the release', provider: 'claude', commandId: 'beta-command', attachCommand: 'tmux -S /private/tmp/tmux-501/lazybox-fixture attach -t host-command-beta', usage: usage(97.5, 220, 3) },
     { id: 'host-orphan', kind: 'agent', backend: 'sessionhost', state: 'running', attached: false, hostPid: 4301, programPid: 4302, uptimeSeconds: '90061', label: 'codex · old-checkout', usage: usage(0, 96, 2) },
   ];
+  // A `lazybox run` that went on in the background has no session host: the
+  // Runner lists it from its command (backend "run", id "run:<command id>").
+  const backgroundRuns = () => commands.filter(c => c.background && !c.done).map(c => { const session = sessions.find(s => s.id === c.sessionId); const workspace = collections.find(w => w.id === session?.collectionId); return { id: 'run:' + c.id, kind: 'command', backend: 'run', state: 'running', attached: true, hostPid: 0, programPid: c.pid || 0, uptimeSeconds: '42', label: c.title, workspaceId: workspace?.id || '', workspaceName: workspace?.name || '', sessionId: c.sessionId, conversationTitle: session?.title || '', provider: '', commandId: c.id, ports: c.ports || [], usage: usage(0.4, 64, 2) }; });
   const processInventory = () => ({
-    processes: [...processes, ...[...terminals.values()].filter(t => !t.done).map(t => ({ id: 'host-' + t.id, kind: 'terminal', backend: 'sessionhost', state: 'running', attached: true, hostPid: 4400, programPid: 4401, uptimeSeconds: '30', label: t.title, workspaceId: t.collectionId, workspaceName: collections.find(c => c.id === t.collectionId)?.name || '', terminalId: t.id, usage: usage(0.1, 8, 2) }))],
+    processes: [...processes, ...backgroundRuns(), ...[...terminals.values()].filter(t => !t.done).map(t => ({ id: 'host-' + t.id, kind: 'terminal', backend: 'sessionhost', state: 'running', attached: true, hostPid: 4400, programPid: 4401, uptimeSeconds: '30', label: t.title, workspaceId: t.collectionId, workspaceName: collections.find(c => c.id === t.collectionId)?.name || '', terminalId: t.id, usage: usage(0.1, 8, 2) }))],
     hosting: { selected: runnerSettings.processBackend || processHosting.configured, ...processHosting },
   });
 
@@ -595,6 +598,8 @@ actions:
         mutations.push({ method, body });
         const terminal = [...terminals.values()].find(t => 'host-' + t.id === body.id && !t.done);
         if (terminal) { terminal.done = true; for (const client of terminal.clients) client.end(frame({}, 2)); return json(processInventory()); }
+        const run = String(body.id || '').startsWith('run:') && commands.find(c => 'run:' + c.id === body.id && !c.done);
+        if (run) { Object.assign(run, { done: true, signal: 'SIGTERM', ports: [] }); return json(processInventory()); }
         const index = processes.findIndex(p => p.id === body.id);
         if (index < 0) return error('not_found', 'hosted process not found');
         processes.splice(index, 1); return json(processInventory());
@@ -622,8 +627,17 @@ actions:
         mutations.push({ method, body });
         const command = commands.find(value => value.id === body.commandId);
         if (!command) return error('not_found', 'Command missing');
-        Object.assign(command, { done: true, signal: 'SIGTERM' });
+        Object.assign(command, { done: true, signal: 'SIGTERM', canBackground: false });
         return json({ status: wireCommand(command) });
+      }
+      // Like the Runner: only a `lazybox run` still in the foreground whose CLI follows it moves.
+      case 'BackgroundCommand': {
+        mutations.push({ method, body });
+        const command = commands.find(value => value.id === body.commandId);
+        if (!command) return error('not_found', 'Command missing');
+        if (!command.canBackground || command.done || command.background) return error('failed_precondition', 'only a lazybox run still in the foreground can move to the background');
+        Object.assign(command, { background: true, canBackground: false });
+        return json(wireCommand(command));
       }
       case 'Apply': {
         mutations.push({ method, body, ...(device ? { device: device.id } : {}) });
@@ -633,6 +647,22 @@ actions:
         // Like the Runner: a live model switch is a setting, recorded as one line in the conversation.
         if(session&&body.model){if(!session.capabilities?.liveModel)return error('unimplemented','operation unsupported by adapter');session.model=body.model.model;session.modelReported=true;eventStreams.get(session.id)?.push({type:'model_changed',text:body.model.model,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}
         if(session&&body.permission){session.permission=body.permission.mode;eventStreams.get(session.id)?.push({type:'permission_changed',text:body.permission.mode,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}
+        // Like the Runner: a queued message delivered ahead of its turn, "now" (the turn is
+        // interrupted, it goes next) or "steer" (into the running turn, where the agent can).
+        if(session&&body.deliverQueued){
+          const {operationId,how}=body.deliverQueued,queue=session.queuedMessages||[],index=queue.findIndex(m=>m.operationId===operationId);
+          if(index<0)return error('failed_precondition','that message is no longer queued');
+          if(how==='steer'&&!session.capabilities?.steer)return error('unimplemented','operation unsupported by adapter');
+          if(!session.busy)return error('failed_precondition','no active turn');
+          queue.splice(index,1);session.queued=Math.max(0,(session.queued||1)-1);
+          if(how==='now')session.interrupted=(session.interrupted||0)+1;
+          return json({operationId:body.operationId,delivery:'accepted'});
+        }
+        // A message sent during a turn waits in the queue, which a test opts into with session.queuedMessages.
+        if(session&&body.message&&session.busy&&Array.isArray(session.queuedMessages)){
+          session.queuedMessages.push({operationId:body.operationId,text:String(body.message.text||'').slice(0,280),queuedAtUnixMillis:String(Date.now())});session.queued=session.queuedMessages.length;
+          return json({operationId:body.operationId,delivery:'accepted'});
+        }
         if(session&&['exhausted','throttled','auth_required','billing_error'].includes(session.fault)&&body.message){
           const queued=waitingMessages.get(session)||new Map();waitingMessages.set(session,queued);
           if(!queued.has(body.operationId)){queued.set(body.operationId,body.message.text);session.queued=(session.queued||0)+1;eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text});}

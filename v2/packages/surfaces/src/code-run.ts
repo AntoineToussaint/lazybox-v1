@@ -133,14 +133,28 @@ export function programAt(programs: readonly { program: string; at: number }[], 
 // ---- Asking the agent ----------------------------------------------------
 
 export const RUN_REQUEST = 'Run this and tell me the result:';
-/** What Run sends: the request, then the exact script, fenced. A transcript goes as the script it runs. */
-export function runRequestMessage(script: string, language = 'sh'): string {
+/** A server or watcher never ends: the agent starts it in the background instead of waiting for a result. */
+export const START_REQUEST = 'Start this in the background (it keeps running) and tell me when it is ready:';
+const startActionRequest = (action: string) => `Start the workspace action \`${action}\` (it runs this) and tell me when it is ready:`;
+const START_ACTION = /^Start the workspace action `[^`\n]+` \(it runs this\) and tell me when it is ready:$/;
+/**
+ * What Run sends: the request, then the exact script, fenced. A transcript goes
+ * as the script it runs. A server asks to start it in the background, by the
+ * workspace action that runs it when there is one.
+ */
+export function runRequestMessage(script: string, language = 'sh', how: { server?: boolean; action?: string } = {}): string {
   const fence = TRANSCRIPT.has(language.toLowerCase()) || !language ? 'sh' : language.toLowerCase();
-  return `${RUN_REQUEST}\n${fencedCode(script, fence)}`;
+  const ask = how.action ? startActionRequest(how.action) : how.server ? START_REQUEST : RUN_REQUEST;
+  return `${ask}\n${fencedCode(script, fence)}`;
+}
+/** What a message asked for: a run to its result, or a start in the background. */
+export function requestKind(text: string): 'run' | 'start' | undefined {
+  const first = text.split('\n', 1)[0];
+  return first === RUN_REQUEST ? 'run' : first === START_REQUEST || START_ACTION.test(first) ? 'start' : undefined;
 }
 /** The script a message asked the agent to run, when it is a Run request. */
 export function requestedScript(text: string): string | undefined {
-  if (!text.startsWith(RUN_REQUEST)) return undefined;
+  if (!requestKind(text)) return undefined;
   const match = /^[^\n]*\n(`{3,})[^\n]*\n([\s\S]*?)\n\1\s*$/.exec(text);
   return match?.[2];
 }
@@ -154,7 +168,13 @@ export function runsScript(entry: Pick<ToolEntry, 'name' | 'input'>, script: str
   return !!command && commandLines(script).some(line => command.includes(line));
 }
 
-export type RunOutcome = { state: 'running' | 'ok' | 'failed'; exitCode?: number };
+/** A call that starts a workspace action (the command tool's start_action): what a request to start an action leads to. */
+const startsAction = (entry: Pick<ToolEntry, 'name' | 'input'>) => /(^|__)(lazybox_)?command$/.test(entry.name) && typeof entry.input === 'object' && !Array.isArray(entry.input) && entry.input?.action === 'start_action';
+/** A call whose command the Lazybox command tool started in the background. */
+const startsCommand = (entry: Pick<ToolEntry, 'name' | 'input'>) => /(^|__)(lazybox_)?command$/.test(entry.name) && typeof entry.input === 'object' && !Array.isArray(entry.input) && entry.input?.action === 'start';
+
+/** `background`: the agent started it and it keeps running (a server or a watcher), on `port` when known. */
+export type RunOutcome = { state: 'running' | 'ok' | 'failed' | 'background'; exitCode?: number; port?: number };
 type Message = { id: string; type: string; text: string; operationId?: string; tools?: ToolEntry[] };
 /**
  * How the agent's run of a block went, read from the conversation: the latest
@@ -163,7 +183,7 @@ type Message = { id: string; type: string; text: string; operationId?: string; t
  * last tool call after that request which runs it. `outcome` is undefined
  * until such a call appears.
  */
-export function agentRun(messages: readonly Message[], messageId: string, script: string): { operationId?: string; outcome?: RunOutcome } | undefined {
+export function agentRun(messages: readonly Message[], messageId: string, script: string): { operationId?: string; kind?: 'run' | 'start'; outcome?: RunOutcome } | undefined {
   const start = messages.findIndex(message => message.id === messageId);
   if (start < 0) return undefined;
   let request = -1;
@@ -173,17 +193,23 @@ export function agentRun(messages: readonly Message[], messageId: string, script
     if (message.type === 'operation_accepted' && requestedScript(message.text) === script) request = i;
   }
   if (request < 0) return undefined;
+  const kind = requestKind(messages[request].text);
   let last: ToolEntry | undefined;
   for (let i = request + 1; i < messages.length; i++) {
     const message = messages[i];
     if (message.type === 'operation_accepted' && requestedScript(message.text) === script) break;
-    for (const entry of message.tools || []) if (runsScript(entry, script)) last = entry;
+    for (const entry of message.tools || []) if (runsScript(entry, script) || (kind === 'start' && startsAction(entry))) last = entry;
   }
+  // A start that returned while the command runs on: `lazybox run` moved it to
+  // the background, or the command tool started it there.
+  const moved = last && last.status !== 'running' && !isFailure(last) ? backgroundReport(last.output || '') : undefined;
   const outcome: RunOutcome | undefined = !last ? undefined
     : last.status === 'running' ? { state: 'running' }
     : isFailure(last) ? { state: 'failed', exitCode: last.exitCode }
+    : moved ? { state: 'background', port: moved.port }
+    : kind === 'start' && (startsAction(last) || startsCommand(last)) ? { state: 'background' }
     : { state: 'ok', exitCode: last.exitCode };
-  return { operationId: messages[request].operationId, outcome };
+  return { operationId: messages[request].operationId, kind, outcome };
 }
 
 // ---- Running it yourself ---------------------------------------------------
@@ -210,4 +236,130 @@ export function fixRequestMessage({ script, folder, exitCode, signal, output, tr
   const where = folder ? ` in \`${folder}\`` : '';
   const shown = tail.omitted || truncated ? `The last ${tail.text.split('\n').length} lines of its output:` : 'Its output:';
   return `I ran this myself${where} and it ${how}:\n${fencedCode(script, 'sh')}\n${shown}\n${fencedCode(tail.text || '(no output)', 'text')}\nFind out why and fix it.`;
+}
+
+// ---- Servers and watchers ---------------------------------------------------
+//
+// A mirror of the Runner's rules (services/runner/code/internal/serverlike):
+// whether a script starts something that does not end by itself, a dev server,
+// a watcher, a log follower. Both read the same vectors
+// (internal/serverlike/testdata/commands.json, in scripts/code-run.test.ts), so
+// they cannot drift. A match is a guess: it changes how Run asks and what a
+// person's run shows, never what runs.
+
+const baseName = (word: string) => word.split('/').pop() || '.';
+const WRAPPERS = new Set(['sudo', 'env', 'exec', 'time', 'nohup', 'npx', 'pnpx', 'bunx', 'uvx', 'cross-env', 'dotenv', 'caffeinate', 'command', 'nice', 'stdbuf', 'unbuffer']);
+const TASKS = new Set(['dev', 'develop', 'start', 'serve', 'server', 'up', 'watch', 'preview', 'runserver']);
+const SERVERS = new Set(['nodemon', 'webpack-dev-server', 'http-server', 'live-server', 'browser-sync', 'uvicorn', 'gunicorn', 'hypercorn', 'daphne', 'air', 'reflex', 'watchexec', 'entr', 'ngrok', 'redis-server', 'mongod', 'postgres', 'mailhog', 'mailpit', 'json-server', 'serve', 'lt', 'localtunnel', 'start-storybook']);
+const SUBCOMMANDS: Record<string, string[]> = {
+  vite: ['*', 'dev', 'serve', 'preview'], next: ['*', 'dev', 'start'], nuxt: ['dev', 'start', 'preview'], nuxi: ['dev', 'preview'], astro: ['dev', 'preview'], remix: ['dev'],
+  'svelte-kit': ['dev', 'preview'], gatsby: ['develop', 'serve'], expo: ['start'], 'react-scripts': ['start'], webpack: ['serve'], ng: ['serve'], 'vue-cli-service': ['serve'],
+  flask: ['run'], rails: ['s', 'server'], hugo: ['server', 'serve'], jekyll: ['serve', 's'], mkdocs: ['serve'], docusaurus: ['start', 'serve'], storybook: ['dev'],
+  firebase: ['serve', 'emulators:start'], kubectl: ['port-forward', 'proxy'], minikube: ['tunnel'], tilt: ['up'], skaffold: ['dev'], wrangler: ['dev'], cargo: ['watch'],
+  caddy: ['run'], deno: ['serve'], php: ['-s'], artisan: ['serve'], 'manage.py': ['runserver'], jupyter: ['notebook', 'lab', 'server'],
+};
+const GENERIC = new Set(['serve', 'server', 'dev', 'watch', 'up']);
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+function serverTask(task: string): boolean {
+  return TASKS.has(task) || ['dev:', 'serve:', 'start:', 'watch:'].some(prefix => task.startsWith(prefix))
+    || [':dev', ':serve', ':start', ':watch', '-watch', '_watch', ':up'].some(suffix => task.endsWith(suffix));
+}
+/** A simple command's words: quotes, assignments and wrappers (sudo, npx, uv run, `lazybox run --`) dropped; the program's base name lowercased. */
+function commandWords(command: string): string[] {
+  let out = command.split(/\s+/).filter(Boolean).map(word => word.replace(/^["']+|["']+$/g, ''));
+  while (out.length) {
+    const word = out[0];
+    if (ASSIGNMENT.test(word)) out = out.slice(1);
+    else if (WRAPPERS.has(baseName(word))) { out = out.slice(1); while (out.length && out[0].startsWith('-')) out = out.slice(1); }
+    else if (word === 'lazybox' && out[1] === 'run') {
+      const rest = out.slice(2); out = [];
+      for (let i = 0; i < rest.length; i++) {
+        if (rest[i] === '--') { out = rest.slice(i + 1); break; }
+        if (!rest[i].startsWith('-')) { out = rest.slice(i); break; }
+      }
+    } else if ((['uv', 'poetry', 'pipenv', 'pdm', 'rye', 'hatch'].includes(word) && out[1] === 'run') || (word === 'bundle' && out[1] === 'exec') || (word === 'go' && out.length > 2 && out[1] === 'tool')) out = out.slice(2);
+    else { out[0] = baseName(out[0]).toLowerCase(); return out; }
+  }
+  return out;
+}
+const composeUp = (args: string[]) => { let up = false; for (const a of args) { if (a === 'up' || a === 'watch') up = true; else if (a === '-d' || a === '--detach' || a === '--wait') return false; } return up; };
+const follows = (args: string[]) => args.some(a => a === '-f' || a === '-F' || a === '--follow' || a.startsWith('--follow=') || (a.startsWith('-') && !a.startsWith('--') && /[fF]/.test(a) && a.length <= 4));
+
+function serverWords(w: string[]): boolean {
+  if (!w.length) return false;
+  const [program, ...args] = w;
+  const first = (args[0] || '').toLowerCase();
+  for (const a of args) {
+    if (['--watch', '--watchall', '--serve', '--watch=true'].includes(a.toLowerCase())) return true;
+    if (a.startsWith('--watch=') && a !== '--watch=false') return true;
+  }
+  switch (program) {
+    case 'npm': case 'pnpm': case 'yarn': case 'bun': case 'turbo': {
+      let task = first;
+      if ((task === 'run' || task === 'run-script') && args.length > 1) task = args[1].toLowerCase();
+      return serverTask(task) || (program === 'npm' && task === 'start');
+    }
+    case 'make': case 'just': case 'task': case 'mise': case 'nx': case 'gradle': case 'gradlew':
+      return args.some(a => !(a === 'run' && program === 'mise') && !a.startsWith('-') && (serverTask(a.toLowerCase()) || a === 'bootRun'));
+    case 'docker': case 'podman':
+      if (first === 'compose') return composeUp(args.slice(1));
+      return (first === 'logs' || first === 'events') && follows(args);
+    case 'docker-compose': case 'podman-compose': return composeUp(args);
+    case 'tail': case 'journalctl': return follows(args);
+    case 'python': case 'python3': case 'python2':
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '-m' && i + 1 < args.length && ['http.server', 'uvicorn', 'gunicorn', 'flask', 'streamlit', 'jupyter'].includes(args[i + 1])) return args[i + 1] !== 'flask' || args[i + 2] === 'run';
+        if (baseName(args[i]) === 'manage.py' && args[i + 1] === 'runserver') return true;
+      }
+      return false;
+    case 'streamlit': return first === 'run';
+    case 'ssh': return args.some(a => a === '-N' || (a.startsWith('-N') && !a.includes('=')));
+  }
+  if (program === 'kubectl' && (first === 'logs' || first === 'get') && args.some(a => ['-w', '--watch', '-f', '--follow'].includes(a))) return true;
+  if (SERVERS.has(program)) return true;
+  const want = SUBCOMMANDS[program];
+  if (want) return want.some(s => (s === '*' && (!args.length || first.startsWith('-'))) || s === first);
+  return GENERIC.has(first);
+}
+
+/** Whether a script starts a server or a watcher, and the simple command that says so. */
+export function serverLike(script: string): { server: boolean; reason: string } {
+  for (const command of script.replaceAll('\\\n', ' ').split(/&&|\|\||[;&|\n]/))
+    if (serverWords(commandWords(command))) return { server: true, reason: command.trim() };
+  return { server: false, reason: '' };
+}
+/** serverLike for a command line: the script of `sh -c SCRIPT` (bash, zsh, with -lc), else the words joined. */
+export function serverLikeArgv(argv: readonly string[]): { server: boolean; reason: string } {
+  if (argv.length >= 3 && ['sh', 'bash', 'zsh', 'dash', 'fish'].includes(baseName(argv[0])))
+    for (let i = 1; i < argv.length - 1; i++) if (argv[i].startsWith('-') && argv[i].includes('c')) return serverLike(argv[i + 1]);
+  return serverLike(argv.join(' '));
+}
+
+/** What `lazybox run` printed when it moved a command to the background: its command id and the port it listens on, when it said. */
+export function backgroundReport(output: string): { commandId: string; port?: number } | undefined {
+  const moved = /running in the background as command #?([\w-]+)/.exec(output);
+  if (!moved) return undefined;
+  const port = /listening on https?:\/\/[^\s:/]+:(\d+)/.exec(output);
+  return { commandId: moved[1], port: port ? Number(port[1]) : undefined };
+}
+
+/** A workspace action's command and a script, compared as a person reads them: `$LAZYBOX_*` arguments (and the flag before them) and a leading `cd <member> &&` left out. */
+export function normalCommand(text: string, member = ''): string {
+  let words = text.replace(/\\\n/g, ' ').trim().split(/\s+/).filter(Boolean);
+  const cd = words[0] === 'cd' && words[2] === '&&' && (!member || words[1].replace(/^\.\//, '').replace(/\/$/, '') === member);
+  if (cd) words = words.slice(3);
+  const kept: string[] = [];
+  for (const word of words) {
+    if (/\$\{?LAZYBOX_/.test(word)) { if (kept.length && /^-/.test(kept.at(-1)!)) kept.pop(); continue; }
+    kept.push(word);
+  }
+  while (kept.at(-1) === '--') kept.pop();
+  return kept.join(' ');
+}
+/** The workspace action a script stands for: the same command (see normalCommand), unblocked. */
+export function matchingAction<A extends { key: string; member: string; run: string; blocked: string }>(actions: readonly A[], script: string): A | undefined {
+  const wanted = normalCommand(script);
+  if (!wanted || script.includes('\n')) return undefined;
+  return actions.find(action => !action.blocked && (normalCommand(action.run) === wanted || normalCommand(script, action.member) === normalCommand(action.run)));
 }

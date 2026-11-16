@@ -99,6 +99,17 @@ service RunnerService {
   rpc ReadCommand(ReadCommandRequest) returns (ReadCommandResponse);
   rpc WaitCommand(CommandRequest) returns (CommandStatus);
   rpc CancelCommand(CommandRequest) returns (CommandStatus);
+  // Moves a `lazybox run` that is still in the foreground to the background:
+  // the agent's (or the person's) call returns now with a report, and the
+  // command keeps running, its output still streaming to the console. Only a
+  // run whose CLI follows the Runner (CommandStatus.can_background) can move.
+  rpc BackgroundCommand(CommandRequest) returns (CommandStatus);
+  // The `lazybox run` that publishes a pipe reports its state (foreground or
+  // background, its process, its listening ports) and waits up to wait_ms for
+  // what the Runner asks of it: stop the command, or move it to the
+  // background. Calling it makes the pipe followed: a Runner restart keeps it,
+  // and CancelCommand stops it through its CLI.
+  rpc FollowPipe(FollowPipeRequest) returns (FollowPipeResponse);
   rpc WatchOutput(WatchOutputRequest) returns (stream OutputEvent);
   // Workspace terminals: a person's interactive shell, never an agent's.
   rpc OpenTerminal(OpenTerminalRequest) returns (TerminalStatus);
@@ -701,6 +712,16 @@ message Session {
   string last_message = 34;
   // The conversation's agent browser, while it is open or was stopped.
   BrowserState browser = 35;
+  // The messages waiting for the turn in progress, oldest first (queued counts them).
+  repeated QueuedMessage queued_messages = 36;
+}
+// QueuedMessage is a message accepted while the agent was busy, waiting to be
+// delivered as the next turn.
+message QueuedMessage {
+  string operation_id = 1;
+  // The start of the message, at most 280 characters.
+  string text = 2;
+  int64 queued_at_unix_millis = 3;
 }
 
 message Repository {
@@ -839,7 +860,16 @@ message ApplyRequest {
     Permission permission = 8;
     StopAgent stop_agent = 9;
     ModelChange model = 10;
+    DeliverQueued deliver_queued = 11;
   }
+}
+// Delivers a queued message (Session.queued_messages) ahead of its turn.
+// how "now": the turn in progress is interrupted and this message is the next
+// turn. how "steer": the message goes into the running turn without
+// interrupting it (Capabilities.steer). Either way it leaves the queue once.
+message DeliverQueued {
+  string operation_id = 1;
+  string how = 2;
 }
 // Switches a running session's model for its following turns, when
 // Capabilities.live_model. A setting, not a response: the owner's alone.
@@ -928,6 +958,28 @@ message FinishPipeRequest {
   string capture_error = 2;
   // What a `lazybox run` gave its agent. Absent for a plain pipe (`lazybox log`).
   CommandReport report = 3;
+  // The signal that ended a `lazybox run`'s command (SIGTERM after a stop), if one did.
+  string signal = 4;
+}
+message FollowPipeRequest {
+  string command_id = 1;
+  // The run went on in the background: the agent's or person's call returned.
+  bool background = 2;
+  // The command's process (the group that Stop signals), for Processes.
+  int32 pid = 3;
+  // TCP ports the command's processes listen on.
+  repeated uint32 ports = 4;
+  // How long to wait for a request before answering, at most 30000 ms; 0
+  // reports and answers at once.
+  uint32 wait_ms = 5;
+}
+message FollowPipeResponse {
+  // Stop the command: SIGTERM to its process group, SIGKILL after a grace period.
+  bool stop = 1;
+  // Move the command to the background now (BackgroundCommand).
+  bool background = 2;
+  // The output bytes the Runner holds, so a CLI that lost a reply resumes there.
+  uint64 offset = 3;
 }
 // CommandReport is what a `lazybox run` gave the agent compared with what the
 // command printed, so the console can label the run and telemetry can measure it.
@@ -969,6 +1021,18 @@ message CommandStatus {
   string share_with = 14;
   // The folder the command runs in.
   string cwd = 15;
+  // A `lazybox run` that went on in the background (a server or a watcher):
+  // the agent's or person's call returned and the command keeps running.
+  bool background = 16;
+  // TCP ports the command's processes listen on, lowest first, while it runs.
+  repeated uint32 ports = 17;
+  // A `lazybox run` still in the foreground whose CLI follows the Runner:
+  // BackgroundCommand can move it to the background.
+  bool can_background = 18;
+  // When the command started (Unix milliseconds); 0 when not known.
+  int64 started_at_unix_millis = 19;
+  // The command's process (the session host's program, or a `lazybox run`'s), when known.
+  int32 pid = 20;
 }
 message ListCommandsRequest {
   // The execution's own commands, and the runs of its workspace.
@@ -1170,7 +1234,9 @@ message HostedProcess {
   string id = 1;
   // "agent", "command" or "terminal".
   string kind = 2;
-  // "sessionhost" or "tmux": what started this process's host.
+  // "sessionhost" or "tmux": what started this process's host; "run" for a
+  // `lazybox run` that went on in the background, which has no session host
+  // (its id is "run:" and the command id).
   string backend = 3;
   // "running", "starting", "exited" or "unreachable".
   string state = 4;
@@ -1192,6 +1258,8 @@ message HostedProcess {
   string attach_command = 17;
   // Absent when the process table could not be read.
   ProcessUsage usage = 18;
+  // TCP ports a command's processes listen on.
+  repeated uint32 ports = 19;
 }
 message ProcessHosting {
   // The backend new processes use, and the Runner configuration's default.

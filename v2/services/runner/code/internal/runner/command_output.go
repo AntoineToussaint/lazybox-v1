@@ -29,7 +29,7 @@ Run tests, builds, linters, installs and other noisy commands as ` + "`lazybox r
 - If you need a line that was dropped, read the full-output file it printed instead of running the command again.
 - Use ` + "`lazybox run --raw -- <command>`" + ` only when you must parse the exact output, such as a diff or JSON.
 - Commands get no input. Pass non-interactive flags (--yes, CI=1) rather than waiting for a prompt.
-- Start long-running servers and watchers with the Lazybox command tool, which runs them in the background, not with lazybox run.
+- Servers and watchers never exit; start them with ` + "`lazybox run -- <command>`" + ` too, never with & or nohup. One still running after 20s that listens on a port or looks like a server (npm run dev, docker compose up, --watch) moves to the background, and lazybox run returns with its command id, URL, latest output and output file (` + "`--background`" + ` moves it at once). ` + "`lazybox ls`" + ` lists your commands; ` + "`lazybox stop ID`" + ` stops one.
 - If the workspace defines actions (the command tool's action "actions" lists them, with their URL), start its dev server with "start_action" instead: it gets the workspace's own port, and the user sees it in Run and Preview.
 
 ## Documents you write for the person
@@ -68,8 +68,8 @@ func (b *Bench) outputEnv(id string) string {
 
 // FinishPipe ends a pipe capture and keeps what a `lazybox run` gave its agent:
 // on the command, for the console, and in telemetry, to measure the savings.
-func (b *Bench) FinishPipe(c *commands.Command, cause error, report *commands.Report) error {
-	if err := c.FinishPipeWith(cause, report); err != nil {
+func (b *Bench) FinishPipe(c *commands.Command, cause error, signal string, report *commands.Report) error {
+	if err := c.FinishPipeSignalled(cause, signal, report); err != nil {
 		return err
 	}
 	if report == nil {

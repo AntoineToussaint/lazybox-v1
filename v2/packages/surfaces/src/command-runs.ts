@@ -32,6 +32,16 @@ export function isRuntimeRun(command: Pick<CommandStatus, 'origin'>): boolean {
   return command.origin === 'action' || command.origin === 'setup' || command.origin === 'archive';
 }
 
+/**
+ * A running command in words: "Running in the background · port 3000" for a
+ * `lazybox run` that went on there (a server, a watcher), "Running · port 3000"
+ * for another that listens, else "Running".
+ */
+export function runningLabel(command: Pick<CommandStatus, 'background' | 'ports'>): string {
+  const port = command.ports.length ? ` · port ${command.ports.join(', ')}` : '';
+  return command.background ? `Running in the background${port}` : `Running${port}`;
+}
+
 /** Where a workspace run came from, as a console list prefix: "from your terminal · ", "action · ". */
 export function runOrigin(command: Pick<CommandStatus, 'sessionId' | 'collectionId' | 'origin'>): string {
   if (isRuntimeRun(command)) return `${command.origin} · `;

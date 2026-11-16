@@ -90,6 +90,29 @@ try{
  await expect(bar.locator('.live-activity')).toHaveText(/^Reading services\/front-door\/src\/app\.ts · \ds$/);
  await expect(bar.locator('.live-bar-code')).toHaveCount(0);
 
+ // A `lazybox run` that will not end (it listens on a port) can move to the background: the agent's call returns, the server keeps running.
+ push(2,{type:'tool_activity',data:{type:'tool_call',id:'toolu_read',status:'completed',output:'ok'}});
+ push(3,{type:'tool_activity',data:{type:'tool_call',id:'toolu_dev',name:'Bash',status:'running',input:{command:'lazybox run -- npm run dev'}}});
+ const devOutput='VITE v6 ready in 412 ms\n  ➜  Local: http://localhost:5173/\n';
+ f.commands.push({id:'cmd-dev',sessionId:session.id,title:'npm run dev',argv:['npm','run','dev'],mode:'pipe',done:false,canBackground:true,ports:[5173],offset:String(devOutput.length),output:devOutput});
+ const move=bar.getByRole('button',{name:'Move to background'});
+ await expect(move).toBeVisible({timeout:5000});
+ await expect(bar.getByRole('button',{name:'Stop command'})).toBeVisible();
+ await page.screenshot({path:'.cache/live-bar-move.png'});
+ await move.click();
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='BackgroundCommand')?.body.commandId).toBe('cmd-dev');
+ await expect(bar.getByRole('status').filter({hasText:'Moved to the background'})).toHaveText('Moved to the background · port 5173. Claude continues; stop it from the console or Processes.');
+ // The server is not the turn's step any more: its output and Stop leave the bar.
+ await expect(bar.locator('.live-bar-output')).toHaveCount(0,{timeout:5000});
+ await expect(bar.getByRole('button',{name:'Interrupt'})).toBeVisible();
+ await expect(move).toHaveCount(0);
+ await page.screenshot({path:'.cache/live-bar-moved.png'});
+ // A shell step that is not a lazybox run and looks like a server may never end: the bar says how to get out.
+ push(4,{type:'tool_activity',data:{type:'tool_call',id:'toolu_dev',status:'completed',output:'[lazybox] npm run dev → running in the background as command cmd-dev'}});
+ push(5,{type:'tool_activity',data:{type:'tool_call',id:'toolu_tail',name:'Bash',status:'running',input:{command:'tail -f log/development.log'}}});
+ await expect(bar.getByRole('note')).toHaveText('This command may never end. Interrupt the turn and ask Claude to start it with lazybox run — it moves servers to the background.');
+ await expect(bar.getByRole('button',{name:'Interrupt'})).toBeVisible();
+
  // Reduced motion stills the indicator; a phone keeps the bar on screen without sideways scroll.
  await page.emulateMedia({reducedMotion:'reduce'});
  assert.equal(await bar.locator('.live-indicator').first().evaluate(n=>getComputedStyle(n).animationName),'none');
@@ -104,5 +127,5 @@ try{
  Object.assign(session,{busy:false,status:'ready',agents:[{id:'root',status:'done'}]});push(2,{type:'agent_status',agentId:'claude-tool:toolu_sa',status:'done',data:{toolUseId:'toolu_sa'}});push(3,{type:'turn_ended',status:'completed'});
  await expect(chat.locator('.live-bar')).toHaveCount(0);
  assert.deepEqual(errors,[]);
- console.log('PASS live bar: step with real command and directory, elapsed, managed output tail (3 lines, more, console), Stop command vs Interrupt, step in words, sub-agents in the bar, reduced motion, phone width, leaves when the turn ends. Fixture only.');
+ console.log('PASS live bar: step with real command and directory, elapsed, managed output tail (3 lines, more, console), Stop command vs Interrupt, step in words, Move to background for a listening lazybox run (then out of the bar) and the may-never-end hint for a shell step, sub-agents in the bar, reduced motion, phone width, leaves when the turn ends. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}

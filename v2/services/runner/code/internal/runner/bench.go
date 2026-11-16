@@ -183,6 +183,8 @@ type Bench struct {
 	closeErr  error
 	trimming  atomic.Bool
 	trims     sync.WaitGroup
+	// ports caches what each managed command listens on (CommandPorts).
+	ports portCache
 	// Adapters is an injection boundary for deterministic conformance tests.
 	Adapters map[string]agent.Adapter
 	// agentKey derives each execution's scoped credential (agent_credentials.go).

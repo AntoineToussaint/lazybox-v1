@@ -34,6 +34,9 @@ func (c *pipeClient) Publish(_ context.Context, r *connect.Request[pb.PublishReq
 	c.offset += uint64(len(r.Msg.Data))
 	return connect.NewResponse(&pb.CommandStatus{}), c.publishError
 }
+func (c *pipeClient) FollowPipe(context.Context, *connect.Request[pb.FollowPipeRequest]) (*connect.Response[pb.FollowPipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("fake console"))
+}
 func (c *pipeClient) FinishPipe(_ context.Context, r *connect.Request[pb.FinishPipeRequest]) (*connect.Response[pb.CommandStatus], error) {
 	c.finished = r.Msg
 	return connect.NewResponse(&pb.CommandStatus{}), nil

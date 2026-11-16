@@ -103,6 +103,19 @@ try {
   assert.equal(mutations('CleanUpOrphanProcesses').length, 1);
   await expect(command).toBeVisible();
 
+  // A `lazybox run` that went on in the background (a dev server) is a command too: where it listens, what hosts it, and Stop.
+  fixture.commands.push({ id: 'bg-dev', sessionId: 'alpha-session', title: 'npm run dev', argv: ['npm', 'run', 'dev'], mode: 'pipe', done: false, background: true, ports: [5173], pid: 7001, offset: '0', output: '' });
+  const devServer = panel.getByRole('region', { name: /Commands/ }).getByRole('listitem', { name: 'npm run dev, Running' });
+  await expect(devServer).toContainText('listening on :5173 · PID 7001 · up 42s', { timeout: 8000 });
+  await expect(devServer).toContainText('lazybox run');
+  await page.screenshot({ path: '.cache/processes-background-run.png' });
+  await devServer.getByRole('button', { name: 'Stop npm run dev…', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: 'Stop “npm run dev”?' });
+  await expect(dialog).toContainText('The command gets SIGTERM, then SIGKILL after 5 seconds');
+  await dialog.getByRole('button', { name: 'Stop process', exact: true }).click();
+  await expect(devServer).toHaveCount(0);
+  assert.equal(mutations('StopProcess').at(-1).body.id, 'run:bg-dev');
+
   // Settings → Runner: choose tmux for new processes; it says what that means.
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('tab', { name: 'Runner', exact: true }).click();
@@ -138,7 +151,7 @@ try {
   await page.screenshot({ path: '.cache/processes-phone.png' });
 
   assert.deepEqual(errors, []);
-  console.log('Processes panel: listed, opened, copied, stopped, cleaned up; hosting chosen and its fallback explained.');
+  console.log('Processes panel: listed, opened, copied, stopped, cleaned up; a background lazybox run listed with its port and stopped; hosting chosen and its fallback explained.');
 } catch (error) {
   for (const p of browser?.contexts().flatMap(c => c.pages()) || []) await p.screenshot({ path: '.cache/processes-failure.png', fullPage: true }).catch(() => {});
   throw error;

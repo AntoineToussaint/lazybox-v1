@@ -50,6 +50,7 @@ func processHosting(h runner.HostingState) *pb.ProcessHosting {
 
 func hostedProcess(p runner.HostedProcess) *pb.HostedProcess {
 	out := &pb.HostedProcess{Id: p.ID, Kind: p.Kind, Backend: p.Backend, State: p.State, Attached: p.Attached, HostPid: int32(p.HostPID), ProgramPid: int32(p.ProgramPID), UptimeSeconds: int64(p.Uptime.Seconds()), Label: p.Label, WorkspaceId: p.WorkspaceID, WorkspaceName: p.WorkspaceName, SessionId: p.ExecutionID, ConversationTitle: p.ConversationTitle, Provider: p.Provider, CommandId: p.CommandID, TerminalId: p.TerminalID, AttachCommand: p.AttachCommand}
+	out.Ports = p.Ports
 	if p.Usage != nil {
 		out.Usage = &pb.ProcessUsage{CpuPercent: p.Usage.CPU, MemoryBytes: p.Usage.Memory, ProcessCount: uint32(p.Usage.Processes)}
 	}
