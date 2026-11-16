@@ -109,4 +109,16 @@ function DesktopApp() {
   if (bootstrap) return <>{shown && <div className="error" role="alert">{shown}<button onClick={()=>void invoke('reconnect_view').then(()=>setReconnectError(''),e=>setReconnectError(String(e)))}>Reconnect this window</button></div>}<DesktopWindow bootstrap={bootstrap} followRestart={follow} renew={renew}/></>;
   return <p role={error ? 'alert' : 'status'}>{error ? `Unable to restore this window: ${error}` : 'Restoring your windows…'}</p>;
 }
+// Web links open in the person's browser, never inside the app's window:
+// chat messages, artifacts, PR and check links, Markdown anywhere.
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0) return;
+  const anchor = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+  if (!anchor) return;
+  const href = anchor.getAttribute('href') || '';
+  if (!/^(https?:|mailto:)/i.test(href)) return;
+  event.preventDefault();
+  void invoke('open_link', { url: anchor.href }).catch(error => console.error('Could not open link', error));
+}, true);
+window.open = ((url?: string | URL) => { const href = String(url || ''); if (/^(https?:|mailto:)/i.test(href)) void invoke('open_link', { url: href }).catch(error => console.error('Could not open link', error)); return null; }) as typeof window.open;
 createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}><DesktopApp/></WindowErrorBoundary></React.StrictMode>);

@@ -125,6 +125,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             host::save_view_state,
             host::open_sign_in,
             host::open_preview,
+            host::open_link,
             host::copy_sign_in_code,
             host::choose_repository_folder,
             host::save_surface,

@@ -921,6 +921,48 @@ pub fn open_sign_in(
         .map_err(|_| "Could not open the sign-in page".into())
 }
 
+/// A link a person clicked (in a chat message, an artifact, a PR): opened in
+/// their default browser. Only web and mail links; never file:, custom schemes
+/// or anything a page could use to start a local program.
+fn external_link(raw: &str) -> Result<url::Url, String> {
+    let url =
+        url::Url::parse(raw.trim()).map_err(|_| "That link is not a valid address".to_string())?;
+    if !matches!(url.scheme(), "http" | "https" | "mailto") {
+        return Err(format!(
+            "Lazybox opens only web and mail links, not {}: links",
+            url.scheme()
+        ));
+    }
+    Ok(url)
+}
+#[tauri::command]
+pub fn open_link(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = external_link(&url)?;
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
+        .map_err(|_| "Could not open the link in your browser".into())
+}
+#[cfg(test)]
+mod external_link_tests {
+    use super::external_link;
+    #[test]
+    fn only_web_and_mail_links_open() {
+        assert!(external_link("https://github.com/org/repo/pull/1").is_ok());
+        assert!(external_link("http://localhost:3000/x").is_ok());
+        assert!(external_link("mailto:a@b.c").is_ok());
+        for bad in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "vscode://x",
+            "ssh://h",
+            "not a url",
+        ] {
+            assert!(external_link(bad).is_err(), "{bad}");
+        }
+    }
+}
+
 /// A workspace preview is a page an action serves on this machine: http(s) on
 /// a loopback host, never a credential or another host.
 fn preview_url(raw: &str) -> Result<url::Url, String> {
