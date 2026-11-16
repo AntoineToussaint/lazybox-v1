@@ -1,4 +1,5 @@
 // Prose wraps in the editor; code does not; Alt+Z toggles wrapping and is remembered.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit,expect} from '@playwright/test';
@@ -10,7 +11,7 @@ const fixture=await startRunnerFixture();
 const long='**Canonical instructions live in [AGENTS.md](AGENTS.md).** '+'This file is a forwarding note so tools looking for it find the same content every other agent uses. '.repeat(4);
 fixture.workspaceFiles.set('alpha/api/README.md',{path:'api/README.md',text:`# Title\n\n${long}\n`,version:'v1',binary:false,truncated:false});
 const channel=fixture.openEvents('alpha-session');channel.push({type:'message_delta',text:'Open [README](api/README.md).'});
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await server.listen();browser=await webkit.launch({headless:true});const page=await browser.newPage({viewport:{width:1200,height:900}});page.setDefaultTimeout(20000);

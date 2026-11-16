@@ -2,6 +2,7 @@
 // isolated headless clipboard, never the machine's), the hover and keyboard
 // preview, the full-size lightbox, sent-message thumbnails read from the
 // Runner only when they scroll into view, and every object URL revoked.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium, webkit, expect } from '@playwright/test';
@@ -11,7 +12,7 @@ import assert from 'node:assert/strict';
 import { startRunnerFixture } from './fixtures/runner-ui.mjs';
 
 const fixture = await startRunnerFixture();
-const server = await createServer({ configFile: false, logLevel: 'error', root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
+const server = await createServer({...testViteCache(import.meta.url), configFile: false, logLevel: 'error', root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
 const VIEWPORT = { width: 1280, height: 800 };
 // Screenshots after the fade and scale-in, not halfway through them.
 const settle = page => page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished)));

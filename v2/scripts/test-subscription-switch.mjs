@@ -2,6 +2,7 @@
 // switch is one quiet line; without one, one card offers the best other
 // subscription, waiting for the reset, and "Always switch automatically"; a
 // message sent meanwhile goes once; ⋯ → Switch subscription… works any time.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const f=await startRunnerFixture();
 const now=Date.now(),reset=Math.floor(now/1000)+3*3600;
@@ -29,7 +30,7 @@ f.sessions.push({id:'gamma-session',collectionId:'gamma',workId:'gamma',title:'T
 const gamma=f.openEvents('gamma-session');
 for(const event of [{type:'operation_accepted',text:'Tidy the docs folder'},limitEvent(soon),{type:'turn_ended',status:'failed'}])gamma.push(event);
 
-const server=await createServer({configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 const raw=chat=>Promise.all([expect(chat).not.toContainText(/exhausted|rate_limit|provider failure|provider_error/i),expect(chat.locator('.account-notice')).toHaveCount(0)]);
 try{
  await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();
