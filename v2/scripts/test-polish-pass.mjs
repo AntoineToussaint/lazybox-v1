@@ -115,6 +115,40 @@ try {
     await page.context().close();
   }
 
+  // 5. Tooltips are the window's own: whole inside the window however close to the edge their control is,
+  //    never the system's (which the desktop web view cuts at the panel edge), and the hover button they
+  //    belong to keeps clear of the prompt rail.
+  {
+    const page = await open({ width: 1440, height: 900 });
+    const message = page.locator('.panel-chat .message').filter({ has: page.locator('.message-artifact-button') }).first();
+    await message.hover();
+    const track = message.locator('.message-artifact-button');
+    await expect(track).toBeVisible();
+    const frame = await page.locator('.panel-chat .messages-frame').boundingBox(), button = await track.boundingBox();
+    assert.ok(button.x + button.width <= frame.x + frame.width - 16, `the Track button keeps clear of the prompt rail (${Math.round(frame.x + frame.width - button.x - button.width)}px from the edge)`);
+    const title = await track.getAttribute('title');
+    await track.hover();
+    const tip = page.getByRole('tooltip');
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveText(title);
+    assert.equal(await track.getAttribute('title'), null, 'the system tooltip is not shown beside ours');
+    const box = await tip.boundingBox();
+    assert.ok(box.x >= 0 && box.x + box.width <= 1440 && box.y >= 0 && box.y + box.height <= 900, 'the tooltip is whole inside the window');
+    assert.ok(await tip.evaluate(node => node.scrollWidth <= node.clientWidth + 1 && node.scrollHeight <= node.clientHeight + 1), 'the tooltip shows all of its text');
+    assert.ok(box.y >= button.y + button.height || box.y + box.height <= button.y, 'the tooltip does not cover its own button');
+    // A control at the very right edge of the window: still whole.
+    const menu = page.locator('.workspace-header-actions summary[aria-label="Page actions"]');
+    await menu.hover();
+    await expect(tip).toHaveText('Page actions');
+    const edge = await tip.boundingBox();
+    assert.ok(edge.x + edge.width <= 1440 - 4, 'a tooltip at the window edge is pulled inside');
+    // Moving away puts the title back for the next reader (and for assistive technology).
+    await page.mouse.move(700, 450);
+    await expect(tip).toBeHidden();
+    assert.equal(await track.getAttribute('title'), title);
+    await page.context().close();
+  }
+
   assert.deepEqual(errors, []);
   console.log('PASS polish pass: a narrow chat keeps its title and a whole message box; a phone reaches every page tab and keeps the step on one row; a page opened from the header closes with its ×; the header fits half a screen. Fixture only.');
 } finally { await browser?.close(); await server.close(); await fixture.close(); }

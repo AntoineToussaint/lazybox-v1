@@ -85,6 +85,18 @@ export function placeMenu(at: Point, size: Size, viewport: Size, margin = 8): { 
   return { left: Math.round(fit(at.x, size.width, viewport.width)), top: Math.round(fit(at.y, size.height, viewport.height)) };
 }
 
+/**
+ * A tooltip under its element, centred on it; above when there is no room below; and always whole
+ * inside the viewport, however close to an edge the element is.
+ */
+export function placeTooltip(anchor: Rect, size: Size, viewport: Size, gap = 6, margin = 8): { left: number; top: number } {
+  const centre = (anchor.left + anchor.right) / 2 - size.width / 2;
+  const left = Math.max(margin, Math.min(centre, viewport.width - margin - size.width));
+  const below = anchor.bottom + gap, above = anchor.top - gap - size.height;
+  const top = below + size.height <= viewport.height - margin ? below : above >= margin ? above : Math.max(margin, viewport.height - margin - size.height);
+  return { left: Math.round(left), top: Math.round(top) };
+}
+
 /** A submenu beside its item: right of the menu, or left when there is no room; aligned with the item. */
 export function placeSubmenu(item: Rect, size: Size, viewport: Size, margin = 8): { left: number; top: number } {
   const right = item.right - 2, left = item.left - size.width + 2;

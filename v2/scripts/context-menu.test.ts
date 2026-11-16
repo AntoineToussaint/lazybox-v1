@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { absolutePath, dedupeLabels, fencedCode, firstEnabled, joinSections, lastEnabled, normalizeMenu, placeMenu, placeSubmenu, quoteText, stepFocus, typeahead, type MenuItem } from '../packages/surfaces/src/context-menu-model.ts';
+import { absolutePath, dedupeLabels, fencedCode, firstEnabled, joinSections, lastEnabled, normalizeMenu, placeMenu, placeSubmenu, placeTooltip, quoteText, stepFocus, typeahead, type MenuItem } from '../packages/surfaces/src/context-menu-model.ts';
 
 const labels = (items: MenuItem[]) => normalizeMenu(items).map(entry => entry.kind === 'separator' ? '—' : entry.action.label);
 
@@ -68,4 +68,17 @@ test('quoting, fencing and absolute paths', () => {
   assert.equal(absolutePath('/w/alpha', '.'), '/w/alpha');
   assert.equal(absolutePath('', 'api/x'), 'api/x');
   assert.equal(absolutePath('/w', '/etc/hosts'), '/etc/hosts');
+});
+
+test('a tooltip sits under its element, flips above at the bottom edge, and is always whole inside the window', () => {
+  const size = { width: 260, height: 28 }, viewport = { width: 1000, height: 700 };
+  // Room everywhere: centred under the element.
+  assert.deepEqual(placeTooltip({ left: 400, right: 440, top: 100, bottom: 124 }, size, viewport), { left: 290, top: 130 });
+  // At the right edge (the Track button): pulled in, not cut.
+  const right = placeTooltip({ left: 960, right: 996, top: 100, bottom: 124 }, size, viewport);
+  assert.equal(right.left + size.width, viewport.width - 8);
+  // At the left edge.
+  assert.equal(placeTooltip({ left: 2, right: 30, top: 100, bottom: 124 }, size, viewport).left, 8);
+  // No room below: above the element.
+  assert.deepEqual(placeTooltip({ left: 400, right: 440, top: 670, bottom: 694 }, size, viewport), { left: 290, top: 636 });
 });

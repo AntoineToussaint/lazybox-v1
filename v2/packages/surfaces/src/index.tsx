@@ -1,4 +1,5 @@
 import './appearance/apply';
+import './tooltips';
 export { AgentWindow, type AgentWindowProps, type RunnerConnection } from './AgentWindow';
 export { ChatPanel } from './AgentWindow';
 export { RunnerProvider, useRunner } from './RunnerContext';
