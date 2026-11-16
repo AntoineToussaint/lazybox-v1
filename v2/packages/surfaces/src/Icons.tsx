@@ -34,6 +34,14 @@ const paths: Record<string, string[]> = {
   working: ['M12 3a9 9 0 1 0 9 9'],
   done: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18', 'm8.5 12 2.5 2.5 4.5-5'],
   bell: ['M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9', 'M10 19.5a2 2 0 0 0 4 0'],
+  commit: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6', 'M3 12h6', 'M15 12h6'],
+  push: ['M12 16V4', 'm7 9 5-5 5 5', 'M5 20h14'],
+  pullRequest: ['M6 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4', 'M6 8v12', 'M18 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4', 'M18 16V9a3 3 0 0 0-3-3h-4', 'm13 3-3 3 3 3'],
+  merge: ['M6 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4', 'M6 8v12', 'M18 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4', 'M6 8a8 8 0 0 0 10 7'],
+  cross: ['m6 6 12 12', 'M18 6 6 18'],
+  pending: ['M12 4a8 8 0 1 0 8 8', 'M12 8v4l3 2'],
+  skip: ['M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16', 'M8 12h8'],
+  sparkle: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2 2', 'm16 16 2 2', 'm6 18 2-2', 'm16 8 2-2'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;

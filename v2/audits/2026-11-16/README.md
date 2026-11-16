@@ -123,6 +123,10 @@ names what to reuse from V1 and which tool sets the bar.
    a Checks tab, CI failures and review comments sent back to the agent, merge
    when green. Reuse V1 `gh-provider` (`submit_pr_review`, `merge_pr`,
    `enable_auto_merge`, `branch_merge_gate`). The bar: Conductor.
+   *Landed:* commit (agent-drafted message), push, create, checks with log
+   links, failing checks to the composer, merge when green
+   ([the PR loop](../../GITHUB.md#the-pr-loop)). *Still open:* review comments
+   back to the agent, auto-merge, archive after merge.
 4. **Inline review comments → agent.** Comment on lines in the Changes diff;
    comments become the agent's next message with file:line anchors. Reuse V1
    `core/src/review.rs` (findings, freshness, disposition).

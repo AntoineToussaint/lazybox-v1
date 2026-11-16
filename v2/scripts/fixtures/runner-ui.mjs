@@ -50,6 +50,13 @@ export async function startRunnerFixture() {
   const terminalStatus=t=>({id:t.id,collectionId:t.collectionId,directory:t.directory,title:t.title,shell:'/bin/fixture-sh',cols:t.cols,rows:t.rows,offset:String(t.output.length),retained:String(t.output.length),done:t.done,...(t.done?{exitCode:0}:{}),createdAtUnixMillis:String(t.createdAt)});
   const terminalOutput=(t,text)=>{const offset=t.output.length;const data=Buffer.from(text);t.output=Buffer.concat([t.output,data]);for(const res of t.clients)res.write(frame({offset:String(offset),data:data.toString('base64'),status:terminalStatus(t)}));};
 
+  // The PR loop per workspace member: uncommitted files, branch commits, push
+  // state and its pull request. Nothing here runs Git or contacts GitHub.
+  const ship=new Map();
+  const hex=()=>randomUUID().replaceAll('-','').padEnd(40,'0').slice(0,40);
+  const shipState=(collectionId,member)=>{const key=collectionId+'/'+member;if(!ship.has(key)){const spec=collections.find(c=>c.id===collectionId)?.members.find(m=>m.spec.name===member)?.spec;ship.set(key,{branch:spec?.branch||'feature/'+member,head:hex(),files:[],commits:[],committed:[],upstream:'',ahead:0,githubRepository:'',pr:undefined,mergeRefusal:''});}return ship.get(key);};
+  const pullRequest=state=>state.pr?{...state.pr,githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:true}:{githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:false,...(state.githubRepository?{}:{unavailable:'origin is not a GitHub repository; push works, pull requests need GitHub'})};
+
   let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[]};
   // The fake Runner process. RestartRunner answers, then the "process" is down
   // for restartMs (every RPC fails as unavailable) before a new instance serves.
@@ -210,6 +217,39 @@ export async function startRunnerFixture() {
         const session = { id: `started-${sessions.length}`, collectionId: collection.id, workId: collection.id, profileId: body.profileId, capabilities: { files: true }, pending: [] }; sessions.push(session); collection.ownerExecutionId = session.id;
         return json({ session });
       }
+      case 'ListWorkspaceChanges': {
+        const collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Workspace missing');
+        return json({repositories:collection.members.map(m=>{const s=shipState(collection.id,m.spec.name);return {member:m.spec.name,branch:s.branch,head:s.head,base:'c'.repeat(40),files:s.files,committed:s.committed,commits:s.commits,branches:[s.branch,'main','origin/main','release/2'],defaultBranch:'origin/main',upstream:s.upstream,ahead:s.ahead,githubRepository:s.githubRepository};})});
+      }
+      case 'ReadWorkspaceDiff': return json({text:`@@ fixture ${body.committed?'branch':'working tree'} diff @@\n+${body.path}`});
+      case 'CommitWorkspaceChanges': {
+        mutations.push({method,body});const s=shipState(body.collectionId,body.member);
+        const paths=body.paths||[];const chosen=s.files.filter(f=>!paths.length||paths.includes(f.path));
+        if(!chosen.length)return error('failed_precondition','nothing to commit: the selected files have no changes');
+        const subject=(body.message||'').trim().split('\n')[0];if(!subject)return error('failed_precondition','write a commit message');
+        s.head=hex();s.files=s.files.filter(f=>!chosen.includes(f));s.committed.push(...chosen.map(f=>({path:f.path,indexStatus:f.indexStatus==='?'?'A':f.indexStatus.trim()||'M'})));s.commits.unshift({id:s.head,subject,committedAtUnix:String(Math.floor(Date.now()/1000))});s.ahead++;
+        return json({commit:s.head,subject,files:chosen.length,branch:s.branch});
+      }
+      case 'PushWorkspaceBranch': {
+        mutations.push({method,body});const s=shipState(body.collectionId,body.member);
+        s.upstream='origin/'+s.branch;s.ahead=0;if(s.pr&&s.pr.state==='open')s.pr.headSha=s.head;return json({branch:s.branch,upstream:s.upstream,head:s.head,githubRepository:s.githubRepository});
+      }
+      case 'GetPullRequest': return json(pullRequest(shipState(body.collectionId,body.member)));
+      case 'CreatePullRequest': {
+        mutations.push({method,body});const s=shipState(body.collectionId,body.member);
+        if(!s.upstream)return error('failed_precondition','push the branch before opening a pull request');
+        if(s.ahead)return error('failed_precondition',`${s.ahead} local commit(s) are not pushed yet; push before opening a pull request`);
+        s.pr={number:'7',title:body.title,body:body.body,url:`https://github.com/${s.githubRepository}/pull/7`,state:'open',draft:!!body.draft,base:body.base||'main',headSha:s.head,mergeableState:'unstable',reviewDecision:'',checksState:'failure',author:'fixture-user',
+          checks:[{name:'test',status:'completed',conclusion:'failure',url:`https://github.com/${s.githubRepository}/actions/runs/41/job/1`,summary:'2 tests failed'},{name:'lint',status:'in_progress',conclusion:'',url:''},{name:'build',status:'completed',conclusion:'success',url:`https://github.com/${s.githubRepository}/actions/runs/40`}]};
+        return json(pullRequest(s));
+      }
+      case 'MergePullRequest': {
+        mutations.push({method,body});const s=shipState(body.collectionId,body.member);
+        if(!s.pr||String(s.pr.number)!==String(body.number))return error('failed_precondition',`pull request #${body.number} is not this branch's pull request`);
+        if(s.mergeRefusal)return error('failed_precondition','GitHub: '+s.mergeRefusal);
+        if(body.expectedHead!==s.pr.headSha)return error('failed_precondition','GitHub: Head branch was modified. Review and try the merge again.');
+        Object.assign(s.pr,{state:'merged',mergeCommit:hex(),mergeMethod:body.method});return json(pullRequest(s));
+      }
       case 'Apply': mutations.push({ method, body }); return json({ operationId: body.operationId, delivery: 'accepted' });
       case 'CloseSession': mutations.push({ method, body }); return error('failed_precondition', 'Closing a surface must not close a session');
       default: return error('unimplemented', `Unsupported fixture RPC ${method}`);
@@ -220,5 +260,5 @@ export async function startRunnerFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'lazybox-workspace-ui-'));
   const endpoint = join(directory, 'endpoint.json');
   await writeFile(endpoint, JSON.stringify({ url, token }), { mode: 0o600 });
-  return { runner, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
+  return { runner, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
 }

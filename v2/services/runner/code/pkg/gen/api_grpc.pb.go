@@ -92,6 +92,11 @@ const (
 	RunnerService_ResizeTerminal_FullMethodName               = "/lazybox.bench.v1.RunnerService/ResizeTerminal"
 	RunnerService_CloseTerminal_FullMethodName                = "/lazybox.bench.v1.RunnerService/CloseTerminal"
 	RunnerService_RestartRunner_FullMethodName                = "/lazybox.bench.v1.RunnerService/RestartRunner"
+	RunnerService_CommitWorkspaceChanges_FullMethodName       = "/lazybox.bench.v1.RunnerService/CommitWorkspaceChanges"
+	RunnerService_PushWorkspaceBranch_FullMethodName          = "/lazybox.bench.v1.RunnerService/PushWorkspaceBranch"
+	RunnerService_CreatePullRequest_FullMethodName            = "/lazybox.bench.v1.RunnerService/CreatePullRequest"
+	RunnerService_GetPullRequest_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetPullRequest"
+	RunnerService_MergePullRequest_FullMethodName             = "/lazybox.bench.v1.RunnerService/MergePullRequest"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -178,6 +183,13 @@ type RunnerServiceClient interface {
 	// again: the Runner records the request and stops exactly as on any restart,
 	// detaching (never stopping) agents, managed commands and terminals.
 	RestartRunner(ctx context.Context, in *RestartRunnerRequest, opts ...grpc.CallOption) (*RestartRunnerResponse, error)
+	// The PR loop, per workspace repository: the owner's only Git and GitHub
+	// writes. Agent credentials can never call these.
+	CommitWorkspaceChanges(ctx context.Context, in *CommitWorkspaceChangesRequest, opts ...grpc.CallOption) (*CommitWorkspaceChangesResponse, error)
+	PushWorkspaceBranch(ctx context.Context, in *PushWorkspaceBranchRequest, opts ...grpc.CallOption) (*PushWorkspaceBranchResponse, error)
+	CreatePullRequest(ctx context.Context, in *CreatePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
+	GetPullRequest(ctx context.Context, in *GetPullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
+	MergePullRequest(ctx context.Context, in *MergePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
 }
 
 type runnerServiceClient struct {
@@ -944,6 +956,56 @@ func (c *runnerServiceClient) RestartRunner(ctx context.Context, in *RestartRunn
 	return out, nil
 }
 
+func (c *runnerServiceClient) CommitWorkspaceChanges(ctx context.Context, in *CommitWorkspaceChangesRequest, opts ...grpc.CallOption) (*CommitWorkspaceChangesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CommitWorkspaceChangesResponse)
+	err := c.cc.Invoke(ctx, RunnerService_CommitWorkspaceChanges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) PushWorkspaceBranch(ctx context.Context, in *PushWorkspaceBranchRequest, opts ...grpc.CallOption) (*PushWorkspaceBranchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PushWorkspaceBranchResponse)
+	err := c.cc.Invoke(ctx, RunnerService_PushWorkspaceBranch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) CreatePullRequest(ctx context.Context, in *CreatePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PullRequestStatus)
+	err := c.cc.Invoke(ctx, RunnerService_CreatePullRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetPullRequest(ctx context.Context, in *GetPullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PullRequestStatus)
+	err := c.cc.Invoke(ctx, RunnerService_GetPullRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) MergePullRequest(ctx context.Context, in *MergePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PullRequestStatus)
+	err := c.cc.Invoke(ctx, RunnerService_MergePullRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1028,6 +1090,13 @@ type RunnerServiceServer interface {
 	// again: the Runner records the request and stops exactly as on any restart,
 	// detaching (never stopping) agents, managed commands and terminals.
 	RestartRunner(context.Context, *RestartRunnerRequest) (*RestartRunnerResponse, error)
+	// The PR loop, per workspace repository: the owner's only Git and GitHub
+	// writes. Agent credentials can never call these.
+	CommitWorkspaceChanges(context.Context, *CommitWorkspaceChangesRequest) (*CommitWorkspaceChangesResponse, error)
+	PushWorkspaceBranch(context.Context, *PushWorkspaceBranchRequest) (*PushWorkspaceBranchResponse, error)
+	CreatePullRequest(context.Context, *CreatePullRequestRequest) (*PullRequestStatus, error)
+	GetPullRequest(context.Context, *GetPullRequestRequest) (*PullRequestStatus, error)
+	MergePullRequest(context.Context, *MergePullRequestRequest) (*PullRequestStatus, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1253,6 +1322,21 @@ func (UnimplementedRunnerServiceServer) CloseTerminal(context.Context, *Terminal
 }
 func (UnimplementedRunnerServiceServer) RestartRunner(context.Context, *RestartRunnerRequest) (*RestartRunnerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RestartRunner not implemented")
+}
+func (UnimplementedRunnerServiceServer) CommitWorkspaceChanges(context.Context, *CommitWorkspaceChangesRequest) (*CommitWorkspaceChangesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CommitWorkspaceChanges not implemented")
+}
+func (UnimplementedRunnerServiceServer) PushWorkspaceBranch(context.Context, *PushWorkspaceBranchRequest) (*PushWorkspaceBranchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PushWorkspaceBranch not implemented")
+}
+func (UnimplementedRunnerServiceServer) CreatePullRequest(context.Context, *CreatePullRequestRequest) (*PullRequestStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreatePullRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetPullRequest(context.Context, *GetPullRequestRequest) (*PullRequestStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPullRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) MergePullRequest(context.Context, *MergePullRequestRequest) (*PullRequestStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method MergePullRequest not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -2543,6 +2627,96 @@ func _RunnerService_RestartRunner_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_CommitWorkspaceChanges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitWorkspaceChangesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CommitWorkspaceChanges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CommitWorkspaceChanges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CommitWorkspaceChanges(ctx, req.(*CommitWorkspaceChangesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_PushWorkspaceBranch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PushWorkspaceBranchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).PushWorkspaceBranch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_PushWorkspaceBranch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).PushWorkspaceBranch(ctx, req.(*PushWorkspaceBranchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_CreatePullRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePullRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CreatePullRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CreatePullRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CreatePullRequest(ctx, req.(*CreatePullRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetPullRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPullRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetPullRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetPullRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetPullRequest(ctx, req.(*GetPullRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_MergePullRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MergePullRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).MergePullRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_MergePullRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).MergePullRequest(ctx, req.(*MergePullRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2821,6 +2995,26 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RestartRunner",
 			Handler:    _RunnerService_RestartRunner_Handler,
+		},
+		{
+			MethodName: "CommitWorkspaceChanges",
+			Handler:    _RunnerService_CommitWorkspaceChanges_Handler,
+		},
+		{
+			MethodName: "PushWorkspaceBranch",
+			Handler:    _RunnerService_PushWorkspaceBranch_Handler,
+		},
+		{
+			MethodName: "CreatePullRequest",
+			Handler:    _RunnerService_CreatePullRequest_Handler,
+		},
+		{
+			MethodName: "GetPullRequest",
+			Handler:    _RunnerService_GetPullRequest_Handler,
+		},
+		{
+			MethodName: "MergePullRequest",
+			Handler:    _RunnerService_MergePullRequest_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

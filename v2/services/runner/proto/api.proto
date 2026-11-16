@@ -84,6 +84,13 @@ service RunnerService {
   // again: the Runner records the request and stops exactly as on any restart,
   // detaching (never stopping) agents, managed commands and terminals.
   rpc RestartRunner(RestartRunnerRequest) returns (RestartRunnerResponse);
+  // The PR loop, per workspace repository: the owner's only Git and GitHub
+  // writes. Agent credentials can never call these.
+  rpc CommitWorkspaceChanges(CommitWorkspaceChangesRequest) returns (CommitWorkspaceChangesResponse);
+  rpc PushWorkspaceBranch(PushWorkspaceBranchRequest) returns (PushWorkspaceBranchResponse);
+  rpc CreatePullRequest(CreatePullRequestRequest) returns (PullRequestStatus);
+  rpc GetPullRequest(GetPullRequestRequest) returns (PullRequestStatus);
+  rpc MergePullRequest(MergePullRequestRequest) returns (PullRequestStatus);
 }
 
 message InfoRequest {}
@@ -239,8 +246,63 @@ message Commit { string id = 1; string subject = 2; int64 committed_at_unix = 3;
 // made since base, the commit the workspace started from; commits lists them.
 message RepositoryChanges { string member = 1; string branch = 2; string head = 3; repeated ChangedFile files = 4; string error = 5; bool truncated = 6; string base = 7; repeated ChangedFile committed = 8; repeated Commit commits = 9; bool committed_truncated = 10; string committed_error = 11;
   // Local and remote-tracking branches, and the default branch (origin/HEAD, else main or master).
-  repeated string branches = 12; string default_branch = 13; }
+  repeated string branches = 12; string default_branch = 13;
+  // The remote-tracking ref of the branch's last push (origin/<branch>), empty
+  // when never pushed. ahead counts commits on HEAD that are not there yet.
+  string upstream = 14; uint32 ahead = 15;
+  // owner/name when origin is a GitHub repository, so the PR loop applies.
+  string github_repository = 16; }
 message WorkspaceChanges { repeated RepositoryChanges repositories = 1; }
+message CommitWorkspaceChangesRequest {
+  string collection_id = 1; string member = 2; string message = 3;
+  // Member-relative paths to stage and commit; empty commits every change, untracked files included.
+  repeated string paths = 4;
+}
+message CommitWorkspaceChangesResponse { string commit = 1; string subject = 2; uint32 files = 3; string branch = 4; }
+message PushWorkspaceBranchRequest { string collection_id = 1; string member = 2; }
+message PushWorkspaceBranchResponse { string branch = 1; string upstream = 2; string head = 3; string github_repository = 4; }
+message CreatePullRequestRequest {
+  string collection_id = 1; string member = 2; string title = 3; string body = 4;
+  // Empty is the repository's default branch.
+  string base = 5; bool draft = 6;
+}
+message GetPullRequestRequest { string collection_id = 1; string member = 2; }
+message MergePullRequestRequest {
+  string collection_id = 1; string member = 2; int64 number = 3;
+  // squash, merge or rebase.
+  string method = 4;
+  // The head the person reviewed; GitHub refuses the merge if the branch moved since.
+  string expected_head = 5;
+}
+message PullRequestCheck {
+  string name = 1;
+  // queued, in_progress or completed.
+  string status = 2;
+  // With completed: success, failure, neutral, cancelled, skipped, timed_out, action_required or stale.
+  string conclusion = 3;
+  // The check's page on GitHub, where its logs are.
+  string url = 4;
+  string summary = 5;
+}
+message PullRequestStatus {
+  // Why the PR loop does not apply to this repository (no GitHub origin, no
+  // GitHub connection, detached HEAD); empty when it does.
+  string unavailable = 1;
+  string github_repository = 2; string branch = 3; string default_branch = 4;
+  // Whether a pull request exists for the branch; the fields below describe it.
+  bool found = 5;
+  int64 number = 6; string title = 7; string url = 8;
+  // open, closed or merged.
+  string state = 9; bool draft = 10; string base = 11; string head_sha = 12;
+  // GitHub's mergeable_state: clean, blocked, behind, dirty, unstable, has_hooks, draft or unknown.
+  string mergeable_state = 13; bool mergeable = 14;
+  // approved, changes_requested, review_required, or empty when no review is asked for.
+  string review_decision = 15;
+  repeated PullRequestCheck checks = 16;
+  // success, failure, pending, or none when the head has no checks.
+  string checks_state = 17;
+  string merge_commit = 18; string author = 19;
+}
 message WorkspaceDiffRequest { string collection_id = 1; string member = 2; string path = 3; bool staged = 4; // Diff of the branch's commits since the workspace's base, not of uncommitted changes.
   bool committed = 5;
   // With committed: the ref compared with; empty is the workspace start.

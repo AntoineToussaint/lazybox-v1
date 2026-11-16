@@ -23,6 +23,7 @@ import { readDraft, writeDraft, readLaunchChoices, writeLaunchChoices, type File
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
 import { Icon } from './Icons';
 import { AttentionScope, useMarkViewed } from './useAttention';
+import { useComposeRequests } from './compose';
 export type { RunnerConnection } from './RunnerContext';
 import './style.css';
 import { sessionStatus, statusLabel, accountLabel } from './agent-status';
@@ -159,6 +160,16 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     // The view moved on after the claim: keep the run in that conversation's draft.
     try { const draft = readDraft(viewState, claimedFor); writeDraft(viewState, claimedFor, { ...draft, text: appendToDraft(draft.text, text) }); }
     catch (e) { setError(`Could not keep the shared run in its draft: ${String(e)}`); }
+  });
+  // Another panel (Changes: failing checks) puts text after any draft, for
+  // the person to review and send; it is never sent for them.
+  // The saved draft is current (every edit persists it) even when this render
+  // has not seen it yet, and saving now survives this view remounting.
+  useComposeRequests(sessionID, canCompose, text => {
+    const current = viewState ? readDraft(viewState, sessionID).text : message;
+    const next = current + (current.trim() ? '\n\n' : '') + text;
+    setMessage(next); persistDraft(next, files, missingFiles); setUncertainSend(''); sendAttempt.current = null;
+    requestAnimationFrame(() => { const node = composer.current; if (node) { node.focus(); node.setSelectionRange(node.value.length, node.value.length); } });
   });
 
   useEffect(() => {

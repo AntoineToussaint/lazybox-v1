@@ -218,6 +218,9 @@ and output. The Changes module resolves members on the Runner, verifies their
 Git registration, and shows local index/worktree status and bounded diffs. It is
 also available through Customize page. Different repository failures stay
 independent. GitHub API access is not required for this local inspection.
+Each repository also carries its PR loop: commit, push, open a pull request,
+follow its checks, send failing checks to the conversation, and merge. See
+[the PR loop](GITHUB.md#the-pr-loop).
 
 Conversation names belong to the durable conversation, across native resumes.
 Automatic titles come from the first attempt; a follow-up after resuming does not

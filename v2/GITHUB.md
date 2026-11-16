@@ -1,8 +1,9 @@
 # Optional GitHub connection
 
-The Runner owns a private GitHub connection, repository source copies and
-read-only issue/PR access. The desktop submits a credential only during an
-explicit connection; responses never return access or refresh tokens.
+The Runner owns a private GitHub connection, repository source copies,
+read-only issue/PR access and the [PR loop](#the-pr-loop) (push, open, read and
+merge a workspace branch's pull request). The desktop submits a credential only
+during an explicit connection; responses never return access or refresh tokens.
 
 ## Connect without installing an App
 
@@ -24,11 +25,12 @@ Git supplies clone and worktree operations.
 
 GitHub supports [classic and fine-grained personal tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
 Classic tokens with `repo` scope support private repositories across
-organizations and outside-collaborator access; that scope also permits writes,
-although this integration only reads and clones. Fine-grained tokens can grant
-Contents, Issues and Pull requests read access to selected repositories, but
-currently have outside-collaborator and multi-organization limitations. Neither
-kind bypasses organization token policies, approval requirements or SSO.
+organizations and outside-collaborator access, and the writes the PR loop makes.
+Fine-grained tokens can grant Contents, Issues and Pull requests access to
+selected repositories (read for discovery; **write** on Contents and Pull
+requests, read on Checks and Commit statuses, for the PR loop), but currently
+have outside-collaborator and multi-organization limitations. Neither kind
+bypasses organization token policies, approval requirements or SSO.
 
 One GitHub identity is supported per Runner. To change from an existing App
 connection, explicitly **Disconnect** it in Lazybox first, then connect the
@@ -54,9 +56,12 @@ Use the official [GitHub App registration settings](https://github.com/settings/
 
 - Give the App a unique Lazybox name and its actual product homepage.
 - Enable **Device Flow** and leave user access token expiration enabled.
-- Set repository **Contents**, **Issues**, and **Pull requests** to read-only.
-  Metadata read access is implicit. This slice needs no write or organization
-  permissions, webhook events, callback server, client secret or private key.
+- Set repository **Issues** to read-only, **Checks** and **Commit statuses** to
+  read-only, and **Contents** and **Pull requests** to read and write (the PR
+  loop pushes branches and opens and merges pull requests; with read-only
+  grants those actions are refused with an explanation and everything else
+  works). Metadata read access is implicit. No organization permissions,
+  webhook events, callback server, client secret or private key are needed.
 - Disable webhooks for this read-on-request implementation. Choose who can
   install the App according to the intended audience; organization installation
   may require an organization owner.
@@ -111,16 +116,83 @@ subscription selection is independent of that identity.
   repository copies, Workspaces and conversations. Remote GitHub authorization
   can be revoked separately in GitHub settings.
 
+## The PR loop
+
+**Changes** shows, above each repository's files, the one next step in bold:
+**Commit N…**, **Push N** (or **Publish branch** the first time), **Create
+PR…**, then the pull request's card, where **Send failing checks to the agent**
+or **Merge** is next. Nothing happens without an explicit click.
+
+- **Commit…** lists the changed files (all selected; untick to leave some
+  uncommitted) and drafts the message from the conversation's title, else from
+  the files. **Ask the agent to write it** sends the conversation that did the
+  work a short request (visible in the conversation) and fills the box with
+  its reply's fenced block; the agent is told not to run Git. **Commit &
+  push** does both. ⌘↩ / Ctrl+Enter commits.
+- **Create PR…** prefills the title (the single commit's subject, else the
+  conversation's title) and a description listing the commits, with the
+  repository's default branch as base and a draft option. It pushes unpushed
+  commits first, and says so; uncommitted files are named as not included.
+- The **card** shows state, review decision and every check run and commit
+  status of the head, failing first, each with a **Logs** link. It refreshes
+  every 30 s while checks run, every 2 minutes otherwise (not while the
+  window is hidden), and on demand.
+- **Send failing checks to the agent** opens the conversation beside Changes
+  and puts the failing checks, their results and log links in its message box,
+  after any draft. It is never sent for you.
+- **Merge** (squash, merge commit or rebase; the choice is remembered in this
+  browser) is offered only when GitHub reports the pull request green and
+  mergeable; otherwise the card says why (failing or running checks, a required
+  review, conflicts, branch protection). It asks for confirmation, merges only
+  the head shown (a later push makes GitHub refuse), and shows GitHub's own
+  refusal, such as a branch-protection rule, as it is stated.
+
+The Runner RPCs are `CommitWorkspaceChanges`, `PushWorkspaceBranch`,
+`CreatePullRequest`, `GetPullRequest` and `MergePullRequest`. They take a
+workspace and member name, never a path; they are the owner's alone (an agent's
+scoped credential is denied, like every RPC off its allowlist).
+
+- Commit runs `git add --all` and `git commit` in that member's worktree only
+  (selected paths commit with `--only`, leaving other staged changes as they
+  were), refuses an empty commit or a detached HEAD, and runs the repository's
+  hooks with the person's Git identity. A missing identity, a held
+  `index.lock` or a failing hook is explained.
+- Push sends `HEAD` to `origin` under the branch's own name with
+  `--set-upstream`, never forced; a diverged remote branch is refused and
+  explained. It records `origin/<branch>` so the push state survives without a
+  fetch (bare GitHub sources have no fetch refspec).
+- An HTTPS GitHub origin is pushed with the connection's credential as an HTTP
+  `Authorization` header in the git child's environment only
+  (`GIT_CONFIG_COUNT`), exactly as clone does: never in arguments, the remote
+  URL, Git config, a credential helper or an error (stderr is redacted). The
+  person's global and system Git config are left out of that push so a
+  credential helper or URL rewrite cannot capture or redirect it. An SSH or
+  non-GitHub origin is pushed with the person's own Git setup (SSH agent,
+  `BatchMode`, no prompts) and never receives the GitHub credential. The
+  repository's own config (hooks, `insteadOf`) still applies: whoever can edit
+  it, including an agent working in the worktree, can already read the Runner's
+  state as the same OS user, so this does not widen an agent's reach.
+- Pull requests use the same connection through go-github. A branch's pull
+  request is found by `owner:branch` (an open one first); the review decision
+  is each reviewer's latest approving or blocking review, else
+  `review_required` while a request is outstanding.
+
+A repository whose origin is not on GitHub can commit and push; its card says
+pull requests need GitHub. Without a GitHub connection, a GitHub origin says to
+connect one.
+
 ## Scope and evidence
 
 Implemented: personal-token and App connection lifecycles, App-token refresh,
 user-repository and installation/repository pagination,
 selected imports, durable library registration, Workspace membership, and
-read-only issue/PR RPCs for imported repos. The repository browser does not expose a second issue/PR browsing workflow. See [runtime evidence](RUNTIME_EVIDENCE.md).
+read-only issue/PR RPCs for imported repos, and the PR loop (tested against a
+local bare remote and a fake GitHub API; not yet exercised against github.com).
+The repository browser does not expose a second issue/PR browsing workflow. See [runtime evidence](RUNTIME_EVIDENCE.md).
 
 Not yet implemented: background inbox synchronization, durable task/event
 reconciliation, opening a tracker record directly into a session, incremental
-fetching of imported source copies, GitHub writes, or
+fetching of imported source copies, review comments, auto-merge, or
 remote Hub coordination. Re-importing an existing repository is idempotent; it
 does not fetch a newer base. Live App identity and repository listing have been verified. Live personal-token
 authorization, organization-policy behavior and private cloning remain unverified;

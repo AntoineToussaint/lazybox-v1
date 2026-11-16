@@ -34,7 +34,8 @@
     { "id": "vim-editing", "scope": "ui", "script": "test:vim-editing" },
     { "id": "dogfood", "scope": "ui", "script": "test:dogfood" },
     { "id": "responsive-shell", "scope": "ui", "script": "test:responsive-shell" },
-    { "id": "inbox", "scope": "ui", "script": "test:inbox" }
+    { "id": "inbox", "scope": "ui", "script": "test:inbox" },
+    { "id": "pull-request", "scope": "ui", "script": "test:pull-request" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

@@ -86,6 +86,14 @@ type Client struct {
 func New() *Client {
 	return &Client{http: &http.Client{Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("GitHub redirects are not followed") }}, apiURL: "https://api.github.com", loginURL: "https://github.com"}
 }
+
+// NewAt is a client for the REST API at apiURL, such as a test server. Its
+// device sign-in still goes to github.com.
+func NewAt(apiURL string) *Client {
+	c := New()
+	c.apiURL = apiURL
+	return c
+}
 func (c *Client) request(ctx context.Context, method, target, token string, form url.Values, out any) error {
 	var body io.Reader
 	if form != nil {

@@ -16,6 +16,10 @@ members through the collection owner. The injected `gitinspect.Inspector`
 boundary performs bounded, read-only local inspection. Requests carry workspace,
 member and relative changed-file identity, never a caller-selected absolute root.
 Per-repository errors, binary previews and truncation remain explicit on the wire.
+The PR loop's writes (`CommitWorkspaceChanges`, `PushWorkspaceBranch`) resolve
+members the same way and go through `gitpublish`, the only package that writes a
+member's history; pull requests go through `github.PullRequests`. See
+[the PR loop](GITHUB.md#the-pr-loop).
 
 ## Responsibility boundaries
 

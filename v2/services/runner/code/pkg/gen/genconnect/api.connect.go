@@ -246,6 +246,21 @@ const (
 	// RunnerServiceRestartRunnerProcedure is the fully-qualified name of the RunnerService's
 	// RestartRunner RPC.
 	RunnerServiceRestartRunnerProcedure = "/lazybox.bench.v1.RunnerService/RestartRunner"
+	// RunnerServiceCommitWorkspaceChangesProcedure is the fully-qualified name of the RunnerService's
+	// CommitWorkspaceChanges RPC.
+	RunnerServiceCommitWorkspaceChangesProcedure = "/lazybox.bench.v1.RunnerService/CommitWorkspaceChanges"
+	// RunnerServicePushWorkspaceBranchProcedure is the fully-qualified name of the RunnerService's
+	// PushWorkspaceBranch RPC.
+	RunnerServicePushWorkspaceBranchProcedure = "/lazybox.bench.v1.RunnerService/PushWorkspaceBranch"
+	// RunnerServiceCreatePullRequestProcedure is the fully-qualified name of the RunnerService's
+	// CreatePullRequest RPC.
+	RunnerServiceCreatePullRequestProcedure = "/lazybox.bench.v1.RunnerService/CreatePullRequest"
+	// RunnerServiceGetPullRequestProcedure is the fully-qualified name of the RunnerService's
+	// GetPullRequest RPC.
+	RunnerServiceGetPullRequestProcedure = "/lazybox.bench.v1.RunnerService/GetPullRequest"
+	// RunnerServiceMergePullRequestProcedure is the fully-qualified name of the RunnerService's
+	// MergePullRequest RPC.
+	RunnerServiceMergePullRequestProcedure = "/lazybox.bench.v1.RunnerService/MergePullRequest"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -330,6 +345,13 @@ type RunnerServiceClient interface {
 	// again: the Runner records the request and stops exactly as on any restart,
 	// detaching (never stopping) agents, managed commands and terminals.
 	RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error)
+	// The PR loop, per workspace repository: the owner's only Git and GitHub
+	// writes. Agent credentials can never call these.
+	CommitWorkspaceChanges(context.Context, *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error)
+	PushWorkspaceBranch(context.Context, *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error)
+	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -775,6 +797,36 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("RestartRunner")),
 			connect.WithClientOptions(opts...),
 		),
+		commitWorkspaceChanges: connect.NewClient[gen.CommitWorkspaceChangesRequest, gen.CommitWorkspaceChangesResponse](
+			httpClient,
+			baseURL+RunnerServiceCommitWorkspaceChangesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CommitWorkspaceChanges")),
+			connect.WithClientOptions(opts...),
+		),
+		pushWorkspaceBranch: connect.NewClient[gen.PushWorkspaceBranchRequest, gen.PushWorkspaceBranchResponse](
+			httpClient,
+			baseURL+RunnerServicePushWorkspaceBranchProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PushWorkspaceBranch")),
+			connect.WithClientOptions(opts...),
+		),
+		createPullRequest: connect.NewClient[gen.CreatePullRequestRequest, gen.PullRequestStatus](
+			httpClient,
+			baseURL+RunnerServiceCreatePullRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreatePullRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		getPullRequest: connect.NewClient[gen.GetPullRequestRequest, gen.PullRequestStatus](
+			httpClient,
+			baseURL+RunnerServiceGetPullRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetPullRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		mergePullRequest: connect.NewClient[gen.MergePullRequestRequest, gen.PullRequestStatus](
+			httpClient,
+			baseURL+RunnerServiceMergePullRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -852,6 +904,11 @@ type runnerServiceClient struct {
 	resizeTerminal               *connect.Client[gen.ResizeTerminalRequest, gen.TerminalStatus]
 	closeTerminal                *connect.Client[gen.TerminalRequest, gen.TerminalStatus]
 	restartRunner                *connect.Client[gen.RestartRunnerRequest, gen.RestartRunnerResponse]
+	commitWorkspaceChanges       *connect.Client[gen.CommitWorkspaceChangesRequest, gen.CommitWorkspaceChangesResponse]
+	pushWorkspaceBranch          *connect.Client[gen.PushWorkspaceBranchRequest, gen.PushWorkspaceBranchResponse]
+	createPullRequest            *connect.Client[gen.CreatePullRequestRequest, gen.PullRequestStatus]
+	getPullRequest               *connect.Client[gen.GetPullRequestRequest, gen.PullRequestStatus]
+	mergePullRequest             *connect.Client[gen.MergePullRequestRequest, gen.PullRequestStatus]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1214,6 +1271,31 @@ func (c *runnerServiceClient) RestartRunner(ctx context.Context, req *connect.Re
 	return c.restartRunner.CallUnary(ctx, req)
 }
 
+// CommitWorkspaceChanges calls lazybox.bench.v1.RunnerService.CommitWorkspaceChanges.
+func (c *runnerServiceClient) CommitWorkspaceChanges(ctx context.Context, req *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error) {
+	return c.commitWorkspaceChanges.CallUnary(ctx, req)
+}
+
+// PushWorkspaceBranch calls lazybox.bench.v1.RunnerService.PushWorkspaceBranch.
+func (c *runnerServiceClient) PushWorkspaceBranch(ctx context.Context, req *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error) {
+	return c.pushWorkspaceBranch.CallUnary(ctx, req)
+}
+
+// CreatePullRequest calls lazybox.bench.v1.RunnerService.CreatePullRequest.
+func (c *runnerServiceClient) CreatePullRequest(ctx context.Context, req *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return c.createPullRequest.CallUnary(ctx, req)
+}
+
+// GetPullRequest calls lazybox.bench.v1.RunnerService.GetPullRequest.
+func (c *runnerServiceClient) GetPullRequest(ctx context.Context, req *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return c.getPullRequest.CallUnary(ctx, req)
+}
+
+// MergePullRequest calls lazybox.bench.v1.RunnerService.MergePullRequest.
+func (c *runnerServiceClient) MergePullRequest(ctx context.Context, req *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return c.mergePullRequest.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -1296,6 +1378,13 @@ type RunnerServiceHandler interface {
 	// again: the Runner records the request and stops exactly as on any restart,
 	// detaching (never stopping) agents, managed commands and terminals.
 	RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error)
+	// The PR loop, per workspace repository: the owner's only Git and GitHub
+	// writes. Agent credentials can never call these.
+	CommitWorkspaceChanges(context.Context, *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error)
+	PushWorkspaceBranch(context.Context, *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error)
+	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1737,6 +1826,36 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("RestartRunner")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceCommitWorkspaceChangesHandler := connect.NewUnaryHandler(
+		RunnerServiceCommitWorkspaceChangesProcedure,
+		svc.CommitWorkspaceChanges,
+		connect.WithSchema(runnerServiceMethods.ByName("CommitWorkspaceChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePushWorkspaceBranchHandler := connect.NewUnaryHandler(
+		RunnerServicePushWorkspaceBranchProcedure,
+		svc.PushWorkspaceBranch,
+		connect.WithSchema(runnerServiceMethods.ByName("PushWorkspaceBranch")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreatePullRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceCreatePullRequestProcedure,
+		svc.CreatePullRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("CreatePullRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetPullRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceGetPullRequestProcedure,
+		svc.GetPullRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("GetPullRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceMergePullRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceMergePullRequestProcedure,
+		svc.MergePullRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -1883,6 +2002,16 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceCloseTerminalHandler.ServeHTTP(w, r)
 		case RunnerServiceRestartRunnerProcedure:
 			runnerServiceRestartRunnerHandler.ServeHTTP(w, r)
+		case RunnerServiceCommitWorkspaceChangesProcedure:
+			runnerServiceCommitWorkspaceChangesHandler.ServeHTTP(w, r)
+		case RunnerServicePushWorkspaceBranchProcedure:
+			runnerServicePushWorkspaceBranchHandler.ServeHTTP(w, r)
+		case RunnerServiceCreatePullRequestProcedure:
+			runnerServiceCreatePullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceGetPullRequestProcedure:
+			runnerServiceGetPullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceMergePullRequestProcedure:
+			runnerServiceMergePullRequestHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2178,4 +2307,24 @@ func (UnimplementedRunnerServiceHandler) CloseTerminal(context.Context, *connect
 
 func (UnimplementedRunnerServiceHandler) RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartRunner is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CommitWorkspaceChanges(context.Context, *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CommitWorkspaceChanges is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PushWorkspaceBranch(context.Context, *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PushWorkspaceBranch is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreatePullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetPullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.MergePullRequest is not implemented"))
 }

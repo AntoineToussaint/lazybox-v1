@@ -116,6 +116,7 @@ type Bench struct {
 	Preferences         *preferences.Store
 	GitHub              *githubconnection.Manager
 	GitHubAPI           github.API
+	GitHubPulls         github.PullRequests
 	RepositoryImporter  *repositories.Importer
 	RepositoryDiscovery *repositories.Discovery
 	probes              int
@@ -290,7 +291,8 @@ func New(cfg Config) (*Bench, error) {
 	b.refreshTerminalEndpoints()
 	privateStore, err := githubconnection.NewFileStore(filepath.Join(cfg.State, "connections"))
 	if err == nil {
-		b.GitHubAPI = github.New()
+		client := github.New()
+		b.GitHubAPI, b.GitHubPulls = client, client
 		b.GitHub, err = githubconnection.New(privateStore, b.GitHubAPI)
 	}
 	if err == nil && cfg.GitHubApp != nil {

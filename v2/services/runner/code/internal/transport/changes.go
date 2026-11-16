@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitinspect"
+	"github.com/AntoineToussaint/lazybox/v2/internal/gitpublish"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 )
 
@@ -36,6 +37,15 @@ func (s *Service) ListWorkspaceChanges(ctx context.Context, r *pb.WorkspaceChang
 			row.Files = append(row.Files, &pb.ChangedFile{Path: f.Path, OriginalPath: f.OriginalPath, IndexStatus: f.IndexStatus, WorktreeStatus: f.WorktreeStatus})
 		}
 		row.Branches, row.DefaultBranch, _ = s.gitInspector().Branches(ctx, path)
+		// Push state for the PR loop; a detached HEAD or a repository without
+		// origin simply has none.
+		publisher := gitpublish.Git{}
+		if tracking, err := publisher.Track(ctx, path, member.BaseCommit); err == nil {
+			row.Upstream, row.Ahead = tracking.Upstream, uint32(tracking.Ahead)
+		}
+		if origin, err := publisher.Origin(ctx, path); err == nil {
+			row.GithubRepository = origin.GitHub
+		}
 		// What the agent committed matters as much as what it left uncommitted.
 		row.Base = compareBase(member.BaseCommit, r.Compare)
 		committed, err := s.gitInspector().Committed(ctx, path, row.Base)
