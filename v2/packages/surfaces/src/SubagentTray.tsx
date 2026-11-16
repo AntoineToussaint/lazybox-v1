@@ -169,7 +169,7 @@ export function SubagentAttention() {
   const agents = failed.filter(agent => agent.kind === 'agent').length, commands = failed.length - agents;
   const label = [agents && plural(agents, 'sub-agent', 'sub-agents'), commands && plural(commands, 'background command', 'background commands')].filter(Boolean).join(' and ') + ' failed';
   return <span className="subagent-attention">
-    <button type="button" className="subagent-attention-show" title={failed.map(agent => subagentTitle(agent, view)).join('\n')} onClick={() => { view.markSeen([failed[0].id]); show(view, failed[0]); }}><span className="live-indicator" data-tone="failed" aria-hidden="true"/>{label}</button>
+    <button type="button" className="subagent-attention-show" aria-label={label} title={failed.map(agent => subagentTitle(agent, view)).join('\n')} onClick={() => { view.markSeen([failed[0].id]); show(view, failed[0]); }}><span className="live-indicator" data-tone="failed" aria-hidden="true"/><span className="subagent-attention-label" aria-hidden="true">{failed.length} failed</span></button>
     <button type="button" className="icon-button" aria-label={`Dismiss: ${label}`} title="Dismiss" onClick={() => view.markSeen(failed.map(agent => agent.id))}><Icon name="close" size={11}/></button>
   </span>;
 }

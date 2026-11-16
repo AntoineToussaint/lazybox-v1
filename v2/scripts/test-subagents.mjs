@@ -202,7 +202,7 @@ try{
 
  // The failed one is in the parent's status line until it is looked at.
  const attention=chat.locator('.chat-heading .subagent-attention');
- await expect(attention).toContainText('1 sub-agent failed');
+ await expect(attention).toContainText('1 failed');
  await attention.getByRole('button',{name:'1 sub-agent failed',exact:true}).click();
  await expect(card(D)).toBeInViewport();
  await expect(attention).toHaveCount(0);

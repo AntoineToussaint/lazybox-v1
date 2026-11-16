@@ -69,3 +69,9 @@
 .native-toolbar .icon-button{width:26px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:#9897a8}
 .native-toolbar .icon-button:hover{background:#2a2b34;color:var(--text,#e2e2e9)}
 .native-toolbar .workspace-actions>summary{width:26px;height:26px;display:flex;align-items:center;justify-content:center;padding:0;border-radius:6px;color:#9897a8}
+
+/* The meta line never clips a control: the failure notice is a small chip that can shrink. */
+.chat-heading-meta .subagent-attention{flex:0 1 auto;min-width:0;height:18px;margin-left:2px}
+.chat-heading-meta .subagent-attention::before{content:none}
+.chat-heading-meta .subagent-attention button{min-height:0!important;height:18px;line-height:16px;font-size:11px!important}
+.chat-heading-meta .subagent-attention-show{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
