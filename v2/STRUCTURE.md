@@ -24,6 +24,7 @@ v2/
         commands/                   managed processes, pipe capture, byte reads
         attachments/                bounded private generic-file retention and replay metadata
         checkpoints/                explicit work handoff
+        codecheckpoints/            per-turn file checkpoints (private Git refs), revert and undo
         adapters/codex/             native app-server adapter
         adapters/claude/            supported SDK worker adapter
         adapters/jsonl/             supervised local process transport

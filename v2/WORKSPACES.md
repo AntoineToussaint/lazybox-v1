@@ -239,6 +239,48 @@ follow its checks, send failing checks to the conversation, and merge. See
 kept per workspace on the Runner and sent to a conversation as one message;
 see [review comments](GITHUB.md#review-comments).
 
+### Per-turn checkpoints and revert
+
+Before each agent turn starts, and again when it ends, the Runner saves every
+workspace repository's files: committed, uncommitted and untracked, but not
+ignored. Each repository gets a commit under a private ref,
+`refs/lazybox/checkpoints/<conversation>/turn-<n>-before` (and `-after`), whose
+parent is the HEAD it was taken on; across a multi-repository workspace a
+checkpoint is that set of refs. It is written through a private copy of the
+index, so the repository's index, HEAD, branch and stash are never touched, and
+when nothing changed the previous commit is reused (no new objects). Untracked
+files over 32 MiB, past 20,000 per checkpoint, or in nested repositories are left
+out and named. A turn waits for its checkpoint (bounded to two minutes); a
+repository that cannot be read is reported on the turn and the turn still runs.
+Assistant conversations are not checkpointed. Implementation:
+`internal/runner/codecheckpoints` (unrelated to `checkpoints`, the execution
+handoff).
+
+In the conversation, each finished turn ends with a quiet marker: what it
+changed (files, lines), **Show changes in this turn** and **Revert to before this
+turn…**. Show changes opens the workspace's Changes page compared with that turn
+(before → after; turns are also in its **Compare with** list); a chat in its own
+window shows them in a dialog. Revert first previews exactly which files will be
+restored, removed or put back, and says what stays: commits made since remain on
+the branch (the revert shows as uncommitted changes against them), ignored
+files, files too large to checkpoint, repositories added since. It is refused
+while any agent in the workspace is in a turn or has a message queued. Before
+writing anything the Runner saves the current files as a safety checkpoint, then
+rewrites only the paths that differ and checks the result, naming any file it
+could not restore. **Undo revert** (in the toast, and on the reverted turn's
+marker) restores the safety checkpoint; an undo is itself undoable. The
+conversation is kept, not truncated: a Runner notice records the revert, and the
+agent is told with the next message (through the same path as instruction
+updates) that files were reverted and must be re-read. Forking the provider
+conversation at a turn is not implemented.
+
+Each conversation keeps its latest 100 turns and 20 reverts; older ones are
+pruned with their refs (`codeCheckpoints` in the Runner configuration changes
+the bounds). Deleting the conversation deletes its record and every ref. The
+RPCs (`ListTurnCheckpoints`, `ListTurnChanges`, `ReadTurnDiff`,
+`PreviewRevertCode`, `RevertCode`, `UndoRevertCode`) are the owner's alone: an
+agent's or terminal's credential cannot call them.
+
 Conversation names belong to the durable conversation, across native resumes.
 Automatic titles come from the first attempt; a follow-up after resuming does not
 replace that title. Explicit renames override the automatic title.

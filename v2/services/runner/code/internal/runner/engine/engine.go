@@ -70,6 +70,27 @@ type Engine struct {
 	detachErr   error
 	// messageOpen is whether the next main-agent delta continues LastMessage.
 	messageOpen bool
+	// hooks observe the main agent's turns; turnOp is the message whose turn
+	// is running, or "" when it began before this engine (an adopted turn).
+	hooks  TurnHooks
+	turnOp string
+}
+
+// TurnHooks observe the main agent's turns, for code checkpoints.
+type TurnHooks struct {
+	// Before runs before a message is delivered, once its turn is marked
+	// busy. The delivery waits for it, so it must be bounded.
+	Before func(op agent.Operation)
+	// After runs once the turn ended, off the event path. operation is the
+	// message that started it, or "" for a turn started before this engine.
+	After func(operation string, ended time.Time)
+}
+
+// SetTurnHooks installs h for every later turn.
+func (e *Engine) SetTurnHooks(h TurnHooks) {
+	e.mu.Lock()
+	e.hooks = h
+	e.mu.Unlock()
 }
 
 func New(ctx context.Context, adapter agent.Adapter, open agent.Open, spool *journal.Journal) (*Engine, error) {
@@ -320,7 +341,12 @@ func (e *Engine) dispatch() {
 	if op.Kind == agent.Answer || op.Kind == agent.Approve {
 		e.responses[op.RequestID] = true
 	}
+	e.turnOp = op.ID
+	before := e.hooks.Before
 	e.mu.Unlock()
+	if before != nil && op.Kind == agent.Message {
+		before(op)
+	}
 	r, err := e.provider.Apply(e.ctx, op)
 	r.ID = op.ID
 	if err != nil {
@@ -460,12 +486,20 @@ func (e *Engine) receive() {
 		e.recordMessage(ev)
 		e.observe(ev)
 		ok := e.appendLocked(ev)
+		var after func(string, time.Time)
+		turn := ""
+		if ev.Type == "turn_ended" && rootEvent {
+			after, turn, e.turnOp = e.hooks.After, e.turnOp, ""
+		}
 		e.mu.Unlock()
 		if !ok {
 			return
 		}
 		e.commit(ev)
 		if (ev.Type == "turn_ended" || ev.Type == "profile_changed") && rootEvent {
+			if ev.Type == "turn_ended" && after != nil {
+				go after(turn, time.Now().UTC())
+			}
 			go e.dispatch()
 		}
 	}

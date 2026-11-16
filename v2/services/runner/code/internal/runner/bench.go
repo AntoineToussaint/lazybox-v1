@@ -19,6 +19,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/claude"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/codex"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/attachments"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/codecheckpoints"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/collections"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
@@ -98,6 +99,8 @@ type Config struct {
 	MaxLiveTerminals int `json:"maxLiveTerminals,omitempty"`
 	// Processes selects how agents, commands and terminals are hosted.
 	Processes ProcessHosting `json:"processes,omitempty"`
+	// CodeCheckpoints bounds the per-turn file checkpoints; zero values select defaults.
+	CodeCheckpoints codecheckpoints.Limits `json:"codeCheckpoints,omitempty"`
 }
 
 type Execution struct {
@@ -159,6 +162,10 @@ type Bench struct {
 	agentKey []byte
 	// hosting starts every agent, command and terminal host (hosting.go).
 	hosting *hosting
+	// Checkpoints records each conversation's files around every turn
+	// (code_checkpoints.go); checkpointing counts the ones in progress.
+	Checkpoints   *codecheckpoints.Manager
+	checkpointing sync.WaitGroup
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -327,6 +334,10 @@ func New(cfg Config) (*Bench, error) {
 		}
 	}
 	if err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.Checkpoints, err = codecheckpoints.Open(filepath.Join(cfg.State, "code-checkpoints"), cfg.CodeCheckpoints); err != nil {
 		_ = b.Detach()
 		return nil, err
 	}
@@ -692,6 +703,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		return nil, errors.Join(err, saveErr)
 	}
 	e.Engine = eng
+	b.watchTurns(e)
 	if _, err = spool.Append(map[string]any{"type": "execution_context", "workId": workID, "collectionId": collectionID, "previousExecutionId": previous, "cwd": cwd, "profile": profile, "model": options.Model, "permission": options.Permission, "conversationId": conversationID}); err != nil {
 		eng.Close()
 		return nil, err
@@ -844,6 +856,7 @@ func (b *Bench) shutdown(detach bool) error {
 		}
 		b.starts.Wait()
 		b.trims.Wait()
+		b.checkpointing.Wait()
 		for _, e := range b.List() {
 			// A no-op for a detached engine: its agent is the next Runner's.
 			b.closeErr = errors.Join(b.closeErr, e.Engine.Close())

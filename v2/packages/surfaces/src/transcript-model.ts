@@ -2,7 +2,7 @@ import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 import { failureSentence, isLimitState, switchNote, type SwitchNote } from './subscription-model';
 
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote };
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string };
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'' });
 
@@ -71,7 +71,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       } else add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId });
       next.appendToLast = true;
     } else if ((event.type === 'operation_accepted' || event.type === 'failure') && (event.text || files?.length)) {
-      add({ id: record.cursor.toString(), type: event.type, text: event.type === 'failure' ? failureSentence(event.status, event.text) : event.text, turnId: event.turnId, files });
+      add({ id: record.cursor.toString(), type: event.type, text: event.type === 'failure' ? failureSentence(event.status, event.text) : event.text, turnId: event.turnId, files, ...(event.type === 'operation_accepted' && event.operationId ? { operationId: event.operationId } : {}) });
       next.appendToLast = false;
     } else if (BOUNDARY_TYPES.has(event.type) || (event.type === 'activity' && event.status === 'tool')) {
       next.appendToLast = false;
@@ -102,6 +102,7 @@ export function runnerNotice(record: JournalEvent): string {
     return 'The Runner restarted before it could confirm this message reached the agent. It was not sent again; resend it if it is still needed.';
   if (event?.type === 'runner_reattached')
     return 'The Runner restarted and re-attached to this agent. Nothing was interrupted.';
+  if (event?.type === 'code_reverted') return event.text;
   if (event?.type === 'request_resolved' && event.status === 'outcome_unknown_after_restart')
     return 'The Runner restarted while a command the agent started was in flight. Its outcome is unknown, so it was not run again; the agent was told to check before retrying.';
   return '';

@@ -1,7 +1,7 @@
 import { useFileOpener } from './file-links';
 import { useEffect, useState } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
-import type { ChangedFile, RepositoryChanges, ReviewComment, Session, WorkspaceDiff } from '@lazybox/protocol';
+import type { ChangedFile, RepositoryChanges, ReviewComment, Session, TurnCheckpoint, WorkspaceDiff } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { RepositoryShip, useWorkConversation } from './PullRequestFlow';
 import { composeInConversation } from './compose';
@@ -11,13 +11,16 @@ import { ReviewTray } from './ReviewTray';
 import { useWorkspaceReview } from './useWorkspaceReview';
 import { isPending, type ReviewView } from './review-model';
 import { Icon } from './Icons';
+import { TurnChangesView } from './TurnChangesView';
+import { parseTurnCompare, turnCompare, useRequestedTurn, useTurnCheckpoints } from './turn-checkpoints';
 
 type Selection = { member: string; path: string; committed: boolean };
 
 // Compare choices: uncommitted work only, the commit the workspace started
 // from, or any branch (default branch first), compared from their merge base.
 const UNCOMMITTED = ':uncommitted', START = ':start';
-const compareRef = (compare: string) => compare === UNCOMMITTED || compare === START ? '' : compare;
+// A turn (`:turn:<session>:<n>`) is one agent turn's checkpoints, not a ref.
+const compareRef = (compare: string) => compare === UNCOMMITTED || compare === START || compare.startsWith(':turn:') ? '' : compare;
 
 const notices = new Map<string, string>();
 // Whether the person opened or closed the review tray, per workspace.
@@ -57,6 +60,10 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   const fileLinks = useFileOpener(workspaceId, viewState);
   const [repos, setRepos] = useState<RepositoryChanges[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [revision, setRevision] = useState(0);
   const [compare, setCompare] = useState<string>(START), [selection, setSelection] = useState<Selection>(), [staged, setStaged] = useState(false), [savedDiff, setDiff] = useState<{ key: string; value: WorkspaceDiff }>(), [diffError, setDiffError] = useState('');
+  // One agent turn's changes, asked for from its marker in the conversation.
+  const turnView = parseTurnCompare(compare);
+  const turns = useTurnCheckpoints(api, sessionId, false, !!sessionId);
+  useRequestedTurn(workspaceId, request => { setCompare(turnCompare(request.sessionId, request.turn)); setSelection(undefined); });
   useEffect(() => {
     if (!workspaceId) { setLoading(false); return; }
     const control = new AbortController(); let busy = false;
@@ -106,10 +113,12 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   const selectedRepo = selection && repos.find(repo => repo.member === selection.member);
   const showCommitted = compare !== UNCOMMITTED;
   const committed = showCommitted ? repos.reduce((sum, repo) => sum + repo.committed.length, 0) : 0, uncommitted = repos.reduce((sum, repo) => sum + repo.files.length, 0);
-  const summary = loading ? 'Reading changes…' : !committed && !uncommitted ? 'No changes yet' : [committed && `${plural(committed, 'file')} changed ${compare === START ? 'on the branch' : 'vs ' + compare}`, uncommitted && `${uncommitted} uncommitted`].filter(Boolean).join(' · ');
+  const turnPrompt = turnView && turnView.sessionId === sessionId ? turns.byNumber.get(turnView.turn)?.prompt || '' : '';
+  const summary = turnView ? `Agent turn ${turnView.turn}${turnPrompt ? ` · “${turnPrompt}”` : ''}` : loading ? 'Reading changes…' : !committed && !uncommitted ? 'No changes yet' : [committed && `${plural(committed, 'file')} changed ${compare === START ? 'on the branch' : 'vs ' + compare}`, uncommitted && `${uncommitted} uncommitted`].filter(Boolean).join(' · ');
   const refresh = () => setRevision(value => value + 1);
   return <section className="changes-panel" aria-label="Workspace changes">
-    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)}/>
+    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)}/>
+    {turnView ? <TurnChangesView key={compare} sessionId={turnView.sessionId} turn={turnView.turn}/> : <>
     {error && <p className="error" role="alert">{error}</p>}
     {notice && <p className="changes-notice" role="status"><span>{notice}</span><button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></p>}
     <div className={`changes-columns${trayOpen ? ' with-review' : ''}`}>
@@ -131,30 +140,38 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
           : <div className="diff-empty"><h3>{loading ? 'Reading changes…' : 'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}
       </div>
       {trayOpen && <ReviewTray workspaceId={workspaceId} review={review} conversation={conversation} onJump={jump} onSend={(text, to) => sendToAgent(text, to)} onClose={() => showTray(false)}/>}
-    </div>
+    </div></>}
     {fileLinks.element}
   </section>;
 }
 
 /** What changed in total, what it is compared with, the review tray, and a refresh. */
-function ChangesHeader({ summary, compare, repos, onCompare, onRefresh, pending, trayOpen, onToggleTray }: { summary: string; compare: string; repos: RepositoryChanges[]; onCompare(compare: string): void; onRefresh(): void; pending: number; trayOpen: boolean; onToggleTray(): void }) {
+function ChangesHeader({ summary, compare, repos, sessionId, turns, onCompare, onRefresh, pending, trayOpen, onToggleTray }: { summary: string; compare: string; repos: RepositoryChanges[]; sessionId: string; turns: TurnCheckpoint[]; onCompare(compare: string): void; onRefresh(): void; pending: number; trayOpen: boolean; onToggleTray(): void }) {
+  const turnView = parseTurnCompare(compare);
+  // The followed conversation's finished turns, newest first; a turn asked for from another conversation too.
+  const turnChoices = turns.filter(turn => turn.endedAtUnixMillis).reverse();
+  const requestedTurn = !!turnView && !turnChoices.some(turn => turnCompare(sessionId, turn.turn) === compare);
   const defaults = [...new Set(repos.map(repo => repo.defaultBranch).filter(Boolean))];
   const current = new Set(repos.map(repo => repo.branch));
   const others = [...new Set(repos.flatMap(repo => repo.branches))].filter(name => !defaults.includes(name) && !current.has(name)).sort();
-  if (compare !== UNCOMMITTED && compare !== START && !defaults.includes(compare) && !others.includes(compare)) others.unshift(compare);
+  if (compare !== UNCOMMITTED && compare !== START && !turnView && !defaults.includes(compare) && !others.includes(compare)) others.unshift(compare);
   return <header>
     <div>
       <strong>{summary}</strong>
-      <small>{compare === UNCOMMITTED ? 'Staged, unstaged and untracked files' : compare === START ? 'Since the workspace started, plus uncommitted work' : `Branch commits since it left ${compare}, plus uncommitted work`}</small>
+      <small>{turnView ? 'What the agent changed in that turn. Choose another comparison for the whole workspace.' : compare === UNCOMMITTED ? 'Staged, unstaged and untracked files' : compare === START ? 'Since the workspace started, plus uncommitted work' : `Branch commits since it left ${compare}, plus uncommitted work`}</small>
     </div>
     <label className="changes-compare">Compare with<select value={compare} onChange={event => onCompare(event.target.value)}>
       <option value={UNCOMMITTED}>Uncommitted only</option>
       <option value={START}>Workspace start</option>
       {defaults.map(name => <option key={'d:' + name} value={name}>{name}</option>)}
       {others.length > 0 && <optgroup label="Other branches">{others.map(name => <option key={name} value={name}>{name}</option>)}</optgroup>}
+      {(turnChoices.length > 0 || requestedTurn) && <optgroup label="Agent turns in this conversation">
+        {requestedTurn && <option value={compare}>Turn {turnView!.turn}</option>}
+        {turnChoices.map(turn => <option key={turn.turn} value={turnCompare(sessionId, turn.turn)}>Turn {turn.turn}{turn.prompt ? ` · ${turn.prompt.slice(0, 48)}` : ''}{turn.files ? '' : ' (no changes)'}</option>)}
+      </optgroup>}
     </select></label>
     <button className="changes-review-toggle" aria-pressed={trayOpen} aria-label={`Review comments${pending ? `, ${pending} pending` : ''}`} onClick={onToggleTray}><Icon name="chat" size={14}/>Review{pending > 0 && <span aria-hidden="true">{pending}</span>}</button>
-    <button onClick={onRefresh}>Refresh changes</button>
+    {!turnView && <button onClick={onRefresh}>Refresh changes</button>}
   </header>;
 }
 

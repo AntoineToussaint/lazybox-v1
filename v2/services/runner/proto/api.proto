@@ -131,6 +131,21 @@ service RunnerService {
   rpc GetOrchestrationProcess(OrchestrationProcessRequest) returns (OrchestrationProcess);
   // Owner only. What that process does on one event type, in firing order.
   rpc ExplainOrchestrationProcess(ExplainOrchestrationProcessRequest) returns (OrchestrationProcessExplanation);
+  // Owner only. Per-turn code checkpoints: the workspace's files saved to a
+  // private ref before each agent turn and after it, uncommitted and untracked
+  // files included. Lists a conversation's turns and reverts.
+  rpc ListTurnCheckpoints(TurnCheckpointsRequest) returns (TurnCheckpoints);
+  // Owner only. What one turn changed (checkpoint before → after), per repository.
+  rpc ListTurnChanges(TurnChangesRequest) returns (TurnChanges);
+  rpc ReadTurnDiff(TurnDiffRequest) returns (WorkspaceDiff);
+  // Owner only. What reverting to before a turn would change, without changing it.
+  rpc PreviewRevertCode(RevertCodeRequest) returns (RevertCodePreview);
+  // Owner only. Restores the workspace's files to before a turn, after saving
+  // the current ones so the revert can be undone. Never moves a branch.
+  // Refused while an agent in the workspace is in a turn.
+  rpc RevertCode(RevertCodeRequest) returns (CodeRevert);
+  // Owner only. Undoes the latest revert (an undo can itself be undone).
+  rpc UndoRevertCode(UndoRevertCodeRequest) returns (CodeRevert);
 }
 
 message InfoRequest {}
@@ -1106,3 +1121,96 @@ message SetReviewDispositionRequest {
   string session_title = 5;
 }
 message SetReviewAutoResolveRequest { string collection_id = 1; bool enabled = 2; }
+message TurnCheckpointsRequest { string session_id = 1; }
+// One repository's checkpoint at a point of the conversation.
+message RepositoryCheckpoint {
+  string member = 1;
+  string commit = 2;
+  string branch = 3;
+  // Untracked files left out (too large, too many, nested repositories).
+  repeated string skipped = 4;
+  uint32 skipped_count = 5;
+  // Why this repository could not be checkpointed; empty when it was.
+  string error = 6;
+}
+message TurnCheckpoint {
+  // 1-based, numbered across the whole conversation, resumes included.
+  uint32 turn = 1;
+  // The message that started the turn.
+  string operation_id = 2;
+  string prompt = 3;
+  int64 started_at_unix_millis = 4;
+  // 0 while the turn is running.
+  int64 ended_at_unix_millis = 5;
+  // What the turn changed, before → after, across repositories.
+  uint32 files = 6;
+  uint32 additions = 7;
+  uint32 deletions = 8;
+  repeated RepositoryCheckpoint before = 9;
+}
+message CodeRevert {
+  string id = 1;
+  // revert, or undo (of the revert named by undo_of).
+  string kind = 2;
+  // The turn whose start the files were reverted to.
+  uint32 turn = 3;
+  string undo_of = 4;
+  // The undo that undid this revert; empty while it can still be undone.
+  string undone_by = 5;
+  int64 at_unix_millis = 6;
+  // Files written or deleted.
+  uint32 files = 7;
+  // Files or repositories that could not be restored, said plainly.
+  repeated string problems = 8;
+}
+message TurnCheckpoints {
+  repeated TurnCheckpoint turns = 1;
+  repeated CodeRevert reverts = 2;
+  // A note for the agent waits for the next message.
+  bool note_pending = 3;
+}
+message TurnChangesRequest { string session_id = 1; uint32 turn = 2; }
+message TurnFile {
+  string path = 1;
+  string original_path = 2;
+  // A added, M modified, D deleted, R renamed, T type changed.
+  string status = 3;
+  uint32 additions = 4;
+  uint32 deletions = 5;
+  bool binary = 6;
+}
+message TurnRepositoryChanges {
+  string member = 1;
+  repeated TurnFile files = 2;
+  bool truncated = 3;
+  string error = 4;
+}
+message TurnChanges {
+  repeated TurnRepositoryChanges repositories = 1;
+  // The turn is still running: its changes so far, against the files now.
+  bool in_progress = 2;
+}
+message TurnDiffRequest {
+  string session_id = 1; uint32 turn = 2; string member = 3; string path = 4;
+  // A rename's source path.
+  string original_path = 5;
+}
+message RevertCodeRequest { string session_id = 1; uint32 turn = 2; }
+message RevertRepositoryPreview {
+  string member = 1;
+  // From the revert's side: A recreated, D deleted, M put back as it was.
+  repeated TurnFile files = 2;
+  bool truncated = 3;
+  // Commits made since the checkpoint. They stay on the branch.
+  uint32 commits_since = 4;
+  string branch_then = 5;
+  string branch_now = 6;
+  // Why this repository will be left as it is.
+  string error = 7;
+}
+message RevertCodePreview {
+  repeated RevertRepositoryPreview repositories = 1;
+  // Why the revert would be refused now (an agent is working); empty when it would not.
+  string blocked = 2;
+}
+message UndoRevertCodeRequest { string session_id = 1; string revert_id = 2; }

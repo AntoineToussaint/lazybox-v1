@@ -1,5 +1,5 @@
 import type { OpenModifiers } from './file-links';
-import { memo } from 'react';
+import { Fragment, memo } from 'react';
 import { RichContent } from './RichContent';
 import { SentAttachments } from './AttachmentThumbnail';
 import './message-list.css';
@@ -7,6 +7,7 @@ import type { FileLink } from './file-reference';
 import type { TranscriptMessage } from './transcript-model';
 import type { ReplayProgress } from './transcript-cache';
 import { switchedLine } from './subscription-model';
+import { useCheckpointUI, type CheckpointScope } from './TurnCheckpoints';
 
 const ownName = (id: string) => id;
 
@@ -26,11 +27,13 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
  * is added as the reader scrolls toward it. A render of the window that hosts
  * it (a keystroke in the composer) does not touch the rows.
  */
-export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier, nameFor }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; onShowEarlier(): void; /** A subscription's name by profile ID, for switch lines. */ nameFor?(id: string): string }) {
+export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier, nameFor, checkpoints }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; onShowEarlier(): void; /** A subscription's name by profile ID, for switch lines. */ nameFor?(id: string): string; checkpoints?: CheckpointScope }) {
   const hidden = Math.max(0, messages.length - visible);
+  const checkpoint = useCheckpointUI(messages, checkpoints);
   return <>
     {hidden > 0 && <button type="button" className="show-earlier" onClick={onShowEarlier}>Show earlier messages <small>{hidden.toLocaleString()} more</small></button>}
-    {messages.slice(hidden).map(m => <MessageRow key={m.id} message={m} agentName={agentName} onOpenFile={onOpenFile} nameFor={nameFor}/>)}
+    {messages.slice(hidden).map(m => <Fragment key={m.id}><MessageRow message={m} agentName={agentName} onOpenFile={onOpenFile} nameFor={nameFor}/>{checkpoint.marker(m.id)}</Fragment>)}
+    {checkpoint.overlay}
   </>;
 });
 

@@ -112,6 +112,12 @@ func (b *Bench) purgeConversation(ids []string) error {
 		if err := b.removeOutput(id); err != nil {
 			return err
 		}
+		// Checkpoint refs hold the conversation's files in its repositories.
+		if b.Checkpoints != nil {
+			if err := b.Checkpoints.Delete(b.ctx, id); err != nil {
+				return err
+			}
+		}
 		// The deletion record already revokes the credential; drop its copy too.
 		if err := b.removeAgentEndpoint(id); err != nil {
 			return err

@@ -113,6 +113,12 @@ const (
 	RunnerService_CleanUpOrphanProcesses_FullMethodName       = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
 	RunnerService_GetOrchestrationProcess_FullMethodName      = "/lazybox.bench.v1.RunnerService/GetOrchestrationProcess"
 	RunnerService_ExplainOrchestrationProcess_FullMethodName  = "/lazybox.bench.v1.RunnerService/ExplainOrchestrationProcess"
+	RunnerService_ListTurnCheckpoints_FullMethodName          = "/lazybox.bench.v1.RunnerService/ListTurnCheckpoints"
+	RunnerService_ListTurnChanges_FullMethodName              = "/lazybox.bench.v1.RunnerService/ListTurnChanges"
+	RunnerService_ReadTurnDiff_FullMethodName                 = "/lazybox.bench.v1.RunnerService/ReadTurnDiff"
+	RunnerService_PreviewRevertCode_FullMethodName            = "/lazybox.bench.v1.RunnerService/PreviewRevertCode"
+	RunnerService_RevertCode_FullMethodName                   = "/lazybox.bench.v1.RunnerService/RevertCode"
+	RunnerService_UndoRevertCode_FullMethodName               = "/lazybox.bench.v1.RunnerService/UndoRevertCode"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -246,6 +252,21 @@ type RunnerServiceClient interface {
 	GetOrchestrationProcess(ctx context.Context, in *OrchestrationProcessRequest, opts ...grpc.CallOption) (*OrchestrationProcess, error)
 	// Owner only. What that process does on one event type, in firing order.
 	ExplainOrchestrationProcess(ctx context.Context, in *ExplainOrchestrationProcessRequest, opts ...grpc.CallOption) (*OrchestrationProcessExplanation, error)
+	// Owner only. Per-turn code checkpoints: the workspace's files saved to a
+	// private ref before each agent turn and after it, uncommitted and untracked
+	// files included. Lists a conversation's turns and reverts.
+	ListTurnCheckpoints(ctx context.Context, in *TurnCheckpointsRequest, opts ...grpc.CallOption) (*TurnCheckpoints, error)
+	// Owner only. What one turn changed (checkpoint before → after), per repository.
+	ListTurnChanges(ctx context.Context, in *TurnChangesRequest, opts ...grpc.CallOption) (*TurnChanges, error)
+	ReadTurnDiff(ctx context.Context, in *TurnDiffRequest, opts ...grpc.CallOption) (*WorkspaceDiff, error)
+	// Owner only. What reverting to before a turn would change, without changing it.
+	PreviewRevertCode(ctx context.Context, in *RevertCodeRequest, opts ...grpc.CallOption) (*RevertCodePreview, error)
+	// Owner only. Restores the workspace's files to before a turn, after saving
+	// the current ones so the revert can be undone. Never moves a branch.
+	// Refused while an agent in the workspace is in a turn.
+	RevertCode(ctx context.Context, in *RevertCodeRequest, opts ...grpc.CallOption) (*CodeRevert, error)
+	// Owner only. Undoes the latest revert (an undo can itself be undone).
+	UndoRevertCode(ctx context.Context, in *UndoRevertCodeRequest, opts ...grpc.CallOption) (*CodeRevert, error)
 }
 
 type runnerServiceClient struct {
@@ -1222,6 +1243,66 @@ func (c *runnerServiceClient) ExplainOrchestrationProcess(ctx context.Context, i
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListTurnCheckpoints(ctx context.Context, in *TurnCheckpointsRequest, opts ...grpc.CallOption) (*TurnCheckpoints, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TurnCheckpoints)
+	err := c.cc.Invoke(ctx, RunnerService_ListTurnCheckpoints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListTurnChanges(ctx context.Context, in *TurnChangesRequest, opts ...grpc.CallOption) (*TurnChanges, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TurnChanges)
+	err := c.cc.Invoke(ctx, RunnerService_ListTurnChanges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ReadTurnDiff(ctx context.Context, in *TurnDiffRequest, opts ...grpc.CallOption) (*WorkspaceDiff, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceDiff)
+	err := c.cc.Invoke(ctx, RunnerService_ReadTurnDiff_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) PreviewRevertCode(ctx context.Context, in *RevertCodeRequest, opts ...grpc.CallOption) (*RevertCodePreview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevertCodePreview)
+	err := c.cc.Invoke(ctx, RunnerService_PreviewRevertCode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RevertCode(ctx context.Context, in *RevertCodeRequest, opts ...grpc.CallOption) (*CodeRevert, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CodeRevert)
+	err := c.cc.Invoke(ctx, RunnerService_RevertCode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) UndoRevertCode(ctx context.Context, in *UndoRevertCodeRequest, opts ...grpc.CallOption) (*CodeRevert, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CodeRevert)
+	err := c.cc.Invoke(ctx, RunnerService_UndoRevertCode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1353,6 +1434,21 @@ type RunnerServiceServer interface {
 	GetOrchestrationProcess(context.Context, *OrchestrationProcessRequest) (*OrchestrationProcess, error)
 	// Owner only. What that process does on one event type, in firing order.
 	ExplainOrchestrationProcess(context.Context, *ExplainOrchestrationProcessRequest) (*OrchestrationProcessExplanation, error)
+	// Owner only. Per-turn code checkpoints: the workspace's files saved to a
+	// private ref before each agent turn and after it, uncommitted and untracked
+	// files included. Lists a conversation's turns and reverts.
+	ListTurnCheckpoints(context.Context, *TurnCheckpointsRequest) (*TurnCheckpoints, error)
+	// Owner only. What one turn changed (checkpoint before → after), per repository.
+	ListTurnChanges(context.Context, *TurnChangesRequest) (*TurnChanges, error)
+	ReadTurnDiff(context.Context, *TurnDiffRequest) (*WorkspaceDiff, error)
+	// Owner only. What reverting to before a turn would change, without changing it.
+	PreviewRevertCode(context.Context, *RevertCodeRequest) (*RevertCodePreview, error)
+	// Owner only. Restores the workspace's files to before a turn, after saving
+	// the current ones so the revert can be undone. Never moves a branch.
+	// Refused while an agent in the workspace is in a turn.
+	RevertCode(context.Context, *RevertCodeRequest) (*CodeRevert, error)
+	// Owner only. Undoes the latest revert (an undo can itself be undone).
+	UndoRevertCode(context.Context, *UndoRevertCodeRequest) (*CodeRevert, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1641,6 +1737,24 @@ func (UnimplementedRunnerServiceServer) GetOrchestrationProcess(context.Context,
 }
 func (UnimplementedRunnerServiceServer) ExplainOrchestrationProcess(context.Context, *ExplainOrchestrationProcessRequest) (*OrchestrationProcessExplanation, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExplainOrchestrationProcess not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListTurnCheckpoints(context.Context, *TurnCheckpointsRequest) (*TurnCheckpoints, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTurnCheckpoints not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListTurnChanges(context.Context, *TurnChangesRequest) (*TurnChanges, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTurnChanges not implemented")
+}
+func (UnimplementedRunnerServiceServer) ReadTurnDiff(context.Context, *TurnDiffRequest) (*WorkspaceDiff, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadTurnDiff not implemented")
+}
+func (UnimplementedRunnerServiceServer) PreviewRevertCode(context.Context, *RevertCodeRequest) (*RevertCodePreview, error) {
+	return nil, status.Error(codes.Unimplemented, "method PreviewRevertCode not implemented")
+}
+func (UnimplementedRunnerServiceServer) RevertCode(context.Context, *RevertCodeRequest) (*CodeRevert, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevertCode not implemented")
+}
+func (UnimplementedRunnerServiceServer) UndoRevertCode(context.Context, *UndoRevertCodeRequest) (*CodeRevert, error) {
+	return nil, status.Error(codes.Unimplemented, "method UndoRevertCode not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -3309,6 +3423,114 @@ func _RunnerService_ExplainOrchestrationProcess_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListTurnCheckpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TurnCheckpointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListTurnCheckpoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListTurnCheckpoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListTurnCheckpoints(ctx, req.(*TurnCheckpointsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListTurnChanges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TurnChangesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListTurnChanges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListTurnChanges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListTurnChanges(ctx, req.(*TurnChangesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ReadTurnDiff_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TurnDiffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ReadTurnDiff(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ReadTurnDiff_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ReadTurnDiff(ctx, req.(*TurnDiffRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_PreviewRevertCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevertCodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).PreviewRevertCode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_PreviewRevertCode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).PreviewRevertCode(ctx, req.(*RevertCodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RevertCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevertCodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RevertCode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RevertCode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RevertCode(ctx, req.(*RevertCodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_UndoRevertCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UndoRevertCodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).UndoRevertCode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_UndoRevertCode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).UndoRevertCode(ctx, req.(*UndoRevertCodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3671,6 +3893,30 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExplainOrchestrationProcess",
 			Handler:    _RunnerService_ExplainOrchestrationProcess_Handler,
+		},
+		{
+			MethodName: "ListTurnCheckpoints",
+			Handler:    _RunnerService_ListTurnCheckpoints_Handler,
+		},
+		{
+			MethodName: "ListTurnChanges",
+			Handler:    _RunnerService_ListTurnChanges_Handler,
+		},
+		{
+			MethodName: "ReadTurnDiff",
+			Handler:    _RunnerService_ReadTurnDiff_Handler,
+		},
+		{
+			MethodName: "PreviewRevertCode",
+			Handler:    _RunnerService_PreviewRevertCode_Handler,
+		},
+		{
+			MethodName: "RevertCode",
+			Handler:    _RunnerService_RevertCode_Handler,
+		},
+		{
+			MethodName: "UndoRevertCode",
+			Handler:    _RunnerService_UndoRevertCode_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

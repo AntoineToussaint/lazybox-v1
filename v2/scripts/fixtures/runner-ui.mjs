@@ -96,6 +96,15 @@ export async function startRunnerFixture() {
   const reviewReply=(collectionId,addedId='')=>{const r=reviewOf(collectionId);return {autoResolve:r.autoResolve,addedId,comments:r.comments.map(c=>({...c,...anchorOf(collectionId,c)}))};};
   const pullRequest=state=>state.pr?{...state.pr,githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:true}:{githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:false,...(state.githubRepository?{}:{unavailable:'origin is not a GitHub repository; push works, pull requests need GitHub'})};
 
+  // Per-turn code checkpoints by session: what each turn changed, what a revert
+  // would change, and the reverts made. Explicitly fake: no Git behind them.
+  // setCheckpoints(sessionId, {turns:[{turn,operationId,prompt,files:[{member,path,status,additions,deletions}]}]}).
+  const checkpoints=new Map();
+  const checkpointState=sessionId=>{if(!checkpoints.has(sessionId))checkpoints.set(sessionId,{turns:[],reverts:[],notePending:false});return checkpoints.get(sessionId);};
+  const setCheckpoints=(sessionId,{turns})=>{const state=checkpointState(sessionId);state.turns=turns.map((t,i)=>({ended:true,...t,turn:t.turn||i+1}));return state;};
+  const wireTurn=t=>{const members=[...new Set(t.files.map(f=>f.member).concat(t.members||['api']))];return {turn:t.turn,operationId:t.operationId,prompt:t.prompt||'',startedAtUnixMillis:String(Date.now()-60000),endedAtUnixMillis:t.ended?String(Date.now()-30000):'0',files:t.files.length,additions:t.files.reduce((n,f)=>n+(f.additions||0),0),deletions:t.files.reduce((n,f)=>n+(f.deletions||0),0),before:members.map(member=>({member,commit:'c'.repeat(40),branch:'lazybox/'+member,skipped:[],skippedCount:t.skipped?.[member]||0,error:''}))};};
+  const turnRepositories=files=>{const byMember=new Map();for(const f of files){if(!byMember.has(f.member))byMember.set(f.member,[]);byMember.get(f.member).push({path:f.path,originalPath:f.originalPath||'',status:f.status,additions:f.additions||0,deletions:f.deletions||0,binary:!!f.binary});}return [...byMember].map(([member,files])=>({member,files}));};
+  const flip={A:'D',D:'A',M:'M',R:'R'};
   let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:'',rotationExcludedProfileIds:[]};
   // The fake Runner process. RestartRunner answers, then the "process" is down
   // for restartMs (every RPC fails as unavailable) before a new instance serves.
@@ -347,6 +356,27 @@ export async function startRunnerFixture() {
         if(body.expectedHead!==s.pr.headSha)return error('failed_precondition','GitHub: Head branch was modified. Review and try the merge again.');
         Object.assign(s.pr,{state:'merged',mergeCommit:hex(),mergeMethod:body.method});return json(pullRequest(s));
       }
+      case 'ListTurnCheckpoints': {const state=checkpointState(body.sessionId);return json({turns:state.turns.map(wireTurn),reverts:state.reverts,notePending:state.notePending});}
+      case 'ListTurnChanges': {const t=checkpointState(body.sessionId).turns.find(t=>t.turn===body.turn);if(!t)return error('not_found','no checkpoint for that turn');return json({repositories:turnRepositories(t.files),inProgress:!t.ended});}
+      case 'ReadTurnDiff': return json({text:`@@ turn ${body.turn} @@\n+${body.member}/${body.path}`});
+      case 'PreviewRevertCode': {
+        const state=checkpointState(body.sessionId);const index=state.turns.findIndex(t=>t.turn===body.turn);if(index<0)return error('not_found','no checkpoint for that turn');
+        // Reverting to before a turn undoes it and every later turn.
+        const files=state.reverted?.turn<=body.turn?[]:state.turns.slice(index).flatMap(t=>t.files).map(f=>({...f,status:flip[f.status]||f.status}));
+        const session=sessions.find(s=>s.id===body.sessionId);const busy=sessions.find(s=>s.collectionId===session?.collectionId&&s.busy&&!s.closed);
+        return json({repositories:turnRepositories(files).map(r=>({...r,commitsSince:state.commitsSince?.[r.member]||0,branchThen:'lazybox/'+r.member,branchNow:'lazybox/'+r.member})),blocked:busy?`an agent is working in this workspace; wait for its turn to end, or interrupt it, before reverting files (busy: “${busy.title||busy.id}”)`:''});
+      }
+      case 'RevertCode': {
+        mutations.push({method,body});const state=checkpointState(body.sessionId);const index=state.turns.findIndex(t=>t.turn===body.turn);if(index<0)return error('not_found','no checkpoint for that turn');
+        if(sessions.some(s=>s.collectionId===sessions.find(x=>x.id===body.sessionId)?.collectionId&&s.busy&&!s.closed))return error('failed_precondition','an agent is working in this workspace');
+        const files=state.turns.slice(index).flatMap(t=>t.files).length;const revert={id:'r'+(state.reverts.length+1),kind:'revert',turn:body.turn,files,atUnixMillis:String(Date.now()),problems:[]};
+        state.reverts.push(revert);state.reverted=revert;state.notePending=true;eventStreams.get(body.sessionId)?.push({type:'code_reverted',text:`Files reverted to before turn ${body.turn}.`,status:'revert',requestId:revert.id});return json(revert);
+      }
+      case 'UndoRevertCode': {
+        mutations.push({method,body});const state=checkpointState(body.sessionId);const last=state.reverts.at(-1);if(!last||last.id!==body.revertId)return error('failed_precondition','only the latest revert can be undone');if(last.undoneBy)return error('failed_precondition','that revert was already undone');
+        const undo={id:'r'+(state.reverts.length+1),kind:'undo',turn:last.turn,undoOf:last.id,files:last.files,atUnixMillis:String(Date.now()),problems:[]};last.undoneBy=undo.id;state.reverts.push(undo);state.reverted=undefined;state.notePending=true;
+        eventStreams.get(body.sessionId)?.push({type:'code_reverted',text:`Revert to before turn ${last.turn} undone; files are back as they were.`,status:'undo',requestId:undo.id});return json(undo);
+      }
       case 'ListProcesses': return json(processInventory());
       case 'StopProcess': {
         mutations.push({ method, body });
@@ -428,7 +458,7 @@ export async function startRunnerFixture() {
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

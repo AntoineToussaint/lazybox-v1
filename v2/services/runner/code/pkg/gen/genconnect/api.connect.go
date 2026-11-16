@@ -309,6 +309,24 @@ const (
 	// RunnerServiceExplainOrchestrationProcessProcedure is the fully-qualified name of the
 	// RunnerService's ExplainOrchestrationProcess RPC.
 	RunnerServiceExplainOrchestrationProcessProcedure = "/lazybox.bench.v1.RunnerService/ExplainOrchestrationProcess"
+	// RunnerServiceListTurnCheckpointsProcedure is the fully-qualified name of the RunnerService's
+	// ListTurnCheckpoints RPC.
+	RunnerServiceListTurnCheckpointsProcedure = "/lazybox.bench.v1.RunnerService/ListTurnCheckpoints"
+	// RunnerServiceListTurnChangesProcedure is the fully-qualified name of the RunnerService's
+	// ListTurnChanges RPC.
+	RunnerServiceListTurnChangesProcedure = "/lazybox.bench.v1.RunnerService/ListTurnChanges"
+	// RunnerServiceReadTurnDiffProcedure is the fully-qualified name of the RunnerService's
+	// ReadTurnDiff RPC.
+	RunnerServiceReadTurnDiffProcedure = "/lazybox.bench.v1.RunnerService/ReadTurnDiff"
+	// RunnerServicePreviewRevertCodeProcedure is the fully-qualified name of the RunnerService's
+	// PreviewRevertCode RPC.
+	RunnerServicePreviewRevertCodeProcedure = "/lazybox.bench.v1.RunnerService/PreviewRevertCode"
+	// RunnerServiceRevertCodeProcedure is the fully-qualified name of the RunnerService's RevertCode
+	// RPC.
+	RunnerServiceRevertCodeProcedure = "/lazybox.bench.v1.RunnerService/RevertCode"
+	// RunnerServiceUndoRevertCodeProcedure is the fully-qualified name of the RunnerService's
+	// UndoRevertCode RPC.
+	RunnerServiceUndoRevertCodeProcedure = "/lazybox.bench.v1.RunnerService/UndoRevertCode"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -440,6 +458,21 @@ type RunnerServiceClient interface {
 	GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error)
 	// Owner only. What that process does on one event type, in firing order.
 	ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error)
+	// Owner only. Per-turn code checkpoints: the workspace's files saved to a
+	// private ref before each agent turn and after it, uncommitted and untracked
+	// files included. Lists a conversation's turns and reverts.
+	ListTurnCheckpoints(context.Context, *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error)
+	// Owner only. What one turn changed (checkpoint before → after), per repository.
+	ListTurnChanges(context.Context, *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error)
+	ReadTurnDiff(context.Context, *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
+	// Owner only. What reverting to before a turn would change, without changing it.
+	PreviewRevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error)
+	// Owner only. Restores the workspace's files to before a turn, after saving
+	// the current ones so the revert can be undone. Never moves a branch.
+	// Refused while an agent in the workspace is in a turn.
+	RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// Owner only. Undoes the latest revert (an undo can itself be undone).
+	UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1011,6 +1044,42 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ExplainOrchestrationProcess")),
 			connect.WithClientOptions(opts...),
 		),
+		listTurnCheckpoints: connect.NewClient[gen.TurnCheckpointsRequest, gen.TurnCheckpoints](
+			httpClient,
+			baseURL+RunnerServiceListTurnCheckpointsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListTurnCheckpoints")),
+			connect.WithClientOptions(opts...),
+		),
+		listTurnChanges: connect.NewClient[gen.TurnChangesRequest, gen.TurnChanges](
+			httpClient,
+			baseURL+RunnerServiceListTurnChangesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListTurnChanges")),
+			connect.WithClientOptions(opts...),
+		),
+		readTurnDiff: connect.NewClient[gen.TurnDiffRequest, gen.WorkspaceDiff](
+			httpClient,
+			baseURL+RunnerServiceReadTurnDiffProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReadTurnDiff")),
+			connect.WithClientOptions(opts...),
+		),
+		previewRevertCode: connect.NewClient[gen.RevertCodeRequest, gen.RevertCodePreview](
+			httpClient,
+			baseURL+RunnerServicePreviewRevertCodeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PreviewRevertCode")),
+			connect.WithClientOptions(opts...),
+		),
+		revertCode: connect.NewClient[gen.RevertCodeRequest, gen.CodeRevert](
+			httpClient,
+			baseURL+RunnerServiceRevertCodeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RevertCode")),
+			connect.WithClientOptions(opts...),
+		),
+		undoRevertCode: connect.NewClient[gen.UndoRevertCodeRequest, gen.CodeRevert](
+			httpClient,
+			baseURL+RunnerServiceUndoRevertCodeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UndoRevertCode")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1109,6 +1178,12 @@ type runnerServiceClient struct {
 	cleanUpOrphanProcesses       *connect.Client[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse]
 	getOrchestrationProcess      *connect.Client[gen.OrchestrationProcessRequest, gen.OrchestrationProcess]
 	explainOrchestrationProcess  *connect.Client[gen.ExplainOrchestrationProcessRequest, gen.OrchestrationProcessExplanation]
+	listTurnCheckpoints          *connect.Client[gen.TurnCheckpointsRequest, gen.TurnCheckpoints]
+	listTurnChanges              *connect.Client[gen.TurnChangesRequest, gen.TurnChanges]
+	readTurnDiff                 *connect.Client[gen.TurnDiffRequest, gen.WorkspaceDiff]
+	previewRevertCode            *connect.Client[gen.RevertCodeRequest, gen.RevertCodePreview]
+	revertCode                   *connect.Client[gen.RevertCodeRequest, gen.CodeRevert]
+	undoRevertCode               *connect.Client[gen.UndoRevertCodeRequest, gen.CodeRevert]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1576,6 +1651,36 @@ func (c *runnerServiceClient) ExplainOrchestrationProcess(ctx context.Context, r
 	return c.explainOrchestrationProcess.CallUnary(ctx, req)
 }
 
+// ListTurnCheckpoints calls lazybox.bench.v1.RunnerService.ListTurnCheckpoints.
+func (c *runnerServiceClient) ListTurnCheckpoints(ctx context.Context, req *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error) {
+	return c.listTurnCheckpoints.CallUnary(ctx, req)
+}
+
+// ListTurnChanges calls lazybox.bench.v1.RunnerService.ListTurnChanges.
+func (c *runnerServiceClient) ListTurnChanges(ctx context.Context, req *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error) {
+	return c.listTurnChanges.CallUnary(ctx, req)
+}
+
+// ReadTurnDiff calls lazybox.bench.v1.RunnerService.ReadTurnDiff.
+func (c *runnerServiceClient) ReadTurnDiff(ctx context.Context, req *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error) {
+	return c.readTurnDiff.CallUnary(ctx, req)
+}
+
+// PreviewRevertCode calls lazybox.bench.v1.RunnerService.PreviewRevertCode.
+func (c *runnerServiceClient) PreviewRevertCode(ctx context.Context, req *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error) {
+	return c.previewRevertCode.CallUnary(ctx, req)
+}
+
+// RevertCode calls lazybox.bench.v1.RunnerService.RevertCode.
+func (c *runnerServiceClient) RevertCode(ctx context.Context, req *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return c.revertCode.CallUnary(ctx, req)
+}
+
+// UndoRevertCode calls lazybox.bench.v1.RunnerService.UndoRevertCode.
+func (c *runnerServiceClient) UndoRevertCode(ctx context.Context, req *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return c.undoRevertCode.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -1705,6 +1810,21 @@ type RunnerServiceHandler interface {
 	GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error)
 	// Owner only. What that process does on one event type, in firing order.
 	ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error)
+	// Owner only. Per-turn code checkpoints: the workspace's files saved to a
+	// private ref before each agent turn and after it, uncommitted and untracked
+	// files included. Lists a conversation's turns and reverts.
+	ListTurnCheckpoints(context.Context, *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error)
+	// Owner only. What one turn changed (checkpoint before → after), per repository.
+	ListTurnChanges(context.Context, *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error)
+	ReadTurnDiff(context.Context, *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
+	// Owner only. What reverting to before a turn would change, without changing it.
+	PreviewRevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error)
+	// Owner only. Restores the workspace's files to before a turn, after saving
+	// the current ones so the revert can be undone. Never moves a branch.
+	// Refused while an agent in the workspace is in a turn.
+	RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// Owner only. Undoes the latest revert (an undo can itself be undone).
+	UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2272,6 +2392,42 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ExplainOrchestrationProcess")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListTurnCheckpointsHandler := connect.NewUnaryHandler(
+		RunnerServiceListTurnCheckpointsProcedure,
+		svc.ListTurnCheckpoints,
+		connect.WithSchema(runnerServiceMethods.ByName("ListTurnCheckpoints")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListTurnChangesHandler := connect.NewUnaryHandler(
+		RunnerServiceListTurnChangesProcedure,
+		svc.ListTurnChanges,
+		connect.WithSchema(runnerServiceMethods.ByName("ListTurnChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReadTurnDiffHandler := connect.NewUnaryHandler(
+		RunnerServiceReadTurnDiffProcedure,
+		svc.ReadTurnDiff,
+		connect.WithSchema(runnerServiceMethods.ByName("ReadTurnDiff")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePreviewRevertCodeHandler := connect.NewUnaryHandler(
+		RunnerServicePreviewRevertCodeProcedure,
+		svc.PreviewRevertCode,
+		connect.WithSchema(runnerServiceMethods.ByName("PreviewRevertCode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRevertCodeHandler := connect.NewUnaryHandler(
+		RunnerServiceRevertCodeProcedure,
+		svc.RevertCode,
+		connect.WithSchema(runnerServiceMethods.ByName("RevertCode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUndoRevertCodeHandler := connect.NewUnaryHandler(
+		RunnerServiceUndoRevertCodeProcedure,
+		svc.UndoRevertCode,
+		connect.WithSchema(runnerServiceMethods.ByName("UndoRevertCode")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -2460,6 +2616,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetOrchestrationProcessHandler.ServeHTTP(w, r)
 		case RunnerServiceExplainOrchestrationProcessProcedure:
 			runnerServiceExplainOrchestrationProcessHandler.ServeHTTP(w, r)
+		case RunnerServiceListTurnCheckpointsProcedure:
+			runnerServiceListTurnCheckpointsHandler.ServeHTTP(w, r)
+		case RunnerServiceListTurnChangesProcedure:
+			runnerServiceListTurnChangesHandler.ServeHTTP(w, r)
+		case RunnerServiceReadTurnDiffProcedure:
+			runnerServiceReadTurnDiffHandler.ServeHTTP(w, r)
+		case RunnerServicePreviewRevertCodeProcedure:
+			runnerServicePreviewRevertCodeHandler.ServeHTTP(w, r)
+		case RunnerServiceRevertCodeProcedure:
+			runnerServiceRevertCodeHandler.ServeHTTP(w, r)
+		case RunnerServiceUndoRevertCodeProcedure:
+			runnerServiceUndoRevertCodeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2839,4 +3007,28 @@ func (UnimplementedRunnerServiceHandler) GetOrchestrationProcess(context.Context
 
 func (UnimplementedRunnerServiceHandler) ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListTurnCheckpoints(context.Context, *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListTurnCheckpoints is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListTurnChanges(context.Context, *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListTurnChanges is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReadTurnDiff(context.Context, *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReadTurnDiff is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PreviewRevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PreviewRevertCode is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RevertCode is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UndoRevertCode is not implemented"))
 }

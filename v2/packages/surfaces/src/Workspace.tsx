@@ -32,6 +32,7 @@ import { WorkspacePanel, type PanelActions, type SharedModuleProps } from './Wor
 import { usePanelDocking } from './usePanelDocking';
 import { usePanelHosts } from './usePanelHosts';
 import { useWorkspaceCatalog } from './useWorkspaceCatalog';
+import { useTurnChangesHost } from './turn-checkpoints';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -167,6 +168,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const review: WorkspacePage = { id, name: 'Changes', selection: { ...page.selection, collectionId: workspaceID }, layout: { type: 'panel', panel: { id: crypto.randomUUID(), kind: 'changes', binding: { mode: 'follow' }, detached: false } } };
     if (commit({ ...current.current, selectedPage: id, pages: [...current.current.pages, review] })) setSettings(false);
   };
+  // "Show changes in this turn" in a conversation of this workspace opens its Changes page.
+  useTurnChangesHost(workspaceID, showChanges);
   // The edge a person last docked each kind of panel at is a personal preference,
   // shared by every workspace and window: a terminal they moved left opens left.
   const dockKey = (kind: string) => `${viewState?.root || viewState?.key}:dock:${kind}`;

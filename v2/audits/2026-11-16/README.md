@@ -74,7 +74,7 @@ docs, Cursor/Copilot/Devin changelogs, herdr.dev).
 | PR creation / checks / CI autofix | ✗ | ✓ | ✗ | ✓ | ◐ | ✓ | ✓ | ✓ |
 | Setup / run scripts, ports | ✗ | ✓ | ✗ | ◐ | ✓ | ✓ | ◐ | ✓ |
 | Run / preview the app | ✗ | ✓ | ◐ | ? | ✓ | ✓ | ✓ | ✓ |
-| Per-turn checkpoints / revert | ✗ | ✓ | ✗ | ✓ | ? | ✓ | ? | ? |
+| Per-turn checkpoints / revert | ✓ | ✓ | ✗ | ✓ | ? | ✓ | ? | ? |
 | Agent → agent delegation, lineage | ✗ | ◐ | ✓ | ✓ | ✓ | ◐ | ◐ | ✓ |
 | Shared memory across sessions | ✗ | ◐ | ✗ | ✓ | ? | ? | ? | ✓ |
 | **Cost metering + account rotation** | **✓** | ◐ | ✗ | ◐ | ◐ | ◐ | ◐ | ✓ |
@@ -144,6 +144,12 @@ names what to reuse from V1 and which tool sets the bar.
    unsolved everywhere — offer a hook, not a promise.
 6. **Per-turn checkpoints.** A private git ref before each agent turn, revert
    to any turn. The bar: Conductor, Cursor.
+   *Landed:* checkpoints before and after every turn across all workspace
+   repositories (uncommitted and untracked included, index/HEAD untouched),
+   each turn's diff in Changes, revert with a preview and an undo that keeps
+   the conversation and tells the agent
+   ([per-turn checkpoints](../../WORKSPACES.md#per-turn-checkpoints-and-revert)).
+   *Still open:* forking the provider conversation at a turn.
 
 ### Then: what only Lazybox does
 

@@ -220,6 +220,7 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 		return err
 	}
 	e.Engine = eng
+	b.watchTurns(e)
 	b.mu.Lock()
 	b.items[r.ID] = e
 	b.mu.Unlock()

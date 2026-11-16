@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
 import type { Session } from '@lazybox/protocol';
 import type { OpenModifiers } from './file-links';
@@ -37,6 +37,9 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   subscription?: ReactNode;
 }) {
   const conversation = transcript.messages;
+  // Coding turns are checkpointed: each gets a marker to show or revert its changes.
+  const coding = !!session && (!session.purpose || session.purpose === 'coding');
+  const checkpoints = useMemo(() => coding ? { sessionId: sessionID, workspaceId: session!.collectionId, busy: !!session!.busy } : undefined, [coding, sessionID, session?.collectionId, session?.busy]);
   return <>
     <div className="messages-frame">
       <PromptNavigator messages={conversation} paneRef={scroll.paneRef} onReveal={scroll.revealMessage}/>
@@ -44,7 +47,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
         <div className="messages-content" ref={scroll.contentRef}>
           {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
           {!transcript.loading && !transcript.error && !spoken && <EmptyConversation agentName={agentName}/>}
-          <MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor}/>
+          <MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints}/>
           {session?.fault && !limited && <div className="error" role="alert">{faultSentence(session.fault)}</div>}
           <PendingRequests api={api} session={session} sessionID={sessionID} onError={onError}/>
           {subscription}

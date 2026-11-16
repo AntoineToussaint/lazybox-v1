@@ -13125,6 +13125,1002 @@ func (x *SetReviewAutoResolveRequest) GetEnabled() bool {
 	return false
 }
 
+type TurnCheckpointsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnCheckpointsRequest) Reset() {
+	*x = TurnCheckpointsRequest{}
+	mi := &file_api_proto_msgTypes[185]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnCheckpointsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnCheckpointsRequest) ProtoMessage() {}
+
+func (x *TurnCheckpointsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[185]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnCheckpointsRequest.ProtoReflect.Descriptor instead.
+func (*TurnCheckpointsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{185}
+}
+
+func (x *TurnCheckpointsRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+// One repository's checkpoint at a point of the conversation.
+type RepositoryCheckpoint struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Member string                 `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	Commit string                 `protobuf:"bytes,2,opt,name=commit,proto3" json:"commit,omitempty"`
+	Branch string                 `protobuf:"bytes,3,opt,name=branch,proto3" json:"branch,omitempty"`
+	// Untracked files left out (too large, too many, nested repositories).
+	Skipped      []string `protobuf:"bytes,4,rep,name=skipped,proto3" json:"skipped,omitempty"`
+	SkippedCount uint32   `protobuf:"varint,5,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	// Why this repository could not be checkpointed; empty when it was.
+	Error         string `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RepositoryCheckpoint) Reset() {
+	*x = RepositoryCheckpoint{}
+	mi := &file_api_proto_msgTypes[186]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RepositoryCheckpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RepositoryCheckpoint) ProtoMessage() {}
+
+func (x *RepositoryCheckpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[186]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RepositoryCheckpoint.ProtoReflect.Descriptor instead.
+func (*RepositoryCheckpoint) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{186}
+}
+
+func (x *RepositoryCheckpoint) GetMember() string {
+	if x != nil {
+		return x.Member
+	}
+	return ""
+}
+
+func (x *RepositoryCheckpoint) GetCommit() string {
+	if x != nil {
+		return x.Commit
+	}
+	return ""
+}
+
+func (x *RepositoryCheckpoint) GetBranch() string {
+	if x != nil {
+		return x.Branch
+	}
+	return ""
+}
+
+func (x *RepositoryCheckpoint) GetSkipped() []string {
+	if x != nil {
+		return x.Skipped
+	}
+	return nil
+}
+
+func (x *RepositoryCheckpoint) GetSkippedCount() uint32 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *RepositoryCheckpoint) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type TurnCheckpoint struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 1-based, numbered across the whole conversation, resumes included.
+	Turn uint32 `protobuf:"varint,1,opt,name=turn,proto3" json:"turn,omitempty"`
+	// The message that started the turn.
+	OperationId         string `protobuf:"bytes,2,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Prompt              string `protobuf:"bytes,3,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	StartedAtUnixMillis int64  `protobuf:"varint,4,opt,name=started_at_unix_millis,json=startedAtUnixMillis,proto3" json:"started_at_unix_millis,omitempty"`
+	// 0 while the turn is running.
+	EndedAtUnixMillis int64 `protobuf:"varint,5,opt,name=ended_at_unix_millis,json=endedAtUnixMillis,proto3" json:"ended_at_unix_millis,omitempty"`
+	// What the turn changed, before → after, across repositories.
+	Files         uint32                  `protobuf:"varint,6,opt,name=files,proto3" json:"files,omitempty"`
+	Additions     uint32                  `protobuf:"varint,7,opt,name=additions,proto3" json:"additions,omitempty"`
+	Deletions     uint32                  `protobuf:"varint,8,opt,name=deletions,proto3" json:"deletions,omitempty"`
+	Before        []*RepositoryCheckpoint `protobuf:"bytes,9,rep,name=before,proto3" json:"before,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnCheckpoint) Reset() {
+	*x = TurnCheckpoint{}
+	mi := &file_api_proto_msgTypes[187]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnCheckpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnCheckpoint) ProtoMessage() {}
+
+func (x *TurnCheckpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[187]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnCheckpoint.ProtoReflect.Descriptor instead.
+func (*TurnCheckpoint) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{187}
+}
+
+func (x *TurnCheckpoint) GetTurn() uint32 {
+	if x != nil {
+		return x.Turn
+	}
+	return 0
+}
+
+func (x *TurnCheckpoint) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *TurnCheckpoint) GetPrompt() string {
+	if x != nil {
+		return x.Prompt
+	}
+	return ""
+}
+
+func (x *TurnCheckpoint) GetStartedAtUnixMillis() int64 {
+	if x != nil {
+		return x.StartedAtUnixMillis
+	}
+	return 0
+}
+
+func (x *TurnCheckpoint) GetEndedAtUnixMillis() int64 {
+	if x != nil {
+		return x.EndedAtUnixMillis
+	}
+	return 0
+}
+
+func (x *TurnCheckpoint) GetFiles() uint32 {
+	if x != nil {
+		return x.Files
+	}
+	return 0
+}
+
+func (x *TurnCheckpoint) GetAdditions() uint32 {
+	if x != nil {
+		return x.Additions
+	}
+	return 0
+}
+
+func (x *TurnCheckpoint) GetDeletions() uint32 {
+	if x != nil {
+		return x.Deletions
+	}
+	return 0
+}
+
+func (x *TurnCheckpoint) GetBefore() []*RepositoryCheckpoint {
+	if x != nil {
+		return x.Before
+	}
+	return nil
+}
+
+type CodeRevert struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// revert, or undo (of the revert named by undo_of).
+	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	// The turn whose start the files were reverted to.
+	Turn   uint32 `protobuf:"varint,3,opt,name=turn,proto3" json:"turn,omitempty"`
+	UndoOf string `protobuf:"bytes,4,opt,name=undo_of,json=undoOf,proto3" json:"undo_of,omitempty"`
+	// The undo that undid this revert; empty while it can still be undone.
+	UndoneBy     string `protobuf:"bytes,5,opt,name=undone_by,json=undoneBy,proto3" json:"undone_by,omitempty"`
+	AtUnixMillis int64  `protobuf:"varint,6,opt,name=at_unix_millis,json=atUnixMillis,proto3" json:"at_unix_millis,omitempty"`
+	// Files written or deleted.
+	Files uint32 `protobuf:"varint,7,opt,name=files,proto3" json:"files,omitempty"`
+	// Files or repositories that could not be restored, said plainly.
+	Problems      []string `protobuf:"bytes,8,rep,name=problems,proto3" json:"problems,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CodeRevert) Reset() {
+	*x = CodeRevert{}
+	mi := &file_api_proto_msgTypes[188]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CodeRevert) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CodeRevert) ProtoMessage() {}
+
+func (x *CodeRevert) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[188]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CodeRevert.ProtoReflect.Descriptor instead.
+func (*CodeRevert) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{188}
+}
+
+func (x *CodeRevert) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CodeRevert) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *CodeRevert) GetTurn() uint32 {
+	if x != nil {
+		return x.Turn
+	}
+	return 0
+}
+
+func (x *CodeRevert) GetUndoOf() string {
+	if x != nil {
+		return x.UndoOf
+	}
+	return ""
+}
+
+func (x *CodeRevert) GetUndoneBy() string {
+	if x != nil {
+		return x.UndoneBy
+	}
+	return ""
+}
+
+func (x *CodeRevert) GetAtUnixMillis() int64 {
+	if x != nil {
+		return x.AtUnixMillis
+	}
+	return 0
+}
+
+func (x *CodeRevert) GetFiles() uint32 {
+	if x != nil {
+		return x.Files
+	}
+	return 0
+}
+
+func (x *CodeRevert) GetProblems() []string {
+	if x != nil {
+		return x.Problems
+	}
+	return nil
+}
+
+type TurnCheckpoints struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Turns   []*TurnCheckpoint      `protobuf:"bytes,1,rep,name=turns,proto3" json:"turns,omitempty"`
+	Reverts []*CodeRevert          `protobuf:"bytes,2,rep,name=reverts,proto3" json:"reverts,omitempty"`
+	// A note for the agent waits for the next message.
+	NotePending   bool `protobuf:"varint,3,opt,name=note_pending,json=notePending,proto3" json:"note_pending,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnCheckpoints) Reset() {
+	*x = TurnCheckpoints{}
+	mi := &file_api_proto_msgTypes[189]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnCheckpoints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnCheckpoints) ProtoMessage() {}
+
+func (x *TurnCheckpoints) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[189]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnCheckpoints.ProtoReflect.Descriptor instead.
+func (*TurnCheckpoints) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{189}
+}
+
+func (x *TurnCheckpoints) GetTurns() []*TurnCheckpoint {
+	if x != nil {
+		return x.Turns
+	}
+	return nil
+}
+
+func (x *TurnCheckpoints) GetReverts() []*CodeRevert {
+	if x != nil {
+		return x.Reverts
+	}
+	return nil
+}
+
+func (x *TurnCheckpoints) GetNotePending() bool {
+	if x != nil {
+		return x.NotePending
+	}
+	return false
+}
+
+type TurnChangesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Turn          uint32                 `protobuf:"varint,2,opt,name=turn,proto3" json:"turn,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnChangesRequest) Reset() {
+	*x = TurnChangesRequest{}
+	mi := &file_api_proto_msgTypes[190]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnChangesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnChangesRequest) ProtoMessage() {}
+
+func (x *TurnChangesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[190]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnChangesRequest.ProtoReflect.Descriptor instead.
+func (*TurnChangesRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{190}
+}
+
+func (x *TurnChangesRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *TurnChangesRequest) GetTurn() uint32 {
+	if x != nil {
+		return x.Turn
+	}
+	return 0
+}
+
+type TurnFile struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Path         string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	OriginalPath string                 `protobuf:"bytes,2,opt,name=original_path,json=originalPath,proto3" json:"original_path,omitempty"`
+	// A added, M modified, D deleted, R renamed, T type changed.
+	Status        string `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	Additions     uint32 `protobuf:"varint,4,opt,name=additions,proto3" json:"additions,omitempty"`
+	Deletions     uint32 `protobuf:"varint,5,opt,name=deletions,proto3" json:"deletions,omitempty"`
+	Binary        bool   `protobuf:"varint,6,opt,name=binary,proto3" json:"binary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnFile) Reset() {
+	*x = TurnFile{}
+	mi := &file_api_proto_msgTypes[191]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnFile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnFile) ProtoMessage() {}
+
+func (x *TurnFile) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[191]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnFile.ProtoReflect.Descriptor instead.
+func (*TurnFile) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{191}
+}
+
+func (x *TurnFile) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *TurnFile) GetOriginalPath() string {
+	if x != nil {
+		return x.OriginalPath
+	}
+	return ""
+}
+
+func (x *TurnFile) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *TurnFile) GetAdditions() uint32 {
+	if x != nil {
+		return x.Additions
+	}
+	return 0
+}
+
+func (x *TurnFile) GetDeletions() uint32 {
+	if x != nil {
+		return x.Deletions
+	}
+	return 0
+}
+
+func (x *TurnFile) GetBinary() bool {
+	if x != nil {
+		return x.Binary
+	}
+	return false
+}
+
+type TurnRepositoryChanges struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Member        string                 `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	Files         []*TurnFile            `protobuf:"bytes,2,rep,name=files,proto3" json:"files,omitempty"`
+	Truncated     bool                   `protobuf:"varint,3,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnRepositoryChanges) Reset() {
+	*x = TurnRepositoryChanges{}
+	mi := &file_api_proto_msgTypes[192]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnRepositoryChanges) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnRepositoryChanges) ProtoMessage() {}
+
+func (x *TurnRepositoryChanges) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[192]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnRepositoryChanges.ProtoReflect.Descriptor instead.
+func (*TurnRepositoryChanges) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{192}
+}
+
+func (x *TurnRepositoryChanges) GetMember() string {
+	if x != nil {
+		return x.Member
+	}
+	return ""
+}
+
+func (x *TurnRepositoryChanges) GetFiles() []*TurnFile {
+	if x != nil {
+		return x.Files
+	}
+	return nil
+}
+
+func (x *TurnRepositoryChanges) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+func (x *TurnRepositoryChanges) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type TurnChanges struct {
+	state        protoimpl.MessageState   `protogen:"open.v1"`
+	Repositories []*TurnRepositoryChanges `protobuf:"bytes,1,rep,name=repositories,proto3" json:"repositories,omitempty"`
+	// The turn is still running: its changes so far, against the files now.
+	InProgress    bool `protobuf:"varint,2,opt,name=in_progress,json=inProgress,proto3" json:"in_progress,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnChanges) Reset() {
+	*x = TurnChanges{}
+	mi := &file_api_proto_msgTypes[193]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnChanges) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnChanges) ProtoMessage() {}
+
+func (x *TurnChanges) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[193]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnChanges.ProtoReflect.Descriptor instead.
+func (*TurnChanges) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{193}
+}
+
+func (x *TurnChanges) GetRepositories() []*TurnRepositoryChanges {
+	if x != nil {
+		return x.Repositories
+	}
+	return nil
+}
+
+func (x *TurnChanges) GetInProgress() bool {
+	if x != nil {
+		return x.InProgress
+	}
+	return false
+}
+
+type TurnDiffRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SessionId string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Turn      uint32                 `protobuf:"varint,2,opt,name=turn,proto3" json:"turn,omitempty"`
+	Member    string                 `protobuf:"bytes,3,opt,name=member,proto3" json:"member,omitempty"`
+	Path      string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	// A rename's source path.
+	OriginalPath  string `protobuf:"bytes,5,opt,name=original_path,json=originalPath,proto3" json:"original_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TurnDiffRequest) Reset() {
+	*x = TurnDiffRequest{}
+	mi := &file_api_proto_msgTypes[194]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TurnDiffRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TurnDiffRequest) ProtoMessage() {}
+
+func (x *TurnDiffRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[194]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TurnDiffRequest.ProtoReflect.Descriptor instead.
+func (*TurnDiffRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{194}
+}
+
+func (x *TurnDiffRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *TurnDiffRequest) GetTurn() uint32 {
+	if x != nil {
+		return x.Turn
+	}
+	return 0
+}
+
+func (x *TurnDiffRequest) GetMember() string {
+	if x != nil {
+		return x.Member
+	}
+	return ""
+}
+
+func (x *TurnDiffRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *TurnDiffRequest) GetOriginalPath() string {
+	if x != nil {
+		return x.OriginalPath
+	}
+	return ""
+}
+
+type RevertCodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Turn          uint32                 `protobuf:"varint,2,opt,name=turn,proto3" json:"turn,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevertCodeRequest) Reset() {
+	*x = RevertCodeRequest{}
+	mi := &file_api_proto_msgTypes[195]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevertCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevertCodeRequest) ProtoMessage() {}
+
+func (x *RevertCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[195]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevertCodeRequest.ProtoReflect.Descriptor instead.
+func (*RevertCodeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{195}
+}
+
+func (x *RevertCodeRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *RevertCodeRequest) GetTurn() uint32 {
+	if x != nil {
+		return x.Turn
+	}
+	return 0
+}
+
+type RevertRepositoryPreview struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Member string                 `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	// From the revert's side: A recreated, D deleted, M put back as it was.
+	Files     []*TurnFile `protobuf:"bytes,2,rep,name=files,proto3" json:"files,omitempty"`
+	Truncated bool        `protobuf:"varint,3,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	// Commits made since the checkpoint. They stay on the branch.
+	CommitsSince uint32 `protobuf:"varint,4,opt,name=commits_since,json=commitsSince,proto3" json:"commits_since,omitempty"`
+	BranchThen   string `protobuf:"bytes,5,opt,name=branch_then,json=branchThen,proto3" json:"branch_then,omitempty"`
+	BranchNow    string `protobuf:"bytes,6,opt,name=branch_now,json=branchNow,proto3" json:"branch_now,omitempty"`
+	// Why this repository will be left as it is.
+	Error         string `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevertRepositoryPreview) Reset() {
+	*x = RevertRepositoryPreview{}
+	mi := &file_api_proto_msgTypes[196]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevertRepositoryPreview) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevertRepositoryPreview) ProtoMessage() {}
+
+func (x *RevertRepositoryPreview) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[196]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevertRepositoryPreview.ProtoReflect.Descriptor instead.
+func (*RevertRepositoryPreview) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{196}
+}
+
+func (x *RevertRepositoryPreview) GetMember() string {
+	if x != nil {
+		return x.Member
+	}
+	return ""
+}
+
+func (x *RevertRepositoryPreview) GetFiles() []*TurnFile {
+	if x != nil {
+		return x.Files
+	}
+	return nil
+}
+
+func (x *RevertRepositoryPreview) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+func (x *RevertRepositoryPreview) GetCommitsSince() uint32 {
+	if x != nil {
+		return x.CommitsSince
+	}
+	return 0
+}
+
+func (x *RevertRepositoryPreview) GetBranchThen() string {
+	if x != nil {
+		return x.BranchThen
+	}
+	return ""
+}
+
+func (x *RevertRepositoryPreview) GetBranchNow() string {
+	if x != nil {
+		return x.BranchNow
+	}
+	return ""
+}
+
+func (x *RevertRepositoryPreview) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type RevertCodePreview struct {
+	state        protoimpl.MessageState     `protogen:"open.v1"`
+	Repositories []*RevertRepositoryPreview `protobuf:"bytes,1,rep,name=repositories,proto3" json:"repositories,omitempty"`
+	// Why the revert would be refused now (an agent is working); empty when it would not.
+	Blocked       string `protobuf:"bytes,2,opt,name=blocked,proto3" json:"blocked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevertCodePreview) Reset() {
+	*x = RevertCodePreview{}
+	mi := &file_api_proto_msgTypes[197]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevertCodePreview) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevertCodePreview) ProtoMessage() {}
+
+func (x *RevertCodePreview) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[197]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevertCodePreview.ProtoReflect.Descriptor instead.
+func (*RevertCodePreview) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{197}
+}
+
+func (x *RevertCodePreview) GetRepositories() []*RevertRepositoryPreview {
+	if x != nil {
+		return x.Repositories
+	}
+	return nil
+}
+
+func (x *RevertCodePreview) GetBlocked() string {
+	if x != nil {
+		return x.Blocked
+	}
+	return ""
+}
+
+type UndoRevertCodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RevertId      string                 `protobuf:"bytes,2,opt,name=revert_id,json=revertId,proto3" json:"revert_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UndoRevertCodeRequest) Reset() {
+	*x = UndoRevertCodeRequest{}
+	mi := &file_api_proto_msgTypes[198]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UndoRevertCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UndoRevertCodeRequest) ProtoMessage() {}
+
+func (x *UndoRevertCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[198]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UndoRevertCodeRequest.ProtoReflect.Descriptor instead.
+func (*UndoRevertCodeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{198}
+}
+
+func (x *UndoRevertCodeRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *UndoRevertCodeRequest) GetRevertId() string {
+	if x != nil {
+		return x.RevertId
+	}
+	return ""
+}
+
 var File_api_proto protoreflect.FileDescriptor
 
 const file_api_proto_rawDesc = "" +
@@ -14253,12 +15249,94 @@ const file_api_proto_rawDesc = "" +
 	"\rsession_title\x18\x05 \x01(\tR\fsessionTitle\"\\\n" +
 	"\x1bSetReviewAutoResolveRequest\x12#\n" +
 	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12\x18\n" +
-	"\aenabled\x18\x02 \x01(\bR\aenabled*d\n" +
+	"\aenabled\x18\x02 \x01(\bR\aenabled\"7\n" +
+	"\x16TurnCheckpointsRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\xb3\x01\n" +
+	"\x14RepositoryCheckpoint\x12\x16\n" +
+	"\x06member\x18\x01 \x01(\tR\x06member\x12\x16\n" +
+	"\x06commit\x18\x02 \x01(\tR\x06commit\x12\x16\n" +
+	"\x06branch\x18\x03 \x01(\tR\x06branch\x12\x18\n" +
+	"\askipped\x18\x04 \x03(\tR\askipped\x12#\n" +
+	"\rskipped_count\x18\x05 \x01(\rR\fskippedCount\x12\x14\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\"\xd7\x02\n" +
+	"\x0eTurnCheckpoint\x12\x12\n" +
+	"\x04turn\x18\x01 \x01(\rR\x04turn\x12!\n" +
+	"\foperation_id\x18\x02 \x01(\tR\voperationId\x12\x16\n" +
+	"\x06prompt\x18\x03 \x01(\tR\x06prompt\x123\n" +
+	"\x16started_at_unix_millis\x18\x04 \x01(\x03R\x13startedAtUnixMillis\x12/\n" +
+	"\x14ended_at_unix_millis\x18\x05 \x01(\x03R\x11endedAtUnixMillis\x12\x14\n" +
+	"\x05files\x18\x06 \x01(\rR\x05files\x12\x1c\n" +
+	"\tadditions\x18\a \x01(\rR\tadditions\x12\x1c\n" +
+	"\tdeletions\x18\b \x01(\rR\tdeletions\x12>\n" +
+	"\x06before\x18\t \x03(\v2&.lazybox.bench.v1.RepositoryCheckpointR\x06before\"\xd2\x01\n" +
+	"\n" +
+	"CodeRevert\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04turn\x18\x03 \x01(\rR\x04turn\x12\x17\n" +
+	"\aundo_of\x18\x04 \x01(\tR\x06undoOf\x12\x1b\n" +
+	"\tundone_by\x18\x05 \x01(\tR\bundoneBy\x12$\n" +
+	"\x0eat_unix_millis\x18\x06 \x01(\x03R\fatUnixMillis\x12\x14\n" +
+	"\x05files\x18\a \x01(\rR\x05files\x12\x1a\n" +
+	"\bproblems\x18\b \x03(\tR\bproblems\"\xa4\x01\n" +
+	"\x0fTurnCheckpoints\x126\n" +
+	"\x05turns\x18\x01 \x03(\v2 .lazybox.bench.v1.TurnCheckpointR\x05turns\x126\n" +
+	"\areverts\x18\x02 \x03(\v2\x1c.lazybox.bench.v1.CodeRevertR\areverts\x12!\n" +
+	"\fnote_pending\x18\x03 \x01(\bR\vnotePending\"G\n" +
+	"\x12TurnChangesRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
+	"\x04turn\x18\x02 \x01(\rR\x04turn\"\xaf\x01\n" +
+	"\bTurnFile\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12#\n" +
+	"\roriginal_path\x18\x02 \x01(\tR\foriginalPath\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12\x1c\n" +
+	"\tadditions\x18\x04 \x01(\rR\tadditions\x12\x1c\n" +
+	"\tdeletions\x18\x05 \x01(\rR\tdeletions\x12\x16\n" +
+	"\x06binary\x18\x06 \x01(\bR\x06binary\"\x95\x01\n" +
+	"\x15TurnRepositoryChanges\x12\x16\n" +
+	"\x06member\x18\x01 \x01(\tR\x06member\x120\n" +
+	"\x05files\x18\x02 \x03(\v2\x1a.lazybox.bench.v1.TurnFileR\x05files\x12\x1c\n" +
+	"\ttruncated\x18\x03 \x01(\bR\ttruncated\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"{\n" +
+	"\vTurnChanges\x12K\n" +
+	"\frepositories\x18\x01 \x03(\v2'.lazybox.bench.v1.TurnRepositoryChangesR\frepositories\x12\x1f\n" +
+	"\vin_progress\x18\x02 \x01(\bR\n" +
+	"inProgress\"\x95\x01\n" +
+	"\x0fTurnDiffRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
+	"\x04turn\x18\x02 \x01(\rR\x04turn\x12\x16\n" +
+	"\x06member\x18\x03 \x01(\tR\x06member\x12\x12\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path\x12#\n" +
+	"\roriginal_path\x18\x05 \x01(\tR\foriginalPath\"F\n" +
+	"\x11RevertCodeRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
+	"\x04turn\x18\x02 \x01(\rR\x04turn\"\xfc\x01\n" +
+	"\x17RevertRepositoryPreview\x12\x16\n" +
+	"\x06member\x18\x01 \x01(\tR\x06member\x120\n" +
+	"\x05files\x18\x02 \x03(\v2\x1a.lazybox.bench.v1.TurnFileR\x05files\x12\x1c\n" +
+	"\ttruncated\x18\x03 \x01(\bR\ttruncated\x12#\n" +
+	"\rcommits_since\x18\x04 \x01(\rR\fcommitsSince\x12\x1f\n" +
+	"\vbranch_then\x18\x05 \x01(\tR\n" +
+	"branchThen\x12\x1d\n" +
+	"\n" +
+	"branch_now\x18\x06 \x01(\tR\tbranchNow\x12\x14\n" +
+	"\x05error\x18\a \x01(\tR\x05error\"|\n" +
+	"\x11RevertCodePreview\x12M\n" +
+	"\frepositories\x18\x01 \x03(\v2).lazybox.bench.v1.RevertRepositoryPreviewR\frepositories\x12\x18\n" +
+	"\ablocked\x18\x02 \x01(\tR\ablocked\"S\n" +
+	"\x15UndoRevertCodeRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
+	"\trevert_id\x18\x02 \x01(\tR\brevertId*d\n" +
 	"\bDecision\x12\x18\n" +
 	"\x14DECISION_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fDECISION_ACCEPT\x10\x01\x12\x14\n" +
 	"\x10DECISION_DECLINE\x10\x02\x12\x13\n" +
-	"\x0fDECISION_CANCEL\x10\x032\xb4H\n" +
+	"\x0fDECISION_CANCEL\x10\x032\xcdL\n" +
 	"\rRunnerService\x12O\n" +
 	"\fListSnippets\x12\x1d.lazybox.bench.v1.InfoRequest\x1a .lazybox.bench.v1.SnippetCatalog\x12j\n" +
 	"\x14GetRepositoryCatalog\x12-.lazybox.bench.v1.GetRepositoryCatalogRequest\x1a#.lazybox.bench.v1.RepositoryCatalog\x12g\n" +
@@ -14354,7 +15432,14 @@ const file_api_proto_rawDesc = "" +
 	"\vStopProcess\x12$.lazybox.bench.v1.StopProcessRequest\x1a\".lazybox.bench.v1.ProcessInventory\x12{\n" +
 	"\x16CleanUpOrphanProcesses\x12/.lazybox.bench.v1.CleanUpOrphanProcessesRequest\x1a0.lazybox.bench.v1.CleanUpOrphanProcessesResponse\x12p\n" +
 	"\x17GetOrchestrationProcess\x12-.lazybox.bench.v1.OrchestrationProcessRequest\x1a&.lazybox.bench.v1.OrchestrationProcess\x12\x86\x01\n" +
-	"\x1bExplainOrchestrationProcess\x124.lazybox.bench.v1.ExplainOrchestrationProcessRequest\x1a1.lazybox.bench.v1.OrchestrationProcessExplanationB4Z2github.com/AntoineToussaint/lazybox/v2/pkg/gen;genb\x06proto3"
+	"\x1bExplainOrchestrationProcess\x124.lazybox.bench.v1.ExplainOrchestrationProcessRequest\x1a1.lazybox.bench.v1.OrchestrationProcessExplanation\x12b\n" +
+	"\x13ListTurnCheckpoints\x12(.lazybox.bench.v1.TurnCheckpointsRequest\x1a!.lazybox.bench.v1.TurnCheckpoints\x12V\n" +
+	"\x0fListTurnChanges\x12$.lazybox.bench.v1.TurnChangesRequest\x1a\x1d.lazybox.bench.v1.TurnChanges\x12R\n" +
+	"\fReadTurnDiff\x12!.lazybox.bench.v1.TurnDiffRequest\x1a\x1f.lazybox.bench.v1.WorkspaceDiff\x12]\n" +
+	"\x11PreviewRevertCode\x12#.lazybox.bench.v1.RevertCodeRequest\x1a#.lazybox.bench.v1.RevertCodePreview\x12O\n" +
+	"\n" +
+	"RevertCode\x12#.lazybox.bench.v1.RevertCodeRequest\x1a\x1c.lazybox.bench.v1.CodeRevert\x12W\n" +
+	"\x0eUndoRevertCode\x12'.lazybox.bench.v1.UndoRevertCodeRequest\x1a\x1c.lazybox.bench.v1.CodeRevertB4Z2github.com/AntoineToussaint/lazybox/v2/pkg/gen;genb\x06proto3"
 
 var (
 	file_api_proto_rawDescOnce sync.Once
@@ -14369,7 +15454,7 @@ func file_api_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 186)
+var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 200)
 var file_api_proto_goTypes = []any{
 	(Decision)(0),                              // 0: lazybox.bench.v1.Decision
 	(*InfoRequest)(nil),                        // 1: lazybox.bench.v1.InfoRequest
@@ -14557,7 +15642,21 @@ var file_api_proto_goTypes = []any{
 	(*DeleteReviewCommentRequest)(nil),         // 183: lazybox.bench.v1.DeleteReviewCommentRequest
 	(*SetReviewDispositionRequest)(nil),        // 184: lazybox.bench.v1.SetReviewDispositionRequest
 	(*SetReviewAutoResolveRequest)(nil),        // 185: lazybox.bench.v1.SetReviewAutoResolveRequest
-	nil,                                        // 186: lazybox.bench.v1.Answer.AnswersEntry
+	(*TurnCheckpointsRequest)(nil),             // 186: lazybox.bench.v1.TurnCheckpointsRequest
+	(*RepositoryCheckpoint)(nil),               // 187: lazybox.bench.v1.RepositoryCheckpoint
+	(*TurnCheckpoint)(nil),                     // 188: lazybox.bench.v1.TurnCheckpoint
+	(*CodeRevert)(nil),                         // 189: lazybox.bench.v1.CodeRevert
+	(*TurnCheckpoints)(nil),                    // 190: lazybox.bench.v1.TurnCheckpoints
+	(*TurnChangesRequest)(nil),                 // 191: lazybox.bench.v1.TurnChangesRequest
+	(*TurnFile)(nil),                           // 192: lazybox.bench.v1.TurnFile
+	(*TurnRepositoryChanges)(nil),              // 193: lazybox.bench.v1.TurnRepositoryChanges
+	(*TurnChanges)(nil),                        // 194: lazybox.bench.v1.TurnChanges
+	(*TurnDiffRequest)(nil),                    // 195: lazybox.bench.v1.TurnDiffRequest
+	(*RevertCodeRequest)(nil),                  // 196: lazybox.bench.v1.RevertCodeRequest
+	(*RevertRepositoryPreview)(nil),            // 197: lazybox.bench.v1.RevertRepositoryPreview
+	(*RevertCodePreview)(nil),                  // 198: lazybox.bench.v1.RevertCodePreview
+	(*UndoRevertCodeRequest)(nil),              // 199: lazybox.bench.v1.UndoRevertCodeRequest
+	nil,                                        // 200: lazybox.bench.v1.Answer.AnswersEntry
 }
 var file_api_proto_depIdxs = []int32{
 	2,   // 0: lazybox.bench.v1.RunnerSettings.prices:type_name -> lazybox.bench.v1.ModelPrice
@@ -14604,7 +15703,7 @@ var file_api_proto_depIdxs = []int32{
 	57,  // 41: lazybox.bench.v1.SessionResponse.session:type_name -> lazybox.bench.v1.Session
 	75,  // 42: lazybox.bench.v1.Message.images:type_name -> lazybox.bench.v1.Image
 	77,  // 43: lazybox.bench.v1.Message.attachments:type_name -> lazybox.bench.v1.FileAttachment
-	186, // 44: lazybox.bench.v1.Answer.answers:type_name -> lazybox.bench.v1.Answer.AnswersEntry
+	200, // 44: lazybox.bench.v1.Answer.answers:type_name -> lazybox.bench.v1.Answer.AnswersEntry
 	0,   // 45: lazybox.bench.v1.Approval.decision:type_name -> lazybox.bench.v1.Decision
 	76,  // 46: lazybox.bench.v1.ApplyRequest.message:type_name -> lazybox.bench.v1.Message
 	76,  // 47: lazybox.bench.v1.ApplyRequest.steer:type_name -> lazybox.bench.v1.Message
@@ -14648,198 +15747,217 @@ var file_api_proto_depIdxs = []int32{
 	176, // 85: lazybox.bench.v1.OrchestrationProcessExplanation.reactions:type_name -> lazybox.bench.v1.OrchestrationReaction
 	172, // 86: lazybox.bench.v1.OrchestrationProcessExplanation.issues:type_name -> lazybox.bench.v1.OrchestrationProcessIssue
 	178, // 87: lazybox.bench.v1.WorkspaceReview.comments:type_name -> lazybox.bench.v1.ReviewComment
-	81,  // 88: lazybox.bench.v1.Answer.AnswersEntry.value:type_name -> lazybox.bench.v1.Answers
-	1,   // 89: lazybox.bench.v1.RunnerService.ListSnippets:input_type -> lazybox.bench.v1.InfoRequest
-	154, // 90: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:input_type -> lazybox.bench.v1.GetRepositoryCatalogRequest
-	158, // 91: lazybox.bench.v1.RunnerService.PrepareWorkspace:input_type -> lazybox.bench.v1.PrepareWorkspaceRequest
-	114, // 92: lazybox.bench.v1.RunnerService.Version:input_type -> lazybox.bench.v1.VersionRequest
-	1,   // 93: lazybox.bench.v1.RunnerService.GetRunnerSettings:input_type -> lazybox.bench.v1.InfoRequest
-	3,   // 94: lazybox.bench.v1.RunnerService.SaveRunnerSettings:input_type -> lazybox.bench.v1.RunnerSettings
-	4,   // 95: lazybox.bench.v1.RunnerService.SetModelPrice:input_type -> lazybox.bench.v1.SetModelPriceRequest
-	1,   // 96: lazybox.bench.v1.RunnerService.Info:input_type -> lazybox.bench.v1.InfoRequest
-	6,   // 97: lazybox.bench.v1.RunnerService.GetTelemetry:input_type -> lazybox.bench.v1.TelemetryRequest
-	5,   // 98: lazybox.bench.v1.RunnerService.RenameCollection:input_type -> lazybox.bench.v1.RenameCollectionRequest
-	15,  // 99: lazybox.bench.v1.RunnerService.AddSubscription:input_type -> lazybox.bench.v1.AddSubscriptionRequest
-	16,  // 100: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
-	16,  // 101: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
-	17,  // 102: lazybox.bench.v1.RunnerService.RefreshSubscription:input_type -> lazybox.bench.v1.RefreshSubscriptionRequest
-	116, // 103: lazybox.bench.v1.RunnerService.GetGitHubConnection:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
-	123, // 104: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:input_type -> lazybox.bench.v1.ConfigureGitHubAppRequest
-	122, // 105: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:input_type -> lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
-	117, // 106: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:input_type -> lazybox.bench.v1.ListRepositoryDiscoveryRequest
-	118, // 107: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:input_type -> lazybox.bench.v1.ScanRepositoryRootRequest
-	125, // 108: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:input_type -> lazybox.bench.v1.BeginGitHubSignInRequest
-	126, // 109: lazybox.bench.v1.RunnerService.GetGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
-	126, // 110: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
-	116, // 111: lazybox.bench.v1.RunnerService.DisconnectGitHub:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
-	128, // 112: lazybox.bench.v1.RunnerService.ListGitHubInstallations:input_type -> lazybox.bench.v1.ListGitHubInstallationsRequest
-	131, // 113: lazybox.bench.v1.RunnerService.ListGitHubRepositories:input_type -> lazybox.bench.v1.ListGitHubRepositoriesRequest
-	134, // 114: lazybox.bench.v1.RunnerService.ImportGitHubRepository:input_type -> lazybox.bench.v1.ImportGitHubRepositoryRequest
-	136, // 115: lazybox.bench.v1.RunnerService.ListGitHubItems:input_type -> lazybox.bench.v1.ListGitHubItemsRequest
-	59,  // 116: lazybox.bench.v1.RunnerService.AddLocalRepository:input_type -> lazybox.bench.v1.AddLocalRepositoryRequest
-	61,  // 117: lazybox.bench.v1.RunnerService.ListRepositories:input_type -> lazybox.bench.v1.ListRepositoriesRequest
-	153, // 118: lazybox.bench.v1.RunnerService.RemoveRepository:input_type -> lazybox.bench.v1.RemoveRepositoryRequest
-	67,  // 119: lazybox.bench.v1.RunnerService.CreateCollection:input_type -> lazybox.bench.v1.CreateCollectionRequest
-	68,  // 120: lazybox.bench.v1.RunnerService.AddCollectionRepositories:input_type -> lazybox.bench.v1.AddCollectionRepositoriesRequest
-	69,  // 121: lazybox.bench.v1.RunnerService.GetCollection:input_type -> lazybox.bench.v1.CollectionRequest
-	71,  // 122: lazybox.bench.v1.RunnerService.ListCollections:input_type -> lazybox.bench.v1.ListCollectionsRequest
-	69,  // 123: lazybox.bench.v1.RunnerService.ArchiveCollection:input_type -> lazybox.bench.v1.CollectionRequest
-	73,  // 124: lazybox.bench.v1.RunnerService.ReconcileCollection:input_type -> lazybox.bench.v1.ReconcileCollectionRequest
-	27,  // 125: lazybox.bench.v1.RunnerService.OpenSession:input_type -> lazybox.bench.v1.OpenSessionRequest
-	28,  // 126: lazybox.bench.v1.RunnerService.OpenAssistant:input_type -> lazybox.bench.v1.OpenAssistantRequest
-	32,  // 127: lazybox.bench.v1.RunnerService.RenameConversation:input_type -> lazybox.bench.v1.RenameConversationRequest
-	33,  // 128: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:input_type -> lazybox.bench.v1.WorkspaceChangesRequest
-	47,  // 129: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:input_type -> lazybox.bench.v1.WorkspaceDiffRequest
-	141, // 130: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:input_type -> lazybox.bench.v1.WorkspaceFileRequest
-	144, // 131: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:input_type -> lazybox.bench.v1.SaveWorkspaceFileRequest
-	145, // 132: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:input_type -> lazybox.bench.v1.SearchWorkspaceFilesRequest
-	148, // 133: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:input_type -> lazybox.bench.v1.ResolveWorkspacePathRequest
-	31,  // 134: lazybox.bench.v1.RunnerService.ListHistory:input_type -> lazybox.bench.v1.ListHistoryRequest
-	53,  // 135: lazybox.bench.v1.RunnerService.ResumeSession:input_type -> lazybox.bench.v1.ResumeSessionRequest
-	50,  // 136: lazybox.bench.v1.RunnerService.RestartWithPermission:input_type -> lazybox.bench.v1.RestartWithPermissionRequest
-	51,  // 137: lazybox.bench.v1.RunnerService.SwitchSubscription:input_type -> lazybox.bench.v1.SwitchSubscriptionRequest
-	52,  // 138: lazybox.bench.v1.RunnerService.SetSessionRotation:input_type -> lazybox.bench.v1.SetSessionRotationRequest
-	54,  // 139: lazybox.bench.v1.RunnerService.GetSession:input_type -> lazybox.bench.v1.SessionRequest
-	84,  // 140: lazybox.bench.v1.RunnerService.Apply:input_type -> lazybox.bench.v1.ApplyRequest
-	78,  // 141: lazybox.bench.v1.RunnerService.ReadAttachment:input_type -> lazybox.bench.v1.ReadAttachmentRequest
-	54,  // 142: lazybox.bench.v1.RunnerService.CloseSession:input_type -> lazybox.bench.v1.SessionRequest
-	54,  // 143: lazybox.bench.v1.RunnerService.StopSessionResources:input_type -> lazybox.bench.v1.SessionRequest
-	151, // 144: lazybox.bench.v1.RunnerService.DeleteConversation:input_type -> lazybox.bench.v1.DeleteConversationRequest
-	69,  // 145: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:input_type -> lazybox.bench.v1.CollectionRequest
-	140, // 146: lazybox.bench.v1.RunnerService.DeleteWorkspace:input_type -> lazybox.bench.v1.DeleteWorkspaceRequest
-	90,  // 147: lazybox.bench.v1.RunnerService.ContinueSession:input_type -> lazybox.bench.v1.ContinueSessionRequest
-	87,  // 148: lazybox.bench.v1.RunnerService.WatchEvents:input_type -> lazybox.bench.v1.WatchEventsRequest
-	92,  // 149: lazybox.bench.v1.RunnerService.StartCommand:input_type -> lazybox.bench.v1.StartCommandRequest
-	93,  // 150: lazybox.bench.v1.RunnerService.RegisterPipe:input_type -> lazybox.bench.v1.RegisterPipeRequest
-	94,  // 151: lazybox.bench.v1.RunnerService.Publish:input_type -> lazybox.bench.v1.PublishRequest
-	95,  // 152: lazybox.bench.v1.RunnerService.FinishPipe:input_type -> lazybox.bench.v1.FinishPipeRequest
-	98,  // 153: lazybox.bench.v1.RunnerService.ListCommands:input_type -> lazybox.bench.v1.ListCommandsRequest
-	91,  // 154: lazybox.bench.v1.RunnerService.ClaimCommandShare:input_type -> lazybox.bench.v1.CommandRequest
-	101, // 155: lazybox.bench.v1.RunnerService.ReadCommand:input_type -> lazybox.bench.v1.ReadCommandRequest
-	91,  // 156: lazybox.bench.v1.RunnerService.WaitCommand:input_type -> lazybox.bench.v1.CommandRequest
-	91,  // 157: lazybox.bench.v1.RunnerService.CancelCommand:input_type -> lazybox.bench.v1.CommandRequest
-	103, // 158: lazybox.bench.v1.RunnerService.WatchOutput:input_type -> lazybox.bench.v1.WatchOutputRequest
-	105, // 159: lazybox.bench.v1.RunnerService.OpenTerminal:input_type -> lazybox.bench.v1.OpenTerminalRequest
-	108, // 160: lazybox.bench.v1.RunnerService.ListTerminals:input_type -> lazybox.bench.v1.ListTerminalsRequest
-	110, // 161: lazybox.bench.v1.RunnerService.WatchTerminal:input_type -> lazybox.bench.v1.WatchTerminalRequest
-	112, // 162: lazybox.bench.v1.RunnerService.WriteTerminal:input_type -> lazybox.bench.v1.WriteTerminalRequest
-	113, // 163: lazybox.bench.v1.RunnerService.ResizeTerminal:input_type -> lazybox.bench.v1.ResizeTerminalRequest
-	106, // 164: lazybox.bench.v1.RunnerService.CloseTerminal:input_type -> lazybox.bench.v1.TerminalRequest
-	23,  // 165: lazybox.bench.v1.RunnerService.RestartRunner:input_type -> lazybox.bench.v1.RestartRunnerRequest
-	38,  // 166: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:input_type -> lazybox.bench.v1.CommitWorkspaceChangesRequest
-	40,  // 167: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:input_type -> lazybox.bench.v1.PushWorkspaceBranchRequest
-	42,  // 168: lazybox.bench.v1.RunnerService.CreatePullRequest:input_type -> lazybox.bench.v1.CreatePullRequestRequest
-	43,  // 169: lazybox.bench.v1.RunnerService.GetPullRequest:input_type -> lazybox.bench.v1.GetPullRequestRequest
-	44,  // 170: lazybox.bench.v1.RunnerService.MergePullRequest:input_type -> lazybox.bench.v1.MergePullRequestRequest
-	180, // 171: lazybox.bench.v1.RunnerService.ListReviewComments:input_type -> lazybox.bench.v1.ListReviewCommentsRequest
-	181, // 172: lazybox.bench.v1.RunnerService.AddReviewComment:input_type -> lazybox.bench.v1.AddReviewCommentRequest
-	182, // 173: lazybox.bench.v1.RunnerService.EditReviewComment:input_type -> lazybox.bench.v1.EditReviewCommentRequest
-	183, // 174: lazybox.bench.v1.RunnerService.DeleteReviewComment:input_type -> lazybox.bench.v1.DeleteReviewCommentRequest
-	184, // 175: lazybox.bench.v1.RunnerService.SetReviewDisposition:input_type -> lazybox.bench.v1.SetReviewDispositionRequest
-	185, // 176: lazybox.bench.v1.RunnerService.SetReviewAutoResolve:input_type -> lazybox.bench.v1.SetReviewAutoResolveRequest
-	162, // 177: lazybox.bench.v1.RunnerService.ListProcesses:input_type -> lazybox.bench.v1.ListProcessesRequest
-	163, // 178: lazybox.bench.v1.RunnerService.StopProcess:input_type -> lazybox.bench.v1.StopProcessRequest
-	164, // 179: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:input_type -> lazybox.bench.v1.CleanUpOrphanProcessesRequest
-	170, // 180: lazybox.bench.v1.RunnerService.GetOrchestrationProcess:input_type -> lazybox.bench.v1.OrchestrationProcessRequest
-	175, // 181: lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess:input_type -> lazybox.bench.v1.ExplainOrchestrationProcessRequest
-	161, // 182: lazybox.bench.v1.RunnerService.ListSnippets:output_type -> lazybox.bench.v1.SnippetCatalog
-	157, // 183: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:output_type -> lazybox.bench.v1.RepositoryCatalog
-	159, // 184: lazybox.bench.v1.RunnerService.PrepareWorkspace:output_type -> lazybox.bench.v1.WorkspacePreparation
-	115, // 185: lazybox.bench.v1.RunnerService.Version:output_type -> lazybox.bench.v1.VersionResponse
-	3,   // 186: lazybox.bench.v1.RunnerService.GetRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
-	3,   // 187: lazybox.bench.v1.RunnerService.SaveRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
-	3,   // 188: lazybox.bench.v1.RunnerService.SetModelPrice:output_type -> lazybox.bench.v1.RunnerSettings
-	22,  // 189: lazybox.bench.v1.RunnerService.Info:output_type -> lazybox.bench.v1.InfoResponse
-	14,  // 190: lazybox.bench.v1.RunnerService.GetTelemetry:output_type -> lazybox.bench.v1.TelemetryReport
-	70,  // 191: lazybox.bench.v1.RunnerService.RenameCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	18,  // 192: lazybox.bench.v1.RunnerService.AddSubscription:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	18,  // 193: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	18,  // 194: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	20,  // 195: lazybox.bench.v1.RunnerService.RefreshSubscription:output_type -> lazybox.bench.v1.Profile
-	124, // 196: lazybox.bench.v1.RunnerService.GetGitHubConnection:output_type -> lazybox.bench.v1.GitHubConnection
-	124, // 197: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:output_type -> lazybox.bench.v1.GitHubConnection
-	124, // 198: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:output_type -> lazybox.bench.v1.GitHubConnection
-	121, // 199: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	121, // 200: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	127, // 201: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	127, // 202: lazybox.bench.v1.RunnerService.GetGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	127, // 203: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	124, // 204: lazybox.bench.v1.RunnerService.DisconnectGitHub:output_type -> lazybox.bench.v1.GitHubConnection
-	130, // 205: lazybox.bench.v1.RunnerService.ListGitHubInstallations:output_type -> lazybox.bench.v1.ListGitHubInstallationsResponse
-	133, // 206: lazybox.bench.v1.RunnerService.ListGitHubRepositories:output_type -> lazybox.bench.v1.ListGitHubRepositoriesResponse
-	135, // 207: lazybox.bench.v1.RunnerService.ImportGitHubRepository:output_type -> lazybox.bench.v1.ImportGitHubRepositoryResponse
-	138, // 208: lazybox.bench.v1.RunnerService.ListGitHubItems:output_type -> lazybox.bench.v1.ListGitHubItemsResponse
-	60,  // 209: lazybox.bench.v1.RunnerService.AddLocalRepository:output_type -> lazybox.bench.v1.AddLocalRepositoryResponse
-	62,  // 210: lazybox.bench.v1.RunnerService.ListRepositories:output_type -> lazybox.bench.v1.ListRepositoriesResponse
-	121, // 211: lazybox.bench.v1.RunnerService.RemoveRepository:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	70,  // 212: lazybox.bench.v1.RunnerService.CreateCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	70,  // 213: lazybox.bench.v1.RunnerService.AddCollectionRepositories:output_type -> lazybox.bench.v1.CollectionResponse
-	70,  // 214: lazybox.bench.v1.RunnerService.GetCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	72,  // 215: lazybox.bench.v1.RunnerService.ListCollections:output_type -> lazybox.bench.v1.ListCollectionsResponse
-	70,  // 216: lazybox.bench.v1.RunnerService.ArchiveCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	70,  // 217: lazybox.bench.v1.RunnerService.ReconcileCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	74,  // 218: lazybox.bench.v1.RunnerService.OpenSession:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 219: lazybox.bench.v1.RunnerService.OpenAssistant:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 220: lazybox.bench.v1.RunnerService.RenameConversation:output_type -> lazybox.bench.v1.SessionResponse
-	37,  // 221: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:output_type -> lazybox.bench.v1.WorkspaceChanges
-	48,  // 222: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:output_type -> lazybox.bench.v1.WorkspaceDiff
-	143, // 223: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
-	143, // 224: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
-	147, // 225: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:output_type -> lazybox.bench.v1.WorkspaceFileSearch
-	150, // 226: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:output_type -> lazybox.bench.v1.WorkspacePathResolution
-	49,  // 227: lazybox.bench.v1.RunnerService.ListHistory:output_type -> lazybox.bench.v1.ListHistoryResponse
-	74,  // 228: lazybox.bench.v1.RunnerService.ResumeSession:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 229: lazybox.bench.v1.RunnerService.RestartWithPermission:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 230: lazybox.bench.v1.RunnerService.SwitchSubscription:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 231: lazybox.bench.v1.RunnerService.SetSessionRotation:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 232: lazybox.bench.v1.RunnerService.GetSession:output_type -> lazybox.bench.v1.SessionResponse
-	86,  // 233: lazybox.bench.v1.RunnerService.Apply:output_type -> lazybox.bench.v1.Receipt
-	79,  // 234: lazybox.bench.v1.RunnerService.ReadAttachment:output_type -> lazybox.bench.v1.AttachmentContent
-	74,  // 235: lazybox.bench.v1.RunnerService.CloseSession:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 236: lazybox.bench.v1.RunnerService.StopSessionResources:output_type -> lazybox.bench.v1.SessionResponse
-	152, // 237: lazybox.bench.v1.RunnerService.DeleteConversation:output_type -> lazybox.bench.v1.DeleteConversationResponse
-	139, // 238: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:output_type -> lazybox.bench.v1.WorkspaceDeletionPreview
-	70,  // 239: lazybox.bench.v1.RunnerService.DeleteWorkspace:output_type -> lazybox.bench.v1.CollectionResponse
-	74,  // 240: lazybox.bench.v1.RunnerService.ContinueSession:output_type -> lazybox.bench.v1.SessionResponse
-	88,  // 241: lazybox.bench.v1.RunnerService.WatchEvents:output_type -> lazybox.bench.v1.JournalEvent
-	97,  // 242: lazybox.bench.v1.RunnerService.StartCommand:output_type -> lazybox.bench.v1.CommandStatus
-	97,  // 243: lazybox.bench.v1.RunnerService.RegisterPipe:output_type -> lazybox.bench.v1.CommandStatus
-	97,  // 244: lazybox.bench.v1.RunnerService.Publish:output_type -> lazybox.bench.v1.CommandStatus
-	97,  // 245: lazybox.bench.v1.RunnerService.FinishPipe:output_type -> lazybox.bench.v1.CommandStatus
-	100, // 246: lazybox.bench.v1.RunnerService.ListCommands:output_type -> lazybox.bench.v1.ListCommandsResponse
-	99,  // 247: lazybox.bench.v1.RunnerService.ClaimCommandShare:output_type -> lazybox.bench.v1.ClaimCommandShareResponse
-	102, // 248: lazybox.bench.v1.RunnerService.ReadCommand:output_type -> lazybox.bench.v1.ReadCommandResponse
-	97,  // 249: lazybox.bench.v1.RunnerService.WaitCommand:output_type -> lazybox.bench.v1.CommandStatus
-	97,  // 250: lazybox.bench.v1.RunnerService.CancelCommand:output_type -> lazybox.bench.v1.CommandStatus
-	104, // 251: lazybox.bench.v1.RunnerService.WatchOutput:output_type -> lazybox.bench.v1.OutputEvent
-	107, // 252: lazybox.bench.v1.RunnerService.OpenTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	109, // 253: lazybox.bench.v1.RunnerService.ListTerminals:output_type -> lazybox.bench.v1.ListTerminalsResponse
-	111, // 254: lazybox.bench.v1.RunnerService.WatchTerminal:output_type -> lazybox.bench.v1.TerminalEvent
-	107, // 255: lazybox.bench.v1.RunnerService.WriteTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	107, // 256: lazybox.bench.v1.RunnerService.ResizeTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	107, // 257: lazybox.bench.v1.RunnerService.CloseTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	24,  // 258: lazybox.bench.v1.RunnerService.RestartRunner:output_type -> lazybox.bench.v1.RestartRunnerResponse
-	39,  // 259: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:output_type -> lazybox.bench.v1.CommitWorkspaceChangesResponse
-	41,  // 260: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:output_type -> lazybox.bench.v1.PushWorkspaceBranchResponse
-	46,  // 261: lazybox.bench.v1.RunnerService.CreatePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
-	46,  // 262: lazybox.bench.v1.RunnerService.GetPullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
-	46,  // 263: lazybox.bench.v1.RunnerService.MergePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
-	179, // 264: lazybox.bench.v1.RunnerService.ListReviewComments:output_type -> lazybox.bench.v1.WorkspaceReview
-	179, // 265: lazybox.bench.v1.RunnerService.AddReviewComment:output_type -> lazybox.bench.v1.WorkspaceReview
-	179, // 266: lazybox.bench.v1.RunnerService.EditReviewComment:output_type -> lazybox.bench.v1.WorkspaceReview
-	179, // 267: lazybox.bench.v1.RunnerService.DeleteReviewComment:output_type -> lazybox.bench.v1.WorkspaceReview
-	179, // 268: lazybox.bench.v1.RunnerService.SetReviewDisposition:output_type -> lazybox.bench.v1.WorkspaceReview
-	179, // 269: lazybox.bench.v1.RunnerService.SetReviewAutoResolve:output_type -> lazybox.bench.v1.WorkspaceReview
-	168, // 270: lazybox.bench.v1.RunnerService.ListProcesses:output_type -> lazybox.bench.v1.ProcessInventory
-	168, // 271: lazybox.bench.v1.RunnerService.StopProcess:output_type -> lazybox.bench.v1.ProcessInventory
-	169, // 272: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:output_type -> lazybox.bench.v1.CleanUpOrphanProcessesResponse
-	174, // 273: lazybox.bench.v1.RunnerService.GetOrchestrationProcess:output_type -> lazybox.bench.v1.OrchestrationProcess
-	177, // 274: lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess:output_type -> lazybox.bench.v1.OrchestrationProcessExplanation
-	182, // [182:275] is the sub-list for method output_type
-	89,  // [89:182] is the sub-list for method input_type
-	89,  // [89:89] is the sub-list for extension type_name
-	89,  // [89:89] is the sub-list for extension extendee
-	0,   // [0:89] is the sub-list for field type_name
+	187, // 88: lazybox.bench.v1.TurnCheckpoint.before:type_name -> lazybox.bench.v1.RepositoryCheckpoint
+	188, // 89: lazybox.bench.v1.TurnCheckpoints.turns:type_name -> lazybox.bench.v1.TurnCheckpoint
+	189, // 90: lazybox.bench.v1.TurnCheckpoints.reverts:type_name -> lazybox.bench.v1.CodeRevert
+	192, // 91: lazybox.bench.v1.TurnRepositoryChanges.files:type_name -> lazybox.bench.v1.TurnFile
+	193, // 92: lazybox.bench.v1.TurnChanges.repositories:type_name -> lazybox.bench.v1.TurnRepositoryChanges
+	192, // 93: lazybox.bench.v1.RevertRepositoryPreview.files:type_name -> lazybox.bench.v1.TurnFile
+	197, // 94: lazybox.bench.v1.RevertCodePreview.repositories:type_name -> lazybox.bench.v1.RevertRepositoryPreview
+	81,  // 95: lazybox.bench.v1.Answer.AnswersEntry.value:type_name -> lazybox.bench.v1.Answers
+	1,   // 96: lazybox.bench.v1.RunnerService.ListSnippets:input_type -> lazybox.bench.v1.InfoRequest
+	154, // 97: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:input_type -> lazybox.bench.v1.GetRepositoryCatalogRequest
+	158, // 98: lazybox.bench.v1.RunnerService.PrepareWorkspace:input_type -> lazybox.bench.v1.PrepareWorkspaceRequest
+	114, // 99: lazybox.bench.v1.RunnerService.Version:input_type -> lazybox.bench.v1.VersionRequest
+	1,   // 100: lazybox.bench.v1.RunnerService.GetRunnerSettings:input_type -> lazybox.bench.v1.InfoRequest
+	3,   // 101: lazybox.bench.v1.RunnerService.SaveRunnerSettings:input_type -> lazybox.bench.v1.RunnerSettings
+	4,   // 102: lazybox.bench.v1.RunnerService.SetModelPrice:input_type -> lazybox.bench.v1.SetModelPriceRequest
+	1,   // 103: lazybox.bench.v1.RunnerService.Info:input_type -> lazybox.bench.v1.InfoRequest
+	6,   // 104: lazybox.bench.v1.RunnerService.GetTelemetry:input_type -> lazybox.bench.v1.TelemetryRequest
+	5,   // 105: lazybox.bench.v1.RunnerService.RenameCollection:input_type -> lazybox.bench.v1.RenameCollectionRequest
+	15,  // 106: lazybox.bench.v1.RunnerService.AddSubscription:input_type -> lazybox.bench.v1.AddSubscriptionRequest
+	16,  // 107: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
+	16,  // 108: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
+	17,  // 109: lazybox.bench.v1.RunnerService.RefreshSubscription:input_type -> lazybox.bench.v1.RefreshSubscriptionRequest
+	116, // 110: lazybox.bench.v1.RunnerService.GetGitHubConnection:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
+	123, // 111: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:input_type -> lazybox.bench.v1.ConfigureGitHubAppRequest
+	122, // 112: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:input_type -> lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
+	117, // 113: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:input_type -> lazybox.bench.v1.ListRepositoryDiscoveryRequest
+	118, // 114: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:input_type -> lazybox.bench.v1.ScanRepositoryRootRequest
+	125, // 115: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:input_type -> lazybox.bench.v1.BeginGitHubSignInRequest
+	126, // 116: lazybox.bench.v1.RunnerService.GetGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
+	126, // 117: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
+	116, // 118: lazybox.bench.v1.RunnerService.DisconnectGitHub:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
+	128, // 119: lazybox.bench.v1.RunnerService.ListGitHubInstallations:input_type -> lazybox.bench.v1.ListGitHubInstallationsRequest
+	131, // 120: lazybox.bench.v1.RunnerService.ListGitHubRepositories:input_type -> lazybox.bench.v1.ListGitHubRepositoriesRequest
+	134, // 121: lazybox.bench.v1.RunnerService.ImportGitHubRepository:input_type -> lazybox.bench.v1.ImportGitHubRepositoryRequest
+	136, // 122: lazybox.bench.v1.RunnerService.ListGitHubItems:input_type -> lazybox.bench.v1.ListGitHubItemsRequest
+	59,  // 123: lazybox.bench.v1.RunnerService.AddLocalRepository:input_type -> lazybox.bench.v1.AddLocalRepositoryRequest
+	61,  // 124: lazybox.bench.v1.RunnerService.ListRepositories:input_type -> lazybox.bench.v1.ListRepositoriesRequest
+	153, // 125: lazybox.bench.v1.RunnerService.RemoveRepository:input_type -> lazybox.bench.v1.RemoveRepositoryRequest
+	67,  // 126: lazybox.bench.v1.RunnerService.CreateCollection:input_type -> lazybox.bench.v1.CreateCollectionRequest
+	68,  // 127: lazybox.bench.v1.RunnerService.AddCollectionRepositories:input_type -> lazybox.bench.v1.AddCollectionRepositoriesRequest
+	69,  // 128: lazybox.bench.v1.RunnerService.GetCollection:input_type -> lazybox.bench.v1.CollectionRequest
+	71,  // 129: lazybox.bench.v1.RunnerService.ListCollections:input_type -> lazybox.bench.v1.ListCollectionsRequest
+	69,  // 130: lazybox.bench.v1.RunnerService.ArchiveCollection:input_type -> lazybox.bench.v1.CollectionRequest
+	73,  // 131: lazybox.bench.v1.RunnerService.ReconcileCollection:input_type -> lazybox.bench.v1.ReconcileCollectionRequest
+	27,  // 132: lazybox.bench.v1.RunnerService.OpenSession:input_type -> lazybox.bench.v1.OpenSessionRequest
+	28,  // 133: lazybox.bench.v1.RunnerService.OpenAssistant:input_type -> lazybox.bench.v1.OpenAssistantRequest
+	32,  // 134: lazybox.bench.v1.RunnerService.RenameConversation:input_type -> lazybox.bench.v1.RenameConversationRequest
+	33,  // 135: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:input_type -> lazybox.bench.v1.WorkspaceChangesRequest
+	47,  // 136: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:input_type -> lazybox.bench.v1.WorkspaceDiffRequest
+	141, // 137: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:input_type -> lazybox.bench.v1.WorkspaceFileRequest
+	144, // 138: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:input_type -> lazybox.bench.v1.SaveWorkspaceFileRequest
+	145, // 139: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:input_type -> lazybox.bench.v1.SearchWorkspaceFilesRequest
+	148, // 140: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:input_type -> lazybox.bench.v1.ResolveWorkspacePathRequest
+	31,  // 141: lazybox.bench.v1.RunnerService.ListHistory:input_type -> lazybox.bench.v1.ListHistoryRequest
+	53,  // 142: lazybox.bench.v1.RunnerService.ResumeSession:input_type -> lazybox.bench.v1.ResumeSessionRequest
+	50,  // 143: lazybox.bench.v1.RunnerService.RestartWithPermission:input_type -> lazybox.bench.v1.RestartWithPermissionRequest
+	51,  // 144: lazybox.bench.v1.RunnerService.SwitchSubscription:input_type -> lazybox.bench.v1.SwitchSubscriptionRequest
+	52,  // 145: lazybox.bench.v1.RunnerService.SetSessionRotation:input_type -> lazybox.bench.v1.SetSessionRotationRequest
+	54,  // 146: lazybox.bench.v1.RunnerService.GetSession:input_type -> lazybox.bench.v1.SessionRequest
+	84,  // 147: lazybox.bench.v1.RunnerService.Apply:input_type -> lazybox.bench.v1.ApplyRequest
+	78,  // 148: lazybox.bench.v1.RunnerService.ReadAttachment:input_type -> lazybox.bench.v1.ReadAttachmentRequest
+	54,  // 149: lazybox.bench.v1.RunnerService.CloseSession:input_type -> lazybox.bench.v1.SessionRequest
+	54,  // 150: lazybox.bench.v1.RunnerService.StopSessionResources:input_type -> lazybox.bench.v1.SessionRequest
+	151, // 151: lazybox.bench.v1.RunnerService.DeleteConversation:input_type -> lazybox.bench.v1.DeleteConversationRequest
+	69,  // 152: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:input_type -> lazybox.bench.v1.CollectionRequest
+	140, // 153: lazybox.bench.v1.RunnerService.DeleteWorkspace:input_type -> lazybox.bench.v1.DeleteWorkspaceRequest
+	90,  // 154: lazybox.bench.v1.RunnerService.ContinueSession:input_type -> lazybox.bench.v1.ContinueSessionRequest
+	87,  // 155: lazybox.bench.v1.RunnerService.WatchEvents:input_type -> lazybox.bench.v1.WatchEventsRequest
+	92,  // 156: lazybox.bench.v1.RunnerService.StartCommand:input_type -> lazybox.bench.v1.StartCommandRequest
+	93,  // 157: lazybox.bench.v1.RunnerService.RegisterPipe:input_type -> lazybox.bench.v1.RegisterPipeRequest
+	94,  // 158: lazybox.bench.v1.RunnerService.Publish:input_type -> lazybox.bench.v1.PublishRequest
+	95,  // 159: lazybox.bench.v1.RunnerService.FinishPipe:input_type -> lazybox.bench.v1.FinishPipeRequest
+	98,  // 160: lazybox.bench.v1.RunnerService.ListCommands:input_type -> lazybox.bench.v1.ListCommandsRequest
+	91,  // 161: lazybox.bench.v1.RunnerService.ClaimCommandShare:input_type -> lazybox.bench.v1.CommandRequest
+	101, // 162: lazybox.bench.v1.RunnerService.ReadCommand:input_type -> lazybox.bench.v1.ReadCommandRequest
+	91,  // 163: lazybox.bench.v1.RunnerService.WaitCommand:input_type -> lazybox.bench.v1.CommandRequest
+	91,  // 164: lazybox.bench.v1.RunnerService.CancelCommand:input_type -> lazybox.bench.v1.CommandRequest
+	103, // 165: lazybox.bench.v1.RunnerService.WatchOutput:input_type -> lazybox.bench.v1.WatchOutputRequest
+	105, // 166: lazybox.bench.v1.RunnerService.OpenTerminal:input_type -> lazybox.bench.v1.OpenTerminalRequest
+	108, // 167: lazybox.bench.v1.RunnerService.ListTerminals:input_type -> lazybox.bench.v1.ListTerminalsRequest
+	110, // 168: lazybox.bench.v1.RunnerService.WatchTerminal:input_type -> lazybox.bench.v1.WatchTerminalRequest
+	112, // 169: lazybox.bench.v1.RunnerService.WriteTerminal:input_type -> lazybox.bench.v1.WriteTerminalRequest
+	113, // 170: lazybox.bench.v1.RunnerService.ResizeTerminal:input_type -> lazybox.bench.v1.ResizeTerminalRequest
+	106, // 171: lazybox.bench.v1.RunnerService.CloseTerminal:input_type -> lazybox.bench.v1.TerminalRequest
+	23,  // 172: lazybox.bench.v1.RunnerService.RestartRunner:input_type -> lazybox.bench.v1.RestartRunnerRequest
+	38,  // 173: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:input_type -> lazybox.bench.v1.CommitWorkspaceChangesRequest
+	40,  // 174: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:input_type -> lazybox.bench.v1.PushWorkspaceBranchRequest
+	42,  // 175: lazybox.bench.v1.RunnerService.CreatePullRequest:input_type -> lazybox.bench.v1.CreatePullRequestRequest
+	43,  // 176: lazybox.bench.v1.RunnerService.GetPullRequest:input_type -> lazybox.bench.v1.GetPullRequestRequest
+	44,  // 177: lazybox.bench.v1.RunnerService.MergePullRequest:input_type -> lazybox.bench.v1.MergePullRequestRequest
+	180, // 178: lazybox.bench.v1.RunnerService.ListReviewComments:input_type -> lazybox.bench.v1.ListReviewCommentsRequest
+	181, // 179: lazybox.bench.v1.RunnerService.AddReviewComment:input_type -> lazybox.bench.v1.AddReviewCommentRequest
+	182, // 180: lazybox.bench.v1.RunnerService.EditReviewComment:input_type -> lazybox.bench.v1.EditReviewCommentRequest
+	183, // 181: lazybox.bench.v1.RunnerService.DeleteReviewComment:input_type -> lazybox.bench.v1.DeleteReviewCommentRequest
+	184, // 182: lazybox.bench.v1.RunnerService.SetReviewDisposition:input_type -> lazybox.bench.v1.SetReviewDispositionRequest
+	185, // 183: lazybox.bench.v1.RunnerService.SetReviewAutoResolve:input_type -> lazybox.bench.v1.SetReviewAutoResolveRequest
+	162, // 184: lazybox.bench.v1.RunnerService.ListProcesses:input_type -> lazybox.bench.v1.ListProcessesRequest
+	163, // 185: lazybox.bench.v1.RunnerService.StopProcess:input_type -> lazybox.bench.v1.StopProcessRequest
+	164, // 186: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:input_type -> lazybox.bench.v1.CleanUpOrphanProcessesRequest
+	170, // 187: lazybox.bench.v1.RunnerService.GetOrchestrationProcess:input_type -> lazybox.bench.v1.OrchestrationProcessRequest
+	175, // 188: lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess:input_type -> lazybox.bench.v1.ExplainOrchestrationProcessRequest
+	186, // 189: lazybox.bench.v1.RunnerService.ListTurnCheckpoints:input_type -> lazybox.bench.v1.TurnCheckpointsRequest
+	191, // 190: lazybox.bench.v1.RunnerService.ListTurnChanges:input_type -> lazybox.bench.v1.TurnChangesRequest
+	195, // 191: lazybox.bench.v1.RunnerService.ReadTurnDiff:input_type -> lazybox.bench.v1.TurnDiffRequest
+	196, // 192: lazybox.bench.v1.RunnerService.PreviewRevertCode:input_type -> lazybox.bench.v1.RevertCodeRequest
+	196, // 193: lazybox.bench.v1.RunnerService.RevertCode:input_type -> lazybox.bench.v1.RevertCodeRequest
+	199, // 194: lazybox.bench.v1.RunnerService.UndoRevertCode:input_type -> lazybox.bench.v1.UndoRevertCodeRequest
+	161, // 195: lazybox.bench.v1.RunnerService.ListSnippets:output_type -> lazybox.bench.v1.SnippetCatalog
+	157, // 196: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:output_type -> lazybox.bench.v1.RepositoryCatalog
+	159, // 197: lazybox.bench.v1.RunnerService.PrepareWorkspace:output_type -> lazybox.bench.v1.WorkspacePreparation
+	115, // 198: lazybox.bench.v1.RunnerService.Version:output_type -> lazybox.bench.v1.VersionResponse
+	3,   // 199: lazybox.bench.v1.RunnerService.GetRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
+	3,   // 200: lazybox.bench.v1.RunnerService.SaveRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
+	3,   // 201: lazybox.bench.v1.RunnerService.SetModelPrice:output_type -> lazybox.bench.v1.RunnerSettings
+	22,  // 202: lazybox.bench.v1.RunnerService.Info:output_type -> lazybox.bench.v1.InfoResponse
+	14,  // 203: lazybox.bench.v1.RunnerService.GetTelemetry:output_type -> lazybox.bench.v1.TelemetryReport
+	70,  // 204: lazybox.bench.v1.RunnerService.RenameCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	18,  // 205: lazybox.bench.v1.RunnerService.AddSubscription:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	18,  // 206: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	18,  // 207: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	20,  // 208: lazybox.bench.v1.RunnerService.RefreshSubscription:output_type -> lazybox.bench.v1.Profile
+	124, // 209: lazybox.bench.v1.RunnerService.GetGitHubConnection:output_type -> lazybox.bench.v1.GitHubConnection
+	124, // 210: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:output_type -> lazybox.bench.v1.GitHubConnection
+	124, // 211: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:output_type -> lazybox.bench.v1.GitHubConnection
+	121, // 212: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	121, // 213: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	127, // 214: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	127, // 215: lazybox.bench.v1.RunnerService.GetGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	127, // 216: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	124, // 217: lazybox.bench.v1.RunnerService.DisconnectGitHub:output_type -> lazybox.bench.v1.GitHubConnection
+	130, // 218: lazybox.bench.v1.RunnerService.ListGitHubInstallations:output_type -> lazybox.bench.v1.ListGitHubInstallationsResponse
+	133, // 219: lazybox.bench.v1.RunnerService.ListGitHubRepositories:output_type -> lazybox.bench.v1.ListGitHubRepositoriesResponse
+	135, // 220: lazybox.bench.v1.RunnerService.ImportGitHubRepository:output_type -> lazybox.bench.v1.ImportGitHubRepositoryResponse
+	138, // 221: lazybox.bench.v1.RunnerService.ListGitHubItems:output_type -> lazybox.bench.v1.ListGitHubItemsResponse
+	60,  // 222: lazybox.bench.v1.RunnerService.AddLocalRepository:output_type -> lazybox.bench.v1.AddLocalRepositoryResponse
+	62,  // 223: lazybox.bench.v1.RunnerService.ListRepositories:output_type -> lazybox.bench.v1.ListRepositoriesResponse
+	121, // 224: lazybox.bench.v1.RunnerService.RemoveRepository:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	70,  // 225: lazybox.bench.v1.RunnerService.CreateCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	70,  // 226: lazybox.bench.v1.RunnerService.AddCollectionRepositories:output_type -> lazybox.bench.v1.CollectionResponse
+	70,  // 227: lazybox.bench.v1.RunnerService.GetCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	72,  // 228: lazybox.bench.v1.RunnerService.ListCollections:output_type -> lazybox.bench.v1.ListCollectionsResponse
+	70,  // 229: lazybox.bench.v1.RunnerService.ArchiveCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	70,  // 230: lazybox.bench.v1.RunnerService.ReconcileCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	74,  // 231: lazybox.bench.v1.RunnerService.OpenSession:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 232: lazybox.bench.v1.RunnerService.OpenAssistant:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 233: lazybox.bench.v1.RunnerService.RenameConversation:output_type -> lazybox.bench.v1.SessionResponse
+	37,  // 234: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:output_type -> lazybox.bench.v1.WorkspaceChanges
+	48,  // 235: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:output_type -> lazybox.bench.v1.WorkspaceDiff
+	143, // 236: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
+	143, // 237: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
+	147, // 238: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:output_type -> lazybox.bench.v1.WorkspaceFileSearch
+	150, // 239: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:output_type -> lazybox.bench.v1.WorkspacePathResolution
+	49,  // 240: lazybox.bench.v1.RunnerService.ListHistory:output_type -> lazybox.bench.v1.ListHistoryResponse
+	74,  // 241: lazybox.bench.v1.RunnerService.ResumeSession:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 242: lazybox.bench.v1.RunnerService.RestartWithPermission:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 243: lazybox.bench.v1.RunnerService.SwitchSubscription:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 244: lazybox.bench.v1.RunnerService.SetSessionRotation:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 245: lazybox.bench.v1.RunnerService.GetSession:output_type -> lazybox.bench.v1.SessionResponse
+	86,  // 246: lazybox.bench.v1.RunnerService.Apply:output_type -> lazybox.bench.v1.Receipt
+	79,  // 247: lazybox.bench.v1.RunnerService.ReadAttachment:output_type -> lazybox.bench.v1.AttachmentContent
+	74,  // 248: lazybox.bench.v1.RunnerService.CloseSession:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 249: lazybox.bench.v1.RunnerService.StopSessionResources:output_type -> lazybox.bench.v1.SessionResponse
+	152, // 250: lazybox.bench.v1.RunnerService.DeleteConversation:output_type -> lazybox.bench.v1.DeleteConversationResponse
+	139, // 251: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:output_type -> lazybox.bench.v1.WorkspaceDeletionPreview
+	70,  // 252: lazybox.bench.v1.RunnerService.DeleteWorkspace:output_type -> lazybox.bench.v1.CollectionResponse
+	74,  // 253: lazybox.bench.v1.RunnerService.ContinueSession:output_type -> lazybox.bench.v1.SessionResponse
+	88,  // 254: lazybox.bench.v1.RunnerService.WatchEvents:output_type -> lazybox.bench.v1.JournalEvent
+	97,  // 255: lazybox.bench.v1.RunnerService.StartCommand:output_type -> lazybox.bench.v1.CommandStatus
+	97,  // 256: lazybox.bench.v1.RunnerService.RegisterPipe:output_type -> lazybox.bench.v1.CommandStatus
+	97,  // 257: lazybox.bench.v1.RunnerService.Publish:output_type -> lazybox.bench.v1.CommandStatus
+	97,  // 258: lazybox.bench.v1.RunnerService.FinishPipe:output_type -> lazybox.bench.v1.CommandStatus
+	100, // 259: lazybox.bench.v1.RunnerService.ListCommands:output_type -> lazybox.bench.v1.ListCommandsResponse
+	99,  // 260: lazybox.bench.v1.RunnerService.ClaimCommandShare:output_type -> lazybox.bench.v1.ClaimCommandShareResponse
+	102, // 261: lazybox.bench.v1.RunnerService.ReadCommand:output_type -> lazybox.bench.v1.ReadCommandResponse
+	97,  // 262: lazybox.bench.v1.RunnerService.WaitCommand:output_type -> lazybox.bench.v1.CommandStatus
+	97,  // 263: lazybox.bench.v1.RunnerService.CancelCommand:output_type -> lazybox.bench.v1.CommandStatus
+	104, // 264: lazybox.bench.v1.RunnerService.WatchOutput:output_type -> lazybox.bench.v1.OutputEvent
+	107, // 265: lazybox.bench.v1.RunnerService.OpenTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	109, // 266: lazybox.bench.v1.RunnerService.ListTerminals:output_type -> lazybox.bench.v1.ListTerminalsResponse
+	111, // 267: lazybox.bench.v1.RunnerService.WatchTerminal:output_type -> lazybox.bench.v1.TerminalEvent
+	107, // 268: lazybox.bench.v1.RunnerService.WriteTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	107, // 269: lazybox.bench.v1.RunnerService.ResizeTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	107, // 270: lazybox.bench.v1.RunnerService.CloseTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	24,  // 271: lazybox.bench.v1.RunnerService.RestartRunner:output_type -> lazybox.bench.v1.RestartRunnerResponse
+	39,  // 272: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:output_type -> lazybox.bench.v1.CommitWorkspaceChangesResponse
+	41,  // 273: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:output_type -> lazybox.bench.v1.PushWorkspaceBranchResponse
+	46,  // 274: lazybox.bench.v1.RunnerService.CreatePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
+	46,  // 275: lazybox.bench.v1.RunnerService.GetPullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
+	46,  // 276: lazybox.bench.v1.RunnerService.MergePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
+	179, // 277: lazybox.bench.v1.RunnerService.ListReviewComments:output_type -> lazybox.bench.v1.WorkspaceReview
+	179, // 278: lazybox.bench.v1.RunnerService.AddReviewComment:output_type -> lazybox.bench.v1.WorkspaceReview
+	179, // 279: lazybox.bench.v1.RunnerService.EditReviewComment:output_type -> lazybox.bench.v1.WorkspaceReview
+	179, // 280: lazybox.bench.v1.RunnerService.DeleteReviewComment:output_type -> lazybox.bench.v1.WorkspaceReview
+	179, // 281: lazybox.bench.v1.RunnerService.SetReviewDisposition:output_type -> lazybox.bench.v1.WorkspaceReview
+	179, // 282: lazybox.bench.v1.RunnerService.SetReviewAutoResolve:output_type -> lazybox.bench.v1.WorkspaceReview
+	168, // 283: lazybox.bench.v1.RunnerService.ListProcesses:output_type -> lazybox.bench.v1.ProcessInventory
+	168, // 284: lazybox.bench.v1.RunnerService.StopProcess:output_type -> lazybox.bench.v1.ProcessInventory
+	169, // 285: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:output_type -> lazybox.bench.v1.CleanUpOrphanProcessesResponse
+	174, // 286: lazybox.bench.v1.RunnerService.GetOrchestrationProcess:output_type -> lazybox.bench.v1.OrchestrationProcess
+	177, // 287: lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess:output_type -> lazybox.bench.v1.OrchestrationProcessExplanation
+	190, // 288: lazybox.bench.v1.RunnerService.ListTurnCheckpoints:output_type -> lazybox.bench.v1.TurnCheckpoints
+	194, // 289: lazybox.bench.v1.RunnerService.ListTurnChanges:output_type -> lazybox.bench.v1.TurnChanges
+	48,  // 290: lazybox.bench.v1.RunnerService.ReadTurnDiff:output_type -> lazybox.bench.v1.WorkspaceDiff
+	198, // 291: lazybox.bench.v1.RunnerService.PreviewRevertCode:output_type -> lazybox.bench.v1.RevertCodePreview
+	189, // 292: lazybox.bench.v1.RunnerService.RevertCode:output_type -> lazybox.bench.v1.CodeRevert
+	189, // 293: lazybox.bench.v1.RunnerService.UndoRevertCode:output_type -> lazybox.bench.v1.CodeRevert
+	195, // [195:294] is the sub-list for method output_type
+	96,  // [96:195] is the sub-list for method input_type
+	96,  // [96:96] is the sub-list for extension type_name
+	96,  // [96:96] is the sub-list for extension extendee
+	0,   // [0:96] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_init() }
@@ -14870,7 +15988,7 @@ func file_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_rawDesc), len(file_api_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   186,
+			NumMessages:   200,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

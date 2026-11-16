@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
@@ -297,16 +298,18 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		}
 		return nil
 	}
-	update := ""
+	update, reverted := "", ""
 	switch o := p.Operation.(type) {
 	case *pb.ApplyRequest_Message:
 		op.Kind = agent.Message
 		if err := message(o.Message); err != nil {
 			return nil, rpcError(err)
 		}
-		// Changed shared instructions travel with the next message.
+		// Changed shared instructions travel with the next message, and so
+		// does a revert of the workspace's files since the last one.
 		update = s.Bench.InstructionsUpdate(e)
-		op.Context = update
+		reverted = s.Bench.CodeRevertNote(e)
+		op.Context = strings.TrimSpace(update + "\n\n" + reverted)
 	case *pb.ApplyRequest_Permission:
 		receipt, err := s.Bench.SetPermission(ctx, e, p.OperationId, o.Permission.GetMode())
 		if err != nil {
@@ -349,6 +352,9 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		// The message, and the update with it, is accepted. If recording that
 		// fails, the update is sent again with the next message: harmless.
 		_ = s.Bench.InstructionsDelivered(ctx, e, update)
+	}
+	if reverted != "" {
+		_ = s.Bench.CodeRevertNoteDelivered(e, reverted)
 	}
 	return &pb.Receipt{OperationId: receipt.ID, Delivery: receipt.Delivery, ProviderId: receipt.ProviderID, Error: receipt.Error}, nil
 }
