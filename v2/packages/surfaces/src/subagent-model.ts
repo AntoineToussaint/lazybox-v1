@@ -70,6 +70,8 @@ export type Subagent = {
   kind: 'agent' | 'command';
   /** A background command's full script. */
   command: string;
+  /** What the agent said a background command does ("Generate the protobuf code"), when it said. */
+  description?: string;
   /** The latest output the agent read of a background command. */
   output: string;
   /** Where the provider keeps a background task's output. */
@@ -90,9 +92,16 @@ export type Subagents = {
   spawns: Readonly<Record<string, string>>;
   /** Another id the provider used for a sub-agent already known by its spawning call. */
   aliases: Readonly<Record<string, string>>;
+  /** Background shell calls (`run_in_background`) by tool call id: what a background command runs, and what the agent said it does. */
+  commandCalls?: Readonly<Record<string, CommandCall>>;
   truncated: boolean;
 };
-export const emptySubagents = (): Subagents => ({ byId: {}, order: [], spawns: {}, aliases: {}, truncated: false });
+export type CommandCall = { command: string; description: string };
+export const emptySubagents = (): Subagents => ({ byId: {}, order: [], spawns: {}, aliases: {}, commandCalls: {}, truncated: false });
+/** Background shell calls remembered for naming their commands: the newest. */
+const COMMAND_CALLS = 256;
+/** A background command's description is kept whole, up to this. */
+const DESCRIPTION = 400;
 
 /**
  * What the spawning call says of a sub-agent. Claude's Task/Agent input is
@@ -175,6 +184,7 @@ export class SubagentFold {
   private order?: string[];
   private spawns?: Record<string, string>;
   private aliases?: Record<string, string>;
+  private commandCalls?: Record<string, CommandCall>;
   private truncated: boolean;
   private owned = new Set<object>();
   private cards: string[] = [];
@@ -336,7 +346,12 @@ export class SubagentFold {
           const pending = (this.spawns ?? this.state.spawns);
           let data: Record<string, any> | undefined;
           if (/"name"\s*:\s*"(Task|Agent|BashOutput|TaskOutput)"/.test(head)) data = payload(e.providerDataJson);
-          else {
+          else if (/"name"\s*:\s*"Bash"/.test(head) && /"status"\s*:\s*"running"/.test(head)) {
+            // A shell call's input names the background command it may start.
+            const call = payload(e.providerDataJson);
+            if (call) this.commandCall(call);
+            return;
+          } else {
             const id = /"id"\s*:\s*"([^"]+)"/.exec(head)?.[1];
             if (id && pending[id]) data = payload(e.providerDataJson);
           }
@@ -416,6 +431,37 @@ export class SubagentFold {
     }
   }
 
+  /**
+   * A shell call that runs in the background: its command and description,
+   * for naming the background command it starts (whose own report names it
+   * by the description alone, or by the whole script).
+   */
+  private commandCall(data: Record<string, any>) {
+    const input = data.input && typeof data.input === 'object' ? data.input : undefined;
+    if (data.type !== 'tool_call' || typeof data.id !== 'string' || input?.run_in_background !== true || !text(input.command).trim()) return;
+    const calls = this.commandCalls ??= { ...(this.state.commandCalls ?? {}) };
+    calls[data.id] = { command: text(input.command), description: oneLine(text(input.description), DESCRIPTION) };
+    const ids = Object.keys(calls);
+    for (const old of ids.slice(0, Math.max(0, ids.length - COMMAND_CALLS))) delete calls[old];
+    const known = this.spawnOf(data.id), agent = known ? this.get(known) : undefined;
+    if (agent?.kind === 'command') this.nameCommand(this.edit(known!), agent.description || agent.command);
+  }
+
+  /**
+   * A background command's name: what the agent said it does, whole, else
+   * what runs ("pytest tests/test_mcp.py"), never a description cut as if
+   * it were a command. `reported` is the provider's name for the task.
+   */
+  private nameCommand(agent: Subagent, reported: string) {
+    const call = agent.toolUseId ? (this.commandCalls ?? this.state.commandCalls ?? {})[agent.toolUseId] : undefined;
+    if (call) {
+      agent.command = call.command;
+      const said = oneLine(reported, DESCRIPTION);
+      agent.description = call.description || (said && said !== oneLine(call.command, DESCRIPTION) ? said : '');
+    } else agent.command = reported;
+    agent.name = agent.description || commandTitle(agent.command);
+  }
+
   private status(raw: string, e: NonNullable<JournalEvent['event']>, at: number | undefined) {
     const data = payload(e.providerDataJson) || {};
     let id = raw;
@@ -432,14 +478,14 @@ export class SubagentFold {
       if (toolUseId) (this.spawns ??= { ...this.state.spawns })[toolUseId] = id;
     }
     const agent = this.edit(id);
+    if (toolUseId) agent.toolUseId ||= toolUseId;
     if (e.name) {
-      if (agent.kind === 'command') { agent.command = e.name; agent.name = commandTitle(e.name); }
+      if (agent.kind === 'command') this.nameCommand(agent, e.name);
       // A placeholder ("Sub-agent") never replaces the task it was given.
       else if (!genericName(e.name)) agent.name = e.name;
     }
     if (text(data.outputFile)) agent.outputFile = data.outputFile;
     if (e.nativeId) agent.nativeId = e.nativeId;
-    if (toolUseId) agent.toolUseId ||= toolUseId;
     const type = text(data.subagentType);
     if (type) agent.type = type;
     else if (!agent.type && e.agentKind && !['agent', 'local_agent'].includes(e.agentKind)) agent.type = e.agentKind;
@@ -474,8 +520,8 @@ export class SubagentFold {
   }
 
   result(): Subagents {
-    if (!this.byId && !this.order && !this.spawns && !this.aliases && this.truncated === this.state.truncated) return this.state;
-    return { byId: this.byId ?? this.state.byId, order: this.order ?? this.state.order, spawns: this.spawns ?? this.state.spawns, aliases: this.aliases ?? this.state.aliases, truncated: this.truncated };
+    if (!this.byId && !this.order && !this.spawns && !this.aliases && !this.commandCalls && this.truncated === this.state.truncated) return this.state;
+    return { byId: this.byId ?? this.state.byId, order: this.order ?? this.state.order, spawns: this.spawns ?? this.state.spawns, aliases: this.aliases ?? this.state.aliases, commandCalls: this.commandCalls ?? this.state.commandCalls ?? {}, truncated: this.truncated };
   }
 }
 
@@ -675,6 +721,46 @@ export function subagentTree(state: Subagents): { agent: Subagent; depth: number
   };
   for (const id of state.order) { const agent = state.byId[id]; if (agent && (agent.parentId === 'root' || !state.byId[agent.parentId])) visit(id, 0); }
   return out;
+}
+
+/** Sub-agents in tree order, the newest top-level one first; each still followed by the ones it spawned. */
+export function newestFirstTree(state: Subagents): { agent: Subagent; depth: number }[] {
+  const tree = subagentTree(state), roots: { agent: Subagent; depth: number }[][] = [];
+  for (const node of tree) if (node.depth === 0) roots.push([node]); else roots.at(-1)?.push(node);
+  return roots.reverse().flat();
+}
+
+/** What runs in a conversation's background, counted apart: never "19 sub-agents and commands". */
+export type WorkCounts = { agents: number; commands: number; agentsRunning: number; commandsRunning: number; running: number; agentsFailed: number; commandsFailed: number; failed: number };
+export function workCounts(agents: readonly Subagent[], commands: readonly Subagent[], status: (agent: Subagent) => SubagentStatus): WorkCounts {
+  const count = (list: readonly Subagent[], test: (s: SubagentStatus) => boolean) => list.reduce((n, agent) => n + (test(status(agent)) ? 1 : 0), 0);
+  const agentsRunning = count(agents, activeSubagent), commandsRunning = count(commands, activeSubagent);
+  const agentsFailed = count(agents, s => s === 'failed'), commandsFailed = count(commands, s => s === 'failed');
+  return { agents: agents.length, commands: commands.length, agentsRunning, commandsRunning, running: agentsRunning + commandsRunning, agentsFailed, commandsFailed, failed: agentsFailed + commandsFailed };
+}
+const counted = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** "2 sub-agents · 17 commands": what there is, each kind once, none of a kind left out. */
+export function workTotals(c: WorkCounts): string {
+  return [c.agents && counted(c.agents, 'sub-agent', 'sub-agents'), c.commands && counted(c.commands, 'command', 'commands')].filter(Boolean).join(' · ') || 'Nothing yet';
+}
+/** "2 sub-agents · 17 commands · 0 running · 1 failed": the totals, then their state. */
+export function workSummary(c: WorkCounts): string {
+  return [workTotals(c), `${c.running} running`, c.failed ? `${c.failed} failed` : ''].filter(Boolean).join(' · ');
+}
+/** "3 sub-agents · 1 command running": what runs now, by kind. */
+export function runningSummary(c: WorkCounts): string {
+  const kinds = [c.agentsRunning && counted(c.agentsRunning, 'sub-agent', 'sub-agents'), c.commandsRunning && counted(c.commandsRunning, 'command', 'commands')].filter(Boolean).join(' · ');
+  return kinds ? `${kinds} running` : 'Nothing running';
+}
+
+/**
+ * A long list, newest first, with its older finished items folded away: the
+ * first `keep` items, and after them only what still needs a look (running
+ * or failed). `earlier` counts what is folded.
+ */
+export function recentWork<T>(items: readonly T[], notable: (item: T) => boolean, keep = 5): { shown: T[]; earlier: number } {
+  const shown = items.filter((item, index) => index < keep || notable(item));
+  return { shown, earlier: items.length - shown.length };
 }
 
 /** The chain from the top-level sub-agent down to this one. */

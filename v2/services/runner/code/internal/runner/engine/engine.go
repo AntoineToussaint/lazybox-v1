@@ -48,6 +48,8 @@ type QueuedMessage struct {
 	OperationID string    `json:"operationId"`
 	Text        string    `json:"text"`
 	QueuedAt    time.Time `json:"queuedAt,omitzero"`
+	// Origin marks a message Lazybox wrote (agent.Origin).
+	Origin *agent.Origin `json:"origin,omitempty"`
 }
 
 // queuedPreview bounds a queued message's text in a snapshot.
@@ -166,7 +168,7 @@ func (e *Engine) snapshotLocked() Snapshot {
 		if len(text) > queuedPreview {
 			text = append(text[:queuedPreview-1], '…')
 		}
-		s.QueuedMessages = append(s.QueuedMessages, QueuedMessage{OperationID: op.ID, Text: string(text), QueuedAt: e.queuedAt[op.ID]})
+		s.QueuedMessages = append(s.QueuedMessages, QueuedMessage{OperationID: op.ID, Text: string(text), QueuedAt: e.queuedAt[op.ID], Origin: op.Origin})
 	}
 	s.Pending = map[string]agent.Event{}
 	for k, v := range e.state.Pending {
@@ -270,6 +272,7 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	}
 	e.opMu.Lock()
 	defer e.opMu.Unlock()
+	op.Origin = op.Origin.Bounded()
 	// The attached instruction update is decided by the Runner, not the client,
 	// so a client retrying the same operation is recognized without it.
 	identity := op
@@ -336,6 +339,11 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	// after a restart can be answered as the user did.
 	if op.Decision != "" {
 		record["decision"] = op.Decision
+	}
+	// A message Lazybox wrote says so, for clients to show it as an event of
+	// the conversation rather than as the person's words.
+	if op.Kind == agent.Message && op.Origin != nil {
+		record["data"] = map[string]any{"files": op.Files, "origin": op.Origin}
 	}
 	if op.AgentID != "" {
 		record["agentId"] = op.AgentID

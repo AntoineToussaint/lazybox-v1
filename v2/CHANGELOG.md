@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.3] - 2026-11-17 · A quieter, clearer conversation
+
+- **Lazybox's messages are events, not yours** What Lazybox tells an agent (a repository you added, review findings, a question from the other agent, a mission task) is one line with an icon, such as Added authority to this workspace with its branch, the path on hover and to copy; it opens to exactly what the agent received. Never a You message.
+- **Restarts stay quiet** A Runner restart that interrupted nothing is a small mark, not a line per restart; one that left something uncertain says so in one line.
+- **Background work counted right** The background work list counts sub-agents and commands apart (2 sub-agents · 17 commands · 0 running · 1 failed), shows the newest first, folds older finished ones, and names a command by what the agent said it does, whole.
+- **What your tokens cost, part by part** The usage popover shows input, cache read, cache write and output with their tokens and cost, how much input the cache served, and for usage without a price, which model and why.
+
 ## [2026-11-17.2] - 2026-11-17 · Put windows back where they came from
 
 - **Put back in main window** A chat in its own window and a panel group opened in a new window now lead with a labelled Put back in main window button (or ⇧⌘D, or Window → Put Back in Main Window): the panel returns exactly where it was, and the main window comes forward on it.

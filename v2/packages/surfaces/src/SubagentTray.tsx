@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { Icon } from './Icons';
 import { LiveIndicator, useNow } from './LiveIndicator';
 import { elapsedLabel, type LiveStatus } from './live-status';
-import { activeSubagent, agentElapsed, backgroundCommands, currentAction, mergedStatus, statusWord, subagentTree, type Subagent, type SubagentStatus, type Subagents } from './subagent-model';
+import { activeSubagent, agentElapsed, backgroundCommands, commandTitle, currentAction, mergedStatus, newestFirstTree, recentWork, runningSummary, statusWord, subagentTree, workCounts, workSummary, workTotals, type Subagent, type SubagentStatus, type Subagents } from './subagent-model';
 import { usePresentation, useSubagentIndex, useSubagentView, type SubagentView } from './subagent-view';
 import { SubagentMark, SubagentName, subagentTitle } from './SubagentCard';
 import './subagents.css';
@@ -13,13 +13,10 @@ const menuFor = (view: SubagentView, agent: Subagent, title: string) => contextM
 
 const statusOf = (view: SubagentView, agent: Subagent): SubagentStatus => mergedStatus(agent, view.runner);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-/** "34 sub-agents", "2 background commands", "36 sub-agents and commands". */
-function workNoun(agents: number, commands: number): string {
-  const noun = !commands ? (agents === 1 ? 'sub-agent' : 'sub-agents') : !agents ? (commands === 1 ? 'background command' : 'background commands') : 'sub-agents and commands';
-  return `${agents + commands} ${noun}`;
-}
-/** " sub-agents" or " commands" after a count in a tight place; nothing for a mix of both. */
-const shortNoun = (agents: number, commands: number) => !commands ? (agents === 1 ? ' sub-agent' : ' sub-agents') : !agents ? (commands === 1 ? ' command' : ' commands') : '';
+/** " sub-agents" or " commands" after a count in a tight place. */
+const noun = (n: number, kind: 'agent' | 'command') => kind === 'agent' ? (n === 1 ? ' sub-agent' : ' sub-agents') : (n === 1 ? ' command' : ' commands');
+/** Finished items a list shows before folding the older ones away. */
+const RECENT = 5;
 
 /** Moves focus between the buttons of a row or list with the arrow keys. */
 function roving(event: KeyboardEvent<HTMLElement>, selector: string, keys: [string, string]) {
@@ -34,10 +31,12 @@ function roving(event: KeyboardEvent<HTMLElement>, selector: string, keys: [stri
 
 /** What runs in the background of a conversation: sub-agents (as a tree) and background commands. */
 function work(view: SubagentView, index: Subagents) {
-  const tree = subagentTree(index), commands = backgroundCommands(index, view.runner);
-  const agentsRunning = tree.filter(({ agent }) => activeSubagent(statusOf(view, agent)));
+  // The list reads newest first; the running chips keep the order they started in, so none jumps.
+  const tree = newestFirstTree(index), commands = backgroundCommands(index, view.runner);
+  const agentsRunning = subagentTree(index).filter(({ agent }) => activeSubagent(statusOf(view, agent)));
   const commandsRunning = commands.filter(agent => activeSubagent(statusOf(view, agent)));
-  return { tree, commands, agentsRunning, commandsRunning };
+  const counts = workCounts(tree.map(node => node.agent), commands, agent => statusOf(view, agent));
+  return { tree, commands, agentsRunning, commandsRunning, counts };
 }
 
 /** How many sub-agents and background commands are at work now. */
@@ -56,7 +55,8 @@ const show = (view: SubagentView, agent: Subagent) => agent.kind === 'command' ?
 /** Every sub-agent, nested under who started it, and every background command. */
 function WorkList({ view, index, now, placement, onClose }: { view: SubagentView; index: Subagents; now: number; placement: 'above' | 'below'; onClose(focus?: boolean): void }) {
   const list = useRef<HTMLDivElement>(null);
-  const { tree, commands, agentsRunning, commandsRunning } = work(view, index);
+  const { tree, commands, counts } = work(view, index);
+  const [all, setAll] = useState({ agents: false, commands: false });
   useEffect(() => {
     list.current?.querySelector<HTMLElement>('.subagent-tree-row')?.focus();
     const away = (event: PointerEvent) => { const target = event.target as Element; if (!list.current?.contains(target) && !target.closest?.('[data-work-trigger]')) onClose(false); };
@@ -65,20 +65,51 @@ function WorkList({ view, index, now, placement, onClose }: { view: SubagentView
   }, []);
   const row = (agent: Subagent, depth: number) => {
     const status = statusOf(view, agent), elapsed = agentElapsed({ ...agent, status }, now), title = subagentTitle(agent, view);
-    return <li key={agent.id} data-depth={depth} data-kind={agent.kind} style={{ ['--depth' as string]: depth }} onContextMenu={menuFor(view, agent, title)}>
-      <button type="button" className="subagent-tree-row" title={agent.kind === 'command' ? agent.command : undefined} onClick={() => { onClose(false); show(view, agent); }}>
+    // A command reads as what the agent said it does, wrapping to two lines, with what runs beneath.
+    const script = agent.kind === 'command' ? (agent.description ? commandTitle(agent.command) : '') : '';
+    return <li key={agent.id} data-id={agent.id} data-depth={depth} data-kind={agent.kind} data-status={status} style={{ ['--depth' as string]: depth }} onContextMenu={menuFor(view, agent, title)}>
+      <button type="button" className="subagent-tree-row" title={agent.kind === 'command' ? [agent.description, agent.command].filter(Boolean).join('\n\n') : title} onClick={() => { onClose(false); show(view, agent); }}>
         <SubagentMark status={status} size={12}/>
-        {agent.kind === 'command' ? <span className="subagent-tree-name"><code>{title}</code></span> : <SubagentName agent={agent} view={view} className="subagent-tree-name"/>}
-        <small>{statusWord[status]}{elapsed !== undefined ? ` · ${elapsedLabel(elapsed)}` : ''}</small>
+        <span className="subagent-tree-label">
+          {agent.kind === 'command' ? (agent.description ? <span className="subagent-tree-name">{title}</span> : <span className="subagent-tree-name"><code>{title}</code></span>) : <SubagentName agent={agent} view={view} className="subagent-tree-name"/>}
+          {script && <code className="subagent-tree-command">{script}</code>}
+        </span>
+        <small data-status={status}>{statusWord[status]}{elapsed !== undefined ? ` · ${elapsedLabel(elapsed)}` : ''}</small>
       </button>
       {agent.kind === 'agent' && <button type="button" className="icon-button" aria-label={`Open ${title} in a panel`} title="Open in a panel" onClick={() => { onClose(false); view.open(agent.id); }}><Icon name="dock-right" size={13}/></button>}
     </li>;
   };
+  const notable = (agent: Subagent) => { const status = statusOf(view, agent); return activeSubagent(status) || status === 'failed'; };
+  // Sub-agents fold by their top-level one, with everything it spawned.
+  const groups: { agent: Subagent; depth: number }[][] = [];
+  for (const node of tree) if (node.depth === 0) groups.push([node]); else groups.at(-1)?.push(node);
+  const agentList = all.agents ? { shown: groups, earlier: 0 } : recentWork(groups, group => group.some(node => notable(node.agent)), RECENT);
+  const commandList = all.commands ? { shown: commands, earlier: 0 } : recentWork(commands, notable, RECENT);
+  const heading = (label: string, total: number, running: number, failed: number) => <h4>
+    <span>{label}</span><span className="subagent-tree-count">{total}</span>
+    {running > 0 && <span className="subagent-tree-state" data-state="running">{running} running</span>}
+    {failed > 0 && <span className="subagent-tree-state" data-state="failed">{failed} failed</span>}
+  </h4>;
+  // Showing the earlier ones keeps the keyboard where it was: on the first of them.
+  const earlier = (n: number, which: 'agents' | 'commands') => n > 0 && <li className="subagent-tree-more"><button type="button" className="subagent-tree-row subagent-tree-earlier" onClick={event => {
+    const section = event.currentTarget.closest('section'), shown = new Set([...section?.querySelectorAll<HTMLElement>('li[data-id]') || []].map(li => li.dataset.id));
+    setAll(value => ({ ...value, [which]: true }));
+    requestAnimationFrame(() => ([...section?.querySelectorAll<HTMLElement>('li[data-id]') || []].find(li => !shown.has(li.dataset.id))?.querySelector<HTMLElement>('.subagent-tree-row') || list.current?.querySelector<HTMLElement>('.subagent-tree-row'))?.focus());
+  }}>
+    <Icon name="expand" size={11}/><span>Show {n} earlier</span>
+  </button></li>;
   return <div ref={list} className="subagent-tree" data-placement={placement} role="dialog" aria-label="Background work" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onClose(true); } else roving(event, '.subagent-tree-row', ['ArrowUp', 'ArrowDown']); }}>
-    <header><strong>Background work</strong><small>{agentsRunning.length + commandsRunning.length} running · {workNoun(tree.length, commands.length)} in all</small><button type="button" className="icon-button" aria-label="Close background work" onClick={() => onClose(true)}><Icon name="close" size={13}/></button></header>
+    <header>
+      <span className="subagent-tree-title"><strong>Background work</strong><small className="subagent-tree-summary" aria-label={workSummary(counts)}>
+        <span>{workTotals(counts)}</span>
+        <span className="subagent-tree-state" data-state={counts.running ? 'running' : 'idle'}>{counts.running} running</span>
+        {counts.failed > 0 && <span className="subagent-tree-state" data-state="failed">{counts.failed} failed</span>}
+      </small></span>
+      <button type="button" className="icon-button" aria-label="Close background work" onClick={() => onClose(true)}><Icon name="close" size={13}/></button>
+    </header>
     <div className="subagent-tree-body">
-      {tree.length > 0 && <section aria-label="Sub-agents"><h4>Sub-agents</h4><ul>{tree.map(({ agent, depth }) => row(agent, depth))}</ul></section>}
-      {commands.length > 0 && <section aria-label="Background commands"><h4>Background commands</h4><ul>{commands.map(agent => row(agent, 0))}</ul></section>}
+      {tree.length > 0 && <section aria-label="Sub-agents">{heading('Sub-agents', counts.agents, counts.agentsRunning, counts.agentsFailed)}<ul>{agentList.shown.flat().map(({ agent, depth }) => row(agent, depth))}{earlier(agentList.earlier, 'agents')}</ul></section>}
+      {commands.length > 0 && <section aria-label="Background commands">{heading('Commands', counts.commands, counts.commandsRunning, counts.commandsFailed)}<ul>{commandList.shown.map(agent => row(agent, 0))}{earlier(commandList.earlier, 'commands')}</ul></section>}
       {!tree.length && !commands.length && <p className="subagent-empty">Nothing has run in the background yet.</p>}
     </div>
   </div>;
@@ -100,14 +131,13 @@ export function SubagentTray({ live, rootBusy, fallback = null }: { live: LiveSt
   const busy = !!state && (state.agentsRunning.length + state.commandsRunning.length) > 0;
   const now = useNow(busy);
   if (!view || !state || !busy) return <>{fallback}</>;
-  const { tree, commands, agentsRunning, commandsRunning } = state;
+  const { agentsRunning, commandsRunning, counts } = state;
   // Chips are for the sub-agents the main agent started; a nested one shows on its top-level chip.
   const top = agentsRunning.filter(({ agent }) => agent.parentId === 'root' || !index.byId[agent.parentId]);
   const nestedRunning = (agent: Subagent): number => agent.children.reduce((sum, id) => { const child = index.byId[id]; return child ? sum + (activeSubagent(statusOf(view, child)) ? 1 : 0) + nestedRunning(child) : sum; }, 0);
-  const counts = [agentsRunning.length && plural(agentsRunning.length, 'sub-agent', 'sub-agents'), commandsRunning.length && plural(commandsRunning.length, 'command', 'commands')].filter(Boolean).join(' · ');
   return <div className="subagent-tray" role="group" aria-label="Background work">
     {rootBusy && <span className="subagent-tray-root" aria-hidden="true"><LiveIndicator tone={live.tone}/>{live.text}</span>}
-    <span className="subagent-tray-count" role="status">{counts} running</span>
+    <span className="subagent-tray-count" role="status">{runningSummary(counts)}</span>
     <div className="subagent-chips" role="toolbar" aria-label="Running in the background" onKeyDown={event => roving(event, '.subagent-chip', ['ArrowLeft', 'ArrowRight'])}>
       {(top.length ? top : agentsRunning).map(({ agent }) => {
         const status = statusOf(view, agent), elapsed = agentElapsed(agent, now), action = currentAction({ ...agent, status }), nested = nestedRunning(agent), title = subagentTitle(agent, view);
@@ -130,8 +160,8 @@ export function SubagentTray({ live, rootBusy, fallback = null }: { live: LiveSt
         </button>;
       })}
     </div>
-    <button ref={trigger} type="button" className="subagent-tray-all" data-work-trigger aria-haspopup="dialog" aria-expanded={open} title="Every sub-agent and background command of this conversation, running or ended" onClick={() => setOpen(value => !value)}>
-      <Icon name="subagent" size={13}/><span>All {tree.length + commands.length}<span className="subagent-tray-noun">{shortNoun(tree.length, commands.length) || ' in background'}</span></span>
+    <button ref={trigger} type="button" className="subagent-tray-all" data-work-trigger aria-haspopup="dialog" aria-expanded={open} aria-label={`All background work: ${workSummary(counts)}`} title={`Every sub-agent and background command of this conversation, running or ended: ${workSummary(counts)}`} onClick={() => setOpen(value => !value)}>
+      <Icon name="subagent" size={13}/><span>All<span className="subagent-tray-noun"> · {workTotals(counts)}</span></span>
     </button>
     {open && <WorkList view={view} index={index} now={now} placement="above" onClose={focus => { setOpen(false); if (focus) trigger.current?.focus(); }}/>}
   </div>;
@@ -148,16 +178,18 @@ export function BackgroundWorkButton() {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const state = view ? work(view, index) : undefined;
-  const running = state ? state.agentsRunning.length + state.commandsRunning.length : 0;
+  const running = state ? state.counts.running : 0;
   const now = useNow(open && running > 0);
-  if (!view || !state || !(state.tree.length + state.commands.length)) return null;
-  const total = state.tree.length + state.commands.length;
-  const failed = [...state.tree.map(n => n.agent), ...state.commands].filter(agent => statusOf(view, agent) === 'failed').length;
+  if (!view || !state || !(state.counts.agents + state.counts.commands)) return null;
+  const { counts } = state;
+  // Each kind counted apart, as the list says it: "2 sub-agents · 17 commands", or what runs now.
+  const agents = running ? counts.agentsRunning : counts.agents, commands = running ? counts.commandsRunning : counts.commands;
+  const parts = [agents > 0 && <span key="agents">{agents}<span className="background-work-noun">{noun(agents, 'agent')}</span></span>, commands > 0 && <span key="commands">{commands}<span className="background-work-noun">{noun(commands, 'command')}</span></span>].filter(Boolean);
   return <span className="background-work">
-    <button ref={trigger} type="button" className="icon-button background-work-button" data-work-trigger aria-haspopup="dialog" aria-expanded={open} data-running={running || undefined} data-failed={failed || undefined}
-      aria-label={`Background work: ${total} in all${running ? `, ${running} running` : ''}${failed ? `, ${failed} failed` : ''}`}
-      title={`${workNoun(state.tree.length, state.commands.length)}${running ? `, ${running} running` : ''}${failed ? `, ${failed} failed` : ''}. Show them all.`} onClick={() => setOpen(value => !value)}>
-      <Icon name="subagent" size={14}/><span>{running ? <>{running}<span className="background-work-noun">{shortNoun(state.agentsRunning.length, state.commandsRunning.length)} running</span></> : <>{total}<span className="background-work-noun">{shortNoun(state.tree.length, state.commands.length) || ' in background'}</span></>}</span>
+    <button ref={trigger} type="button" className="icon-button background-work-button" data-work-trigger aria-haspopup="dialog" aria-expanded={open} data-running={running || undefined} data-failed={counts.failed || undefined}
+      aria-label={`Background work: ${workSummary(counts)}`}
+      title={`${workSummary(counts)}. Show them all.`} onClick={() => setOpen(value => !value)}>
+      <Icon name="subagent" size={14}/><span>{parts.flatMap((part, i) => i ? [<span key={i} aria-hidden="true"> · </span>, part] : [part])}{running > 0 && <span className="background-work-noun"> running</span>}</span>
     </button>
     {open && <WorkList view={view} index={index} now={now} placement="below" onClose={focus => { setOpen(false); if (focus) trigger.current?.focus(); }}/>}
   </span>;

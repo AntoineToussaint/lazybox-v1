@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { ContextSnapshot, TelemetryReport } from '@lazybox/protocol';
 import {useRunner} from './RunnerContext';
 import './telemetry.css';
+import { dollars, unpricedHelp, unpricedLine, usageBreakdown, type UsageBreakdown } from './usage-model';
 
 const number=(n?:bigint)=>n===undefined?'—':n.toLocaleString();
 const short=(n?:bigint)=>n===undefined?'—':new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(n);
@@ -36,6 +37,21 @@ function ContextView({context:c,showAgent}:{context:ContextSnapshot;showAgent:bo
  </section>;
 }
 
+/** Tokens by part (input, cache read, cache write, output) and what each cost, then the total. */
+function UsageTable({usage,label,compact=false}:{usage:UsageBreakdown;label?:string;compact?:boolean}){
+ const priced=usage.nanos!==undefined,partial=usage.unpriced.length>0&&priced;
+ const cost=(nanos?:bigint)=>nanos!==undefined?dollars(nanos):priced?'—':'';
+ return <div className={'usage-table'+(compact?' compact':'')}>
+  <table aria-label={label?`${label}: tokens and cost by part`:'Tokens and cost by part'}>
+   {!compact&&<thead><tr><th scope="col">{label||'Usage'}</th><th scope="col">Tokens</th><th scope="col">Cost</th></tr></thead>}
+   <tbody>{usage.parts.map(p=><tr key={p.key} data-part={p.key}><th scope="row" title={p.hint}>{p.label}</th><td title={p.tokens===undefined?'Not reported':`${number(p.tokens)} tokens`}>{short(p.tokens)}</td><td title={p.nanos===undefined&&priced?'Cost by part unknown: priced before Lazybox recorded parts':undefined}>{cost(p.nanos)}</td></tr>)}</tbody>
+   <tfoot><tr><th scope="row">Total</th><td title={`${number(usage.tokens)} tokens`}>{short(usage.tokens)}</td><td>{priced?<>{dollars(usage.nanos)}{partial&&<span className="usage-partial" title="Covers the priced usage only">*</span>}</>:<span className="usage-unpriced-label">Not priced</span>}</td></tr></tfoot>
+  </table>
+  {!compact&&usage.cached!==undefined&&<p className="usage-cache"><span className="usage-cache-bar" aria-hidden="true"><i style={{width:`${Math.round(usage.cached*100)}%`}}/></span>{percentLabel(usage.cached*100)} of input came from the cache</p>}
+  {!compact&&partial&&<p className="telemetry-note">* Covers the priced usage only; see what is not priced below.</p>}
+ </div>;
+}
+
 const USAGE_EVENT='lazybox-open-usage';
 type UsageRequest={executionId:string;part:'context'|'cost'};
 /** Opens a conversation's context and cost popover; false when no header of it is on screen. */
@@ -66,20 +82,21 @@ export function TelemetryPanel({workspaceId,executionId,conversationId,compact=f
  },[compact,executionId]);
  if(!workspaceId&&!executionId&&!conversationId)return <p className="module-empty">Select a workspace to view its usage.</p>;
  const groups=report?.groups||[],contexts=(report?.contexts||[]).filter((context,index,all)=>!conversationId||all.findIndex(value=>value.agent===context.agent)===index);
- const known=groups.filter(g=>g.nanos!==undefined),cost=known.reduce((sum,g)=>sum+Number(g.nanos)/1e9,0);
- const unpriced=groups.reduce((sum,g)=>sum+Number(g.unpriced),0),incomplete=groups.reduce((sum,g)=>sum+Number(g.incomplete),0);
+ const known=groups.filter(g=>g.nanos!==undefined),usage=usageBreakdown(groups),cost=Number(usage.nanos??0n)/1e9;
  const root=contexts.find(c=>c.agent==='root'),percent=percentage(root?.used,root?.capacity);
- const costLabel=known.length?`$${cost.toFixed(4)}`:'Not priced';
+ const costLabel=known.length?dollars(usage.nanos):groups.length?'Not priced':'—';
  const content=<>
   {error&&!connectionError&&<p role="status" className="telemetry-note">Usage unavailable; retrying automatically.</p>}
   {contexts.map(c=><ContextView key={`${c.scope?.execution}:${c.scope?.attempt}:${c.agent}`} context={c} showAgent={contexts.length>1}/>)}
   {!contexts.length&&<p className="telemetry-note">{report?'Context usage not reported yet.':'Loading context…'}</p>}
-  <details className="token-cost" ref={costDetails}><summary><span>Token cost</span><strong>{costLabel}{unpriced>0&&known.length?' + unpriced':''}</strong></summary><div className="token-cost-body">
+  <details className="token-cost" ref={costDetails}><summary><span>Token cost</span>{usage.unpriced.length>0&&known.length>0&&<span className="token-cost-partial" title="Some usage has no price; open for which model and why">Partly priced</span>}<strong>{costLabel}</strong></summary><div className="token-cost-body">
    <p className="telemetry-note">API-equivalent estimate, separate from subscription allowance and billed spend.</p>
-   {(unpriced>0||incomplete>0)&&<p className="telemetry-note">{unpriced>0?`${unpriced} unpriced observations. `:''}{incomplete>0?`${incomplete} incomplete requests.`:''}</p>}
-   {unpriced>0&&<p className="telemetry-note">Set model rates in Settings → Pricing. {Array.from(new Set((report?.recent||[]).filter(r=>r.nanos===undefined).map(r=>r.reason).filter(Boolean))).join(' · ')}</p>}
-   {!groups.length&&<p className="telemetry-note">No token usage recorded yet.</p>}
-   {groups.map((g,i)=><section className="token-cost-group" key={i}><div><strong>{g.model||'Model unavailable'}</strong><strong>{g.nanos===undefined?'Unpriced':`$${(Number(g.nanos)/1e9).toFixed(4)}`}</strong></div><p>{info?.profiles.find(p=>p.id===g.scope?.profile)?.label||g.scope?.profile} · {g.source==='gateway'?'Metered':'Provider'}{g.agent&&g.agent!=='root'?` · ${g.agent}`:''}</p><dl>{[['Input',g.tokens?.input],['Cache read',g.tokens?.cacheRead],['Cache write',g.tokens?.cacheWrite5m===undefined||g.tokens?.cacheWrite1h===undefined?undefined:g.tokens.cacheWrite5m+g.tokens.cacheWrite1h],['Output',g.tokens?.output]].map(([label,value])=><div key={String(label)}><dt>{label as string}</dt><dd>{short(value as bigint|undefined)}</dd></div>)}</dl></section>)}
+   {groups.length>0?<UsageTable usage={usage} label={conversationId||executionId?'This conversation':'This workspace'}/>:<p className="telemetry-note">No token usage recorded yet.</p>}
+   {usage.unpriced.length>0&&<div className="usage-unpriced" role="note"><strong>Not priced</strong><ul>{usage.unpriced.map(u=><li key={`${u.model}/${u.agent}`}><span>{unpricedLine(u)}</span><small title={u.tokens===undefined?undefined:`${number(u.tokens)} tokens`}>{u.tokens===undefined?(u.records===1?'1 request':`${u.records} requests`):`${short(u.tokens)} tokens`}</small></li>)}</ul>{unpricedHelp(usage.unpriced.flatMap(u=>u.reasons))&&<p>{unpricedHelp(usage.unpriced.flatMap(u=>u.reasons))}</p>}</div>}
+   {usage.incomplete>0&&<p className="telemetry-note">{usage.incomplete===1?'1 request did not report all of its usage.':`${usage.incomplete} requests did not report all of their usage.`}</p>}
+   {groups.length>1&&<details className="usage-by-model"><summary>By model and agent <small>{groups.length}</small></summary>
+    {groups.map((g,i)=><section className="token-cost-group" key={i}><div><strong>{g.model||'Model unavailable'}</strong><strong>{g.nanos===undefined?'Not priced':dollars(g.nanos)}</strong></div><p>{info?.profiles.find(p=>p.id===g.scope?.profile)?.label||g.scope?.profile} · {g.source==='gateway'?'Metered':'Provider'}{g.agent&&g.agent!=='root'?` · ${g.agent}`:''}</p><UsageTable usage={usageBreakdown([g])} compact/></section>)}
+   </details>}
   </div></details>
  </>;
  if(!compact)return <section className="telemetry-panel" aria-label="Workspace usage">{content}</section>;

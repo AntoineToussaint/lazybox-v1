@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -227,6 +228,35 @@ func sum(a **int64, b *int64) {
 		**a += *b
 	}
 }
+func addTokens(to *Tokens, t Tokens) {
+	sum(&to.Input, t.Input)
+	sum(&to.Output, t.Output)
+	sum(&to.CacheRead, t.CacheRead)
+	sum(&to.CacheWrite5m, t.CacheWrite5m)
+	sum(&to.CacheWrite1h, t.CacheWrite1h)
+}
+func firstReason(reason, fallback string) string {
+	if reason == "" {
+		return fallback
+	}
+	return reason
+}
+
+// costsOf is what each part of a priced record cost. A record priced before
+// parts were stored gets them from the current rate only when that rate is
+// the one it was priced at, to the nanodollar; otherwise they stay unknown.
+func costsOf(r Record, prices Pricer) *Costs {
+	if r.Nanos == nil || r.Costs != nil || prices == nil {
+		return r.Costs
+	}
+	again := r
+	again.Reason = ""
+	again = prices.Price(again)
+	if again.Nanos == nil || *again.Nanos != *r.Nanos || again.PriceVersion != r.PriceVersion {
+		return nil
+	}
+	return again.Costs
+}
 func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 	out := Report{}
 	where := "execution=?"
@@ -247,6 +277,7 @@ func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 		return out, err
 	}
 	groups := map[string]*Group{}
+	partsUnknown := map[string]bool{}
 	seen := map[string]bool{}
 	for rows.Next() {
 		var raw string
@@ -268,10 +299,11 @@ func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 			r.Reason = ""
 			r = q.Prices.Price(r)
 		}
+		r.Costs = costsOf(r, q.Prices)
 		key := fmt.Sprintf("%s/%s/%s/%s/%s/%s", r.Scope.Execution, r.Scope.Profile, r.Scope.Attempt, r.Agent, r.Model, r.Source)
 		g := groups[key]
 		if g == nil {
-			g = &Group{Scope: r.Scope, Agent: r.Agent, Model: r.Model, Source: r.Source}
+			g = &Group{Scope: r.Scope, Agent: r.Agent, Model: r.Model, Source: r.Source, Costs: &Costs{}}
 			groups[key] = g
 		}
 		g.Records++
@@ -280,6 +312,21 @@ func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 		}
 		if r.Nanos == nil {
 			g.Unpriced++
+			reason := firstReason(r.Reason, "No price")
+			if !slices.Contains(g.UnpricedReasons, reason) {
+				g.UnpricedReasons = append(g.UnpricedReasons, reason)
+			}
+			addTokens(&g.UnpricedTokens, r.Tokens)
+		} else if r.Costs == nil {
+			// Priced before parts were recorded, at a rate no longer current:
+			// the group's total stands, its parts are unknown.
+			partsUnknown[key] = true
+		} else {
+			sum(&g.Costs.Input, r.Costs.Input)
+			sum(&g.Costs.Output, r.Costs.Output)
+			sum(&g.Costs.CacheRead, r.Costs.CacheRead)
+			sum(&g.Costs.CacheWrite5m, r.Costs.CacheWrite5m)
+			sum(&g.Costs.CacheWrite1h, r.Costs.CacheWrite1h)
 		}
 		sum(&g.Nanos, r.Nanos)
 		sum(&g.Tokens.Input, r.Tokens.Input)
@@ -306,7 +353,11 @@ func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		out.Groups = append(out.Groups, *groups[k])
+		g := *groups[k]
+		if partsUnknown[k] || g.Nanos == nil {
+			g.Costs = nil
+		}
+		out.Groups = append(out.Groups, g)
 	}
 	rows, err = s.db.QueryContext(ctx, "SELECT body FROM contexts WHERE "+where, value)
 	if err != nil {

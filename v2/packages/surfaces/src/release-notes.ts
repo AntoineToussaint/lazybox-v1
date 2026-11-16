@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.3',
+    date: '2026-11-17',
+    title: 'A quieter, clearer conversation',
+    items: [
+      { title: 'Lazybox\'s messages are events, not yours', body: 'What Lazybox tells an agent (a repository you added, review findings, a question from the other agent, a mission task) is one line with an icon, such as Added authority to this workspace with its branch, the path on hover and to copy; it opens to exactly what the agent received. Never a You message.' },
+      { title: 'Restarts stay quiet', body: 'A Runner restart that interrupted nothing is a small mark, not a line per restart; one that left something uncertain says so in one line.' },
+      { title: 'Background work counted right', body: 'The background work list counts sub-agents and commands apart (2 sub-agents · 17 commands · 0 running · 1 failed), shows the newest first, folds older finished ones, and names a command by what the agent said it does, whole.' },
+      { title: 'What your tokens cost, part by part', body: 'The usage popover shows input, cache read, cache write and output with their tokens and cost, how much input the cache served, and for usage without a price, which model and why.' },
+    ],
+  },
+  {
     id: '2026-11-17.2',
     date: '2026-11-17',
     title: 'Put windows back where they came from',

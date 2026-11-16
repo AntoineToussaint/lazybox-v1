@@ -342,6 +342,12 @@ The Runner assigns each edit a version; removing an override restores the config
 base/default rate. Captures use the latest rate, while reports can estimate retained
 observations previously missing a rate, without rewriting those observations.
 Incomplete usage, unsupported tiers and detected non-token fees remain unpriced.
+A priced record keeps its cost by part (`costs`: input, output, cache read,
+five-minute and one-hour cache writes). A report's group sums them when every
+priced record says (one priced before parts were stored gets them from the
+current rate only when that is the rate it was priced at, to the nanodollar),
+and says of its unpriced records why (`unpricedReasons`, each once) and how many
+tokens they leave out (`unpricedTokens`).
 Fable 5.1 (`claude-fable-5-1`) was added from the Anthropic price table on
 2026-11-03: $10 input, $50 output, $0.25 cache read, $12.50 five-minute cache
 write and $20 one-hour cache write per million tokens. `defaultGateways` may explicitly set

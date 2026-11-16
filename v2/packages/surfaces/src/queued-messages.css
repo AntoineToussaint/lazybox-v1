@@ -11,6 +11,11 @@
 .queued-message{display:flex;flex-direction:column;gap:6px;min-width:0}
 .queued-row{display:flex;align-items:center;gap:8px;min-width:0}
 .queued-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);quotes:"“" "”"}
+/* A message Lazybox wrote waits as what it is, not as a quote of its words. */
+.queued-event{display:flex;align-items:center;gap:6px;color:var(--text-secondary)}
+.queued-event>svg{flex:none;color:var(--text-muted)}
+.queued-event>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.queued-event>small{flex:none;padding:0 6px;border:1px solid var(--line);border-radius:999px;color:var(--text-muted);font-size:calc(10.5px * var(--text-scale))}
 .queued-actions{flex:none;display:inline-flex;align-items:center;gap:4px}
 .queued-messages .queued-actions button{border-color:var(--line-strong,var(--line));background:var(--surface);color:var(--text-soft,var(--text))}
 .queued-messages .queued-actions button:hover{background:var(--surface-selected)}

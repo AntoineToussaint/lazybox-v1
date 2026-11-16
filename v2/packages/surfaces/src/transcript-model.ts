@@ -5,13 +5,20 @@ import { emptySubagents, SubagentFold, subagentRelevant, type Subagents } from '
 import { applyToolPayload, hiddenTool, THINKING, type ToolEntry } from './tool-lines';
 import { answerNote, requestNote, type AnswerNote, type RequestNote } from './request-model';
 import { commandLine, emptyCatalog, mergeCatalog, parseSlash, COMMAND_NAME, type CommandCatalog } from './slash-commands';
+import { legacyOrigin, messageOrigin, type MessageOrigin, type RunnerNotice } from './system-events';
 
 /**
  * `agentId` names the sub-agent whose card a `subagent` message is.
  * `tools`: a run of the main agent's tool calls, one line each in the
  * conversation. `answered`: how a question or approval was answered.
  */
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string; tools?: ToolEntry[]; answered?: AnswerNote; /** A message that ran one of the agent's slash commands: shown as one compact line. */ command?: boolean; review?: ReviewNote };
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string; tools?: ToolEntry[]; answered?: AnswerNote; /** A message that ran one of the agent's slash commands: shown as one compact line. */ command?: boolean; review?: ReviewNote;
+  /** A message Lazybox wrote to the agent (operation_accepted): an event of the conversation, never the person's words. */
+  origin?: MessageOrigin;
+  /** A `notice`: what a Runner restart (or a revert) left to know. */
+  notice?: RunnerNotice;
+  /** A `reattached` marker: when the last of its restarts was. */
+  at?: number };
 /** An agent review of this conversation's work (the Runner's review_started /
  * review_finished events): its card follows the review live; the counts here
  * are what the last event said, for when the review record is gone. */
@@ -79,11 +86,14 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       continue;
     }
     const last = (messages ?? state.messages).at(-1);
-    // A restart that interrupted nothing is not worth a card: consecutive ones
-    // collapse into one quiet line, so hot reloads do not flood the conversation.
+    // A restart that interrupted nothing is not news: one quiet marker, which
+    // every later restart joins until the person says something, so hot
+    // reloads never stack up in the conversation.
     if (event.type === 'runner_reattached' && !record.receipt) {
-      if (last?.type === 'reattached') replaceLast({ ...last, count: (last.count || 1) + 1 });
-      else add({ id: record.cursor.toString(), type: 'reattached', text: '', turnId: event.turnId, count: 1 });
+      const current = messages ?? state.messages, at = Date.parse(record.capturedAt), when = Number.isFinite(at) ? { at } : {};
+      const index = restartMarker(current);
+      if (index >= 0) replaceAt(index, { ...current[index], count: (current[index].count || 1) + 1, ...when });
+      else add({ id: record.cursor.toString(), type: 'reattached', text: '', turnId: event.turnId, count: 1, ...when });
       continue;
     }
     if (event.type === 'question' || event.type === 'approval') {
@@ -128,17 +138,34 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
     // The two agents of a review asking each other ("Codex asked Claude: …"),
     // and a loop that stopped to ask the person: one labelled line each.
     if (event.type === 'review_exchange' || event.type === 'review_escalated') {
+      // The question as the agent received it already says this line.
+      if (event.type === 'review_exchange' && saidBy(messages ?? state.messages, event.text, m => !!m.origin) >= 0) { next.appendToLast = false; continue; }
       const data = providerData(event.providerDataJson);
       const review = typeof data.review === 'string' ? data.review : '', workspace = typeof data.workspace === 'string' ? data.workspace : '';
       add({ id: record.cursor.toString(), type: event.type === 'review_exchange' ? 'exchange' : 'review-alert', text: event.text, turnId: event.turnId, ...(review ? { review: { review, workspace, reviewerSession: typeof data.reviewerSession === 'string' ? data.reviewerSession : '', reviewerLabel: typeof data.reviewerLabel === 'string' ? data.reviewerLabel : '', scopeLabel: '', blockers: 0, majors: 0, minors: 0, nits: 0, finished: true } } : {}) });
       next.appendToLast = false;
       continue;
     }
-    const notice = runnerNotice(record);
+    const notice = noticeOf(record);
     if (notice) {
-      add({ id: record.cursor.toString(), type: 'notice', text: notice, turnId: event.turnId });
+      // The same uncertainty twice in a row is one line that says how often.
+      if (last?.type === 'notice' && last.notice === notice.notice && last.text === notice.text) replaceLast({ ...last, count: (last.count || 1) + 1 });
+      else add({ id: record.cursor.toString(), type: 'notice', text: notice.text, turnId: event.turnId, notice: notice.notice });
       next.appendToLast = false;
       continue;
+    }
+    // A message Lazybox wrote to the agent is an event of the conversation.
+    if (event.type === 'operation_accepted' && event.text) {
+      const data = providerData(event.providerDataJson);
+      const origin = messageOrigin(data.origin) ?? legacyOrigin(event.operationId);
+      if (origin) {
+        // A line the review already said ("Codex asked Claude: …") is this event now.
+        const current = messages ?? state.messages, said = origin.summary ? saidBy(current, origin.summary, m => m.type === 'exchange') : -1;
+        if (said >= 0) list().splice(said, 1);
+        add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId, origin, ...(event.operationId ? { operationId: event.operationId } : {}), ...(Array.isArray(data.files) && data.files.length ? { files: data.files } : {}) });
+        next.appendToLast = false;
+        continue;
+      }
     }
     // A switch of subscription is one quiet line. A limit is not a message at
     // all: the conversation's limit card says it while it matters, and the
@@ -249,17 +276,42 @@ const BOUNDARY_TYPES = new Set(['turn_started', 'turn_ended', 'session_closed', 
  * plainly, in the conversation, where the user will look for it.
  */
 export function runnerNotice(record: JournalEvent): string {
+  return noticeOf(record)?.text || '';
+}
+function noticeOf(record: JournalEvent): { notice: RunnerNotice; text: string } | undefined {
   const event = record.event;
   if (record.receipt?.delivery === 'unknown_after_runner_restart')
-    return 'The Runner restarted before it could confirm this message reached the agent. It was not sent again; resend it if it is still needed.';
-  if (event?.type === 'runner_reattached')
-    return 'The Runner restarted and re-attached to this agent. Nothing was interrupted.';
-  if (event?.type === 'code_reverted') return event.text;
+    return { notice: 'delivery-unknown', text: 'The Runner restarted before it could confirm this message reached the agent. It was not sent again; resend it if it is still needed.' };
+  if (event?.type === 'code_reverted' && event.text) return { notice: 'reverted', text: event.text };
   // Another lazybox comes first on agents' PATH (internal/agentshell): what Lazybox did about it.
-  if (event?.type === 'cli_notice') return event.text;
+  if (event?.type === 'cli_notice' && event.text) return { notice: 'cli', text: event.text };
   if (event?.type === 'request_resolved' && event.status === 'outcome_unknown_after_restart')
-    return 'The Runner restarted while a command the agent started was in flight. Its outcome is unknown, so it was not run again; the agent was told to check before retrying.';
-  return '';
+    return { notice: 'outcome-unknown', text: 'The Runner restarted while a command the agent started was in flight. Its outcome is unknown, so it was not run again; the agent was told to check before retrying.' };
+  return undefined;
+}
+
+/** The restart marker still open: one since the person last said something. */
+function restartMarker(messages: readonly TranscriptMessage[]): number {
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - 400); i--) {
+    const message = messages[i];
+    if (message.type === 'reattached') return i;
+    if (message.type === 'operation_accepted' && !message.origin) return -1;
+  }
+  return -1;
+}
+
+const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+/** A recent message `match` accepts that says `line` (a bounded summary says its start). */
+function saidBy(messages: readonly TranscriptMessage[], line: string, match: (message: TranscriptMessage) => boolean): number {
+  const want = oneLine(line), prefix = want.endsWith('…') ? want.slice(0, -1) : '';
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - 12); i--) {
+    const message = messages[i];
+    if (!match(message)) continue;
+    const said = oneLine(message.origin?.summary || message.text);
+    const saidPrefix = said.endsWith('…') ? said.slice(0, -1) : '';
+    if (said === want || (prefix && said.startsWith(prefix)) || (saidPrefix && want.startsWith(saidPrefix))) return i;
+  }
+  return -1;
 }
 
 // Tool results can contain images or megabytes of logs. Keep a bounded display

@@ -384,7 +384,12 @@ asker's call (it waits up to `--timeout`, 90 s by default; `--no-wait`
 returns at once), or, once it no longer waits, as a message in its
 conversation. Both conversations show the exchange as labelled lines
 (*Codex asked Claude: …*, *Claude answered Codex: …*), and the review's
-timeline keeps it. Only the author and the reviewer of one review in the same
+timeline keeps it. The messages Lazybox writes here and in the loop (the
+brief, findings, a re-review, a question, its answer) carry their origin
+(`MessageOrigin`, `origin` in the operation_accepted record's data): the
+conversation shows each as one such line that opens to the exact text the
+agent received, never as the person's message, and a line the question
+already says is not shown twice. Only the author and the reviewer of one review in the same
 workspace may ask each other (`AskAgent`, `WaitAgentAsk` on the agent
 allowlist for the caller's own execution; the other side comes from the
 review, never the request); one question per side at a time, none back while

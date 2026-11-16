@@ -125,6 +125,9 @@ func wireSession(e *runner.Execution) *pb.Session {
 	w.LastMessage = s.LastMessage
 	for _, q := range s.QueuedMessages {
 		m := &pb.QueuedMessage{OperationId: q.OperationID, Text: q.Text}
+		if o := q.Origin; o != nil {
+			m.Origin = &pb.MessageOrigin{Kind: o.Kind, Summary: o.Summary, Detail: o.Detail, Copy: o.Copy, From: o.From}
+		}
 		if !q.QueuedAt.IsZero() {
 			m.QueuedAtUnixMillis = q.QueuedAt.UnixMilli()
 		}
@@ -279,12 +282,21 @@ func (s *Service) CloseSession(ctx context.Context, r *pb.SessionRequest) (*pb.S
 }
 
 func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, error) {
+	return s.apply(ctx, r, nil)
+}
+
+// apply is Apply, for the Runner as well: origin marks a message Lazybox
+// wrote (a mission's brief), which no client can claim.
+func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.Origin) (*pb.Receipt, error) {
 	p := r
 	e, err := s.Bench.Get(p.SessionId)
 	if err != nil {
 		return nil, rpcError(err)
 	}
 	op := agent.Operation{ID: p.OperationId}
+	if _, isMessage := p.Operation.(*pb.ApplyRequest_Message); isMessage {
+		op.Origin = origin
+	}
 	message := func(m *pb.Message) error {
 		if m == nil {
 			return errors.New("message required")
@@ -549,7 +561,8 @@ func (s *Service) ContinueSession(ctx context.Context, r *pb.ContinueSessionRequ
 		return nil, rpcError(errors.New("continuation failed after closing old adapter; old writer remains closed: " + err.Error()))
 	}
 	if prompt != "" {
-		if _, err = next.Engine.Apply(ctx, agent.Operation{ID: commands.ID(), Kind: agent.Message, Text: prompt}); err != nil {
+		origin := &agent.Origin{Kind: agent.OriginContinuation, Summary: "Continued from a checkpoint", Detail: p.Reason}
+		if _, err = next.Engine.Apply(ctx, agent.Operation{ID: commands.ID(), Kind: agent.Message, Text: prompt, Origin: origin}); err != nil {
 			return nil, rpcError(err)
 		}
 	}

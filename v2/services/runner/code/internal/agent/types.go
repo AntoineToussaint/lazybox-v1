@@ -210,7 +210,59 @@ type Operation struct {
 	NativeID string `json:"nativeId,omitempty"`
 	// Model is the new model of a Model operation.
 	Model string `json:"model,omitempty"`
+	// Origin, on a Message, marks one Lazybox wrote rather than the person.
+	Origin *Origin `json:"origin,omitempty"`
 }
+
+// Origin marks a message Lazybox wrote, not the person: the answer to a
+// repository request, a review's findings, a question between two agents, a
+// mission's brief. The agent receives the message's text unchanged; clients
+// show the message as an event of the conversation, in Summary's words, and
+// never as the person's. Kind is one of the Origin* constants.
+type Origin struct {
+	Kind string `json:"kind"`
+	// Summary is the event in one line: "Added authority to this workspace".
+	Summary string `json:"summary"`
+	// Detail is a short label beside it: a branch, "3 findings".
+	Detail string `json:"detail,omitempty"`
+	// Copy is what the event offers to copy, and shows on hover: a path.
+	Copy string `json:"copy,omitempty"`
+	// From is the agent the message speaks for ("Codex"); empty is Lazybox.
+	From string `json:"from,omitempty"`
+}
+
+// Bounded is o as journaled: Summary and Detail on one line each, at most
+// originLine runes, so a long answer quoted in a summary stays a line.
+func (o *Origin) Bounded() *Origin {
+	if o == nil {
+		return nil
+	}
+	line := func(s string) string {
+		s = strings.Join(strings.Fields(s), " ")
+		if r := []rune(s); len(r) > originLine {
+			s = string(r[:originLine-1]) + "…"
+		}
+		return s
+	}
+	out := *o
+	out.Summary, out.Detail = line(o.Summary), line(o.Detail)
+	return &out
+}
+
+const originLine = 280
+
+// Kinds of Origin.
+const (
+	OriginRepositoryAdded    = "repository_added"
+	OriginRepositoryDeclined = "repository_declined"
+	OriginReviewBrief        = "review_brief"
+	OriginReviewFindings     = "review_findings"
+	OriginReviewRound        = "review_round"
+	OriginAgentAsk           = "agent_ask"
+	OriginAgentAnswer        = "agent_answer"
+	OriginMissionBrief       = "mission_brief"
+	OriginContinuation       = "continuation"
+)
 
 // Delivery is "acknowledged" only if the provider actually replied. A pipe
 // write, an SDK iterator submission, and a completed turn are different facts.

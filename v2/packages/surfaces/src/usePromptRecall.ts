@@ -34,7 +34,7 @@ export function usePromptRecall({ viewState, sessionID, conversationKey, convers
     if (event.key === 'ArrowUp') {
       if (!state) {
         if (value && !(start === 0 && end === 0)) return false;
-        const list = recallOrder(readPromptHistory(viewState, api), conversationKey, conversation.filter(m => m.type === 'operation_accepted').map(m => m.text));
+        const list = recallOrder(readPromptHistory(viewState, api), conversationKey, conversation.filter(m => m.type === 'operation_accepted' && !m.origin).map(m => m.text));
         if (!list.length) return false;
         state = { list, index: -1, draft: value };
       } else if (!caretOnFirstLine(value, start, end)) return false;

@@ -19,6 +19,8 @@ import { AnsweredLine } from './RequestCards';
 import { Icon } from './Icons';
 import { ReviewAlert, ReviewCard, ReviewExchange } from './ReviewLauncher';
 import { InlineRuns, RunMessageContext } from './code-runs';
+import { RestartMark, RunnerNoticeLine, SystemEvent } from './SystemEvents';
+import { isSystemEvent } from './system-events';
 
 const ownName = (id: string) => id;
 
@@ -29,13 +31,15 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   if (m.type === 'tools') return m.tools ? <ToolLines entries={m.tools} turn={turn}/> : null;
   if (m.type === 'answered' && m.answered) return <AnsweredLine note={m.answered}/>;
   if (m.type === 'command') return <div className="command-line" role="note" data-message-id={m.id}><Icon name="check" size={12}/><span>{m.text}</span></div>;
+  if (m.origin) return <SystemEvent message={m} agentName={agentName} onOpenFile={onOpenFile} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}/>;
+  if (m.type === 'notice') return <RunnerNoticeLine message={m}/>;
   if (m.type === 'operation_accepted' && m.command) return <div className="command-line command-sent" role="note" data-message-id={m.id} title="You ran this command" onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}><Icon name="chevronRight" size={12}/><code>{m.text.trim()}</code></div>;
   if (m.type === 'review' && m.review) return <div className="review-card-anchor" data-message-id={m.id}><ReviewCard data={m.review}/></div>;
   if (m.type === 'exchange') return <ReviewExchange text={m.text} id={m.id}/>;
   if (m.type === 'review-alert') return <ReviewAlert text={m.text} id={m.id} note={m.review}/>;
-  if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
+  if (m.type === 'reattached') return <RestartMark message={m}/>;
   return <article className={'message ' + m.type} data-message-id={m.id} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>
-    <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>
+    <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : agentName}</span>
     {/* Only an agent's own words offer to run their commands. */}
     {m.type === 'message_delta' ? <RunMessageContext.Provider value={m.id}><RichContent text={m.text} onOpenFile={onOpenFile}/><InlineRuns messageId={m.id}/></RunMessageContext.Provider> : <RichContent text={m.text} onOpenFile={onOpenFile}/>}
     {m.files?.length ? <SentAttachments files={m.files}/> : null}
@@ -58,12 +62,29 @@ export const MessageList = memo(function MessageList({ messages, visible, agentN
   // Quiet: a turn's calls are one line, on its first run of calls.
   const turnCache = useRef<TurnCache>(new Map());
   const turns = useMemo(() => detail === 'quiet' ? turnActivity(messages, turnCache.current, hidden) : undefined, [messages, detail, hidden]);
+  const row = (m: TranscriptMessage) => <Fragment key={m.id}><MessageRow message={m} agentName={agentName} onOpenFile={onOpenFile} nameFor={nameFor} sessionId={sessionId} menu={menu} turn={turns?.get(m.id)}/>{checkpoint.marker(m.id)}</Fragment>;
   return <>
     {hidden > 0 && <button type="button" className="show-earlier" onClick={onShowEarlier}>Show earlier messages <small>{hidden.toLocaleString()} more</small></button>}
-    {messages.slice(hidden).map(m => <Fragment key={m.id}><MessageRow message={m} agentName={agentName} onOpenFile={onOpenFile} nameFor={nameFor} sessionId={sessionId} menu={menu} turn={turns?.get(m.id)}/>{checkpoint.marker(m.id)}</Fragment>)}
+    {systemRuns(messages, hidden).map(run => Array.isArray(run)
+      ? <div key={`events:${run[0].id}`} className="system-event-group" role="group" aria-label={`${run.length} events from Lazybox`}>{run.map(row)}</div>
+      : row(run))}
     {checkpoint.overlay}
   </>;
 });
+
+/** The shown messages, with Lazybox's events that follow each other as one run (an array). */
+function systemRuns(messages: readonly TranscriptMessage[], from: number): (TranscriptMessage | TranscriptMessage[])[] {
+  const out: (TranscriptMessage | TranscriptMessage[])[] = [];
+  let run: TranscriptMessage[] = [];
+  const flush = () => { if (run.length > 1) out.push(run); else if (run.length) out.push(run[0]); run = []; };
+  for (let i = from; i < messages.length; i++) {
+    const message = messages[i];
+    if (isSystemEvent(message)) { run.push(message); continue; }
+    flush(); out.push(message);
+  }
+  flush();
+  return out;
+}
 
 /** Opening a conversation: how much of its history has arrived, when the Runner says. */
 export function ConversationLoading({ replay }: { replay?: ReplayProgress }) {

@@ -265,7 +265,6 @@
 
 .snippet-filters{display:flex;align-items:center;gap:12px;margin:8px 0 12px;font-size:calc(11px * var(--text-scale));color:var(--text-muted)}.snippet-filters button,.snippet-favorite{font-size:calc(11px * var(--text-scale));padding:5px 8px}.snippet-filters button[aria-pressed=true]{background:var(--accent-bg-strong)}.snippet-preview .snippet-favorite{display:block;margin:8px 0 16px}
 
-.runner-divider{display:flex;align-items:center;gap:10px;margin:6px 0 14px;font-size:calc(11px * var(--text-scale));color:var(--text-faint);white-space:nowrap}.runner-divider:before,.runner-divider:after{content:"";flex:1;border-top:1px solid var(--line)}
 .composer-chip{align-self:center;margin-right:auto;padding:2px 8px;border:1px solid var(--accent-line);border-radius:10px;font-size:calc(11px * var(--text-scale));color:var(--accent);background:var(--accent-bg);cursor:help;white-space:nowrap}
 /* Vim editing: a quiet chip for the mode, a block cursor in normal mode. */
 .vim-mode-chip{align-self:center;flex:none;padding:1px 7px;border:1px solid var(--line-strong);border-radius:5px;font:600 10px/1.6 var(--font-mono);letter-spacing:.06em;color:var(--text-muted);white-space:nowrap;cursor:help}

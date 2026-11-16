@@ -11,7 +11,7 @@ const firstLine = (text: string) => text.trim().split('\n', 1)[0].slice(0, 120);
  * conversation's edge, a searchable list, and Alt+↑ / Alt+↓.
  */
 export function PromptNavigator({ messages, paneRef, onReveal }: { messages: TranscriptMessage[]; paneRef: RefObject<HTMLDivElement | null>; onReveal(id: string): void }) {
- const prompts = useMemo(() => messages.map((message, index) => ({ message, index })).filter(({ message }) => message.type === 'operation_accepted' && message.text.trim()), [messages]);
+ const prompts = useMemo(() => messages.map((message, index) => ({ message, index })).filter(({ message }) => message.type === 'operation_accepted' && !message.origin && message.text.trim()), [messages]);
  const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [active, setActive] = useState(0);
  const search = useRef<HTMLInputElement>(null);
  // The chip belongs to the chat's header, where it covers nothing; floating over the transcript it sat on

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/work"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
@@ -180,7 +181,8 @@ func (s *Service) assign(ctx context.Context, store *work.Store, mission, key st
 		if operation == "" {
 			operation = attempt
 		}
-		_, err = s.Apply(ctx, &pb.ApplyRequest{SessionId: e.ID, OperationId: operation + "/brief", Operation: &pb.ApplyRequest_Message{Message: &pb.Message{Text: text, Source: &pb.PromptSource{Kind: work.SourceMission, MissionId: mission, TaskId: task.ID}}}})
+		origin := &agent.Origin{Kind: agent.OriginMissionBrief, Summary: "Task assigned · " + task.Title, Detail: current.Title}
+		_, err = s.apply(ctx, &pb.ApplyRequest{SessionId: e.ID, OperationId: operation + "/brief", Operation: &pb.ApplyRequest_Message{Message: &pb.Message{Text: text, Source: &pb.PromptSource{Kind: work.SourceMission, MissionId: mission, TaskId: task.ID}}}}, origin)
 		if err != nil {
 			// The assignment stands; say the brief did not go.
 			return state, attempt, e.ID, fmt.Errorf("assigned, but the brief was not delivered: %w", err)

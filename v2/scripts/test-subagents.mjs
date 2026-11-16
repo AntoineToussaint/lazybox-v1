@@ -210,7 +210,7 @@ try{
  await tray.locator('.subagent-chip').first().focus();await page.keyboard.press('ArrowRight');
  await expect(tray.locator('.subagent-chip').nth(1)).toBeFocused();
  // The tree: every sub-agent, nested under who started it.
- await tray.getByRole('button',{name:'All 6'}).click();
+ await tray.getByRole('button',{name:'All background work: 5 sub-agents · 1 command · 4 running · 1 failed'}).click();
  const tree=page.getByRole('dialog',{name:'Background work',exact:true});
  await expect(tree.getByRole('region',{name:'Sub-agents'}).locator('li')).toHaveCount(5);
  await expect(tree.getByRole('region',{name:'Background commands'}).locator('li')).toHaveText(/pytest tests\/test_mcp\.py/);
@@ -218,7 +218,7 @@ try{
  await expect(tree.locator('.subagent-tree-row').first()).toBeFocused();
  await page.screenshot({path:'.cache/subagents-tree.png'});
  await page.keyboard.press('Escape');await expect(tree).toHaveCount(0);
- await expect(tray.getByRole('button',{name:'All 6'})).toBeFocused();
+ await expect(tray.locator('.subagent-tray-all')).toBeFocused();
  // A command's chip opens its script and the output the agent read.
  await bgChip.click();
  const bgPanel=chat.getByRole('complementary',{name:'Background command: pytest tests/test_mcp.py'});
@@ -228,15 +228,15 @@ try{
  await bgPanel.getByRole('button',{name:'Close background command panel'}).click();
  // The header keeps the way to all background work.
  // Its numbers say what they count: in words, and in full in the tooltip.
- const workButton=chat.locator('.chat-heading').getByRole('button',{name:/^Background work: 6 in all, 4 running, 1 failed$/});
- await expect(workButton).toHaveText('4 running');
- await expect(workButton).toHaveAttribute('title','6 sub-agents and commands, 4 running, 1 failed. Show them all.');
+ const workButton=chat.locator('.chat-heading').getByRole('button',{name:'Background work: 5 sub-agents · 1 command · 4 running · 1 failed'});
+ await expect(workButton).toHaveText('3 sub-agents · 1 command running');
+ await expect(workButton).toHaveAttribute('title','5 sub-agents · 1 command · 4 running · 1 failed. Show them all.');
  // The count is neutral; only what failed is red, and it says so.
  {const activity=chat.locator('.chat-heading').getByRole('button',{name:'View tools and activity'});
   await expect(activity.locator('.tool-activity-count')).toHaveText(/^\d+ tool calls$/);await expect(activity.locator('.tool-activity-failed')).toHaveText('1 failed');
   const colours=await activity.evaluate(node=>({count:getComputedStyle(node.querySelector('.tool-activity-count')).color,failed:getComputedStyle(node.querySelector('.tool-activity-failed')).color,context:getComputedStyle(node.closest('.chat-heading-actions').querySelector('.context-trigger')).color}));
   assert.notEqual(colours.count,colours.failed,'the count is not drawn in the failure colour');}
- await expect(tray.locator('.subagent-tray-all')).toHaveText('All 6 in background');
+ await expect(tray.locator('.subagent-tray-all')).toHaveText('All · 5 sub-agents · 1 command');
  await page.screenshot({path:'.cache/subagents-polish-header.png',clip:{x:280,y:88,width:1160,height:80}});
 
  // A panel of its own, docked, following live.
@@ -248,8 +248,8 @@ try{
  await expect(panel.locator('.subagent-step[data-current]')).toHaveText('Running go test ./internal/runner/... -run Subagent');
  await expect(panel.locator('.subagent-panel-head, .subagent-panel-meta').locator('time'),'one elapsed time for the sub-agent').toHaveCount(1);
  // Beside a docked panel the header is slim: counts stay, their words go to the tooltip, the status line keeps its room.
- await expect(workButton).toHaveText('4',{useInnerText:true});
- await expect(workButton).toHaveAttribute('title',/^6 sub-agents and commands, 4 running/);
+ await expect(workButton).toHaveText('3 · 1',{useInnerText:true});
+ await expect(workButton).toHaveAttribute('title',/^5 sub-agents · 1 command · 4 running/);
  // The card, its panel and its chip read one clock: never two different times for one sub-agent.
  for(let i=0;i<3;i++){const times=await page.evaluate(id=>[document.querySelector(`.subagent-card[data-agent-id="${id}"] .subagent-stats time`),document.querySelector('.subagent-panel .subagent-stats time'),[...document.querySelectorAll('.subagent-chip')].find(c=>c.textContent.includes('Map the transcript'))?.querySelector('time')].map(n=>n?.textContent),A);
   assert.ok(times[0]&&times.every(t=>t===times[0]),`one elapsed time everywhere: ${times.join(' / ')}`);await page.waitForTimeout(400);}

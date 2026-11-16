@@ -129,7 +129,7 @@ try{
  await expect(betaHeader.locator('.chat-branch')).toContainText('lazybox/beta/api');
  await expect(betaHeader.locator('.conversation-title-text'),'the folder name is not a title').toHaveCount(0);await expect(betaHeader.getByRole('button',{name:'Rename conversation'})).toContainText('Name it');
  await expect(betaHeader).not.toContainText('Model not reported');
- await expect(betaChat.locator('.runner-divider')).toHaveCount(0);
+ await expect(betaChat.locator('.runner-divider, .runner-mark')).toHaveCount(0);
  await expect(betaChat.getByRole('textbox',{name:'Message',exact:true})).toBeFocused();
  await page.screenshot({path:'.cache/chat-polish-ready.png'});
 

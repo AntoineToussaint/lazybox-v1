@@ -8,6 +8,7 @@ it did.
 - [Answer questions and approvals](#answer-questions-and-approvals)
 - [Follow what it does](#follow-what-it-does)
 - [Sub-agents and background commands](#sub-agents-and-background-commands)
+- [What it costs](#what-it-costs)
 - [Reuse your prompts and snippets](#reuse-your-prompts-and-snippets)
 - [Peek without leaving the page](#peek-without-leaving-the-page)
 
@@ -107,6 +108,17 @@ Keys work while the chat has focus, never while you are typing.
   Command output and Processes. Agents' `lazybox run` does this by itself after
   20 seconds. For the agent's own shell step that may never end, the bar
   suggests interrupting and asking it to use `lazybox run`.
+- **What Lazybox tells the agent** is an event, never a message from you: one
+  line with an icon — *Added authority to this workspace* `feature/revenge`
+  (its path on hover and behind the copy button), *Codex review · 3 findings
+  sent*, *Codex asked Claude: …*, *Task assigned · …* — that opens to exactly
+  the text the agent received. Events that follow each other read as one
+  block. Lazybox's messages are not among the prompts `↑` recalls or `⌥↑`
+  jumps to.
+- **Runner restarts** that interrupted nothing leave only a small mark (its
+  count and last time on hover), one until you next send a message. A restart
+  that left something uncertain — a message it could not confirm, a command
+  whose outcome is unknown — is one quiet line saying what to do.
 - **Each finished turn** ends with a quiet marker: *Turn 2 · 3 files changed*,
   with **Show changes in this turn** and **Revert to before this turn…** in its
   menu. See [checkpoints](review-agent-work.md#undo-a-turn-checkpoints).
@@ -160,9 +172,25 @@ follow its own messages and tool calls in a panel docked beside the chat, or
 floating. Stop one sub-agent from its card (Claude) without stopping the rest.
 
 Beside the message box, one chip per running sub-agent or background command
-takes you to it; **All** lists them as a tree. A background command (Claude's
-`run_in_background`) is not a sub-agent: it gets a short name and a panel with
-its script and the output the agent last read.
+takes you to it; **All**, and the background-work button in the chat header,
+list everything that ran. Each kind is counted apart (*2 sub-agents · 17
+commands · 0 running · 1 failed*), newest first, sub-agents as a tree under
+who started them; older finished items fold behind **Show 12 earlier**, but
+anything running or failed always shows. A background command (Claude's
+`run_in_background`) is not a sub-agent: it reads as what the agent said it
+does (*Generate the protobuf code*), whole, with what runs beneath it, and
+opens a panel with its script and the output the agent last read.
+
+## What it costs
+
+The usage popover in the chat header (`/cost`) shows the context window and
+the conversation's **token cost**: input, cache read, cache write and output,
+each with its tokens and what it cost, then the total and how much of the
+input the prompt cache served. The cost is an API-equivalent estimate, not a
+bill. Usage without a price says which model and why — a model with no price
+yet (add one in Settings → Pricing), a provider that reports only a running
+total for the session (Codex without the metered gateway), a fee Lazybox does
+not price — and how many tokens that leaves out.
 
 ## Reuse your prompts and snippets
 

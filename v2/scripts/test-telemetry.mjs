@@ -23,7 +23,10 @@ try{
  await expect(panel.locator('.context-meter>span').first()).toHaveAttribute('style',/width: 2.45%;/);
  await page.screenshot({path:'.cache/telemetry-context.png'});
  await panel.locator('.token-cost>summary').click();
- await expect(panel).toContainText('API-equivalent');await expect(panel).toContainText('1 unpriced');
+ await expect(panel).toContainText('API-equivalent');
+ // What has no price says which model and why, never "+ unpriced".
+ await expect(panel.getByRole('note').filter({hasText:'Not priced'}).locator('li')).toHaveText('fixture: No price1 request');await expect(panel).not.toContainText('+ unpriced');
+ await expect(panel).toContainText('1 request did not report all of its usage.');
  await page.keyboard.press('Escape');await expect(panel).not.toBeVisible();await expect(trigger).toBeFocused();
  await page.setViewportSize({width:420,height:850});await trigger.click();await expect(panel).toBeVisible();const bounds=await panel.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=420);await page.screenshot({path:'.cache/telemetry-context-narrow.png'});await page.keyboard.press('Escape');await page.setViewportSize({width:1500,height:1100});
  await page.route('**/Info',route=>route.fulfill({status:503,json:{code:'unavailable',message:'Fixture Runner restarting'}}));

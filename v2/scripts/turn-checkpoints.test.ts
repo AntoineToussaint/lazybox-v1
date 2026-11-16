@@ -26,7 +26,7 @@ test('each turn ends before the next prompt, and the last after the last message
 
 test('a revert is said in the conversation', () => {
   const state = transcript([{ type: 'operation_accepted', text: 'go', operationId: 'op-1' }, { type: 'code_reverted', text: 'Files reverted to before turn 1.' }]);
-  assert.deepEqual(state.messages.at(-1), { id: '2', type: 'notice', text: 'Files reverted to before turn 1.', turnId: '' });
+  assert.deepEqual(state.messages.at(-1), { id: '2', type: 'notice', text: 'Files reverted to before turn 1.', turnId: '', notice: 'reverted' });
 });
 
 test('turn summaries say what changed, without empty counts', () => {

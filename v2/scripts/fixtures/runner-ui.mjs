@@ -14,6 +14,8 @@ import { createBrowserFake } from './browser-fake.mjs';
 import { artifactFixture } from './artifacts.mjs';
 
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
+/** The provider data of a message Lazybox wrote (its `origin`), as the Runner journals it. */
+const originData = origin => Buffer.from(JSON.stringify({ files: [], origin: { detail: '', copy: '', from: '', ...origin } })).toString('base64');
 // The Runner's built-in rate card (telemetry.DefaultRates), as GetRunnerSettings reports it.
 export function defaultModelPrices() {
   const rate = (provider, model, version, input, output, cacheRead, cacheWrite5m = 0, cacheWrite1h = 0, maxInput = 0) => ({ provider, model, version, input: String(input), output: String(output), cacheRead: String(cacheRead), cacheWrite5m: String(cacheWrite5m), cacheWrite1h: String(cacheWrite1h), maxInput: String(maxInput), custom: false });
@@ -182,7 +184,8 @@ export async function startRunnerFixture() {
     if(run.paused){loopNote(run,'fixing',run.sourceLabel,`Turn ${turn} changed ${plural(files,'file','files')}; the loop is paused, so no re-review.`);return run;}
     run.round++;run.rounds.push({number:run.round,trigger:'author_turn',authorTurn:turn,startedAtUnix:unix()});Object.assign(run,{phase:'reviewing',state:'running'});
     loopNote(run,'round_started','Lazybox',`Round ${run.round}: ${run.sourceLabel} changed ${plural(files,'file','files')} in turn ${turn}; ${run.reviewerLabel} re-reviews that turn against its open findings.`);
-    eventStreams.get(run.reviewerSessionId)?.push({type:'operation_accepted',operationId:`review-${run.id}-round-${run.round}`,text:`[Lazybox] Round ${run.round} of ${run.maxRounds}. ${run.sourceLabel} changed files in turn ${turn} after your findings. Re-review only that change, against your findings still open.`});
+    eventStreams.get(run.reviewerSessionId)?.push({type:'operation_accepted',operationId:`review-${run.id}-round-${run.round}`,text:`[Lazybox] Round ${run.round} of ${run.maxRounds}. ${run.sourceLabel} changed files in turn ${turn} after your findings. Re-review only that change, against your findings still open.`,
+     providerDataJson:originData({kind:'review_round',summary:`Re-review asked · ${run.sourceLabel} changed files`,detail:`Round ${run.round} of ${run.maxRounds}`,from:run.sourceLabel})});
     return run;};
   /** `lazybox review resolve|reopen`. */
   const verdict=(findingId,state,note='')=>{for(const [collectionId,r] of reviews){const c=r.comments.find(x=>x.id===findingId);if(!c)continue;const run=r.runs.find(x=>x.id===c.reviewId);
@@ -210,7 +213,8 @@ export async function startRunnerFixture() {
       else if(run.round>=run.maxRounds)stopLoop(collectionId,run,'max_rounds',`${plural(blockers,'blocker','blockers')} still open after ${plural(run.round,'round','rounds')}, the limit: decide how to proceed.`,true);
       else if(run.loop==='auto'&&!run.paused){const ids=r.comments.filter(c=>c.reviewId===run.id&&['proposed','open'].includes(c.disposition)).map(c=>c.id);run.phase='triage';
         for(const c of r.comments.filter(c=>ids.includes(c.id)))Object.assign(c,{disposition:'sent',sentTo:run.sourceSessionId,sentToTitle:run.sourceTitle,sentAtUnix:unix()});
-        eventStreams.get(run.sourceSessionId)?.push({type:'operation_accepted',operationId:`review-${run.id}-findings-${run.round}`,text:`Please address ${ids.length===1?'this review comment':`these ${ids.length} review comments`} on the workspace’s changes.`});
+        eventStreams.get(run.sourceSessionId)?.push({type:'operation_accepted',operationId:`review-${run.id}-findings-${run.round}`,text:`Please address ${ids.length===1?'this review comment':`these ${ids.length} review comments`} on the workspace’s changes.`,
+         providerDataJson:originData({kind:'review_findings',summary:`${run.reviewerLabel} review · ${plural(ids.length,'finding','findings')} sent`,detail:run.maxRounds>1?`Round ${run.round} of ${run.maxRounds}`:'',from:run.reviewerLabel})});
         findingsSent(collectionId,ids,'Lazybox',run.sourceLabel);}
       else if(!r.comments.some(c=>c.reviewId===run.id&&liveFinding(c)&&['proposed','open'].includes(c.disposition))&&r.comments.some(c=>c.reviewId===run.id&&liveFinding(c)&&c.disposition==='sent')){run.phase='fixing';loopNote(run,'fixing','Lazybox',`The findings were sent; waiting for ${run.sourceLabel} to change files, then ${run.reviewerLabel} re-reviews.`);}
       else{run.phase='triage';loopNote(run,'triage','Lazybox','Waiting for you: accept the findings to send, dismiss the others.');}
@@ -472,7 +476,7 @@ actions:
         loopNote(run,'round_started','Lazybox',`Round 1: ${label} reviews ${scopeLabel.toLowerCase()} (${loop==='off'?'one pass':loop==='auto'?`up to ${maxRounds} rounds; findings go to ${run.sourceLabel} automatically`:`up to ${maxRounds} rounds; you send findings between rounds`}).`);
         reviewBriefs.set(reviewer.id,`You are an independent reviewer (${label}) of work ${run.sourceLabel} did in this workspace, in the conversation “${run.sourceTitle}”.\n\n## What to review: ${scopeLabel}\n\nlazybox review add --file <repository>/<path> --line <N> --severity blocker|major|minor|nit --title "…"`);
         // The brief is the reviewer's first message, journaled as the Runner does.
-        openEvents(reviewer.id).push({type:'operation_accepted',text:reviewBriefs.get(reviewer.id),operationId:'review-brief-'+run.id});
+        openEvents(reviewer.id).push({type:'operation_accepted',text:reviewBriefs.get(reviewer.id),operationId:'review-brief-'+run.id,providerDataJson:originData({kind:'review_brief',summary:`Asked ${label} to review ${run.sourceLabel}'s work`,detail:scopeLabel})});
         reviewEvent('review_started',collection.id,run);
         return json({run:wireRun(collection.id,run),session:reviewer});
       }
@@ -554,7 +558,15 @@ actions:
        for(const identity of body.repositoryIdentities||[]){const choice=catalogEntries().find(r=>r.identity===identity);if(!choice)return error('not_found','Unknown repository identity');let repo=library.find(r=>r.id===choice.repositoryId);if(!repo){if(preparationFailures.delete(identity)){res.writeHead(200,{'Content-Type':'application/connect+json'});res.end(Buffer.concat([...values.map(v=>frame(v)),frame({error:{code:'failed_precondition',message:'Fixture preparation failure'}},2)]));return;}const remote=githubRepositories.find(r=>'github:'+r.fullName.toLowerCase()===identity);repo={id:remote?'github-'+remote.id:'local-'+(library.length+1),name:choice.name.split('/').at(-1),path:choice.path||'/fixture/repos/'+remote.id,gitIdentity:identity};library.push(repo);prepared.push(identity);}values.push({identity,message:'Preparing '+choice.name});members.push({repositoryId:repo.id,name:repo.name||repo.id,...(body.branch&&!body.collectionId?{branch:body.branch}:{})});}
        let collection=requests.get(body.requestKey);if(!collection){if(body.collectionId){collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Missing workspace');collection.members.push(...members.map(spec=>({spec,path:collection.root+'/'+spec.name,ready:true})));}else{const id='created-'+collections.length;collection={id,name:body.name,root:'/fixture/collections/'+id,state:'ready',members:members.map(spec=>({spec,path:'/fixture/collections/'+id+'/'+spec.name,ready:true}))};collections.push(collection);}requests.set(body.requestKey,collection);}values.push({message:'Ready',collection});
        // Answering an agent's request for a repository: the request is resolved (the agent told).
-       if(body.repositoryRequestId){for(const s of sessions)s.pending=(s.pending||[]).filter(p=>p.requestId!==body.repositoryRequestId);repositoryRequests.set(body.repositoryRequestId,{state:'added',collection:collection.id,identities:body.repositoryIdentities});}
+       if(body.repositoryRequestId){
+        // The asking agent is told, as the Runner tells it: a message with its origin, shown as an event.
+        const asker=sessions.find(s=>(s.pending||[]).some(p=>p.requestId===body.repositoryRequestId)),request=asker?.pending.find(p=>p.requestId===body.repositoryRequestId);
+        const asked=request?JSON.parse(Buffer.from(request.providerDataJson,'base64').toString()):{};
+        for(const s of sessions)s.pending=(s.pending||[]).filter(p=>p.requestId!==body.repositoryRequestId);repositoryRequests.set(body.repositoryRequestId,{state:'added',collection:collection.id,identities:body.repositoryIdentities});
+        if(asker){const added=members.map(spec=>({name:spec.name,path:collection.root+'/'+spec.name,branch:asked.branch||''}));
+         eventStreams.get(asker.id)?.push({type:'operation_accepted',operationId:'repository-note-'+body.repositoryRequestId,text:`[Lazybox] You asked to add ${asked.query||added[0]?.name} to this workspace. The person added it:\n${added.map(a=>`- ${a.name} at ${a.path} (branch ${a.branch})`).join('\n')}\nContinue with what you needed it for.`,
+          providerDataJson:Buffer.from(JSON.stringify({files:[],origin:{kind:'repository_added',summary:`Added ${added.map(a=>a.name).join(', ')} to this workspace`,detail:asked.branch||'',copy:added.map(a=>a.path).join('\n')}})).toString('base64')});}
+       }
        res.writeHead(200,{'Content-Type':'application/connect+json'});
        // preparationDelayMs streams each step apart, as a clone does.
        if(runner.preparationDelayMs){for(const value of values){res.write(frame(value));await new Promise(resolve=>setTimeout(resolve,runner.preparationDelayMs));}res.end(frame({},2));return;}

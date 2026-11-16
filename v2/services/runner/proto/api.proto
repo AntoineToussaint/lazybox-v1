@@ -416,10 +416,20 @@ message UsageRecord {
  string id = 1; TelemetryScope scope = 2; string agent = 3; string parent = 4; string model = 5; string source = 6;
  string response_id = 7; string status = 8; TokenCounts tokens = 9; optional int64 nanos = 10; string price_version = 11;
  string reason = 12; string tier = 13; string observed_at = 14;
+ // What each part of nanos cost; absent when unpriced.
+ TokenCosts costs = 15;
 }
+// What each kind of token cost, in nanodollars; a part is absent when unknown.
+message TokenCosts { optional int64 input = 1; optional int64 output = 2; optional int64 cache_read = 3; optional int64 cache_write5m = 4; optional int64 cache_write1h = 5; }
 message UsageGroup {
  TelemetryScope scope = 1; string agent = 2; string model = 3; string source = 4; TokenCounts tokens = 5;
  optional int64 nanos = 6; int64 records = 7; int64 unpriced = 8; int64 incomplete = 9;
+ // What each part of nanos cost, when every priced record says; absent otherwise.
+ TokenCosts costs = 10;
+ // Why the unpriced records have no price, each reason once.
+ repeated string unpriced_reasons = 11;
+ // The tokens of the unpriced records: what nanos leaves out.
+ TokenCounts unpriced_tokens = 12;
 }
 message TelemetryReport { repeated UsageGroup groups = 1; repeated ContextSnapshot contexts = 2; repeated UsageRecord recent = 3; }
 message AddSubscriptionRequest {
@@ -823,6 +833,27 @@ message QueuedMessage {
   // The start of the message, at most 280 characters.
   string text = 2;
   int64 queued_at_unix_millis = 3;
+  // Set on a message Lazybox wrote rather than the person.
+  MessageOrigin origin = 4;
+}
+// MessageOrigin marks a message Lazybox wrote, not the person: the answer to a
+// repository request, a review's findings, a question between two agents, a
+// mission's brief. The agent receives the message's text unchanged; clients
+// show it as an event of the conversation, never as the person's words. The
+// operation_accepted record of such a message carries the same fields as
+// `origin` in its provider data.
+message MessageOrigin {
+  // repository_added, repository_declined, review_brief, review_findings,
+  // review_round, agent_ask, agent_answer, mission_brief or continuation.
+  string kind = 1;
+  // The event in one line: "Added authority to this workspace".
+  string summary = 2;
+  // A short label beside it: a branch, "Round 2 of 3".
+  string detail = 3;
+  // What the event offers to copy (a path).
+  string copy = 4;
+  // The agent the message speaks for ("Codex"); empty is Lazybox.
+  string from = 5;
 }
 
 message Repository {

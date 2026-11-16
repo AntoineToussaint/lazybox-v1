@@ -14,6 +14,7 @@ import { Icon } from './Icons';
 import { elapsedLabel, toolLabel, type LiveStatus } from './live-status';
 import { useNow } from './LiveIndicator';
 import { rootStep, stepDetail } from './live-step';
+import { messageOrigin, systemEventView } from './system-events';
 import './queued-messages.css';
 
 /**
@@ -81,9 +82,12 @@ export function QueuedMessages({ api, session, sessionID, live, agentName, activ
     {shown.length > 0 && <ul className="queued-list">
       {shown.map(message => {
         const mine = working?.id === message.operationId;
-        return <li key={message.operationId} className="queued-message" aria-label={`Queued message: ${clip(message.text, 80)}`}>
+        // A message Lazybox wrote says what it is, not the words it carries.
+        const origin = messageOrigin(message.origin), event = origin && systemEventView(origin, agentName);
+        return <li key={message.operationId} className="queued-message" data-origin={origin?.kind} aria-label={event ? `Queued from Lazybox: ${event.line}` : `Queued message: ${clip(message.text, 80)}`}>
           <div className="queued-row">
-            <q className="queued-text" title={message.text}>{clip(message.text)}</q>
+            {event ? <span className="queued-text queued-event" title={message.text}><Icon name={event.icon} size={11}/><span>{clip(event.line)}</span>{event.detail && <small>{event.detail}</small>}</span>
+              : <q className="queued-text" title={message.text}>{clip(message.text)}</q>}
             <span className="queued-actions">
               {mine ? <span className="queued-working" role="status">{working!.how === 'steer' ? 'Steering…' : 'Stopping the current step…'}</span> : <>
                 {steer && <button type="button" onClick={() => void deliver(message, 'steer')}

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -549,39 +550,50 @@ func (b *Bench) noteLater(id string) {
 		}
 		r.Told = true
 		_ = s.saveLocked()
-		note := repositoryNote(*r)
+		note, origin := repositoryNote(*r)
 		s.mu.Unlock()
-		b.deliverNote(*r, note)
+		b.deliverNote(*r, note, origin)
 	}()
 }
 
-// repositoryNote is what the agent is told when it no longer waits.
-func repositoryNote(r RepositoryRequest) string {
+// repositoryNote is what the agent is told when it no longer waits, and the
+// event the conversation shows for it.
+func repositoryNote(r RepositoryRequest) (string, *agent.Origin) {
 	asked := r.Query
 	if top, ok := r.Match(); ok {
 		asked = top.Name
 	}
 	switch r.State {
 	case RequestAdded:
-		var lines []string
+		var lines, names, branches, paths []string
 		for _, a := range r.Added {
 			lines = append(lines, fmt.Sprintf("- %s at %s (branch %s)", a.Name, a.Path, a.Branch))
+			names = append(names, a.Name)
+			paths = append(paths, a.Path)
+			if a.Branch != "" && !slices.Contains(branches, a.Branch) {
+				branches = append(branches, a.Branch)
+			}
 		}
-		return fmt.Sprintf("[Lazybox] You asked to add %s to this workspace. The person added it:\n%s\nContinue with what you needed it for.", asked, strings.Join(lines, "\n"))
+		if len(names) == 0 {
+			names = []string{asked}
+		}
+		origin := &agent.Origin{Kind: agent.OriginRepositoryAdded, Summary: fmt.Sprintf("Added %s to this workspace", strings.Join(names, ", ")), Detail: strings.Join(branches, ", "), Copy: strings.Join(paths, "\n")}
+		return fmt.Sprintf("[Lazybox] You asked to add %s to this workspace. The person added it:\n%s\nContinue with what you needed it for.", asked, strings.Join(lines, "\n")), origin
 	case RequestDeclined:
 		why := ""
 		if r.DeclineReason != "" {
 			why = " Their reason: " + r.DeclineReason
 		}
-		return fmt.Sprintf("[Lazybox] You asked to add %s to this workspace. The person declined.%s Do not read or change it outside the workspace; continue without it or ask them how to proceed.", asked, why)
+		origin := &agent.Origin{Kind: agent.OriginRepositoryDeclined, Summary: fmt.Sprintf("Declined adding %s to this workspace", asked), Detail: r.DeclineReason}
+		return fmt.Sprintf("[Lazybox] You asked to add %s to this workspace. The person declined.%s Do not read or change it outside the workspace; continue without it or ask them how to proceed.", asked, why), origin
 	}
-	return ""
+	return "", nil
 }
 
 // deliverNote sends note to the conversation's live agent, as a message
 // (queued while it works). A conversation that has ended gets nothing: its
 // next agent can run `lazybox workspace repos`.
-func (b *Bench) deliverNote(r RepositoryRequest, note string) {
+func (b *Bench) deliverNote(r RepositoryRequest, note string, origin *agent.Origin) {
 	if note == "" {
 		return
 	}
@@ -601,7 +613,7 @@ func (b *Bench) deliverNote(r RepositoryRequest, note string) {
 	ctx, cancel := context.WithTimeout(b.ctx, 10*time.Second)
 	defer cancel()
 	id := "repository-note-" + r.ID
-	if receipt, err := target.Engine.Apply(ctx, agent.Operation{ID: id, Kind: agent.Message, Text: note}); err == nil && receipt.Error == "" {
+	if receipt, err := target.Engine.Apply(ctx, agent.Operation{ID: id, Kind: agent.Message, Text: note, Origin: origin}); err == nil && receipt.Error == "" {
 		b.RecordPrompt(target, id, note, work.PromptSource{Kind: work.SourceRepository})
 	}
 }

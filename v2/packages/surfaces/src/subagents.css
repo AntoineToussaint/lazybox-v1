@@ -135,7 +135,27 @@
 .subagent-tree[data-placement=below]{bottom:auto;top:calc(100% + 6px);right:0;width:min(420px,calc(100vw - 32px))}
 .subagent-tree-body{overflow:auto;padding:2px 4px 6px}
 .subagent-tree .subagent-tree-body ul{overflow:visible;padding:0}
-.subagent-tree-body h4{margin:8px 10px 2px;font-size:calc(10px * var(--text-scale));font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text-faint)}
+.subagent-tree-body h4{display:flex;align-items:center;gap:6px;margin:10px 10px 3px;font-size:calc(10px * var(--text-scale));font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text-faint)}
+.subagent-tree-body h4 .subagent-tree-state{letter-spacing:0;text-transform:none}
+.subagent-tree-count{padding:0 6px;border-radius:999px;background:var(--surface-selected);color:var(--text-muted);font-variant-numeric:tabular-nums;letter-spacing:0}
+/* Its header says what there is, each kind once, then what runs and what failed. */
+.subagent-tree-title{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.subagent-tree>header>.subagent-tree-title>small{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;color:var(--text-muted);font-size:calc(11px * var(--text-scale));font-variant-numeric:tabular-nums}
+.subagent-tree-state{font-weight:500;font-size:calc(10.5px * var(--text-scale));font-variant-numeric:tabular-nums;white-space:nowrap}
+.subagent-tree-state[data-state=running]{color:var(--attention-working,var(--running))}
+.subagent-tree-state[data-state=idle]{color:var(--text-faint)}
+.subagent-tree-state[data-state=failed]{color:var(--attention-failed,var(--danger))}
+/* A row's title wraps to two lines rather than being cut mid-phrase; a command's script sits beneath. */
+.subagent-tree-label{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+.subagent-tree .subagent-tree-label>.subagent-tree-name{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;line-height:1.35}
+.subagent-tree-command{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono,ui-monospace,monospace);font-size:calc(10.5px * var(--code-scale));color:var(--text-muted);background:none;padding:0}
+.subagent-tree li>.subagent-tree-row{align-items:flex-start}
+.subagent-tree li>.subagent-tree-row>.subagent-mark{margin-top:2px}
+.subagent-tree li>.subagent-tree-row>small{padding-top:1px}
+.subagent-tree li>.subagent-tree-row>small[data-status=failed]{color:var(--attention-failed,var(--danger))}
+.subagent-tree li>.subagent-tree-row>small[data-status=running],.subagent-tree li>.subagent-tree-row>small[data-status=starting],.subagent-tree li>.subagent-tree-row>small[data-status=waiting]{color:var(--attention-working,var(--running))}
+.subagent-tree-more>.subagent-tree-earlier{align-items:center!important;gap:6px;color:var(--text-muted)!important;font-size:calc(11.5px * var(--text-scale))}
+.subagent-tree-more>.subagent-tree-earlier:hover{color:var(--text)!important}
 .subagent-tree-name>code,code.subagent-chip-name,.subagent-panel-title code{font-family:var(--font-mono,ui-monospace,monospace);font-size:calc(11.5px * var(--code-scale));color:var(--text-soft);background:none;padding:0}
 .subagent-chip.command>svg{flex:none;color:var(--text-subtle)}
 .background-work{position:relative;display:inline-flex}

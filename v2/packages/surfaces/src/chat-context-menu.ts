@@ -14,7 +14,7 @@ import { isMac } from './workbench';
 
 export type MessageRole = 'agent' | 'user' | 'notice';
 export type MessageMenuDetail = { message: TranscriptMessage; role: MessageRole; sessionId: string };
-export const messageRole = (message: TranscriptMessage): MessageRole => message.type === 'operation_accepted' ? 'user' : message.type === 'message_delta' ? 'agent' : 'notice';
+export const messageRole = (message: TranscriptMessage): MessageRole => message.type === 'operation_accepted' && !message.origin ? 'user' : message.type === 'message_delta' ? 'agent' : 'notice';
 
 /** Put text after the draft of a conversation's message box, as a quote to answer. */
 export function quoteInReply(sessionId: string, text: string) {

@@ -35,6 +35,7 @@ func DefaultRates() RateCard {
 }
 func (c RateCard) Price(r Record) Record {
 	r.Nanos = nil
+	r.Costs = nil
 	r.PriceVersion = ""
 	if r.Reason != "" {
 		return r
@@ -61,14 +62,20 @@ func (c RateCard) Price(r Record) Record {
 		return r
 	}
 	var total int64
-	for _, pair := range [][2]int64{{*r.Tokens.Input, rate.Input}, {*r.Tokens.Output, rate.Output}, {*r.Tokens.CacheRead, rate.CacheRead}, {*r.Tokens.CacheWrite5m, rate.CacheWrite5m}, {*r.Tokens.CacheWrite1h, rate.CacheWrite1h}} {
-		if pair[1] < 0 || pair[0] < 0 || (pair[0] > 0 && pair[1] > (math.MaxInt64-total)/pair[0]) {
+	var costs Costs
+	for _, part := range []struct {
+		tokens, rate int64
+		cost         **int64
+	}{{*r.Tokens.Input, rate.Input, &costs.Input}, {*r.Tokens.Output, rate.Output, &costs.Output}, {*r.Tokens.CacheRead, rate.CacheRead, &costs.CacheRead}, {*r.Tokens.CacheWrite5m, rate.CacheWrite5m, &costs.CacheWrite5m}, {*r.Tokens.CacheWrite1h, rate.CacheWrite1h, &costs.CacheWrite1h}} {
+		if part.rate < 0 || part.tokens < 0 || (part.tokens > 0 && part.rate > (math.MaxInt64-total)/part.tokens) {
 			r.Reason = "Invalid or overflowing price"
 			return r
 		}
-		total += pair[0] * pair[1]
+		*part.cost = number(part.tokens * part.rate)
+		total += part.tokens * part.rate
 	}
 	r.Nanos = number(total)
+	r.Costs = &costs
 	r.PriceVersion = rate.Version
 	return r
 }

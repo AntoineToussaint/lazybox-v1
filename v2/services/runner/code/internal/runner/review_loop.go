@@ -150,6 +150,25 @@ func containsString(list []string, value string) bool {
 	return false
 }
 
+// roundLabel is "Round 2 of 3" for a loop of several rounds, else empty.
+func roundLabel(run reviews.Run) string {
+	if run.MaxRounds <= 1 || run.Round <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("Round %d of %d", run.Round, run.MaxRounds)
+}
+
+// joinDetail joins an event's labels that are not empty: "Round 2 of 3 · 1 finding open".
+func joinDetail(parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, " · ")
+}
+
 // sendFindings delivers findings to the author's conversation as one
 // message, exactly as the tray would put them in its box, and marks them sent.
 func (b *Bench) sendFindings(workspace string, run reviews.Run, ids []string) error {
@@ -168,7 +187,8 @@ func (b *Bench) sendFindings(workspace string, run reviews.Run, ids []string) er
 		return err
 	}
 	operation := fmt.Sprintf("review-%s-findings-%d", strings.TrimPrefix(run.ID, "rv-"), run.Round)
-	if err = b.sendLazyboxMessage(b.ctx, source, operation, reviews.FindingsMessage(findings)); err != nil {
+	origin := &agent.Origin{Kind: agent.OriginReviewFindings, Summary: fmt.Sprintf("%s review · %s sent", firstOf(run.ReviewerLabel, "Agent"), plural(len(findings), "finding", "findings")), Detail: roundLabel(run), From: run.ReviewerLabel}
+	if err = b.sendLazyboxMessage(b.ctx, source, operation, reviews.FindingsMessage(findings), origin); err != nil {
 		return err
 	}
 	heads := map[string]string{}
@@ -274,7 +294,8 @@ func (b *Bench) sendRereview(workspace string, run reviews.Run) error {
 		diff = b.turnDiff(run.SourceConversation, run.Rounds[len(run.Rounds)-1].AuthorTurn, c.Members)
 	}
 	operation := fmt.Sprintf("review-%s-round-%d", strings.TrimPrefix(run.ID, "rv-"), run.Round)
-	if err = b.sendLazyboxMessage(b.ctx, reviewer, operation, reviews.RereviewMessage(run, open, diff)); err != nil {
+	origin := &agent.Origin{Kind: agent.OriginReviewRound, Summary: fmt.Sprintf("Re-review asked · %s changed files", firstOf(run.SourceLabel, "the author")), Detail: joinDetail(roundLabel(run), plural(len(open), "finding", "findings")+" open"), From: run.SourceLabel}
+	if err = b.sendLazyboxMessage(b.ctx, reviewer, operation, reviews.RereviewMessage(run, open, diff), origin); err != nil {
 		return err
 	}
 	_, err = b.Reviews.UpdateRun(workspace, run.ID, func(r *reviews.Run) error {
@@ -449,14 +470,15 @@ func (b *Bench) AskAgent(ctx context.Context, req AskRequest) (reviews.Ask, erro
 		role = "whose work you are reviewing"
 	}
 	text := fmt.Sprintf("[Lazybox] %s (%s) asks you:\n\n%s\n\nReply in your next message: Lazybox passes your reply back to %s. Answer the question; do not start other work in this reply.", a.FromLabel, role, quoteText(question), a.FromLabel)
-	if err = b.sendLazyboxMessage(ctx, target, a.Operation, text); err != nil {
+	line := fmt.Sprintf("%s asked %s: %s", a.FromLabel, a.ToLabel, question)
+	origin := &agent.Origin{Kind: agent.OriginAgentAsk, Summary: line, From: a.FromLabel}
+	if err = b.sendLazyboxMessage(ctx, target, a.Operation, text, origin); err != nil {
 		_, _ = b.Reviews.Update(m.Workspace, func(rv *reviews.Review) error {
 			reviews.AnswerAsk(rv, m.Run.ID, a.ToSession, a.Operation, "(The question could not be delivered: "+err.Error()+")", time.Now().Unix())
 			return nil
 		})
 		return reviews.Ask{}, err
 	}
-	line := fmt.Sprintf("%s asked %s: %s", a.FromLabel, a.ToLabel, question)
 	b.recordExchange(e, m.Run, line)
 	b.recordExchange(target, m.Run, line)
 	if req.Wait <= 0 {
@@ -650,6 +672,7 @@ func (b *Bench) askNoteLater(workspace, runID string, a reviews.Ask) {
 		note := fmt.Sprintf("[Lazybox] %s answered your question (%s):\n\n%s", told.ToLabel, quoteText(told.Question), told.Answer)
 		ctx, cancel := context.WithTimeout(b.ctx, 10*time.Second)
 		defer cancel()
-		_ = b.sendLazyboxMessage(ctx, asker, "review-answer-"+strings.TrimPrefix(told.ID, "ask-"), note)
+		origin := &agent.Origin{Kind: agent.OriginAgentAnswer, Summary: fmt.Sprintf("%s answered %s: %s", told.ToLabel, told.FromLabel, told.Answer), From: told.ToLabel}
+		_ = b.sendLazyboxMessage(ctx, asker, "review-answer-"+strings.TrimPrefix(told.ID, "ask-"), note, origin)
 	}()
 }

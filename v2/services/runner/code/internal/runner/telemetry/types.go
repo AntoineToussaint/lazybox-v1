@@ -33,6 +33,7 @@ type Record struct {
 	Status       string    `json:"status"` // pending, complete, partial, failed, interrupted
 	Tokens       Tokens    `json:"tokens"`
 	Nanos        *int64    `json:"nanos,omitempty"` // API-equivalent token cost, never an invoice.
+	Costs        *Costs    `json:"costs,omitempty"` // Nanos by part; absent when unpriced.
 	PriceVersion string    `json:"priceVersion,omitempty"`
 	Reason       string    `json:"reason,omitempty"`
 	Tier         string    `json:"tier,omitempty"`
@@ -86,7 +87,17 @@ type Group struct {
 	Records    int64  `json:"records"`
 	Unpriced   int64  `json:"unpriced"`
 	Incomplete int64  `json:"incomplete"`
+	// Costs is Nanos by part, when every priced record says; absent otherwise.
+	Costs *Costs `json:"costs,omitempty"`
+	// UnpricedReasons says why the unpriced records have no price, each once.
+	UnpricedReasons []string `json:"unpricedReasons,omitempty"`
+	// UnpricedTokens are the tokens of the unpriced records: what Nanos leaves out.
+	UnpricedTokens Tokens `json:"unpricedTokens"`
 }
+
+// Costs is what each part of a usage cost, in nanodollars, part for part
+// as Tokens counts it.
+type Costs Tokens
 type Report struct {
 	Groups   []Group           `json:"groups"`
 	Contexts []ContextSnapshot `json:"contexts"`

@@ -323,7 +323,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     setSessionID(''); setSession(undefined); setCommands([]); setCommand(''); setMessage(''); setFiles([]); setMissingFiles([]); setUncertainSend(''); sendAttempt.current = null; setError(''); onSessionChange?.('');
   };
   const realTitle = conversationTitle(session);
-  const firstPrompt = conversation.find(m => m.type === 'operation_accepted')?.text || '';
+  const firstPrompt = conversation.find(m => m.type === 'operation_accepted' && !m.origin)?.text || '';
   // An assistant conversation is about Lazybox, not the workspace's branches: its header names none.
   const branch = assistant ? undefined : branchSummary(workspace);
   const modelLabel = sessionModelLabel(session, transcript.reportedModel);

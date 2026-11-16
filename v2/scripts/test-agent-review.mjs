@@ -60,10 +60,16 @@ try{
  assert.deepEqual((({collectionId,sourceSessionId,scope,compare='',provider,profileId=''})=>({collectionId,sourceSessionId,scope,compare,provider,profileId}))(starts()[0]),{collectionId:'alpha',sourceSessionId:author.id,scope:'changes',compare:'',provider:'codex',profileId:''});
  const reviewer=fixture.sessions.find(s=>s.title==='Review · Changes · Codex');
  assert.equal(reviewer.permission,'read-only');assert.equal(reviewer.provider,'codex');
- // The reviewer conversation opens beside the work, its brief its first message.
+ // The reviewer conversation opens beside the work, its brief its first message:
+ // an event from Lazybox, never the person's words, that opens to the brief as sent.
  const chat=page.locator('section.panel-chat');
- await expect(chat).toContainText('You are an independent reviewer (Codex) of work Claude did');
- await expect(chat).toContainText('lazybox review add');
+ const briefEvent=chat.locator('.system-event[data-kind=review_brief]');
+ await expect(briefEvent.locator('.system-event-text')).toHaveText("Asked Codex to review Claude's work");
+ await expect(briefEvent.locator('.system-event-detail')).toHaveText('Changes');
+ await expect(chat.locator('article.message.operation_accepted')).toHaveCount(0);
+ await briefEvent.locator('.system-event-toggle').click();
+ await expect(briefEvent.locator('.system-event-body')).toContainText('You are an independent reviewer (Codex) of work Claude did');
+ await expect(briefEvent.locator('.system-event-body')).toContainText('lazybox review add');
  // The tray follows the review live.
  const tray=changes.getByRole('complementary',{name:'Review'});
  await expect(tray.getByRole('list',{name:'Agent reviews'})).toContainText('Codex is reviewing changes');
@@ -125,7 +131,7 @@ try{
  // 7. A review of a review is never offered: from the reviewer's conversation
  // the work under review is still the author's.
  await page.locator('.messages').getByRole('group',{name:'Codex review'}).getByRole('button',{name:'Open conversation'}).click();
- await expect(chat).toContainText('You are an independent reviewer (Codex)');
+ await expect(chat.locator('.system-event[data-kind=review_brief] .system-event-text')).toHaveText("Asked Codex to review Claude's work");
  await changes.getByRole('navigation',{name:'Changed files'}).getByRole('button',{name:/src\/handler\.go/}).first().click({button:'right'});
  const menu=page.getByRole('menu');
  await menu.getByRole('menuitem',{name:'Review the changes with Codex'}).click();
@@ -150,7 +156,7 @@ try{
  await marker.getByRole('button',{name:'Review this turn with Codex'}).click();
  await expect.poll(()=>starts().length).toBe(4);
  assert.deepEqual((({scope,turn,provider})=>({scope,turn,provider}))(starts()[3]),{scope:'turn',turn:1,provider:'codex'});
- await expect(page.locator('section.panel-chat')).toContainText('What to review: Turn 1');
+ await expect(page.locator('section.panel-chat .system-event[data-kind=review_brief] .system-event-detail')).toHaveText('Turn 1');
 
  // 9b. The message box: `/review claude` (and `/review` alone is the default reviewer).
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${author.id}#token=${fixture.token}`);
@@ -169,7 +175,7 @@ try{
  await pr.getByRole('button',{name:'Review the PR with Codex'}).click();
  await expect.poll(()=>starts().length).toBe(6);
  assert.deepEqual((({scope,member})=>({scope,member}))(starts()[5]),{scope:'pr',member:'api'});
- await expect(page.locator('section.panel-chat')).toContainText('What to review: PR #7');
+ await expect(page.locator('section.panel-chat .system-event[data-kind=review_brief] .system-event-detail')).toHaveText('PR #7');
 
  // 11. Settings: the default reviewer, automatic reviews, the brief, and its reset.
  await page.keyboard.press(`${mod}+,`);

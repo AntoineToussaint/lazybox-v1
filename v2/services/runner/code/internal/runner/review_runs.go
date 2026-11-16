@@ -522,7 +522,8 @@ func (b *Bench) StartReview(ctx context.Context, req ReviewRequest) (*Execution,
 		_ = e.Engine.Close()
 		return nil, reviews.Run{}, err
 	}
-	if err = b.sendLazyboxMessage(ctx, e, run.BriefOperation, brief); err != nil {
+	origin := &agent.Origin{Kind: agent.OriginReviewBrief, Summary: fmt.Sprintf("Asked %s to review %s's work", label, authorLabel), Detail: scope.label}
+	if err = b.sendLazyboxMessage(ctx, e, run.BriefOperation, brief, origin); err != nil {
 		run, _ = b.Reviews.UpdateRun(workspace.ID, run.ID, func(r *reviews.Run) error {
 			r.State, r.Detail = reviews.RunFailed, "The brief could not be sent to "+label+": "+err.Error()
 			return nil
@@ -546,11 +547,12 @@ func (b *Bench) executionTitle(ctx context.Context, e *Execution) string {
 }
 
 // sendLazyboxMessage delivers text Lazybox wrote (a brief, findings, a
-// re-review) as a message to e, recorded in the prompt log as such.
-func (b *Bench) sendLazyboxMessage(ctx context.Context, e *Execution, operation, text string) error {
+// re-review) as a message to e, recorded in the prompt log as such. origin
+// is how the conversation shows it: an event, not the person's words.
+func (b *Bench) sendLazyboxMessage(ctx context.Context, e *Execution, operation, text string, origin *agent.Origin) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	receipt, err := e.Engine.Apply(ctx, agent.Operation{ID: operation, Kind: agent.Message, Text: text})
+	receipt, err := e.Engine.Apply(ctx, agent.Operation{ID: operation, Kind: agent.Message, Text: text, Origin: origin})
 	if err != nil {
 		return err
 	}
