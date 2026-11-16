@@ -266,7 +266,84 @@ change, it is noted as an overlap, not a duplicate.
 9. **P1-7 Light theme, tokens, zoom and fonts.** Lazybox is hard-coded dark; herdr follows the system.
 10. **P1-6 Peek a conversation or sub-agent without navigating.** herdr peek; extend the sub-agent cards branch rather than duplicating it.
 
-## Status (same day)
+## Scorecard after round one (end of day)
+
+Everything below is on `feat/v2-command-output` (tip `22fc68b2` plus the
+console work in flight). Most of it is verified by the Playwright suites
+against the fake Runner, **not yet by daily use in the desktop app**. That
+is the main honest caveat: herdr's lead in polish comes from real users and
+weekly releases, and ours has not had that yet.
+
+### The gap list, item by item
+
+| # | Item | Status |
+|---|---|---|
+| P0-1 | Agents always visible, urgency-sorted | **Done.** Agents panel with Priority / By workspace, dockable anywhere. |
+| P0-2 | Command palette over one action registry | **Done.** ⌘K / ⌘⇧P, one registry for keys, palette, menus, slash commands and `actions.yaml`; shortcuts overlay generated from it. |
+| P0-3 | Chat at TUI parity | **Done.** Question cards (single, multi, Other, preview), Always allow, inline tool lines, sub-agent cards, activity detail Smart / Quiet / Verbose, slash commands, model switch. |
+| P0-4 | Next agent that needs me, ⌃1–9 | **Done.** `attention.next` (⌘J or `]] n`) and `workspace.select.N`. |
+| P1-1 | Panel zoom | **Done.** Maximize / restore the active panel. |
+| P1-2 | Tab stacks, drag to dock, swap | **Done.** dockview: drag onto an edge or the middle, tab groups, panels in their own window. |
+| P1-3 | Terminal upgrade | Dropped (no terminal emulator). |
+| P1-4 | Sounds and in-app toasts | **Done.** |
+| P1-5 | Git state on workspace rows | **Done** (earlier). |
+| P1-6 | Peek | **Done** (earlier), no terminal escape hatch. |
+| P1-7 | Themes, tokens, zoom, fonts | **Done, beyond scope** ([Appearance](../../APPEARANCE.md)): themes, user theme files, chat spacing, ⌘± zoom, console text size. |
+| P1-8 | Context menus on every object | **Done.** |
+| P1-9 | Native menu bar mirrors the actions | **Done.** |
+| P2-1 | Welcome and What's new | **Done, partly** (earlier). |
+| P2-2 | Several Runners in one window | **Open.** Step 1 shipped (`lazybox runners`, `ls --all`); steps 2–3 designed in [MULTI_RUNNER.md](../../MULTI_RUNNER.md). |
+| P2-3 | Phone richness | **Partly.** Dictation works in the phone browser (Web Speech). Not done: swipe actions, push notifications with the app closed. |
+| P2-4 | Layout presets | **Done.** "Change the layout…" presets, reset. |
+| P2-5 | `lazybox shot` | **Done.** |
+| P2-6 | Side-by-side diff | **Done** (earlier). |
+| P2-7 | More harnesses in the sidebar | Dropped with terminals. Harnesses are Claude and Codex only. |
+
+### Where Lazybox is now ahead, and herdr has nothing comparable
+
+- **Cross-agent review:** one click ("Review with Codex"), findings in the
+  Review tray, a bounded review loop, and agent-to-agent questions only
+  through structured, rate-limited channels.
+- **An agent browser you watch live:** take over, give back, stop, and a
+  per-site permission that asks even in full-access mode.
+- **Servers never block a turn:** `lazybox run` backgrounds servers and
+  watchers; queued messages can be sent now (or steered, with Codex).
+- **Artifacts:** agents publish plans and reports as versioned Lazybox
+  documents, with a reader, side-by-side version compare and print.
+- **Voice:** on-device dictation on the Mac, spoken commands into the
+  palette, and read-aloud.
+- **Ask Lazybox** picks whichever agent is installed and signed in, and
+  answers from the bundled docs.
+- **Power-user CLI:** `ls / send / wait / watch / inbox / approve / stop /
+  missions / debug / shot`, plus declarative actions and hooks, with no
+  unsandboxed code.
+- **Unchanged leads:** review, the PR loop, checkpoints, missions with
+  evidence, approvals, cost and limits, Run / Preview, native notifications.
+
+### Where herdr is still ahead
+
+1. **Proven polish.** herdr's UI has had real users and weekly releases;
+   ours has passed tests and one person's dogfooding. Closing this takes a
+   real-app QA pass (popouts, Web panel in the dock, voice, menus, peek,
+   agent browser) and our own release cadence.
+2. **Any CLI agent.** herdr shows any terminal agent; Lazybox speaks to
+   Claude and Codex only. This is the cost of the no-terminal decision, and
+   it is accepted.
+3. **Several machines in one window.** MULTI_RUNNER steps 2–3.
+4. **Phone:** swipe actions, and push notifications when the app is closed.
+5. **Shipping.** herdr is public and installable; V2 has an installer and a
+   release pipeline but no release yet.
+
+### Next round, in order
+
+1. Real-app QA of everything above in the desktop app, fixing what breaks.
+2. An Orchestrator permission (an agent that drives the agents it started,
+   inside a mission; never approves or accepts).
+3. Several Runners in one window (MULTI_RUNNER step 2).
+4. Phone: swipe actions and push.
+5. The first V2 release.
+
+## Status (same day, earlier)
 
 Shipped on `feat/v2-command-output` after this comparison was written:
 
