@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CommandStatus } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { Console } from './session-parts';
@@ -9,6 +9,7 @@ import { offerToComposer, runOrigin } from './command-runs';
 export function CommandPanel({ target, onTarget, viewState, onOpenViewer }: { target: ViewTarget; onTarget(target: ViewTarget): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void> }) {
   const { api } = useRunner();
   const [commands, setCommands] = useState<CommandStatus[]>([]), [error, setError] = useState('');
+  const refresh = useRef<() => Promise<void>>(undefined);
   useEffect(() => {
     setCommands([]); setError(''); if (!target.sessionId) return;
     const control = new AbortController(); let updating = false;
@@ -18,9 +19,13 @@ export function CommandPanel({ target, onTarget, viewState, onOpenViewer }: { ta
       catch (error) { if (!control.signal.aborted) setError(String(error)); }
       finally { updating = false; }
     };
+    refresh.current = update;
     void update(); const timer = setInterval(() => void update(), 1500);
-    return () => { control.abort(); clearInterval(timer); };
+    return () => { control.abort(); clearInterval(timer); refresh.current = undefined; };
   }, [api, target.sessionId]);
+  // Shown a command that just started (Run myself): list it now, not at the next poll.
+  const known = commands.some(command => command.id === target.commandId);
+  useEffect(() => { if (target.commandId && !known) void refresh.current?.(); }, [target.commandId, known]);
   // A command still running is what you want to see, even when a later one already finished.
   const selected = target.commandId || [...commands].reverse().find(command => !command.done)?.id || commands.at(-1)?.id || '';
   const mark = (command: CommandStatus) => command.done ? (command.exitCode === 0 || (command.exitCode === undefined && command.report?.exitCode === 0) ? '✓ ' : command.signal ? '■ ' : '✗ ') : '● ';

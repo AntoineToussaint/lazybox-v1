@@ -82,6 +82,8 @@ Act on the conversation you last clicked or focused.
 | Activity detail: Smart | — | — |
 | Activity detail: Verbose | — | — |
 | Activity detail: Use the default | — | — |
+| Run the last command block | `]] r` | `]] r` |
+| Run the last command block myself… | — | — |
 
 ## Sidebar
 

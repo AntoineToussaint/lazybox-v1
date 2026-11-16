@@ -78,6 +78,9 @@ const tail = [
   { id: 'activity.smart', title: 'Activity detail: Smart', group: 'Conversation', icon: 'sparkle', keys: '', scope: 'global', keywords: 'tool calls commands steps summary group collapse' },
   { id: 'activity.verbose', title: 'Activity detail: Verbose', group: 'Conversation', icon: 'expand', keys: '', scope: 'global', keywords: 'tool calls commands steps every line all full show' },
   { id: 'activity.default', title: 'Activity detail: Use the default', group: 'Conversation', icon: 'refresh', keys: '', scope: 'global', keywords: 'tool calls commands reset settings' },
+  // The agent's latest shell code block (code-runs.tsx).
+  { id: 'code.run-last', title: 'Run the last command block', group: 'Conversation', icon: 'play', keys: '] ] r', scope: 'global', keywords: 'shell bash script execute code block agent ask' },
+  { id: 'code.run-last-myself', title: 'Run the last command block myself…', group: 'Conversation', icon: 'terminal', keys: '', scope: 'global', keywords: 'shell bash script execute code block console yourself' },
   { id: 'navigation.next', title: 'Next entry', group: 'Sidebar', icon: 'chevron', keys: 'j', scope: 'navigation', palette: false },
   { id: 'navigation.previous', title: 'Previous entry', group: 'Sidebar', icon: 'up', keys: 'k', scope: 'navigation', palette: false },
   { id: 'navigation.parent', title: 'Workspace / left pane', group: 'Sidebar', icon: 'back', keys: 'h', scope: 'navigation', palette: false },

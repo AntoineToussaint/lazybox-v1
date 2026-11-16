@@ -16,6 +16,7 @@ import { SubagentCard } from './SubagentCard';
 import { ToolLines } from './ToolLine';
 import { turnActivity, type ActivityDetail, type ToolEntry, type TurnCache } from './tool-lines';
 import { AnsweredLine } from './RequestCards';
+import { InlineRuns, RunMessageContext } from './code-runs';
 
 const ownName = (id: string) => id;
 
@@ -28,7 +29,8 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
   return <article className={'message ' + m.type} data-message-id={m.id} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>
-    <RichContent text={m.text} onOpenFile={onOpenFile}/>
+    {/* Only an agent's own words offer to run their commands. */}
+    {m.type === 'message_delta' ? <RunMessageContext.Provider value={m.id}><RichContent text={m.text} onOpenFile={onOpenFile}/><InlineRuns messageId={m.id}/></RunMessageContext.Provider> : <RichContent text={m.text} onOpenFile={onOpenFile}/>}
     {m.files?.length ? <SentAttachments files={m.files}/> : null}
     <MessageArtifactActions message={m}/>
   </article>;

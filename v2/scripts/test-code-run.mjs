@@ -1,0 +1,184 @@
+// Run on what the agent wrote. A shell block has Run (ask the agent: the exact
+// block goes as a message, at once or queued behind the turn in progress, and
+// the block says how the agent's run went) and Run myself (a confirm card with
+// the script and the folder, then a command of the conversation in the console,
+// its outcome on the block, and a failure handed to the agent through the
+// message box). Placeholders must be filled in first; a read-only conversation
+// warns; inline commands offer both from their menu only; the palette and
+// ] ] r run the last block. Fake Runner only.
+import {testViteCache} from './fixtures/vite-cache.mjs';
+import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {chromium,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import assert from 'node:assert/strict';import {mkdir} from 'node:fs/promises';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
+
+const b64=value=>Buffer.from(JSON.stringify(value)).toString('base64');
+const fixture=await startRunnerFixture();const session=fixture.sessions[0];session.agents=[];session.status='ready';
+const root=session.workingDirectory;
+const channel=fixture.openEvents(session.id);
+const push=event=>channel.push({turnId:'t1',...event});
+const setup='obin login --profile dev\nclaude mcp add obin -- obin mcp';
+push({type:'operation_accepted',text:'How do I connect obin?'});
+push({type:'message_delta',text:[
+ 'Sign in, then register the MCP server:',
+ '','```bash',setup,'```','',
+ 'Then run `bin/devbox check`, then `build`, then `up --solutions none`.',
+ '','With a token instead:','','```sh','obin login --token <your-token>','```','',
+ 'And the tests:','','```console','$ make test','PASS ok','```','',
+ '```json','{"profile":"dev"}','```',
+].join('\n')});
+
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});let browser;
+try{
+ await server.listen();browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1400,height:1000}});page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
+ await mkdir('.cache',{recursive:true});
+ const chat=page.locator('.agent-window').first();
+ const messages=chat.locator('.messages');
+ const composer=chat.getByRole('textbox',{name:'Message',exact:true});
+ const applies=()=>fixture.mutations.filter(m=>m.method==='Apply'&&m.body.message);
+ const starts=()=>fixture.mutations.filter(m=>m.method==='StartCommand');
+ const menu=page.locator('.context-menu[data-depth="0"]');
+ const labels=()=>menu.locator('.context-menu-label').allTextContents();
+
+ // ── Only shell blocks of the agent's message can run; JSON and the person's own words cannot.
+ const blocks=messages.locator('.code-block.is-runnable');
+ await expect(blocks).toHaveCount(3);
+ await expect(messages.locator('.code-block:not(.is-runnable)')).toHaveCount(1);
+ const [first,token,tests]=[blocks.nth(0),blocks.nth(1),blocks.nth(2)];
+ await expect(first.getByRole('button',{name:'Run: ask Claude to run this'})).toBeVisible();
+ await expect(first.getByRole('button',{name:'Copy code'})).toBeVisible();
+ await page.screenshot({path:'.cache/code-run-blocks.png'});
+
+ // ── Run asks the agent with the exact block, beside the draft, which stays.
+ await composer.fill('a draft I am still writing');
+ await first.getByRole('button',{name:'Run: ask Claude to run this'}).click();
+ await expect.poll(()=>applies().length).toBe(1);
+ const request=`Run this and tell me the result:\n\`\`\`bash\n${setup}\n\`\`\``;
+ assert.equal(applies()[0].body.message.text,request);
+ await expect(composer).toHaveValue('a draft I am still writing');
+ await expect(first.locator('.code-run-chip')).toHaveText('Sent to Claude');
+ // The agent runs it: the block follows its tool call.
+ push({type:'operation_accepted',text:request,operationId:applies()[0].body.operationId});
+ push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'run-1',name:'Bash',status:'running',input:{command:`cd ${root} && lazybox run -- obin login --profile dev`}})});
+ await expect(first.locator('.code-run-chip')).toHaveText('Sent to Claude · running…');
+ push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'run-1',status:'completed',output:'Signed in as dev',exitCode:0})});
+ await expect(first.locator('.code-run-chip')).toHaveText('Sent to Claude · ran ✓');
+ push({type:'message_delta',text:'Signed in.'});
+
+ // ── While a turn runs, Run (Enter on the focused block) queues behind it and says so.
+ session.busy=true;session.queued=1;await page.waitForTimeout(1700);
+ await tests.focus();await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().length).toBe(2);
+ assert.equal(applies()[1].body.message.text,'Run this and tell me the result:\n```sh\nmake test\n```','a console block goes as the script it runs');
+ await expect(tests.locator('.code-run-chip')).toHaveText('Queued — runs after the current turn');
+ await page.screenshot({path:'.cache/code-run-queued.png'});
+ session.queued=0;session.busy=false;
+ await expect(tests.locator('.code-run-chip')).toHaveText('Sent to Claude',{timeout:5000});
+
+ // ── Run myself from ▾: confirm card with the script and the folder; Enter runs it in the chosen repository.
+ fixture.power.holdCommands=true;
+ await first.getByRole('button',{name:'More ways to run'}).click();
+ assert.deepEqual((await labels()).slice(0,2),['Ask Claude to run it','Run myself…']);
+ await menu.getByRole('menuitem',{name:/Run myself/}).click();
+ const card=first.getByRole('form',{name:'Run this yourself'});
+ await expect(card).toBeVisible();
+ await expect(card.getByRole('textbox',{name:'Script'})).toHaveValue(setup);
+ const folder=card.getByRole('combobox',{name:'Folder'});
+ await expect(folder).toHaveValue(root);
+ assert.deepEqual(await folder.locator('option').allTextContents(),[`Workspace root — ${root}`,`api — ${root}/api`,`web — ${root}/web`]);
+ await expect(card.getByRole('button',{name:/^Run/})).toBeFocused();
+ await page.screenshot({path:'.cache/code-run-confirm.png'});
+ await folder.selectOption(`${root}/api`);
+ await card.getByRole('textbox',{name:'Script'}).focus();await page.keyboard.press('Enter');
+ await expect.poll(()=>starts().length).toBe(1);
+ assert.deepEqual(starts()[0].body,{sessionId:session.id,title:'obin login --profile dev',argv:['/bin/sh','-lc',setup],cwd:`${root}/api`});
+ await expect(card).toHaveCount(0);
+ const mine=first.locator('.code-run-self .code-run-chip');
+ await expect(mine).toHaveText(/^Running/);
+ await expect(mine.locator('small')).toHaveText('in api');
+ // The console opens on it, live, with Stop.
+ const run=fixture.commands.at(-1);
+ await expect(page.locator('.command-panel select')).toHaveValue(run.id);
+ await expect(page.locator('.command-panel .console-stop')).toBeVisible();
+ Object.assign(run,{done:true,exitCode:0});
+ await expect(mine).toHaveText(/^✓ exit 0/,{timeout:5000});
+ fixture.power.holdCommands=false;
+
+ // ── A failure (⌥Enter on the focused block opens the card) hands the end of its output to the agent through the message box.
+ fixture.power.commandExits.set('make test',2);
+ await tests.focus();await page.keyboard.press('Alt+Enter');
+ const failing=tests.getByRole('form',{name:'Run this yourself'});
+ await failing.getByRole('button',{name:/^Run/}).click();
+ await expect(tests.locator('.code-run-self .code-run-chip')).toHaveText(/^✗ exit 2/,{timeout:5000});
+ await page.screenshot({path:'.cache/code-run-failed.png'});
+ await tests.getByRole('button',{name:'Ask Claude to fix'}).click();
+ await expect(composer).toHaveValue(/^a draft I am still writing\n\nI ran this myself and it failed \(exit 2\):\n```sh\nmake test\n```\nIts output:\n```text\n\$ make test\nexit 2\n```\nFind out why and fix it\.$/);
+ await expect(composer).toBeFocused();
+ assert.equal(applies().length,2,'the fix request is not sent for the person');
+ await composer.fill('');
+
+ // ── Placeholders: Run myself asks to fill them in first, and runs the edited script.
+ await token.locator('pre').click({button:'right'});
+ assert.deepEqual((await labels()).slice(0,4),['Ask Claude to run it','Run myself…','Copy code','Copy as Markdown']);
+ await menu.getByRole('menuitem',{name:/Run myself/}).click();
+ const fill=token.getByRole('form',{name:'Run this yourself'});
+ await expect(fill.getByRole('note').filter({hasText:'Fill in'})).toHaveText('Fill in <your-token> before running.');
+ const script=fill.getByRole('textbox',{name:'Script'});
+ await expect(script).toBeFocused();
+ assert.equal(await script.evaluate(t=>t.value.slice(t.selectionStart,t.selectionEnd)),'<your-token>','the placeholder is selected to type over');
+ await expect(fill.getByRole('button',{name:/^Run/})).toHaveAttribute('aria-disabled','true');
+ await page.keyboard.press('Enter');
+ await expect(fill.getByRole('alert')).toHaveText('Replace <your-token> first.');
+ assert.equal(starts().length,2);
+ await page.keyboard.type('tok_123');
+ await expect(fill.getByRole('note').filter({hasText:'Placeholders'})).toHaveText('Placeholders filled in.');
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>starts().length).toBe(3);
+ assert.equal(starts()[2].body.argv[2],'obin login --token tok_123');
+ await expect(token.locator('.code-run-self .code-run-chip')).toHaveText(/^✓ exit 0/);
+
+ // ── Inline commands: Run from their menu only; a bare subcommand reads as the program beside it.
+ await expect(messages.locator('.code-run-main')).toHaveCount(3);
+ const inline=text=>messages.locator('p code',{hasText:new RegExp(`^${text}$`)});
+ await inline('bin/devbox check').click({button:'right'});
+ assert.deepEqual((await labels()).slice(0,2),['Run `bin/devbox check` (ask Claude)','Run myself…']);
+ await page.keyboard.press('Escape');
+ await inline('build').click({button:'right'});
+ await menu.getByRole('menuitem',{name:'Run `bin/devbox build` (ask Claude)'}).click();
+ await expect.poll(()=>applies().length).toBe(3);
+ assert.equal(applies()[2].body.message.text,'Run this and tell me the result:\n```sh\nbin/devbox build\n```');
+ const inlineRuns=messages.locator('.inline-run');
+ await expect(inlineRuns.filter({hasText:'bin/devbox build'}).locator('.code-run-chip')).toHaveText('Sent to Claude');
+ await inline('up --solutions none').click({button:'right'});
+ await menu.getByRole('menuitem',{name:/Run myself/}).click();
+ const inlineCard=messages.getByRole('form',{name:'Run this yourself'});
+ await expect(inlineCard.getByRole('textbox',{name:'Script'})).toHaveValue('bin/devbox up --solutions none');
+ await page.keyboard.press('Escape');
+ await expect(inlineCard).toHaveCount(0);
+
+ // ── A read-only conversation still lets the person run it, and says what that means.
+ session.permission='read-only';await page.waitForTimeout(1700);
+ await first.focus();await page.keyboard.press('Alt+Enter');
+ const readOnly=first.getByRole('form',{name:'Run this yourself'});
+ await expect(readOnly.getByRole('note').first()).toHaveText('This conversation is read-only: Claude may not change anything here, but this command runs as you and can.');
+ await page.screenshot({path:'.cache/code-run-read-only.png'});
+ await readOnly.getByRole('button',{name:/^Run/}).click();
+ await expect.poll(()=>starts().length).toBe(4);
+ await expect(readOnly).toHaveCount(0);
+ session.permission='ask';
+
+ // ── The palette and ] ] r run the last command block of the agent's latest message that has one.
+ push({type:'message_delta',text:'Now:\n\n```bash\nnpm run lint\n```'});
+ await expect(blocks).toHaveCount(4);
+ await messages.click({position:{x:5,y:5}});
+ await page.keyboard.press('ControlOrMeta+k');
+ const palette=page.getByRole('dialog',{name:'Command palette'});
+ await palette.getByRole('combobox',{name:'Search commands'}).fill('>run the last command');
+ await expect(palette.getByRole('option',{name:/Run the last command block myself/})).toBeVisible();
+ await palette.getByRole('option',{name:/^Run the last command block(?! myself)/}).click();
+ await expect.poll(()=>applies().length).toBe(4);
+ assert.equal(applies()[3].body.message.text,'Run this and tell me the result:\n```bash\nnpm run lint\n```');
+ await messages.click({position:{x:5,y:5}});
+ await page.keyboard.press(']');await page.keyboard.press(']');await page.keyboard.press('r');
+ await expect.poll(()=>applies().length).toBe(5);
+ assert.deepEqual(errors,[]);
+ console.log('PASS: shell blocks in agent messages get Run (the exact block sent at once or queued behind the turn, the agent\'s run followed to ✓) and Run myself (confirm card with script and folder, started in the chosen repository, console opened, outcome on the block, a failure handed to the message box); placeholders must be filled in; read-only warns and still runs; inline commands run from their menu, bare subcommands with their program; palette and ] ] r run the last block. Fixture only.');
+}finally{await browser?.close();await server.close();await fixture.close();}

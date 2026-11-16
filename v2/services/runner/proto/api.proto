@@ -857,6 +857,9 @@ message StartCommandRequest {
   string session_id = 1;
   string title = 2;
   repeated string argv = 3;
+  // The folder to run in: an absolute path to a directory inside the
+  // conversation's folder (its workspace). Empty runs in that folder.
+  string cwd = 4;
 }
 message RegisterPipeRequest {
   // The execution whose console shows the output (an agent's `lazybox run`/`log`).
@@ -918,6 +921,8 @@ message CommandStatus {
   string origin = 13;
   // The conversation id a terminal run was shared with (`lazybox log --to`).
   string share_with = 14;
+  // The folder the command runs in.
+  string cwd = 15;
 }
 message ListCommandsRequest {
   // The execution's own commands, and the runs of its workspace.

@@ -74,6 +74,30 @@ Links in the agent's answer work: a `path:line` opens the file in the Editor
 (`⌥`-click opens a quick look instead), and `⌥`-click on a web link opens it in
 a [Web panel](run-your-app.md#browse-beside-your-work-the-web-panel).
 
+## Run the commands it gives you
+
+A shell block in the agent's answer (`bash`, `sh`, `zsh`, `console`…) has
+**Run** beside **Copy**:
+
+- **Run** asks the agent to run it: *Run this and tell me the result:* and the
+  block go as their own message, so your draft stays. The agent runs it, sees a
+  failure and reacts. While a turn is running it waits behind it (*Queued —
+  runs after the current turn*). The block then says how it went: *Sent to
+  Claude · ran ✓* or *failed ✗*.
+- **Run myself…** (the **▾** next to Run, or the block's right-click menu)
+  shows the exact script, which you can edit, and the folder to run it in: the
+  workspace or one of its repositories. `Enter` runs it, `Esc` cancels. A
+  script with a placeholder such as `<your-token>` waits until you fill it in.
+  It runs in [Command output](#follow-what-it-does), and the block shows
+  *Running*, *✓ exit 0* or *✗ exit 2*; after a failure, **Ask Claude to fix**
+  adds the script and the end of its output to your message.
+
+Focus a block (`Tab`) and press `Enter` to run it through the agent, `⌥Enter`
+to run it yourself. `]] r` runs the latest block of the conversation. Commands
+an agent writes inline, such as `make lint`, offer the same two in their
+right-click menu. Nothing runs without your click or key. In a read-only or
+Plan conversation, Run myself still works — it runs as you — and says so first.
+
 ## Sub-agents and background commands
 
 ![Sub-agent cards with their task, live step, time and tokens](../images/subagents.webp)

@@ -141,7 +141,7 @@ func wireActivity(a agent.Activity) *pb.AgentActivity {
 	return w
 }
 func wireStatus(s commands.Status) *pb.CommandStatus {
-	w := &pb.CommandStatus{Id: s.ID, SessionId: s.Spec.SessionID, CollectionId: s.Spec.CollectionID, ShareWith: s.Spec.ShareWith, Title: s.Spec.Title, Argv: s.Spec.Argv, Mode: s.Mode, Offset: s.Offset, Done: s.Done, Signal: s.Signal, CaptureError: s.Error}
+	w := &pb.CommandStatus{Id: s.ID, SessionId: s.Spec.SessionID, CollectionId: s.Spec.CollectionID, ShareWith: s.Spec.ShareWith, Title: s.Spec.Title, Argv: s.Spec.Argv, Cwd: s.Spec.Cwd, Mode: s.Mode, Offset: s.Offset, Done: s.Done, Signal: s.Signal, CaptureError: s.Error}
 	if s.Spec.TerminalID != "" {
 		w.Origin = "terminal"
 	}
@@ -523,7 +523,7 @@ func (s *Service) StartCommand(ctx context.Context, r *pb.StartCommandRequest) (
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	c, err := s.Bench.Start(e, r.Title, r.Argv)
+	c, err := s.Bench.StartForPerson(e, r.Title, r.Argv, r.Cwd)
 	if err != nil {
 		return nil, rpcError(err)
 	}

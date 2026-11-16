@@ -96,6 +96,43 @@ choice is shared by every conversation. Each run's header reads, for example, `e
 Runner records the same numbers in telemetry (`commands` table, one row per
 run) to measure savings (step 6).
 
+**Running what the agent wrote.** A shell code block in an agent's message
+(`bash`, `sh`, `shell`, `zsh`, or a `console` transcript, whose prompts and
+output lines are dropped) has a **Run** split button beside Copy
+(`code-runs.tsx`, rules in `code-run.ts`):
+
+- **Run** (also Enter on the focused block) sends the agent "Run this and tell
+  me the result:" and the block, fenced, as its own message: the draft in the
+  message box is untouched. The agent runs it with `lazybox run`, so it sees a
+  failure and reacts. During a turn the message waits in the Runner's queue and
+  the block says "Queued — runs after the current turn". The block then shows
+  the agent's run from its matching tool call: running, ran ✓, failed ✗.
+- **Run myself…** (the ▾ menu, the block's right-click menu, ⌥Enter) opens a
+  confirm card under the block: the script, editable; the folder (the
+  workspace root or one of its repositories, by default the conversation's);
+  Run (Enter) and Cancel (Escape). A script with a placeholder (`<your-token>`,
+  `…`, `YOUR_API_KEY`) cannot run until it is filled in. It runs as
+  `/bin/sh -lc SCRIPT`, a command of the conversation (`StartCommand`, with
+  its `cwd`, which the Runner requires to be inside the conversation's folder),
+  and the console opens on it. The block shows Running, ✓ exit 0 or ✗ exit N;
+  a failure offers **Ask the agent to fix**, which adds the script and the last
+  60 lines of its output to the message box for the person to send.
+
+`StartCommand` is the owner's alone, so a read-only or Plan conversation runs
+a person's command too: the mode bounds the agent, and the person could type
+the same command in a workspace terminal. The confirm card says so. An
+agent's own start in such a conversation is still refused. Nothing runs
+without a click or key, and Run myself always confirms.
+
+Inline code that reads as a command (`make lint`, `bin/devbox check`, or a
+bare subcommand such as `build` next to a program the message runs by path,
+read as `bin/devbox build`) offers the same two in its right-click menu only,
+so prose stays calm. **Run the last command block** (`] ] r`) and **Run the
+last command block myself…** are in the command palette.
+
+The hand-over of a failed run carries the end of its output, not a gortk
+view: only `lazybox run` builds one, and a person's run is not wrapped in it.
+
 **Retention.** The Runner gives every execution
 `LAZYBOX_V2_OUTPUT_DIR=<state>/command-output/<execution id>`. Deleting a
 conversation deletes the directories of all its executions. Both output roots

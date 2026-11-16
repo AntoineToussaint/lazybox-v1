@@ -77,10 +77,10 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
   };
   const shareTitle = !metadata?.done ? 'Available when the output ends.' : !view ? 'This run has no compact view: its output did not end cleanly.' : `Adds the compact view (${formatBytes(report!.agentBytes)}: outcome and failures first, plus the full-output path) to your message. You decide when to send it.`;
   // The command as typed: a shell line is its script, anything else its words.
-  const commandLine = metadata ? (metadata.argv.length === 3 && /(^|\/)(ba|z)?sh$/.test(metadata.argv[0]) && metadata.argv[1] === '-c' ? metadata.argv[2] : metadata.argv.join(' ')) : '';
+  const commandLine = metadata ? (metadata.argv.length === 3 && /(^|\/)(ba|z)?sh$/.test(metadata.argv[0]) && /^-l?c$/.test(metadata.argv[1]) ? metadata.argv[2] : metadata.argv.join(' ')) : '';
   const menu = contextMenu('command', () => [
     running && { label: 'Stop', icon: 'stop', danger: true, run: () => api.cancelCommand({ commandId: command }).then(() => showMenuNotice('Stopping…')) },
-    metadata?.done && !fromTerminal && metadata.sessionId && metadata.argv.length > 0 && { label: 'Run again', icon: 'play', run: () => api.startCommand({ sessionId: metadata.sessionId, title: metadata.title, argv: metadata.argv }).then(() => showMenuNotice(`Started “${metadata.title}” again`)) },
+    metadata?.done && !fromTerminal && metadata.sessionId && metadata.argv.length > 0 && { label: 'Run again', icon: 'play', run: () => api.startCommand({ sessionId: metadata.sessionId, title: metadata.title, argv: metadata.argv, cwd: metadata.cwd }).then(() => showMenuNotice(`Started “${metadata.title}” again`)) },
     'separator',
     { label: 'Copy output', icon: 'copy', disabled: !text && 'No output yet', run: () => copyText(stripAnsi(text), 'Copied output') },
     commandLine && { label: 'Copy command', icon: 'copy', run: () => copyText(commandLine, 'Copied command') },

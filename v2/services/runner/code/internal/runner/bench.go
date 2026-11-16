@@ -772,13 +772,55 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 }
 
 func (b *Bench) Start(e *Execution, title string, argv []string) (*commands.Command, error) {
-	return b.start(e, title, argv, nil)
+	return b.start(e, title, argv, nil, false, "")
 }
-func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []string) (*commands.Command, error) {
+
+// StartForPerson starts a command the person confirmed in a conversation
+// (StartCommand, which only the owner may call). A read-only or plan
+// conversation does not refuse it: that mode bounds what the agent may do,
+// and the person could run the same command in a workspace terminal. An
+// assistant conversation has no workspace and still refuses. cwd, when set,
+// must be a directory inside the conversation's folder; empty is that folder.
+func (b *Bench) StartForPerson(e *Execution, title string, argv []string, cwd string) (*commands.Command, error) {
+	return b.start(e, title, argv, nil, true, cwd)
+}
+
+// commandDir resolves the folder a person's command runs in: the
+// conversation's own folder, or a directory inside it, symlinks resolved so a
+// link cannot lead outside.
+func commandDir(root, cwd string) (string, error) {
+	if cwd == "" {
+		return root, nil
+	}
+	if !filepath.IsAbs(cwd) {
+		return "", errors.New("the command folder must be an absolute path")
+	}
+	base, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("the conversation's folder cannot be resolved: %w", err)
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Clean(cwd))
+	if err != nil {
+		return "", fmt.Errorf("the command folder does not exist: %w", err)
+	}
+	if rel, err := filepath.Rel(base, dir); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", errors.New("the command folder must be inside the conversation's workspace")
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return "", errors.New("the command folder is not a directory")
+	}
+	return dir, nil
+}
+
+func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []string, person bool, cwd string) (*commands.Command, error) {
 	e.activity.Lock()
 	defer e.activity.Unlock()
-	if agent.IsAssistant(e.Purpose) || e.Options.Permission == "read-only" || e.Options.Workflow == "plan" {
+	if agent.IsAssistant(e.Purpose) || (!person && (e.Options.Permission == "read-only" || e.Options.Workflow == "plan")) {
 		return nil, errors.New("managed command start is disabled for read-only executions")
+	}
+	dir, err := commandDir(e.Cwd, cwd)
+	if err != nil {
+		return nil, err
 	}
 	if e.Engine != nil {
 		s := e.Engine.Snapshot()
@@ -805,7 +847,7 @@ func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []str
 	if pinnedEnv != nil {
 		env = pinnedEnv
 	}
-	return b.Commands.Start(commands.Spec{SessionID: e.ID, Title: title, Cwd: e.Cwd, Argv: argv, Env: env})
+	return b.Commands.Start(commands.Spec{SessionID: e.ID, Title: title, Cwd: dir, Argv: argv, Env: env})
 }
 
 func (b *Bench) RegisterPipe(e *Execution, title string) (*commands.Command, error) {
@@ -843,7 +885,7 @@ func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args
 		}
 		value = v
 	} else if p.Action == "start" {
-		c, err := b.start(e, "agent command", p.Argv, pinnedEnv)
+		c, err := b.start(e, "agent command", p.Argv, pinnedEnv, false, "")
 		if err != nil {
 			return "", err
 		}

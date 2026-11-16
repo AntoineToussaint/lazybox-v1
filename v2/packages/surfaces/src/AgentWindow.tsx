@@ -13,7 +13,7 @@ import { useTranscript } from './useTranscript';
 import { useLiveStatus } from './LiveIndicator';
 import { savePrompt } from './prompt-history';
 import { saveSnippetUse } from './snippet-usage';
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { type CommandStatus, type Session } from '@lazybox/protocol';
 import type { SurfaceTarget, ViewStateStore } from '@lazybox/platform';
 import { readDraft, writeDraft } from './view-state';
@@ -46,6 +46,10 @@ import { Composer } from './Composer';
 import { ConsoleWindow, EventLog, SessionCommands } from './SessionCommands';
 import { faultSentence, sessionLimit, subscriptionName, turnFault } from './subscription-model';
 import { useConversationActivity } from './activity-detail';
+import { useActions } from './actions';
+import { CodeRunContext, CodeRuns, type RunActions } from './code-runs';
+import { shellBlocksIn } from './code-run';
+import { showMenuNotice } from './ContextMenu';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -340,6 +344,52 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     requestAnimationFrame(() => { node?.focus(); node?.setSelectionRange(start + body.length, start + body.length); });
   };
 
+  // Run on a shell block of the agent's: asking the agent, or running it yourself (code-runs.tsx).
+  const codeRuns = useMemo(() => sessionID && !assistant && mode === 'agent' ? new CodeRuns(api, sessionID) : null, [api, sessionID, assistant, mode]);
+  useEffect(() => codeRuns?.attach(), [codeRuns]);
+  const openCommand = onOpenCommand || (showCommands ? (commandId: string) => { setCommand(commandId); setCommandsOpen(true); } : onOpenViewer ? (commandId: string) => void onOpenViewer(sessionID, commandId) : undefined);
+  // A Run request goes as its own message, beside any draft: at once, or queued behind the turn in progress.
+  const sendRunRequest = async (text: string): Promise<'sent' | 'drafted'> => {
+    const ready = !!session && !session.closed && (!session.fault || limited || continuesAfterError);
+    if (!ready) {
+      if (!canCompose) throw new Error(session ? 'This conversation cannot take a message.' : 'Still connecting to this conversation…');
+      addToDraft(text, 'Added to your message: sending it continues the conversation and asks to run it.');
+      return 'drafted';
+    }
+    await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'message', value: { text, attachments: [] } } }, { signal: AbortSignal.any([lifetime.current!.signal, AbortSignal.timeout(30_000)]) });
+    jumpToLatest();
+    return 'sent';
+  };
+  const runActions: RunActions = {
+    send: sendRunRequest,
+    draft: (text, notice) => { if (canCompose && !sending) addToDraft(text, notice); else showMenuNotice(sending ? 'Still sending your previous message…' : 'This conversation cannot take a message.'); },
+    openOutput: openCommand,
+  };
+  useLayoutEffect(() => { codeRuns?.update({ session, workspace, messages: conversation, agentName, actions: runActions }); });
+  const lastShellBlock = () => {
+    for (let i = conversation.length - 1; i >= 0; i--) {
+      const m = conversation[i];
+      if (m.type !== 'message_delta') continue;
+      const block = shellBlocksIn(m.text).at(-1);
+      if (block) return { messageId: m.id, ...block };
+    }
+    return undefined;
+  };
+  const lastBlock = useRef(lastShellBlock); lastBlock.current = lastShellBlock;
+  const runLast = (myself: boolean) => {
+    const block = lastBlock.current();
+    if (!codeRuns || !block) return;
+    const why = myself && codeRuns.whyNotRunMyself();
+    if (why) { showMenuNotice(why); return; }
+    scroll.revealMessage(block.messageId);
+    if (myself) codeRuns.openConfirm(block.messageId, block.script); else void codeRuns.askAgent(block.messageId, block.script, block.language);
+  };
+  const canRunLast = () => !!codeRuns && activity.current() && !!lastBlock.current();
+  useActions({
+    'code.run-last': !!codeRuns && { run: () => runLast(false), enabled: canRunLast },
+    'code.run-last-myself': !!codeRuns && { run: () => runLast(true), enabled: canRunLast },
+  });
+
   const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
   if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError}/>;
 
@@ -381,11 +431,11 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
           {deleting && session && <DeleteConversationDialog session={session} onClose={() => setDeleting(false)} onDeleted={() => { setDeleting(false); newSession(); }}/>}
           {fileLinks.element}
           {transcript.error && <TranscriptNotice error={transcript.error} onRetry={transcript.retry}/>}
-          <MessageArea api={api} session={session} sessionID={sessionID} transcript={transcript} scroll={scroll} spoken={spoken} agentName={agentName} limited={limited} nameFor={nameFor}
+          <CodeRunContext.Provider value={codeRuns}><MessageArea api={api} session={session} sessionID={sessionID} transcript={transcript} scroll={scroll} spoken={spoken} agentName={agentName} limited={limited} nameFor={nameFor}
             onOpenFile={session?.collectionId ? openFile : undefined} onError={setError} detail={activity.detail}
-            subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/>
+            subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/></CodeRunContext.Provider>
           {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} viewState={viewState} onInterrupt={() => void interrupt()}
-            onOpenCommand={onOpenCommand || (showCommands ? commandId => { setCommand(commandId); setCommandsOpen(true); } : onOpenViewer ? commandId => void onOpenViewer(sessionID, commandId) : undefined)}/>}
+            onOpenCommand={openCommand}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}

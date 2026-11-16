@@ -7741,10 +7741,13 @@ func (x *CommandRequest) GetCommandId() string {
 }
 
 type StartCommandRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Argv          []string               `protobuf:"bytes,3,rep,name=argv,proto3" json:"argv,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SessionId string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Title     string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Argv      []string               `protobuf:"bytes,3,rep,name=argv,proto3" json:"argv,omitempty"`
+	// The folder to run in: an absolute path to a directory inside the
+	// conversation's folder (its workspace). Empty runs in that folder.
+	Cwd           string `protobuf:"bytes,4,opt,name=cwd,proto3" json:"cwd,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7798,6 +7801,13 @@ func (x *StartCommandRequest) GetArgv() []string {
 		return x.Argv
 	}
 	return nil
+}
+
+func (x *StartCommandRequest) GetCwd() string {
+	if x != nil {
+		return x.Cwd
+	}
+	return ""
 }
 
 type RegisterPipeRequest struct {
@@ -8115,7 +8125,9 @@ type CommandStatus struct {
 	// "setup" or "archive" for one the workspace runtime started.
 	Origin string `protobuf:"bytes,13,opt,name=origin,proto3" json:"origin,omitempty"`
 	// The conversation id a terminal run was shared with (`lazybox log --to`).
-	ShareWith     string `protobuf:"bytes,14,opt,name=share_with,json=shareWith,proto3" json:"share_with,omitempty"`
+	ShareWith string `protobuf:"bytes,14,opt,name=share_with,json=shareWith,proto3" json:"share_with,omitempty"`
+	// The folder the command runs in.
+	Cwd           string `protobuf:"bytes,15,opt,name=cwd,proto3" json:"cwd,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8244,6 +8256,13 @@ func (x *CommandStatus) GetOrigin() string {
 func (x *CommandStatus) GetShareWith() string {
 	if x != nil {
 		return x.ShareWith
+	}
+	return ""
+}
+
+func (x *CommandStatus) GetCwd() string {
+	if x != nil {
+		return x.Cwd
 	}
 	return ""
 }
@@ -22538,12 +22557,13 @@ const file_api_proto_rawDesc = "" +
 	"checkpoint\"/\n" +
 	"\x0eCommandRequest\x12\x1d\n" +
 	"\n" +
-	"command_id\x18\x01 \x01(\tR\tcommandId\"^\n" +
+	"command_id\x18\x01 \x01(\tR\tcommandId\"p\n" +
 	"\x13StartCommandRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x12\n" +
-	"\x04argv\x18\x03 \x03(\tR\x04argv\"\x8e\x01\n" +
+	"\x04argv\x18\x03 \x03(\tR\x04argv\x12\x10\n" +
+	"\x03cwd\x18\x04 \x01(\tR\x03cwd\"\x8e\x01\n" +
 	"\x13RegisterPipeRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
@@ -22571,7 +22591,7 @@ const file_api_proto_rawDesc = "" +
 	"outputPath\x12\x1d\n" +
 	"\n" +
 	"agent_view\x18\x06 \x01(\tR\tagentView\x12\x14\n" +
-	"\x05piped\x18\a \x01(\bR\x05piped\"\xaa\x03\n" +
+	"\x05piped\x18\a \x01(\bR\x05piped\"\xbc\x03\n" +
 	"\rCommandStatus\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -22589,7 +22609,8 @@ const file_api_proto_rawDesc = "" +
 	"\rcollection_id\x18\f \x01(\tR\fcollectionId\x12\x16\n" +
 	"\x06origin\x18\r \x01(\tR\x06origin\x12\x1d\n" +
 	"\n" +
-	"share_with\x18\x0e \x01(\tR\tshareWithB\f\n" +
+	"share_with\x18\x0e \x01(\tR\tshareWith\x12\x10\n" +
+	"\x03cwd\x18\x0f \x01(\tR\x03cwdB\f\n" +
 	"\n" +
 	"_exit_code\"4\n" +
 	"\x13ListCommandsRequest\x12\x1d\n" +

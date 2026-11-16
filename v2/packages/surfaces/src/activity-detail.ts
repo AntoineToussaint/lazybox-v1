@@ -100,7 +100,7 @@ export function useCurrentChat(): { mark(): void; current(): boolean } {
  * `] ] v` to cycle) acting on it while it is the chat in front. A change says
  * itself in a short toast. Call `mark` when the person interacts with the chat.
  */
-export function useConversationActivity(store: ViewStateStore | undefined, conversation: string, enabled: boolean): ActivityDetailState & { mark(): void } {
+export function useConversationActivity(store: ViewStateStore | undefined, conversation: string, enabled: boolean): ActivityDetailState & { mark(): void; /** This is the chat in front, which keyboard and palette actions mean. */ current(): boolean } {
   const state = useActivityDetail(store, conversation);
   const chat = useCurrentChat();
   const latest = useRef(state); latest.current = state;
@@ -117,5 +117,5 @@ export function useConversationActivity(store: ViewStateStore | undefined, conve
     'activity.verbose': pick('verbose'),
     'activity.default': enabled && { run: () => { latest.current.choose(null); say(latest.current.fallback); }, enabled: () => front() && latest.current.overridden },
   });
-  return useMemo(() => ({ ...state, mark: chat.mark }), [state, chat]);
+  return useMemo(() => ({ ...state, mark: chat.mark, current: chat.current }), [state, chat]);
 }

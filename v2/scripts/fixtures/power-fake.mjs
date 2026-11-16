@@ -53,10 +53,14 @@ export function createPowerFake({ frame, commands, runtimeCommands, sessions, mu
           mutations.push({ method, body });
           const session = sessions.find(s => s.id === body.sessionId);
           if (!session) return { error: { code: 'not_found', message: 'Missing conversation' } };
-          if (session.permission === 'read-only') return { error: { code: 'failed_precondition', message: 'managed command start is disabled for read-only executions' } };
+          // Like the Runner: StartCommand is the person's (owner only), so a read-only conversation runs it too; the folder stays inside the conversation's.
+          const root = session.workingDirectory || '';
+          if (body.cwd && root && body.cwd !== root && !body.cwd.startsWith(root + '/')) return { error: { code: 'unknown', message: "the command folder must be inside the conversation's workspace" } };
           const line = (body.argv || []).at(-1) || '';
           const exit = commandExits.get(line) ?? 0;
-          const command = { id: `step-command-${commands.length}`, sessionId: session.id, title: body.title, argv: body.argv, mode: 'managed', done: true, exitCode: exit, offset: '12', output: `$ ${line}\nexit ${exit}\n` };
+          // fake.holdCommands: the command keeps running until the test finishes it (`done`, `exitCode`).
+          const text = `$ ${line}\n${fake.holdCommands ? '' : `exit ${exit}\n`}`;
+          const command = { id: `step-command-${commands.length}`, sessionId: session.id, title: body.title, argv: body.argv, cwd: body.cwd || root, mode: 'managed', done: !fake.holdCommands, ...(fake.holdCommands ? {} : { exitCode: exit }), offset: String(Buffer.byteLength(text)), output: text };
           commands.push(command);
           const { output, ...wire } = command;
           return { value: wire };

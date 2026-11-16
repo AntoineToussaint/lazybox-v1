@@ -49,9 +49,10 @@ export function validateKeymap(map: Keymap): string {
 const storageKey = "keyboard:v2";
 /**
  * Keymaps saved before the action registry (no version) hold only the first
- * thirteen actions; version 2 predates `] ] v` (activity detail) and `] ] b` (web panel).
+ * thirteen actions; version 2 predates `] ] v` (activity detail) and `] ] b` (web panel);
+ * version 3 predates `] ] r` (run the last command block).
  */
-const keymapVersion = 3;
+const keymapVersion = 4;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
