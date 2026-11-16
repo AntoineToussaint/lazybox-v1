@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,6 +78,10 @@ func (b *Bench) restore(r sessionstore.Record) (*Execution, error) {
 	state.Busy = false
 	state.Queued = 0
 	state.QueuedMessages = nil
+	// Messages a lost agent never received still wait: resuming delivers them.
+	if queue, err := b.loadCarried(r.ID); err == nil && len(queue) > 0 {
+		state.Queued, state.QueuedMessages = len(queue), engine.QueuedMessages(queue, nil)
+	}
 	state.Pending = map[string]agent.Event{}
 	for id, a := range state.Agents {
 		if a.Status == agent.Running || a.Status == agent.Starting || a.Status == agent.WaitingInput || a.Status == agent.WaitingApproval {
@@ -156,7 +161,38 @@ func (b *Bench) Resume(ctx context.Context, id string, processesStopped bool) (*
 	}
 	// Collection ownership reconciliation remains with its manager. No forceful
 	// lease takeover is implied by a resume request.
-	return b.open(profile.ID, saved.Cwd, state.Reference, saved.Options, saved.GatewayID, saved.WorkID, id, saved.CollectionID, saved.Purpose, saved.Context, false)
+	next, err := b.open(profile.ID, saved.Cwd, state.Reference, saved.Options, saved.GatewayID, saved.WorkID, id, saved.CollectionID, saved.Purpose, saved.Context, false)
+	if err != nil {
+		return nil, err
+	}
+	b.handOverCarried(ctx, id, next)
+	return next, nil
+}
+
+// handOverCarried delivers to a resumed conversation the messages its lost
+// agent never received (agentLost), in the order they were queued, ahead of
+// anything sent next. A message the successor refuses stays carried, and
+// the rest with it, so the predecessor still lists what was not delivered.
+func (b *Bench) handOverCarried(ctx context.Context, id string, next *Execution) {
+	queue, err := b.loadCarried(id)
+	if err != nil || len(queue) == 0 {
+		return
+	}
+	delivered := 0
+	for _, op := range queue {
+		if _, err = next.Engine.Apply(ctx, op); err != nil {
+			log.Printf("resume %s: queued message %s not delivered: %v", id, op.ID, err)
+			break
+		}
+		delivered++
+	}
+	if err = b.saveCarried(id, queue[delivered:]); err != nil {
+		log.Printf("resume %s: carried messages not updated: %v", id, err)
+	}
+	// The predecessor's listing is rebuilt from what is still carried.
+	b.mu.Lock()
+	delete(b.archives, id)
+	b.mu.Unlock()
 }
 
 // lineage is the execution and its predecessors, newest first.

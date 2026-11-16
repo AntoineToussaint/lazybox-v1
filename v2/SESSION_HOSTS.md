@@ -152,6 +152,60 @@ notices in the conversation.
   again (`LAZYBOX_V2_RESTART_REQUEST`) and agents are kept; see
   [ENVIRONMENTS.md](ENVIRONMENTS.md#restart-the-runner-from-the-app).
 
+## After a reboot
+
+A reboot is the one restart session hosts do not survive: it ends the Runner,
+every agent, command and terminal host, and the programs in them, at once.
+launchd starts the Runner again at login, and `Bench.Adopt` finds each
+conversation's host record left on disk with nothing listening on it.
+
+- **The agent.** When adopting an execution fails because its host is gone
+  (`sessionhost.Gone`) and no host started for it still answers, the Runner
+  knows nothing of the old agent runs. It ends the conversation as
+  *interrupted*, **not** "recovery required": the person is never asked to
+  confirm that processes they cannot see are stopped. The journal gets one
+  `agent_lost` event whose text says what happened, what the interruption cost
+  (a turn in progress, a request that was waiting, queued messages) and what to
+  do; the app shows it as a notice line. Sending a message resumes the agent
+  through the provider's own session (`Bench.Resume` with the saved reference),
+  as a continuation of the same conversation.
+- **Queued messages.** The messages waiting behind the interrupted turn move
+  from the attachment record to `<id>.carried.json` (private: it can hold image
+  bytes). The conversation keeps listing them as queued, and resuming delivers
+  them to the resumed agent first, in order, before anything sent next.
+  Deleting the conversation deletes them.
+- **Everything else is on disk and simply reloads**: the transcript (the
+  journal), turn checkpoints (`code-checkpoints`), missions (the work log),
+  and command history with its output. A command that was running ends with
+  "command outcome unknown"; a terminal host that is gone is forgotten.
+
+Each step is repeatable: a Runner that dies part way through leaves either
+the attachment record (and the next Runner finishes the job, writing the
+notice once) or an ended conversation it skips.
+
+**The reboot gate** (`make -C v2 test-reboot`, the `reboot` entry of
+[`scripts/release-gates.json`](scripts/release-gates.json), also part of
+`make test`) proves this without credentials or network. A fixture Runner (the
+test binary re-executed, with a fake Claude worker) leaves a conversation as a
+working day would: a finished turn with its checkpoint, a second turn waiting
+for an approval, a message queued behind it, a finished command and a running
+one, and a mission task the conversation works on. The test then SIGKILLs what
+a reboot kills (the Runner's process group, every host and every program's
+group), waits until none is left, starts a new Runner on the same state and
+checks: Adopt reports no failure; the conversation is whole (both questions,
+the answer, the queued message), interrupted, resumable and not "recovery
+required", with one notice; the queued message is still listed; the
+checkpoint, the mission and both commands with their output are there, the
+running one marked "outcome unknown"; resuming opens the provider session it
+had (`resume=fixture-ref`) as the same conversation, and delivers the queued
+message to it. A second test checks the notice is written once across further
+restarts.
+
+It does not reboot a Mac: launchd starting the Runner at login, a session host
+whose port another process took meanwhile, and the real providers' resume are
+not exercised here (`make -C v2 test-real-outlive` covers real resume after a
+Runner restart, with logins). Terminals are not part of the fixture.
+
 ## Upgrades
 
 A host speaks the wire protocol of the binary that started it, for its whole
@@ -314,6 +368,7 @@ backend never stops an agent from starting.
 | --- | --- | --- |
 | `make -C v2 test-outlive` | Every deterministic test below, with the race detector | none |
 | `make -C v2 test` | The whole Go suite, which includes them | none |
+| `make -C v2 test-reboot` | The reboot gate: everything a reboot kills is killed, and what must come back does ([After a reboot](#after-a-reboot)) | none |
 | `make -C v2 test-real-outlive` | The live restart check with real agents | `claude` and `codex` logins; billable |
 | `cd v2/services/runner/code && go test ./internal/sessionhost -run 'Tmux\|Launched\|LocalBackend'` | The backends: tmux keeps the delivery contract (replay, redelivery), shows the traffic in its window, takes a terminal's keys and follows its size; closing a window stops its program; a missing tmux fails clearly. Skipped without tmux | none |
 | `cd v2/services/runner/code && go test ./internal/runner -run 'Processes\|Tmux\|ProcessBackend\|BackendChosen'` | The inventory names every agent, command, terminal and orphan; the sweep stops only the orphan; Stop goes through each owner; tmux chosen but missing still starts and says why; a Settings choice applies to the next process and both backends are re-attached | none |

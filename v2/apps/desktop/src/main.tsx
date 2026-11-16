@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, configureVoice, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
-import type { AppHost, AppInfo, ChatReturn, AttentionDestination, AttentionHost, AvailableUpdate, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
+import type { AppHost, AppInfo, ChatReturn, AttentionDestination, AttentionHost, AvailableUpdate, FeedbackDiagnostics, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateError, UpdateErrorKind, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
 import { FirstRun } from './FirstRun';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact' | 'web'; notice: string; viewState: Record<string,string> };
@@ -64,21 +64,38 @@ const desktopZoom: ZoomHost = {
 };
 
 /**
- * The app itself (src-tauri/src/release.rs, updates.rs): its version, and for
- * an installed release its updates and the CLI on PATH. Installing an update
- * moves the Runner service to it and restarts the app.
+ * The app itself (src-tauri/src/release.rs, updates.rs, feedback.rs): its
+ * version, and for an installed release its updates, the CLI on PATH and the
+ * Runner service. Installing an update moves the Runner service to it and
+ * restarts the app; agents keep running. Update failures come back as
+ * `{ kind, message }` and are rethrown as an UpdateError.
  */
+const updateError = (error: unknown): UpdateError => {
+  const value = error as { kind?: UpdateErrorKind; message?: string; detail?: string } | string;
+  const failure = new Error(typeof value === 'string' ? value : value?.message || String(error)) as UpdateError;
+  failure.kind = typeof value === 'object' && value?.kind ? value.kind : 'install';
+  if (typeof value === 'object' && value?.detail) failure.detail = value.detail;
+  return failure;
+};
+const base64 = (bytes: Uint8Array) => { let text = ''; for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(text); };
 const desktopApp: AppHost = {
   info: () => invoke<AppInfo>('app_info'),
-  checkForUpdate: async () => (await invoke<AvailableUpdate | null>('check_for_update')) ?? undefined,
+  checkForUpdate: async () => {
+    try { return (await invoke<AvailableUpdate | null>('check_for_update')) ?? undefined; } catch (error) { throw updateError(error); }
+  },
   installUpdate: async onProgress => {
     const stop = await listen<UpdateProgress>('update-progress', event => onProgress?.(event.payload));
-    try { await invoke<void>('install_update'); } finally { stop(); }
+    try { await invoke<void>('install_update'); } catch (error) { throw updateError(error); } finally { stop(); }
   },
   linkCli: async () => {
     const report = await invoke<{ link: string; hints?: string[] }>('link_cli');
     return { link: report.link, hints: report.hints || [] };
   },
+  // `lazybox service install`: the Runner restarts on this release, agents keep running.
+  moveRunner: async () => { await invoke('setup_install', { linkCli: false }); },
+  feedbackDiagnostics: () => invoke<FeedbackDiagnostics>('feedback_diagnostics'),
+  saveFeedback: ({ markdown, screenshot }) => invoke<string>('save_feedback', { markdown, screenshot: screenshot ? base64(screenshot) : null }),
+  revealPath: path => invoke<void>('plugin:opener|reveal_item_in_dir', { paths: [path] }),
 };
 
 /**

@@ -9,6 +9,18 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.7',
+    date: '2026-11-17',
+    title: 'Updates you choose, feedback you read first',
+    items: [
+      { title: 'Updates you choose', body: 'Settings → Updates shows what changed since your version and installs only when you choose Install and restart. Skip a version, or be reminded tomorrow; turn off the automatic check (every six hours) if you prefer to check yourself. Nothing is ever forced.' },
+      { title: 'Agents keep running through an update', body: 'Before installing, Lazybox says how many agents are running and that they keep going: only the app and its Runner restart, and the new Runner picks every agent, command and terminal back up.' },
+      { title: 'Said plainly when something is off', body: 'No network, a download whose signature does not match this app\'s key (it is refused, nothing changes), an update that did not take, or a Runner on another version than the app: each is one sentence, with the fix (Move the Runner now).' },
+      { title: 'Send feedback', body: 'Help → Send feedback writes a report you read before it goes anywhere: what happened, a screenshot of the window if you like, and diagnostics with credentials removed and your home folder shown as ~. Save it, copy it, or open a pre-filled GitHub issue; Lazybox uploads nothing and collects no telemetry.' },
+      { title: 'Back after your Mac restarts', body: 'A conversation whose agent was running says so, keeps its checkpoints, commands and queued messages, and resumes the agent\'s own session with your next message; the queued messages go first.' },
+    ],
+  },
+  {
     id: '2026-11-17.6',
     date: '2026-11-17',
     title: 'Let an agent run agents, within limits you set',

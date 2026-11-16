@@ -112,6 +112,10 @@ func (b *Bench) purgeConversation(ids []string) error {
 		if err := os.Remove(b.attachmentPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		// So can the messages a lost agent never received (agentLost).
+		if err := os.Remove(b.carriedPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 		if err := b.Attachments.Delete(id); err != nil {
 			return err
 		}

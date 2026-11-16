@@ -68,20 +68,77 @@ Where things are:
 
 ## Updates
 
-Lazybox checks for a new version every few hours. When one is out, the header
-shows **Lazybox x.y.z · What's new · Restart to update**. Restarting installs
-the new app (its download is checked against the signing key the app was
-built with), moves the Runner service to the same version and reopens your
-windows. **Running agents, commands and terminals keep running**: the new
-Runner re-attaches them (see [session hosts](../SESSION_HOSTS.md)).
+Lazybox offers updates and never forces one. **Settings → Updates** (or
+**Help → Check for updates…**) is where you decide:
 
-**Not now** (×) hides the notice until the next version. Settings → **About**
-shows the version the app, the Runner and the CLI share, checks for updates
-on demand and lists what changed. After an update, **What's new** opens once
-on its own.
+- **Check automatically** (on by default) asks for a new version when
+  Lazybox opens and every six hours after. A check downloads one small file
+  (`latest.json` from the `v2-updates` release on GitHub) and sends nothing
+  about you. Turn it off and Lazybox looks only when you choose **Check now**.
+- When a version is out, the header shows one quiet line, **Lazybox x.y.z ·
+  Update…**, and Settings → Updates says so. Nothing is downloaded yet.
+- **Update…** shows what changed since your version, then:
+  - **Install and restart** downloads the update, checks it against the
+    signing key built into your copy of Lazybox (a download that does not
+    match is refused and nothing changes), replaces the app, moves the Runner
+    to the same version and reopens your windows where they were.
+  - **Remind me later** hides it for a day (the × on the header line does the
+    same).
+  - **Skip this version** never offers that version again; the next one is
+    offered as usual. **Stop skipping** in Settings → Updates undoes it.
+
+**Running agents keep running.** Before you confirm, the dialog says how many
+agents are running. Installing replaces the app on disk while every running
+program keeps its own copy, then restarts only the Runner: the old one
+detaches from its agents, commands and terminals, and the new one picks them
+back up within seconds (see [session hosts](../SESSION_HOSTS.md)). Output
+they write meanwhile is kept, and an approval that is waiting stays waiting.
+If the new version could not take an agent over, that agent stops and its
+conversation resumes from where it was.
+
+After the restart, **What's new** opens once with "Updated to Lazybox
+x.y.z". If an install did not finish, the next launch says so instead:
+Lazybox is still on the version you had, and nothing else changed.
+
+The app, its Runner and the `lazybox` command are one release. Settings →
+Updates shows the three versions; if the Runner is on another version than
+the app, it says why and offers **Move the Runner now** (`lazybox service
+install`; agents keep running). Lazybox also does this by itself the next
+time it starts.
 
 Homebrew installs update the same way (the cask is marked `auto_updates`);
 `brew upgrade --greedy --cask lazybox-v2` also works.
+
+| Message in Settings → Updates | What it means |
+| --- | --- |
+| *Lazybox could not reach GitHub* | No network, or GitHub is unreachable. Nothing to do; it tries again later. |
+| *No update information is published* | The feed does not exist yet (no release has been published), or GitHub answered without it. |
+| *The download is not signed with Lazybox's key* | The update was refused before anything was replaced. Try again later; if it keeps happening, send feedback. |
+| *Lazybox cannot replace itself where it is installed* | The app is somewhere it cannot write (not in Applications, or another user's copy). Move it to Applications, or install from the disk image. |
+
+## Send feedback
+
+**Help → Send feedback…** writes a report you read before it goes anywhere.
+Lazybox has no telemetry and uploads nothing.
+
+- **What happened**, in your words.
+- **A screenshot of this window** (ticked when available): the window as it
+  was when you chose Send feedback.
+- **Diagnostics** (ticked): the app and Runner versions, macOS, and the last
+  200 lines of the Runner's log. Tokens, keys and passwords are removed,
+  e-mail addresses too, and paths in your home folder read `~`.
+- **The open conversation** (not ticked): its title, agent, model, state and
+  last error. Its messages are never included.
+
+The right side shows exactly what will be shared. Then:
+
+- **Save to file** writes `feedback.md` (and `screenshot.png`) to a new
+  folder in Downloads, *Lazybox feedback <date and time>*.
+- **Copy** puts the report on the clipboard.
+- **Open a GitHub issue…** saves the report, then opens a new issue on
+  [AntoineToussaint/lazybox](https://github.com/AntoineToussaint/lazybox/issues)
+  in your browser, filled in with it. Read it, attach the saved files if you
+  like, and post it yourself.
 
 ## The `lazybox` command
 
@@ -127,7 +184,7 @@ Runner.
 | "Lazybox can't reach its Runner" | **Start the Runner**; if it stops again, **Show log** (or `lazybox service logs`). |
 | An agent cannot find `codex`, `gh`, `npm`… | The Runner's PATH comes from your login shell when the service was installed. Fix your shell's PATH, then `lazybox service install`. |
 | `lazybox` runs something else | Another `lazybox` (for example the V1 TUI) comes first on PATH. `lazybox doctor` names it; `lazybox link --dir <earlier directory>`. |
-| Versions differ in Settings → About | Quit and reopen Lazybox: it moves the Runner to its own version. Or `lazybox service install`. |
+| Versions differ in Settings → Updates | **Move the Runner now** there, or quit and reopen Lazybox: it moves the Runner to its own version. Or `lazybox service install`. Agents keep running. |
 | macOS will not open the app | An unsigned build: see [Unsigned builds](#unsigned-builds). |
 
 Logs: `~/Library/Logs/Lazybox/runner.log` (the Runner),

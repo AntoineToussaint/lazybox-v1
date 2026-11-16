@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { Collection } from '@lazybox/protocol';
-import type { ViewStateStore } from '@lazybox/platform';
+import type { ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 import { isAcp } from './providers';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
@@ -15,14 +15,19 @@ import { essentialKeys, welcomeDecision, whatsNewDecision, WELCOME_PREFERENCE, W
 import { releaseNotes } from './release-notes';
 import { providerLine } from './help-availability';
 import { useProviderAvailability } from './useProviderAvailability';
+import { checkForUpdate, takeInstalling, useUpdatePreferencesStore } from './app-update';
+import { postUpdateDecision } from './update-model';
+import type { FeedbackShot } from './FeedbackDialog';
 import './onboarding.css';
 
 // The documentation ships with the app and reads offline (DocsViewer.tsx); it
 // loads only when opened.
 const DocsViewer = lazy(() => import('./DocsViewer').then(m => ({ default: m.DocsViewer })));
+// Help → Send feedback loads only when asked for.
+const FeedbackDialog = lazy(() => import('./FeedbackDialog').then(m => ({ default: m.FeedbackDialog })));
 
 /** What Help asks the onboarding host for. */
-export type OnboardingRequest = 'welcome' | 'whats-new' | 'shortcuts' | 'docs';
+export type OnboardingRequest = 'welcome' | 'whats-new' | 'shortcuts' | 'docs' | 'feedback' | 'updates';
 const EVENT = 'lazybox-onboarding';
 /** Open the welcome, What's new or the shortcuts from anywhere in the window. */
 export const openOnboarding = (request: OnboardingRequest) => window.dispatchEvent(new CustomEvent<OnboardingRequest>(EVENT, { detail: request }));
@@ -35,28 +40,51 @@ const read = (store: ViewStateStore | undefined, name: string) => { try { return
 const write = (store: ViewStateStore | undefined, name: string, value: string) => { try { writePreference(store, name, value); } catch { /* shown again next time, at worst */ } };
 
 /**
- * The first-run welcome and What's new after an update, plus what Help opens.
- * Mounted once per main window; `automatic` is false in a workspace window,
- * which only answers Help.
+ * The first-run welcome and What's new after an update, plus what Help opens
+ * (Send feedback among them). Mounted once per main window; `automatic` is
+ * false in a workspace window, which only answers Help.
  */
-export function Onboarding({ viewState, collections, collectionsLoaded, automatic, onOpenSettings }: { viewState?: ViewStateStore; collections: readonly Collection[]; collectionsLoaded: boolean; automatic: boolean; onOpenSettings(tab: SettingsTab): void }) {
+export function Onboarding({ viewState, collections, collectionsLoaded, automatic, onOpenSettings, host, sessionId }: { viewState?: ViewStateStore; collections: readonly Collection[]; collectionsLoaded: boolean; automatic: boolean; onOpenSettings(tab: SettingsTab): void; /** The window's host: the app (updates, diagnostics) and its screenshot. */ host?: WorkspaceHost; /** The conversation in front, which a feedback report may name. */ sessionId?: string }) {
   const [welcome, setWelcome] = useState(false);
   const [decided, setDecided] = useState(() => !automatic || read(viewState, WELCOME_PREFERENCE) !== null);
-  const [whatsNew, setWhatsNew] = useState<{ releases: readonly Release[]; asked: boolean }>();
+  const [whatsNew, setWhatsNew] = useState<{ releases: readonly Release[]; asked: boolean; updated?: string; failed?: { version: string; current: string } }>();
   // The page the documentation opens at; '' while it is closed.
   const [docs, setDocs] = useState('');
+  const [feedback, setFeedback] = useState<FeedbackShot>();
+  // Update choices are app-wide preferences of this window (app-update.ts).
+  useUpdatePreferencesStore(automatic ? viewState : undefined);
   useEffect(() => {
     if (!automatic) return;
     const decision = whatsNewDecision(read(viewState, WHATS_NEW_PREFERENCE), releaseNotes);
     if (decision.action === 'record') write(viewState, WHATS_NEW_PREFERENCE, decision.id);
     if (decision.action === 'show') setWhatsNew({ releases: decision.releases, asked: false });
+    // The launch after an install: say that it took (with what changed), or that it did not.
+    const installing = takeInstalling();
+    if (installing && host?.app) void host.app.info().then(info => {
+      const after = postUpdateDecision(installing, info.version);
+      if (after === 'updated') {
+        if (releaseNotes[0]) write(viewState, WHATS_NEW_PREFERENCE, releaseNotes[0].id);
+        setWhatsNew(current => ({ releases: current?.releases || (decision.action === 'show' ? decision.releases : releaseNotes.slice(0, 1)), asked: false, updated: info.version }));
+      }
+      if (after === 'failed') setWhatsNew({ releases: [], asked: false, failed: { version: installing, current: info.version } });
+    }, () => {});
   }, []);
+  // Send feedback: the screenshot is the window as it was, so it is taken before the dialog opens
+  // (after the menu that asked has closed).
+  const openFeedback = async () => {
+    if (!host?.captureWindow) { setFeedback({}); return; }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    try { setFeedback({ png: await host.captureWindow() }); } catch (error) { setFeedback({ error: String(error instanceof Error ? error.message : error) }); }
+  };
+  const openUpdates = () => { onOpenSettings('updates'); void checkForUpdate(host?.app); };
   useEffect(() => {
     const listener = (event: Event) => {
       const request = (event as CustomEvent<OnboardingRequest>).detail;
       if (request === 'welcome') setWelcome(true);
       if (request === 'whats-new') setWhatsNew({ releases: releaseNotes, asked: true });
       if (request === 'docs') setDocs('README.md');
+      if (request === 'feedback') void openFeedback();
+      if (request === 'updates') openUpdates();
       // The shortcuts overlay lists every key; its Customize leads to Settings.
       if (request === 'shortcuts' && !runAction('shortcuts.open')) onOpenSettings('keyboard');
     };
@@ -70,6 +98,8 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
     'help.welcome': () => setWelcome(true),
     'help.whats-new': () => setWhatsNew({ releases: releaseNotes, asked: true }),
     'help.docs': () => setDocs('README.md'),
+    'help.feedback': () => void openFeedback(),
+    'help.updates': openUpdates,
   });
   const closeWelcome = () => { write(viewState, WELCOME_PREFERENCE, 'seen'); setWelcome(false); };
   const dismissWhatsNew = () => { if (releaseNotes[0]) write(viewState, WHATS_NEW_PREFERENCE, releaseNotes[0].id); setWhatsNew(undefined); };
@@ -81,8 +111,9 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
     {welcome && <Welcome viewState={viewState} onClose={closeWelcome}
       onSubscription={() => { closeWelcome(); onOpenSettings('subscriptions'); }}
       onWorkspace={() => { closeWelcome(); requestAnimationFrame(() => invokeAction('workspace.new')); }}/>}
-    {whatsNew && <WhatsNew releases={whatsNew.releases} focus={whatsNew.asked} onDismiss={dismissWhatsNew}/>}
+    {whatsNew && <WhatsNew releases={whatsNew.releases} focus={whatsNew.asked} updated={whatsNew.updated} failed={whatsNew.failed} onDismiss={dismissWhatsNew} onUpdates={() => { setWhatsNew(undefined); openUpdates(); }}/>}
     {docs && <Suspense fallback={null}><DocsViewer key={docs} initial={docs} onClose={() => setDocs('')}/></Suspense>}
+    {feedback && <Suspense fallback={null}><FeedbackDialog host={host} shot={feedback} sessionId={sessionId} onClose={() => setFeedback(undefined)}/></Suspense>}
   </>;
 }
 
@@ -156,16 +187,30 @@ function AgentReadiness() {
   </ul>;
 }
 
-/** Release notes in a corner card: it never takes focus from work unless asked for from Help. */
-function WhatsNew({ releases, focus, onDismiss }: { releases: readonly Release[]; focus: boolean; onDismiss(): void }) {
+/**
+ * Release notes in a corner card: it never takes focus from work unless asked
+ * for from Help. Right after an update it says so ("Updated to 0.2.0"); after
+ * an install that did not take, it says that instead, once.
+ */
+function WhatsNew({ releases, focus, updated, failed, onDismiss, onUpdates }: { releases: readonly Release[]; focus: boolean; updated?: string; failed?: { version: string; current: string }; onDismiss(): void; onUpdates(): void }) {
   const card = useRef<HTMLElement>(null);
   useEffect(() => { if (focus) card.current?.focus(); }, [focus, releases]);
   const [newest, ...older] = releases;
+  if (failed) return <aside ref={card} className="whats-new is-failed" aria-labelledby="whats-new-title" tabIndex={-1}
+    onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onDismiss(); } }}>
+    <header>
+      <span className="whats-new-badge"><Icon name="alert" size={13}/><span id="whats-new-title">Update not installed</span></span>
+      <button className="onboarding-close" aria-label="Dismiss" onClick={onDismiss}><Icon name="close" size={14}/></button>
+    </header>
+    <div className="whats-new-body"><p>The update to {failed.version} did not finish. Lazybox is still {failed.current}, and nothing else changed. Your agents kept running.</p></div>
+    <footer><button onClick={onDismiss}>Not now</button><button className="primary" onClick={onUpdates}>Open Updates</button></footer>
+  </aside>;
   if (!newest) return null;
   return <aside ref={card} className="whats-new" aria-labelledby="whats-new-title" tabIndex={-1}
     onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onDismiss(); } }}>
     <header>
       <span className="whats-new-badge"><Icon name="sparkle" size={13}/><span id="whats-new-title">What's new</span></span>
+      {updated && <span className="whats-new-updated" role="status">Updated to Lazybox {updated}</span>}
       <button className="onboarding-close" aria-label="Dismiss What's new" onClick={onDismiss}><Icon name="close" size={14}/></button>
     </header>
     <div className="whats-new-body">
@@ -179,7 +224,8 @@ function WhatsNew({ releases, focus, onDismiss }: { releases: readonly Release[]
   </aside>;
 }
 
-function ReleaseSection({ release }: { release: Release }) {
+/** One release's notes: its title and date, then each change. Also the install dialog's preview. */
+export function ReleaseSection({ release }: { release: Release }) {
   return <section className="whats-new-release" aria-label={release.title}>
     <h3>{release.title}<small>{release.date}</small></h3>
     <ul>{release.items.map(item => <li key={item.title}><strong>{item.title}</strong><span>{item.body}</span></li>)}</ul>

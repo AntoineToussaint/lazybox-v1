@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { artifactNames, latestJson, renderCask, signingPlan, tagOf, tauriReleaseConfig, downloadURL } from './build.mjs';
-import { parseChangelog, renderReleaseNotes, releaseBody, updaterNotes, changelogPath, releaseNotesPath } from './changelog.mjs';
+import { parseChangelog, renderReleaseNotes, releaseBody, updaterNotes, updaterReleases, changelogPath, releaseNotesPath } from './changelog.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -20,6 +20,9 @@ test('the update feed names the archive on this release and its signature', () =
     platforms: { 'darwin-aarch64': { signature: 'c2lnbmF0dXJl', url: `https://github.com/AntoineToussaint/lazybox/releases/download/v2-v0.2.0/${artifactNames('0.2.0').updater}` } },
   });
   assert.throws(() => latestJson({ version: 'latest', notes: '', signature: 'x' }));
+  // The changelog's sections ride along for the app's What's new before installing.
+  const releases = [{ id: '0.2.0', date: '2026-12-01', title: 'Second', items: [{ title: 'New', body: 'It works.' }] }];
+  assert.deepEqual(latestJson({ version: '0.2.0', notes: 'Notes', signature: 's', releases }).lazybox, { releases });
   assert.throws(() => latestJson({ version: '0.2.0', notes: '', signature: ' ' }), /signature/);
 });
 
@@ -66,6 +69,7 @@ test('the release configuration adds the version, runtime and public key, and dr
   assert.equal(config.bundle.createUpdaterArtifacts, true);
   assert.equal(config.plugins.updater.pubkey, 'PUB');
   assert.ok(config.plugins.updater.endpoints.every(u => u.startsWith('https://')));
+  assert.equal(config.plugins.updater.requireSignedVersion, true, 'a feed must not pair a new version with an older signed archive');
   assert.equal(base.plugins.updater.pubkey, undefined, 'the committed overlay carries no key');
 });
 
@@ -91,6 +95,12 @@ test('a release body collects the dated notes since the previous version', () =>
   assert.match(releaseBody(releases, '0.2.0', { unsigned: true }), /Unsigned build/);
   assert.throws(() => releaseBody(releases, '9.9.9'), /no section for 9\.9\.9/);
   assert.equal(updaterNotes(releases, '0.2.0'), 'Second\n• New thing: It works.');
+  // The feed carries this version's section and the ones before it, so an app on any of them sees what changed since.
+  assert.deepEqual(updaterReleases(releases, '0.2.0').map(r => r.id), ['0.2.0', '2026-11-20.1', '0.1.0']);
+  assert.deepEqual(updaterReleases(releases, '2026-11-20.1').map(r => r.id), ['2026-11-20.1', '0.1.0']);
+  assert.equal(updaterReleases(releases, '0.2.0', 1).length, 1);
+  assert.deepEqual(updaterReleases(releases, '9.9.9'), []);
+  assert.deepEqual(updaterReleases(releases, '2026-11-20.1')[0].items, [{ title: 'Dev only', body: 'First shipped to Dev, then to everyone.' }]);
   assert.throws(() => parseChangelog('## [x] - 2026-01-01 · T\n\nnot an item'), /only items/);
   assert.throws(() => parseChangelog('## 0.1.0\n'), /heading/);
 });

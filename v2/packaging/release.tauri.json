@@ -12,7 +12,8 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": ["https://github.com/AntoineToussaint/lazybox/releases/download/v2-updates/latest.json"]
+      "endpoints": ["https://github.com/AntoineToussaint/lazybox/releases/download/v2-updates/latest.json"],
+      "requireSignedVersion": true
     }
   }
 }

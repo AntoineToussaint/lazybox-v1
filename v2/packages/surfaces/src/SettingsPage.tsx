@@ -23,6 +23,7 @@ import { AgentSettings, PricingSettings, useRunnerSettings } from './RunnerSetti
 import { RunnerSection } from './RunnerControl';
 import { OrchestrationProcessSettings } from './OrchestrationProcessSettings';
 import { AboutSettings } from './AboutSettings';
+import { UpdateSettings } from './UpdateSettings';
 
 
 function bareWindowName(window: UsageWindow) {
@@ -41,7 +42,7 @@ function windowName(window: UsageWindow) {
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'voice' | 'web' | 'browser' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power' | 'about';
+export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'voice' | 'web' | 'browser' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power' | 'updates' | 'about';
 /** The sections, in the order and groups the sidebar shows them. */
 export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
   { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
@@ -60,6 +61,7 @@ export const settingsTabs: { id: SettingsTab; label: string; icon: string; group
   { id: 'power', label: 'Actions & hooks', icon: 'play', group: 'Preferences' },
   { id: 'devices', label: 'Devices', icon: 'phone', group: 'System' },
   { id: 'runner', label: 'Runner', icon: 'processes', group: 'System' },
+  { id: 'updates', label: 'Updates', icon: 'download', group: 'System' },
   { id: 'about', label: 'About', icon: 'sparkle', group: 'System' },
 ];
 
@@ -299,7 +301,8 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
     {panel('power', <PowerSettings viewState={viewState}/>)}
     {panel('runner', <RunnerSection onShowProcesses={onShowProcesses}/>)}
     {panel('process', <OrchestrationProcessSettings/>)}
-    {panel('about', <AboutSettings app={app}/>)}
+    {panel('updates', <UpdateSettings app={app}/>)}
+    {panel('about', <AboutSettings app={app} onShowUpdates={() => select('updates', true)}/>)}
     {panel('agents', <><AgentSettings/><AcpAgentsSettings/></>)}
     {panel('workspaces', <RuntimeSettings/>)}
     {panel('devices', <DevicesSettings/>)}

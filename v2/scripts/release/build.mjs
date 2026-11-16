@@ -25,7 +25,7 @@ import { createReadStream } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile, readdir, stat, chmod, rename, access } from 'node:fs/promises';
 import { resolve, dirname, join, relative, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readChangelog, releaseBody, updaterNotes, versionPattern, renderReleaseNotes, releaseNotesPath } from './changelog.mjs';
+import { readChangelog, releaseBody, updaterNotes, updaterReleases, versionPattern, renderReleaseNotes, releaseNotesPath } from './changelog.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const REPOSITORY = 'AntoineToussaint/lazybox';
@@ -44,8 +44,14 @@ export function downloadURL(version, file) {
   return `https://github.com/${REPOSITORY}/releases/download/${tagOf(version)}/${file}`;
 }
 
-/** The update feed entry the Tauri updater reads (plugins.updater.endpoints). */
-export function latestJson({ version, notes, signature, date = new Date() }) {
+/**
+ * The update feed entry the Tauri updater reads (plugins.updater.endpoints).
+ * `lazybox.releases` carries the changelog's sections from this version
+ * down, so an installed app shows everything since its own version before
+ * the person installs (apps/desktop/src-tauri/src/updates.rs). The updater
+ * ignores the field; only the signature decides what installs.
+ */
+export function latestJson({ version, notes, signature, releases = [], date = new Date() }) {
   if (!versionPattern.test(version)) throw new Error(`${version} is not a version`);
   if (!signature?.trim()) throw new Error('the updater archive has no signature');
   return {
@@ -53,6 +59,7 @@ export function latestJson({ version, notes, signature, date = new Date() }) {
     notes,
     pub_date: date.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     platforms: { [ARCH.tauri]: { signature: signature.trim(), url: downloadURL(version, artifactNames(version).updater) } },
+    ...(releases.length ? { lazybox: { releases } } : {}),
   };
 }
 
@@ -340,7 +347,7 @@ async function main() {
   await cp(join(bundles, 'Lazybox.app.tar.gz'), join(out, names.updater));
   await cp(join(bundles, 'Lazybox.app.tar.gz.sig'), join(out, names.signature));
   const signature = await readFile(join(out, names.signature), 'utf8');
-  await writeFile(join(out, names.latest), JSON.stringify(latestJson({ version, notes: updaterNotes(releases, noteVersion), signature }), null, 2) + '\n');
+  await writeFile(join(out, names.latest), JSON.stringify(latestJson({ version, notes: updaterNotes(releases, noteVersion), releases: updaterReleases(releases, noteVersion), signature }), null, 2) + '\n');
   const dmgSum = await sha256(dmg);
   await writeFile(join(out, names.cask), renderCask(await readFile(join(root, 'packaging/homebrew/lazybox-v2.rb.tmpl'), 'utf8'), version, dmgSum));
   await writeFile(join(out, names.notes), releaseBody(releases, noteVersion, { unsigned: !plan.notarize }));

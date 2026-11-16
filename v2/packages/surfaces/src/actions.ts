@@ -166,6 +166,10 @@ const tail = [
   { id: 'help.welcome', title: 'Welcome and getting started', group: 'General', icon: 'sparkle', keys: '', scope: 'global', overDialogs: true, keywords: 'onboarding first run start tour help', menu: { section: 'Help', title: 'Welcome to Lazybox' } },
   { id: 'help.whats-new', title: "What's new", group: 'General', icon: 'notes', keys: '', scope: 'global', overDialogs: true, keywords: 'release notes changelog update version help', menu: { section: 'Help', title: "What's New" } },
   { id: 'help.docs', title: 'Documentation', group: 'General', icon: 'notes', keys: '', scope: 'global', keywords: 'docs manual guide help', menu: { section: 'Help', title: 'Lazybox Documentation' } },
+  // Help → Send feedback (FeedbackDialog.tsx): a report the person reads, saves or posts; nothing is uploaded.
+  { id: 'help.feedback', title: 'Send feedback', group: 'General', icon: 'chat', keys: '', scope: 'global', keywords: 'feedback bug report issue problem github support diagnostics', menu: { section: 'Help', title: 'Send Feedback…', separatorBefore: true } },
+  // Settings → Updates: check now, What's new, install when it suits.
+  { id: 'help.updates', title: 'Check for updates', group: 'General', icon: 'download', keys: '', scope: 'global', keywords: 'update upgrade version release install new', menu: { section: 'Help', title: 'Check for Updates…' } },
 ] as const satisfies readonly ActionDefinition[];
 
 // ⌃1–⌃9 on a Mac (⌘1–⌘9 go to workspaces); Alt+1–Alt+9 elsewhere, where Ctrl+1–Ctrl+9 go to workspaces. 9 is the last tab, as in a browser.

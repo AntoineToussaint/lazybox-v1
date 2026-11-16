@@ -91,10 +91,11 @@ export function systemEventView(origin: MessageOrigin, agentName = 'the agent'):
 }
 
 /** A Runner restart that left something uncertain, in one quiet line. */
-export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'reverted' | 'cli';
+export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'agent-lost' | 'reverted' | 'cli';
 export const NOTICE_ICONS: Record<RunnerNotice, { icon: string; tone: SystemTone }> = {
   'delivery-unknown': { icon: 'alert', tone: 'warn' },
   'outcome-unknown': { icon: 'alert', tone: 'warn' },
+  'agent-lost': { icon: 'refresh', tone: 'warn' },
   reverted: { icon: 'back', tone: 'neutral' },
   cli: { icon: 'terminal', tone: 'neutral' },
 };

@@ -18,6 +18,12 @@ node scripts/release-gates.mjs run ui --only inbox,chat-scroll   # named gates
 node scripts/release-gates.mjs shards ui 3                       # CI's matrix
 ```
 
+The `reboot` gate kills the Runner, every session host and their programs as
+a reboot does, starts a new Runner on the same state, and checks that
+conversations, checkpoints, missions, queued messages and command history come
+back and the agent resumes its provider session with a notice
+([SESSION_HOSTS.md](SESSION_HOSTS.md#after-a-reboot)).
+
 The catalog covers core Go/TypeScript/contracts/worker checks, native desktop
 checks and all isolated UI fixtures, including continuity, scrolling, navigation,
 activity and sidebar tests previously omitted by staging. The responsive-shell

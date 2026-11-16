@@ -298,6 +298,9 @@ function noticeOf(record: JournalEvent): { notice: RunnerNotice; text: string } 
   if (event?.type === 'code_reverted' && event.text) return { notice: 'reverted', text: event.text };
   // Another lazybox comes first on agents' PATH (internal/agentshell): what Lazybox did about it.
   if (event?.type === 'cli_notice' && event.text) return { notice: 'cli', text: event.text };
+  // The agent did not survive while no Runner ran (a reboot): the Runner's own sentence says what was lost and what to do.
+  if (event?.type === 'agent_lost')
+    return { notice: 'agent-lost', text: event.text || 'Lazybox restarted after this agent stopped. Send a message to resume its session.' };
   if (event?.type === 'request_resolved' && event.status === 'outcome_unknown_after_restart')
     return { notice: 'outcome-unknown', text: 'The Runner restarted while a command the agent started was in flight. Its outcome is unknown, so it was not run again; the agent was told to check before retrying.' };
   return undefined;

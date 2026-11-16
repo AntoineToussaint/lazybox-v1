@@ -14,6 +14,14 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.7] - 2026-11-17 · Updates you choose, feedback you read first
+
+- **Updates you choose** Settings → Updates shows what changed since your version and installs only when you choose Install and restart. Skip a version, or be reminded tomorrow; turn off the automatic check (every six hours) if you prefer to check yourself. Nothing is ever forced.
+- **Agents keep running through an update** Before installing, Lazybox says how many agents are running and that they keep going: only the app and its Runner restart, and the new Runner picks every agent, command and terminal back up.
+- **Said plainly when something is off** No network, a download whose signature does not match this app's key (it is refused, nothing changes), an update that did not take, or a Runner on another version than the app: each is one sentence, with the fix (Move the Runner now).
+- **Send feedback** Help → Send feedback writes a report you read before it goes anywhere: what happened, a screenshot of the window if you like, and diagnostics with credentials removed and your home folder shown as ~. Save it, copy it, or open a pre-filled GitHub issue; Lazybox uploads nothing and collects no telemetry.
+- **Back after your Mac restarts** A conversation whose agent was running says so, keeps its checkpoints, commands and queued messages, and resumes the agent's own session with your next message; the queued messages go first.
+
 ## [2026-11-17.6] - 2026-11-17 · Let an agent run agents, within limits you set
 
 - **An orchestrator** Type /orchestrate (or ⌘K, Let this conversation run agents…) to let one conversation start and drive agents for a mission: how many at once, their permission (never above its own), their subscriptions and a budget. Its header shows Orchestrator 2/3; click it for its agents and Revoke.

@@ -183,6 +183,12 @@ test-outlive: build-worker
 	rm -rf $(RACE_LOGS) && mkdir -p $(RACE_LOGS)
 	cd $(GO_ROOT) && GORACE="log_path=$(RACE_LOGS)/race" LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js) go test -race -count=1 -timeout 6m $(OUTLIVE_PACKAGES); \
 	status=$$?; if ls $(RACE_LOGS)/race.* >/dev/null 2>&1; then cat $(RACE_LOGS)/race.*; echo 'data races reported (above)'; exit 1; fi; exit $$status
+# The reboot gate (SESSION_HOSTS.md, "After a reboot"): the Runner, every session
+# host and their programs are killed as a reboot kills them, a new Runner starts
+# on the same state, and what must come back is checked. No credentials, no network.
+.PHONY: test-reboot
+test-reboot:
+	cd $(GO_ROOT) && go test -count=1 -timeout 3m -run '^(TestRebootBringsBackEverythingAndResumesTheAgent|TestAgentLostNoticeIsRecordedOnce)$$' ./internal/runner
 test-real-outlive: build-worker
 	cd $(GO_ROOT) && LAZYBOX_V2_REAL=1 LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js) go test -timeout 14m -v ./tests/integration -run '^TestRealAgentOutlivesRunnerRestart$$'
 

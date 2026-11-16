@@ -114,6 +114,13 @@ test('what a restart left uncertain is one line, said once however often it repe
   assert.deepEqual(t.messages.map(m => [m.type, m.notice, m.count]), [['notice', 'delivery-unknown', 2], ['notice', 'outcome-unknown', undefined]]);
 });
 
+test('an agent lost to a reboot is a notice with the Runner\'s own sentence, not a quiet restart mark', () => {
+  cursor = 0n;
+  const said = 'Lazybox restarted and this agent was no longer running: the Mac restarted. The conversation is saved: send a message to resume the agent\'s session.';
+  const t = fold(emptyTranscript(), record(0, { type: 'agent_lost', status: 'host_gone_after_restart', text: said }));
+  assert.deepEqual(t.messages.map(m => [m.type, m.notice, m.text]), [['notice', 'agent-lost', said]]);
+});
+
 // ── Background work.
 const agent = (id: string, kind: 'agent' | 'command', status: SubagentStatus, extra: Partial<Subagent> = {}): Subagent => ({
   id, runnerId: id, parentId: 'root', depth: 0, nativeId: '', anchor: '', name: id, type: '', prompt: '', toolUseId: '', status, error: '', phase: '', phaseTool: '',

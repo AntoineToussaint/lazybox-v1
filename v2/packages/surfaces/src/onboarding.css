@@ -57,9 +57,15 @@
 .whats-new-older .whats-new-release{margin-top:8px}
 .whats-new>footer{display:flex;justify-content:flex-end;padding:8px 14px 12px}
 .whats-new>footer button{padding:5px 14px;font-size:calc(12px * var(--text-scale));border-radius:6px}
+.whats-new>footer{gap:8px}
+/* Right after an update: which version this is now; or that the install did not take. */
+.whats-new-updated{margin:0 auto 0 8px;font-size:calc(11px * var(--text-scale));color:var(--text-muted,var(--text-muted))}
+.whats-new.is-failed .whats-new-badge{background:var(--warn-bg);color:var(--warn-soft)}
+.whats-new.is-failed .whats-new-body p{margin:0;line-height:1.55;color:var(--text-tertiary)}
 
 /* Help (?) in the header. */
 .help-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1.5px solid currentColor;border-radius:50%;font:700 11px/1 var(--font-ui)}
 .workspace-header-actions>.help-menu>summary{color:var(--text-muted,var(--text-subtle))}
 .help-menu>.action-popover>button{display:flex;align-items:center;gap:9px}
 .help-menu>.action-popover>button>svg{flex:none;color:var(--text-muted,var(--text-subtle))}
+.help-menu>.action-popover>hr{border:0;border-top:1px solid var(--line-strong);margin:4px 0}

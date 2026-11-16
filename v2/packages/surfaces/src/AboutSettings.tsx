@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AppHost, AppInfo } from '@lazybox/platform';
 import type { AgentCliCheck } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { SettingsGroup, SettingsHeader, SettingsRow } from './settings-parts';
-import { checkForUpdate, installUpdate, progressText, useAppUpdate, dismissUpdate } from './app-update';
+import { useAppUpdate } from './app-update';
 import { openOnboarding } from './Onboarding';
-import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { agentCliStatus } from './lazybox-cli';
 import './about.css';
@@ -14,7 +13,7 @@ import './about.css';
  * Settings → About: the one version the app, its Runner and its CLI share,
  * updates for an installed release, and the CLI on PATH.
  */
-export function AboutSettings({ app }: { app?: AppHost }) {
+export function AboutSettings({ app, onShowUpdates }: { app?: AppHost; onShowUpdates?(): void }) {
   const { api, revision } = useRunner();
   const [info, setInfo] = useState<AppInfo>();
   const [runnerVersion, setRunnerVersion] = useState('');
@@ -40,14 +39,11 @@ export function AboutSettings({ app }: { app?: AppHost }) {
         <span className={`about-version${mismatch ? ' is-warn' : ''}`}>{runnerVersion || 'not answering'}</span>
       </SettingsRow>
     </SettingsGroup>
-    {info?.updater && <SettingsGroup title="Updates" description="Lazybox checks for a new version every few hours. Installing one restarts the app and the Runner; running agents keep working.">
-      <SettingsRow label={update.available ? `Lazybox ${update.available.version} is available` : 'Up to date'}
-        description={update.installing ? progressText(update.installing) : update.error ? update.error : update.checking ? 'Checking…' : update.checkedAt ? `Checked ${new Date(update.checkedAt).toLocaleTimeString()}` : 'Not checked yet'}>
-        {update.available
-          ? <button className="primary" disabled={!!update.installing} onClick={() => void installUpdate(app)}>{update.installing ? 'Updating…' : 'Restart to update'}</button>
-          : <button disabled={update.checking} onClick={() => void checkForUpdate(app)}>{update.checking ? 'Checking…' : 'Check for updates'}</button>}
+    {info?.updater && <SettingsGroup title="Updates">
+      <SettingsRow label={update.available && update.offer !== 'none' ? `Lazybox ${update.available.version} is available` : 'Updates'}
+        description={update.prefs.automatic ? 'Checked every few hours; installed only when you say so.' : 'Automatic checks are off.'}>
+        <button onClick={onShowUpdates}><Icon name="download" size={14}/> Updates…</button>
       </SettingsRow>
-      {update.available?.notes && <pre className="about-notes" aria-label={`What's new in ${update.available.version}`}>{update.available.notes}</pre>}
     </SettingsGroup>}
     {agentCli && <AgentCliRow check={agentCli}/>}
     {app?.linkCli && release && <SettingsGroup title="Command line" description="The lazybox command does from a terminal what you do here: lazybox ls, lazybox send, lazybox doctor.">
@@ -76,34 +72,5 @@ export function AgentCliRow({ check }: { check: AgentCliCheck }) {
   </SettingsGroup>;
 }
 
-/**
- * A quiet notice in the header while an update is waiting: what it is, what
- * changed, and one button that installs it. Put away until the next version.
- */
-export function UpdateNotice({ app }: { app?: AppHost }) {
-  const update = useAppUpdate(app);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { const node = dialog.current; if (notesOpen && node && !node.open) node.showModal(); }, [notesOpen]);
-  const available = update.available;
-  if (!available || update.dismissed === available.version) return null;
-  return <div className="update-notice" role="status">
-    <Icon name="sparkle" size={14}/>
-    <span>{update.installing ? progressText(update.installing) : `Lazybox ${available.version}`}</span>
-    {!update.installing && <>
-      <button className="update-notice-link" onClick={() => setNotesOpen(true)}>What's new</button>
-      <button className="update-notice-primary" onClick={() => void installUpdate(app)}>Restart to update</button>
-      <button className="update-notice-close" aria-label="Not now" title="Not now: remind me with the next version" onClick={dismissUpdate}><Icon name="close" size={12}/></button>
-    </>}
-    {update.error && !update.installing && <span className="update-notice-error" role="alert" title={update.error}>Update failed</span>}
-    {notesOpen && <DraggableDialog ref={dialog} className="update-notes-dialog" aria-labelledby="update-notes-title" onCancel={event => { event.preventDefault(); setNotesOpen(false); }} onClose={() => setNotesOpen(false)}>
-      <DialogHeader><h2 id="update-notes-title">What's new in Lazybox {available.version}</h2><button aria-label="Close" onClick={() => setNotesOpen(false)}>×</button></DialogHeader>
-      <pre className="about-notes">{available.notes || 'No notes for this version.'}</pre>
-      <p className="about-hint">Restarting closes this window for a moment. Your agents keep working, and the Runner moves to {available.version} with the app.</p>
-      <div className="update-notes-actions">
-        <button onClick={() => setNotesOpen(false)}>Later</button>
-        <button className="primary" data-autofocus onClick={() => { setNotesOpen(false); void installUpdate(app); }}>Restart to update</button>
-      </div>
-    </DraggableDialog>}
-  </div>;
-}
+/** The header's update notice lives with the install dialog (UpdateDialog.tsx). */
+export { UpdateNotice } from './UpdateDialog';

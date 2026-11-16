@@ -3,6 +3,7 @@
   "policyFiles": ["Makefile", "scripts/release-gates.mjs"],
   "gates": [
     { "id": "core", "scope": "core", "command": "make", "args": ["check"], "timeoutMs": 1800000, "covers": ["test:client", "test:worker", "test:browser-service"] },
+    { "id": "reboot", "scope": "core", "command": "make", "args": ["test-reboot"], "timeoutMs": 300000, "covers": [] },
     { "id": "desktop", "scope": "native", "command": "make", "args": ["check-desktop"], "timeoutMs": 3600000, "covers": [] },
     { "id": "startup", "scope": "ui", "script": "test:startup" },
     { "id": "repositories", "scope": "ui", "script": "test:repositories" },
@@ -92,7 +93,9 @@
     { "id": "reattach", "scope": "ui", "script": "test:reattach" },
     { "id": "layout-keyboard", "scope": "ui", "script": "test:layout-keyboard" },
     { "id": "agents-visible", "scope": "ui", "script": "test:agents-visible" },
-    { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" }
+    { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" },
+    { "id": "updates", "scope": "ui", "script": "test:updates" },
+    { "id": "feedback", "scope": "ui", "script": "test:feedback" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

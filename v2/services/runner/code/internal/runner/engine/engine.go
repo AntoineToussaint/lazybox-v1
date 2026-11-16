@@ -162,11 +162,12 @@ func (e *Engine) Snapshot() Snapshot {
 	defer e.mu.Unlock()
 	return e.snapshotLocked()
 }
-func (e *Engine) snapshotLocked() Snapshot {
-	s := e.state
-	s.Queued = len(e.queue)
-	s.QueuedMessages = nil
-	for _, op := range e.queue {
+
+// QueuedMessages previews the messages of queue as a snapshot lists them;
+// at is when each was queued, where known.
+func QueuedMessages(queue []agent.Operation, at map[string]time.Time) []QueuedMessage {
+	var out []QueuedMessage
+	for _, op := range queue {
 		if op.Kind != agent.Message {
 			continue
 		}
@@ -174,8 +175,15 @@ func (e *Engine) snapshotLocked() Snapshot {
 		if len(text) > queuedPreview {
 			text = append(text[:queuedPreview-1], '…')
 		}
-		s.QueuedMessages = append(s.QueuedMessages, QueuedMessage{OperationID: op.ID, Text: string(text), QueuedAt: e.queuedAt[op.ID], Origin: op.Origin})
+		out = append(out, QueuedMessage{OperationID: op.ID, Text: string(text), QueuedAt: at[op.ID], Origin: op.Origin})
 	}
+	return out
+}
+
+func (e *Engine) snapshotLocked() Snapshot {
+	s := e.state
+	s.Queued = len(e.queue)
+	s.QueuedMessages = QueuedMessages(e.queue, e.queuedAt)
 	s.Pending = map[string]agent.Event{}
 	for k, v := range e.state.Pending {
 		s.Pending[k] = v

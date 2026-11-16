@@ -32,12 +32,28 @@ func TestMain(m *testing.M) {
 		fixtureRunner()
 		return
 	}
+	if os.Getenv("RUNNER_FIXTURE") == "reboot" {
+		fixtureRebootRunner()
+		return
+	}
 	os.Exit(m.Run())
 }
 
 // fixtureWorker raises one approval per turn and finishes the turn once it is
 // answered, naming its own PID so a test can tell which process finished it.
+// With FIXTURE_WORKER_LOG set it also notes each open (with the session it
+// was asked to resume) and each message it was given.
 func fixtureWorker() {
+	note := func(string) {}
+	if path := os.Getenv("FIXTURE_WORKER_LOG"); path != "" {
+		note = func(line string) {
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+			if err == nil {
+				fmt.Fprintln(f, line)
+				f.Close()
+			}
+		}
+	}
 	out := bufio.NewWriter(os.Stdout)
 	send := func(v any) { data, _ := json.Marshal(v); fmt.Fprintf(out, "%s\n", data); out.Flush() }
 	event := func(v map[string]any) {
@@ -54,6 +70,8 @@ func fixtureWorker() {
 			Params struct {
 				RequestID string `json:"requestId"`
 				Decision  string `json:"decision"`
+				Resume    string `json:"resume"`
+				Text      string `json:"text"`
 			} `json:"params"`
 		}
 		if json.Unmarshal(s.Bytes(), &r) != nil {
@@ -61,9 +79,11 @@ func fixtureWorker() {
 		}
 		switch r.Method {
 		case "open":
+			note("open resume=" + r.Params.Resume + " pid=" + pid)
 			send(map[string]any{"id": r.ID, "result": map[string]string{"reference": "fixture-ref"}})
 			event(map[string]any{"type": "session_ready", "text": pid})
 		case "message":
+			note("message " + r.Params.Text)
 			send(map[string]any{"id": r.ID, "result": map[string]string{"delivery": "submitted"}})
 			event(map[string]any{"type": "turn_started"})
 			event(map[string]any{"type": "approval", "requestId": "req-1", "text": "Bash"})

@@ -38,16 +38,57 @@ export type AppInfo = {
   /** The bundled `lazybox` CLI, for an installed release. */
   cli: string;
 };
-export type AvailableUpdate = { version: string; current: string; notes: string; date: string };
-export type UpdateProgress = { phase: 'download' | 'runner'; downloaded: number; total: number };
+/** One section of the release notes, as CHANGELOG.md writes it (an id, a date, a title, items). */
+export type UpdateRelease = { id: string; date: string; title: string; items: { title: string; body: string }[] };
+export type AvailableUpdate = {
+  version: string;
+  current: string;
+  /** Plain-text notes (latest.json `notes`), for a feed without structured releases. */
+  notes: string;
+  date: string;
+  /** The changelog sections the feed carries, newest first (latest.json `lazybox.releases`). */
+  releases?: UpdateRelease[];
+};
+export type UpdateProgress = { phase: 'download' | 'verify' | 'install' | 'runner' | 'restart'; downloaded: number; total: number };
+/**
+ * Why checking or installing failed, so the window can say it as a sentence:
+ * `offline` (no network or GitHub unreachable), `feed` (no valid update
+ * information published), `signature` (the download is not signed with this
+ * app's key: nothing was replaced), `permission` (the app cannot replace
+ * itself where it is), `install` (anything else while installing),
+ * `unavailable` (this build does not update itself).
+ */
+export type UpdateErrorKind = 'offline' | 'feed' | 'signature' | 'permission' | 'install' | 'unavailable';
+export type UpdateError = Error & { kind: UpdateErrorKind; detail?: string };
+/** What Help → Send feedback attaches, when the person keeps it ticked. Redacted in the window, before anything is shown. */
+export type FeedbackDiagnostics = {
+  os: string;
+  arch: string;
+  /** This person's home directory, so paths under it read as `~`. */
+  home: string;
+  /** The Runner's log, when this build has one to read. */
+  runnerLog?: { path: string; tail: string };
+};
 export type AppHost = {
   info(): Promise<AppInfo>;
-  /** Asks the feed; resolves undefined when this is the newest version. */
+  /** Asks the feed; resolves undefined when this is the newest version. Rejects with an UpdateError. */
   checkForUpdate?(): Promise<AvailableUpdate | undefined>;
-  /** Installs the update found by the last check, moves the Runner to it and restarts the app. */
+  /**
+   * Downloads the update found by the last check, verifies its signature,
+   * installs it, moves the Runner to it and restarts the app. Agents keep
+   * running across the Runner's restart. Rejects with an UpdateError.
+   */
   installUpdate?(onProgress?: (progress: UpdateProgress) => void): Promise<void>;
   /** Puts the bundled CLI on PATH (`lazybox link`); returns where, and anything to do by hand. */
   linkCli?(): Promise<{ link: string; hints: string[] }>;
+  /** Moves the Runner service to this app's release (`lazybox service install`); agents keep running. */
+  moveRunner?(): Promise<void>;
+  /** Versions, the OS and the Runner's log tail, for a feedback report. */
+  feedbackDiagnostics?(): Promise<FeedbackDiagnostics>;
+  /** Writes a feedback report (and its screenshot) to a folder of its own; resolves its path. Nothing is sent anywhere. */
+  saveFeedback?(report: { markdown: string; screenshot?: Uint8Array }): Promise<string>;
+  /** Shows a file in Finder. */
+  revealPath?(path: string): Promise<void>;
 };
 /**
  * Where a native web view sits, in the window's CSS pixels, with the

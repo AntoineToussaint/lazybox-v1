@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
@@ -156,7 +157,15 @@ func (b *Bench) Adopt(ctx context.Context) error {
 				continue
 			}
 			if err = b.adopt(r); err != nil {
-				errs = append(errs, fmt.Errorf("execution %s not re-attached: %w", r.ID, err))
+				// Its host is gone, and the agent with it: the machine
+				// restarted, or the host ended while no Runner ran. Nothing is
+				// left to re-attach; the conversation resumes natively.
+				if sessionhost.Gone(err) && !b.agentAnswers(ctx, r.ID) {
+					err = b.agentLost(ctx, r)
+				}
+				if err != nil {
+					errs = append(errs, fmt.Errorf("execution %s not re-attached: %w", r.ID, err))
+				}
 			}
 		}
 		if len(records) < 100 {
@@ -236,6 +245,161 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 		}
 	}
 	return nil
+}
+
+// AgentLostEvent is the conversation's notice that its agent did not survive
+// while no Runner ran (SESSION_HOSTS.md, "After a reboot").
+const AgentLostEvent = "agent_lost"
+
+// agentAnswers reports whether any session host started for execution id
+// still answers. Only one that is provably gone (no record, or nothing
+// listening) counts as not answering: a slow host is not a lost agent.
+func (b *Bench) agentAnswers(ctx context.Context, id string) bool {
+	ids, err := b.hosting.Hosts(b.Config.HostRoot)
+	if err != nil {
+		return true
+	}
+	for _, host := range ids {
+		record, err := sessionhost.ReadRecord(filepath.Join(b.Config.HostRoot, host))
+		if err != nil || record.Owner != id {
+			continue
+		}
+		probe, cancel := context.WithTimeout(ctx, 5*time.Second)
+		_, err = b.hosting.Probe(probe, b.Config.HostRoot, host)
+		cancel()
+		if !sessionhost.Gone(err) {
+			return true
+		}
+	}
+	return false
+}
+
+// carriedPath holds the messages a lost agent never received, until the
+// conversation is resumed and they are delivered to its successor. Like the
+// attachment it replaces, it may hold image bytes, so it is private.
+func (b *Bench) carriedPath(id string) string {
+	return filepath.Join(b.Config.State, "sessions", id+".carried.json")
+}
+
+func (b *Bench) loadCarried(id string) ([]agent.Operation, error) {
+	var queue []agent.Operation
+	data, err := os.ReadFile(b.carriedPath(id))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return queue, json.Unmarshal(data, &queue)
+}
+
+func (b *Bench) saveCarried(id string, queue []agent.Operation) error {
+	if len(queue) == 0 {
+		if err := os.Remove(b.carriedPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	data, err := json.Marshal(queue)
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Join(b.Config.State, "sessions"), ".carried-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err = f.Write(data); err == nil {
+		err = f.Sync()
+	}
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), b.carriedPath(id))
+}
+
+// agentLost ends a conversation whose agent is gone with everything a
+// person needs to carry on: a notice saying what happened, its saved
+// provider session to resume, and the messages it never received, kept for
+// the resumed agent. It is not "recovery required": the Runner checked that
+// nothing of the old agent runs, so the person is not asked to.
+//
+// Each step can be repeated if this Runner dies part way: the notice is
+// written once, and the attachment goes last, so a later Runner either
+// finishes the job or skips a conversation already ended.
+func (b *Bench) agentLost(ctx context.Context, r sessionstore.Record) error {
+	record, err := b.loadAttachment(r.ID)
+	if err != nil {
+		return err
+	}
+	if err = b.saveCarried(r.ID, record.Queue); err != nil {
+		return err
+	}
+	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget)
+	if err != nil {
+		return err
+	}
+	noted := false
+	if n := spool.Count(); n > 0 {
+		last, cancel := context.WithTimeout(ctx, time.Second)
+		if rec, err := spool.Next(last, n-1); err == nil {
+			var ev agent.Event
+			noted = json.Unmarshal(rec.Value, &ev) == nil && ev.Type == AgentLostEvent
+		}
+		cancel()
+	}
+	snapshot := r.Snapshot
+	if !noted {
+		_, err = spool.Append(agent.Event{Type: AgentLostEvent, Status: "host_gone_after_restart", Text: lostNotice(snapshot, len(record.Queue))})
+	}
+	if disposeErr := spool.Dispose(); err == nil {
+		err = disposeErr
+	}
+	if err != nil {
+		return err
+	}
+	snapshot.Closed, snapshot.Busy = true, false
+	snapshot.Status, snapshot.Fault = agent.Interrupted, ""
+	snapshot.Pending = map[string]agent.Event{}
+	for id, a := range snapshot.Agents {
+		if a.Status == agent.Running || a.Status == agent.Starting || a.Status == agent.WaitingInput || a.Status == agent.WaitingApproval {
+			a.Status = agent.Interrupted
+			snapshot.Agents[id] = a
+		}
+	}
+	snapshot.Queued, snapshot.QueuedMessages = len(record.Queue), engine.QueuedMessages(record.Queue, nil)
+	if err = b.History.SaveState(ctx, r.ID, snapshot, r.ProviderSettings); err != nil {
+		return err
+	}
+	if err = os.Remove(b.attachmentPath(r.ID)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// lostNotice says what happened to the agent, what was lost with it, and
+// what to do: the conversation shows it where the person will look.
+func lostNotice(s engine.Snapshot, queued int) string {
+	var text strings.Builder
+	text.WriteString("Lazybox restarted and this agent was no longer running: the Mac restarted, or the agent stopped while Lazybox was not running. ")
+	switch {
+	case len(s.Pending) > 0:
+		text.WriteString("The turn in progress stopped while it waited for you; its request is no longer open. ")
+	case s.Busy:
+		text.WriteString("The turn in progress stopped before it finished. ")
+	}
+	switch queued {
+	case 0:
+	case 1:
+		text.WriteString("The message you queued was not sent yet; it goes first when you continue. ")
+	default:
+		fmt.Fprintf(&text, "The %d messages you queued were not sent yet; they go first when you continue. ", queued)
+	}
+	text.WriteString("The conversation, its checkpoints and commands are saved: send a message to resume the agent's session.")
+	return text.String()
 }
 
 // StopUnclaimedHosts stops every agent and command host this Runner is not

@@ -5,6 +5,7 @@ use std::{error::Error, fs, path::Path};
 mod appearance;
 mod attention;
 mod capture;
+mod feedback;
 mod host;
 mod layout;
 mod placement;
@@ -181,6 +182,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             release::show_runner_log,
             updates::check_for_update,
             updates::install_update,
+            feedback::feedback_diagnostics,
+            feedback::save_feedback,
             voice::voice_status,
             voice::voice_request_permission,
             voice::voice_languages,

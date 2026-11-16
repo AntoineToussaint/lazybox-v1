@@ -99,7 +99,7 @@ export function releaseBody(releases, version, { unsigned = false } = {}) {
     for (const it of r.items) out.push(`- **${it.title}.** ${it.body}`);
     out.push('');
   });
-  out.push('Install: download the disk image below and drag Lazybox to Applications, or `brew install --cask AntoineToussaint/lazybox/lazybox-v2`. Already installed? Lazybox updates itself (or Settings → About → Check for updates). Full instructions: [INSTALL.md](https://github.com/AntoineToussaint/lazybox/blob/main/v2/INSTALL.md).');
+  out.push('Install: download the disk image below and drag Lazybox to Applications, or `brew install --cask AntoineToussaint/lazybox/lazybox-v2`. Already installed? Lazybox offers the update and installs it only when you choose to (Settings → Updates). Full instructions: [INSTALL.md](https://github.com/AntoineToussaint/lazybox/blob/main/v2/INSTALL.md).');
   return out.join('\n') + '\n';
 }
 
@@ -108,6 +108,17 @@ export function updaterNotes(releases, version) {
   const r = releases.find(r => r.id === version);
   if (!r) return '';
   return [r.title, ...r.items.map(i => `• ${i.title}: ${i.body}`)].join('\n');
+}
+
+/**
+ * The sections an update feed carries: this version's and the ones before
+ * it, newest first, at most `limit`. An installed app shows those newer than
+ * its own version; one older than all of them is told the list is partial.
+ */
+export function updaterReleases(releases, version, limit = 25) {
+  const start = releases.findIndex(r => r.id === version);
+  if (start < 0) return [];
+  return releases.slice(start, start + limit).map(({ id, date, title, items }) => ({ id, date, title, items: items.map(({ title, body }) => ({ title, body })) }));
 }
 
 export async function readChangelog() {

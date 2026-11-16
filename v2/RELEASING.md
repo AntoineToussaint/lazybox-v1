@@ -55,7 +55,7 @@ artifacts on the run, nothing published.
 | --- | --- |
 | `Lazybox_<v>_aarch64.dmg` | The disk image: drag to Applications (background, arrow, volume icon) |
 | `Lazybox_<v>_aarch64.app.tar.gz` and `.sig` | The updater's archive and its minisign signature |
-| `latest.json` | The feed entry: version, notes, date, archive URL and signature |
+| `latest.json` | The feed entry: version, notes, date, archive URL and signature, plus the changelog's sections (below) |
 | `lazybox-v2.rb` | The cask for this version (the workflow pushes it to the tap) |
 | `RELEASE_NOTES.md` | The GitHub release body, from the changelog |
 | `SHA256SUMS` | Checksums of everything above |
@@ -115,11 +115,74 @@ Node and Claude Code keep their publishers' Developer ID signatures; the
 build checks each one is valid and has the hardened runtime, and records the
 signer in `release.json`. No binary in the runtime needs an entitlement.
 
+## The update feed
+
+Installed apps read `latest.json` on the rolling `v2-updates` release
+(`packaging/release.tauri.json` names it). It is the Tauri updater's format
+plus one field of Lazybox's own:
+
+```json
+{
+  "version": "0.2.0",
+  "notes": "Title\n• What: body",
+  "pub_date": "2026-12-01T10:00:00Z",
+  "platforms": { "darwin-aarch64": { "signature": "<minisign signature of the .app.tar.gz>", "url": "https://github.com/…/v2-v0.2.0/Lazybox_0.2.0_aarch64.app.tar.gz" } },
+  "lazybox": { "releases": [ { "id": "0.2.0", "date": "2026-12-01", "title": "…", "items": [ { "title": "…", "body": "…" } ] } ] }
+}
+```
+
+- `lazybox.releases` is CHANGELOG.md from this version down (at most 25
+  sections, `updaterReleases` in `scripts/release/changelog.mjs`). The app
+  shows the ones newer than its own version in the install dialog, before
+  anything is downloaded. The updater ignores the field; it decides nothing.
+- `signature` is what decides: the app downloads the archive, verifies it
+  against the public key it was built with, and installs nothing that does
+  not match (the person sees *not signed with Lazybox's key*). `tauri
+  build` writes the version into the signature's trusted comment, and the
+  release configuration sets `requireSignedVersion`, so a feed cannot pair a
+  new version number with an older signed archive (a downgrade).
+- Nothing installs on its own. The app checks when it opens and every six
+  hours (Settings → Updates → Check automatically, on by default, can be
+  turned off), shows a quiet line in the header, and installs only on
+  **Install and restart**. Skip this version and Remind me later are the
+  person's to choose ([docs/install.md](docs/install.md#updates)).
+- A check has a 20-second limit; a download has none (a few hundred
+  megabytes on whatever network the person has). Failures reach the window
+  as a kind (`offline`, `feed`, `signature`, `permission`, `install`;
+  `updates::classify`), never as the updater's raw message alone.
+
+### What an update does to running agents
+
+`install_update` (`apps/desktop/src-tauri/src/updates.rs`):
+
+1. Downloads and verifies the archive. Nothing has changed yet.
+2. Replaces the app bundle: an atomic `renamex_np(RENAME_SWAP)` on APFS. The
+   Runner, its session hosts and every agent keep running the executables
+   they were started from (the old files stay alive until they exit). A
+   session host never re-executes itself after it starts its program
+   (`sessionhost/client.go`, `processguard`), and the Claude worker keeps
+   one Claude Code process per conversation, so nothing mixes versions
+   mid-turn.
+3. Runs the new bundle's `lazybox service install`: `launchctl bootout` of
+   the old Runner (SIGTERM; it detaches and leaves its hosts running, which
+   live in sessions of their own) and `bootstrap` of the new one, which
+   adopts every host (SESSION_HOSTS.md). If this step fails, the next launch
+   does it (`release::prepare`).
+4. Restarts the app, which reopens its windows.
+
+The install dialog says this to the person, with the number of agents
+running. A host speaking a wire protocol outside the new Runner's window
+(`SESSION_HOSTS.md`, "Upgrades") cannot be adopted: it is stopped and its
+conversation resumes natively. Keeping that window's lower bound at the
+oldest supported release is what keeps updates agent-safe.
+
 ## Updater key
 
 Every installed app verifies an update against the public key it was built
 with. **The workflow refuses to build without the key**, since a release
-signed with any other could never be installed as an update.
+signed with any other could never be installed as an update, and an app
+built without a key (Dev, Working) has no updater at all
+(`updates::configured`): signature verification cannot be turned off.
 
 One-time setup:
 
@@ -190,7 +253,11 @@ locally needs (`release.json` records `"updaterKey": "test"`).
 | Built Runner serves, answers the CLI, stops on SIGTERM | `TestReleaseRunnerServesAndStops`, run by every `make release` |
 | A service update keeps a terminal running | `TestReleaseServiceUpdateKeepsWhatRuns` (`LAUNCHD=1`) |
 | Feed, cask, signing plan, release config, changelog | `node --test scripts/release/release.test.mjs` (in `make test-environments`) |
-| Updater configuration, launch plan, CLI reports | `cargo test` in `apps/desktop/src-tauri` (`updates::`, `release::`) |
+| Updater configuration, error kinds, feed notes, launch plan, CLI reports, feedback files | `cargo test` in `apps/desktop/src-tauri` (`updates::`, `release::`, `feedback::`) |
+| Version order, skip and remind, automatic checks, running-agents warning, redaction | `npm run test:client` (`update-model.test.ts`, `feedback-model.test.ts`) |
+| Settings → Updates and the install flow against a fake feed (offline, bad signature, skip, remind, install, post-update notice, version mismatch) | `npm run test:updates` |
+| Help → Send feedback: preview equals what is saved, copied and put in the issue; redaction | `npm run test:feedback` |
+| Resume after a reboot (Runner and every session host killed) | `make test-reboot` (SESSION_HOSTS.md, "After a reboot") |
 | Workflows | `actionlint .github/workflows/v2-release.yml .github/workflows/v2.yml` |
 
 ## What V2 reuses from V1
@@ -230,4 +297,13 @@ have tried to release V1 under a V2 tag. The standalone repository
   was built. The ad-hoc path, the DMG, the updater artifacts and the smoke
   tests ran locally (`make -C v2 release VERSION=0.0.0-test`).
 - An update installed through the updater from one published release to the
-  next has not run end to end: it needs two releases on a reachable feed.
+  next has not run end to end: it needs two signed releases on a reachable
+  feed. What that run must show: the header line appears without a
+  download; the dialog lists the notes since the installed version and the
+  running agents; Install and restart replaces the app, `lazybox doctor`
+  then reports one version for app, CLI and Runner, and an agent that was
+  mid-turn finishes its turn in the same process. Also check a feed whose
+  archive is signed with another key is refused with the signature message.
+- The repository is private: signed out, GitHub answers the feed with 404, so
+  installed apps say *No update information is published* until it is public
+  (First release checklist, step 5).

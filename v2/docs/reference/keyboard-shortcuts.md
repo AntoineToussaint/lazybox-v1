@@ -40,6 +40,8 @@ Work from anywhere in the window, including while a dialog is open for the palet
 | Welcome and getting started | — | — |
 | What's new | — | — |
 | Documentation | — | — |
+| Send feedback | — | — |
+| Check for updates | — | — |
 
 ## Go to
 
