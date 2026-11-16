@@ -462,9 +462,13 @@ func (t *Terminal) follow(host *sessionhost.Client) {
 					cause = errors.New(exit.Outcome.Error)
 				}
 				code := exit.Outcome.ExitCode
-				t.finish(&code, exit.Outcome.Signal, cause, true)
+				// The host exits on its own once released, a moment later. Its
+				// record goes first, so that once the terminal is done no
+				// inventory, stop or orphan sweep finds the host still listed.
 				_ = host.Release()
 				_ = host.Detach()
+				_ = t.m.backend.Forget(t.m.hostRoot, host.ID())
+				t.finish(&code, exit.Outcome.Signal, cause, true)
 				return
 			}
 			var chunk sessionhost.Chunk

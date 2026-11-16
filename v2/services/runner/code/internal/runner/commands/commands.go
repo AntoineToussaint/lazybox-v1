@@ -379,6 +379,12 @@ func (c *Command) Publish(offset uint64, data []byte) error {
 func (c *Command) finish(exit *int, signal string, cause error) { c.complete(exit, signal, cause, nil) }
 
 func (c *Command) complete(exit *int, signal string, cause error, report *Report) {
+	c.completeThen(exit, signal, cause, report, nil)
+}
+
+// completeThen runs recorded, if any, once the completion is in the journal
+// and before waiters see the command done.
+func (c *Command) completeThen(exit *int, signal string, cause error, report *Report, recorded func()) {
 	c.once.Do(func() {
 		c.mu.Lock()
 		c.status.Done = true
@@ -393,6 +399,9 @@ func (c *Command) complete(exit *int, signal string, cause error, report *Report
 		}
 		c.mu.Unlock()
 		_ = c.spool.Close()
+		if recorded != nil {
+			recorded()
+		}
 		close(c.finished)
 	})
 }
@@ -597,9 +606,21 @@ func (c *Command) follow(host *sessionhost.Client) {
 				if exit.Outcome.Error != "" {
 					cause = errors.New(exit.Outcome.Error)
 				}
-				c.finish(exitCode(processguard.Outcome(exit.Outcome)), exit.Outcome.Signal, cause)
-				_ = host.Release()
-				_ = host.Detach()
+				// The outcome is recorded before the host may discard it. The host
+				// exits on its own once released, a moment later; its record goes
+				// first, so that once the command is done no inventory, stop or
+				// orphan sweep finds the host still listed.
+				retired := false
+				retire := func() {
+					_ = host.Release()
+					_ = host.Detach()
+					_ = c.hostBackend.Forget(c.hostRoot, host.ID())
+					retired = true
+				}
+				c.completeThen(exitCode(processguard.Outcome(exit.Outcome)), exit.Outcome.Signal, cause, nil, retire)
+				if !retired {
+					retire() // Completed earlier on another path.
+				}
 				return
 			}
 			var chunk sessionhost.Chunk

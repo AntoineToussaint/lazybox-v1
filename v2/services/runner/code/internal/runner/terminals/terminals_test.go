@@ -119,6 +119,11 @@ func TestTerminalShellLifecycle(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(dir, "terminals", status.ID+".json")); !os.IsNotExist(err) {
 		t.Fatal("an exited terminal's record must be removed")
 	}
+	// Its host exits on its own a moment later; it must not be listed in
+	// between, or an inventory shows it and an orphan sweep stops it.
+	if hosts, _ := sessionhost.Hosts(filepath.Join(dir, "hosts")); len(hosts) != 0 {
+		t.Fatalf("an exited terminal's host is still listed: %v", hosts)
+	}
 	if _, err = m.Discard(ctx, status.ID); err != nil {
 		t.Fatal(err)
 	}
