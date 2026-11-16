@@ -42,7 +42,10 @@ try {
   );
   const rows = page.locator(".workspace-row"),
     alpha = rows.filter({ hasText: "Alpha feature" });
-  await expect(alpha).toContainText("claude-fable-5-1");
+  // A row says what the conversation is doing and where (its task and branch), not which model runs it.
+  await expect(alpha).toContainText("what is this repo?");
+  await expect(alpha).toContainText("lazybox/alpha/api");
+  await expect(alpha).not.toContainText("claude-fable-5-1");
   await expect(page.locator(".workspace-conversations")).toHaveCount(0);
   await expect(alpha).toContainText("obin-ai/handbook");
   await expect(
@@ -146,7 +149,9 @@ try {
     title: "Second conversation",
   });
   await page.getByRole("button", { name: "Refresh workspaces" }).click();
-  await expect(alpha).toContainText("2 conversations");
+  // The row names the conversation it shows and counts the rest ("+1"); the full count is its tooltip.
+  await expect(alpha.locator(".workspace-agent-more")).toHaveText("+1");
+  await expect(alpha.locator(".workspace-agent-more")).toHaveAttribute("title", "2 conversations");
   await expect(
     page.locator(".workspace-conversations .conversation-row"),
   ).toHaveCount(2);
