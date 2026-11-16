@@ -2,9 +2,8 @@
 
 The deterministic release gate has one owner:
 [`scripts/release-gates.json`](scripts/release-gates.json). Staging and
-`make check-release` / `make check-dogfood` run the same ordered catalog. CI should
-invoke `make check-release`; a remote V2 CI environment is not provisioned by
-this change. Codefly still owns service generation and transport validation;
+`make check-release` / `make check-dogfood` run the same ordered catalog, and
+per-change [CI](#ci) runs it in parallel jobs. Codefly still owns service generation and transport validation;
 the catalog delegates those checks to the existing Make targets.
 
 ```sh
@@ -15,6 +14,8 @@ cd v2
 node scripts/release-gates.mjs run ui
 node scripts/release-gates.mjs run core
 node scripts/release-gates.mjs run native
+node scripts/release-gates.mjs run ui --only inbox,chat-scroll   # named gates
+node scripts/release-gates.mjs shards ui 3                       # CI's matrix
 ```
 
 The catalog covers core Go/TypeScript/contracts/worker checks, native desktop
@@ -39,6 +40,59 @@ The live browser/provider test stays explicit because it needs a selected Runner
 and credentials. Real-device, remote Hub, native service recovery and provider
 qualification remain separate roadmap gates. A deterministic pass is not a
 claim that the phone development journey is released.
+
+## CI
+
+[`.github/workflows/v2.yml`](../.github/workflows/v2.yml) runs on every pull
+request that touches `v2/**` (and on pushes to `main`), so a regression fails
+the PR that causes it rather than staging. It runs the release catalog split
+into parallel jobs:
+
+| Job | Runner | Runs |
+| --- | --- | --- |
+| `go` | macOS | `make fmt-check check-go`, `make test` at full parallelism, then `make test-outlive` (`-race`, `GOMAXPROCS=1`) |
+| `generated` | Linux | `make check-generated`: Codefly + Buf regeneration drift, `buf lint`, `buf breaking` |
+| `typescript` | Linux | `make check-workspaces`: typecheck, workspace links, `test:client`, `test:worker` |
+| `launcher` | macOS | `make test-environments` |
+| `desktop` | macOS | `make check-desktop` |
+| `ui` ×3 | macOS | every `scope: "ui"` gate, through this gate runner |
+
+The UI matrix comes from this catalog, never a copy of it:
+`release-gates.mjs shards ui <count>` splits the UI gates into disjoint shards,
+and each shard runs `release-gates.mjs run ui --only <ids>`, so it gets the same
+environment scrubbing, process groups and deadlines as staging. An `--only`
+report records its selection and can never promote a release. Adding a gate to
+the catalog adds it to CI with no workflow edit; an unclassified `test:` script
+fails the first job, as it fails staging. A failed shard uploads the
+screenshots its suites saved (`v2/.cache/*.png`, `/tmp/lazybox-*.png`) and its
+gate report. The suites drive Playwright as a library, so there are no traces.
+
+macOS is where the product's platform matters. The Runner does not compile for
+Linux today (`internal/processguard` calls `syscall.Getsid`, which Go defines
+only for darwin/BSD), the launcher and Working packaging refuse other hosts,
+Tauri embeds WKWebView, and the UI suites drive Playwright WebKit with layout
+and scroll assertions written on macOS. The repository is public, so macOS
+runners cost no minutes; their limit is five concurrent jobs per account, so
+one of these six macOS jobs can queue behind the others.
+
+`generated` installs the Codefly CLI release that produced the committed output
+(pinned in the workflow, checksum-verified; v0.1.212 reproduces it byte for byte). `codefly sync` downloads the
+pinned `go-grpc` agent and generates in its public `ghcr.io/codefly-dev/proto`
+companion image through the runner's Docker, so it needs no Codefly login.
+
+Not in CI, and why:
+
+- `test:browser`, `make test-real*` and every other live/provider test: they
+  need a selected live Runner and provider credentials (the catalog's
+  `external` entries). CI holds neither.
+- `make stage`/`promote` and the real Tauri app bundle: CI checks the desktop
+  crate (fmt, tests, clippy) but does not build, sign or launch the `.app`.
+- Real-device, remote Hub, native service install and provider qualification:
+  separate roadmap gates, as above.
+
+`v2 ci` is one check that passes only when every job did. It runs only when the
+workflow does, so requiring it in branch protection needs a paths-aware rule;
+otherwise a PR without `v2/` changes waits on a check that never starts.
 
 ## Evidence and promotion
 

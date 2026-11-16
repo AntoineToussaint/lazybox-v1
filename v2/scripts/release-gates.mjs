@@ -2,7 +2,6 @@ import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnProcessGroup, stopProcessGroup } from './desktop-dev.mjs';
 
 const profiles = new Set(['release', 'core', 'native', 'ui']);
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -54,15 +53,34 @@ export async function loadGateCatalog(root) {
   return { digest: sha(JSON.stringify({ catalog, commands, policyFiles })), gates, external: catalog.external };
 }
 
-export function selectGates(catalog, profile) {
+export function selectGates(catalog, profile, only) {
   if (!profiles.has(profile)) throw new Error('Choose release, core, native or ui');
-  return catalog.gates.filter(gate => profile === 'release' || gate.scope === profile);
+  const gates = catalog.gates.filter(gate => profile === 'release' || gate.scope === profile);
+  if (!only) return gates;
+  // A named subset (one CI shard) must name gates this profile owns: a stale
+  // or misspelled list fails instead of quietly running nothing.
+  const ids = new Set(gates.map(gate => gate.id));
+  const unknown = only.filter(id => !ids.has(id));
+  if (!only.length || unknown.length || new Set(only).size !== only.length) throw new Error(`Gates outside the ${profile} profile or repeated: ${unknown.join(', ') || only.join(', ')}`);
+  return gates.filter(gate => only.includes(gate.id));
+}
+
+// Splits a profile into at most `count` disjoint shards that together hold every
+// gate exactly once, so CI derives its matrix from this catalog, never a copy.
+export function shardGates(gates, count) {
+  if (!Number.isSafeInteger(count) || count < 1) throw new Error('Shard count must be a positive integer');
+  const shards = Array.from({ length: Math.min(count, gates.length) }, () => []);
+  gates.forEach((gate, index) => shards[index % shards.length].push(gate.id));
+  return shards;
 }
 
 // Each gate owns one child process group, including browser/tool descendants.
 // The existing launcher cleanup handles termination; no second supervisor here.
 export async function executeGate(gate, { root, signal, env = process.env }) {
   if (signal?.aborted) return { status: 'cancelled', exitCode: null };
+  // Loaded here, not at module scope: reading the catalog (`list`, `shards`)
+  // must not need installed dependencies, so CI can plan before `npm ci`.
+  const { spawnProcessGroup, stopProcessGroup } = await import('./desktop-dev.mjs');
   // Deterministic qualification never inherits a live Runner/provider opt-in,
   // another source tree, a regression toggle, or a different watcher backend.
   const gateEnv = Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('LAZYBOX_V2_') && !key.startsWith('CHOKIDAR_') && !['TEST_SOURCE', 'TEST_WEBKIT', 'REPRO_OLD_BLUR'].includes(key)));
@@ -93,10 +111,10 @@ export async function executeGate(gate, { root, signal, env = process.env }) {
   }
 }
 
-export async function runGateCatalog(root, profile, { snapshot, execute = executeGate, signal, onProgress = () => {} } = {}) {
-  const catalog = await loadGateCatalog(root), gates = selectGates(catalog, profile);
+export async function runGateCatalog(root, profile, { snapshot, execute = executeGate, signal, onProgress = () => {}, only } = {}) {
+  const catalog = await loadGateCatalog(root), gates = selectGates(catalog, profile, only);
   const sourceDigest = await snapshot();
-  const report = { version: 1, profile, catalogDigest: catalog.digest, sourceDigest, startedAt: new Date().toISOString(), platform: process.platform, architecture: process.arch, status: 'running', results: [] };
+  const report = { version: 1, profile, ...(only ? { only } : {}), catalogDigest: catalog.digest, sourceDigest, startedAt: new Date().toISOString(), platform: process.platform, architecture: process.arch, status: 'running', results: [] };
   // Run the remaining gates after a failure to give one complete diagnostic.
   // Cancellation leaves explicit not-run records and never a passing receipt.
   for (const gate of gates) {
@@ -115,7 +133,7 @@ export async function runGateCatalog(root, profile, { snapshot, execute = execut
 }
 
 export function validateReleaseReceipt(report, catalog, sourceDigest) {
-  if (!report || report.version !== 1 || report.profile !== 'release' || report.status !== 'passed' || report.catalogDigest !== catalog.digest || report.sourceDigest !== sourceDigest || report.finalSourceDigest !== sourceDigest || report.results?.length !== catalog.gates.length) throw new Error('Release has no complete passing receipt for this source and current gate catalog; stage again');
+  if (!report || report.version !== 1 || report.profile !== 'release' || report.only !== undefined || report.status !== 'passed' || report.catalogDigest !== catalog.digest || report.sourceDigest !== sourceDigest || report.finalSourceDigest !== sourceDigest || report.results?.length !== catalog.gates.length) throw new Error('Release has no complete passing receipt for this source and current gate catalog; stage again');
   for (const [index, gate] of catalog.gates.entries()) {
     const result = report.results[index];
     if (result.id !== gate.id || result.status !== 'passed' || result.exitCode !== 0 || result.command !== gate.command || JSON.stringify(result.args) !== JSON.stringify(gate.args) || !Number.isFinite(result.durationMs) || result.durationMs < 0) throw new Error(`Release gate ${gate.id} is missing, changed or failed`);
@@ -123,18 +141,32 @@ export function validateReleaseReceipt(report, catalog, sourceDigest) {
 }
 
 async function main() {
-  const [action, profile = 'release', ...args] = process.argv.slice(2);
-  if (!['list', 'run'].includes(action) || args.length && (args.length !== 2 || args[0] !== '--report')) throw new Error('Use release-gates.mjs list|run [release|core|native|ui] [--report <path>]');
+  const [action, profile = 'release', ...rest] = process.argv.slice(2);
+  const usage = 'Use release-gates.mjs list [profile] | shards <profile> <count> | run [profile] [--only <id,...>] [--report <path>]';
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const catalog = await loadGateCatalog(root);
-  if (action === 'list') { for (const gate of selectGates(catalog, profile)) console.log(`${gate.id}: ${gate.command} ${gate.args.join(' ')}`); return; }
+  if (action === 'list' && !rest.length) { for (const gate of selectGates(catalog, profile)) console.log(`${gate.id}: ${gate.command} ${gate.args.join(' ')}`); return; }
+  // GitHub Actions matrix: one entry per shard, each naming its gates.
+  if (action === 'shards' && rest.length === 1) {
+    const shards = shardGates(selectGates(catalog, profile), Number(rest[0]));
+    console.log(JSON.stringify({ include: shards.map((gates, index) => ({ shard: `${index + 1}-of-${shards.length}`, gates: gates.join(',') })) }));
+    return;
+  }
+  if (action !== 'run') throw new Error(usage);
+  const options = {};
+  for (let index = 0; index < rest.length; index += 2) {
+    const [flag, value] = [rest[index], rest[index + 1]];
+    if (!['--only', '--report'].includes(flag) || !value || flag.slice(2) in options) throw new Error(usage);
+    options[flag.slice(2)] = value;
+  }
+  const only = options.only?.split(',');
   const { digestTree } = await import('./environments.mjs');
   const controller = new AbortController(), cancel = () => controller.abort();
   process.on('SIGINT', cancel); process.on('SIGTERM', cancel);
   let report;
   try {
-    report = await runGateCatalog(root, profile, { snapshot: () => digestTree(root), signal: controller.signal, onProgress: ({ gate, phase, result }) => console.log(`[${gate.id}] ${phase === 'start' ? 'running' : result.status}`) });
-    const path = resolve(args[1] || join(root, '.cache', `gates-${profile}.json`));
+    report = await runGateCatalog(root, profile, { only, snapshot: () => digestTree(root), signal: controller.signal, onProgress: ({ gate, phase, result }) => console.log(`[${gate.id}] ${phase === 'start' ? 'running' : result.status}`) });
+    const path = resolve(options.report || join(root, '.cache', `gates-${profile}.json`));
     await mkdir(dirname(path), { recursive: true });
     const temporary = `${path}.${randomUUID()}`;
     await writeFile(temporary, JSON.stringify(report, null, 2), { mode: 0o600, flag: 'wx' });

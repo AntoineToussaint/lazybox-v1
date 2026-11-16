@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { loadGateCatalog, selectGates, runGateCatalog, validateReleaseReceipt, executeGate } from './release-gates.mjs';
+import { loadGateCatalog, selectGates, shardGates, runGateCatalog, validateReleaseReceipt, executeGate } from './release-gates.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'lazybox-gates-'));
@@ -113,4 +113,25 @@ test('deterministic gates cannot inherit live execution or different source/watc
   const code = `const keys=${JSON.stringify(Object.keys(unsafe))};process.exit(keys.some(key=>process.env[key]!==undefined)?9:0);`;
   const result = await executeGate({ command: process.execPath, args: ['-e', code], timeoutMs: 5000 }, { root: f.root, env: { ...process.env, ...unsafe } });
   assert.equal(result.status, 'passed');
+});
+
+test('CI shards cover every gate of a profile exactly once and run only named gates', async t => {
+  const catalog = await loadGateCatalog(fileURLToPath(new URL('..', import.meta.url)));
+  const ui = selectGates(catalog, 'ui').map(gate => gate.id);
+  const shards = shardGates(selectGates(catalog, 'ui'), 3);
+  assert.equal(shards.length, 3);
+  assert.deepEqual(shards.flat().sort(), [...ui].sort());
+  assert.ok(shards.every(shard => shard.length >= Math.floor(ui.length / 3)));
+  assert.equal(shardGates(selectGates(catalog, 'native'), 4).length, 1, 'never an empty shard');
+  assert.throws(() => shardGates(ui, 0), /positive/);
+  assert.deepEqual(selectGates(catalog, 'ui', [ui[1], ui[0]]).map(gate => gate.id), [ui[0], ui[1]], 'catalog order');
+  assert.throws(() => selectGates(catalog, 'ui', ['core']), /outside the ui profile/);
+  assert.throws(() => selectGates(catalog, 'ui', ['no-such-gate']), /no-such-gate/);
+  assert.throws(() => selectGates(catalog, 'ui', [ui[0], ui[0]]), /repeated/);
+  assert.throws(() => selectGates(catalog, 'ui', []), /outside/);
+  const f = await fixture(t), seen = [];
+  const subset = await runGateCatalog(f.root, 'release', { snapshot, only: ['two'], execute: async gate => { seen.push(gate.id); return pass(); } });
+  assert.deepEqual(seen, ['two']); assert.deepEqual(subset.only, ['two']); assert.equal(subset.status, 'passed');
+  const fixtureCatalog = await loadGateCatalog(f.root);
+  assert.throws(() => validateReleaseReceipt(subset, fixtureCatalog, 'source-digest'), /complete passing/, 'a shard can never promote');
 });
