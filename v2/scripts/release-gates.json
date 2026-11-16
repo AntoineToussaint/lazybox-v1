@@ -52,7 +52,8 @@
     { "id": "turn-checkpoints", "scope": "ui", "script": "test:turn-checkpoints" },
     { "id": "workspace-runtime", "scope": "ui", "script": "test:workspace-runtime" },
     { "id": "remote-pairing", "scope": "ui", "script": "test:remote-pairing" },
-    { "id": "remote-inbox", "scope": "ui", "script": "test:remote-inbox" }
+    { "id": "remote-inbox", "scope": "ui", "script": "test:remote-inbox" },
+    { "id": "missions", "scope": "ui", "script": "test:missions" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

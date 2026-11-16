@@ -8,6 +8,7 @@ import { conversationDetails, conversationTitle } from './conversation-model';
 import { useKeyboardAction, useKeymap } from './keyboard';
 import { ageLabel, attentionTitle, noticeFor, seenMark, type Attention, type AttentionState, type Inbox } from './attention';
 import { useAttentionHost, useInbox, useNotificationPreferences, useViewingReader } from './useAttention';
+import { MissionInboxSection, useAwaitingTasks } from './MissionInbox';
 import type { ViewTarget } from './workspace-model';
 import './inbox.css';
 
@@ -33,12 +34,13 @@ export function AttentionCenter({ collections, selection, onOpen, viewState }: {
   const keymap = useKeymap(viewState);
   useKeyboardAction('inbox.open', () => setOpen(true));
   useAttentionNotifier(inbox, collections, selection, onOpen);
-  const needsInput = inbox.counts['needs-input'];
-  const label = inbox.unread ? `Inbox, ${inbox.unread} ${inbox.unread === 1 ? 'conversation needs' : 'conversations need'} attention` : 'Inbox';
+  const awaiting = useAwaitingTasks();
+  const needsInput = inbox.counts['needs-input'] + awaiting, count = inbox.unread + awaiting;
+  const label = [inbox.unread ? `Inbox, ${inbox.unread} ${inbox.unread === 1 ? 'conversation needs' : 'conversations need'} attention` : 'Inbox', awaiting ? `${awaiting} ${awaiting === 1 ? 'task awaits' : 'tasks await'} acceptance` : ''].filter(Boolean).join(', ');
   return <>
     <button className="toolbar-action inbox-action" aria-label={label} title={`Inbox (${keymap['inbox.open']})`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
       <Icon name="inbox"/><span>Inbox</span>
-      {inbox.unread > 0 && <b className={`inbox-count${needsInput ? ' urgent' : ''}`} aria-hidden="true">{inbox.unread > 99 ? '99+' : inbox.unread}</b>}
+      {count > 0 && <b className={`inbox-count${needsInput ? ' urgent' : ''}`} aria-hidden="true">{count > 99 ? '99+' : count}</b>}
     </button>
     {open && <InboxDialog inbox={inbox} collections={collections} selection={selection} onClose={() => setOpen(false)} onOpen={target => { setOpen(false); onOpen(target); }}/>}
   </>;
@@ -73,7 +75,8 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
       if (row?.unread && row.state !== 'needs-input') { event.preventDefault(); markSeen([row]); }
     }
   };
-  const summary = inbox.counts['needs-input'] ? `${inbox.counts['needs-input']} waiting for you` : unseen.length ? `${unseen.length} to review` : inbox.rows.length ? 'All caught up' : '';
+  const waiting = inbox.counts['needs-input'] + useAwaitingTasks();
+  const summary = waiting ? `${waiting} waiting for you` : unseen.length ? `${unseen.length} to review` : inbox.rows.length ? 'All caught up' : '';
   return <dialog ref={dialog} className="inbox-dialog" aria-labelledby="inbox-title" onCancel={onClose} onKeyDown={keyDown}
     onClick={event => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose(); } }}>
     <header>
@@ -83,8 +86,9 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
       <button data-close-inbox className="icon-button" aria-label="Close inbox" onClick={onClose}>×</button>
     </header>
     <div className="inbox-body">
+      <MissionInboxSection onOpen={onOpen}/>
       {!inbox.rows.length && <div className="inbox-empty"><Icon name="inbox" size={28}/><strong>No conversations yet</strong><p>Agents that need you will show up here, from every workspace.</p></div>}
-      {inbox.rows.length > 0 && !inbox.counts['needs-input'] && !inbox.counts.failed && !inbox.counts.review && <p className="inbox-caught-up"><Icon name="check" size={14}/>Nothing needs you right now.</p>}
+      {inbox.rows.length > 0 && !waiting && !inbox.counts.failed && !inbox.counts.review && <p className="inbox-caught-up"><Icon name="check" size={14}/>Nothing needs you right now.</p>}
       {inbox.groups.map(group => {
         const visible = group.state === 'idle' && !allDone ? group.rows.slice(0, doneLimit) : group.rows;
         return <section key={group.state} className={`inbox-group group-${group.state}`} aria-labelledby={`inbox-group-${group.state}`}>

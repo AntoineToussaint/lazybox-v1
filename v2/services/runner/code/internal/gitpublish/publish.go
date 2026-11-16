@@ -170,6 +170,11 @@ func (Git) Branch(ctx context.Context, root string) (string, error) {
 	return branch, nil
 }
 
+// Head is the commit checked out.
+func (Git) Head(ctx context.Context, root string) (string, error) {
+	return read(ctx, root, "rev-parse", "--verify", "HEAD")
+}
+
 // Origin reads origin's URL without contacting it.
 func (Git) Origin(ctx context.Context, root string) (Origin, error) {
 	remote, err := read(ctx, root, "config", "--get", "remote.origin.url")

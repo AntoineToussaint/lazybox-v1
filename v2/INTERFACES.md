@@ -106,6 +106,13 @@ private-file replacement and revision checks prevent a stale window from silentl
 overwriting newer preferences. Invalid settings fail before publication. This store
 is independent of provider auth and native CLI settings.
 
+Missions live under `<Runner state>/work`: one append-only, fsynced JSONL event
+log per mission (`missions/<id>.jsonl`; a torn last line is dropped on open, a
+damaged log is listed with its error and never written) and the prompt log
+(`prompts.jsonl`, bounded and compacted to its newest half). Boards are derived
+from the logs on every read; nothing else is stored. See
+[orchestration](ORCHESTRATION.md#slice-1-as-built).
+
 The Agents & workspaces tab configures workspace display-name suggestions,
 default permissions, common Lazybox context, and additional Claude/Codex context.
 `RunnerOptions.instructions` adds context for one new conversation (32 KiB limit).

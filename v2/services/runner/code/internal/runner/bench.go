@@ -30,9 +30,11 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/repositorycatalog"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/snippets"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/terminals"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sources/github"
+	"github.com/AntoineToussaint/lazybox/v2/internal/work"
 )
 
 type Gateway struct {
@@ -169,6 +171,11 @@ type Bench struct {
 	// runtime is the workspace runtime: approvals, port blocks, runs
 	// (workspace_runtime.go).
 	runtime *workspaceRuntime
+	// Work holds every mission's event log; Prompts the prompt log (work.go).
+	Work    *work.Store
+	Prompts *work.Prompts
+	// snippetCatalog is the catalog last listed, to label snippet messages.
+	snippetCatalog atomic.Pointer[[]snippets.Entry]
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -375,6 +382,10 @@ func New(cfg Config) (*Bench, error) {
 	preferred := func() string { return b.Preferences.Snapshot().ProcessBackend }
 	b.hosting.preferred.Store(&preferred)
 	b.Prices = b.Preferences
+	if err = b.openWork(); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
 	b.Telemetry, err = telemetry.Open(filepath.Join(cfg.State, "telemetry.db"))
 	if err == nil {
 		b.Meter, err = telemetry.StartGateway(b.Telemetry, b.Prices, cfg.MeterUpstreams)
@@ -904,6 +915,7 @@ func (b *Bench) shutdown(detach bool) error {
 			b.closeErr = errors.Join(b.closeErr, e.spool.Dispose())
 		}
 		b.closeErr = errors.Join(b.closeErr, b.History.Close())
+		b.closeErr = errors.Join(b.closeErr, b.closeWork())
 		if b.Meter != nil {
 			b.closeErr = errors.Join(b.closeErr, b.Meter.Close())
 		}

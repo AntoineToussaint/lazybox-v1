@@ -369,6 +369,21 @@ const (
 	// RunnerServiceRevokeDeviceProcedure is the fully-qualified name of the RunnerService's
 	// RevokeDevice RPC.
 	RunnerServiceRevokeDeviceProcedure = "/lazybox.bench.v1.RunnerService/RevokeDevice"
+	// RunnerServiceListMissionsProcedure is the fully-qualified name of the RunnerService's
+	// ListMissions RPC.
+	RunnerServiceListMissionsProcedure = "/lazybox.bench.v1.RunnerService/ListMissions"
+	// RunnerServiceGetMissionProcedure is the fully-qualified name of the RunnerService's GetMission
+	// RPC.
+	RunnerServiceGetMissionProcedure = "/lazybox.bench.v1.RunnerService/GetMission"
+	// RunnerServiceCreateMissionProcedure is the fully-qualified name of the RunnerService's
+	// CreateMission RPC.
+	RunnerServiceCreateMissionProcedure = "/lazybox.bench.v1.RunnerService/CreateMission"
+	// RunnerServiceUpdateMissionProcedure is the fully-qualified name of the RunnerService's
+	// UpdateMission RPC.
+	RunnerServiceUpdateMissionProcedure = "/lazybox.bench.v1.RunnerService/UpdateMission"
+	// RunnerServiceListPromptHistoryProcedure is the fully-qualified name of the RunnerService's
+	// ListPromptHistory RPC.
+	RunnerServiceListPromptHistoryProcedure = "/lazybox.bench.v1.RunnerService/ListPromptHistory"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -542,6 +557,17 @@ type RunnerServiceClient interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
 	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
+	// derived from its event log and live observations; nothing else is stored.
+	ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error)
+	GetMission(context.Context, *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error)
+	CreateMission(context.Context, *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// One typed change: a goal, a task, an assignment, a report, a decision at
+	// a gate, a cancellation. Refused changes say why and write nothing.
+	UpdateMission(context.Context, *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
+	// the snippet chain a conversation offers next.
+	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1233,6 +1259,36 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
 			connect.WithClientOptions(opts...),
 		),
+		listMissions: connect.NewClient[gen.ListMissionsRequest, gen.ListMissionsResponse](
+			httpClient,
+			baseURL+RunnerServiceListMissionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListMissions")),
+			connect.WithClientOptions(opts...),
+		),
+		getMission: connect.NewClient[gen.GetMissionRequest, gen.Mission](
+			httpClient,
+			baseURL+RunnerServiceGetMissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetMission")),
+			connect.WithClientOptions(opts...),
+		),
+		createMission: connect.NewClient[gen.CreateMissionRequest, gen.Mission](
+			httpClient,
+			baseURL+RunnerServiceCreateMissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreateMission")),
+			connect.WithClientOptions(opts...),
+		),
+		updateMission: connect.NewClient[gen.UpdateMissionRequest, gen.Mission](
+			httpClient,
+			baseURL+RunnerServiceUpdateMissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateMission")),
+			connect.WithClientOptions(opts...),
+		),
+		listPromptHistory: connect.NewClient[gen.ListPromptHistoryRequest, gen.PromptHistory](
+			httpClient,
+			baseURL+RunnerServiceListPromptHistoryProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1351,6 +1407,11 @@ type runnerServiceClient struct {
 	cancelDevicePairing          *connect.Client[gen.DevicePairingRequest, gen.DevicePairing]
 	listDevices                  *connect.Client[gen.ListDevicesRequest, gen.ListDevicesResponse]
 	revokeDevice                 *connect.Client[gen.RevokeDeviceRequest, gen.ListDevicesResponse]
+	listMissions                 *connect.Client[gen.ListMissionsRequest, gen.ListMissionsResponse]
+	getMission                   *connect.Client[gen.GetMissionRequest, gen.Mission]
+	createMission                *connect.Client[gen.CreateMissionRequest, gen.Mission]
+	updateMission                *connect.Client[gen.UpdateMissionRequest, gen.Mission]
+	listPromptHistory            *connect.Client[gen.ListPromptHistoryRequest, gen.PromptHistory]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1918,6 +1979,31 @@ func (c *runnerServiceClient) RevokeDevice(ctx context.Context, req *connect.Req
 	return c.revokeDevice.CallUnary(ctx, req)
 }
 
+// ListMissions calls lazybox.bench.v1.RunnerService.ListMissions.
+func (c *runnerServiceClient) ListMissions(ctx context.Context, req *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error) {
+	return c.listMissions.CallUnary(ctx, req)
+}
+
+// GetMission calls lazybox.bench.v1.RunnerService.GetMission.
+func (c *runnerServiceClient) GetMission(ctx context.Context, req *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return c.getMission.CallUnary(ctx, req)
+}
+
+// CreateMission calls lazybox.bench.v1.RunnerService.CreateMission.
+func (c *runnerServiceClient) CreateMission(ctx context.Context, req *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return c.createMission.CallUnary(ctx, req)
+}
+
+// UpdateMission calls lazybox.bench.v1.RunnerService.UpdateMission.
+func (c *runnerServiceClient) UpdateMission(ctx context.Context, req *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return c.updateMission.CallUnary(ctx, req)
+}
+
+// ListPromptHistory calls lazybox.bench.v1.RunnerService.ListPromptHistory.
+func (c *runnerServiceClient) ListPromptHistory(ctx context.Context, req *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error) {
+	return c.listPromptHistory.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -2089,6 +2175,17 @@ type RunnerServiceHandler interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
 	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
+	// derived from its event log and live observations; nothing else is stored.
+	ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error)
+	GetMission(context.Context, *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error)
+	CreateMission(context.Context, *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// One typed change: a goal, a task, an assignment, a report, a decision at
+	// a gate, a cancellation. Refused changes say why and write nothing.
+	UpdateMission(context.Context, *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
+	// the snippet chain a conversation offers next.
+	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2776,6 +2873,36 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListMissionsHandler := connect.NewUnaryHandler(
+		RunnerServiceListMissionsProcedure,
+		svc.ListMissions,
+		connect.WithSchema(runnerServiceMethods.ByName("ListMissions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetMissionHandler := connect.NewUnaryHandler(
+		RunnerServiceGetMissionProcedure,
+		svc.GetMission,
+		connect.WithSchema(runnerServiceMethods.ByName("GetMission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreateMissionHandler := connect.NewUnaryHandler(
+		RunnerServiceCreateMissionProcedure,
+		svc.CreateMission,
+		connect.WithSchema(runnerServiceMethods.ByName("CreateMission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateMissionHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateMissionProcedure,
+		svc.UpdateMission,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateMission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListPromptHistoryHandler := connect.NewUnaryHandler(
+		RunnerServiceListPromptHistoryProcedure,
+		svc.ListPromptHistory,
+		connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -3004,6 +3131,16 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceListDevicesHandler.ServeHTTP(w, r)
 		case RunnerServiceRevokeDeviceProcedure:
 			runnerServiceRevokeDeviceHandler.ServeHTTP(w, r)
+		case RunnerServiceListMissionsProcedure:
+			runnerServiceListMissionsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetMissionProcedure:
+			runnerServiceGetMissionHandler.ServeHTTP(w, r)
+		case RunnerServiceCreateMissionProcedure:
+			runnerServiceCreateMissionHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateMissionProcedure:
+			runnerServiceUpdateMissionHandler.ServeHTTP(w, r)
+		case RunnerServiceListPromptHistoryProcedure:
+			runnerServiceListPromptHistoryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -3463,4 +3600,24 @@ func (UnimplementedRunnerServiceHandler) ListDevices(context.Context, *connect.R
 
 func (UnimplementedRunnerServiceHandler) RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RevokeDevice is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListMissions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetMission(context.Context, *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetMission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreateMission(context.Context, *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreateMission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateMission(context.Context, *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateMission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListPromptHistory is not implemented"))
 }

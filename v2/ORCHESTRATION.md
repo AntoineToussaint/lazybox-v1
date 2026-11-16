@@ -5,8 +5,10 @@ mission, split it into goals and tasks, start and watch workers, move work
 through phases, and leave a record a person can trust. It is a design,
 written 2026-11-16, with its [decisions](#decisions-for-you) taken. Slice 0
 (the process file: §4) is implemented in
-[`internal/process`](services/runner/code/internal/process/doc.go); the rest
-is not yet.
+[`internal/process`](services/runner/code/internal/process/doc.go) and
+[slice 1](#slice-1-as-built) (the mission log and the derived board, solo
+pair) in [`internal/work`](services/runner/code/internal/work/doc.go); the
+rest is not yet.
 [Software factory](SOFTWARE_FACTORY.md) describes the end state (contract,
 holdouts, verifier, merge queue); this page is the model and configuration
 underneath it.
@@ -22,7 +24,7 @@ to it).
 
 | Question | Answer |
 | --- | --- |
-| Do we have entry history like V1? | **No.** V1 kept a per-terminal prompt history (text, time, typed or snippet; 128 KiB per session) with a picker. V2 stores every user message in the conversation journal but offers no recall. [§6](#6-prompt-history-and-snippets) derives it from the journal. |
+| Do we have entry history like V1? | **Yes, since slice 1.** V1 kept a per-terminal prompt history (text, time, typed or snippet; 128 KiB per session) with a picker. V2 recalls sent messages with ↑/↓ in the composer, and the Runner keeps every prompt with its source in its prompt log (§6), which recall reads, so it follows the person across windows and devices. |
 | Do we track snippets specially? | **Partly.** V2 keeps five recent keys and favourites in client preferences (per device). V1's per-workspace memory (`]N`), `next:` chains (`]]n`) and `action:` contracts (review → fixer artifacts) are not in V2. [§6](#6-prompt-history-and-snippets) makes them events. |
 | An agent for transitions? | **Yes, but most transitions are rules.** Mechanical moves (report → verify, verdict pass → integrate) are deterministic rules in the process file; a *transition agent* handles judgment: status reports, stalls, escalations, phase proposals. [§3](#3-roles-are-configuration) |
 
@@ -538,7 +540,7 @@ notifications:
 | Metering gateway, telemetry | Budgets per mission, task, role; cost per accepted task |
 | Live instruction delivery, live permission change | Role changes and decisions reach running sessions |
 | `checkpoints` | Handoff packets |
-| `internal/work` (empty scaffold) | Home of the event types, fold and derived status |
+| `internal/work` | The event types, the mission log, the fold and the derived status (slice 1) |
 
 ### Lazybox MCP for orchestrating roles
 
@@ -616,6 +618,74 @@ unless asked.
 
 Slice 1 is the smallest valuable one: it needs no coordinator agent and
 already answers "what is going on, who claimed what, and what actually ran".
+
+### Slice 1 as built
+
+The decisions below were taken as recommended (optional goals; a committed
+per-repository process file; CEL; solo pair by default, reviewed team once a
+mission has more than one task; the transition agent in slice 4; existing role
+files read as instructions; prompt history in the Runner; missions local).
+
+**Where it lives.** `services/runner/code/internal/work` is the domain:
+`event.go` (types, versions, payloads), `fold.go` (the one definition of what
+a log accepts, and the fold), `derive.go` (status and trust, pure),
+`store.go` and `ops.go` (one append-only, fsynced JSONL log per mission under
+`<state>/work/missions/`, idempotency keys, rules), `prompts.go` (the
+Runner-wide prompt log, `<state>/work/prompts.jsonl`). The Runner feeds it in
+`internal/runner/work.go`; the owner-only RPCs are `ListMissions`,
+`GetMission`, `CreateMission`, `UpdateMission` (one typed change) and
+`ListPromptHistory` (`internal/transport/missions.go`). None is on the agent or
+terminal allowlist.
+
+**The process.** `work.Policy` (`internal/work/policy.go`) is what slice 1
+asks of a process: preset, digest, autonomy, the human gate a report
+requests, the gate that makes a task done. `work.PolicyFor` resolves the
+built-in preset through slice 0's `internal/process` (`process.Resolve`) and
+takes the unconditional `request_gate` of its `task.reported` rule, which must
+be a human gate (`reviewed` in solo pair); passing it makes a task done. A
+mission pins the digest and those gates in `mission.process_pinned`, so its
+log means the same after a release changes a preset. Every new mission pins
+solo pair, since presets whose reports go to a verifier (reviewed team) are
+refused until slice 2 runs one; the user's and the repository's process files
+are not read yet.
+
+**What is recorded, automatically.** A `lazybox run` (or `lazybox log`) that
+finishes in a conversation which is a live attempt becomes `evidence.recorded`
+on its task, with the exit status (none for a pipe), the full-output path,
+what the agent saw, and each workspace repository's HEAD. A workspace
+terminal's run attaches to the attempts in its workspace, as do commits made
+through the PR loop and pull requests the PR loop reads (`GetPullRequest`,
+create, merge): one record per head and check state. While a board is open,
+the Runner rereads its attempts' pull requests at most once a minute each. A
+deleted conversation ends its attempts (`attempt.ended`, deleted) and its
+prompts are forgotten. Every message accepted by an agent is a
+`prompt.submitted` with its source (`typed`, `snippet`, `mission`, …); a
+message that is exactly a catalog snippet's body, or is labeled as one, also
+records `snippet.sent` with the chain it offers.
+
+**Trust, as derived.** *claimed*: reported, with no passing evidence (a failing
+last run is flagged). *observed*: the last real `lazybox run` exited 0, or the
+attempt's agent is running. *verified*: checks passed on a pull request whose
+head is the newest the Runner saw for that repository (a later run or commit
+on another head makes it *stale*). *accepted*: the person passed the gate. A
+report always requests the gate; the status says how much backs it.
+
+**On screen.** The *Missions* panel (page menu → Missions; dockable like any
+panel): missions, a board in four columns (Ready, Working, Needs you, Done)
+with status, trust badge, flags, evidence chips (a run opens its output in
+the console, a pull request opens on GitHub), the conversation working on the
+task and its liveness, the snippet chain (*After review, next: fixall*), and
+the log as History. Assign opens a new conversation in a chosen workspace (or
+takes one you have) and can send the brief. The inbox lists *Awaiting
+acceptance* first, counted in its badge, with Accept and Ask for changes.
+
+**Not yet.** An agent cannot report its own task (slice 2's `task_report`
+needs the grant table): the person reports. No reviewer is started by a rule,
+so `verifying`, verdicts and findings are not produced. Goals and dependencies
+exist in the log and the RPC; the panel creates dependencies, not goals.
+Assigning does not create a task workspace; the person picks one. Pull
+requests are reread only while a board is open. A log is never compacted
+(64 MiB per mission). Mission exports for the Hub are not built.
 
 ### Risks and failure modes
 

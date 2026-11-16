@@ -51,6 +51,7 @@ func (s *Service) CommitWorkspaceChanges(ctx context.Context, r *pb.CommitWorksp
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	s.Bench.RecordCommit(r.CollectionId, r.Member, result.Commit, result.Subject)
 	return &pb.CommitWorkspaceChangesResponse{Commit: result.Commit, Subject: result.Subject, Files: uint32(result.Files), Branch: result.Branch}, nil
 }
 
@@ -156,7 +157,11 @@ func (s *Service) GetPullRequest(ctx context.Context, r *pb.GetPullRequestReques
 	if out.Unavailable != "" {
 		return out, nil
 	}
-	return s.readPullRequest(ctx, out)
+	out, err = s.readPullRequest(ctx, out)
+	if err == nil {
+		s.observePullRequest(r.CollectionId, r.Member, out)
+	}
+	return out, err
 }
 
 func (s *Service) CreatePullRequest(ctx context.Context, r *pb.CreatePullRequestRequest) (*pb.PullRequestStatus, error) {
@@ -187,6 +192,7 @@ func (s *Service) CreatePullRequest(ctx context.Context, r *pb.CreatePullRequest
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	s.observePullRequest(r.CollectionId, r.Member, out)
 	return out, nil
 }
 
@@ -213,5 +219,9 @@ func (s *Service) MergePullRequest(ctx context.Context, r *pb.MergePullRequestRe
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return s.readPullRequest(ctx, out)
+	out, err = s.readPullRequest(ctx, out)
+	if err == nil {
+		s.observePullRequest(r.CollectionId, r.Member, out)
+	}
+	return out, err
 }

@@ -28,6 +28,7 @@ v2/
         adapters/codex/             native app-server adapter
         adapters/claude/            supported SDK worker adapter
         adapters/jsonl/             supervised local process transport
+      internal/work/                missions: event log, fold, derived board, prompt log
       internal/transport/           one gRPC implementation and authority checks
       cmd/lazybox/                  test client and transparent log publisher
       tests/integration/            real harness and deterministic gateway cases

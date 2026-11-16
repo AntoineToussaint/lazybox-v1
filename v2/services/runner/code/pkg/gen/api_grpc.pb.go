@@ -133,6 +133,11 @@ const (
 	RunnerService_CancelDevicePairing_FullMethodName          = "/lazybox.bench.v1.RunnerService/CancelDevicePairing"
 	RunnerService_ListDevices_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ListDevices"
 	RunnerService_RevokeDevice_FullMethodName                 = "/lazybox.bench.v1.RunnerService/RevokeDevice"
+	RunnerService_ListMissions_FullMethodName                 = "/lazybox.bench.v1.RunnerService/ListMissions"
+	RunnerService_GetMission_FullMethodName                   = "/lazybox.bench.v1.RunnerService/GetMission"
+	RunnerService_CreateMission_FullMethodName                = "/lazybox.bench.v1.RunnerService/CreateMission"
+	RunnerService_UpdateMission_FullMethodName                = "/lazybox.bench.v1.RunnerService/UpdateMission"
+	RunnerService_ListPromptHistory_FullMethodName            = "/lazybox.bench.v1.RunnerService/ListPromptHistory"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -308,6 +313,17 @@ type RunnerServiceClient interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
 	RevokeDevice(ctx context.Context, in *RevokeDeviceRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
+	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
+	// derived from its event log and live observations; nothing else is stored.
+	ListMissions(ctx context.Context, in *ListMissionsRequest, opts ...grpc.CallOption) (*ListMissionsResponse, error)
+	GetMission(ctx context.Context, in *GetMissionRequest, opts ...grpc.CallOption) (*Mission, error)
+	CreateMission(ctx context.Context, in *CreateMissionRequest, opts ...grpc.CallOption) (*Mission, error)
+	// One typed change: a goal, a task, an assignment, a report, a decision at
+	// a gate, a cancellation. Refused changes say why and write nothing.
+	UpdateMission(ctx context.Context, in *UpdateMissionRequest, opts ...grpc.CallOption) (*Mission, error)
+	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
+	// the snippet chain a conversation offers next.
+	ListPromptHistory(ctx context.Context, in *ListPromptHistoryRequest, opts ...grpc.CallOption) (*PromptHistory, error)
 }
 
 type runnerServiceClient struct {
@@ -1484,6 +1500,56 @@ func (c *runnerServiceClient) RevokeDevice(ctx context.Context, in *RevokeDevice
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListMissions(ctx context.Context, in *ListMissionsRequest, opts ...grpc.CallOption) (*ListMissionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMissionsResponse)
+	err := c.cc.Invoke(ctx, RunnerService_ListMissions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetMission(ctx context.Context, in *GetMissionRequest, opts ...grpc.CallOption) (*Mission, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Mission)
+	err := c.cc.Invoke(ctx, RunnerService_GetMission_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) CreateMission(ctx context.Context, in *CreateMissionRequest, opts ...grpc.CallOption) (*Mission, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Mission)
+	err := c.cc.Invoke(ctx, RunnerService_CreateMission_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) UpdateMission(ctx context.Context, in *UpdateMissionRequest, opts ...grpc.CallOption) (*Mission, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Mission)
+	err := c.cc.Invoke(ctx, RunnerService_UpdateMission_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListPromptHistory(ctx context.Context, in *ListPromptHistoryRequest, opts ...grpc.CallOption) (*PromptHistory, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromptHistory)
+	err := c.cc.Invoke(ctx, RunnerService_ListPromptHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1657,6 +1723,17 @@ type RunnerServiceServer interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error)
 	RevokeDevice(context.Context, *RevokeDeviceRequest) (*ListDevicesResponse, error)
+	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
+	// derived from its event log and live observations; nothing else is stored.
+	ListMissions(context.Context, *ListMissionsRequest) (*ListMissionsResponse, error)
+	GetMission(context.Context, *GetMissionRequest) (*Mission, error)
+	CreateMission(context.Context, *CreateMissionRequest) (*Mission, error)
+	// One typed change: a goal, a task, an assignment, a report, a decision at
+	// a gate, a cancellation. Refused changes say why and write nothing.
+	UpdateMission(context.Context, *UpdateMissionRequest) (*Mission, error)
+	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
+	// the snippet chain a conversation offers next.
+	ListPromptHistory(context.Context, *ListPromptHistoryRequest) (*PromptHistory, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -2005,6 +2082,21 @@ func (UnimplementedRunnerServiceServer) ListDevices(context.Context, *ListDevice
 }
 func (UnimplementedRunnerServiceServer) RevokeDevice(context.Context, *RevokeDeviceRequest) (*ListDevicesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RevokeDevice not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListMissions(context.Context, *ListMissionsRequest) (*ListMissionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMissions not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetMission(context.Context, *GetMissionRequest) (*Mission, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMission not implemented")
+}
+func (UnimplementedRunnerServiceServer) CreateMission(context.Context, *CreateMissionRequest) (*Mission, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateMission not implemented")
+}
+func (UnimplementedRunnerServiceServer) UpdateMission(context.Context, *UpdateMissionRequest) (*Mission, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMission not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListPromptHistory(context.Context, *ListPromptHistoryRequest) (*PromptHistory, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPromptHistory not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -4033,6 +4125,96 @@ func _RunnerService_RevokeDevice_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListMissions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMissionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListMissions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListMissions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListMissions(ctx, req.(*ListMissionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetMission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMissionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetMission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetMission_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetMission(ctx, req.(*GetMissionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_CreateMission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMissionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CreateMission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CreateMission_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CreateMission(ctx, req.(*CreateMissionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_UpdateMission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMissionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).UpdateMission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_UpdateMission_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).UpdateMission(ctx, req.(*UpdateMissionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListPromptHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPromptHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListPromptHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListPromptHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListPromptHistory(ctx, req.(*ListPromptHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -4475,6 +4657,26 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeDevice",
 			Handler:    _RunnerService_RevokeDevice_Handler,
+		},
+		{
+			MethodName: "ListMissions",
+			Handler:    _RunnerService_ListMissions_Handler,
+		},
+		{
+			MethodName: "GetMission",
+			Handler:    _RunnerService_GetMission_Handler,
+		},
+		{
+			MethodName: "CreateMission",
+			Handler:    _RunnerService_CreateMission_Handler,
+		},
+		{
+			MethodName: "UpdateMission",
+			Handler:    _RunnerService_UpdateMission_Handler,
+		},
+		{
+			MethodName: "ListPromptHistory",
+			Handler:    _RunnerService_ListPromptHistory_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

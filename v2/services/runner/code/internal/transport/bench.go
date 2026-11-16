@@ -311,12 +311,15 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		return nil
 	}
 	update, reverted := "", ""
+	// A message or steer the agent accepts goes in the prompt log.
+	var prompt *pb.Message
 	switch o := p.Operation.(type) {
 	case *pb.ApplyRequest_Message:
 		op.Kind = agent.Message
 		if err := message(o.Message); err != nil {
 			return nil, rpcError(err)
 		}
+		prompt = o.Message
 		// Changed shared instructions travel with the next message, and so
 		// does a revert of the workspace's files since the last one.
 		update = s.Bench.InstructionsUpdate(e)
@@ -333,6 +336,7 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		if err := message(o.Steer); err != nil {
 			return nil, rpcError(err)
 		}
+		prompt = o.Steer
 	case *pb.ApplyRequest_Interrupt:
 		op.Kind = agent.Interrupt
 	case *pb.ApplyRequest_Answer:
@@ -359,6 +363,9 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 	receipt, err := e.Engine.Apply(ctx, op)
 	if err != nil {
 		return nil, rpcError(err)
+	}
+	if prompt != nil && receipt.Error == "" {
+		s.Bench.RecordPrompt(e, p.OperationId, prompt.Text, promptSource(prompt.Source))
 	}
 	if update != "" {
 		// The message, and the update with it, is accepted. If recording that

@@ -2,6 +2,7 @@ import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import type { VimMode } from './composer-vim';
 import { caretOnFirstLine, caretOnLastLine, readPromptHistory, recallOrder } from './prompt-history';
+import { useRunner } from './RunnerContext';
 import type { TranscriptMessage } from './transcript-model';
 
 type Recall = { list: string[]; index: number; draft: string };
@@ -18,6 +19,8 @@ export function usePromptRecall({ viewState, sessionID, conversationKey, convers
   conversation: readonly TranscriptMessage[];
   onRecall(text: string): void;
 }) {
+  // The Runner's prompt log adds what other windows and devices sent.
+  const { api } = useRunner();
   const recall = useRef<Recall | null>(null);
   useEffect(() => { recall.current = null; }, [sessionID]);
 
@@ -31,7 +34,7 @@ export function usePromptRecall({ viewState, sessionID, conversationKey, convers
     if (event.key === 'ArrowUp') {
       if (!state) {
         if (value && !(start === 0 && end === 0)) return false;
-        const list = recallOrder(readPromptHistory(viewState), conversationKey, conversation.filter(m => m.type === 'operation_accepted').map(m => m.text));
+        const list = recallOrder(readPromptHistory(viewState, api), conversationKey, conversation.filter(m => m.type === 'operation_accepted').map(m => m.text));
         if (!list.length) return false;
         state = { list, index: -1, draft: value };
       } else if (!caretOnFirstLine(value, start, end)) return false;

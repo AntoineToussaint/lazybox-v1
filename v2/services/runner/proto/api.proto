@@ -173,6 +173,17 @@ service RunnerService {
   // Owner only. Paired devices, and revoking one: its access ends at its next request.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   rpc RevokeDevice(RevokeDeviceRequest) returns (ListDevicesResponse);
+  // Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
+  // derived from its event log and live observations; nothing else is stored.
+  rpc ListMissions(ListMissionsRequest) returns (ListMissionsResponse);
+  rpc GetMission(GetMissionRequest) returns (Mission);
+  rpc CreateMission(CreateMissionRequest) returns (Mission);
+  // One typed change: a goal, a task, an assignment, a report, a decision at
+  // a gate, a cancellation. Refused changes say why and write nothing.
+  rpc UpdateMission(UpdateMissionRequest) returns (Mission);
+  // Owner only. Sent prompts, newest first, from the Runner's prompt log, with
+  // the snippet chain a conversation offers next.
+  rpc ListPromptHistory(ListPromptHistoryRequest) returns (PromptHistory);
 }
 
 message InfoRequest {}
@@ -578,6 +589,19 @@ message Message {
   string text = 1;
   repeated Image images = 2;
   repeated FileAttachment attachments = 3;
+  // Where the text came from, recorded in the prompt log. Absent is typed, or
+  // the snippet whose catalog body the text is exactly.
+  PromptSource source = 4;
+}
+message PromptSource {
+  // typed, snippet, console, inbox, mission or handoff.
+  string kind = 1;
+  string snippet_key = 2;
+  // console: the run whose compact view was sent.
+  string command_id = 3;
+  // mission: the task whose brief was sent.
+  string mission_id = 4;
+  string task_id = 5;
 }
 message FileAttachment {
   string name = 1;
@@ -1425,3 +1449,150 @@ message Device {
 message ListDevicesRequest {}
 message ListDevicesResponse { repeated Device devices = 1; }
 message RevokeDeviceRequest { string device_id = 1; }
+// Missions. Statuses: ready, blocked, working, needs_you, changes_requested,
+// claimed_done, done, failed, canceled (verifying is reserved). Trust:
+// claimed (said so), observed (the Runner saw the exit status or process),
+// verified (checks passed on the newest head), accepted (a person, at a gate).
+message ListMissionsRequest {}
+message ListMissionsResponse { repeated Mission missions = 1; }
+message GetMissionRequest {
+  string mission_id = 1;
+  // Also refresh the pull requests of live attempts (at most once a minute per
+  // repository); the result arrives as evidence on a later read.
+  bool refresh_evidence = 2;
+}
+message CreateMissionRequest { string request_key = 1; string title = 2; string brief = 3; }
+message UpdateMissionRequest {
+  string mission_id = 1;
+  // Idempotency: a retried change with the same id is not applied twice.
+  string operation_id = 2;
+  oneof change {
+    MissionEdit edit = 3;
+    MissionCancel cancel = 4;
+    GoalCreate add_goal = 5;
+    TaskCreate add_task = 6;
+    TaskEdit edit_task = 7;
+    TaskCancel cancel_task = 8;
+    TaskAssign assign = 9;
+    TaskReport report = 10;
+    GateDecision accept = 11;
+    GateDecision reject = 12;
+  }
+}
+message MissionEdit { string title = 1; string brief = 2; }
+message MissionCancel { string reason = 1; }
+message GoalCreate { string title = 1; }
+message TaskCreate { string goal_id = 1; string title = 2; string brief = 3; repeated string blocked_by = 4; }
+message TaskEdit { string task_id = 1; string title = 2; string brief = 3; }
+message TaskCancel { string task_id = 1; string reason = 2; }
+message TaskAssign {
+  string task_id = 1;
+  // An existing conversation (any of its sessions), or open a new one.
+  string session_id = 2;
+  OpenSessionRequest open = 3;
+  // Send the task's brief as the conversation's next message.
+  bool send_brief = 4;
+}
+message TaskReport { string task_id = 1; string summary = 2; }
+message GateDecision { string task_id = 1; string note = 2; }
+message Mission {
+  string id = 1; string title = 2; string brief = 3;
+  string process = 4; string process_digest = 5; int32 autonomy = 6;
+  int64 created_at_unix_millis = 7; int64 updated_at_unix_millis = 8;
+  bool canceled = 9; uint64 seq = 10;
+  repeated MissionGoal goals = 11;
+  repeated MissionTask tasks = 12;
+  // GetMission only: the log, newest first (at most 200).
+  repeated MissionEvent events = 13;
+  // The mission's log could not be read; it is listed, never written.
+  string error = 14;
+  // Events kept in the log that this Runner does not fold (unknown types or newer versions).
+  uint32 ignored = 15;
+  // UpdateMission: the change's result, e.g. the id of a created task.
+  string created_id = 16;
+  // UpdateMission with assign: the session the task went to.
+  string session_id = 17;
+}
+message MissionGoal { string id = 1; string title = 2; }
+message MissionTask {
+  string id = 1; string goal_id = 2; string title = 3; string brief = 4;
+  string status = 5;
+  // What backs the status; empty where it claims nothing.
+  string trust = 6;
+  // What the recorded evidence alone supports.
+  string evidence_trust = 7;
+  // One sentence: why this status, and what backs it.
+  string reason = 8;
+  // stale, failing, ci_failing, no_evidence.
+  repeated string flags = 9;
+  // The human gate waiting for a decision (awaiting acceptance), or empty.
+  string gate = 10;
+  MissionAttempt attempt = 11;
+  repeated MissionAttempt attempts = 12;
+  // Newest first.
+  repeated MissionEvidence evidence = 13;
+  string report = 14; int64 reported_at_unix_millis = 15;
+  // The note of the last decision at a gate.
+  string decision_note = 16;
+  repeated string blocked_by = 17;
+  int64 created_at_unix_millis = 18; int64 updated_at_unix_millis = 19;
+  // The snippet last sent to the current attempt's conversation, and what it chains to.
+  string last_snippet = 20; repeated string next_snippets = 21;
+}
+message MissionAttempt {
+  string id = 1; string conversation_id = 2;
+  // The conversation's latest session, to open it.
+  string session_id = 3;
+  string collection_id = 4;
+  int64 started_at_unix_millis = 5; int64 ended_at_unix_millis = 6;
+  // deleted, handoff or stopped, once ended.
+  string outcome = 7;
+  // running, waiting, idle, closed or missing.
+  string live = 8;
+  string live_detail = 9;
+  string title = 10;
+}
+message MissionEvidence {
+  string ref = 1;
+  // run, commit or pr.
+  string kind = 2;
+  string title = 3;
+  // pass, fail, pending or unknown.
+  string outcome = 4;
+  optional int32 exit_code = 5;
+  bool piped = 6;
+  string member = 7; string repository = 8; string head = 9;
+  int64 number = 10; string url = 11; string state = 12;
+  string collection_id = 13; string session_id = 14; string command_id = 15;
+  string output_path = 16; string detail = 17;
+  int64 at_unix_millis = 18;
+}
+message MissionEvent {
+  uint64 seq = 1; int64 at_unix_millis = 2; string type = 3; uint32 version = 4;
+  string subject = 5; string actor_kind = 6; string actor_role = 7; string conversation_id = 8;
+  string summary = 9;
+  // This Runner folds it; otherwise it is kept and shown raw.
+  bool known = 10;
+  repeated string evidence = 11;
+  string raw_json = 12;
+}
+message ListPromptHistoryRequest {
+  // Scope: one conversation, one workspace, or (both empty) every conversation.
+  string conversation_id = 1;
+  string collection_id = 2;
+  string search = 3;
+  uint32 limit = 4;
+}
+message PromptRecord {
+  string text = 1; string conversation_id = 2; string collection_id = 3; string session_id = 4;
+  int64 at_unix_millis = 5;
+  PromptSource source = 6;
+}
+message PromptHistory {
+  repeated PromptRecord prompts = 1;
+  // With conversation_id: the snippet last sent there and the chain it offers.
+  string last_snippet = 2;
+  repeated string next_snippets = 3;
+  // With collection_id: the workspace's last distinct snippets, newest first.
+  repeated string recent_snippets = 4;
+}

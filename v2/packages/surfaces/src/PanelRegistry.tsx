@@ -11,6 +11,7 @@ import { FileExplorer } from './FileExplorer';
 import { ProcessesPanel } from './ProcessesPanel';
 import { ActionsPanel } from './ActionsPanel';
 import { PreviewPanel } from './PreviewPanel';
+import { MissionsPanel } from './MissionsPanel';
 import { useRunner } from './RunnerContext';
 import { TelemetryPanel } from './TelemetryPanel';
 import { TerminalPanel } from './TerminalPanel';
@@ -76,6 +77,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   changes: { title: 'Changes', icon: 'branch', Component: ({ workspaceId, viewState, target, onShowSession }) => <ChangesPanel key={workspaceId} workspaceId={workspaceId} sessionId={target.collectionId === workspaceId ? target.sessionId : ''} onShowSession={onShowSession} viewState={viewState}/> },
   usage: { title: 'Usage & cost', icon: 'sliders', Component: ({ workspaceId }) => <TelemetryPanel workspaceId={workspaceId}/> },
   sessions: { title: 'Sessions', icon: 'history', Component: ({ workspaceId, target, onTarget }) => <ConversationList collectionId={workspaceId} target={target} onTarget={onTarget}/> },
+  missions: { title: 'Missions', icon: 'target', Component: MissionsPanel },
   processes: { title: 'Processes', icon: 'processes', Component: ({ workspaceId, onShowSession, onShowPanel }) => <ProcessesPanel workspaceId={workspaceId} onShowSession={onShowSession} onShowPanel={onShowPanel}/> },
   actions: { title: 'Actions', icon: 'play', Component: ({ workspaceId, viewState, onShowPanel }) => <ActionsPanel key={workspaceId} workspaceId={workspaceId} viewState={viewState} onShowPanel={onShowPanel}/> },
   preview: { title: 'Preview', icon: 'eye', Component: ({ workspaceId }) => <PreviewPanel key={workspaceId} workspaceId={workspaceId}/> },
