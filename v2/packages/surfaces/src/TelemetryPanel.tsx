@@ -8,14 +8,15 @@ const short=(n?:bigint)=>n===undefined?'—':new Intl.NumberFormat('en',{notatio
 const percentage=(n?:bigint,capacity?:bigint)=>n===undefined||!capacity||capacity<0n?undefined:Number(n)*100/Number(capacity);
 const percentLabel=(n?:number)=>n===undefined?'—':`${n>0&&n<0.1?'<0.1':n.toFixed(1).replace(/\.0$/,'')}%`;
 const labels:Record<string,string>={messages:'Messages',system_tools:'System tools',mcp_tools:'MCP tools',system_prompt:'System prompt',skills:'Skills',memory_files:'Memory files',mcp_instructions:'MCP server instructions',mcp_server_instructions:'MCP server instructions',autocompact_buffer:'Compaction reserve',free_space:'Free space',mcp_tools_deferred:'MCP tools',system_tools_deferred:'System tools'};
-const colors:Record<string,string>={messages:'#579cf4',system_tools:'#e99557',mcp_tools:'#46bba5',system_prompt:'#d3ae4b',skills:'#ab8cde',memory_files:'#b4a6c5',mcp_server_instructions:'#799fad'};
+// Chart series colours are theme tokens (chart-1 … chart-7), readable in light and dark.
+const colors:Record<string,string>={messages:'var(--chart-1)',system_tools:'var(--chart-2)',mcp_tools:'var(--chart-3)',system_prompt:'var(--chart-4)',skills:'var(--chart-5)',memory_files:'var(--chart-6)',mcp_server_instructions:'var(--chart-7)'};
 function ContextView({context:c,showAgent}:{context:ContextSnapshot;showAgent:boolean}){
  const percent=percentage(c.used,c.capacity);
  const used=c.categories.filter(row=>row.kind==='used'||row.included);
  const deferred=c.categories.filter(row=>row.kind==='deferred');
  const reserve=c.reserve??c.categories.find(row=>row.kind==='buffer')?.tokens;
  const free=c.used!==undefined&&c.capacity!==undefined?c.capacity-c.used-(reserve??0n):undefined;
- const rows=[...used.map(row=>({name:labels[row.name]||row.name.replaceAll('_',' '),tokens:row.tokens,details:row.details,color:colors[row.name]||'#9295ad'})),...(reserve!==undefined?[{name:'Compaction reserve',details:[],tokens:reserve,color:'#777984'}]:[]),...(free!==undefined&&free>=0n?[{name:'Free space',details:[],tokens:free,color:'#34353f'}]:[])];
+ const rows=[...used.map(row=>({name:labels[row.name]||row.name.replaceAll('_',' '),tokens:row.tokens,details:row.details,color:colors[row.name]||'var(--text-muted)'})),...(reserve!==undefined?[{name:'Compaction reserve',details:[],tokens:reserve,color:'var(--chart-muted)'}]:[]),...(free!==undefined&&free>=0n?[{name:'Free space',details:[],tokens:free,color:'var(--surface-strong)'}]:[])];
  // Provider categories are estimates. Scale only the visualization to the reported
  // used total; category counts remain unchanged and deferred tools stay outside it.
  const categoryTotal=used.reduce((sum,row)=>sum+Number(row.tokens??0n),0);
@@ -25,8 +26,8 @@ function ContextView({context:c,showAgent}:{context:ContextSnapshot;showAgent:bo
   {showAgent&&<h4>{c.agent==='root'?'Main agent':c.agent}</h4>}
   <div className="context-total"><strong>{percent===undefined?'Context usage':`${percentLabel(percent)} used`}</strong><span title={`${number(c.used)} / ${number(c.capacity)} tokens`}>{short(c.used)} <span>/ {short(c.capacity)}</span></span></div>
   <div className="context-meter" role="meter" aria-label="Context used" aria-valuemin={0} aria-valuemax={c.capacity===undefined?undefined:Number(c.capacity)} aria-valuenow={c.used===undefined?undefined:Number(c.used)} aria-valuetext={`${number(c.used)} of ${number(c.capacity)} tokens`}>
-   {used.length&&categoryTotal>0?used.map(row=><span key={row.name} title={`${labels[row.name]||row.name}: ${number(row.tokens)} tokens`} style={{width:`${usedPercent*Number(row.tokens??0n)/categoryTotal}%`,background:colors[row.name]||'#9295ad'}}/>):<span style={{width:`${usedPercent}%`,background:'#579cf4'}}/>}
-   <span title="Compaction reserve" style={{width:`${reservePercent}%`,background:'#777984'}}/>
+   {used.length&&categoryTotal>0?used.map(row=><span key={row.name} title={`${labels[row.name]||row.name}: ${number(row.tokens)} tokens`} style={{width:`${usedPercent*Number(row.tokens??0n)/categoryTotal}%`,background:colors[row.name]||'var(--text-muted)'}}/>):<span style={{width:`${usedPercent}%`,background:'var(--chart-1)'}}/>}
+   <span title="Compaction reserve" style={{width:`${reservePercent}%`,background:'var(--chart-muted)'}}/>
   </div>
   <div className="context-rows">{rows.map(row=><details className="context-category" key={row.name}><summary className="context-row"><span className="context-swatch" style={{background:row.color}}/><span>{row.name} <span className="context-chevron">›</span></span><span title={`${number(row.tokens)} tokens`}>{short(row.tokens)}</span><span>{percentLabel(percentage(row.tokens,c.capacity))}</span></summary><div className="context-details">{row.details?.length ? row.details.map((d,i)=><div key={i}><span>{d.name}</span><span title={`${number(d.tokens)} tokens`}>{short(d.tokens)}</span></div>) : <p>{row.name==='Free space'?'Window capacity minus used context and compaction reserve.':row.name==='Compaction reserve'?'Space reserved by the provider for compaction; it is not used context.':'The provider has not reported item-level detail for this category.'}</p>}</div></details>)}</div>
   {!used.length&&<p className="telemetry-note">Category breakdown not reported.</p>}

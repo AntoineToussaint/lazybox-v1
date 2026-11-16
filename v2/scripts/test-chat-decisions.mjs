@@ -128,7 +128,9 @@ try{
  const details=lines.locator('[data-tool-id=check] .tool-details');
  await expect(details.getByLabel('Command',{exact:false}).first()).toContainText('pnpm run check');
  await expect(details.getByLabel('Output')).toContainText('✓ 42 tests passed');
- assert.equal(await details.getByLabel('Output').getByText('✓ 42 tests passed',{exact:true}).evaluate(node=>getComputedStyle(node).color),'rgb(138, 212, 139)','ANSI green rendered');
+ // ANSI green is the theme's (token ansi-2), so it reads in light and dark alike.
+ const green=await details.getByLabel('Output').getByText('✓ 42 tests passed',{exact:true}).evaluate(node=>{const probe=document.createElement('i');probe.style.color='var(--ansi-2)';document.body.appendChild(probe);const want=getComputedStyle(probe).color;probe.remove();return [getComputedStyle(node).color,want];});
+ assert.equal(green[0],green[1],'ANSI green rendered');
  // Edits show their diff in place.
  // A few edits stay open with their changed lines inline, no click needed.
  await expect(lines.locator('[data-tool-id=edit-1]').getByLabel('Changed lines')).toHaveText('-const ttl = 60;\n+const ttl = 300;\n+const max = 1000;');

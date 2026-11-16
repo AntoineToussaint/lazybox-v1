@@ -85,6 +85,10 @@ type Config struct {
 	// selects <State>/actions.yaml; the Dev and Working launchers pass the
 	// person's own (~/.config/lazybox/actions.yaml), shared by both.
 	ActionsFile string `json:"actionsFile,omitempty"`
+	// ThemeDirectory is the user's themes folder for Settings → Appearance:
+	// .json and .toml files parsed on every ListThemes (internal/themes).
+	// Empty selects <State>/themes, so each environment has its own.
+	ThemeDirectory string `json:"themeDirectory,omitempty"`
 	// OutputBudget bounds both roots together; the oldest files go first.
 	// Zero selects 1 GiB.
 	OutputBudget    int64                    `json:"commandOutputBudget,omitempty"`
@@ -232,6 +236,9 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if cfg.ProcessFile == "" {
 		cfg.ProcessFile = filepath.Join(cfg.State, "process.yaml")
+	}
+	if cfg.ThemeDirectory == "" {
+		cfg.ThemeDirectory = filepath.Join(cfg.State, "themes")
 	}
 	if err := cfg.Processes.Validate(); err != nil {
 		return nil, err

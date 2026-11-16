@@ -57,7 +57,16 @@ export type NativeWebViews = {
 };
 /** A web page in a window of its own (a detached Web panel). */
 export type WebWindowTarget = { webId: string; url: string; collectionId: string };
+/** The UI zoom a native host applies to every window and keeps across launches. */
+export type ZoomHost = {
+  get(): Promise<number>;
+  set(level: number): Promise<number>;
+  /** Calls `listener` whenever the zoom changes (a menu shortcut, another window); returns the unsubscribe. */
+  subscribe(listener: (level: number) => void): () => void;
+};
 export type WorkspaceHost = AttentionHost & PowerHost & {
+  /** The UI zoom, where the host owns one (the desktop app). */
+  zoom?: ZoomHost;
   /** Opens a link in the person's browser (http, https and mailto only). */
   openLink?(url: string): Promise<void>;
   /** Native web views for the Web panel and Preview; without them both use an iframe. */
@@ -73,6 +82,8 @@ export type ViewStateStore = {
   root?: string;
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  /** Tells this host's other windows that an app-wide preference changed (they reread it). */
+  share?(key: string, value: string): void;
 };
 export type SurfaceHost = {
   saveTarget(target: SurfaceTarget): Promise<void>;

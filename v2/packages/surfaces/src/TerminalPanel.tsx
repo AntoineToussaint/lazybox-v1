@@ -6,6 +6,8 @@ import { Code, ConnectError, type RunnerClient } from '@lazybox/client-core';
 import type { Collection, TerminalStatus } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
+import { getAppearance, subscribeAppearance } from './appearance/apply';
+import { codeFont, terminalTheme } from './appearance/integrations';
 import { Icon } from './Icons';
 import './terminal.css';
 import { contextMenu, copyText, showMenuNotice } from './ContextMenu';
@@ -22,7 +24,6 @@ const listeners = new Set<() => void>();
  * one, otherwise (only when no particular shell was asked for) on a new one it starts. */
 export function requestTerminal(collectionId: string, terminalId = '') { requested.set(collectionId, terminalId); for (const listener of listeners) listener(); }
 
-const theme = { background: '#17181e', foreground: '#d4d5de', cursor: '#bdb1ed', cursorAccent: '#17181e', selectionBackground: '#3d3852', black: '#1d1e24', red: '#e08a8a', green: '#9fc79a', yellow: '#dcc58e', blue: '#8eaee0', magenta: '#bdb1ed', cyan: '#8fcbcf', white: '#d4d5de', brightBlack: '#6b6d7a', brightRed: '#efa3a3', brightGreen: '#b5dcb0', brightYellow: '#ead7a4', brightBlue: '#a9c3ef', brightMagenta: '#d2c8f5', brightCyan: '#a7dde0', brightWhite: '#f1f1f6' };
 const encoder = new TextEncoder();
 const inputLimit = 32 << 10;
 
@@ -142,9 +143,12 @@ function TerminalView({ api, terminal, focusRef, onSize, onError, onCleanExit, w
   useEffect(() => {
     const element = host.current; if (!element) return;
     // A right-click keeps the selection for the Lazybox menu instead of selecting a word.
-    const view = new Terminal({ theme, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, allowProposedApi: false, rightClickSelectsWord: false });
+    const font = codeFont(getAppearance());
+    const view = new Terminal({ theme: terminalTheme(getAppearance()), fontFamily: font.family, fontSize: font.size, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, allowProposedApi: false, rightClickSelectsWord: false });
     xterm.current = view;
     const fit = new FitAddon(); view.loadAddon(fit); view.open(element);
+    // The theme and code font follow Settings → Appearance live.
+    const unfollow = subscribeAppearance(() => { const next = getAppearance(), f = codeFont(next); view.options.theme = terminalTheme(next); view.options.fontFamily = f.family; view.options.fontSize = f.size; try { fit.fit(); } catch { /* not laid out */ } });
     const focus = () => view.focus(); focusRef.current = focus;
     const control = new AbortController(), signal = control.signal;
     let done = false;
@@ -201,7 +205,7 @@ function TerminalView({ api, terminal, focusRef, onSize, onError, onCleanExit, w
         await new Promise<void>(resolve => { const timer = setTimeout(resolve, 1000); signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true }); });
       }
     })();
-    return () => { if (focusRef.current === focus) focusRef.current = null; control.abort(); observer.disconnect(); input.dispose(); binary.dispose(); view.dispose(); };
+    return () => { unfollow(); if (focusRef.current === focus) focusRef.current = null; control.abort(); observer.disconnect(); input.dispose(); binary.dispose(); view.dispose(); };
   }, [api, id]);
   return <div className="terminal-view">
     <div ref={host} className="terminal-host" data-testid="terminal" data-terminal-id={id} onContextMenu={contextMenu('terminal', (): MenuItem[] => {

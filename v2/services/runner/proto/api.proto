@@ -11,6 +11,13 @@ service RunnerService {
   rpc GetRunnerSettings(InfoRequest) returns (RunnerSettings);
   rpc SaveRunnerSettings(RunnerSettings) returns (RunnerSettings);
   rpc SetModelPrice(SetModelPriceRequest) returns (RunnerSettings);
+  // Owner only. The user's themes folder for Settings → Appearance: each .json
+  // or .toml file parsed to JSON, read on every call so edits apply without a
+  // restart. The client validates each document against its token catalogue.
+  rpc ListThemes(ListThemesRequest) returns (ThemeFolder);
+  // Owner only. Creates a theme file in that folder; never replaces an
+  // existing one.
+  rpc CreateTheme(CreateThemeRequest) returns (CreateThemeResponse);
   rpc Info(InfoRequest) returns (InfoResponse);
   rpc GetTelemetry(TelemetryRequest) returns (TelemetryReport);
   rpc RenameCollection(RenameCollectionRequest) returns (CollectionResponse);
@@ -252,6 +259,40 @@ message RunnerSettings { uint64 revision = 1; string naming = 2; string permissi
   repeated string rotation_excluded_profile_ids = 10;
 }
 message SetModelPriceRequest { uint64 revision = 1; ModelPrice price = 2; bool remove = 3; }
+message ListThemesRequest {}
+// One file in the themes folder.
+message ThemeFile {
+  // The file name, extension included.
+  string name = 1;
+  // "json" or "toml".
+  string format = 2;
+  // The parsed document as compact JSON; empty when it cannot be parsed.
+  string json = 3;
+  // Why the file cannot be used: a parse error with its line (and column when
+  // known), or a file too large to read.
+  string error = 4;
+  int64 modified_unix_millis = 5;
+}
+message ThemeFolder {
+  string directory = 1;
+  // Sorted by name; at most 64.
+  repeated ThemeFile files = 2;
+  // Changes whenever any file is added, removed or edited, so a client polling
+  // ListThemes reapplies only on a change.
+  string revision = 3;
+}
+message CreateThemeRequest {
+  // The base name, without extension: letters, digits, space, '.', '_', '-'.
+  string name = 1;
+  // The theme as TOML.
+  string content = 2;
+}
+message CreateThemeResponse {
+  ThemeFolder folder = 1;
+  // The created file's name and absolute path.
+  string file = 2;
+  string path = 3;
+}
 message RenameCollectionRequest { string collection_id = 1; string name = 2; }
 message TelemetryRequest { string workspace = 1; string execution = 2; string conversation = 3; }
 message TelemetryScope { string workspace = 1; string conversation = 2; string execution = 3; string profile = 4; string provider = 5; string attempt = 6; }

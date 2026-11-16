@@ -220,7 +220,8 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         CapabilityBuilder::new("local-runner")
             .webviews(APP_WEBVIEWS)
             .permission("core:default")
-            // The zoom hotkeys (Cmd+= / Cmd+- / Cmd+0) set the webview zoom.
+            // View → Zoom In / Zoom Out / Actual Size (Cmd+= / Cmd+- / Cmd+0)
+            // and Settings → Appearance set every window's webview zoom.
             .permission("core:webview:allow-set-webview-zoom")
             // Context menus: Reveal in Finder for a workspace file.
             .permission("opener:allow-reveal-item-in-dir")
@@ -231,6 +232,9 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             ),
     )?;
     let views = crate::viewstate::Repository::open(&app.path().app_local_data_dir()?, &authority)?;
+    app.manage(crate::appearance::Zoom::open(
+        &app.path().app_local_data_dir()?,
+    ));
     app.manage(Host {
         connection: Mutex::new(connection),
         reload_endpoint: Some(endpoint),
@@ -389,8 +393,6 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     let window = match WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         // Route file drops to the shared chat attachment flow (HTML5 File API).
         .disable_drag_drop_handler()
-        // Cmd+= / Cmd+- / Cmd+0 zoom the page, like any Mac app.
-        .zoom_hotkeys_enabled(true)
         .title(format!("{name} — {kind}"))
         .visible(false)
         .inner_size(placement.width, placement.height)
@@ -405,6 +407,10 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     };
     window
         .set_position(tauri::PhysicalPosition::new(placement.x, placement.y))
+        .map_err(|e| e.to_string())?;
+    // Before it shows: a new window opens at the zoom every other one has.
+    window
+        .set_zoom(app.state::<crate::appearance::Zoom>().level())
         .map_err(|e| e.to_string())?;
     if surface.maximized {
         window.maximize().map_err(|e| e.to_string())?;
@@ -671,6 +677,18 @@ fn build_menu(
         ],
     )?;
     menu.append(&surfaces)?;
+    // The UI zoom: one level for every window, kept across launches.
+    let zoom = Submenu::with_items(
+        app,
+        "Zoom",
+        true,
+        &[
+            &MenuItem::with_id(app, "zoom-in", "Zoom In", true, Some("CmdOrCtrl+="))?,
+            &MenuItem::with_id(app, "zoom-out", "Zoom Out", true, Some("CmdOrCtrl+-"))?,
+            &MenuItem::with_id(app, "zoom-reset", "Actual Size", true, Some("CmdOrCtrl+0"))?,
+        ],
+    )?;
+    menu.append(&zoom)?;
     for section in ACTION_SECTIONS {
         let items: Vec<&ActionMenuItem> = actions
             .iter()
@@ -891,6 +909,16 @@ pub fn menu_event(app: &tauri::AppHandle, id: &str) {
     let result = match id {
         "reopen-agent" => open(app, "main"),
         "reopen-closed" => reopen_closed(app.clone()),
+        "zoom-in" | "zoom-out" | "zoom-reset" => {
+            let level = app.state::<crate::appearance::Zoom>().level();
+            let direction = match id {
+                "zoom-in" => 1,
+                "zoom-out" => -1,
+                _ => 0,
+            };
+            crate::appearance::apply_zoom(app, crate::appearance::step(level, direction))
+                .map(|_| ())
+        }
         "reload-view" => app
             .windows()
             .values()

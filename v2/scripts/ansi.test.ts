@@ -14,16 +14,16 @@ test('truecolor, reset and plain text', () => {
 test('16 and 256 colours, bold and its reset', () => {
   const [line] = parseAnsi(`${E}[1;31merror${E}[22m plain-red ${E}[38;5;214mamber${E}[39m`);
   assert.equal(line[0].style.bold, true);
-  assert.equal(line[0].style.fg, '#f0747a');
+  assert.equal(line[0].style.fg, 'var(--ansi-1)');
   assert.equal(line[1].style.bold, undefined);
-  assert.equal(line[1].style.fg, '#f0747a');
+  assert.equal(line[1].style.fg, 'var(--ansi-1)');
   assert.equal(line[2].style.fg, 'rgb(255,175,0)');
   assert.equal(line[3]?.style.fg, undefined);
 });
 
 test('styles carry across lines until reset', () => {
   const lines = parseAnsi(`${E}[32mone\ntwo${E}[0m\nthree`);
-  assert.equal(lines[1][0].style.fg, '#8ad48b');
+  assert.equal(lines[1][0].style.fg, 'var(--ansi-2)');
   assert.deepEqual(lines[2][0].style, {});
 });
 

@@ -9,8 +9,11 @@ import { memo, type CSSProperties, type ReactNode } from 'react';
 type Style = { fg?: string; bg?: string; bold?: boolean; dim?: boolean; italic?: boolean; underline?: boolean; inverse?: boolean };
 export type Segment = { text: string; style: Style };
 
-const base16 = ['#3b3d48', '#f0747a', '#8ad48b', '#e9c46a', '#6fa8f5', '#c792ea', '#5fd3dd', '#d6d8e0'];
-const bright16 = ['#7d8494', '#ff9aa0', '#a8eea8', '#ffe08a', '#93c1ff', '#e0b3ff', '#8ff0f5', '#ffffff'];
+// The 16 named colours come from the theme (tokens ansi-0 … ansi-15), so
+// output stays readable in light themes; 256-colour and truecolour values are
+// the program's own and are kept.
+const base16 = Array.from({ length: 8 }, (_, i) => `var(--ansi-${i})`);
+const bright16 = Array.from({ length: 8 }, (_, i) => `var(--ansi-${i + 8})`);
 
 function color256(n: number): string | undefined {
   if (n < 0 || n > 255) return undefined;
@@ -88,7 +91,7 @@ export function stripAnsi(input: string): string {
 
 const css = (style: Style): CSSProperties | undefined => {
   if (!Object.keys(style).length) return undefined;
-  const fg = style.inverse ? style.bg || 'var(--canvas, #1c1d23)' : style.fg, bg = style.inverse ? style.fg || '#d6d8e0' : style.bg;
+  const fg = style.inverse ? style.bg || 'var(--code-bg)' : style.fg, bg = style.inverse ? style.fg || 'var(--code-text)' : style.bg;
   return { color: fg, background: bg, fontWeight: style.bold ? 600 : undefined, opacity: style.dim ? 0.65 : undefined, fontStyle: style.italic ? 'italic' : undefined, textDecoration: style.underline ? 'underline' : undefined };
 };
 

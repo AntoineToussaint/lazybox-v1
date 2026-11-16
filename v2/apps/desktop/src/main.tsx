@@ -4,8 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, ArtifactWindow, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
-import type { AttentionDestination, AttentionHost, NativeWebViews, SurfaceHost, SurfaceTarget, ViewStateStore, WebViewEvent, WorkspaceHost } from '@lazybox/platform';
+import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
+import type { AttentionDestination, AttentionHost, NativeWebViews, SurfaceHost, SurfaceTarget, ViewStateStore, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact' | 'web'; notice: string; viewState: Record<string,string> };
 const publishMenu = (items: NativeMenuItem[]) => invoke<void>('set_action_menu', { items });
@@ -51,6 +51,16 @@ const desktopWebViews: NativeWebViews = {
   },
 };
 const openLink = (url: string) => invoke<void>('open_link', { url });
+/** The UI zoom is the host's: one level for every window, kept across launches (View → Zoom). */
+const desktopZoom: ZoomHost = {
+  get: () => invoke<number>('ui_zoom'),
+  set: level => invoke<number>('set_ui_zoom', { level }),
+  subscribe(listener) {
+    let disposed = false, stop: (() => void) | undefined;
+    void listen<number>('ui-zoom', event => listener(event.payload)).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+    return () => { disposed = true; stop?.(); };
+  },
+};
 
 type Renew = () => Promise<{ baseUrl: string; token: string } | undefined>;
 function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstrap; followRestart(): void; renew: Renew }) {
@@ -70,12 +80,15 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
       retained.current.set(key, value);
       pendingWrites.current = pendingWrites.current.then(() => invoke<void>('save_view_state', { key, value })).catch(error => setError(`Could not save this window: ${String(error)}`));
     },
+    // Other windows reread an app-wide preference (appearance, shortcuts) once it is saved.
+    share: (key, value) => { pendingWrites.current = pendingWrites.current.then(() => invoke<void>('share_preference', { key, value })).catch(() => {}); },
   }), [bootstrap.viewKey, bootstrap.viewScope, bootstrap.viewRoot]);
   const saveTarget = useCallback((target: SurfaceTarget) => host.saveTarget(target), [host]);
   // The main window alone notifies and owns the dock badge; every other window shows the inbox only.
   const notifies = bootstrap.kind === 'workspace' && !bootstrap.fixedWorkspaceId;
   const workspaceHost = useMemo<WorkspaceHost>(() => ({
     ...(notifies ? desktopAttention : {}),
+    zoom: desktopZoom,
     reconnect: () => invoke<void>('reconnect_view'),
     // Arm the host to adopt the restarted Runner's locator (possibly a new port)
     // and reread it promptly; the window keeps its state, nothing reloads.
@@ -102,6 +115,15 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
   }), [followRestart, notifies]);
   const saveSelection = useCallback((target: { collectionId: string; sessionId: string; commandId: string }) => host.saveTarget({ ...target, commandsOpen: false }), [host]);
   const openViewer = useCallback((sessionId: string, commandId: string) => invoke<void>('open_console', { sessionId, commandId }), []);
+  // A preference another window saved: keep its value and let this window's views reread it.
+  useEffect(() => {
+    let disposed = false; let stop: (() => void) | undefined;
+    void listen<{ key: string; value: string }>('preference-changed', event => {
+      retained.current.set(event.payload.key, event.payload.value);
+      window.dispatchEvent(new CustomEvent(PREFERENCE_EVENT, { detail: { key: event.payload.key } }));
+    }).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+    return () => { disposed = true; stop?.(); };
+  }, []);
   useEffect(() => {
     let disposed = false; let stop: (() => void) | undefined;
     void listen<string>('desktop-error', event => setError(event.payload)).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });

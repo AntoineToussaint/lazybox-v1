@@ -1,3 +1,4 @@
+import './appearance/apply';
 export { AgentWindow, type AgentWindowProps, type RunnerConnection } from './AgentWindow';
 export { ChatPanel } from './AgentWindow';
 export { RunnerProvider, useRunner } from './RunnerContext';
@@ -17,3 +18,7 @@ export { actionsFor, actionMenuItems, runAction, useAction, useActions, actionDe
 export { WebWindow } from './WebWindow';
 export { installLinkRouting, openInViewer } from './web-links';
 export { userCommands, useUserCommands, type UserCommand } from './user-commands';
+export { useAppearanceSync, useAppearance } from './appearance/useAppearance';
+export { AppearanceSync } from './appearance/AppearanceSync';
+export { AppearanceSettings } from './AppearanceSettings';
+export { PREFERENCE_EVENT } from './view-state';

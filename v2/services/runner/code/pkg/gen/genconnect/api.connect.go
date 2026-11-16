@@ -54,6 +54,12 @@ const (
 	// RunnerServiceSetModelPriceProcedure is the fully-qualified name of the RunnerService's
 	// SetModelPrice RPC.
 	RunnerServiceSetModelPriceProcedure = "/lazybox.bench.v1.RunnerService/SetModelPrice"
+	// RunnerServiceListThemesProcedure is the fully-qualified name of the RunnerService's ListThemes
+	// RPC.
+	RunnerServiceListThemesProcedure = "/lazybox.bench.v1.RunnerService/ListThemes"
+	// RunnerServiceCreateThemeProcedure is the fully-qualified name of the RunnerService's CreateTheme
+	// RPC.
+	RunnerServiceCreateThemeProcedure = "/lazybox.bench.v1.RunnerService/CreateTheme"
 	// RunnerServiceInfoProcedure is the fully-qualified name of the RunnerService's Info RPC.
 	RunnerServiceInfoProcedure = "/lazybox.bench.v1.RunnerService/Info"
 	// RunnerServiceGetTelemetryProcedure is the fully-qualified name of the RunnerService's
@@ -445,6 +451,13 @@ type RunnerServiceClient interface {
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
 	SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error)
+	// Owner only. The user's themes folder for Settings → Appearance: each .json
+	// or .toml file parsed to JSON, read on every call so edits apply without a
+	// restart. The client validates each document against its token catalogue.
+	ListThemes(context.Context, *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error)
+	// Owner only. Creates a theme file in that folder; never replaces an
+	// existing one.
+	CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error)
 	Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error)
 	GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error)
 	RenameCollection(context.Context, *connect.Request[gen.RenameCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
@@ -723,6 +736,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceSetModelPriceProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("SetModelPrice")),
+			connect.WithClientOptions(opts...),
+		),
+		listThemes: connect.NewClient[gen.ListThemesRequest, gen.ThemeFolder](
+			httpClient,
+			baseURL+RunnerServiceListThemesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListThemes")),
+			connect.WithClientOptions(opts...),
+		),
+		createTheme: connect.NewClient[gen.CreateThemeRequest, gen.CreateThemeResponse](
+			httpClient,
+			baseURL+RunnerServiceCreateThemeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreateTheme")),
 			connect.WithClientOptions(opts...),
 		),
 		info: connect.NewClient[gen.InfoRequest, gen.InfoResponse](
@@ -1505,6 +1530,8 @@ type runnerServiceClient struct {
 	getRunnerSettings            *connect.Client[gen.InfoRequest, gen.RunnerSettings]
 	saveRunnerSettings           *connect.Client[gen.RunnerSettings, gen.RunnerSettings]
 	setModelPrice                *connect.Client[gen.SetModelPriceRequest, gen.RunnerSettings]
+	listThemes                   *connect.Client[gen.ListThemesRequest, gen.ThemeFolder]
+	createTheme                  *connect.Client[gen.CreateThemeRequest, gen.CreateThemeResponse]
 	info                         *connect.Client[gen.InfoRequest, gen.InfoResponse]
 	getTelemetry                 *connect.Client[gen.TelemetryRequest, gen.TelemetryReport]
 	renameCollection             *connect.Client[gen.RenameCollectionRequest, gen.CollectionResponse]
@@ -1668,6 +1695,16 @@ func (c *runnerServiceClient) SaveRunnerSettings(ctx context.Context, req *conne
 // SetModelPrice calls lazybox.bench.v1.RunnerService.SetModelPrice.
 func (c *runnerServiceClient) SetModelPrice(ctx context.Context, req *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error) {
 	return c.setModelPrice.CallUnary(ctx, req)
+}
+
+// ListThemes calls lazybox.bench.v1.RunnerService.ListThemes.
+func (c *runnerServiceClient) ListThemes(ctx context.Context, req *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error) {
+	return c.listThemes.CallUnary(ctx, req)
+}
+
+// CreateTheme calls lazybox.bench.v1.RunnerService.CreateTheme.
+func (c *runnerServiceClient) CreateTheme(ctx context.Context, req *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error) {
+	return c.createTheme.CallUnary(ctx, req)
 }
 
 // Info calls lazybox.bench.v1.RunnerService.Info.
@@ -2319,6 +2356,13 @@ type RunnerServiceHandler interface {
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
 	SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error)
+	// Owner only. The user's themes folder for Settings → Appearance: each .json
+	// or .toml file parsed to JSON, read on every call so edits apply without a
+	// restart. The client validates each document against its token catalogue.
+	ListThemes(context.Context, *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error)
+	// Owner only. Creates a theme file in that folder; never replaces an
+	// existing one.
+	CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error)
 	Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error)
 	GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error)
 	RenameCollection(context.Context, *connect.Request[gen.RenameCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
@@ -2593,6 +2637,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceSetModelPriceProcedure,
 		svc.SetModelPrice,
 		connect.WithSchema(runnerServiceMethods.ByName("SetModelPrice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListThemesHandler := connect.NewUnaryHandler(
+		RunnerServiceListThemesProcedure,
+		svc.ListThemes,
+		connect.WithSchema(runnerServiceMethods.ByName("ListThemes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreateThemeHandler := connect.NewUnaryHandler(
+		RunnerServiceCreateThemeProcedure,
+		svc.CreateTheme,
+		connect.WithSchema(runnerServiceMethods.ByName("CreateTheme")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceInfoHandler := connect.NewUnaryHandler(
@@ -3379,6 +3435,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSaveRunnerSettingsHandler.ServeHTTP(w, r)
 		case RunnerServiceSetModelPriceProcedure:
 			runnerServiceSetModelPriceHandler.ServeHTTP(w, r)
+		case RunnerServiceListThemesProcedure:
+			runnerServiceListThemesHandler.ServeHTTP(w, r)
+		case RunnerServiceCreateThemeProcedure:
+			runnerServiceCreateThemeHandler.ServeHTTP(w, r)
 		case RunnerServiceInfoProcedure:
 			runnerServiceInfoHandler.ServeHTTP(w, r)
 		case RunnerServiceGetTelemetryProcedure:
@@ -3670,6 +3730,14 @@ func (UnimplementedRunnerServiceHandler) SaveRunnerSettings(context.Context, *co
 
 func (UnimplementedRunnerServiceHandler) SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetModelPrice is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListThemes(context.Context, *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListThemes is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreateTheme is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error) {

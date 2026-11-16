@@ -106,6 +106,13 @@ private-file replacement and revision checks prevent a stale window from silentl
 overwriting newer preferences. Invalid settings fail before publication. This store
 is independent of provider auth and native CLI settings.
 
+`ListThemes` and `CreateTheme` serve the user's theme files from the Runner's
+themes folder (`<state>/themes`, or `themeDirectory`): each `.toml`/`.json`
+file parsed to JSON, or its parse error with the line, plus a revision that
+changes with any edit. The client validates them against its token catalogue
+and polls while a user theme is in use, so edits reload live. `CreateTheme`
+never replaces a file. Both are owner-only. See [Appearance](APPEARANCE.md).
+
 Missions live under `<Runner state>/work`: one append-only, fsynced JSONL event
 log per mission (`missions/<id>.jsonl`; a torn last line is dropped on open, a
 damaged log is listed with its error and never written) and the prompt log

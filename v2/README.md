@@ -44,6 +44,7 @@ full MVP remain separate roadmap milestones.
 | [Subscriptions and continuation](SUBSCRIPTIONS.md) | Account profiles, isolated credentials, native resume, and checkpoint handoff. |
 | [Session hosts](SESSION_HOSTS.md) | Agents and their commands outlive the Runner: re-attachment across restarts, delivery contract, upgrades, evidence. |
 | [Workspaces](WORKSPACES.md) | Runner-owned groups of worktrees across repositories, provisioning, attachment, and ownership. |
+| [Appearance](APPEARANCE.md) | Themes (light/dark/system, built-in and user files), accent, colour overrides, fonts, chat text, density, zoom, minimum contrast; design tokens for developers. |
 | [Remote control](REMOTE.md) | Pairing a phone by QR code, the device gateway over Tailscale, device grants, threat model and what is deferred. |
 | [Power users](POWER.md) | The `lazybox` CLI at parity with the app, user actions and hooks in `~/.config/lazybox/actions.yaml`, hook credentials, `lazybox open`/`shot`. |
 | [Several Runners](MULTI_RUNNER.md) | Dev, Working and remote Runners in one window: design, and the first step shipped in the CLI. |

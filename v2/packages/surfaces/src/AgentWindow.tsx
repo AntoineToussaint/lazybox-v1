@@ -1,3 +1,4 @@
+import { AppearanceSync } from './appearance/AppearanceSync';
 import { LeaderMenu } from './LeaderMenu';
 import { DetachedCommands } from './DetachedCommands';
 import { SnippetPicker } from './SnippetPicker';
@@ -79,11 +80,12 @@ export type AgentWindowProps = {
 
 /** One independent view of a Runner session. Unmounting disconnects readers,
  * never execution. Changing the connection resets the view and its readers. */
+
 export function AgentWindow(props: AgentWindowProps) {
   // A detached chat is visually embedded but still owns its window's keyboard
   // dispatcher. Workspace-hosted panels use their Workspace's dispatcher.
   const keyboardHint = useKeyboardNavigation(props.viewState);
-  return <RunnerProvider connection={props.connection}>
+  return <RunnerProvider connection={props.connection}><AppearanceSync store={props.viewState}/>
     <AttentionScope root={props.viewState?.root}>
       <ChatPanel {...props} keyboardHint={keyboardHint}/>
       <DetachedCommands viewState={props.viewState} collectionId={props.collectionId || ''} sessionId={props.initialSessionId || ''} onFocusMain={props.onFocusMain}/>

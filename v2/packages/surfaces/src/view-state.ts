@@ -42,8 +42,15 @@ export function readPreference(store: ViewStateStore | undefined, name: string):
   if (!store) return localStorage.getItem(`lazybox:${name}`);
   return store.getItem(preferenceKey(store, name)) ?? store.getItem(`lazybox:${name}`);
 }
+/** Event every window gets when an app-wide preference changes, in it or in another window. */
+export const PREFERENCE_EVENT = 'lazybox-preference';
 export function writePreference(store: ViewStateStore | undefined, name: string, value: string): void {
-  if (store) store.setItem(preferenceKey(store, name), value); else localStorage.setItem(`lazybox:${name}`, value);
+  if (store) {
+    const key = preferenceKey(store, name);
+    store.setItem(key, value);
+    store.share?.(key, value);
+  } else localStorage.setItem(`lazybox:${name}`, value);
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(PREFERENCE_EVENT, { detail: { name } }));
 }
 
 export type LaunchChoices = { provider: string; profile: string; model: string; gateway: string };

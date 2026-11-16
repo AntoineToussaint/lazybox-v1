@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import * as monaco from 'monaco-editor';
 import './monaco-languages';
+import { getAppearance, subscribeAppearance } from './appearance/apply';
+import { codeFont, monacoTheme } from './appearance/integrations';
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import JsonWorker from 'monaco-editor/language/json/json.worker.js?worker';
 
@@ -9,9 +11,11 @@ import CssWorker from 'monaco-editor/language/css/css.worker.js?worker';
 import HtmlWorker from 'monaco-editor/language/html/html.worker.js?worker';
 
 globalThis.MonacoEnvironment = { getWorker: (_id, label) => label === 'json' ? new JsonWorker() : ['typescript','javascript'].includes(label) ? new TsWorker() : ['css','scss','less'].includes(label) ? new CssWorker() : ['html','handlebars','razor'].includes(label) ? new HtmlWorker() : new EditorWorker() };
-monaco.editor.defineTheme('lazybox', { base: 'vs-dark', inherit: true, rules: [], colors: { 'editor.background':'#1b1c22', 'editorLineNumber.foreground':'#666976', 'editor.lineHighlightBackground':'#252630', 'editor.selectionBackground':'#50496a',
- // Monaco keeps its own context menu: it reads like Lazybox's.
- 'menu.background':'#24252c', 'menu.foreground':'#dbe1e8', 'menu.border':'#3b3c46', 'menu.selectionBackground':'#363846', 'menu.selectionForeground':'#ffffff', 'menu.separatorBackground':'#383943' } });
+// The editor's theme and font come from Settings → Appearance and follow it live.
+const editorFont=()=>{const f=codeFont(getAppearance()),size=Math.round(13*f.size/12);return {fontFamily:f.family,fontSize:size,lineHeight:Math.round(size*1.6),fontLigatures:f.ligatures};};
+const paintEditors=()=>{monaco.editor.defineTheme('lazybox',monacoTheme(getAppearance()));monaco.editor.setTheme('lazybox');};
+paintEditors();
+subscribeAppearance(paintEditors);
 
 /** Replace a model's text as one undoable edit, keeping the cursor where it can
  * be: a file reloaded from disk is not a new document. */
@@ -71,8 +75,9 @@ export default function CodeEditor({path,value,readOnly,line,vim=false,modelKey,
  useEffect(()=>{
   const {model,release}=acquireModel(modelKey,path,value);
   if(model.getValue()!==value)replaceText(model,value);
-  const editor=monaco.editor.create(container.current!,{model,theme:'lazybox',readOnly,automaticLayout:true,minimap:{enabled:false},fontSize:13,lineHeight:21,padding:{top:14,bottom:14},scrollBeyondLastLine:false,wordWrap:wrapFor(path),wrappingIndent:'same',renderLineHighlight:'line',tabSize:2,ariaLabel:'File source editor',fixedOverflowWidgets:true});
+  const editor=monaco.editor.create(container.current!,{model,theme:'lazybox',readOnly,automaticLayout:true,minimap:{enabled:false},...editorFont(),padding:{top:14,bottom:14},scrollBeyondLastLine:false,wordWrap:wrapFor(path),wrappingIndent:'same',renderLineHighlight:'line',tabSize:2,ariaLabel:'File source editor',fixedOverflowWidgets:true});
   instance.current=editor;
+  const unfollow=subscribeAppearance(()=>editor.updateOptions(editorFont()));
   const view=modelKey&&viewKey?modelKey+'|'+viewKey:'';
   const subscription=editor.onDidChangeModelContent(()=>change.current(editor.getValue()));
   // An action, not addCommand: Monaco routes addCommand to the newest editor
@@ -85,7 +90,7 @@ export default function CodeEditor({path,value,readOnly,line,vim=false,modelKey,
   const remembered=view?viewStates.get(view):undefined;
   if(remembered)editor.restoreViewState(remembered);
   if(line){editor.setPosition({lineNumber:line,column:1});editor.revealLineInCenter(line);}
-  return()=>{if(view){const state=editor.saveViewState();if(state)viewStates.set(view,state);}subscription.dispose();saving.dispose();wrapping.dispose();window.removeEventListener(wrapEvent,applyWrap);focus.dispose();editor.dispose();release();instance.current=null;};
+  return()=>{unfollow();if(view){const state=editor.saveViewState();if(state)viewStates.set(view,state);}subscription.dispose();saving.dispose();wrapping.dispose();window.removeEventListener(wrapEvent,applyWrap);focus.dispose();editor.dispose();release();instance.current=null;};
  },[path,modelKey,viewKey]);
  useEffect(()=>{
   const editor=instance.current;if(!editor||!reveal)return;

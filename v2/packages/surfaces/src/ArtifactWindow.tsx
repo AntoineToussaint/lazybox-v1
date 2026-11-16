@@ -1,3 +1,4 @@
+import { AppearanceSync } from './appearance/AppearanceSync';
 import { useEffect, useState } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import { ArtifactPage } from './ArtifactPage';
@@ -8,8 +9,9 @@ import './artifacts.css';
  * An artifact in its own window (browser or native): the same page as in the
  * Artifacts panel, following new versions on its own. Closing it changes nothing.
  */
+
 export function ArtifactWindow({ connection, collectionId, artifactId }: { connection: RunnerConnection; collectionId: string; artifactId: string }) {
-  return <RunnerProvider connection={connection}><div className="artifact-window workspace-shell"><StandalonePage collectionId={collectionId} artifactId={artifactId}/></div></RunnerProvider>;
+  return <RunnerProvider connection={connection}><AppearanceSync/><div className="artifact-window workspace-shell"><StandalonePage collectionId={collectionId} artifactId={artifactId}/></div></RunnerProvider>;
 }
 
 function StandalonePage({ collectionId, artifactId }: { collectionId: string; artifactId: string }) {

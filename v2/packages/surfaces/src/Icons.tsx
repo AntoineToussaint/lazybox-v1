@@ -82,6 +82,9 @@ const paths: Record<string, string[]> = {
   globe: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3'],
   lock: ['M6 11h12v10H6z', 'M9 11V8a3 3 0 0 1 6 0v3'],
   unlock: ['M6 11h12v10H6z', 'M9 11V8a3 3 0 0 1 5.8-1'],
+  palette: ['M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5-1.3-1.7-1.3-3 0-1.1.9-2 2-2H17a4 4 0 0 0 4-4c0-4-4-7-9-7z', 'M7.5 11.5h.01', 'M10 7.5h.01', 'M15 7.5h.01'],
+  contrast: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 3v18'],
+  text: ['M5 6V4h14v2', 'M12 4v16', 'M9 20h6'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;

@@ -124,6 +124,12 @@ export async function startRunnerFixture() {
   const wireTurn=t=>{const members=[...new Set(t.files.map(f=>f.member).concat(t.members||['api']))];return {turn:t.turn,operationId:t.operationId,prompt:t.prompt||'',startedAtUnixMillis:String(Date.now()-60000),endedAtUnixMillis:t.ended?String(Date.now()-30000):'0',files:t.files.length,additions:t.files.reduce((n,f)=>n+(f.additions||0),0),deletions:t.files.reduce((n,f)=>n+(f.deletions||0),0),before:members.map(member=>({member,commit:'c'.repeat(40),branch:'lazybox/'+member,skipped:[],skippedCount:t.skipped?.[member]||0,error:''}))};};
   const turnRepositories=files=>{const byMember=new Map();for(const f of files){if(!byMember.has(f.member))byMember.set(f.member,[]);byMember.get(f.member).push({path:f.path,originalPath:f.originalPath||'',status:f.status,additions:f.additions||0,deletions:f.deletions||0,binary:!!f.binary});}return [...byMember].map(([member,files])=>({member,files}));};
   const flip={A:'D',D:'A',M:'M',R:'R'};
+  // The user's themes folder as ListThemes reports it. Explicitly fake: no
+  // files and no TOML parser behind it, so a test sets a file's json (or
+  // error) itself. The revision is derived from the files, so it changes on
+  // every mutation, the test's own included.
+  const themeFolder={directory:'/fixture/state/themes',files:[]};
+  const themeReply=()=>({directory:themeFolder.directory,files:themeFolder.files,revision:createHash('sha256').update(JSON.stringify(themeFolder.files)).digest('hex').slice(0,16)});
   let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:'',rotationExcludedProfileIds:[]};
   // The fake Runner process. RestartRunner answers, then the "process" is down
   // for restartMs (every RPC fails as unavailable) before a new instance serves.
@@ -331,6 +337,13 @@ actions:
         if(body.revision!==runnerSettings.revision)return error('aborted','Settings changed');
         mutations.push({method,body});runnerSettings.prices=runnerSettings.prices.filter(p=>p.provider!==body.price.provider||p.model!==body.price.model);
         if(!body.remove)runnerSettings.prices.push({...body.price,version:'custom-fixture',custom:true});runnerSettings.revision=String(Number(runnerSettings.revision)+1);return json(runnerSettings);
+      }
+      case 'ListThemes': return json(themeReply());
+      case 'CreateTheme': {
+        const name=body.name||'';if(!/^[A-Za-z0-9 ._-]{1,64}$/.test(name)||name.startsWith('.'))return error('invalid_argument','theme name: 1-64 letters, digits, spaces, ".", "_" or "-", not starting with "."');
+        const file=name+'.toml';if(themeFolder.files.some(f=>f.name.toLowerCase()===file.toLowerCase()))return error('already_exists',`theme ${file} already exists`);
+        mutations.push({method,body});themeFolder.files.push({name:file,format:'toml',json:'',error:'',modifiedUnixMillis:now()});themeFolder.files.sort((x,y)=>x.name<y.name?-1:x.name>y.name?1:0);
+        return json({folder:themeReply(),file,path:themeFolder.directory+'/'+file});
       }
       case 'ListRepositoryDiscovery': return json(discovery);
       case 'RemoveRepository': {mutations.push({method,body});const index=library.findIndex(repo=>repo.id===body.repositoryId);if(index>=0)library.splice(index,1);for(const root of discovery.roots)root.repositories=root.repositories.filter(repo=>repo.gitIdentity!==body.gitIdentity);return json(discovery);}
@@ -705,7 +718,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { power, artifacts: artifactStore, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { power, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

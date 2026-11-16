@@ -10,6 +10,8 @@ import { createPortal } from 'react-dom';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
+import { AppearanceSync } from './appearance/AppearanceSync';
+import { UserThemeSync } from './appearance/useUserThemes';
 import { useCommandRuns } from './command-runs';
 import { requestTerminal } from './TerminalPanel';
 import { retireMonitor, defaultLayout, emptyTarget, insertDocked, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, closable, defaultDock, dockPanel, dockedSide, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnChat, showCodePanel, type DockSide, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
@@ -51,6 +53,7 @@ type Props = { modules?: Readonly<Record<string, PanelModule>>; fixedWorkspaceId
 
 export function Workspace(props: Props) {
   return <RunnerProvider connection={props.connection} expectRestart={props.host?.expectRunnerRestart}>
+    <AppearanceSync store={props.viewState}/><UserThemeSync store={props.viewState}/>
     <AttentionScope root={props.viewState?.root} host={props.host}>
       <RepositoryHostContext.Provider value={props.host || {}}>
         <ArtifactHostContext.Provider value={props.host || {}}>
@@ -423,7 +426,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       <button onClick={() => { if (host?.reconnect) void host.reconnect().catch(e => setError(String(e))); else refresh(); }}>Retry now</button>
     </div>}
     {settings
-      ? <SettingsPage tab={settingsTab} onTab={setSettingsTab} onShowProcesses={() => showModule('processes')} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/>
+      ? <SettingsPage zoom={host?.zoom} tab={settingsTab} onTab={setSettingsTab} onShowProcesses={() => showModule('processes')} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/>
       : <>
         {locked && <button onClick={() => commit(defaultLayout({ ...initialTarget, collectionId: workspaceID }), true)}>Reset retained layout</button>}
         {configuring && <LayoutConfiguration json={json} disabled={hasDetached || !!pending} onChange={setJSON} onClose={() => setConfiguring(false)}

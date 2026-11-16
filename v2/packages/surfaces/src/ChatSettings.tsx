@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import { ACTIVITY_LABELS, useActivityDefault } from './activity-detail';
+import { ChatTextSettings } from './AppearanceSettings';
 import { SettingsGroup, SettingsHeader } from './settings-parts';
 import { ToolLineContext, ToolLines } from './ToolLine';
 import { ACTIVITY_DETAILS, type ToolEntry } from './tool-lines';
@@ -23,7 +24,7 @@ export function ChatSettings({ store }: { store?: ViewStateStore }) {
   const [detail, setDetail] = useActivityDefault(store);
   const scope = useMemo(() => ({ root: ROOT, detail }), [detail]);
   return <section className="chat-settings" aria-labelledby="chat-settings-title">
-    <SettingsHeader id="chat-settings-title" title="Chat" description="How conversations show what agents do. Remembered on this Runner."/>
+    <SettingsHeader id="chat-settings-title" title="Chat" description="How conversations read and how much of the agents’ work they show."/>
     <SettingsGroup title="Activity detail" description={<>How much of an agent’s tool calls a conversation shows. Change one conversation from its ⋯ menu, the command palette, or <kbd>]</kbd> <kbd>]</kbd> <kbd>v</kbd>. Every call stays in the Activity dialog.</>}>
       <div role="radiogroup" aria-label="Activity detail">
         {ACTIVITY_DETAILS.map(choice => <label key={choice} className="settings-row chat-settings-choice">
@@ -32,12 +33,13 @@ export function ChatSettings({ store }: { store?: ViewStateStore }) {
         </label>)}
       </div>
     </SettingsGroup>
-    <SettingsGroup title="Preview" description="The same work, as a conversation shows it now. Click a line to open it.">
+    <SettingsGroup title="Activity preview" description="The same work, as a conversation shows it now. Click a line to open it.">
       <div className="chat-settings-preview" aria-label={`Preview of ${ACTIVITY_LABELS[detail].label}`}>
         <p>I’ll check how the runtime resolves access.</p>
         <ToolLineContext.Provider value={scope}><ToolLines entries={SAMPLE} turn={SAMPLE}/></ToolLineContext.Provider>
         <p>Fixed: the owner can now read their own runtime, and the tests pass.</p>
       </div>
     </SettingsGroup>
+    <ChatTextSettings store={store}/>
   </section>;
 }

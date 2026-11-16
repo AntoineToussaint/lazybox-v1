@@ -2,11 +2,15 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { Icon } from './Icons';
 import { sizedSvg, type Rendered, type Size } from './diagram-svg';
 import './mermaid-diagram.css';
+import { getAppearance } from './appearance/apply';
+import { mermaidTheme } from './appearance/integrations';
+import { useAppearance } from './appearance/useAppearance';
 
 let mermaidReady: Promise<typeof import('mermaid')['default']> | undefined;
+/** Mermaid, configured for the window's current theme (re-applied before each render). */
 function diagrams() {
-  return mermaidReady ??= import('mermaid').then(({ default: mermaid }) => {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', secure: ['securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'suppressErrorRendering', 'htmlLabels', 'flowchart'], theme: 'dark', htmlLabels: false, flowchart: { htmlLabels: false }, maxTextSize: 50000, maxEdges: 500, suppressErrorRendering: true });
+  return (mermaidReady ??= import('mermaid').then(({ default: mermaid }) => mermaid)).then(mermaid => {
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', secure: ['securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'suppressErrorRendering', 'htmlLabels', 'flowchart'], theme: 'base', themeVariables: mermaidTheme(getAppearance()), htmlLabels: false, flowchart: { htmlLabels: false }, maxTextSize: 50000, maxEdges: 500, suppressErrorRendering: true });
     return mermaid;
   });
 }
@@ -211,6 +215,8 @@ export function MermaidDiagram({ text, sourceView }: { text: string; sourceView(
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const [result, setResult] = useState<Rendered | { text: string; error: string }>();
   const [source, setSource] = useState(false);
+  // A new theme redraws the diagram in its colours.
+  const look = useAppearance(), lookKey = `${look.theme.id}|${look.theme.tokens.accent}|${look.theme.tokens.surface}|${look.theme.tokens.text}|${look.typography.uiFont}`;
   useEffect(() => {
     if (!near) return;
     let cancelled = false;
@@ -227,7 +233,7 @@ export function MermaidDiagram({ text, sourceView }: { text: string; sourceView(
       } catch { if (!cancelled) setResult({ text, error: 'Diagram preview unavailable. Check the Mermaid source.' }); }
     })(); }, 180);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [text, id, near]);
+  }, [text, id, near, lookKey]);
   const current = result?.text === text ? result : undefined;
   const sourceToggle = <button type="button" className="diagram-tool text" aria-pressed={source} title={source ? 'Show the diagram' : 'Show the Mermaid source'} onClick={() => setSource(!source)}>{source ? 'Diagram' : 'Source'}</button>;
   const copySource = <CopyButton text={text} label="Copy Mermaid source">Copy</CopyButton>;

@@ -27,6 +27,8 @@ const (
 	RunnerService_GetRunnerSettings_FullMethodName            = "/lazybox.bench.v1.RunnerService/GetRunnerSettings"
 	RunnerService_SaveRunnerSettings_FullMethodName           = "/lazybox.bench.v1.RunnerService/SaveRunnerSettings"
 	RunnerService_SetModelPrice_FullMethodName                = "/lazybox.bench.v1.RunnerService/SetModelPrice"
+	RunnerService_ListThemes_FullMethodName                   = "/lazybox.bench.v1.RunnerService/ListThemes"
+	RunnerService_CreateTheme_FullMethodName                  = "/lazybox.bench.v1.RunnerService/CreateTheme"
 	RunnerService_Info_FullMethodName                         = "/lazybox.bench.v1.RunnerService/Info"
 	RunnerService_GetTelemetry_FullMethodName                 = "/lazybox.bench.v1.RunnerService/GetTelemetry"
 	RunnerService_RenameCollection_FullMethodName             = "/lazybox.bench.v1.RunnerService/RenameCollection"
@@ -168,6 +170,13 @@ type RunnerServiceClient interface {
 	GetRunnerSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*RunnerSettings, error)
 	SaveRunnerSettings(ctx context.Context, in *RunnerSettings, opts ...grpc.CallOption) (*RunnerSettings, error)
 	SetModelPrice(ctx context.Context, in *SetModelPriceRequest, opts ...grpc.CallOption) (*RunnerSettings, error)
+	// Owner only. The user's themes folder for Settings → Appearance: each .json
+	// or .toml file parsed to JSON, read on every call so edits apply without a
+	// restart. The client validates each document against its token catalogue.
+	ListThemes(ctx context.Context, in *ListThemesRequest, opts ...grpc.CallOption) (*ThemeFolder, error)
+	// Owner only. Creates a theme file in that folder; never replaces an
+	// existing one.
+	CreateTheme(ctx context.Context, in *CreateThemeRequest, opts ...grpc.CallOption) (*CreateThemeResponse, error)
 	Info(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*InfoResponse, error)
 	GetTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (*TelemetryReport, error)
 	RenameCollection(ctx context.Context, in *RenameCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
@@ -476,6 +485,26 @@ func (c *runnerServiceClient) SetModelPrice(ctx context.Context, in *SetModelPri
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RunnerSettings)
 	err := c.cc.Invoke(ctx, RunnerService_SetModelPrice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListThemes(ctx context.Context, in *ListThemesRequest, opts ...grpc.CallOption) (*ThemeFolder, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ThemeFolder)
+	err := c.cc.Invoke(ctx, RunnerService_ListThemes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) CreateTheme(ctx context.Context, in *CreateThemeRequest, opts ...grpc.CallOption) (*CreateThemeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateThemeResponse)
+	err := c.cc.Invoke(ctx, RunnerService_CreateTheme_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1809,6 +1838,13 @@ type RunnerServiceServer interface {
 	GetRunnerSettings(context.Context, *InfoRequest) (*RunnerSettings, error)
 	SaveRunnerSettings(context.Context, *RunnerSettings) (*RunnerSettings, error)
 	SetModelPrice(context.Context, *SetModelPriceRequest) (*RunnerSettings, error)
+	// Owner only. The user's themes folder for Settings → Appearance: each .json
+	// or .toml file parsed to JSON, read on every call so edits apply without a
+	// restart. The client validates each document against its token catalogue.
+	ListThemes(context.Context, *ListThemesRequest) (*ThemeFolder, error)
+	// Owner only. Creates a theme file in that folder; never replaces an
+	// existing one.
+	CreateTheme(context.Context, *CreateThemeRequest) (*CreateThemeResponse, error)
 	Info(context.Context, *InfoRequest) (*InfoResponse, error)
 	GetTelemetry(context.Context, *TelemetryRequest) (*TelemetryReport, error)
 	RenameCollection(context.Context, *RenameCollectionRequest) (*CollectionResponse, error)
@@ -2064,6 +2100,12 @@ func (UnimplementedRunnerServiceServer) SaveRunnerSettings(context.Context, *Run
 }
 func (UnimplementedRunnerServiceServer) SetModelPrice(context.Context, *SetModelPriceRequest) (*RunnerSettings, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetModelPrice not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListThemes(context.Context, *ListThemesRequest) (*ThemeFolder, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListThemes not implemented")
+}
+func (UnimplementedRunnerServiceServer) CreateTheme(context.Context, *CreateThemeRequest) (*CreateThemeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateTheme not implemented")
 }
 func (UnimplementedRunnerServiceServer) Info(context.Context, *InfoRequest) (*InfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Info not implemented")
@@ -2585,6 +2627,42 @@ func _RunnerService_SetModelPrice_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).SetModelPrice(ctx, req.(*SetModelPriceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListThemes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListThemesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListThemes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListThemes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListThemes(ctx, req.(*ListThemesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_CreateTheme_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateThemeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CreateTheme(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CreateTheme_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CreateTheme(ctx, req.(*CreateThemeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -4895,6 +4973,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetModelPrice",
 			Handler:    _RunnerService_SetModelPrice_Handler,
+		},
+		{
+			MethodName: "ListThemes",
+			Handler:    _RunnerService_ListThemes_Handler,
+		},
+		{
+			MethodName: "CreateTheme",
+			Handler:    _RunnerService_CreateTheme_Handler,
 		},
 		{
 			MethodName: "Info",
