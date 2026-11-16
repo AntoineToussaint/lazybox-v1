@@ -59,6 +59,9 @@ const paths: Record<string, string[]> = {
   activity: ['M3 12h4l3-8 4 16 3-8h4'],
   play: ['M7 5v14l11-7z'],
   sparkle: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2 2', 'm16 16 2 2', 'm6 18 2-2', 'm16 8 2-2'],
+  phone: ['M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z', 'M11 18h2'],
+  shield: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z', 'm9 12 2 2 4-4'],
+  copy: ['M8 8h12v12H8z', 'M16 8V4H4v12h4'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;

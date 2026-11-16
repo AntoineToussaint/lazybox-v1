@@ -64,10 +64,11 @@ service RunnerService {
   rpc SetSessionRotation(SetSessionRotationRequest) returns (SessionResponse);
   rpc GetSession(SessionRequest) returns (SessionResponse);
   rpc Apply(ApplyRequest) returns (Receipt);
-  // Owner only. The bytes of an image a sent message carried, so the
+  // The bytes of an image a sent message carried, so the
   // conversation can show it: only a file the Runner retained as a message
   // attachment (the path an operation_accepted record lists), only an image
-  // type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+  // type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
+  // and a paired phone reading conversations (REMOTE.md); never an agent.
   rpc ReadAttachment(ReadAttachmentRequest) returns (AttachmentContent);
   rpc CloseSession(SessionRequest) returns (SessionResponse);
   rpc StopSessionResources(SessionRequest) returns (SessionResponse);
@@ -160,6 +161,18 @@ service RunnerService {
   rpc RunWorkspaceSetup(RunWorkspaceSetupRequest) returns (WorkspaceRuntime);
   rpc GetWorkspaceRuntimeSettings(InfoRequest) returns (WorkspaceRuntimeSettings);
   rpc SaveWorkspaceRuntimeSettings(WorkspaceRuntimeSettings) returns (WorkspaceRuntimeSettings);
+  // Owner only. Remote control from a phone (REMOTE.md): how a paired device
+  // reaches this Runner, and turning the Tailscale route on or off.
+  rpc GetRemoteAccess(GetRemoteAccessRequest) returns (RemoteAccess);
+  rpc SetRemoteAccess(SetRemoteAccessRequest) returns (RemoteAccess);
+  // Owner only. A one-time, short-lived pairing offer for the QR code, its
+  // progress while the phone completes it, and withdrawing it.
+  rpc BeginDevicePairing(BeginDevicePairingRequest) returns (DevicePairing);
+  rpc GetDevicePairing(DevicePairingRequest) returns (DevicePairing);
+  rpc CancelDevicePairing(DevicePairingRequest) returns (DevicePairing);
+  // Owner only. Paired devices, and revoking one: its access ends at its next request.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  rpc RevokeDevice(RevokeDeviceRequest) returns (ListDevicesResponse);
 }
 
 message InfoRequest {}
@@ -1357,3 +1370,58 @@ message WorkspaceRuntimeSettings {
   uint32 port_range_end = 3;
   repeated RepositoryRuntimeOverride repositories = 4;
 }
+message GetRemoteAccessRequest {}
+message SetRemoteAccessRequest {
+  // Serve the device gateway to this tailnet over HTTPS (never Funnel).
+  bool tailscale = 1;
+}
+message RemoteAccess {
+  // The device gateway on this machine (loopback only). Empty when it is not running.
+  string local_url = 1;
+  // What a phone opens: the gateway as another device reaches it. Empty while
+  // no route reaches this Runner from another device.
+  string phone_url = 2;
+  TailscaleAccess tailscale = 3;
+  // Why the gateway or the phone app is unavailable, if it is.
+  string problem = 4;
+}
+message TailscaleAccess {
+  // not_installed, not_running, needs_login, https_disabled, available,
+  // serving, conflict (another service owns the HTTPS port), failed.
+  string state = 1;
+  // This machine's tailnet name, e.g. laptop.example.ts.net.
+  string dns_name = 2;
+  uint32 https_port = 3;
+  // The owner turned the route on; it is restored when the Runner starts.
+  bool enabled = 4;
+  string detail = 5;
+}
+message BeginDevicePairingRequest {
+  // read is always granted; respond and start are optional.
+  repeated string grants = 1;
+}
+message DevicePairingRequest { string pairing_id = 1; }
+message DevicePairing {
+  string id = 1;
+  // pending, paired, expired, cancelled, failed.
+  string state = 2;
+  // What the phone opens (the QR code). Only BeginDevicePairing returns it:
+  // its fragment holds the one-time secret, which the Runner keeps only hashed.
+  string url = 3;
+  int64 expires_at_unix_millis = 4;
+  repeated string grants = 5;
+  // The device the offer paired.
+  Device device = 6;
+}
+message Device {
+  string id = 1;
+  string name = 2;
+  repeated string grants = 3;
+  int64 paired_at_unix_millis = 4;
+  int64 last_seen_at_unix_millis = 5;
+  // A short digest of the device's key; the phone shows the same one.
+  string fingerprint = 6;
+}
+message ListDevicesRequest {}
+message ListDevicesResponse { repeated Device devices = 1; }
+message RevokeDeviceRequest { string device_id = 1; }

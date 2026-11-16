@@ -14,8 +14,9 @@ import (
 )
 
 // The conversation shows a sent image from the path its operation_accepted
-// record lists; only the owner may read it, and only an image.
-func TestReadAttachmentServesSentImagesToTheOwnerOnly(t *testing.T) {
+// record lists; the owner may read it (and a paired phone, device_auth_test.go),
+// never an agent, and only an image.
+func TestReadAttachmentServesSentImagesNeverToAnAgent(t *testing.T) {
 	f := newAuthorityFixture(t)
 	ctx := timeout(t)
 	execution, fake, agentCredential := f.open(t)

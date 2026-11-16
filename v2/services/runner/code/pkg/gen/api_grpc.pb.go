@@ -126,6 +126,13 @@ const (
 	RunnerService_RunWorkspaceSetup_FullMethodName            = "/lazybox.bench.v1.RunnerService/RunWorkspaceSetup"
 	RunnerService_GetWorkspaceRuntimeSettings_FullMethodName  = "/lazybox.bench.v1.RunnerService/GetWorkspaceRuntimeSettings"
 	RunnerService_SaveWorkspaceRuntimeSettings_FullMethodName = "/lazybox.bench.v1.RunnerService/SaveWorkspaceRuntimeSettings"
+	RunnerService_GetRemoteAccess_FullMethodName              = "/lazybox.bench.v1.RunnerService/GetRemoteAccess"
+	RunnerService_SetRemoteAccess_FullMethodName              = "/lazybox.bench.v1.RunnerService/SetRemoteAccess"
+	RunnerService_BeginDevicePairing_FullMethodName           = "/lazybox.bench.v1.RunnerService/BeginDevicePairing"
+	RunnerService_GetDevicePairing_FullMethodName             = "/lazybox.bench.v1.RunnerService/GetDevicePairing"
+	RunnerService_CancelDevicePairing_FullMethodName          = "/lazybox.bench.v1.RunnerService/CancelDevicePairing"
+	RunnerService_ListDevices_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ListDevices"
+	RunnerService_RevokeDevice_FullMethodName                 = "/lazybox.bench.v1.RunnerService/RevokeDevice"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -192,10 +199,11 @@ type RunnerServiceClient interface {
 	SetSessionRotation(ctx context.Context, in *SetSessionRotationRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	GetSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	Apply(ctx context.Context, in *ApplyRequest, opts ...grpc.CallOption) (*Receipt, error)
-	// Owner only. The bytes of an image a sent message carried, so the
+	// The bytes of an image a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
+	// and a paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(ctx context.Context, in *ReadAttachmentRequest, opts ...grpc.CallOption) (*AttachmentContent, error)
 	CloseSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	StopSessionResources(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
@@ -288,6 +296,18 @@ type RunnerServiceClient interface {
 	RunWorkspaceSetup(ctx context.Context, in *RunWorkspaceSetupRequest, opts ...grpc.CallOption) (*WorkspaceRuntime, error)
 	GetWorkspaceRuntimeSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*WorkspaceRuntimeSettings, error)
 	SaveWorkspaceRuntimeSettings(ctx context.Context, in *WorkspaceRuntimeSettings, opts ...grpc.CallOption) (*WorkspaceRuntimeSettings, error)
+	// Owner only. Remote control from a phone (REMOTE.md): how a paired device
+	// reaches this Runner, and turning the Tailscale route on or off.
+	GetRemoteAccess(ctx context.Context, in *GetRemoteAccessRequest, opts ...grpc.CallOption) (*RemoteAccess, error)
+	SetRemoteAccess(ctx context.Context, in *SetRemoteAccessRequest, opts ...grpc.CallOption) (*RemoteAccess, error)
+	// Owner only. A one-time, short-lived pairing offer for the QR code, its
+	// progress while the phone completes it, and withdrawing it.
+	BeginDevicePairing(ctx context.Context, in *BeginDevicePairingRequest, opts ...grpc.CallOption) (*DevicePairing, error)
+	GetDevicePairing(ctx context.Context, in *DevicePairingRequest, opts ...grpc.CallOption) (*DevicePairing, error)
+	CancelDevicePairing(ctx context.Context, in *DevicePairingRequest, opts ...grpc.CallOption) (*DevicePairing, error)
+	// Owner only. Paired devices, and revoking one: its access ends at its next request.
+	ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
+	RevokeDevice(ctx context.Context, in *RevokeDeviceRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
 }
 
 type runnerServiceClient struct {
@@ -1394,6 +1414,76 @@ func (c *runnerServiceClient) SaveWorkspaceRuntimeSettings(ctx context.Context, 
 	return out, nil
 }
 
+func (c *runnerServiceClient) GetRemoteAccess(ctx context.Context, in *GetRemoteAccessRequest, opts ...grpc.CallOption) (*RemoteAccess, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoteAccess)
+	err := c.cc.Invoke(ctx, RunnerService_GetRemoteAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SetRemoteAccess(ctx context.Context, in *SetRemoteAccessRequest, opts ...grpc.CallOption) (*RemoteAccess, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoteAccess)
+	err := c.cc.Invoke(ctx, RunnerService_SetRemoteAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) BeginDevicePairing(ctx context.Context, in *BeginDevicePairingRequest, opts ...grpc.CallOption) (*DevicePairing, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DevicePairing)
+	err := c.cc.Invoke(ctx, RunnerService_BeginDevicePairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetDevicePairing(ctx context.Context, in *DevicePairingRequest, opts ...grpc.CallOption) (*DevicePairing, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DevicePairing)
+	err := c.cc.Invoke(ctx, RunnerService_GetDevicePairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) CancelDevicePairing(ctx context.Context, in *DevicePairingRequest, opts ...grpc.CallOption) (*DevicePairing, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DevicePairing)
+	err := c.cc.Invoke(ctx, RunnerService_CancelDevicePairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDevicesResponse)
+	err := c.cc.Invoke(ctx, RunnerService_ListDevices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RevokeDevice(ctx context.Context, in *RevokeDeviceRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDevicesResponse)
+	err := c.cc.Invoke(ctx, RunnerService_RevokeDevice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1458,10 +1548,11 @@ type RunnerServiceServer interface {
 	SetSessionRotation(context.Context, *SetSessionRotationRequest) (*SessionResponse, error)
 	GetSession(context.Context, *SessionRequest) (*SessionResponse, error)
 	Apply(context.Context, *ApplyRequest) (*Receipt, error)
-	// Owner only. The bytes of an image a sent message carried, so the
+	// The bytes of an image a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
+	// and a paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(context.Context, *ReadAttachmentRequest) (*AttachmentContent, error)
 	CloseSession(context.Context, *SessionRequest) (*SessionResponse, error)
 	StopSessionResources(context.Context, *SessionRequest) (*SessionResponse, error)
@@ -1554,6 +1645,18 @@ type RunnerServiceServer interface {
 	RunWorkspaceSetup(context.Context, *RunWorkspaceSetupRequest) (*WorkspaceRuntime, error)
 	GetWorkspaceRuntimeSettings(context.Context, *InfoRequest) (*WorkspaceRuntimeSettings, error)
 	SaveWorkspaceRuntimeSettings(context.Context, *WorkspaceRuntimeSettings) (*WorkspaceRuntimeSettings, error)
+	// Owner only. Remote control from a phone (REMOTE.md): how a paired device
+	// reaches this Runner, and turning the Tailscale route on or off.
+	GetRemoteAccess(context.Context, *GetRemoteAccessRequest) (*RemoteAccess, error)
+	SetRemoteAccess(context.Context, *SetRemoteAccessRequest) (*RemoteAccess, error)
+	// Owner only. A one-time, short-lived pairing offer for the QR code, its
+	// progress while the phone completes it, and withdrawing it.
+	BeginDevicePairing(context.Context, *BeginDevicePairingRequest) (*DevicePairing, error)
+	GetDevicePairing(context.Context, *DevicePairingRequest) (*DevicePairing, error)
+	CancelDevicePairing(context.Context, *DevicePairingRequest) (*DevicePairing, error)
+	// Owner only. Paired devices, and revoking one: its access ends at its next request.
+	ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error)
+	RevokeDevice(context.Context, *RevokeDeviceRequest) (*ListDevicesResponse, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1881,6 +1984,27 @@ func (UnimplementedRunnerServiceServer) GetWorkspaceRuntimeSettings(context.Cont
 }
 func (UnimplementedRunnerServiceServer) SaveWorkspaceRuntimeSettings(context.Context, *WorkspaceRuntimeSettings) (*WorkspaceRuntimeSettings, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveWorkspaceRuntimeSettings not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetRemoteAccess(context.Context, *GetRemoteAccessRequest) (*RemoteAccess, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRemoteAccess not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetRemoteAccess(context.Context, *SetRemoteAccessRequest) (*RemoteAccess, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetRemoteAccess not implemented")
+}
+func (UnimplementedRunnerServiceServer) BeginDevicePairing(context.Context, *BeginDevicePairingRequest) (*DevicePairing, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginDevicePairing not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetDevicePairing(context.Context, *DevicePairingRequest) (*DevicePairing, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDevicePairing not implemented")
+}
+func (UnimplementedRunnerServiceServer) CancelDevicePairing(context.Context, *DevicePairingRequest) (*DevicePairing, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelDevicePairing not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDevices not implemented")
+}
+func (UnimplementedRunnerServiceServer) RevokeDevice(context.Context, *RevokeDeviceRequest) (*ListDevicesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeDevice not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -3783,6 +3907,132 @@ func _RunnerService_SaveWorkspaceRuntimeSettings_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_GetRemoteAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRemoteAccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetRemoteAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetRemoteAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetRemoteAccess(ctx, req.(*GetRemoteAccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SetRemoteAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetRemoteAccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetRemoteAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetRemoteAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetRemoteAccess(ctx, req.(*SetRemoteAccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_BeginDevicePairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginDevicePairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).BeginDevicePairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_BeginDevicePairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).BeginDevicePairing(ctx, req.(*BeginDevicePairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetDevicePairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DevicePairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetDevicePairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetDevicePairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetDevicePairing(ctx, req.(*DevicePairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_CancelDevicePairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DevicePairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CancelDevicePairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CancelDevicePairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CancelDevicePairing(ctx, req.(*DevicePairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDevicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListDevices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListDevices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListDevices(ctx, req.(*ListDevicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RevokeDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RevokeDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RevokeDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RevokeDevice(ctx, req.(*RevokeDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -4197,6 +4447,34 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SaveWorkspaceRuntimeSettings",
 			Handler:    _RunnerService_SaveWorkspaceRuntimeSettings_Handler,
+		},
+		{
+			MethodName: "GetRemoteAccess",
+			Handler:    _RunnerService_GetRemoteAccess_Handler,
+		},
+		{
+			MethodName: "SetRemoteAccess",
+			Handler:    _RunnerService_SetRemoteAccess_Handler,
+		},
+		{
+			MethodName: "BeginDevicePairing",
+			Handler:    _RunnerService_BeginDevicePairing_Handler,
+		},
+		{
+			MethodName: "GetDevicePairing",
+			Handler:    _RunnerService_GetDevicePairing_Handler,
+		},
+		{
+			MethodName: "CancelDevicePairing",
+			Handler:    _RunnerService_CancelDevicePairing_Handler,
+		},
+		{
+			MethodName: "ListDevices",
+			Handler:    _RunnerService_ListDevices_Handler,
+		},
+		{
+			MethodName: "RevokeDevice",
+			Handler:    _RunnerService_RevokeDevice_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

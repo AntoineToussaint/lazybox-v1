@@ -348,6 +348,27 @@ const (
 	// RunnerServiceSaveWorkspaceRuntimeSettingsProcedure is the fully-qualified name of the
 	// RunnerService's SaveWorkspaceRuntimeSettings RPC.
 	RunnerServiceSaveWorkspaceRuntimeSettingsProcedure = "/lazybox.bench.v1.RunnerService/SaveWorkspaceRuntimeSettings"
+	// RunnerServiceGetRemoteAccessProcedure is the fully-qualified name of the RunnerService's
+	// GetRemoteAccess RPC.
+	RunnerServiceGetRemoteAccessProcedure = "/lazybox.bench.v1.RunnerService/GetRemoteAccess"
+	// RunnerServiceSetRemoteAccessProcedure is the fully-qualified name of the RunnerService's
+	// SetRemoteAccess RPC.
+	RunnerServiceSetRemoteAccessProcedure = "/lazybox.bench.v1.RunnerService/SetRemoteAccess"
+	// RunnerServiceBeginDevicePairingProcedure is the fully-qualified name of the RunnerService's
+	// BeginDevicePairing RPC.
+	RunnerServiceBeginDevicePairingProcedure = "/lazybox.bench.v1.RunnerService/BeginDevicePairing"
+	// RunnerServiceGetDevicePairingProcedure is the fully-qualified name of the RunnerService's
+	// GetDevicePairing RPC.
+	RunnerServiceGetDevicePairingProcedure = "/lazybox.bench.v1.RunnerService/GetDevicePairing"
+	// RunnerServiceCancelDevicePairingProcedure is the fully-qualified name of the RunnerService's
+	// CancelDevicePairing RPC.
+	RunnerServiceCancelDevicePairingProcedure = "/lazybox.bench.v1.RunnerService/CancelDevicePairing"
+	// RunnerServiceListDevicesProcedure is the fully-qualified name of the RunnerService's ListDevices
+	// RPC.
+	RunnerServiceListDevicesProcedure = "/lazybox.bench.v1.RunnerService/ListDevices"
+	// RunnerServiceRevokeDeviceProcedure is the fully-qualified name of the RunnerService's
+	// RevokeDevice RPC.
+	RunnerServiceRevokeDeviceProcedure = "/lazybox.bench.v1.RunnerService/RevokeDevice"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -412,10 +433,11 @@ type RunnerServiceClient interface {
 	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
-	// Owner only. The bytes of an image a sent message carried, so the
+	// The bytes of an image a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
+	// and a paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -508,6 +530,18 @@ type RunnerServiceClient interface {
 	RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
 	GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
 	SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	// Owner only. Remote control from a phone (REMOTE.md): how a paired device
+	// reaches this Runner, and turning the Tailscale route on or off.
+	GetRemoteAccess(context.Context, *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	SetRemoteAccess(context.Context, *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	// Owner only. A one-time, short-lived pairing offer for the QR code, its
+	// progress while the phone completes it, and withdrawing it.
+	BeginDevicePairing(context.Context, *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	GetDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	CancelDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	// Owner only. Paired devices, and revoking one: its access ends at its next request.
+	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1157,6 +1191,48 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceRuntimeSettings")),
 			connect.WithClientOptions(opts...),
 		),
+		getRemoteAccess: connect.NewClient[gen.GetRemoteAccessRequest, gen.RemoteAccess](
+			httpClient,
+			baseURL+RunnerServiceGetRemoteAccessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetRemoteAccess")),
+			connect.WithClientOptions(opts...),
+		),
+		setRemoteAccess: connect.NewClient[gen.SetRemoteAccessRequest, gen.RemoteAccess](
+			httpClient,
+			baseURL+RunnerServiceSetRemoteAccessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetRemoteAccess")),
+			connect.WithClientOptions(opts...),
+		),
+		beginDevicePairing: connect.NewClient[gen.BeginDevicePairingRequest, gen.DevicePairing](
+			httpClient,
+			baseURL+RunnerServiceBeginDevicePairingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("BeginDevicePairing")),
+			connect.WithClientOptions(opts...),
+		),
+		getDevicePairing: connect.NewClient[gen.DevicePairingRequest, gen.DevicePairing](
+			httpClient,
+			baseURL+RunnerServiceGetDevicePairingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetDevicePairing")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelDevicePairing: connect.NewClient[gen.DevicePairingRequest, gen.DevicePairing](
+			httpClient,
+			baseURL+RunnerServiceCancelDevicePairingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CancelDevicePairing")),
+			connect.WithClientOptions(opts...),
+		),
+		listDevices: connect.NewClient[gen.ListDevicesRequest, gen.ListDevicesResponse](
+			httpClient,
+			baseURL+RunnerServiceListDevicesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListDevices")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeDevice: connect.NewClient[gen.RevokeDeviceRequest, gen.ListDevicesResponse](
+			httpClient,
+			baseURL+RunnerServiceRevokeDeviceProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1268,6 +1344,13 @@ type runnerServiceClient struct {
 	runWorkspaceSetup            *connect.Client[gen.RunWorkspaceSetupRequest, gen.WorkspaceRuntime]
 	getWorkspaceRuntimeSettings  *connect.Client[gen.InfoRequest, gen.WorkspaceRuntimeSettings]
 	saveWorkspaceRuntimeSettings *connect.Client[gen.WorkspaceRuntimeSettings, gen.WorkspaceRuntimeSettings]
+	getRemoteAccess              *connect.Client[gen.GetRemoteAccessRequest, gen.RemoteAccess]
+	setRemoteAccess              *connect.Client[gen.SetRemoteAccessRequest, gen.RemoteAccess]
+	beginDevicePairing           *connect.Client[gen.BeginDevicePairingRequest, gen.DevicePairing]
+	getDevicePairing             *connect.Client[gen.DevicePairingRequest, gen.DevicePairing]
+	cancelDevicePairing          *connect.Client[gen.DevicePairingRequest, gen.DevicePairing]
+	listDevices                  *connect.Client[gen.ListDevicesRequest, gen.ListDevicesResponse]
+	revokeDevice                 *connect.Client[gen.RevokeDeviceRequest, gen.ListDevicesResponse]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1800,6 +1883,41 @@ func (c *runnerServiceClient) SaveWorkspaceRuntimeSettings(ctx context.Context, 
 	return c.saveWorkspaceRuntimeSettings.CallUnary(ctx, req)
 }
 
+// GetRemoteAccess calls lazybox.bench.v1.RunnerService.GetRemoteAccess.
+func (c *runnerServiceClient) GetRemoteAccess(ctx context.Context, req *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return c.getRemoteAccess.CallUnary(ctx, req)
+}
+
+// SetRemoteAccess calls lazybox.bench.v1.RunnerService.SetRemoteAccess.
+func (c *runnerServiceClient) SetRemoteAccess(ctx context.Context, req *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return c.setRemoteAccess.CallUnary(ctx, req)
+}
+
+// BeginDevicePairing calls lazybox.bench.v1.RunnerService.BeginDevicePairing.
+func (c *runnerServiceClient) BeginDevicePairing(ctx context.Context, req *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return c.beginDevicePairing.CallUnary(ctx, req)
+}
+
+// GetDevicePairing calls lazybox.bench.v1.RunnerService.GetDevicePairing.
+func (c *runnerServiceClient) GetDevicePairing(ctx context.Context, req *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return c.getDevicePairing.CallUnary(ctx, req)
+}
+
+// CancelDevicePairing calls lazybox.bench.v1.RunnerService.CancelDevicePairing.
+func (c *runnerServiceClient) CancelDevicePairing(ctx context.Context, req *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return c.cancelDevicePairing.CallUnary(ctx, req)
+}
+
+// ListDevices calls lazybox.bench.v1.RunnerService.ListDevices.
+func (c *runnerServiceClient) ListDevices(ctx context.Context, req *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return c.listDevices.CallUnary(ctx, req)
+}
+
+// RevokeDevice calls lazybox.bench.v1.RunnerService.RevokeDevice.
+func (c *runnerServiceClient) RevokeDevice(ctx context.Context, req *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return c.revokeDevice.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -1862,10 +1980,11 @@ type RunnerServiceHandler interface {
 	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
-	// Owner only. The bytes of an image a sent message carried, so the
+	// The bytes of an image a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
+	// and a paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -1958,6 +2077,18 @@ type RunnerServiceHandler interface {
 	RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
 	GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
 	SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	// Owner only. Remote control from a phone (REMOTE.md): how a paired device
+	// reaches this Runner, and turning the Tailscale route on or off.
+	GetRemoteAccess(context.Context, *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	SetRemoteAccess(context.Context, *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	// Owner only. A one-time, short-lived pairing offer for the QR code, its
+	// progress while the phone completes it, and withdrawing it.
+	BeginDevicePairing(context.Context, *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	GetDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	CancelDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	// Owner only. Paired devices, and revoking one: its access ends at its next request.
+	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2603,6 +2734,48 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceRuntimeSettings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceGetRemoteAccessHandler := connect.NewUnaryHandler(
+		RunnerServiceGetRemoteAccessProcedure,
+		svc.GetRemoteAccess,
+		connect.WithSchema(runnerServiceMethods.ByName("GetRemoteAccess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetRemoteAccessHandler := connect.NewUnaryHandler(
+		RunnerServiceSetRemoteAccessProcedure,
+		svc.SetRemoteAccess,
+		connect.WithSchema(runnerServiceMethods.ByName("SetRemoteAccess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceBeginDevicePairingHandler := connect.NewUnaryHandler(
+		RunnerServiceBeginDevicePairingProcedure,
+		svc.BeginDevicePairing,
+		connect.WithSchema(runnerServiceMethods.ByName("BeginDevicePairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetDevicePairingHandler := connect.NewUnaryHandler(
+		RunnerServiceGetDevicePairingProcedure,
+		svc.GetDevicePairing,
+		connect.WithSchema(runnerServiceMethods.ByName("GetDevicePairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCancelDevicePairingHandler := connect.NewUnaryHandler(
+		RunnerServiceCancelDevicePairingProcedure,
+		svc.CancelDevicePairing,
+		connect.WithSchema(runnerServiceMethods.ByName("CancelDevicePairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListDevicesHandler := connect.NewUnaryHandler(
+		RunnerServiceListDevicesProcedure,
+		svc.ListDevices,
+		connect.WithSchema(runnerServiceMethods.ByName("ListDevices")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRevokeDeviceHandler := connect.NewUnaryHandler(
+		RunnerServiceRevokeDeviceProcedure,
+		svc.RevokeDevice,
+		connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -2817,6 +2990,20 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetWorkspaceRuntimeSettingsHandler.ServeHTTP(w, r)
 		case RunnerServiceSaveWorkspaceRuntimeSettingsProcedure:
 			runnerServiceSaveWorkspaceRuntimeSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetRemoteAccessProcedure:
+			runnerServiceGetRemoteAccessHandler.ServeHTTP(w, r)
+		case RunnerServiceSetRemoteAccessProcedure:
+			runnerServiceSetRemoteAccessHandler.ServeHTTP(w, r)
+		case RunnerServiceBeginDevicePairingProcedure:
+			runnerServiceBeginDevicePairingHandler.ServeHTTP(w, r)
+		case RunnerServiceGetDevicePairingProcedure:
+			runnerServiceGetDevicePairingHandler.ServeHTTP(w, r)
+		case RunnerServiceCancelDevicePairingProcedure:
+			runnerServiceCancelDevicePairingHandler.ServeHTTP(w, r)
+		case RunnerServiceListDevicesProcedure:
+			runnerServiceListDevicesHandler.ServeHTTP(w, r)
+		case RunnerServiceRevokeDeviceProcedure:
+			runnerServiceRevokeDeviceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -3248,4 +3435,32 @@ func (UnimplementedRunnerServiceHandler) GetWorkspaceRuntimeSettings(context.Con
 
 func (UnimplementedRunnerServiceHandler) SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveWorkspaceRuntimeSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetRemoteAccess(context.Context, *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetRemoteAccess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetRemoteAccess(context.Context, *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetRemoteAccess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) BeginDevicePairing(context.Context, *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.BeginDevicePairing is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetDevicePairing is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CancelDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CancelDevicePairing is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListDevices is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RevokeDevice is not implemented"))
 }

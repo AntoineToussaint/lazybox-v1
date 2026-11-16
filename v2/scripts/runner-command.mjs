@@ -9,6 +9,8 @@ export function runnerArguments({ paths, source, snippetAdapter, snippetDirector
     LAZYBOX_V2_WORKTREE_ROOT: join(paths.directory, 'collections'),
     LAZYBOX_V2_CONFIG: paths.config,
     LAZYBOX_V2_WORKER: join(source, 'workers/claude-sdk/dist/main.js'),
+    // The phone app the device gateway serves (REMOTE.md); `make build-web` builds it.
+    LAZYBOX_V2_WEB_DIR: join(source, 'apps/web/dist'),
     // Persistent environments keep agents running across Runner restarts.
     LAZYBOX_V2_KEEP_AGENTS: '1',
     ...(snippetAdapter ? { LAZYBOX_V2_SNIPPET_COMMAND: snippetAdapter, LAZYBOX_V2_SNIPPET_DIRECTORY: snippetDirectory } : {}),

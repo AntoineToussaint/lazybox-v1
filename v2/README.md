@@ -44,6 +44,7 @@ full MVP remain separate roadmap milestones.
 | [Subscriptions and continuation](SUBSCRIPTIONS.md) | Account profiles, isolated credentials, native resume, and checkpoint handoff. |
 | [Session hosts](SESSION_HOSTS.md) | Agents and their commands outlive the Runner: re-attachment across restarts, delivery contract, upgrades, evidence. |
 | [Workspaces](WORKSPACES.md) | Runner-owned groups of worktrees across repositories, provisioning, attachment, and ownership. |
+| [Remote control](REMOTE.md) | Pairing a phone by QR code, the device gateway over Tailscale, device grants, threat model and what is deferred. |
 | [Terminals](TERMINALS.md) | Your login shell in a workspace, on the Runner: opening, environment, restart survival, limits. |
 | [Workspace runtime](WORKSPACE_RUNTIME.md) | A repository's committed setup, actions and archive scripts, their approval, port blocks per workspace, Run and Preview. |
 | [Running the bench](RUNNING.md) | Launch, runner options, gateway routing, credentials, continuation, CLI, and retention. |

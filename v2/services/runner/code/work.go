@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/devices"
+	"github.com/AntoineToussaint/lazybox/v2/internal/remote"
 	"github.com/AntoineToussaint/lazybox/v2/internal/restart"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
@@ -27,12 +30,21 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 		return nil, err
 	}
 	cfg := runner.Config{}
+	// remote.httpsPort: the tailnet HTTPS port a phone reaches the Runner on (REMOTE.md).
+	var remoteConfig struct {
+		Remote struct {
+			HTTPSPort uint32 `json:"httpsPort"`
+		} `json:"remote"`
+	}
 	if path := os.Getenv("LAZYBOX_V2_CONFIG"); path != "" {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal(data, &cfg); err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal(data, &remoteConfig); err != nil {
 			return nil, err
 		}
 	}
@@ -149,9 +161,46 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 	config.Service = service
 	config.GRPCServerOptions = append(config.GRPCServerOptions, transport.LocalAuthority(token, bench)...)
 	config.MaxMessageBytes = 36 << 20
+	stopRemote, err := startRemote(ctx, cfg.State, service, config.MaxMessageBytes, remoteConfig.Remote.HTTPSPort)
+	if err != nil {
+		_ = shutdown()
+		lock.Close()
+		return nil, err
+	}
 	fmt.Printf("V2 Runner endpoint file: %s\n", endpoint)
 	// Stop or detach the engines before Codefly drains streams on shutdown. Merely
 	// closing a viewer cancels its subscription and does not reach this service lifetime.
-	go func() { <-ctx.Done(); _ = shutdown() }()
-	return func() { _ = shutdown(); _ = lock.Close() }, nil
+	go func() { <-ctx.Done(); stopRemote(); _ = shutdown() }()
+	return func() { stopRemote(); _ = shutdown(); _ = lock.Close() }, nil
+}
+
+// startRemote opens the device gateway (REMOTE.md): paired phones' only way
+// in, on loopback, with device credentials alone. A gateway that cannot bind
+// leaves the Runner serving this machine and says why in Settings → Devices.
+func startRemote(ctx context.Context, state string, service *transport.Service, maxMessageBytes int, httpsPort uint32) (func(), error) {
+	manager, err := devices.Open(state)
+	if err != nil {
+		return nil, err
+	}
+	handler, stopRPC, err := transport.DeviceHandler(service, manager, maxMessageBytes)
+	if err != nil {
+		return nil, err
+	}
+	gateway, err := remote.New(state, manager, handler)
+	if err != nil {
+		stopRPC()
+		return nil, err
+	}
+	gateway.WebDir = os.Getenv("LAZYBOX_V2_WEB_DIR")
+	if httpsPort != 0 {
+		gateway.HTTPSPort = httpsPort
+	}
+	if err = gateway.Listen(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "V2 Runner: the device gateway is unavailable: %v\n", err)
+	} else {
+		fmt.Printf("V2 Runner device gateway: %s\n", gateway.LocalURL())
+	}
+	service.Devices, service.Remote = manager, gateway
+	var once sync.Once
+	return func() { once.Do(func() { _ = gateway.Close(); stopRPC() }) }, nil
 }

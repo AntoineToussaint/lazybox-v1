@@ -61,7 +61,7 @@ fmt:
 fmt-check:
 	@test -z "$$(gofmt -l $(GO_ROOT)/internal $(GO_ROOT)/cmd $(GO_ROOT)/work.go $(GO_ROOT)/tests)"
 run: build-worker
-	codefly run service runner --runtime-context native --temporary-ports --headless --set 'runner:LAZYBOX_V2_STATE=$(BENCH_STATE)' --set 'runner:LAZYBOX_V2_WORKTREE_ROOT=$(abspath $(WORKTREE_ROOT))' --set 'runner:LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js)' $(if $(BENCH_CONFIG),--set 'runner:LAZYBOX_V2_CONFIG=$(abspath $(BENCH_CONFIG))')
+	codefly run service runner --runtime-context native --temporary-ports --headless --set 'runner:LAZYBOX_V2_STATE=$(BENCH_STATE)' --set 'runner:LAZYBOX_V2_WORKTREE_ROOT=$(abspath $(WORKTREE_ROOT))' --set 'runner:LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js)' --set 'runner:LAZYBOX_V2_WEB_DIR=$(abspath apps/web/dist)' $(if $(BENCH_CONFIG),--set 'runner:LAZYBOX_V2_CONFIG=$(abspath $(BENCH_CONFIG))')
 web: deps
 	LAZYBOX_V2_ENDPOINT='$(ENDPOINT)' node scripts/viewer.mjs
 

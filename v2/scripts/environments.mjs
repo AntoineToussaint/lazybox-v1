@@ -182,6 +182,8 @@ async function stageCandidate(environmentRoot) {
   const gateReceipt = JSON.parse(await readFile(receiptPath, 'utf8'));
   validateReleaseReceipt(gateReceipt, await loadGateCatalog(source), before);
   const app = await buildDesktop(source, environmentPaths(environmentRoot, 'working'), join(environmentRoot, 'build', 'working'));
+  // The phone app the Runner's device gateway serves (REMOTE.md).
+  await run('npm', ['run', 'build:web'], source);
   await cp(app, join(destination, 'Lazybox.app'), { recursive: true, force: false, errorOnExist: true });
   const after = await digestTree(source);
   if (before !== after) throw new Error('Validation modified the source snapshot; stage again after reviewing generated changes');
@@ -263,7 +265,7 @@ async function launch(environmentRoot, channel) {
     } else {
       snippetAdapter=await buildSnippetAdapter(source);
       cliDir=await buildCLI(source, join(paths.directory, 'bin'));
-      await run('make', ['deps', 'build-worker'], source);
+      await run('make', ['deps', 'build-worker', 'build-web'], source);
       ui = await startDesktopDevServer(source);
       worker = spawn(join(source, 'node_modules/.bin/tsc'), ['-p', 'workers/claude-sdk', '--watch', '--preserveWatchOutput'], { cwd: source, env: buildEnv, stdio: 'inherit', detached: true });
       worker.on('error', error => { console.error(`Worker watcher failed: ${error.message}`); stop(); });

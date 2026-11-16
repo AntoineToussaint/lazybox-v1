@@ -13,6 +13,7 @@ import (
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/devices"
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitinspect"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/attachments"
@@ -34,6 +35,10 @@ type Service struct {
 	// Restart is the launcher that starts this Runner again after RestartRunner;
 	// nil when nothing would (a plain `codefly run`, a test, a Codefly service).
 	Restart Restarter
+	// Devices are the phones paired with this Runner, and Remote how they
+	// reach it (REMOTE.md); nil where the Runner pairs none.
+	Devices *devices.Manager
+	Remote  RemoteAccess
 }
 
 // Restarter records a restart request and begins the Runner's ordinary
@@ -181,6 +186,9 @@ func (s *Service) Info(ctx context.Context, r *pb.InfoRequest) (*pb.InfoResponse
 			return nil, err
 		}
 		w.Sessions = append(w.Sessions, record)
+	}
+	if callerDevice(ctx) != nil {
+		return deviceInfo(w), nil
 	}
 	return w, nil
 }

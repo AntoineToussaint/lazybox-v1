@@ -161,3 +161,4 @@ export function providerData(data: Uint8Array): any {
   if (!data.length) return {};
   try { return JSON.parse(new TextDecoder().decode(data)); } catch { return { error: 'Invalid provider data' }; }
 }
+export * from './device';

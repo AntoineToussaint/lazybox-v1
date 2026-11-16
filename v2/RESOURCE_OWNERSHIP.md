@@ -74,6 +74,10 @@ terminal's workspace and publish to and finish the runs it opened
 (`terminalRPCs`; see [terminals](TERMINALS.md#what-the-shell-may-do-with-the-runner)).
 Closing the terminal, its shell exiting, or deleting the workspace revokes it.
 
+A paired phone gets neither: its credential is issued by the device gateway
+against a signature by the phone's own key, is accepted only on that gateway,
+and only for the RPCs its grants allow ([remote control](REMOTE.md)).
+
 This separates authority at the RPC boundary only. An agent runs as the same
 OS user and can read the owner's file directly; that needs process isolation,
 which the Runner does not claim. An agent started before this change keeps the

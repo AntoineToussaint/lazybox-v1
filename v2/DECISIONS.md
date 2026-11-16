@@ -54,6 +54,19 @@ The isolated workflow board experiment is not a disposition of D03, D07 or D08.
 It proves useful wiring and interactions, not fenced execution or verified
 integration. No framework replacement or Obin Hub API was selected by this review.
 
+## Remote control — 2026-11-16
+
+- **D16 (user direction, implemented as a first increment):** control a local
+  Runner from a phone. Transport: `tailscale serve` (tailnet-only HTTPS,
+  WireGuard end to end, never Funnel) in front of a loopback-only device
+  gateway that accepts paired device credentials alone. Pairing: one-time,
+  five-minute QR offer; the phone's non-extractable ECDSA P-256 key; 15-minute
+  credentials from signed single-use challenges; explicit read/respond/start
+  grants; revoke ends access at the next request. A LAN TLS listener was
+  rejected (no trusted origin on a phone, LAN exposure); a relay with Noise IK
+  is deferred to the native app, where the Runner key can be pinned in signed
+  code. Reopen if Tailscale is unacceptable as a dependency. See [Remote](REMOTE.md).
+
 ## Proposed implementation defaults
 
 These defaults make the plan concrete. They remain proposals until their validation gates pass.

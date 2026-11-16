@@ -166,6 +166,8 @@ These are required semantics, not invented endpoint names:
 | Preview | Authorized origin-isolated route, assets/navigation/WebSockets, source revision and lifecycle. Saved screenshots remain accessible independently. |
 
 The current broad Runner token is not an acceptable phone enrollment protocol.
+A local Runner's first phone enrollment (QR pairing, device key, scoped and
+revocable grants over Tailscale) is described in [Remote](REMOTE.md).
 An outward Runner control connection is a candidate for NAT-friendly deployment,
 not a substitute for identity, encrypted transport and authorization. Decide the
 actual route with Obin and test it on the supported topology.

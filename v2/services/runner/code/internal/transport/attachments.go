@@ -10,8 +10,8 @@ import (
 )
 
 // ReadAttachment serves the bytes of an image a sent message carried, for the
-// conversation's thumbnails. It is owner-only like every RPC off the agent and
-// terminal allowlists (auth.go).
+// conversation's thumbnails. Agent and terminal credentials cannot call it
+// (auth.go); a paired phone can, with its read grant (device_auth.go).
 func (s *Service) ReadAttachment(_ context.Context, r *pb.ReadAttachmentRequest) (*pb.AttachmentContent, error) {
 	file, data, err := s.Bench.Attachments.ReadImage(r.Path)
 	switch {

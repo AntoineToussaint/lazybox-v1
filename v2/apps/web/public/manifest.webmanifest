@@ -1,0 +1,10 @@
+{
+  "name": "Lazybox",
+  "short_name": "Lazybox",
+  "description": "Follow and answer the agents on your computer.",
+  "start_url": "/?view=remote",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#121317",
+  "theme_color": "#121317"
+}

@@ -1,8 +1,14 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AgentWindow, Workspace, WindowErrorBoundary } from '@lazybox/surfaces';
+import { AgentWindow, RemoteApp, Workspace, WindowErrorBoundary } from '@lazybox/surfaces';
 import { browserWorkspaceHost } from './browser-host';
 
+// A paired phone (REMOTE.md): served by the Runner's device gateway, it never
+// holds the owner's bearer, so it takes nothing from the owner's flow below.
+if (new URLSearchParams(location.search).get('view') === 'remote') {
+  document.title = 'Lazybox';
+  createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}><RemoteApp/></WindowErrorBoundary></React.StrictMode>);
+} else {
 const fragment = new URLSearchParams(location.hash.slice(1));
 const token = fragment.get('token') || sessionStorage.getItem('runner-token') || '';
 if (token) sessionStorage.setItem('runner-token', token);
@@ -36,3 +42,4 @@ createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErr
     url.hash = new URLSearchParams({ token }).toString(); window.open(url, '_blank', 'noopener');
   }}
 />}</WindowErrorBoundary></React.StrictMode>);
+}

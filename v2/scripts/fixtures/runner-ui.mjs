@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-process.json', import.meta.url), 'utf8'));
@@ -214,6 +214,56 @@ actions:
   runtimeFor('alpha'); runtimeFor('beta');
   let runtimeSettings = { revision: '1', portRangeStart: 20000, portRangeEnd: 29999, repositories: [] };
   const runtimeSettingsView = () => ({ ...runtimeSettings, repositories: library.map(repo => ({ repositoryId: repo.id, name: repo.name || repo.id, config: '', defaultAction: '', skipSetup: false, error: '', ...runtimeSettings.repositories.find(r => r.repositoryId === repo.id) })) });
+  // Remote control (REMOTE.md): a fake Tailscale route, pairing offers checked
+  // with the phone's real WebCrypto signatures, paired devices, and short
+  // device credentials. deviceRPCs mirrors the Runner's device allowlist.
+  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', OpenSession: 'start', ResumeSession: 'start' };
+  const remote = {
+    phoneUrl: '', localUrl: 'http://127.0.0.1:4100', offerLifetimeMs: 300_000,
+    tailscale: { state: 'available', dnsName: 'laptop.example.ts.net', httpsPort: 8443, enabled: false, detail: '' },
+    offers: new Map(), devices: new Map(), challenges: new Map(), tokens: new Map(), deviceCalls: [], deviceDenied: [], pairRequests: [],
+    access() { const t = remote.tailscale; return { localUrl: remote.localUrl, phoneUrl: t.enabled && t.state === 'serving' ? remote.phoneUrl : '', tailscale: { ...t } }; },
+    state(offer) { if (offer.state === 'pending' && Date.now() >= Number(offer.expiresAtUnixMillis)) offer.state = 'expired'; return offer.state; },
+    wireDevice(d) { return { id: d.id, name: d.name, grants: d.grants, pairedAtUnixMillis: String(d.pairedAt), lastSeenAtUnixMillis: String(d.lastSeenAt), fingerprint: d.fingerprint }; },
+    wireOffer(offer) { const device = offer.device && remote.devices.get(offer.device); return { id: offer.id, state: remote.state(offer), expiresAtUnixMillis: offer.expiresAtUnixMillis, grants: offer.grants, ...(device ? { device: remote.wireDevice(device) } : {}) }; },
+    deviceFor(credential) { const id = remote.tokens.get(credential); const d = id && remote.devices.get(id); if (d) d.lastSeenAt = Date.now(); return d; },
+    /** Expire an offer now, as five minutes passing would. */
+    expire(id) { const offer = remote.offers.get(id); if (offer) offer.expiresAtUnixMillis = String(Date.now() - 1); },
+  };
+  const remoteEndpoint = async (req, res) => {
+    const reply = (status, value) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); };
+    if (req.method !== 'POST' || !req.headers['content-type']?.startsWith('application/json')) return reply(405, { error: 'JSON POST only' });
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    let body; try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch { return reply(400, { error: 'malformed request' }); }
+    const verified = (key, message, signature) => { try { return verify('sha256', Buffer.from(message), { key: createPublicKey({ key: Buffer.from(key, 'base64url'), format: 'der', type: 'spki' }), dsaEncoding: 'ieee-p1363' }, Buffer.from(signature, 'base64url')); } catch { return false; } };
+    const path = req.url.slice('/remote/v1/'.length);
+    if (path === 'pair') {
+      remote.pairRequests.push(body);
+      const offer = remote.offers.get(body.pairing);
+      if (!offer || offer.secret !== body.secret) return reply(403, { error: 'this pairing code is not valid; show a new one on your computer' });
+      const state = remote.state(offer);
+      if (state !== 'pending') return reply(403, { error: { paired: 'this pairing code was already used; show a new one on your computer', expired: 'this pairing code expired; show a new one on your computer', cancelled: 'this pairing code was cancelled on your computer' }[state] || 'this pairing code is not valid' });
+      if (!verified(body.publicKey, `lazybox-device-pair-v1\0${body.pairing}\0${body.publicKey}`, body.signature)) return reply(403, { error: 'the device key did not sign this request' });
+      const digest = createHash('sha256').update(Buffer.from(body.publicKey, 'base64url')).digest('hex').slice(0, 16).toUpperCase();
+      const d = { id: randomUUID().slice(0, 12), name: (body.name || '').trim() || 'Phone', grants: offer.grants, publicKey: body.publicKey, pairedAt: Date.now(), lastSeenAt: Date.now(), fingerprint: digest.match(/.{4}/g).join(' ') };
+      remote.devices.set(d.id, d); offer.state = 'paired'; offer.device = d.id;
+      return reply(200, { device: { id: d.id, name: d.name, grants: d.grants, fingerprint: d.fingerprint } });
+    }
+    if (path === 'challenge') {
+      if (!remote.devices.has(body.device)) return reply(401, { error: 'this device is not paired with this Runner', code: 'revoked' });
+      const challenge = randomUUID(); remote.challenges.set(challenge, body.device);
+      return reply(200, { challenge, expiresAt: Date.now() + 60_000 });
+    }
+    if (path === 'session') {
+      const owner = remote.challenges.get(body.challenge); remote.challenges.delete(body.challenge);
+      const d = remote.devices.get(body.device);
+      if (!d) return reply(401, { error: 'this device is not paired with this Runner', code: 'revoked' });
+      if (owner !== body.device || !verified(d.publicKey, `lazybox-device-session-v1\0${body.device}\0${body.challenge}`, body.signature)) return reply(401, { error: 'the device key did not sign this request' });
+      const credential = `lbx-device.${d.id}.${randomUUID()}`; remote.tokens.set(credential, d.id); d.lastSeenAt = Date.now();
+      return reply(200, { token: credential, expiresAt: Date.now() + 900_000, device: { id: d.id, name: d.name, grants: d.grants, fingerprint: d.fingerprint } });
+    }
+    return reply(404, { error: 'unknown endpoint' });
+  };
   const handle = async (req, res) => {
     // A desktop window calls the Runner's own origin (no proxy), as the native app does.
     if (req.headers.origin) {
@@ -223,6 +273,17 @@ actions:
       res.setHeader('Access-Control-Expose-Headers', '*');
       if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     }
+    // The device gateway's pairing and sign-in endpoints (REMOTE.md), checked as the Runner checks them.
+    if (req.url.startsWith('/remote/v1/')) return remoteEndpoint(req, res);
+    let device;
+    if (req.headers.authorization?.startsWith('Bearer lbx-device.')) {
+      const method = req.url.split('/').at(-1);
+      device = remote.deviceFor(req.headers.authorization.slice(7));
+      remote.deviceCalls.push({ method, device: device?.id || null });
+      if (!device) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unauthenticated', message: "a paired device's credential is required" })); return; }
+      const grant = deviceRPCs[method];
+      if (!grant || !device.grants.includes(grant)) { remote.deviceDenied.push(method); res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'permission_denied', message: 'this device is not allowed to do that' })); return; }
+    } else
     if (req.headers.authorization !== `Bearer ${token}`) { runner.refusedBearers.push({ bearer: req.headers.authorization ?? null, method: req.url.split('/').at(-1) }); res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unauthenticated', message: 'local test bench bearer required' })); return; }
     if (runner.down) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unavailable', message: 'Fixture Runner is restarting' })); return; }
     const method = req.url.split('/').at(-1); let body;
@@ -233,8 +294,9 @@ actions:
       body = JSON.parse(data.toString() || '{}');
     }
     catch { res.writeHead(400); res.end(); return; }
-    calls.push({ method, body });
-    const json = value => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
+    calls.push({ method, body, ...(device ? { device: device.id } : {}) });
+    if (device && method === 'Apply' && body.permission) { remote.deviceDenied.push('Apply:permission'); res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'permission_denied', message: 'this device is not allowed to do that' })); return; }
+    const json = value => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(device && method === 'Info' ? { ...value, profiles: value.profiles.map(({ id, provider, label, managed, isolation }) => ({ id, provider, label, managed, isolation })), pendingEnrollments: [], gateways: [], restartAvailable: false } : value)); };
     const error = (code, message) => { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code, message })); };
     switch (method) {
       case 'GetRunnerSettings': return json(runnerSettings);
@@ -481,8 +543,21 @@ actions:
         for (const p of orphans) processes.splice(processes.indexOf(p), 1);
         return json({ stopped: orphans.length, inventory: processInventory() });
       }
+      case 'GetRemoteAccess': return json(remote.access());
+      case 'SetRemoteAccess': { mutations.push({ method, body }); remote.tailscale.enabled = !!body.tailscale; remote.tailscale.state = body.tailscale ? 'serving' : 'available'; return json(remote.access()); }
+      case 'BeginDevicePairing': {
+        if (!remote.access().phoneUrl) return error('failed_precondition', 'no route reaches this Runner from a phone yet; turn on Tailscale access in Settings → Devices first');
+        const grants = ['read', ...['respond', 'start'].filter(g => (body.grants || []).includes(g))];
+        const offer = { id: randomUUID().replaceAll('-', ''), secret: randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', ''), state: 'pending', grants, expiresAtUnixMillis: String(Date.now() + remote.offerLifetimeMs) };
+        remote.offers.set(offer.id, offer);
+        return json({ ...remote.wireOffer(offer), url: `${remote.phoneUrl}/?view=remote#${new URLSearchParams({ pair: `${offer.id}.${offer.secret}`, grants: grants.join(',') })}` });
+      }
+      case 'GetDevicePairing': { const offer = remote.offers.get(body.pairingId); return offer ? json(remote.wireOffer(offer)) : error('not_found', 'this pairing code is not valid'); }
+      case 'CancelDevicePairing': { const offer = remote.offers.get(body.pairingId); if (!offer) return error('not_found', 'unknown'); if (remote.state(offer) === 'pending') offer.state = 'cancelled'; return json(remote.wireOffer(offer)); }
+      case 'ListDevices': return json({ devices: [...remote.devices.values()].map(remote.wireDevice) });
+      case 'RevokeDevice': { if (!remote.devices.delete(body.deviceId)) return error('not_found', 'this device is not paired'); mutations.push({ method, body }); return json({ devices: [...remote.devices.values()].map(remote.wireDevice) }); }
       case 'Apply': {
-        mutations.push({ method, body });
+        mutations.push({ method, body, ...(device ? { device: device.id } : {}) });
         // Like the Runner: at a subscription limit a message is accepted and
         // waits in the queue (journaled once), delivered after the switch.
         const session=sessions.find(s=>s.id===body.sessionId);
@@ -598,7 +673,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

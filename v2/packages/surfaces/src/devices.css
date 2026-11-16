@@ -1,0 +1,65 @@
+/* Settings → Devices: the route a phone takes, pairing, and paired phones. */
+.devices-settings{max-width:860px;display:flex;flex-direction:column;gap:18px}
+.devices-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.devices-heading p{margin-top:6px;color:#a6a6b2;line-height:1.6;font-size:13px;max-width:560px}
+.devices-heading button{display:inline-flex;align-items:center;gap:7px;flex:none}
+.remote-route{display:flex;align-items:flex-start;gap:14px;padding:18px;border:1px solid #363641;border-radius:12px;background:#202127}
+.remote-route-icon{display:flex;align-items:center;justify-content:center;flex:none;width:36px;height:36px;border-radius:9px;background:#2a2b33;color:#9698a4}
+.remote-route[data-state=serving] .remote-route-icon{background:#24331f;color:#b9e59a}
+.remote-route-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.remote-route-body h3{font-size:14px;font-weight:600}
+.remote-route-body p{color:#a6a6b2;line-height:1.6;font-size:12.5px;overflow-wrap:anywhere}
+.remote-route-body a{color:#bdb1ed;display:inline-flex;align-items:center;gap:3px}
+.remote-route>button{flex:none;align-self:center}
+.remote-on{color:#c6d9b8!important}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px;background:#6c6e78}
+.status-dot.on{background:#9fd67c;box-shadow:0 0 0 3px #9fd67c22}
+.remote-problem{color:#e2b977!important}
+.devices-list-title{font-size:13px;font-weight:600;color:#c8c8d2;margin-top:6px}
+.devices-empty{display:flex;align-items:center;gap:14px;padding:18px;border:1px dashed #3a3b45;border-radius:12px;color:#8d8f9b}
+.devices-empty strong{color:#d7d7df;font-weight:550}
+.devices-empty p{margin-top:4px;font-size:12px}
+.device-list{list-style:none;margin:0;padding:0;border:1px solid #33343e;border-radius:12px;overflow:hidden}
+.device-row{display:flex;align-items:center;gap:14px;padding:14px 16px;background:#1f2026}
+.device-row+.device-row{border-top:1px solid #2e2f38}
+.device-icon{display:flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;border-radius:50%;background:#2a2b33;color:#c9c6d8}
+.device-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.device-main strong{font-weight:600;color:#ecebf2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:#8d8f9b}
+.device-meta>span+span::before{content:'·';margin-right:6px}
+.device-grants{display:flex;flex-wrap:wrap;gap:5px}
+.grant-chip{font-size:10.5px;padding:2px 7px;border-radius:10px;background:#2b2a36;color:#c4bde3}
+.device-fingerprint{font-size:10px;color:#6f717c}
+.device-confirm{display:flex;align-items:center;gap:8px;font-size:12px;color:#e3c2c2}
+.devices-settings button.danger{background:#783f49;border:1px solid #92505c;color:#fff}
+.devices-settings button.danger:hover{background:#8b4854}
+
+.pair-dialog{width:min(680px,calc(100vw - 32px));padding:0;border:1px solid #393a44;border-radius:14px;background:#1f2026;color:#e6e6ed}
+.pair-dialog>header{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 12px 20px;border-bottom:1px solid #2c2d35}
+.pair-dialog>header h2{font-size:15px}
+.pair-dialog>header button{width:30px;height:30px;padding:0;background:transparent;border:0;font-size:20px;color:#9698a4}
+.pair-body{display:flex;gap:24px;padding:22px}
+.pair-code{flex:none;align-self:flex-start;display:flex;align-items:center;justify-content:center;padding:10px;border-radius:12px;background:#fff}
+.qr-code{display:block}
+.qr-placeholder{width:232px;height:232px;display:flex;align-items:center;justify-content:center;color:#55565f;font-size:12px}
+.pair-steps{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.pair-steps ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;color:#d4d4dc;font-size:13px;line-height:1.5}
+.pair-steps .mono{overflow-wrap:anywhere;color:#c4bde3}
+.pair-expiry{font-size:12px;color:#d6b46e;font-variant-numeric:tabular-nums;min-height:1em}
+.pair-allowed{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:10px;background:#26272e;font-size:12px;color:#a9abb6}
+.pair-allowed>span{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#8d8f9b}
+.pair-allowed p{color:#d7d7df;line-height:1.5}
+.pair-allowed fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.grant-option{display:flex!important;flex-direction:row!important;align-items:flex-start;gap:9px!important;cursor:pointer}
+.grant-option input{width:auto;margin-top:2px;flex:none}
+.grant-option span{display:flex;flex-direction:column;gap:2px}
+.grant-option strong{color:#e6e6ed;font-weight:550;font-size:12.5px}
+.pair-copy{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:12px;padding:6px 10px;background:transparent}
+.pair-waiting{color:#9698a4}
+.pair-done{display:flex;flex-direction:column;align-items:center;gap:10px;padding:32px 24px;text-align:center}
+.pair-done h3{font-size:17px}
+.pair-done p{color:#a9abb6;font-size:13px;line-height:1.6}
+.pair-done .mono{color:#c4bde3}
+.pair-check{display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:#24331f;color:#b9e59a}
+.pair-done>button{margin-top:8px;min-width:120px}
+@media(max-width:640px){.devices-heading{flex-direction:column}.remote-route{flex-wrap:wrap}.pair-body{flex-direction:column;align-items:center}.device-row{flex-wrap:wrap}}
