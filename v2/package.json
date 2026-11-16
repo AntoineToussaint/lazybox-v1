@@ -59,7 +59,8 @@
     "test:processes": "node scripts/test-processes.mjs",
     "test:transcript-performance": "node scripts/test-transcript-performance.mjs",
     "test:mermaid-viewer": "node scripts/test-mermaid-viewer.mjs",
-    "test:file-navigation": "node scripts/test-file-navigation.mjs"
+    "test:file-navigation": "node scripts/test-file-navigation.mjs",
+    "test:prompt-navigation": "node scripts/test-prompt-navigation.mjs"
   },
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",

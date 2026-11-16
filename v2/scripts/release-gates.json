@@ -40,7 +40,8 @@
     { "id": "processes", "scope": "ui", "script": "test:processes" },
     { "id": "transcript-performance", "scope": "ui", "script": "test:transcript-performance" },
     { "id": "mermaid-viewer", "scope": "ui", "script": "test:mermaid-viewer" },
-    { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" }
+    { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" },
+    { "id": "prompt-navigation", "scope": "ui", "script": "test:prompt-navigation" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

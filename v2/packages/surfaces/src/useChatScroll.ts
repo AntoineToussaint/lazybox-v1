@@ -6,7 +6,7 @@ export const INITIAL_MESSAGES=40,EARLIER_MESSAGES=60;
 
 /** Follow the rendered content, including asynchronous diagrams and viewport changes.
  * Earlier history is mounted as the reader nears the top, keeping what they look at in place. */
-export function useChatScroll(reader:ConversationReader,messages:readonly unknown[],pendingCount:number|undefined){
+export function useChatScroll(reader:ConversationReader,messages:readonly {id:string}[],pendingCount:number|undefined){
  const paneRef=useRef<HTMLDivElement>(null),contentRef=useRef<HTMLDivElement>(null);
  const following=useRef(reader.view.following);
  const [followingLatest,setFollowingLatest]=useState(reader.view.following);
@@ -50,6 +50,7 @@ export function useChatScroll(reader:ConversationReader,messages:readonly unknow
   if(prependHeight.current!==undefined){pane.scrollTop+=pane.scrollHeight-prependHeight.current;prependHeight.current=undefined;measure(pane);capture(pane);}
   else if(following.current)pin(pane);
   reader.view.visibleMessages=visibleMessages;
+  if(reveal.current&&revealNow())return;
   if(nearTop(pane))loadEarlier(pane);
  },[reader,messages,visibleMessages,pendingCount,loadEarlier]);
  const onScroll=(event:UIEvent<HTMLDivElement>)=>{
@@ -61,6 +62,23 @@ export function useChatScroll(reader:ConversationReader,messages:readonly unknow
   if(nearTop(pane))loadEarlier(pane);
  };
  const jumpToLatest=()=>{setFollowing(true);if(paneRef.current)pin(paneRef.current);};
+ // Jumping to a message (a prompt) may need earlier history mounted first:
+ // widen the window, then scroll it to the top once it is rendered.
+ const reveal=useRef<string|undefined>(undefined);
+ const revealNow=()=>{
+  const id=reveal.current,pane=paneRef.current;if(!id||!pane)return false;
+  const node=contentRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`);if(!node)return false;
+  reveal.current=undefined;
+  pane.scrollTop+=node.getBoundingClientRect().top-pane.getBoundingClientRect().top-12;measure(pane);capture(pane);reader.view.scrollTop=pane.scrollTop;
+  node.classList.remove('message-flash');void node.offsetWidth;node.classList.add('message-flash');
+  return true;
+ };
+ const revealMessage=useCallback((id:string)=>{
+  const index=messages.findIndex(m=>m.id===id);if(index<0)return;
+  setFollowing(false);reveal.current=id;prependHeight.current=undefined;
+  const need=messages.length-index+1;
+  if(need>visibleMessages)setVisibleMessages(need);else requestAnimationFrame(()=>{revealNow();});
+ },[messages,visibleMessages,setFollowing]);
  const showEarlier=useCallback(()=>{setFollowing(false);loadEarlier(paneRef.current);},[setFollowing,loadEarlier]);
- return{paneRef,contentRef,followingLatest,visibleMessages,onScroll,jumpToLatest,showEarlier};
+ return{paneRef,contentRef,followingLatest,visibleMessages,onScroll,jumpToLatest,showEarlier,revealMessage};
 }

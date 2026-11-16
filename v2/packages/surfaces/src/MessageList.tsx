@@ -8,7 +8,7 @@ import type { ReplayProgress } from './transcript-cache';
 
 const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void }) {
   if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
-  return <article className={'message ' + m.type}>
+  return <article className={'message ' + m.type} data-message-id={m.id}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Provider failure' : m.type === 'notice' ? 'Runner' : agentName}</span>
     <RichContent text={m.text} onOpenFile={onOpenFile}/>
     {m.files?.length ? <ul className="sent-files" aria-label="Sent attachments">{m.files.map((file, i) => <li key={i}>↳ {file.name} · {Math.ceil(file.size / 1024)} KiB</li>)}</ul> : null}

@@ -13,6 +13,7 @@ import type { FileLink } from './file-reference';
 import { useTranscript } from './useTranscript';
 import { activityLabel } from './activity';
 import { ConversationLoading, MessageList } from './MessageList';
+import { PromptNavigator } from './PromptNavigator';
 import { useRunnerSettings } from './RunnerSettings';
 import { TelemetryPanel } from './TelemetryPanel';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
@@ -379,9 +380,11 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       {session?.account && ['auth_required', 'exhausted', 'throttled', 'billing_error', 'context_full', 'budget_exceeded'].includes(session.account.state) && <div className="account-notice" role="status">{accountLabel(session.account.state)}{session.account.resetAt > 0n ? ` · resets ${new Date(Number(session.account.resetAt) * 1000).toLocaleString()}` : ''}</div>}
     {session && session.agents.length > 1 && <details className="agent-activity"><summary>Agent activity ({session.agents.length - 1})</summary><ul>{session.agents.filter(a => a.id !== 'root').map(a => <li key={a.id} data-parent={a.parentId}><span>{a.name || 'Sub-agent'}</span><small>{statusLabel(a.status)}</small></li>)}</ul>{session.activityTruncated && <small>Additional activity was omitted.</small>}</details>}
       {transcript.error && <div className="transcript-notice error" role="alert"><span>Conversation could not be loaded. {transcript.error}</span><button onClick={transcript.retry}>Retry conversation</button></div>}
-      <div className="messages" ref={scroll.paneRef} onScroll={scroll.onScroll}><div className="messages-content" ref={scroll.contentRef}>
+      <div className="messages-frame"><PromptNavigator messages={conversation} paneRef={scroll.paneRef} onReveal={scroll.revealMessage}/>
+      <div className="messages" tabIndex={-1} ref={scroll.paneRef} onScroll={scroll.onScroll}><div className="messages-content" ref={scroll.contentRef}>
       {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
       {!transcript.loading && !transcript.error && !conversation.length && <div className="empty"><span>READY TO WORK</span><h2>What are we building?</h2><p>Send {agentName} a message to get started.</p></div>}{session?.fault && <div className="error" role="alert">{session.fault}</div>}<MessageList messages={conversation} visible={visibleMessages} agentName={agentName} onOpenFile={session?.collectionId ? openFile : undefined} onShowEarlier={scroll.showEarlier}/>{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={setError}/>)}</div></div>
+      </div>
       {!followingLatest && conversation.length > 0 && <button className="jump-to-latest" onClick={jumpToLatest}>Jump to latest</button>}
       {!transcript.error && (activity||stream.startsWith('Disconnected')||stream==='Reconnecting')&&<div className="live-activity" role="status"><i/>{stream.startsWith('Disconnected')||stream==='Reconnecting'?'Connection interrupted · reconnecting…':activity}</div>}
       <form className="composer" onSubmit={send}>
