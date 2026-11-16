@@ -6,6 +6,8 @@
 /* In a narrow panel or on a phone the tools take a second row, so the title is never squeezed away. */
 .chat-heading{flex-wrap:wrap;row-gap:2px}
 .chat-heading-main{flex:1 1 min(240px,calc(100% - 40px))}
+/* And when even the tools' own row is too narrow, they wrap inside the chat instead of running under the next panel. */
+.chat-heading .chat-heading-actions{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;max-width:100%;min-width:0}
 /* When the line under the title is short of room, the branch gives way first: what the agent is doing stays readable. */
 .chat-heading-meta .chat-meta-branch{display:inline-block;flex:0 8 auto;min-width:3ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 .chat-heading-meta .chat-meta-branch>svg{margin-right:4px;vertical-align:-1px}
