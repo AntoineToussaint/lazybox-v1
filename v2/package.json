@@ -48,7 +48,8 @@
     "test:navigation-snippets": "node scripts/test-navigation-snippets.mjs",
     "test:activity-presentation": "node scripts/test-activity-presentation.mjs",
     "test:dogfood": "node scripts/test-dogfood.mjs",
-    "test:responsive-shell": "node scripts/test-responsive-shell.mjs"
+    "test:responsive-shell": "node scripts/test-responsive-shell.mjs",
+    "test:terminal": "node scripts/test-terminal.mjs"
   },
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",

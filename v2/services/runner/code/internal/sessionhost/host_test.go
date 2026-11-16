@@ -30,6 +30,9 @@ func TestMain(m *testing.M) {
 	case "runner":
 		fakeRunner()
 		return
+	case "terminal":
+		fakeTerminalProgram()
+		return
 	}
 	os.Exit(m.Run())
 }

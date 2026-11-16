@@ -67,6 +67,13 @@ service RunnerService {
   rpc WaitCommand(CommandRequest) returns (CommandStatus);
   rpc CancelCommand(CommandRequest) returns (CommandStatus);
   rpc WatchOutput(WatchOutputRequest) returns (stream OutputEvent);
+  // Workspace terminals: a person's interactive shell, never an agent's.
+  rpc OpenTerminal(OpenTerminalRequest) returns (TerminalStatus);
+  rpc ListTerminals(ListTerminalsRequest) returns (ListTerminalsResponse);
+  rpc WatchTerminal(WatchTerminalRequest) returns (stream TerminalEvent);
+  rpc WriteTerminal(WriteTerminalRequest) returns (TerminalStatus);
+  rpc ResizeTerminal(ResizeTerminalRequest) returns (TerminalStatus);
+  rpc CloseTerminal(TerminalRequest) returns (TerminalStatus);
 }
 
 message InfoRequest {}
@@ -521,6 +528,65 @@ message OutputEvent {
   uint64 offset = 5;
   bytes data = 6;
   CommandStatus status = 7;
+}
+
+// A terminal runs the user's login shell in a workspace directory. Its output
+// is addressed by byte offset; only the last bounded scrollback is retained.
+message OpenTerminalRequest {
+  string collection_id = 1;
+  // Workspace-relative directory, for example a member repository; empty for
+  // the workspace root. Resolved and confined on the Runner.
+  string directory = 2;
+  uint32 cols = 3;
+  uint32 rows = 4;
+  // Retrying with the same key returns the terminal already started.
+  string request_key = 5;
+}
+message TerminalRequest {
+  string terminal_id = 1;
+}
+message TerminalStatus {
+  string id = 1;
+  string collection_id = 2;
+  string directory = 3;
+  string title = 4;
+  string shell = 5;
+  uint32 cols = 6;
+  uint32 rows = 7;
+  // Output end offset, and how many bytes before it are still retained.
+  uint64 offset = 8;
+  uint64 retained = 9;
+  bool done = 10;
+  optional int32 exit_code = 11;
+  string signal = 12;
+  string error = 13;
+  int64 created_at_unix_millis = 14;
+}
+message ListTerminalsRequest {
+  string collection_id = 1;
+}
+message ListTerminalsResponse {
+  repeated TerminalStatus terminals = 1;
+}
+message WatchTerminalRequest {
+  string terminal_id = 1;
+  // Byte offset already displayed. Output older than the scrollback is
+  // skipped; each event's offset says where its data starts.
+  uint64 after = 2;
+}
+message TerminalEvent {
+  uint64 offset = 1;
+  bytes data = 2;
+  TerminalStatus status = 3;
+}
+message WriteTerminalRequest {
+  string terminal_id = 1;
+  bytes data = 2;
+}
+message ResizeTerminalRequest {
+  string terminal_id = 1;
+  uint32 cols = 2;
+  uint32 rows = 3;
 }
 
 message VersionRequest {}

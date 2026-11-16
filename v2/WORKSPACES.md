@@ -150,6 +150,11 @@ extension seam, not a downloadable plugin sandbox or an orchestration scheduler.
 Future orchestration modules must call Runner-owned execution APIs; window
 lifecycle and layout must never own agent lifecycle.
 
+**Terminal** in the header opens your login shell in the workspace, on the
+Runner, in a Terminal panel; the panel can also open one in a repository. The
+shell keeps running when the window closes or the Runner restarts. See
+[TERMINALS.md](TERMINALS.md).
+
 ### Agent telemetry and workspace accounting
 
 The Runner now owns a streaming metering gateway, a SQLite usage ledger and

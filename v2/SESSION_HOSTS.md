@@ -24,16 +24,22 @@ Runner's process group or session, so a Runner exit, crash, group kill, launchd
 job stop or terminal hangup does not reach it. The program runs under
 `processguard` inside the host, so its descendants still die with the host.
 
-A host runs its program in one of two modes:
+A host runs its program in one of three modes:
 
 - **Lines** (agents): JSONL on stdin/stdout. Each line is one sequenced entry;
   requests and responses are tracked so an unanswered request is redelivered.
 - **Stream** (managed commands): no stdin; every read from stdout or stderr is
   one sequenced chunk. Cancelling a command kills its group at once: there is no
   graceful stdin close to wait for.
+- **Terminal** (a person's shell): a pseudo-terminal; raw input and
+  resizes from the Runner, every read one sequenced chunk, plus a bounded
+  scrollback a re-attaching Runner gets in its welcome instead of a replay. The
+  shell is not under `processguard`; a hang-up ends it. See
+  [TERMINALS.md](TERMINALS.md).
 
 Agent hosts live under `<state>/hosts/<id>/`, command hosts under
-`<state>/command-hosts/<id>/` (both 0700). The private `host.json` (0600) carries
+`<state>/command-hosts/<id>/`, terminal hosts under
+`<state>/terminal-hosts/<id>/` (all 0700). The private `host.json` (0600) carries
 the loopback port and a random token; there are no fixed ports or paths. Working
 and Dev have separate state, so separate hosts. A host reads at most 64 KiB from
 a connection before it has authenticated, and refuses a client that does not
@@ -145,6 +151,13 @@ bumps `Protocol` and keeps the window's lower bound at the oldest version a
 supported release could have launched a host with. Terminate and release are
 version-stable, so a host outside the window can still be stopped; its
 conversation then falls back to native resume.
+
+The version guards a host against frames it cannot understand, so a change only
+existing hosts could receive bumps it. Terminal mode did not: its spec field and
+`input`/`resize` frames go only to terminal hosts, which only a binary that knows
+terminals launches, and agent and command frames are unchanged. Bumping would
+have cost a rollback its live agents: an older Runner cannot adopt a host of a
+newer version.
 
 ## Why there is no local daemon
 

@@ -241,7 +241,7 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 func (b *Bench) StopUnclaimedHosts(ctx context.Context) error { return b.stopOrphanHosts(ctx) }
 
 // stopOrphanHosts stops hosts nothing attached to: agents no adopted execution
-// claimed and commands the command manager did not adopt. This Runner holds the
+// claimed, and commands and terminals their managers did not adopt. This Runner holds the
 // state lock, so no other Runner can be their client: a host is claimed only if
 // this process holds it (sessionhost.Held). The host's own "attached" is not
 // evidence of a claim: a host counts a crashed or detached predecessor as
@@ -249,7 +249,7 @@ func (b *Bench) StopUnclaimedHosts(ctx context.Context) error { return b.stopOrp
 // such a host's agent running, supervised by no one, until the orphan limit.
 func (b *Bench) stopOrphanHosts(ctx context.Context) error {
 	var errs []error
-	for _, root := range []string{b.Config.HostRoot, b.Config.CommandHostRoot} {
+	for _, root := range []string{b.Config.HostRoot, b.Config.CommandHostRoot, b.Config.TerminalHostRoot} {
 		ids, err := sessionhost.Hosts(root)
 		if err != nil {
 			errs = append(errs, err)

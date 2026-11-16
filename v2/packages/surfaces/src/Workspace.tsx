@@ -17,6 +17,7 @@ import { ConversationList } from './ConversationList';
 import { CollectionPanel } from './CollectionPanel';
 import { CommandPanel } from './CommandPanel';
 import { useCommandRuns } from './command-runs';
+import { TerminalPanel, requestTerminal } from './TerminalPanel';
 import { mergeConversations } from './conversation-model';
 import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
@@ -43,6 +44,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   collections: { title: 'Workspaces', Component: CollectionPanel },
   chat: { title: 'Agent chat', Component: ChatModule },
   console: { title: 'Command output', Component: CommandPanel },
+  terminal: { title: 'Terminal', Component: ({workspaceId,collections,viewState}) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState}/> },
   assistant: { title: 'Ask Lazybox', Component: AssistantModule },
   changes: { title: 'Changes', Component: ({workspaceId}) => <ChangesPanel key={workspaceId} workspaceId={workspaceId}/> },
   usage: { title: 'Usage & cost', Component: ({workspaceId}) => <TelemetryPanel workspaceId={workspaceId}/> },
@@ -162,6 +164,16 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const review:WorkspacePage={id,name:'Changes',selection:{...page.selection,collectionId:workspaceID},layout:{type:'panel',panel:{id:crypto.randomUUID(),kind:'changes',binding:{mode:'follow'},detached:false}}};
     if(commit({...current.current,selectedPage:id,pages:[...current.current.pages,review]}))setSettings(false);
   };
+  /** Start a shell in this workspace, in the page's terminal panel (added below the page if it has none). */
+  const showTerminal = () => {
+    if (!workspaceID) return;
+    const live = current.current.pages.find(value => value.id === page.id)!;
+    const existing = panels(live.layout).find(panel => panel.kind === 'terminal' && !panel.detached);
+    if (!existing && panels(live.layout).length >= 12) { setError('This page already has 12 panels; remove one to add a terminal.'); return; }
+    const panelID = existing?.id || crypto.randomUUID();
+    const layout: LayoutNode = existing ? mapPanels(live.layout, panel => panel.id === panelID ? { ...panel, collapsed: false } : panel) : { type: 'split', direction: 'column', ratio: 0.6, children: [live.layout, { type: 'panel', panel: { id: panelID, kind: 'terminal', binding: { mode: 'follow' }, detached: false } }] };
+    if (changePage({ ...live, layout })) { setSettings(false); setMobilePanelId(panelID); requestTerminal(workspaceID); }
+  };
   const beginConversation = (collectionId = workspaceID) => {
     if (collectionId !== workspaceID) select({ collectionId, sessionId: '', commandId: '' });
     setNavigatorOpen(false); setQuickStart(false); setNewSession(true);
@@ -260,6 +272,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       <nav aria-label="Pages">{layout.pages.map(value => <button key={value.id} disabled={!!pending} className={!settings && value.id === page.id ? 'selected' : ''} onClick={() => { setSettings(false); commit({ ...layout, selectedPage: value.id }); }}>{value.name}</button>)}{!fixedWorkspaceId&&<button className={settings ? 'selected' : ''} onClick={() => setSettings(true)}>Settings</button>}</nav>
       <div className="workspace-header-actions">
         <button className="toolbar-action" disabled={!workspaceID} aria-label="Review changes" title="Review changes" onClick={showChanges}><Icon name="branch"/><span>Changes</span></button>
+        <button className="toolbar-action" disabled={!workspaceID || collections.find(value => value.id === workspaceID)?.state !== 'ready'} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={showTerminal}><Icon name="terminal"/><span>Terminal</span></button>
         <button className="toolbar-action new-conversation-action" disabled={!info || !!pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={() => beginConversation()}><Icon name="plus"/><span>New conversation</span></button>
         <span className={'runner-indicator' + (connectionError ? ' offline' : '')} title={connectionError || (connecting ? 'Connecting to Runner' : 'Runner connected')}><i/>{connecting ? 'Connecting' : 'Connected'}</span>
         <ActionMenu label="Page actions">

@@ -39,6 +39,11 @@ export async function startRunnerFixture() {
   const enrollments = new Map();
   const completeEnrollment = id => { const flow = enrollments.get(id); if (!flow) throw new Error('Unknown fixture enrollment'); if (flow.state === 'added') return; flow.state = 'added'; flow.signInUrl = ''; flow.userCode = ''; profiles.push({ id: flow.profileId, provider: flow.provider, label: flow.label, managed:true, isolation: 'environment', availability: flow.provider === 'codex' ? { state: 'available', plan: 'pro', observedAtUnixMillis: String(Date.now()), windows: [{ name: 'codex:primary', durationMinutes: '300', usedPercent: 73, resetAt: String(Math.floor(Date.now()/1000)+3600) }] } : { state: 'unknown' } }); };
 
+  // Terminals echo what is typed and answer each line, like a minimal shell.
+  const terminals=new Map();
+  const terminalStatus=t=>({id:t.id,collectionId:t.collectionId,directory:t.directory,title:t.title,shell:'/bin/fixture-sh',cols:t.cols,rows:t.rows,offset:String(t.output.length),retained:String(t.output.length),done:t.done,...(t.done?{exitCode:0}:{}),createdAtUnixMillis:String(t.createdAt)});
+  const terminalOutput=(t,text)=>{const offset=t.output.length;const data=Buffer.from(text);t.output=Buffer.concat([t.output,data]);for(const res of t.clients)res.write(frame({offset:String(offset),data:data.toString('base64'),status:terminalStatus(t)}));};
+
   let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[]};
   const server = createServer(async (req, res) => {
     if (req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unauthenticated', message: 'Fixture bearer required' })); return; }
@@ -134,6 +139,32 @@ export async function startRunnerFixture() {
         const events = [{ cursor: '1', offset: '0', channel: 'stdout', data: Buffer.from('fixture retained output\n').toString('base64'), status: command }];
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
       }
+      case 'OpenTerminal': {
+        mutations.push({method,body});const collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Workspace missing');
+        if(body.directory&&!collection.members.some(m=>m.spec.name===body.directory))return error('failed_precondition','terminal directory must be inside the workspace');
+        const existing=[...terminals.values()].find(t=>body.requestKey&&t.requestKey===body.requestKey);if(existing)return json(terminalStatus(existing));
+        const t={id:'terminal-'+(terminals.size+1),requestKey:body.requestKey,collectionId:collection.id,directory:body.directory||'',title:collection.name+(body.directory?' / '+body.directory:''),cols:body.cols,rows:body.rows,createdAt:Date.now(),output:Buffer.alloc(0),line:'',input:[],resizes:[],done:false,clients:new Set()};
+        terminals.set(t.id,t);terminalOutput(t,`fixture shell in ${t.title}\r\n$ `);return json(terminalStatus(t));
+      }
+      case 'ListTerminals': return json({terminals:[...terminals.values()].filter(t=>!body.collectionId||t.collectionId===body.collectionId).map(terminalStatus)});
+      case 'WatchTerminal': {
+        const t=terminals.get(body.terminalId);if(!t)return error('not_found','Terminal missing');
+        res.writeHead(200,{'Content-Type':'application/connect+json'});res.flushHeaders();
+        const after=Number(body.after||0);if(t.output.length>after)res.write(frame({offset:String(after),data:t.output.subarray(after).toString('base64'),status:terminalStatus(t)}));
+        if(t.done){res.end(Buffer.concat([frame({offset:String(t.output.length),status:terminalStatus(t)}),frame({},2)]));return;}
+        t.clients.add(res);res.on('close',()=>t.clients.delete(res));return;
+      }
+      case 'WriteTerminal': {
+        const t=terminals.get(body.terminalId);if(!t||t.done)return error(t?'failed_precondition':'not_found','Terminal unavailable');
+        const text=Buffer.from(body.data||'','base64').toString();t.input.push(text);
+        for(const character of text){if(character==='\r'){const line=t.line;t.line='';terminalOutput(t,`\r\nran: ${line}\r\n$ `);}else{t.line+=character;terminalOutput(t,character);}}
+        return json(terminalStatus(t));
+      }
+      case 'ResizeTerminal': {const t=terminals.get(body.terminalId);if(!t)return error('not_found','Terminal missing');Object.assign(t,{cols:body.cols,rows:body.rows});t.resizes.push([body.cols,body.rows]);return json(terminalStatus(t));}
+      case 'CloseTerminal': {
+        const t=terminals.get(body.terminalId);if(!t)return error('not_found','Terminal missing');mutations.push({method,body});
+        t.done=true;for(const client of t.clients)client.end(Buffer.concat([frame({offset:String(t.output.length),status:terminalStatus(t)}),frame({},2)]));terminals.delete(t.id);return json(terminalStatus(t));
+      }
       case 'CreateCollection': {
         mutations.push({ method, body });
         if (!requests.has(body.requestKey)) {
@@ -170,5 +201,5 @@ export async function startRunnerFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'lazybox-workspace-ui-'));
   const endpoint = join(directory, 'endpoint.json');
   await writeFile(endpoint, JSON.stringify({ url, token }), { mode: 0o600 });
-  return { commands, startRun, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
+  return { terminals, commands, startRun, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
 }

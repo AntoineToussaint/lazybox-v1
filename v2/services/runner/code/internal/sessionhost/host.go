@@ -48,6 +48,7 @@ type launch struct {
 	Token       string        `json:"token"`
 	BufferLimit int64         `json:"bufferLimit"`
 	OrphanAfter time.Duration `json:"orphanAfter"`
+	Scrollback  int           `json:"scrollback,omitempty"`
 }
 
 type entry struct {
@@ -97,6 +98,16 @@ type host struct {
 	proxy    string
 	// proxyKey is a random first path segment: the proxy forwards nothing else.
 	proxyKey string
+
+	// A terminal host's pseudo-terminal, the output it keeps for a
+	// re-attaching Runner, and the total bytes it has read.
+	terminal   *os.File
+	scrollback []byte
+	produced   uint64
+	// reaped: the shell was waited for, so its PID may be reused and is
+	// never signalled again. hungUp: output after the shell's exit is dropped.
+	reaped bool
+	hungUp bool
 }
 
 type conn struct {
@@ -129,6 +140,9 @@ func serve() int {
 	}
 	if cfg.OrphanAfter <= 0 {
 		cfg.OrphanAfter = DefaultOrphanAfter
+	}
+	if cfg.Scrollback <= 0 {
+		cfg.Scrollback = DefaultScrollback
 	}
 	h := &host{cfg: cfg, open: map[string]entry{}, answered: map[string]bool{}, stderr: &redact.Tail{}, unattached: time.Now(), inputReady: make(chan struct{}, 1)}
 	h.cond = sync.NewCond(&h.mu)
@@ -288,9 +302,20 @@ func (h *host) handle(raw net.Conn) {
 		}()
 	}
 	h.client = c
+	if h.terminal != nil {
+		// A terminal's output is not evidence to be recorded exactly once: an
+		// attaching Runner gets the scrollback in its welcome instead of a
+		// replay, so everything recorded so far counts as delivered.
+		hello.Ack = h.next
+	}
 	h.ackLocked(hello.Ack)
 	replay, cursor, sent := h.replayLocked(), h.acked, h.sent
 	welcome := frame{Op: "welcome", Protocol: Protocol, AgentPID: h.agent, Proxy: h.proxy, Spawned: h.spawned, Exited: h.exited}
+	if h.terminal != nil {
+		// The snapshot ends exactly where live output begins: each byte is
+		// seen once, either here or in a later chunk.
+		welcome.Scrollback, welcome.Produced = h.scrollbackLocked(), h.produced
+	}
 	h.cond.Broadcast()
 	h.mu.Unlock()
 	if c.send(welcome) != nil {
@@ -326,6 +351,10 @@ func (h *host) handle(raw net.Conn) {
 			}
 		case "send":
 			h.write(f.Line)
+		case "input":
+			h.writeInput(f.Data)
+		case "resize":
+			h.resize(f.Size)
 		case "ack":
 			h.mu.Lock()
 			h.ackLocked(f.Seq)
@@ -462,12 +491,23 @@ func (h *host) ackLocked(seq uint64) {
 	h.log = append([]entry(nil), keep...)
 }
 
-func (h *host) record(line []byte) {
+func (h *host) record(line []byte) { h.recordOutput(line, nil) }
+
+// recordOutput sequences one line. For a terminal, data is the raw output the
+// line carries: it joins the scrollback under the same lock, so a welcome's
+// snapshot and the sequence agree on what was already sent.
+func (h *host) recordOutput(line, data []byte) {
 	id, request, _ := classify(line)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for h.size >= h.cfg.BufferLimit && !h.released {
 		h.cond.Wait() // Backpressure: the agent blocks on its own stdout.
+	}
+	if data != nil {
+		if h.hungUp {
+			return
+		}
+		h.keepLocked(data)
 	}
 	h.next++
 	e := entry{seq: h.next, line: append(json.RawMessage(nil), line...), id: id, request: request}
@@ -520,6 +560,9 @@ func (h *host) spawn(spec *Spec) error {
 	}
 	if spec == nil || spec.Path == "" {
 		return errors.New("agent spec required")
+	}
+	if spec.Terminal != nil {
+		return h.spawnTerminalLocked(spec)
 	}
 	cmd := exec.Command(spec.Path, spec.Args...)
 	cmd.Env = spec.Env
@@ -673,13 +716,17 @@ func (h *host) readChunks(channel string, out *os.File) {
 func (h *host) terminate() {
 	h.mu.Lock()
 	h.stopping = true
-	stdin, guard, spawned := h.stdin, h.guard, h.spawned
+	stdin, guard, spawned, terminal := h.stdin, h.guard, h.spawned, h.terminal != nil
 	if !spawned {
 		h.released = true
 	}
 	h.cond.Broadcast()
 	h.mu.Unlock()
 	if !spawned {
+		return
+	}
+	if terminal {
+		h.hangUp()
 		return
 	}
 	if stdin == nil {

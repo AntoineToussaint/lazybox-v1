@@ -83,6 +83,12 @@ const (
 	RunnerService_WaitCommand_FullMethodName                  = "/lazybox.bench.v1.RunnerService/WaitCommand"
 	RunnerService_CancelCommand_FullMethodName                = "/lazybox.bench.v1.RunnerService/CancelCommand"
 	RunnerService_WatchOutput_FullMethodName                  = "/lazybox.bench.v1.RunnerService/WatchOutput"
+	RunnerService_OpenTerminal_FullMethodName                 = "/lazybox.bench.v1.RunnerService/OpenTerminal"
+	RunnerService_ListTerminals_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListTerminals"
+	RunnerService_WatchTerminal_FullMethodName                = "/lazybox.bench.v1.RunnerService/WatchTerminal"
+	RunnerService_WriteTerminal_FullMethodName                = "/lazybox.bench.v1.RunnerService/WriteTerminal"
+	RunnerService_ResizeTerminal_FullMethodName               = "/lazybox.bench.v1.RunnerService/ResizeTerminal"
+	RunnerService_CloseTerminal_FullMethodName                = "/lazybox.bench.v1.RunnerService/CloseTerminal"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -152,6 +158,13 @@ type RunnerServiceClient interface {
 	WaitCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	CancelCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	WatchOutput(ctx context.Context, in *WatchOutputRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OutputEvent], error)
+	// Workspace terminals: a person's interactive shell, never an agent's.
+	OpenTerminal(ctx context.Context, in *OpenTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
+	ListTerminals(ctx context.Context, in *ListTerminalsRequest, opts ...grpc.CallOption) (*ListTerminalsResponse, error)
+	WatchTerminal(ctx context.Context, in *WatchTerminalRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TerminalEvent], error)
+	WriteTerminal(ctx context.Context, in *WriteTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
+	ResizeTerminal(ctx context.Context, in *ResizeTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
+	CloseTerminal(ctx context.Context, in *TerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error)
 }
 
 type runnerServiceClient struct {
@@ -819,6 +832,75 @@ func (c *runnerServiceClient) WatchOutput(ctx context.Context, in *WatchOutputRe
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnerService_WatchOutputClient = grpc.ServerStreamingClient[OutputEvent]
 
+func (c *runnerServiceClient) OpenTerminal(ctx context.Context, in *OpenTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminalStatus)
+	err := c.cc.Invoke(ctx, RunnerService_OpenTerminal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListTerminals(ctx context.Context, in *ListTerminalsRequest, opts ...grpc.CallOption) (*ListTerminalsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTerminalsResponse)
+	err := c.cc.Invoke(ctx, RunnerService_ListTerminals_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) WatchTerminal(ctx context.Context, in *WatchTerminalRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TerminalEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RunnerService_ServiceDesc.Streams[3], RunnerService_WatchTerminal_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchTerminalRequest, TerminalEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnerService_WatchTerminalClient = grpc.ServerStreamingClient[TerminalEvent]
+
+func (c *runnerServiceClient) WriteTerminal(ctx context.Context, in *WriteTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminalStatus)
+	err := c.cc.Invoke(ctx, RunnerService_WriteTerminal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ResizeTerminal(ctx context.Context, in *ResizeTerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminalStatus)
+	err := c.cc.Invoke(ctx, RunnerService_ResizeTerminal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) CloseTerminal(ctx context.Context, in *TerminalRequest, opts ...grpc.CallOption) (*TerminalStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminalStatus)
+	err := c.cc.Invoke(ctx, RunnerService_CloseTerminal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -886,6 +968,13 @@ type RunnerServiceServer interface {
 	WaitCommand(context.Context, *CommandRequest) (*CommandStatus, error)
 	CancelCommand(context.Context, *CommandRequest) (*CommandStatus, error)
 	WatchOutput(*WatchOutputRequest, grpc.ServerStreamingServer[OutputEvent]) error
+	// Workspace terminals: a person's interactive shell, never an agent's.
+	OpenTerminal(context.Context, *OpenTerminalRequest) (*TerminalStatus, error)
+	ListTerminals(context.Context, *ListTerminalsRequest) (*ListTerminalsResponse, error)
+	WatchTerminal(*WatchTerminalRequest, grpc.ServerStreamingServer[TerminalEvent]) error
+	WriteTerminal(context.Context, *WriteTerminalRequest) (*TerminalStatus, error)
+	ResizeTerminal(context.Context, *ResizeTerminalRequest) (*TerminalStatus, error)
+	CloseTerminal(context.Context, *TerminalRequest) (*TerminalStatus, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1084,6 +1173,24 @@ func (UnimplementedRunnerServiceServer) CancelCommand(context.Context, *CommandR
 }
 func (UnimplementedRunnerServiceServer) WatchOutput(*WatchOutputRequest, grpc.ServerStreamingServer[OutputEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchOutput not implemented")
+}
+func (UnimplementedRunnerServiceServer) OpenTerminal(context.Context, *OpenTerminalRequest) (*TerminalStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenTerminal not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListTerminals(context.Context, *ListTerminalsRequest) (*ListTerminalsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTerminals not implemented")
+}
+func (UnimplementedRunnerServiceServer) WatchTerminal(*WatchTerminalRequest, grpc.ServerStreamingServer[TerminalEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchTerminal not implemented")
+}
+func (UnimplementedRunnerServiceServer) WriteTerminal(context.Context, *WriteTerminalRequest) (*TerminalStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method WriteTerminal not implemented")
+}
+func (UnimplementedRunnerServiceServer) ResizeTerminal(context.Context, *ResizeTerminalRequest) (*TerminalStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResizeTerminal not implemented")
+}
+func (UnimplementedRunnerServiceServer) CloseTerminal(context.Context, *TerminalRequest) (*TerminalStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method CloseTerminal not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -2219,6 +2326,107 @@ func _RunnerService_WatchOutput_Handler(srv interface{}, stream grpc.ServerStrea
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnerService_WatchOutputServer = grpc.ServerStreamingServer[OutputEvent]
 
+func _RunnerService_OpenTerminal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenTerminalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).OpenTerminal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_OpenTerminal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).OpenTerminal(ctx, req.(*OpenTerminalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListTerminals_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTerminalsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListTerminals(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListTerminals_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListTerminals(ctx, req.(*ListTerminalsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_WatchTerminal_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchTerminalRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RunnerServiceServer).WatchTerminal(m, &grpc.GenericServerStream[WatchTerminalRequest, TerminalEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnerService_WatchTerminalServer = grpc.ServerStreamingServer[TerminalEvent]
+
+func _RunnerService_WriteTerminal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WriteTerminalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).WriteTerminal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_WriteTerminal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).WriteTerminal(ctx, req.(*WriteTerminalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ResizeTerminal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResizeTerminalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ResizeTerminal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ResizeTerminal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ResizeTerminal(ctx, req.(*ResizeTerminalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_CloseTerminal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TerminalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CloseTerminal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CloseTerminal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CloseTerminal(ctx, req.(*TerminalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2466,6 +2674,26 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "CancelCommand",
 			Handler:    _RunnerService_CancelCommand_Handler,
 		},
+		{
+			MethodName: "OpenTerminal",
+			Handler:    _RunnerService_OpenTerminal_Handler,
+		},
+		{
+			MethodName: "ListTerminals",
+			Handler:    _RunnerService_ListTerminals_Handler,
+		},
+		{
+			MethodName: "WriteTerminal",
+			Handler:    _RunnerService_WriteTerminal_Handler,
+		},
+		{
+			MethodName: "ResizeTerminal",
+			Handler:    _RunnerService_ResizeTerminal_Handler,
+		},
+		{
+			MethodName: "CloseTerminal",
+			Handler:    _RunnerService_CloseTerminal_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -2481,6 +2709,11 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "WatchOutput",
 			Handler:       _RunnerService_WatchOutput_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "WatchTerminal",
+			Handler:       _RunnerService_WatchTerminal_Handler,
 			ServerStreams: true,
 		},
 	},

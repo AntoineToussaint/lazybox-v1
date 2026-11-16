@@ -96,6 +96,9 @@ type Options struct {
 	// OrphanAfter is how long a host keeps its program running with no Runner
 	// attached; DefaultOrphanAfter if zero.
 	OrphanAfter time.Duration
+	// Scrollback bounds the output a terminal host keeps for a re-attaching
+	// Runner; DefaultScrollback if zero.
+	Scrollback int
 }
 
 // Launch starts a new detached host under root and attaches to it. The host
@@ -148,7 +151,7 @@ func Launch(ctx context.Context, root string, opts Options) (*Client, error) {
 	// The Runner never waits on its hosts; reap only if this one fails to start.
 	cleanup := func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }
 	token := rand.Text() + rand.Text()
-	if err = json.NewEncoder(stdin).Encode(launch{ID: id, Dir: dir, Token: token, BufferLimit: opts.BufferLimit, OrphanAfter: opts.OrphanAfter}); err != nil {
+	if err = json.NewEncoder(stdin).Encode(launch{ID: id, Dir: dir, Token: token, BufferLimit: opts.BufferLimit, OrphanAfter: opts.OrphanAfter, Scrollback: opts.Scrollback}); err != nil {
 		cleanup()
 		return nil, err
 	}
@@ -309,6 +312,21 @@ func (c *Client) Spawn(ctx context.Context, spec Spec) error {
 
 // Send writes one line to the agent's stdin.
 func (c *Client) Send(line json.RawMessage) error { return c.write(frame{Op: "send", Line: line}) }
+
+// Input writes raw bytes to a terminal host's shell, at most InputLimit.
+func (c *Client) Input(data []byte) error {
+	if len(data) > InputLimit {
+		return errors.New("terminal input exceeds 64 KiB")
+	}
+	return c.write(frame{Op: "input", Data: data})
+}
+
+// Resize changes a terminal host's size.
+func (c *Client) Resize(size Size) error { return c.write(frame{Op: "resize", Size: &size}) }
+
+// Scrollback is a terminal host's retained output when this client attached,
+// and the total output it had produced then: live chunks continue from there.
+func (c *Client) Scrollback() ([]byte, uint64) { return c.welcome.Scrollback, c.welcome.Produced }
 
 // Ack records that every line up to seq is durably handled by this client.
 func (c *Client) Ack(seq uint64) error { return c.write(frame{Op: "ack", Seq: seq}) }

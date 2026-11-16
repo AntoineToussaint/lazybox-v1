@@ -29,6 +29,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/repositorycatalog"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/terminals"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sources/github"
 )
 
@@ -81,6 +82,12 @@ type Config struct {
 	CommandBudget   int64                    `json:"commandBudget,omitempty"`
 	WorktreeRoot    string                   `json:"worktreeRoot,omitempty"`
 	Repositories    []collections.Repository `json:"repositories,omitempty"`
+
+	// TerminalHostRoot holds the session hosts of workspace terminals (a
+	// person's shells). Empty selects <State>/terminal-hosts.
+	TerminalHostRoot string `json:"-"`
+	// MaxLiveTerminals bounds running terminals; zero selects 16.
+	MaxLiveTerminals int `json:"maxLiveTerminals,omitempty"`
 }
 
 type Execution struct {
@@ -119,6 +126,7 @@ type Bench struct {
 	Config              Config
 	Accounts            *accounts.State
 	Commands            *commands.Manager
+	Terminals           *terminals.Manager
 	Attachments         *attachments.Store
 	Collections         *collections.Manager
 	ctx                 context.Context
@@ -170,7 +178,13 @@ func New(cfg Config) (*Bench, error) {
 	if !filepath.IsAbs(cfg.OutputRoot) || !filepath.IsAbs(cfg.OutputFallbackRoot) || cfg.OutputBudget < 0 {
 		return nil, errors.New("command output roots must be absolute and its budget not negative")
 	}
-	if !filepath.IsAbs(cfg.HostRoot) || !filepath.IsAbs(cfg.CommandHostRoot) {
+	if cfg.TerminalHostRoot == "" {
+		cfg.TerminalHostRoot = filepath.Join(cfg.State, "terminal-hosts")
+	}
+	if cfg.MaxLiveTerminals < 0 {
+		return nil, errors.New("live terminal limit must not be negative; zero selects the bounded default")
+	}
+	if !filepath.IsAbs(cfg.HostRoot) || !filepath.IsAbs(cfg.CommandHostRoot) || !filepath.IsAbs(cfg.TerminalHostRoot) {
 		return nil, errors.New("session host roots must be absolute directories")
 	}
 	if !filepath.IsAbs(cfg.SubscriptionState) {
@@ -258,6 +272,11 @@ func New(cfg Config) (*Bench, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary}}}
+	// Shells a previous Runner left running are re-attached here, like commands.
+	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals}); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
 	privateStore, err := githubconnection.NewFileStore(filepath.Join(cfg.State, "connections"))
 	if err == nil {
 		b.GitHubAPI = github.New()
@@ -793,6 +812,13 @@ func (b *Bench) shutdown(detach bool) error {
 			b.closeErr = errors.Join(b.closeErr, b.Commands.Detach())
 		} else {
 			b.closeErr = errors.Join(b.closeErr, b.Commands.Close())
+		}
+		if b.Terminals != nil {
+			if detach {
+				b.closeErr = errors.Join(b.closeErr, b.Terminals.Detach())
+			} else {
+				b.closeErr = errors.Join(b.closeErr, b.Terminals.Close())
+			}
 		}
 		if b.Collections != nil {
 			for _, e := range b.List() {

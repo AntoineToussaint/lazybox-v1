@@ -9,6 +9,7 @@ require (
 	github.com/codefly-dev/core v0.19.7-0.20261025185759-e501458995d0
 	github.com/codefly-dev/gortk v0.2.0
 	github.com/codefly-dev/sdk-go v0.4.0
+	github.com/creack/pty v1.1.24
 	github.com/dustinkirkland/golang-petname v0.0.0-20261016130456-fdd95a3d0543
 	github.com/google/go-github/v93 v93.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0

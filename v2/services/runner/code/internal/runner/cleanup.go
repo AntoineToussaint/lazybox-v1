@@ -63,5 +63,11 @@ func (b *Bench) DeleteWorkspace(ctx context.Context, id, name string, discard, s
 			}
 		}
 	}
+	// A shell must not keep running in a directory that is about to go.
+	if b.Terminals != nil {
+		if err = b.Terminals.DiscardCollection(ctx, id); err != nil {
+			return c, err
+		}
+	}
 	return b.Collections.FinishDeletion(ctx, id, discard, b.Active)
 }
