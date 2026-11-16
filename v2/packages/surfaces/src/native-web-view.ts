@@ -19,7 +19,8 @@ let stop: (() => void) | undefined;
 
 /** Elements of the app's own that a native view must never cover. */
 function covers(): Element[] {
-  const fixed = '.dock-overlay, [data-covers-web-view]';
+  // The dock's drop preview while a panel is dragged, and groups floating over the page.
+  const fixed = '.dv-drop-target-anchor, .dv-drop-target-selection, .dv-resize-container, [data-covers-web-view]';
   try { return [...document.querySelectorAll(`:popover-open, dialog[open], ${fixed}`)]; }
   catch { return [...document.querySelectorAll(`dialog[open], ${fixed}`)]; }
 }
@@ -37,12 +38,16 @@ export function placement(rect: DOMRect, viewport: { width: number; height: numb
 function sync() {
   frame = 0;
   const found = covers();
-  const modal = found.some(element => { try { return element.matches('dialog:modal'); } catch { return false; } });
-  const blockers = found.map(element => element.getBoundingClientRect());
+  // While a panel is dragged the drop preview can land anywhere: every view steps aside.
+  const modal = document.documentElement.classList.contains('dock-dragging') || found.some(element => { try { return element.matches('dialog:modal'); } catch { return false; } });
+  const boxes = found.map(element => ({ element, rect: element.getBoundingClientRect() }));
   const viewport = { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight };
   for (const slot of slots.values()) {
     const element = slot.element;
-    const visible = element.isConnected && document.visibilityState === 'visible' && (element.checkVisibility?.({ visibilityProperty: true } as CheckVisibilityOptions) ?? true);
+    // A panel moved into a window of its own is not where this window's view can be.
+    const visible = element.isConnected && element.ownerDocument === document && document.visibilityState === 'visible' && (element.checkVisibility?.({ visibilityProperty: true } as CheckVisibilityOptions) ?? true);
+    // What covers a view is anything of the app's own over it, except the floating group it is in.
+    const blockers = boxes.filter(box => !box.element.contains(element)).map(box => box.rect);
     const place = visible ? placement(element.getBoundingClientRect(), viewport, blockers, modal) : undefined;
     const key = place ? `${place.x},${place.y},${place.width},${place.height},${window.innerWidth},${window.innerHeight}` : 'hidden';
     if (key === slot.shown) continue;

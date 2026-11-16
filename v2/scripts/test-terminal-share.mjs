@@ -25,7 +25,8 @@ try {
   const chat = page.locator('[data-panel-id="alpha-work-chat"]');
   const composer = chat.getByRole('textbox', { name: 'Message', exact: true });
   await expect(composer).toBeEnabled();
-  const hide = page.getByRole('button', { name: 'Hide command output', exact: true });
+  // Command output is a dock group, minimized to its tab until a run starts.
+  const minimized = () => page.locator('.dv-groupview').filter({ has: page.locator('[data-kind="console"]') }).evaluate(node => node.classList.contains('dock-group-minimized'));
   const lists = () => fixture.calls.filter(call => call.method === 'ListCommands' && call.body.sessionId === 'alpha-session').length;
   const baseline = lists();
   await expect.poll(lists, { timeout: 5000 }).toBeGreaterThan(baseline + 1);
@@ -37,7 +38,7 @@ try {
   const run = fixture.startTerminalRun('alpha', 'go test ./...', { piped: true, exitCode: 0, outputBytes: '1468006', agentBytes: String(Buffer.byteLength(view)), filter: 'go-test', outputPath: '/state/command-output/workspace-alpha/go-1.log', agentView: view }, { output: full });
 
   // It opens the console on the run, says where it came from, and keeps focus in the composer.
-  await expect(hide).toBeVisible({ timeout: 5000 });
+  await expect.poll(minimized, { timeout: 5000 }).toBe(false);
   const panel = page.locator('.command-panel');
   await expect(panel.locator('select')).toHaveValue(run.id);
   await expect(panel.locator('select option:checked')).toHaveText('✓ go test ./... · from your terminal · completed');

@@ -23,3 +23,4 @@ export { useAppearanceSync, useAppearance } from './appearance/useAppearance';
 export { AppearanceSync } from './appearance/AppearanceSync';
 export { AppearanceSettings } from './AppearanceSettings';
 export { PREFERENCE_EVENT } from './view-state';
+export { layoutCommands, runLayoutCommand, type LayoutCommand } from './layout-commands';

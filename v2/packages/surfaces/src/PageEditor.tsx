@@ -1,32 +1,28 @@
 import { useState } from 'react';
-import type { PanelModule } from './PanelRegistry';
-import { clonePage, defaultLayout, panels, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { allPanels, clonePage, defaultLayout, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 
-/** Customizing a page: its name, duplicating or removing it, adding panels, resetting all pages. */
-export function PageConfig({ page, layout, registry, module, hasDetached, pending, onModule, commit, changePage }: {
+/**
+ * Customizing a workspace's pages: a page's name, duplicating or removing it,
+ * resetting them all. Panels are arranged in place (drag a tab) and added from
+ * the Panels menu; a page takes a whole arrangement from the Layout menu.
+ */
+export function PageConfig({ page, layout, hasDetached, pending, commit, changePage, onDone }: {
   page: WorkspacePage;
   layout: WorkspaceLayout;
-  registry: Readonly<Record<string, PanelModule>>;
-  /** The kind the next added panel has. */
-  module: string;
   hasDetached: boolean;
   pending: boolean;
-  onModule(kind: string): void;
   commit(next: WorkspaceLayout, reset?: boolean): boolean;
   changePage(next: WorkspacePage): boolean;
+  onDone(): void;
 }) {
   const duplicate = () => { const next = clonePage(page, () => crypto.randomUUID()); commit({ ...layout, selectedPage: next.id, pages: [...layout.pages, next] }); };
   const remove = () => commit({ ...layout, selectedPage: layout.pages.find(value => value.id !== page.id)!.id, pages: layout.pages.filter(value => value.id !== page.id) });
-  const addPanel = () => changePage({ ...page, layout: { type: 'split', direction: 'row', ratio: 0.65, children: [page.layout, { type: 'panel', panel: { id: crypto.randomUUID(), kind: module, binding: { mode: 'follow' }, detached: false } }] } });
   return <div className="page-config">
     <PageName key={page.id} name={page.name} onSave={name => changePage({ ...page, name })}/>
     <button disabled={layout.pages.length >= 8} onClick={duplicate}>Duplicate page</button>
-    <button disabled={layout.pages.length <= 1 || layout.pages.some(value => value.id === page.id && panels(value.layout).some(panel => panel.detached))} onClick={remove}>Remove page</button>
-    <label>Add panel<select value={module} onChange={event => onModule(event.target.value)}>
-      {Object.entries(registry).map(([kind, module]) => <option key={kind} value={kind}>{module.title}</option>)}
-    </select></label>
-    <button disabled={panels(page.layout).length >= 12} onClick={addPanel}>Add panel</button>
+    <button disabled={layout.pages.length <= 1 || allPanels(page).some(panel => panel.detached)} onClick={remove}>Remove page</button>
     <button disabled={hasDetached || pending} onClick={() => commit(defaultLayout(page.selection), true)}>Reset pages</button>
+    <button className="primary" onClick={onDone}>Done</button>
   </div>;
 }
 

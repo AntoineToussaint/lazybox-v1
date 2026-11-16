@@ -1,3 +1,4 @@
+import { focusWhenShown } from './focus';
 import { createContext, useContext, useEffect, useRef, useState, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type SetStateAction } from 'react';
 import type { NativeWebViews, WebViewEvent } from '@lazybox/platform';
 import { ActionMenu } from './ActionMenu';
@@ -61,7 +62,8 @@ export function WebViewer(props: WebViewerProps) {
   const [status, setStatus] = useState('');
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { if (!editing) setAddress(page); }, [page, editing]);
-  useEffect(() => { if (focusAddress) { input.current?.focus(); input.current?.select(); } }, [focusAddress]);
+  // A panel just placed in the dock is drawn on its next frame: focus waits for it.
+  useEffect(() => { if (focusAddress) { focusWhenShown(input.current); input.current?.select(); } }, [focusAddress]);
   useEffect(() => { if (!status) return; const timer = setTimeout(() => setStatus(''), 2500); return () => clearTimeout(timer); }, [status]);
   const origin = originOf(page);
   /** The address after its origin, shown beside the origin while nobody is typing. */

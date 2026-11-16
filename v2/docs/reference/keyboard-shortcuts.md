@@ -70,6 +70,25 @@ Open the parts of the workspace in front.
 | Layout configuration | — | — |
 | Show missions | — | — |
 
+## Layout
+
+
+
+| Action | macOS | Windows / Linux |
+| --- | --- | --- |
+| Split the active panel | `⌘\` | `Ctrl+\` |
+| Split the active panel down | — | — |
+| Close the active panel | `⌘W` | `Ctrl+W` |
+| Maximize or restore the active panel | `⇧⌘M` or `]] m` | `Ctrl+Shift+M` or `]] m` |
+| Next panel group | `⌃⇥` | `Ctrl+⇥` |
+| Previous panel group | `⌃⇧⇥` | `Ctrl+Shift+⇥` |
+| Float the active panel over the page | — | — |
+| Open the active panel in a new window | — | — |
+| Minimize or restore the active panel group | — | — |
+| Show a panel… | — | — |
+| Change the layout… | — | — |
+| Reset the layout to default | — | — |
+
 ## Conversation
 
 Act on the conversation you last clicked or focused.

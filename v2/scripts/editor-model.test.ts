@@ -122,16 +122,16 @@ test('go to file reads name:line', () => {
 });
 
 test('files and the editor pair up beside the conversation', () => {
- const page = defaultLayout({ collectionId: 'alpha', sessionId: 's', commandId: '' }).pages[0].layout;
+ const page = defaultLayout({ collectionId: 'alpha', sessionId: 's', commandId: '' }).pages[0];
  let n = 0;
  const id = () => `p${++n}`;
  const editor = showCodePanel(page, 'editor', 'right', id);
- const files = showCodePanel(editor.layout, 'files', 'right', id);
- const kinds = (node: LayoutNode) => panels(node).map(panel => panel.kind);
- assert.deepEqual(kinds(files.layout), ['collections', 'chat', 'console', 'files', 'editor']);
- // The pair is one split: Files to the left of the editor.
- const pair = (node: LayoutNode): boolean => node.type === 'split' && (node.children[0].type === 'panel' && node.children[0].panel.kind === 'files' && node.children[1].type === 'panel' && node.children[1].panel.kind === 'editor' || node.children.some(pair));
- assert.ok(pair(files.layout));
- // Showing one that is already there only expands it.
- assert.equal(showCodePanel(files.layout, 'files', 'right', id).added, false);
+ const files = showCodePanel(editor.page, 'files', 'right', id);
+ const kinds = (node: LayoutNode | null) => panels(node).map(panel => panel.kind);
+ assert.deepEqual(kinds(files.page.layout), ['collections', 'agents', 'chat', 'console', 'files', 'editor']);
+ // Files sits just left of the editor, in the same row.
+ const row = (node: LayoutNode | null): boolean => !!node && node.type === 'split' && (node.direction === 'row' && node.children.some((child, index) => child.type === 'group' && child.panels[0].kind === 'files' && node.children[index + 1]?.type === 'group' && (node.children[index + 1] as Extract<LayoutNode, { type: 'group' }>).panels[0].kind === 'editor') || node.children.some(row));
+ assert.ok(row(files.page.layout));
+ // Showing one that is already there only brings it forward.
+ assert.equal(showCodePanel(files.page, 'files', 'right', id).added, false);
 });

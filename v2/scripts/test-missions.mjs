@@ -28,9 +28,9 @@ try {
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
   await expect(page.locator('.panel-chat').getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
 
-  // The page menu shows the Missions panel like any other; with no mission it explains itself.
-  await page.getByLabel('Page actions', { exact: true }).click();
-  await page.getByRole('button', { name: 'Missions', exact: true }).click();
+  // The Panels menu shows the Missions panel like any other; with no mission it explains itself.
+  await page.locator('summary[aria-label="Panels"]').click();
+  await page.getByRole('button', { name: 'Show Missions', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Missions and tasks', exact: true });
   await expect(panel).toBeVisible();
   await expect(panel.getByRole('heading', { name: 'Track work you hand to agents' })).toBeVisible();

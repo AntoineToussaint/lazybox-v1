@@ -30,47 +30,16 @@
 .session-switcher{margin-left:auto;position:relative;max-width:220px}
 .workspace-context .session-switcher select{color:var(--text-subtle);font-size:calc(11px * var(--text-scale));font-weight:400}
 .page-layout{flex:1;min-height:0;overflow:hidden}
-.layout-split{display:flex;width:100%;height:100%;min-height:0;position:relative;gap:0}
 .split-row{flex-direction:row}.split-column{flex-direction:column}
-.layout-cell{min-width:0;min-height:0;display:flex;flex-direction:column}
-.split-handle{flex:0 0 7px;position:relative;z-index:3;touch-action:none;outline:none}.split-row>.split-handle{margin:0 -3px;cursor:col-resize}.split-column>.split-handle{margin:-3px 0;cursor:row-resize}
-.split-handle::after{content:"";position:absolute;inset:0 3px;border-radius:1px;transition:background .12s}.split-column>.split-handle::after{inset:3px 0}.split-handle:hover::after,.split-handle:focus-visible::after,.split-handle[data-dragging]::after{background:var(--accent-solid-hover)}
-.layout-cell>.layout-split,.panel-host>.workspace-panel{flex:1}
 /* Panels render once into stable hosts that move between layout slots, so docking or closing a neighbour never remounts them. */
-.panel-slot,.panel-host{display:contents}
 .workspace-panel{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;background:var(--canvas);border-right:1px solid var(--line)}
 .module-body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
-.module-header{height:42px;min-height:42px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line);color:var(--text-tertiary);background:var(--surface)}
-.module-header>strong{font-size:calc(12px * var(--text-scale));font-weight:500}
-.module-header>span{font-size:calc(10px * var(--text-scale));color:var(--text-faint);margin-left:auto}
 .panel-collections{background:var(--sidebar)}
-.panel-collections:not(.is-editing)>.module-header,.panel-chat:not(.is-editing)>.module-header{display:none}
 .panel-console{border-top:1px solid var(--line)}
-.module-title{display:flex;align-items:center;gap:8px;padding:0!important;flex:1;min-width:0;height:100%;text-align:left;color:var(--text-tertiary)!important}
-.module-title:hover{background:transparent!important;color:var(--text)!important}
-.module-title span{flex:1;font-size:calc(11px * var(--text-scale));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.module-title>svg{flex:none}
-.is-collapsed .module-title>svg:last-child{transform:rotate(-90deg)}
 /* Panel controls stay quiet until the header is pointed at or focused. */
-.workspace-panel:not(.is-editing)>.module-header{padding:0 6px 0 16px;gap:2px}
-.workspace-panel:not(.is-editing)>.module-header .module-title span{flex:0 1 auto}
-.module-header>.panel-menu>summary{display:flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border-radius:5px;color:var(--text-muted)}
-.workspace-shell .module-header>.panel-close{width:26px;height:26px;color:var(--text-muted);border-radius:5px}
 /* Quiet, but never so faint that a panel looks like it cannot be closed. */
-.module-header>.panel-menu>summary,.module-header>.panel-close{opacity:.85;transition:opacity .12s}
-.module-header:hover>.panel-menu>summary,.module-header:focus-within>.panel-menu>summary,.module-header>.panel-menu[open]>summary,.module-header:hover>.panel-close,.module-header:focus-within>.panel-close{opacity:1}
-.workspace-shell .panel-menu>.action-popover>button,.workspace-shell .show-panel{display:flex;align-items:center;gap:9px}
-.panel-menu>.action-popover>button>span,.show-panel>span{flex:1}
-.panel-menu>.action-popover>button>svg,.show-panel>svg{flex:none;color:var(--text-subtle)}
-.panel-menu>.action-popover>button>small{font-size:calc(10px * var(--text-scale));color:var(--text-faint)}
-.workspace-shell .panel-menu .dock-option:disabled{opacity:.6}
-.panel-menu>.action-popover>button:nth-child(4){margin-bottom:4px}
-.panel-menu>.action-popover>button:nth-child(5){border-top:1px solid var(--line-strong);border-radius:0 0 4px 4px;padding-top:9px}
 .action-menu-heading{display:block;padding:9px 10px 4px;margin-top:4px;border-top:1px solid var(--line-strong);font-size:calc(10px * var(--text-scale))!important;letter-spacing:.5px;text-transform:uppercase;color:var(--text-faint)!important}
 /* Collapsed beside its neighbour, a panel is a narrow vertical tab that reopens it. */
-.split-row>.collapsed-cell .module-header{height:100%;flex-direction:column;align-items:center;padding:12px 0;border-bottom:0}
-.split-row>.collapsed-cell .module-title{writing-mode:vertical-rl;flex-direction:row;justify-content:flex-start;align-items:center;gap:10px;width:auto;height:auto;flex:1}
-.split-row>.collapsed-cell .module-title>svg:last-child,.split-row>.collapsed-cell .panel-menu,.split-row>.collapsed-cell .panel-close{display:none}
 .module-empty{padding:40px 24px;color:var(--text-faint);font-size:calc(12px * var(--text-scale));line-height:1.8}
 .module-empty button{margin:12px 8px 0 0}
 .collection-status:not(.module-empty){margin:0 0 6px;padding:6px 10px;border-left:2px solid var(--warn);color:var(--warn);font-size:calc(11px * var(--text-scale));line-height:1.5}
@@ -165,10 +134,6 @@
 .page-config{display:flex;align-items:end;gap:10px;padding:12px 16px;border-bottom:1px solid var(--accent-line);background:var(--surface-hover);flex-shrink:0;flex-wrap:wrap}
 .page-config form{display:flex;align-items:end;gap:7px}.page-config input{max-width:150px}.page-config label{font-size:calc(10px * var(--text-scale))}.page-config button{font-size:calc(10px * var(--text-scale));padding:7px 9px}
 .panel-config{display:flex;gap:5px;flex-wrap:wrap;width:100%;padding:6px 0}.panel-config button{font-size:calc(9px * var(--text-scale));padding:4px 6px}
-.is-editing>.module-header{height:auto;min-height:65px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--accent-line);background:var(--surface-hover)}
-.split-controls{position:absolute;z-index:3;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:5px 9px;border:1px solid var(--accent-line);background:var(--surface-active)}
-.split-controls label{display:flex;flex-direction:row;align-items:center;gap:5px;font-size:calc(9px * var(--text-scale))}.split-controls select{width:105px;font-size:calc(9px * var(--text-scale));padding:3px}.split-controls input{width:70px;padding:0}
-.layout-split:has(>.split-controls){padding-top:33px}
 .layout-json{position:absolute;z-index:30;right:14px;top:58px;width:min(440px,calc(100% - 28px));padding:16px;border:1px solid var(--line-bold);border-radius:10px;background:var(--surface-hover);box-shadow:0 15px 45px color-mix(in srgb,var(--shadow) calc(40% * var(--shadow-strength)),transparent)}
 .inspector-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:calc(12px * var(--text-scale))}.layout-json textarea{height:270px;width:100%;font-family:monospace;font-size:calc(10px * var(--code-scale));resize:vertical;line-height:1.6;background:var(--surface)}
 .layout-json>button{margin-top:12px;background:var(--accent-bg-strong)}.layout-json small{display:block;margin-top:12px;font-size:calc(10px * var(--text-scale));line-height:1.7}
@@ -338,15 +303,6 @@
 
 /* Drag to dock: edge zones over the page while a panel header is dragged. */
 .page-layout{position:relative}
-.dock-overlay{position:absolute;inset:0;z-index:20;pointer-events:none}
-.dock-zone{position:absolute;box-sizing:border-box;margin:6px;border:1px dashed var(--accent-line);border-radius:8px;transition:background .12s,border-color .12s;display:flex;align-items:center;justify-content:center}
-.dock-zone.zone-left{inset:0 auto 0 0;width:calc(25% - 12px)}.dock-zone.zone-right{inset:0 0 0 auto;width:calc(25% - 12px)}
-.dock-zone.zone-top{inset:0 25% auto 25%;height:calc(25% - 12px)}.dock-zone.zone-bottom{inset:auto 25% 0 25%;height:calc(25% - 12px)}
-.dock-zone.active{background:color-mix(in srgb,var(--accent) 25%,transparent);border:1px solid var(--accent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 33%,transparent)}
-.dock-zone span{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:var(--surface-hover);color:var(--text);font-size:calc(12px * var(--text-scale));box-shadow:0 6px 18px color-mix(in srgb,var(--shadow) calc(40% * var(--shadow-strength)),transparent)}
-.workspace-shell:has(.dock-overlay){cursor:grabbing;user-select:none}
-.workspace-panel.is-docking{opacity:.55}
-@media(prefers-reduced-motion:reduce){.dock-zone{transition:none}}
 .workspace-row>.workspace-name-it{position:absolute;right:60px;top:8px;display:inline-flex;align-items:center;gap:3px;height:20px;padding:0 6px;border:1px dashed var(--line-bold);border-radius:10px;background:var(--surface);color:var(--text-muted);font-size:calc(10.5px * var(--text-scale));font-weight:400;opacity:0;transition:opacity .12s}
 .workspace-row:hover>.workspace-name-it,.workspace-row:focus-within>.workspace-name-it,.workspace-row:has(.workspace-link[aria-current])>.workspace-name-it{opacity:1}
 .workspace-row>.workspace-name-it:hover{border-style:solid;border-color:var(--accent-line);color:var(--text)}

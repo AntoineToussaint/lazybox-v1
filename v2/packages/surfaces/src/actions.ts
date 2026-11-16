@@ -17,7 +17,7 @@ import type { MenuAction } from './context-menu-model';
  * default is ⌘ on a Mac and Ctrl elsewhere; saved keymaps hold the resolved key.
  */
 export type ActionScope = 'global' | 'navigation' | 'agent';
-export type ActionGroup = 'General' | 'Go to' | 'Workspace' | 'Conversation' | 'Sidebar' | 'Message box';
+export type ActionGroup = 'General' | 'Go to' | 'Workspace' | 'Layout' | 'Conversation' | 'Sidebar' | 'Message box';
 export type MenuSection = 'File' | 'Go' | 'Help';
 export type ActionDefinition = {
   id: string;
@@ -70,6 +70,19 @@ const tail = [
   { id: 'workspace.window', title: 'Open this workspace in a new window', group: 'Workspace', icon: 'external', keys: '', scope: 'global', keywords: 'detach' },
   { id: 'page.customize', title: 'Customize this page', group: 'Workspace', icon: 'pencil', keys: '', scope: 'global', keywords: 'layout panels edit arrange' },
   { id: 'layout.configure', title: 'Layout configuration', group: 'Workspace', icon: 'sliders', keys: '', scope: 'global', keywords: 'json import export' },
+  // The page's dock (DockLayout): the active panel is the one last clicked or focused.
+  { id: 'layout.split', title: 'Split the active panel', group: 'Layout', icon: 'split-right', keys: 'Mod+\\', scope: 'global', keywords: 'dock pane beside side by side' },
+  { id: 'layout.split-down', title: 'Split the active panel down', group: 'Layout', icon: 'split-down', keys: '', scope: 'global', keywords: 'dock pane below stacked' },
+  { id: 'layout.close', title: 'Close the active panel', group: 'Layout', icon: 'close', keys: 'Mod+w', scope: 'global', keywords: 'dock pane hide' },
+  { id: 'layout.maximize', title: 'Maximize or restore the active panel', group: 'Layout', icon: 'maximize', keys: 'Mod+Shift+m or ] ] m', scope: 'global', keywords: 'zoom dock pane full screen' },
+  { id: 'layout.next-group', title: 'Next panel group', group: 'Layout', icon: 'chevronRight', keys: 'Ctrl+Tab', scope: 'global', keywords: 'dock pane focus cycle' },
+  { id: 'layout.previous-group', title: 'Previous panel group', group: 'Layout', icon: 'back', keys: 'Ctrl+Shift+Tab', scope: 'global', keywords: 'dock pane focus cycle' },
+  { id: 'layout.float', title: 'Float the active panel over the page', group: 'Layout', icon: 'float', keys: '', scope: 'global', keywords: 'dock pane window overlay' },
+  { id: 'layout.window', title: 'Open the active panel in a new window', group: 'Layout', icon: 'external', keys: '', scope: 'global', keywords: 'dock pane pop out detach second screen' },
+  { id: 'layout.minimize', title: 'Minimize or restore the active panel group', group: 'Layout', icon: 'minimize', keys: '', scope: 'global', keywords: 'dock pane collapse' },
+  { id: 'layout.panels', title: 'Show a panel…', group: 'Layout', icon: 'panels', keys: '', scope: 'global', keywords: 'dock add open reopen panel' },
+  { id: 'layout.presets', title: 'Change the layout…', group: 'Layout', icon: 'layout', keys: '', scope: 'global', keywords: 'dock preset arrangement save' },
+  { id: 'layout.reset', title: 'Reset the layout to default', group: 'Layout', icon: 'refresh', keys: '', scope: 'global', keywords: 'dock preset chat focus' },
   { id: 'snippets.open', title: 'Open snippets', group: 'Conversation', icon: 'snippets', keys: '] ] s', scope: 'global', keywords: 'prompt template' },
   { id: 'composer.focus', title: 'Focus the message box', group: 'Conversation', icon: 'chat', keys: '', scope: 'global', keywords: 'type write composer prompt' },
   // Activity detail of the conversation in front (activity-detail.ts).
@@ -106,7 +119,7 @@ const tail = [
 
 export type ActionId = (typeof head)[number]['id'] | (typeof tail)[number]['id'] | `workspace.select.${Slot}`;
 export const actionDefinitions: readonly (ActionDefinition & { id: ActionId })[] = [...head, ...slotDefinitions, ...tail];
-export const actionGroups: readonly ActionGroup[] = ['General', 'Go to', 'Workspace', 'Conversation', 'Sidebar', 'Message box'];
+export const actionGroups: readonly ActionGroup[] = ['General', 'Go to', 'Workspace', 'Layout', 'Conversation', 'Sidebar', 'Message box'];
 const byId = new Map<string, ActionDefinition>(actionDefinitions.map(definition => [definition.id, definition]));
 export function actionDefinition(id: string): ActionDefinition | undefined { return byId.get(id); }
 

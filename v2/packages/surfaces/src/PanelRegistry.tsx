@@ -8,6 +8,7 @@ import { CommandPanel } from './CommandPanel';
 import { ConversationList } from './ConversationList';
 import { EditorArea } from './EditorArea';
 import { ArtifactsPanel } from './ArtifactsPanel';
+import { AgentsPanel } from './AgentsPanel';
 import { FileExplorer } from './FileExplorer';
 import { ProcessesPanel } from './ProcessesPanel';
 import { ActionsPanel } from './ActionsPanel';
@@ -80,6 +81,7 @@ function AssistantModule({ viewState, workspaceId }: ModuleProps) {
 /** First-party modules use the same runtime and target contract in every page. */
 export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   collections: { title: 'Workspaces', icon: 'collections', Component: CollectionPanel },
+  agents: { title: 'Agents', icon: 'activity', Component: ({ collections, target, viewState, onShowSession }) => <AgentsPanel collections={collections} target={target} viewState={viewState} onShowSession={onShowSession}/> },
   chat: { title: 'Agent chat', icon: 'chat', Component: ChatModule },
   console: { title: 'Command output', icon: 'output', Component: CommandPanel },
   terminal: { title: 'Terminal', icon: 'terminal', Component: ({ workspaceId, collections, viewState, onClosePanel, target, onShowSession }) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState} onClosePanel={onClosePanel} sessionId={target.collectionId === workspaceId ? target.sessionId : ''} onShowSession={onShowSession}/> },
@@ -97,8 +99,6 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   artifacts: { title: 'Artifacts', icon: 'artifact', Component: ({ workspaceId, collections, viewState, target, onShowSession }) => <ArtifactsPanel workspaceId={workspaceId} collections={collections} viewState={viewState} target={target} onShowSession={onShowSession}/> },
 };
 
-/** Panels the page itself is made of: they are rearranged, not shown from the page menu. */
-export const pagePanels = new Set(['collections', 'chat', 'changes']);
 
 /** A panel title inside a sentence: "Add usage & cost". */
 export const sentence = (title: string) => title.charAt(0).toLowerCase() + title.slice(1);

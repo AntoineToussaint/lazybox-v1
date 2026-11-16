@@ -18,8 +18,8 @@ into a terminal.
 - In the panel, pick a directory (**Workspace root** or a repository) and press
   **New terminal** for another shell. Tabs switch between them; a tab's **×**
   closes that shell (it hangs up the shell, as closing a terminal window does).
-- **Page actions (⋯) → Show panel → Terminal**, or **Customize page → Add
-  panel**, also add it. Opening or restoring the panel never starts a shell; it
+- **Panels → Terminal** in the workspace header also adds it. It docks like
+  any other panel (see [Arrange panels](WORKSPACES.md#arrange-panels)). Opening or restoring the panel never starts a shell; it
   shows the workspace's running terminals.
 - A reload, another window, or a Runner restart re-attaches to the same shell
   and shows its recent output.

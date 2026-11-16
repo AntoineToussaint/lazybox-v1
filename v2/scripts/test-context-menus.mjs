@@ -81,7 +81,8 @@ try{
  await item('Copy code').click();assert.equal(await copied(),'const answer = 42;');
 
  // A command's output: stop it while it runs, copy what ran.
-{const show=page.getByRole('button',{name:'Show command output',exact:true});if(await show.count())await show.click();}
+ // Command output is a dock group minimized to its tab until opened: its tab opens it.
+{const minimized=page.locator('.dock-group-minimized').filter({has:page.locator('[data-kind="console"]')});if(await minimized.count())await page.getByRole('tab',{name:'Command output',exact:true}).click();}
  const output=page.locator('.command-panel').getByTestId('console-output');
  await expect(output).toContainText('PASS src/app.test.ts');
  await open(output);
@@ -184,12 +185,12 @@ try{
   await page.keyboard.press('Escape');
  }
 
- // Panel headers: the panel menu's own actions.
- const filesHeader=page.locator('section.workspace-panel.panel-files .module-header');
- await open(filesHeader.locator('.module-title'));
- assert.deepEqual((await labels()).slice(0,4),['Dock left','Dock right','Dock top','Dock bottom']);
- assert.ok((await labels()).includes('Close panel'));
- await item('Close panel').click();await expect(page.locator('section.workspace-panel.panel-files')).toHaveCount(0);
+ // Panel tabs: the group menu's own actions (the same items as its ⋯).
+ await open(page.getByRole('tab',{name:'Files',exact:true}));
+ const panelItems=await labels();
+ assert.deepEqual(panelItems.slice(0,2),['Split right','Split down']);
+ for(const name of ['Dock left','Dock right','Dock top','Dock bottom','Open in new window','Close Files'])assert.ok(panelItems.includes(name),name);
+ await item('Close Files').click();await expect(page.locator('section.workspace-panel.panel-files')).toHaveCount(0);
 
  // Workspace rows: the ⋯ menu's items, from the same list.
  const row=page.locator('.workspace-row').filter({hasText:'Alpha feature'});
@@ -222,7 +223,7 @@ try{
  await expect(changes.getByRole('form',{name:/Comment on line/})).toBeVisible();
 
  // Processes.
- await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button',{name:'Processes',exact:true}).click();
+ await page.locator('summary[aria-label="Panels"]').click();await page.getByRole('button',{name:'Show Processes',exact:true}).click();
  const processes=page.getByRole('region',{name:'Hosted processes',exact:true});
  const agentRow=processes.locator('.process-row').filter({hasText:'Fix the parser'}).first();
  await open(agentRow);

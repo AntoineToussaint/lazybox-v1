@@ -187,7 +187,7 @@ A daemon becomes worth its cost if hosts must be reachable without any Runner
 
 ## See every hosted process: the Processes panel
 
-**Page actions (⋯) → Show panel → Processes** (or **Settings → Runner → Show
+**Panels → Processes** (workspace header) (or **Settings → Runner → Show
 processes**) lists every process the Runner hosts, whether this Runner holds it
 or not:
 

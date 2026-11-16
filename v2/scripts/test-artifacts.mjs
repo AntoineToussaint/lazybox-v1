@@ -132,8 +132,8 @@ try{
  await expect(list.getByRole('option',{name:/Review findings/})).toContainText('published by an agent',{timeout:10000});
 
  // A Markdown file tracked from Files follows changes on disk.
- await page.getByLabel('Page actions',{exact:true}).click();
- await page.getByRole('button',{name:'Files',exact:true}).click();
+ await page.locator('summary[aria-label="Panels"]').click();
+ await page.getByRole('button', { name: 'Show Files', exact: true }).click();
  const tree=page.getByRole('tree',{name:'Workspace files'});
  const readme=tree.getByRole('treeitem',{name:/README\.md/}).first();
  await readme.click({button:'right'});

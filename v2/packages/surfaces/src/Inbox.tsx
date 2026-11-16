@@ -22,7 +22,7 @@ export function AttentionIcon({ state, size = 16 }: { state: AttentionState; siz
 }
 const doneLimit = 8;
 /** A working row says what the agent is doing, and for how long: "Running · Bash · 12s". */
-function LiveText({ session }: { session: Inbox['rows'][number]['session'] }) {
+export function LiveText({ session }: { session: Inbox['rows'][number]['session'] }) {
   const status = useLiveStatus(session);
   return <em className="inbox-live" data-tone={status.tone}>{status.text}</em>;
 }

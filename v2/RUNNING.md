@@ -324,7 +324,7 @@ When starting a conversation, expand **Model, gateway & permissions** and choose
 **Metered** to route supported provider requests through the Runner's local
 metering gateway. The selected subscription still supplies authentication.
 The chat's context disclosure shows provider-reported usage; missing categories
-or capacities stay unknown. Add **Usage & cost** through **Page actions (⋯) → Show panel** to
+or capacities stay unknown. Add **Usage & cost** through **Panels** in the workspace header to
 view the workspace aggregate across conversations and account rotation attempts.
 Workspace-bound Ask Lazybox planning conversations use the same attribution.
 

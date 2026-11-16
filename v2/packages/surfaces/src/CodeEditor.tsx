@@ -28,6 +28,21 @@ function replaceText(model:monaco.editor.ITextModel,value:string){
 // monaco-vim's ex commands are global; each one finds its editor's handlers here.
 type VimAdapter = { editor: monaco.editor.ICodeEditor; on(event: string, handler: (...args: never[]) => void): void; openNotification(text: string): void; dispose(): void };
 type ExHandlers = { write(thenQuit: boolean): void; quit(force: boolean): void };
+/**
+ * STOPGAP (not a fix): Monaco's WebKit clipboard workaround
+ * (BrowserClipboardService.installWebKitWriteTextWorkaround) hands
+ * `navigator.clipboard.write` a deferred promise and cancels the previous one
+ * on every click or key. When the editor has been in a popped-out window,
+ * WebKit leaves those writes pending, so each cancel surfaces as an unhandled
+ * "Canceled" rejection. Monaco treats its CancellationError as expected
+ * everywhere else (isCancellationError); this does the same for the ones it
+ * leaves unhandled, and only for those. Remove once Monaco handles the
+ * rejection of its own deferred clipboard promise.
+ */
+if (typeof window !== 'undefined') window.addEventListener('unhandledrejection', event => {
+  const reason = event.reason as { name?: unknown; message?: unknown } | undefined;
+  if (reason?.name === 'Canceled' && reason.message === 'Canceled') event.preventDefault();
+});
 const exHandlers = new WeakMap<object, ExHandlers>();
 let exCommandsDefined = false;
 function defineExCommands(VimMode: unknown) {

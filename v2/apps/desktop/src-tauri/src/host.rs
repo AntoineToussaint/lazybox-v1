@@ -415,15 +415,22 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     } else {
         "Console"
     };
-    let window = match WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+    let builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         // Route file drops to the shared chat attachment flow (HTML5 File API).
         .disable_drag_drop_handler()
         .title(format!("{name} — {kind}"))
         .visible(false)
         .inner_size(placement.width, placement.height)
-        .min_inner_size(placement.min_width, placement.min_height)
-        .build()
-    {
+        .min_inner_size(placement.min_width, placement.min_height);
+    // A workspace window can pop a panel group out into a window of its own.
+    let builder = if label == "main" || label.starts_with("workspace-") {
+        let handle = app.clone();
+        let title = format!("{name} — Panel");
+        builder.on_new_window(move |url, features| popout_window(&handle, &url, features, &title))
+    } else {
+        builder
+    };
+    let window = match builder.build() {
         Ok(window) => window,
         Err(error) => {
             let _ = mutate(app, |layout| layout.close(label));
@@ -845,7 +852,59 @@ fn follow_restart(window: &Webview, host: &Host, path: &std::path::Path) -> Resu
     Ok(())
 }
 
+/// Whether `url` is this app's own blank page for popped-out panels (the
+/// bundled `tauri://localhost/popout.html`, or the dev server's).
+pub fn is_popout_page(url: &tauri::Url) -> bool {
+    let local = matches!(
+        url.host_str(),
+        Some("localhost" | "tauri.localhost" | "127.0.0.1")
+    );
+    url.path() == "/popout.html" && local && matches!(url.scheme(), "tauri" | "http" | "https")
+}
+
+/// A panel group popped out of a workspace window (dockview's popout groups,
+/// `DockLayout.tsx`). The opener draws into it through the relationship WebKit
+/// keeps for `window.open`, so it needs no IPC and no Runner credential, and
+/// the panels in it are the opener's (an editor keeps its unsaved edits).
+/// Only `popout.html` of this app opens; every other `window.open` is refused.
+/// Its webview is labelled `popout-…`, which no capability names
+/// (`APP_WEBVIEWS`): it needs none, since its panels call the host from the
+/// opener.
+/// These windows are not saved in the window layout: their panels come back
+/// docked when the workspace window is restored.
+fn popout_window(
+    app: &tauri::AppHandle,
+    url: &tauri::Url,
+    features: tauri::webview::NewWindowFeatures,
+    title: &str,
+) -> tauri::webview::NewWindowResponse<tauri::Wry> {
+    use std::sync::atomic::AtomicU64;
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    if !is_popout_page(url) {
+        return tauri::webview::NewWindowResponse::Deny;
+    }
+    let label = format!("popout-{}", NEXT.fetch_add(1, Ordering::SeqCst));
+    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url.clone()))
+        .window_features(features)
+        .disable_drag_drop_handler()
+        .zoom_hotkeys_enabled(true)
+        .title(title)
+        .min_inner_size(320.0, 200.0)
+        .build();
+    match built {
+        Ok(window) => tauri::webview::NewWindowResponse::Create { window },
+        Err(error) => {
+            report(app, format!("Could not open the panel's window: {error}"));
+            tauri::webview::NewWindowResponse::Deny
+        }
+    }
+}
+
 pub fn window_event(window: &tauri::Window, event: &WindowEvent) {
+    // Popped-out panel windows belong to their opener, not to the window layout.
+    if window.label().starts_with("popout-") {
+        return;
+    }
     let app = window.app_handle();
     let Some(host) = app.try_state::<Host>() else {
         // Closing the first-run window before setting up quits: there is
@@ -1016,6 +1075,36 @@ pub fn second_instance(app: &tauri::AppHandle, args: Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A popped-out panel window is drawn by the workspace window that opened
+    /// it: its panels' code runs there and calls the host through that
+    /// window's webview. The popout's own webview runs no script of its own,
+    /// so it holds no capability, like a viewer, and no viewer is ever made
+    /// in it (viewers are children of the calling app webview).
+    #[test]
+    fn a_popped_out_panel_window_holds_no_capability() {
+        let patterns: Vec<glob::Pattern> = APP_WEBVIEWS
+            .iter()
+            .map(|p| glob::Pattern::new(p).expect("pattern"))
+            .collect();
+        for label in ["popout-1", "popout-42"] {
+            assert!(!patterns.iter().any(|p| p.matches(label)), "{label}");
+        }
+    }
+    #[test]
+    fn only_the_apps_own_popout_page_opens_a_panel_window() {
+        let url = |value: &str| tauri::Url::parse(value).unwrap();
+        assert!(is_popout_page(&url("tauri://localhost/popout.html")));
+        assert!(is_popout_page(&url("http://localhost:1420/popout.html")));
+        assert!(is_popout_page(&url("http://tauri.localhost/popout.html")));
+        for value in [
+            "https://example.com/popout.html",
+            "http://localhost:1420/index.html",
+            "tauri://localhost/popout.html.evil",
+            "file:///popout.html",
+        ] {
+            assert!(!is_popout_page(&url(value)), "{value}");
+        }
+    }
     #[test]
     fn sign_in_links_are_limited_to_provider_https_pages() {
         assert!(sign_in_url("https://auth.openai.com/codex/device").is_ok());

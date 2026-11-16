@@ -38,7 +38,7 @@ try {
   const initialBounds = await chat.boundingBox();
   assert.ok(initialBounds.height > 800, 'Collapsed output must give the remaining workspace height to chat');
   await mkdir('.cache', { recursive: true }); await page.screenshot({ path: '.cache/workspace-refined-default.png', fullPage: true });
-  await page.getByRole('button', { name: 'Show command output', exact: true }).click();
+  await page.getByRole('tab', { name: 'Command output', exact: true }).click();
   await expect(page.getByTestId('console-output')).toContainText('fixture retained output');
   await page.getByRole('button',{name:'2 repositories',exact:true}).click();
   await page.getByText('Workspace location & source details', { exact: true }).click();
@@ -53,8 +53,8 @@ try {
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   assert.equal(fixture.calls.filter(value => value.method === 'WatchEvents').length, journalCalls, 'catalog refresh must not restart a chat subscription');
 
-  // Panels resize by dragging the divider or with arrow keys, outside layout editing.
-  const divider = page.getByRole('separator', { name: 'Resize split root', exact: true });
+  // Panels resize by dragging the divider or with arrow keys.
+  const divider = page.getByRole('separator', { name: 'Resize Workspaces sidebar', exact: true });
   const before = Number(await divider.getAttribute('aria-valuenow')), grip = await divider.boundingBox();
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
   await page.mouse.move(grip.x + 200, grip.y + grip.height / 2, { steps: 5 }); await page.mouse.up();
@@ -80,19 +80,23 @@ try {
   fixture.mutations.splice(fixture.mutations.findIndex(m => m.method === 'Apply' && m.body.permission), 1);
   await expect(chat.getByRole('status').filter({ hasText: 'Instructions updated' })).toBeVisible();
 
-  await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Customize page', exact: true }).click();
-  await chat.getByRole('button', { name: 'Pin view', exact: true }).click();
+  // A chat stays on its conversation from its group menu (right-click its tab), or follows the page again.
+  await page.getByRole('tab', { name: 'Agent chat', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Stay on this conversation', exact: true }).click();
   await session.selectOption('alpha-second');
   await expect(chat).toContainText('Retained conversation for alpha-session');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
-  await chat.getByRole('button', { name: 'Follow page', exact: true }).click();
+  await page.getByRole('tab', { name: 'Agent chat', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Follow the selected conversation', exact: true }).click();
   await expect(chat).toContainText('Retained conversation for alpha-second');
   await collection.selectOption('alpha'); await session.selectOption('alpha-session');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
+  await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Customize pages', exact: true }).click();
   await page.getByRole('textbox', { name: 'Page name', exact: true }).fill('Cross repo');
   await page.getByRole('button', { name: 'Rename page', exact: true }).click();
-  await page.getByRole('slider', { name: 'Resize split root', exact: true }).fill('35');
-  await chat.getByRole('button', { name: 'Move chat earlier', exact: true }).click();
+  // Moving the chat to the other side keeps it mounted, draft and all.
+  await page.getByRole('tab', { name: 'Agent chat', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Dock left', exact: true }).click();
   chat = page.locator('[data-panel-id="alpha-work-chat"]');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Finish customizing', exact: true }).click();
@@ -102,7 +106,7 @@ try {
   await mkdir('.cache', { recursive: true }); await page.screenshot({ path: '.cache/workspace-work.png', fullPage: true });
   await expect(page.getByRole('button',{name:'Monitor',exact:true})).toHaveCount(0);
   await collection.selectOption('beta'); await session.selectOption('beta-session');
-  await page.getByRole('button',{name:'Show command output',exact:true}).click();
+  await page.getByRole('tab', { name: 'Command output', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Search output', exact: true })).toHaveValue('');
   await expect(page.getByRole('button', { name: '↓ Latest output', exact: true })).toHaveCount(0);
   await expect(page.locator('.collection-panel')).not.toContainText('No standalone conversations yet.');
@@ -157,14 +161,16 @@ try {
   {await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Layout configuration', exact: true }).click();}
   const exported = JSON.parse(await page.getByRole('textbox', { name: 'Page configuration', exact: true }).inputValue());
   assert.equal(exported.pages[0].name, 'Cross repo');
-  assert.equal(exported.pages[0].layout.ratio, 0.35);
+  assert.equal(exported.version, 2);
+  assert.equal(exported.pages[0].layout.type, 'split');
   assert.equal(JSON.stringify(exported).includes(fixture.token), false);
   assert.equal(JSON.stringify(exported).includes('permission'), false);
-  const replace = node => { if (node.type === 'panel' && node.panel.kind === 'console') node.panel.kind = 'constructor'; if (node.children) node.children.forEach(replace); }; replace(exported.pages[0].layout);
+  const eachPanel = (node, change) => { if (node.type === 'group') node.panels.forEach(change); else node.children.forEach(child => eachPanel(child, change)); };
+  eachPanel(exported.pages[0].layout, panel => { if (panel.kind === 'console') panel.kind = 'constructor'; });
   await page.getByRole('textbox', { name: 'Page configuration', exact: true }).fill(JSON.stringify(exported));
   await page.getByRole('button', { name: 'Import layout', exact: true }).click();
   await expect(page.getByText('The “constructor” module is unavailable. Its configuration has been retained.')).toBeVisible();
-  const toAssistant = node => { if (node.type === 'panel' && node.panel.kind === 'chat') node.panel.kind = 'assistant'; if (node.children) node.children.forEach(toAssistant); }; toAssistant(exported.pages[0].layout);
+  eachPanel(exported.pages[0].layout, panel => { if (panel.kind === 'chat') panel.kind = 'assistant'; });
   if (!await page.getByRole('textbox', { name: 'Page configuration', exact: true }).isVisible()) {await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Layout configuration', exact: true }).click();}
   await page.getByRole('textbox', { name: 'Page configuration', exact: true }).fill(JSON.stringify(exported));
   await page.getByRole('button', { name: 'Import layout', exact: true }).click();
@@ -195,17 +201,19 @@ try {
     await route.fulfill({ response, json: body });
   });
   await olderPage.route('**/ListHistory', route => route.fulfill({ status: 501, json: { code: 'unimplemented', message: 'Older Runner' } }));
-  await olderPage.goto(url);
+  // The clock is paused to control polling; the dock draws panels on animation frames, so let a few run.
+  const frames = () => olderPage.clock.runFor(64);
+  await olderPage.goto(url); await frames();
   await expect(olderPage.getByText('Live conversations · saved history requires a Runner update.')).toBeVisible();
-  await olderPage.getByRole('combobox', { name: 'Workspace', exact: true }).selectOption('alpha');
+  await olderPage.getByRole('combobox', { name: 'Workspace', exact: true }).selectOption('alpha'); await frames();
   await expect(olderPage.locator('.workspace-row').filter({hasText:'Alpha feature'})).toBeVisible();
-  await olderPage.getByRole('combobox', { name: 'Session', exact: true }).selectOption('alpha-session');
+  await olderPage.getByRole('combobox', { name: 'Session', exact: true }).selectOption('alpha-session'); await frames();
   await expect(olderPage.locator('[data-panel-id="alpha-work-chat"]').getByRole('textbox', { name: 'Message', exact: true })).toBeEnabled();
   const sidebar = olderPage.getByRole('navigation', { name: 'Conversations', exact: true });
   const beforeSelection = await sidebar.locator('strong').allTextContents();
   assert.deepEqual(beforeSelection.filter(title => title.startsWith('Conversation ')), ['Conversation a', 'Conversation b', 'Conversation c']);
   const countBeforeSelection = olderInfoCalls;
-  await sidebar.getByRole('button', { name: /Conversation b/ }).click();
+  await sidebar.getByRole('button', { name: /Conversation b/ }).click(); await frames();
   await expect(olderPage.locator('[data-panel-id="work-chat"]')).toContainText('Retained conversation for plain-b');
   assert.equal(olderInfoCalls, countBeforeSelection, 'Selecting a row must not refresh or clear the Runner catalog');
   assert.deepEqual(await sidebar.locator('strong').allTextContents(), beforeSelection);

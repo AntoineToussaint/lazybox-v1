@@ -55,7 +55,9 @@ try {
   await expect(address).toHaveValue(`${site}/about`);
   // The origin is on screen, and the panel's tab names the page.
   await expect(viewer.locator('.web-origin')).toHaveText(`127.0.0.1:${fixture.previewPort}`);
-  const tabTitle = page.locator('.panel-web .module-title').first();
+  // The dock tab of a Web panel (its title is the page's).
+  const webTab = n => page.locator('.dv-tab').filter({ has: page.locator('[data-kind="web"]') }).nth(n);
+  const tabTitle = webTab(0).locator('.dock-tab-title');
   await expect(tabTitle).toHaveText(`127.0.0.1:${fixture.previewPort}`);
   await expect(viewer.getByRole('button', { name: 'Back', exact: true })).toBeDisabled();
   await page.screenshot({ path: '.cache/web-viewer-panel.png' });
@@ -118,8 +120,8 @@ try {
 
   // A page that never loads: after a while, the way out. A page that did load
   // meanwhile, in a second panel, stays on screen.
-  await page.getByLabel('Page actions', { exact: true }).click();
-  await page.getByRole('group', { name: 'Page actions menu' }).getByRole('button', { name: 'New web panel' }).click();
+  await page.locator('summary[aria-label="Panels"]').click();
+  await page.getByRole('button', { name: 'New Web panel', exact: true }).click();
   const loadedPanel = page.locator('.panel-web').nth(1);
   await loadedPanel.getByRole('textbox', { name: 'Address' }).fill(`${site}/`);
   await loadedPanel.getByRole('textbox', { name: 'Address' }).press('Enter');
@@ -137,7 +139,7 @@ try {
   assert.deepEqual(await page.evaluate(() => { window.open = window.realOpen; return window.openedUrls; }), [`${site}/stall`]);
   await viewer.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'Search fixture' })).toBeVisible();
-  await loadedPanel.getByRole('button', { name: /^Close Web panel$/ }).click();
+  await webTab(1).locator('.dock-tab-close').click();
   await expect(page.getByRole('region', { name: 'Web page' })).toHaveCount(1);
 
   // Right-click on a link: every choice. A new panel opens beside the first.
@@ -150,15 +152,15 @@ try {
   await expect(page.getByRole('region', { name: 'Web page' })).toHaveCount(2);
   const second = page.locator('.panel-web').nth(1);
   await expect(second.frameLocator('iframe').getByRole('heading', { name: 'About the fixture app' })).toBeVisible();
-  await second.getByRole('button', { name: /^Close Web panel$/ }).click();
+  await webTab(1).locator('.dock-tab-close').click();
   await expect(page.getByRole('region', { name: 'Web page' })).toHaveCount(1);
 
   // The page menu adds an empty Web panel, ready to type in, with the workspace's running app a click away.
   const run = page.getByRole('group', { name: 'Run', exact: true });
   await run.getByRole('button', { name: 'Run dev', exact: true }).click();
   await expect(run.getByRole('button', { name: /^dev running on port/ })).toBeVisible();
-  await page.getByLabel('Page actions', { exact: true }).click();
-  await page.getByRole('group', { name: 'Page actions menu' }).getByRole('button', { name: 'New web panel' }).click();
+  await page.locator('summary[aria-label="Panels"]').click();
+  await page.getByRole('button', { name: 'New Web panel', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Web page' })).toHaveCount(2);
   const fresh = page.locator('.panel-web').nth(1);
   await expect(fresh.getByRole('heading', { name: 'Open a web page' })).toBeVisible();
@@ -167,7 +169,7 @@ try {
   await page.screenshot({ path: '.cache/web-viewer-start.png' });
   await fresh.getByRole('button', { name: /dev/ }).click();
   await expect(fresh.frameLocator('iframe').getByRole('heading', { name: 'Fixture app home' })).toBeVisible();
-  await fresh.getByRole('button', { name: /^Close Web panel$/ }).click();
+  await webTab(1).locator('.dock-tab-close').click();
 
   // Settings: links open in Lazybox; ⌥-click is now the browser.
   await page.getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: 'Settings' }).click();

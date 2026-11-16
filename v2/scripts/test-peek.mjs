@@ -85,8 +85,9 @@ try{
  await expect(betaLink).toHaveAttribute('aria-current','page');
 
  // 8. A process: what it is, its output, and Stop behind a confirmation.
- await page.getByLabel('Page actions',{exact:true}).click();
- await page.getByRole('button',{name:'Processes',exact:true}).click();
+ // Processes comes from the Panels menu in the header (the dock's list of every panel).
+ await page.locator('summary[aria-label="Panels"]').click();
+ await page.getByRole('button',{name:'Show Processes',exact:true}).click();
  const processes=page.getByRole('region',{name:'Hosted processes',exact:true});
  const command=processes.locator('.process-row').filter({hasText:'go test ./...'});
  // 7. "Peek" in a row's context menu (the workspace row's menu stays its ⋯ actions).

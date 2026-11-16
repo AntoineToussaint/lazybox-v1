@@ -252,30 +252,118 @@ restarts. See [TERMINALS.md](TERMINALS.md).
 
 ### Arrange panels
 
-Every panel with a header (command output, terminal, changes, Ask Lazybox,
-usage, sessions) arranges itself from that header, without Customize page:
+A page is a dock, like an IDE's. Every panel (the conversation, Workspaces,
+Agents, Files, Editor, Changes, Command output, Terminal, Processes, Missions,
+Actions, Preview, Artifacts, Usage, Ask Lazybox) has a tab, and the tab is
+how you arrange it:
 
-- **⋯ → Dock left / right / top / bottom** moves the panel to that edge of the
-  page's content area, shown, at about a third of it (a terminal on a side
-  takes 40%, for columns). The workspace list stays at the page edge. The
-  current edge is marked and disabled. The menu is keyboard-reachable (Enter
-  or ↓ opens it, arrows move, Escape closes) and focus follows the moved panel.
-- **Dragging the header** shows the four edge zones over the content area;
-  release on one to dock there. Escape, or a release away from the edges,
-  cancels. Not on touch or phone layouts.
-- **Clicking the title** collapses the panel to its header (or, beside another
-  panel, to a narrow vertical tab) and back.
-- **×** closes the panel. A closed panel comes back from **Page actions (⋯) →
-  Show panel**. The workspace list and the conversation panel have no panel
-  header and do not close: they are what the page is for, and the other panels
-  dock around them (Customize page still rearranges them).
+- **Drag a tab onto another panel**: onto one of its edges to split it there
+  (left, right, top, bottom), onto its middle to join its tabs, or onto the
+  edge of the whole page. A live outline shows where it lands before you let
+  go. Drag a group by the empty space beside its tabs.
+- **Drag a divider** to resize; a focused divider moves with the arrow keys
+  and says its size. The Workspaces sidebar keeps **one width in pixels** for
+  every workspace and window size: only dragging its own edge changes it, and
+  a panel dropped beside it does not squeeze it.
+- **Double-click a tab** (or ⇧⌘M, or `] ] m`) to maximize its group; again to restore.
+- **Right-click a tab**, or **⋯** beside the tabs, for the group menu: Split
+  right / down, Maximize, Minimize (to its tab bar, in a column; click the tab
+  or press Enter on it to open it again), Float over the page, Open in new
+  window, Stay on this conversation / Follow the selected conversation (chat),
+  Dock left / right / top / bottom (the keyboard way to move a panel to an
+  edge of the content area), Close.
+- **×** on a tab closes the panel. Every panel can be closed; **Panels** in the
+  workspace header lists every kind, focuses one that is shown and reopens a
+  closed one where its kind was last docked. ⌘\ splits the active panel: a
+  tab moves into a group of its own beside its group, or, when it is alone,
+  Panels opens to choose what goes beside it. ⌘W closes the active panel, ⌃Tab
+  moves between groups. These and the rest of the group menu (split down,
+  float, open in new window, minimize, show a panel, change or reset the
+  layout) are actions of the action registry (`actions.ts`, group *Layout*):
+  in the command palette, **Settings → Shortcuts** and the `]]` menu, each
+  rebindable. `layoutCommands()` also lists every preset and every panel kind
+  as plain functions.
+- **Open in new window** puts a group in a window of its own. Its panels stay
+  the same panels, run by the main window: an editor keeps its unsaved edits,
+  a terminal its shell, Files and the Editor keep sharing one workbench
+  (opening a file from Files or a chat goes to the Editor in that window). The
+  back arrow on the group, or closing the window, brings it back. A chat opens
+  instead in its own native window, which survives the main window, as
+  before; a Web panel uses its own **Move to a new window** (its native view
+  belongs to one window, so it is not popped out or dropped into a popped-out
+  group). Popped-out groups come back docked when the page loads again. A Web
+  panel's native view steps aside while a tab is dragged and under a group
+  floating over it, and follows its panel when the dock moves, maximizes or
+  floats it.
+- **Layout** in the header applies a preset, shown as a picture: Chat focus
+  (the default), Chat + Changes, Chat + Editor + Terminal, Review (Changes,
+  Editor, Chat), Everything. **Save current layout as…** keeps the arrangement
+  by panel kind, for every workspace; saved layouts are renamed and deleted
+  from their picture; **Reset to default** goes back to Chat focus. A preset
+  keeps every panel the page already has of a kind it uses (the same
+  conversation, draft and shell) and closes the others.
 
-The edge you last docked each kind of panel at is remembered per person, across
-workspaces: a terminal you moved left opens left next time. Arrangements are
-saved in the page layout like any other change; layouts saved before docking
-load unchanged. Moving or closing a panel never reloads the others: each panel
-renders once and the layout moves it. On a phone, panels show one at a time
-from the panel switcher; docking is hidden and **×** remains.
+The Terminal panel docks like any other panel and nothing more: there are no
+terminal splits or terminal-specific layout features (Lazybox is not a
+terminal emulator; see [TERMINALS.md](TERMINALS.md)).
+
+The edge you last docked each kind of panel at is remembered per person: a
+terminal you moved left opens left next time. Moving, tabbing, floating,
+popping out or rearranging never reloads a panel: each one renders once into
+an element of its own that the dock moves, so drafts, terminal sessions,
+editor models and scroll positions stay. Switching workspace never moves a
+divider: the other workspace keeps its own panels but takes the current sizes
+wherever its arrangement has the same shape. On a phone, panels show one at a
+time from the panel switcher, with a reachable ×; the dock is not used there.
+
+**Agents**, a tab beside Workspaces by default, lists every conversation in
+every workspace by urgency (needs you, failed, ready for review, working, done)
+or by workspace, with live status, age and an unread dot. Pin one to keep it
+on top (hover, or `p`), fold a group from its heading; j/k move, Enter opens.
+It reads the same attention data as the Inbox.
+
+#### How it is built, and why dockview
+
+The dock is [dockview](https://dockview.dev) `8.8.3` (MIT; the `dockview`
+package, its framework-free core: we render tabs and content ourselves).
+Hand-rolling it was the alternative: the previous layout was a binary tree of
+single panels with our own split handles and four edge zones, and each of the
+asks (drop onto any panel's edge or middle with a preview, tab groups,
+floating groups, popped-out windows, maximize, keyboard-accessible dividers)
+would have been a new subsystem to write and keep working. dockview has them,
+is actively maintained, and had no blocker:
+
+- **Our panels stay ours.** Each panel's content element is its stable host
+  (`usePanelHosts`), handed to dockview as is, with the `always` renderer:
+  dockview positions it over its group instead of moving it, so a tab switch
+  or a rearrangement never reparents or remounts it, and a page rebuild with
+  the same panels (`fromJSON` with `reuseExistingPanels`) leaves every one in
+  place. `DockLayout.tsx` brings dockview to the saved arrangement in place
+  and reports every change made in dockview back.
+- **WebKit and Tauri.** Drags use dockview's pointer strategy, not HTML5
+  drag and drop, so they behave the same in WKWebView, Chromium and the
+  Playwright tests. A popped-out window is `window.open` of this app's own
+  blank `popout.html`, drawn by its opener; in the desktop app the host gives
+  that request a native window through Tauri's `on_new_window`, keeping the
+  opener relationship WebKit needs, and refuses every other URL
+  (`is_popout_page` in `host.rs`). Those windows are not saved in the window
+  layout and need no IPC.
+- **Size.** At most about 400 KB of minified script (94 KB compressed) plus a
+  13 KB compressed stylesheet, in the main bundle; Monaco (725 KB compressed)
+  and Mermaid's layout engine are much larger.
+
+The saved form is ours, not dockview's (`workspace-model.ts`, version 2): a
+tree of splits whose leaves are tab groups, with sizes as shares, plus
+floating groups, popped-out groups and chats in native windows. Shares make a
+page look the same in any window; the sidebar's pixel width and a minimized
+group's tab bar are applied on top (`dock-bridge.ts`). Version 1 layouts (a
+binary tree of single panels) migrate when read: every panel becomes a group
+of its own in the same place and size, a collapsed panel in a column becomes
+a minimized group, a chat in its own window stays there, and the Workspaces
+list gains the Agents tab. The original text is kept beside the migrated one
+(the same key with `:v1` appended), once, so a migration never loses a
+layout; a layout that cannot be read is left untouched, with a notice and
+**Reset retained layout**.
 
 A conversation shows in at most one chat panel per page. Choosing a
 conversation reuses the page's chat panel, including one brought back from its
@@ -291,7 +379,7 @@ any workspace page; chat has a compact context/usage disclosure. Select
 **Metered · track workspace cost** in a new session's gateway options. Direct
 sessions retain provider-reported observations where supported.
 
-The **Processes** panel (also from **Page actions (⋯) → Show panel**) lists
+The **Processes** panel (also from **Panels** in the workspace header) lists
 every agent, managed command and terminal the Runner hosts, across workspaces,
 with PID, uptime, CPU and memory: open, attach to (tmux) or stop any of them, and
 clean up processes no Runner supervises. See
@@ -420,7 +508,7 @@ icon rules, the web window surface, capability isolation).
 **Review changes** opens a workspace page using the same module registry as chat
 and output. The Changes module resolves members on the Runner, verifies their
 Git registration, and shows local index/worktree status and bounded diffs. It is
-also available through Customize page. Different repository failures stay
+also available from **Panels**. Different repository failures stay
 independent. GitHub API access is not required for this local inspection.
 Each repository also carries its PR loop: commit, push, open a pull request,
 follow its checks, send failing checks to the conversation, and merge. See
@@ -548,7 +636,8 @@ tabs, order and recent files persist per workspace; drafts live for the window
 and a page close with unsaved edits asks first. Visible files poll the Runner
 every 4 seconds: a clean file takes the new disk version, an edited one shows
 **Use disk version** / **Keep mine** rather than losing either. Files and the
-editor dock together to the right of the conversation.
+editor dock together to the right of the conversation, the pair taking most of
+the width; opening a file goes to the Editor wherever it is, even in its own window.
 
 Sidebar filtering is scoped on the Runner before pagination, and continuations
 retain the original creation order. Native personal views use the persistent

@@ -1,4 +1,5 @@
 import { peekProps } from './peek-model';
+import { focusWhenShown } from './focus';
 import { useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import { FileIcon } from './DirectoryListing';
@@ -74,7 +75,7 @@ function Explorer({ workbench, members: names, root }: { workbench: Workbench; m
  useEffect(() => {
   if (focused.current >= state.treeFocus || Date.now() - state.treeFocus > 3000 || !cursor) return;
   focused.current = state.treeFocus;
-  tree.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(cursor)}"]`)?.focus();
+  focusWhenShown(tree.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(cursor)}"]`));
  }, [state.treeFocus, cursor]);
  const descend = useRef('');
  useEffect(() => {

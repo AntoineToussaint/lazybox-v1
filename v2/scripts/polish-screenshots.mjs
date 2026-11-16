@@ -40,9 +40,9 @@ try {
     await expect(page.getByRole('textbox', { name: 'Message', exact: true }).first()).toBeVisible();
     const inbox = page.locator('.inbox-action');
     if (await inbox.isVisible()) { await inbox.click(); await page.waitForTimeout(400); await shot('inbox'); await page.keyboard.press('Escape'); }
-    const actions = page.getByLabel('Page actions', { exact: true });
-    if (await actions.isVisible()) {
-      await actions.click(); await page.getByRole('button', { name: 'Processes', exact: true }).click();
+    const panelsMenu = page.locator('summary[aria-label="Panels"]');
+    if (await panelsMenu.isVisible()) {
+      await panelsMenu.click(); await page.getByRole('button', { name: 'Show Processes', exact: true }).click();
       await page.waitForTimeout(500); await shot('processes');
     }
     await page.close();

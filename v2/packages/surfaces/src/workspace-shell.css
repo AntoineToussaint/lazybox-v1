@@ -77,10 +77,6 @@
   .workspace-shell .mobile-panel-switcher{display:flex!important;gap:4px;padding:4px 10px;border-bottom:1px solid var(--line);overflow:auto;flex:none}
   .workspace-shell .mobile-panel-switcher button{padding:5px 9px;font-size:calc(11px * var(--text-scale));white-space:nowrap}
   .workspace-shell .mobile-panel-switcher [aria-pressed=true]{background:var(--nav-selected);color:var(--text)}
-  .workspace-shell:not(.layout-editing) .page-layout{overflow:hidden;display:flex;flex-direction:column;min-height:0}
-  .workspace-shell:not(.layout-editing) .page-layout .layout-split,.workspace-shell:not(.layout-editing) .page-layout .layout-cell{display:contents}
-  .workspace-shell:not(.layout-editing) .page-layout .workspace-panel{display:none}.workspace-shell .page-layout .split-handle{display:none}
-  .workspace-shell:not(.layout-editing) .page-layout .workspace-panel[data-mobile-active=true]{display:flex;flex:1;min-height:0;height:100%;border:0}
   .workspace-shell .embedded-chat .messages{padding:16px;min-height:0}
   .workspace-shell .embedded-chat .message p{font-size:var(--chat-font-size,14px);line-height:var(--chat-line-height,1.5)}
   .workspace-shell .embedded-chat .composer{margin:0 10px max(10px,env(safe-area-inset-bottom));padding:10px;border-radius:10px}
@@ -91,11 +87,7 @@
   .workspace-shell .embedded-chat .chat-account{display:none}
   .workspace-shell .new-session-dialog{padding:20px;max-height:calc(100dvh - 24px)}
   .workspace-shell .new-session-dialog input,.workspace-shell .new-session-dialog select{font-size:calc(16px * var(--text-scale))}
-  .workspace-shell.layout-editing .page-layout{overflow:auto}
-  .workspace-shell.layout-editing .mobile-panel-switcher{display:none!important}
   /* One panel at a time: docking has no meaning here; closing still does. */
-  .workspace-shell .module-header>.panel-menu{display:none}
-  .workspace-shell .module-header>.panel-menu~.panel-close{opacity:1;width:36px;height:36px}
 }
 
 /* A phone's header holds nine tools: they give up a few pixels each so a page tab still has room to be read. */

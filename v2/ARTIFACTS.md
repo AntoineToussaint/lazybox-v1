@@ -82,7 +82,7 @@ credential can call none of them (`internal/transport/auth.go`).
 
 ## The Artifacts panel and page
 
-**The panel.** **Page actions → Show panel → Artifacts**, or `] ] a`, opens
+**The panel.** **Panels → Artifacts** (workspace header), or `] ] a`, opens
 it. Tracking something also opens it. The list shows each artifact's kind
 icon, title, latest version, who made that version and when, and the file
 it follows, if any. A filter appears when there are more than four

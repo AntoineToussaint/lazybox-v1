@@ -24,19 +24,23 @@ try {
   const chat = page.locator('[data-panel-id="alpha-work-chat"]');
   const composer = chat.getByRole('textbox', { name: 'Message', exact: true });
   await expect(composer).toBeEnabled();
-  const show = page.getByRole('button', { name: 'Show command output', exact: true });
-  const hide = page.getByRole('button', { name: 'Hide command output', exact: true });
+  // Command output is a dock group, minimized to its tab until a run starts: its tab opens it,
+  // its group menu minimizes it.
+  const output = page.locator('.dv-groupview').filter({ has: page.locator('[data-kind="console"]') });
+  const minimized = () => output.evaluate(node => node.classList.contains('dock-group-minimized'));
+  const show = { click: () => page.getByRole('tab', { name: 'Command output', exact: true }).click() };
+  const hide = { click: async () => { await page.getByRole('tab', { name: 'Command output', exact: true }).click({ button: 'right' }); await page.getByRole('menuitem', { name: 'Minimize', exact: true }).click(); } };
   const lists = () => fixture.calls.filter(call => call.method === 'ListCommands' && call.body.sessionId === 'alpha-session').length;
 
   // A command that existed before the session was viewed does not open the console.
   const baseline = lists();
   await expect.poll(lists, { timeout: 5000 }).toBeGreaterThan(baseline + 1);
-  await expect(show).toBeVisible();
+  await expect.poll(minimized).toBe(true);
 
   // A run starts while the user is typing: the console opens on it, the composer keeps focus.
   await composer.click(); await composer.fill('typing while the agent runs tests');
   const run = fixture.startRun('alpha-session', 'go test ./...', { exitCode: 1, outputBytes: '1468006', agentBytes: '2150', filter: 'go-test', outputPath: '/state/command-output/alpha-session/go-1.log' });
-  await expect(hide).toBeVisible({ timeout: 5000 });
+  await expect.poll(minimized, { timeout: 5000 }).toBe(false);
   const report = page.getByTestId('command-report');
   await expect(report).toContainText('Exit 1 · the agent got a 2.1 KiB summary of 1.4 MiB (go-test filter)');
   await expect(page.locator('.command-panel select')).toHaveValue(run.id);
@@ -55,11 +59,11 @@ try {
 
   // Hidden by the user, it stays hidden: the next run does not reopen it.
   await hide.click();
-  await expect(show).toBeVisible();
+  await expect.poll(minimized).toBe(true);
   const next = fixture.startRun('alpha-session', 'npm test', { exitCode: 0, outputBytes: '120', agentBytes: '180', filter: 'passthrough', outputPath: '' });
   const closed = lists();
   await expect.poll(lists, { timeout: 5000 }).toBeGreaterThan(closed + 2);
-  await expect(show).toBeVisible();
+  await expect.poll(minimized).toBe(true);
 
   // Opened again by the user, it shows the newest run and follows runs again.
   await show.click();
@@ -70,7 +74,7 @@ try {
   await show.click();
   const third = fixture.startRun('alpha-session', 'make lint', { exitCode: 0, outputBytes: '90', agentBytes: '90', filter: 'passthrough', outputPath: '' });
   await expect(page.locator('.command-panel select')).toHaveValue(third.id, { timeout: 5000 });
-  await expect(hide).toBeVisible();
+  await expect.poll(minimized).toBe(false);
 
   // × closes the panel: its control is plainly visible at rest, and a later run does not bring the panel back.
   const consolePanel = page.locator('.panel-console');
@@ -87,25 +91,25 @@ try {
   await expect(composer).toBeEnabled();
   await expect(consolePanel).toHaveCount(0);
 
-  // The way back: the page menu lists it, and it opens on the newest run.
-  await page.locator('.workspace-header-actions summary[aria-label="Page actions"]').click();
-  await page.locator('.workspace-header-actions .show-panel', { hasText: 'Command output' }).click();
+  // The way back: the Panels menu lists it, and it opens on the newest run.
+  await page.locator('.workspace-header-actions summary[aria-label="Panels"]').click();
+  await page.getByRole('button', { name: 'Show Command output', exact: true }).click();
   await expect(consolePanel).toHaveCount(1);
   await expect(page.locator('.command-panel select')).toHaveValue(fourth.id);
 
   // From the keyboard: ]] o puts it away and brings it back.
   await page.locator('.workspace-brand').click();
   await page.keyboard.type(']]o');
-  await expect(show).toBeVisible();
+  await expect.poll(minimized).toBe(true);
   await page.keyboard.type(']]o');
-  await expect(hide).toBeVisible();
+  await expect.poll(minimized).toBe(false);
 
   // A run in another session leaves this console alone.
   await hide.click();
   fixture.startRun('beta-session', 'cargo test', { exitCode: 0, outputBytes: '10', agentBytes: '50', filter: 'passthrough' });
   const other = lists();
   await expect.poll(lists, { timeout: 5000 }).toBeGreaterThan(other + 1);
-  await expect(show).toBeVisible();
+  await expect.poll(minimized).toBe(true);
 
   assert.equal(fixture.mutations.length, 0, 'opening the console must not mutate execution');
   assert.equal(errors.length, 0, errors.join('\n'));

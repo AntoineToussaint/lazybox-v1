@@ -58,6 +58,12 @@ const paths: Record<string, string[]> = {
   collapse: ['M4 5h16v14H4z', 'M8 12h8'],
   repository: ['M5 4h11l3 3v13H5z', 'M9 4v6l2-1.5L13 10V4', 'M8 15h8'],
   'split-right': ['M3 4h18v16H3z', 'M12 4v16'],
+  maximize: ['M4 9V4h5', 'M20 9V4h-5', 'M4 15v5h5', 'M20 15v5h-5'],
+  restore: ['M9 4v5H4', 'M15 4v5h5', 'M9 20v-5H4', 'M15 20v-5h5'],
+  minimize: ['M5 18h14'],
+  layout: ['M3 4h18v16H3z', 'M10 4v16', 'M10 13h11'],
+  panels: ['M3 4h7v7H3z', 'M14 4h7v7h-7z', 'M3 15h7v5H3z', 'M14 15h7v5h-7z'],
+  save: ['M5 4h11l3 3v13H5z', 'M8 4v5h7V4', 'M8 20v-6h8v6'],
   'split-down': ['M3 4h18v16H3z', 'M3 12h18'],
   back: ['m14 6-6 6 6 6'],
   pencil: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
@@ -86,6 +92,13 @@ const paths: Record<string, string[]> = {
   contrast: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 3v18'],
   text: ['M5 6V4h14v2', 'M12 4v16', 'M9 20h6'],
 };
+/** The same icon as plain DOM, for UI built outside React (dock tabs). */
+export function iconElement(name: string, size = 16, owner: Document = document): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg', svg = owner.createElementNS(ns, 'svg');
+  for (const [key, value] of Object.entries({ width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) svg.setAttribute(key, String(value));
+  for (const d of paths[name] || []) { const path = owner.createElementNS(ns, 'path'); path.setAttribute('d', d); svg.append(path); }
+  return svg;
+}
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;
 }

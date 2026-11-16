@@ -13,7 +13,7 @@ Conductor's setup/run/archive scripts and `CONDUCTOR_PORT`.
   lists every action with its state and port; a running one shows a live dot,
   its port and how long it has run, with **Stop** beside it. While setup runs
   the control reads *Setting up api · 12s*; click it for the log.
-- **Actions** (from Run's menu, or Page actions → Show panel) lists each
+- **Actions** (from Run's menu, or **Panels** in the workspace header) lists each
   repository's setup and actions: state, port, URL, the last output line,
   **Start / Restart / Stop**, **Log** (the command's console, inline) and
   **Preview**. Setup can be run again from here.

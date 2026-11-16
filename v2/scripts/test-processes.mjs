@@ -34,9 +34,9 @@ try {
   await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('fixture shell in Alpha feature');
   await page.getByRole('button', { name: 'Close Terminal panel', exact: true }).click();
 
-  // The page menu shows the Processes panel like any other.
-  await page.getByLabel('Page actions', { exact: true }).click();
-  await page.getByRole('button', { name: 'Processes', exact: true }).click();
+  // The Panels menu shows the Processes panel like any other.
+  await page.locator('summary[aria-label="Panels"]').click();
+  await page.getByRole('button', { name: 'Show Processes', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Hosted processes', exact: true });
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('3 processes running');

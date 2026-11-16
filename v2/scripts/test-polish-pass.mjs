@@ -203,7 +203,7 @@ try {
     const script = 'set -euo pipefail\nnpm ci\nnpm run build:proto\ncp .env.example .env';
     fixture.runtimeFor('alpha').setups[0].run = script;
     const page = await open({ width: 1440, height: 900 });
-    await page.locator('.workspace-header-actions summary[aria-label="Page actions"]').click();
+    await page.locator('.workspace-header-actions summary[aria-label="Panels"]').click();
     await page.locator('.workspace-header-actions .show-panel', { hasText: 'Actions' }).click();
     const row = page.locator('[data-runtime-row^="setup:"]').first(), disclosure = row.locator('.runtime-script');
     await expect(disclosure.locator('summary')).toContainText('set -euo pipefail');
