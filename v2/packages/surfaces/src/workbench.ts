@@ -4,6 +4,9 @@ import type { WorkspaceDirectoryEntry, WorkspaceFile } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { activateTab, adjacentTab, canSplit, closeGroup as removeGroup, closePath, closeTab, editorGroups, emptyEditorLayout, findGroup, focusGroup, focusedGroup, moveTabToGroup, openPaths, openTab, parseEditorLayout, pinPath, pinTab, resizeSplit, shiftTab, splitGroup, visiblePaths, type EditorLayout } from './editor-model';
 
+/** Markdown opens rendered; "Source" shows the text to edit. */
+const renderedByDefault = (path: string) => /\.(md|markdown|mdown|mdx)$/i.test(path);
+
 /** One open file, shared by every tab and group that shows it. */
 export type DocState = {
  path: string;
@@ -93,7 +96,7 @@ export class Workbench {
   this.emit();
  }
  private setDoc(path: string, change: Partial<DocState> | ((doc: DocState) => Partial<DocState>)) {
-  const current = this.state.docs[path] || { path, status: 'loading', draft: '', error: '', saving: false, conflict: false, diskChanged: false, rendered: false } satisfies DocState;
+  const current = this.state.docs[path] || { path, status: 'loading', draft: '', error: '', saving: false, conflict: false, diskChanged: false, rendered: renderedByDefault(path) } satisfies DocState;
   this.set({ docs: { ...this.state.docs, [path]: { ...current, ...(typeof change === 'function' ? change(current) : change) } } });
  }
  private dropDoc(path: string) { this.loads.get(path)?.abort(); const { [path]: _, ...docs } = this.state.docs; this.set({ docs }); }
@@ -196,7 +199,8 @@ export class Workbench {
   layout = openTab(layout, path, { group, preview: options.preview, keep: value => isDirty(this.state.docs[value]) });
   this.setLayout(layout);
   this.ensureDoc(path);
-  if (options.line || options.focus) this.setDoc(path, { reveal: { group: layout.focused, line: options.line, nonce: ++this.nonce } });
+  // A link to a line opens the source at that line; otherwise Markdown opens rendered.
+  if (options.line || options.focus) this.setDoc(path, { reveal: { group: layout.focused, line: options.line, nonce: ++this.nonce }, ...(options.line ? { rendered: false } : {}) });
   this.host.showEditor();
   if (this.explorers) this.reveal(path, { quiet: true });
  }
