@@ -1,13 +1,27 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { helpPermissions } from './settings.js';
+import { browserRule } from './browser.js';
 
 type ExecutionOptions = {
   cwd: string; model?: string; resume?: string; context?: string;
   purpose?: string; binary?: string; permission?: string; workflow?: string;
+  /** The Runner offers the agent browser: its tools need no per-call prompt (the Runner asks per site). */
+  browser?: boolean;
 };
 
 /** Resolved startup options; authentication remains in the selected environment. */
 export function nativeOptions(o: ExecutionOptions, env: NodeJS.ProcessEnv): Options {
+  const options = baseOptions(o, env);
+  // The browser asks the person per site, download and sign-in itself; a
+  // prompt per click on top would teach them to click through.
+  if (o.browser && o.purpose !== 'help') {
+    const permissions = options.settings && typeof options.settings === 'object' ? (options.settings as { permissions?: Record<string, string[]> }).permissions || {} : {};
+    options.settings = { ...(typeof options.settings === 'object' ? options.settings : {}), permissions: { ...permissions, allow: [...(permissions.allow || []), browserRule] } };
+  }
+  return options;
+}
+
+function baseOptions(o: ExecutionOptions, env: NodeJS.ProcessEnv): Options {
   return {
     cwd: o.cwd, model: o.model || undefined, resume: o.resume || undefined,
     ...(o.context ? { systemPrompt: { type: 'preset', preset: 'claude_code', append: o.context } } : {}),

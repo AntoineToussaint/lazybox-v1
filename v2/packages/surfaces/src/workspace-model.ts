@@ -222,7 +222,7 @@ export const dockShare = (kind: string, side: DockSide) => {
   if (kind === 'editor') return across ? 0.55 : 0.5;
   if (kind === 'files') return across ? 0.24 : 0.3;
   // A page wants width; the action list wants room for a log.
-  if (kind === 'preview' || kind === 'web') return across ? 0.45 : 0.5;
+  if (kind === 'preview' || kind === 'web' || kind === 'browser') return across ? 0.45 : 0.5;
   if (kind === 'actions') return across ? 0.35 : 0.38;
   // Command output opens tall enough that its output, not its tools, fills it.
   if (kind === 'console' && !across) return 0.38;

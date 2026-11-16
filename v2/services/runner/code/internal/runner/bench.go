@@ -20,6 +20,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/codex"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/artifacts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/attachments"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/browser"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/codecheckpoints"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/collections"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
@@ -68,6 +69,9 @@ type Config struct {
 	// outlive the Runner too. Empty selects <State>/command-hosts.
 	CommandHostRoot string `json:"-"`
 	Worker          string `json:"worker"`
+	// BrowserWorker is the agent browser service's main.js (workers/browser).
+	// Empty: this Runner offers agents no browser.
+	BrowserWorker string `json:"browserWorker,omitempty"`
 	// CLIDir holds the lazybox CLI. It is put first on every agent's PATH and
 	// enables the command-output briefing. Empty leaves both off.
 	CLIDir string `json:"-"`
@@ -201,6 +205,8 @@ type Bench struct {
 	power powerState
 	// repositoryRequests are agents' requests for repositories (repository_requests.go).
 	repositoryRequests *repositoryRequests
+	// Browser is every conversation's agent browser (browser.go, BROWSER.md).
+	Browser *browser.Manager
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -407,6 +413,10 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	if b.repositoryRequests, err = openRepositoryRequests(filepath.Join(cfg.State, "repository-requests.json")); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if err = b.openBrowser(); err != nil {
 		_ = b.Detach()
 		return nil, err
 	}
@@ -867,6 +877,9 @@ func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	if agent.BrowserTool(name) {
+		return b.browserTool(ctx, e, name, args)
+	}
 	if name != "lazybox_command" {
 		return "", agent.ErrUnsupported
 	}
@@ -957,6 +970,10 @@ func (b *Bench) shutdown(detach bool) error {
 			}
 		}
 		b.cancel()
+		if b.Browser != nil {
+			// The agent browser is the Runner's: it closes with it (BROWSER.md).
+			b.closeErr = errors.Join(b.closeErr, b.Browser.Close())
+		}
 		if b.GitHub != nil {
 			b.GitHub.Close()
 		}

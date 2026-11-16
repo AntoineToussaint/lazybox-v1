@@ -16,7 +16,14 @@ WORKSPACE_MANIFESTS := $(wildcard apps/*/package.json packages/*/package.json wo
 
 .PHONY: help deps generate check check-go check-workspaces build build-go build-worker build-web test test-real test-browser fmt fmt-check run web
 help:
-	@printf '%s\n' 'make dev        Build and run isolated Lazybox Dev' 'make stage      Validate and freeze a Working candidate' 'make promote RELEASE=<id>  Pin a candidate for the next Working launch' 'make working    Run the pinned Working installation' 'make run        Run the Codefly gRPC Runner with temporary ports' 'make desktop    Build and launch the native Tauri agent window' 'make web        Optional browser test client (prints its authenticated URL)' 'make check      Format, vet, typecheck, test, generated-code and workspace checks' 'make check-desktop Native Rust format, tests, and clippy' 'make test       Deterministic Go tests' 'make test-outlive  Race-checked tests that agents and commands outlive a Runner restart' 'make stress-go RUN=<test>  Repeat Go tests under GOMAXPROCS=1, -race and CPU load' 'make stress-ui SUITES=<names>  Repeat UI suites, several at once' 'make test-real  Explicit real-provider tests; requires existing provider login' 'make build      Compile the Runner, test CLI, SDK worker, and browser client'
+	@printf '%s\n' 'make dev        Build and run isolated Lazybox Dev' 'make stage      Validate and freeze a Working candidate' 'make promote RELEASE=<id>  Pin a candidate for the next Working launch' 'make working    Run the pinned Working installation' 'make run        Run the Codefly gRPC Runner with temporary ports' 'make desktop    Build and launch the native Tauri agent window' 'make web        Optional browser test client (prints its authenticated URL)' 'make check      Format, vet, typecheck, test, generated-code and workspace checks' 'make check-desktop Native Rust format, tests, and clippy' 'make test       Deterministic Go tests' 'make test-outlive  Race-checked tests that agents and commands outlive a Runner restart' 'make stress-go RUN=<test>  Repeat Go tests under GOMAXPROCS=1, -race and CPU load' 'make stress-ui SUITES=<names>  Repeat UI suites, several at once' 'make test-real  Explicit real-provider tests; requires existing provider login' 'make build      Compile the Runner, test CLI, SDK worker, and browser client' 'make browser    Install the Chromium the agent browser runs (BROWSER.md)'
+
+# The agent browser's Chromium (BROWSER.md): Playwright's own headless build,
+# in Playwright's cache, matched to the pinned playwright-core. Never the
+# person's Chrome or its profile.
+.PHONY: browser
+browser: deps
+	node_modules/.bin/playwright-core install --only-shell --no-remove chromium
 
 deps: node_modules/.package-lock.json
 node_modules/.package-lock.json: package.json package-lock.json $(WORKSPACE_MANIFESTS)
@@ -39,6 +46,7 @@ check-workspaces: deps
 	npm run check:workspaces
 	npm run test:client
 	npm run test:worker
+	npm run test:browser-service
 build: build-go build-worker build-web
 build-go:
 	mkdir -p bin
@@ -50,7 +58,7 @@ build-web: deps
 	npm run build:web
 
 test: build-worker
-	cd $(GO_ROOT) && LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js) go test -timeout 2m ./...
+	cd $(GO_ROOT) && LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js) LAZYBOX_V2_BROWSER_WORKER=$(abspath workers/browser/dist/main.js) go test -timeout 2m ./...
 test-real: build-worker
 	cd $(GO_ROOT) && LAZYBOX_V2_REAL=1 LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js) go test -timeout 12m -v ./tests/integration -run TestReal
 
@@ -61,7 +69,7 @@ fmt:
 fmt-check:
 	@test -z "$$(gofmt -l $(GO_ROOT)/internal $(GO_ROOT)/cmd $(GO_ROOT)/work.go $(GO_ROOT)/tests)"
 run: build-worker
-	codefly run service runner --runtime-context native --temporary-ports --headless --set 'runner:LAZYBOX_V2_STATE=$(BENCH_STATE)' --set 'runner:LAZYBOX_V2_WORKTREE_ROOT=$(abspath $(WORKTREE_ROOT))' --set 'runner:LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js)' --set 'runner:LAZYBOX_V2_WEB_DIR=$(abspath apps/web/dist)' $(if $(BENCH_CONFIG),--set 'runner:LAZYBOX_V2_CONFIG=$(abspath $(BENCH_CONFIG))')
+	codefly run service runner --runtime-context native --temporary-ports --headless --set 'runner:LAZYBOX_V2_STATE=$(BENCH_STATE)' --set 'runner:LAZYBOX_V2_WORKTREE_ROOT=$(abspath $(WORKTREE_ROOT))' --set 'runner:LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js)' --set 'runner:LAZYBOX_V2_BROWSER_WORKER=$(abspath workers/browser/dist/main.js)' --set 'runner:LAZYBOX_V2_WEB_DIR=$(abspath apps/web/dist)' $(if $(BENCH_CONFIG),--set 'runner:LAZYBOX_V2_CONFIG=$(abspath $(BENCH_CONFIG))')
 web: deps
 	LAZYBOX_V2_ENDPOINT='$(ENDPOINT)' node scripts/viewer.mjs
 

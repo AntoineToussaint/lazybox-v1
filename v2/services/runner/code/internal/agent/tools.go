@@ -31,6 +31,9 @@ func ToolReplaySafe(name string, args json.RawMessage) bool {
 	if SettingsTool(name) {
 		return true
 	}
+	if BrowserTool(name) {
+		return browserReplaySafe(name)
+	}
 	if name != CommandTool {
 		return false
 	}

@@ -42,6 +42,12 @@ conversations; Lazybox records the runs, commits and checks behind each one, so
 workspace its setup, its dev server on its own ports, and a Preview beside the
 chat; a Web panel browses docs and PRs in place. [Run your app →](docs/guides/run-your-app.md)
 
+**An agent browser you watch.** Agents get their own Chromium — never your
+Chrome — and you see every step live beside the chat: the page, a cursor on
+what it clicks, an action log. New sites, downloads and sign-ins ask you
+first, even in full access; take it over, give it back or stop it at any
+time. [Agent browser →](docs/guides/agent-browser.md)
+
 <img src="docs/images/workspace-runtime.webp" width="49%" alt="The Actions panel with a dev server running on the workspace's ports"> <img src="docs/images/missions.webp" width="49%" alt="The missions board with trust badges and evidence">
 
 **Agents outlive everything.** Close the window, restart the Runner, install a

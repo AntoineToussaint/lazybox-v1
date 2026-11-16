@@ -162,6 +162,13 @@ const (
 	RunnerService_RequestRepository_FullMethodName            = "/lazybox.bench.v1.RunnerService/RequestRepository"
 	RunnerService_WaitRepositoryRequest_FullMethodName        = "/lazybox.bench.v1.RunnerService/WaitRepositoryRequest"
 	RunnerService_DeclineRepositoryRequest_FullMethodName     = "/lazybox.bench.v1.RunnerService/DeclineRepositoryRequest"
+	RunnerService_WatchBrowser_FullMethodName                 = "/lazybox.bench.v1.RunnerService/WatchBrowser"
+	RunnerService_ControlBrowser_FullMethodName               = "/lazybox.bench.v1.RunnerService/ControlBrowser"
+	RunnerService_SendBrowserInput_FullMethodName             = "/lazybox.bench.v1.RunnerService/SendBrowserInput"
+	RunnerService_DecideBrowserRequest_FullMethodName         = "/lazybox.bench.v1.RunnerService/DecideBrowserRequest"
+	RunnerService_GetBrowserSettings_FullMethodName           = "/lazybox.bench.v1.RunnerService/GetBrowserSettings"
+	RunnerService_SaveBrowserSettings_FullMethodName          = "/lazybox.bench.v1.RunnerService/SaveBrowserSettings"
+	RunnerService_ClearBrowserData_FullMethodName             = "/lazybox.bench.v1.RunnerService/ClearBrowserData"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -425,6 +432,28 @@ type RunnerServiceClient interface {
 	WaitRepositoryRequest(ctx context.Context, in *WaitRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(ctx context.Context, in *DeclineRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error)
+	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
+	// drives through its browser_* tools and the person watches beside the
+	// chat. Every RPC below is the owner's. An agent reaches only its own
+	// conversation's browser, and only through the tool pipe of its own
+	// execution, never with a credential.
+	//
+	// Follows one conversation's browser: its state and recent action log
+	// first, then live frames (only while someone watches), actions and state.
+	WatchBrowser(ctx context.Context, in *WatchBrowserRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BrowserEvent], error)
+	// Take over / Give back / Stop / Let the agent browse again, browse freely,
+	// and the person's own navigation while they hold the browser.
+	ControlBrowser(ctx context.Context, in *ControlBrowserRequest, opts ...grpc.CallOption) (*BrowserState, error)
+	// The person's mouse and keyboard while they hold the browser (Take over).
+	SendBrowserInput(ctx context.Context, in *BrowserInputRequest, opts ...grpc.CallOption) (*BrowserState, error)
+	// Answers a site, download or sign-in request the agent's browsing raised.
+	DecideBrowserRequest(ctx context.Context, in *DecideBrowserRequestRequest, opts ...grpc.CallOption) (*BrowserState, error)
+	// Settings → Browser.
+	GetBrowserSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*BrowserSettings, error)
+	SaveBrowserSettings(ctx context.Context, in *BrowserSettings, opts ...grpc.CallOption) (*BrowserSettings, error)
+	// Closes a workspace's agent browsers and deletes its browser profile
+	// (cookies, storage, cache) and its always-allowed sites.
+	ClearBrowserData(ctx context.Context, in *ClearBrowserDataRequest, opts ...grpc.CallOption) (*BrowserSettings, error)
 }
 
 type runnerServiceClient struct {
@@ -1900,6 +1929,85 @@ func (c *runnerServiceClient) DeclineRepositoryRequest(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *runnerServiceClient) WatchBrowser(ctx context.Context, in *WatchBrowserRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BrowserEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RunnerService_ServiceDesc.Streams[5], RunnerService_WatchBrowser_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchBrowserRequest, BrowserEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnerService_WatchBrowserClient = grpc.ServerStreamingClient[BrowserEvent]
+
+func (c *runnerServiceClient) ControlBrowser(ctx context.Context, in *ControlBrowserRequest, opts ...grpc.CallOption) (*BrowserState, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BrowserState)
+	err := c.cc.Invoke(ctx, RunnerService_ControlBrowser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SendBrowserInput(ctx context.Context, in *BrowserInputRequest, opts ...grpc.CallOption) (*BrowserState, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BrowserState)
+	err := c.cc.Invoke(ctx, RunnerService_SendBrowserInput_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) DecideBrowserRequest(ctx context.Context, in *DecideBrowserRequestRequest, opts ...grpc.CallOption) (*BrowserState, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BrowserState)
+	err := c.cc.Invoke(ctx, RunnerService_DecideBrowserRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetBrowserSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*BrowserSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BrowserSettings)
+	err := c.cc.Invoke(ctx, RunnerService_GetBrowserSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SaveBrowserSettings(ctx context.Context, in *BrowserSettings, opts ...grpc.CallOption) (*BrowserSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BrowserSettings)
+	err := c.cc.Invoke(ctx, RunnerService_SaveBrowserSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ClearBrowserData(ctx context.Context, in *ClearBrowserDataRequest, opts ...grpc.CallOption) (*BrowserSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BrowserSettings)
+	err := c.cc.Invoke(ctx, RunnerService_ClearBrowserData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -2161,6 +2269,28 @@ type RunnerServiceServer interface {
 	WaitRepositoryRequest(context.Context, *WaitRepositoryRequestRequest) (*RepositoryRequest, error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(context.Context, *DeclineRepositoryRequestRequest) (*RepositoryRequest, error)
+	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
+	// drives through its browser_* tools and the person watches beside the
+	// chat. Every RPC below is the owner's. An agent reaches only its own
+	// conversation's browser, and only through the tool pipe of its own
+	// execution, never with a credential.
+	//
+	// Follows one conversation's browser: its state and recent action log
+	// first, then live frames (only while someone watches), actions and state.
+	WatchBrowser(*WatchBrowserRequest, grpc.ServerStreamingServer[BrowserEvent]) error
+	// Take over / Give back / Stop / Let the agent browse again, browse freely,
+	// and the person's own navigation while they hold the browser.
+	ControlBrowser(context.Context, *ControlBrowserRequest) (*BrowserState, error)
+	// The person's mouse and keyboard while they hold the browser (Take over).
+	SendBrowserInput(context.Context, *BrowserInputRequest) (*BrowserState, error)
+	// Answers a site, download or sign-in request the agent's browsing raised.
+	DecideBrowserRequest(context.Context, *DecideBrowserRequestRequest) (*BrowserState, error)
+	// Settings → Browser.
+	GetBrowserSettings(context.Context, *InfoRequest) (*BrowserSettings, error)
+	SaveBrowserSettings(context.Context, *BrowserSettings) (*BrowserSettings, error)
+	// Closes a workspace's agent browsers and deletes its browser profile
+	// (cookies, storage, cache) and its always-allowed sites.
+	ClearBrowserData(context.Context, *ClearBrowserDataRequest) (*BrowserSettings, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -2596,6 +2726,27 @@ func (UnimplementedRunnerServiceServer) WaitRepositoryRequest(context.Context, *
 }
 func (UnimplementedRunnerServiceServer) DeclineRepositoryRequest(context.Context, *DeclineRepositoryRequestRequest) (*RepositoryRequest, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeclineRepositoryRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) WatchBrowser(*WatchBrowserRequest, grpc.ServerStreamingServer[BrowserEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchBrowser not implemented")
+}
+func (UnimplementedRunnerServiceServer) ControlBrowser(context.Context, *ControlBrowserRequest) (*BrowserState, error) {
+	return nil, status.Error(codes.Unimplemented, "method ControlBrowser not implemented")
+}
+func (UnimplementedRunnerServiceServer) SendBrowserInput(context.Context, *BrowserInputRequest) (*BrowserState, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendBrowserInput not implemented")
+}
+func (UnimplementedRunnerServiceServer) DecideBrowserRequest(context.Context, *DecideBrowserRequestRequest) (*BrowserState, error) {
+	return nil, status.Error(codes.Unimplemented, "method DecideBrowserRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetBrowserSettings(context.Context, *InfoRequest) (*BrowserSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBrowserSettings not implemented")
+}
+func (UnimplementedRunnerServiceServer) SaveBrowserSettings(context.Context, *BrowserSettings) (*BrowserSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveBrowserSettings not implemented")
+}
+func (UnimplementedRunnerServiceServer) ClearBrowserData(context.Context, *ClearBrowserDataRequest) (*BrowserSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearBrowserData not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -5139,6 +5290,125 @@ func _RunnerService_DeclineRepositoryRequest_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_WatchBrowser_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchBrowserRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RunnerServiceServer).WatchBrowser(m, &grpc.GenericServerStream[WatchBrowserRequest, BrowserEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnerService_WatchBrowserServer = grpc.ServerStreamingServer[BrowserEvent]
+
+func _RunnerService_ControlBrowser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ControlBrowserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ControlBrowser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ControlBrowser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ControlBrowser(ctx, req.(*ControlBrowserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SendBrowserInput_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BrowserInputRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SendBrowserInput(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SendBrowserInput_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SendBrowserInput(ctx, req.(*BrowserInputRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_DecideBrowserRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DecideBrowserRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).DecideBrowserRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_DecideBrowserRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).DecideBrowserRequest(ctx, req.(*DecideBrowserRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetBrowserSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetBrowserSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetBrowserSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetBrowserSettings(ctx, req.(*InfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SaveBrowserSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BrowserSettings)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SaveBrowserSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SaveBrowserSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SaveBrowserSettings(ctx, req.(*BrowserSettings))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ClearBrowserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearBrowserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ClearBrowserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ClearBrowserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ClearBrowserData(ctx, req.(*ClearBrowserDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -5694,6 +5964,30 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeclineRepositoryRequest",
 			Handler:    _RunnerService_DeclineRepositoryRequest_Handler,
 		},
+		{
+			MethodName: "ControlBrowser",
+			Handler:    _RunnerService_ControlBrowser_Handler,
+		},
+		{
+			MethodName: "SendBrowserInput",
+			Handler:    _RunnerService_SendBrowserInput_Handler,
+		},
+		{
+			MethodName: "DecideBrowserRequest",
+			Handler:    _RunnerService_DecideBrowserRequest_Handler,
+		},
+		{
+			MethodName: "GetBrowserSettings",
+			Handler:    _RunnerService_GetBrowserSettings_Handler,
+		},
+		{
+			MethodName: "SaveBrowserSettings",
+			Handler:    _RunnerService_SaveBrowserSettings_Handler,
+		},
+		{
+			MethodName: "ClearBrowserData",
+			Handler:    _RunnerService_ClearBrowserData_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -5719,6 +6013,11 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "WatchUiRequests",
 			Handler:       _RunnerService_WatchUiRequests_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "WatchBrowser",
+			Handler:       _RunnerService_WatchBrowser_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -86,6 +86,8 @@ const paths: Record<string, string[]> = {
   copy: ['M8 8h12v12H8z', 'M16 8V4H4v12h4'],
   // The Web panel: a globe, a padlock for a secure page, a page that is not.
   globe: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3'],
+  // The agent browser: a window with a pointer in it.
+  browser: ['M3 5h18v14H3z', 'M3 9h18', 'M6 7h.01', 'm12 12 1.6 6 1.1-2.4 2.4-1.1z'],
   lock: ['M6 11h12v10H6z', 'M9 11V8a3 3 0 0 1 6 0v3'],
   unlock: ['M6 11h12v10H6z', 'M9 11V8a3 3 0 0 1 5.8-1'],
   palette: ['M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5-1.3-1.7-1.3-3 0-1.1.9-2 2-2H17a4 4 0 0 0 4-4c0-4-4-7-9-7z', 'M7.5 11.5h.01', 'M10 7.5h.01', 'M15 7.5h.01'],

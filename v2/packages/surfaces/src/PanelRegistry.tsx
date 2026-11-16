@@ -14,6 +14,7 @@ import { ProcessesPanel } from './ProcessesPanel';
 import { ActionsPanel } from './ActionsPanel';
 import { PreviewPanel } from './PreviewPanel';
 import { WebPanel } from './WebPanel';
+import { BrowserPanel } from './BrowserPanel';
 import { MissionsPanel } from './MissionsPanel';
 import { useRunner } from './RunnerContext';
 import { TelemetryPanel } from './TelemetryPanel';
@@ -59,6 +60,7 @@ function ChatModule({ target, onTarget, viewState, collections, onOpenChat, onNe
     collectionId={target.collectionId} initialSessionId={target.sessionId}
     allowStart={!!collection && collection.state === 'ready' && !collection.ownershipUncertain}
     viewState={viewState}
+    onShowBrowser={onShowPanel ? () => onShowPanel('browser') : undefined}
     onOpenCommand={commandId => { onTarget({ ...target, commandId }); onShowPanel?.('console', { ...target, commandId }); }}
     onSessionChange={sessionId => onTarget({ ...target, sessionId, commandId: '' })}/>;
 }
@@ -94,6 +96,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   actions: { title: 'Actions', icon: 'play', Component: ({ workspaceId, viewState, onShowPanel }) => <ActionsPanel key={workspaceId} workspaceId={workspaceId} viewState={viewState} onShowPanel={onShowPanel}/> },
   preview: { title: 'Preview', icon: 'eye', Component: ({ workspaceId }) => <PreviewPanel key={workspaceId} workspaceId={workspaceId}/> },
   web: { title: 'Web', icon: 'globe', multiple: true, Component: props => <WebPanel key={props.panelId} {...props}/> },
+  browser: { title: 'Agent browser', icon: 'browser', Component: BrowserPanel },
   files: { title: 'Files', icon: 'folder', Component: ({ workspaceId, collections }) => <FileExplorer workspaceId={workspaceId} collections={collections}/> },
   editor: { title: 'Editor', icon: 'file', Component: ({ workspaceId, viewState }) => <EditorArea workspaceId={workspaceId} viewState={viewState}/> },
   artifacts: { title: 'Artifacts', icon: 'artifact', Component: ({ workspaceId, collections, viewState, target, onShowSession }) => <ArtifactsPanel workspaceId={workspaceId} collections={collections} viewState={viewState} target={target} onShowSession={onShowSession}/> },

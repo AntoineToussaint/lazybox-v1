@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-process.json', import.meta.url), 'utf8'));
 import { createMissionFake } from './missions-fake.mjs';
 import { createPowerFake } from './power-fake.mjs';
+import { createBrowserFake } from './browser-fake.mjs';
 import { artifactFixture } from './artifacts.mjs';
 
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
@@ -59,6 +60,8 @@ export async function startRunnerFixture() {
   const sessions = collections.map(collection => ({ id: `${collection.id}-session`, collectionId: collection.id, workId: collection.id, profileId: 'claude-default', gatewayId: 'direct', workingDirectory: collection.root, capabilities: { files: true, images: true, resume: true, livePermission: true }, permission: 'ask', instructionsPending: collection.id === 'alpha', pending: [] }));
   sessions[0].status = 'running'; sessions[0].agents = [{ id: 'root', name: 'Main agent', status: 'done' }, { id: 'child-review', parentId: 'root', name: 'Review', status: 'running' }];
   const missions = createMissionFake({ sessions, collections });
+  // The agent browser (BROWSER.md): explicitly fake, driven by the test (browser-fake.mjs).
+  const browser = createBrowserFake({ frame, sessions, mutations });
   const commands = sessions.map(session => ({ id: `${session.collectionId}-command`, sessionId: session.id, title: `${session.collectionId} fixture build`, mode: 'managed', done: true, exitCode: 0, offset: '24' }));
   // startRun stands in for `lazybox run` in a session: a finished pipe with the
   // report of what its agent received.
@@ -731,7 +734,7 @@ actions:
         runtimeSettings = { revision: String(Number(runtimeSettings.revision) + 1), portRangeStart: body.portRangeStart, portRangeEnd: body.portRangeEnd, repositories };
         return json(runtimeSettingsView());
       }
-      default: { const answer = missions.handle(method, body) || await power.handle(method, body, res); if (answer === true) return; if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
+      default: { const answer = missions.handle(method, body) || browser.handle(method, body, res) || await power.handle(method, body, res); if (answer === true) return; if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
     }
   };
   const listen = async () => { const next = createServer(handle); await new Promise(resolve => next.listen(0, '127.0.0.1', resolve)); return next; };
@@ -742,7 +745,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { power, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

@@ -146,7 +146,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	if o.Resume != "" {
 		method = "thread/resume"
 		params["threadId"] = o.Resume
-	} else if tools := dynamicTools(o.Purpose); o.Tools != nil && tools != nil {
+	} else if tools := dynamicTools(o.Purpose, o.Browser); o.Tools != nil && tools != nil {
 		params["dynamicTools"] = tools
 	}
 	result, err := p.Call(setup, method, params)
@@ -214,13 +214,22 @@ func (s *session) runTool(native json.RawMessage, request, tool string, args jso
 	}
 	text, err := s.tools(s.ctx, tool, args)
 	if err != nil {
-		text = err.Error()
+		s.replyTool(native, request, err.Error(), false)
+		return
 	}
-	s.replyTool(native, request, text, err == nil)
+	if agent.BrowserTool(tool) {
+		s.replyItems(native, request, browserContent(text), true)
+		return
+	}
+	s.replyTool(native, request, text, true)
 }
 
 func (s *session) replyTool(native json.RawMessage, request, text string, success bool) {
-	err := s.p.Reply(native, map[string]any{"success": success, "contentItems": []any{map[string]string{"type": "inputText", "text": text}}})
+	s.replyItems(native, request, []any{map[string]string{"type": "inputText", "text": text}}, success)
+}
+
+func (s *session) replyItems(native json.RawMessage, request string, items []any, success bool) {
+	err := s.p.Reply(native, map[string]any{"success": success, "contentItems": items})
 	switch {
 	case err != nil:
 		s.emit(agent.Event{Type: "failure", Status: "tool_reply_failed", Text: err.Error()})

@@ -261,6 +261,28 @@ service RunnerService {
   rpc WaitRepositoryRequest(WaitRepositoryRequestRequest) returns (RepositoryRequest);
   // Owner only. Declines a request; the agent is told the reason.
   rpc DeclineRepositoryRequest(DeclineRepositoryRequestRequest) returns (RepositoryRequest);
+  // The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
+  // drives through its browser_* tools and the person watches beside the
+  // chat. Every RPC below is the owner's. An agent reaches only its own
+  // conversation's browser, and only through the tool pipe of its own
+  // execution, never with a credential.
+  //
+  // Follows one conversation's browser: its state and recent action log
+  // first, then live frames (only while someone watches), actions and state.
+  rpc WatchBrowser(WatchBrowserRequest) returns (stream BrowserEvent);
+  // Take over / Give back / Stop / Let the agent browse again, browse freely,
+  // and the person's own navigation while they hold the browser.
+  rpc ControlBrowser(ControlBrowserRequest) returns (BrowserState);
+  // The person's mouse and keyboard while they hold the browser (Take over).
+  rpc SendBrowserInput(BrowserInputRequest) returns (BrowserState);
+  // Answers a site, download or sign-in request the agent's browsing raised.
+  rpc DecideBrowserRequest(DecideBrowserRequestRequest) returns (BrowserState);
+  // Settings → Browser.
+  rpc GetBrowserSettings(InfoRequest) returns (BrowserSettings);
+  rpc SaveBrowserSettings(BrowserSettings) returns (BrowserSettings);
+  // Closes a workspace's agent browsers and deletes its browser profile
+  // (cookies, storage, cache) and its always-allowed sites.
+  rpc ClearBrowserData(ClearBrowserDataRequest) returns (BrowserSettings);
 }
 
 message InfoRequest {}
@@ -673,6 +695,8 @@ message Session {
   bool instructions_pending = 33;
   // The tail of the main agent's latest message, at most 512 bytes.
   string last_message = 34;
+  // The conversation's agent browser, while it is open or was stopped.
+  BrowserState browser = 35;
 }
 
 message Repository {
@@ -2144,4 +2168,156 @@ message WaitRepositoryRequestRequest {
 message DeclineRepositoryRequestRequest {
   string request_id = 1;
   string reason = 2;
+}
+
+// One conversation's agent browser (BROWSER.md).
+message BrowserState {
+  string conversation_id = 1;
+  // The execution that drives it now (the conversation's latest).
+  string session_id = 2;
+  string collection_id = 3;
+  // closed | starting | open | stopped | failed
+  string status = 4;
+  // Who holds it: agent | person (after Take over).
+  string controller = 5;
+  string url = 6;
+  string title = 7;
+  bool loading = 8;
+  bool can_go_back = 9;
+  bool can_go_forward = 10;
+  // The agent opens any site without asking, in this conversation.
+  bool browse_freely = 11;
+  // Why it failed or was stopped, in words for the person.
+  string problem = 12;
+  // The agent's action in progress, if any.
+  BrowserAction current = 13;
+  uint32 viewport_width = 14;
+  uint32 viewport_height = 15;
+  int64 updated_at_unix_millis = 16;
+  // "Claude" or "Codex": who browses.
+  string agent_name = 17;
+  // A site, download or sign-in request waits for the person.
+  bool waiting = 18;
+}
+// One step in a browser's action log.
+message BrowserAction {
+  uint64 seq = 1;
+  // open | navigate | snapshot | click | type | select | press | scroll |
+  // screenshot | back | forward | wait | close | blocked | download |
+  // take_over | give_back | stop | site
+  string kind = 2;
+  // agent | person | lazybox
+  string actor = 3;
+  // One readable line: Clicked button "Sign in".
+  string summary = 4;
+  string url = 5;
+  // Where it happened, in the page's CSS pixels; absent when nowhere.
+  BrowserBox box = 6;
+  // running | done | failed | blocked
+  string status = 7;
+  string error = 8;
+  int64 at_unix_millis = 9;
+  uint32 duration_ms = 10;
+}
+message BrowserBox {
+  double x = 1;
+  double y = 2;
+  double width = 3;
+  double height = 4;
+}
+// One screencast frame: a JPEG of the page's viewport.
+message BrowserFrame {
+  bytes jpeg = 1;
+  uint32 width = 2;
+  uint32 height = 3;
+  uint64 seq = 4;
+}
+message WatchBrowserRequest {
+  // Any execution of the conversation; the browser belongs to the conversation.
+  string session_id = 1;
+}
+message BrowserEvent {
+  BrowserState state = 1;
+  BrowserFrame frame = 2;
+  BrowserAction action = 3;
+  // First event only: the recent action log, oldest first.
+  repeated BrowserAction history = 4;
+}
+message ControlBrowserRequest {
+  string session_id = 1;
+  // take_over | give_back | stop | resume | browse_freely | ask_sites |
+  // navigate | back | forward | reload (the last four only while the person holds it)
+  string action = 2;
+  string url = 3;
+}
+message BrowserInputRequest {
+  string session_id = 1;
+  // mouse_move | mouse_down | mouse_up | wheel | key_down | key_up | text
+  string type = 2;
+  // Page CSS pixels.
+  double x = 3;
+  double y = 4;
+  // left | middle | right
+  string button = 5;
+  uint32 click_count = 6;
+  double delta_x = 7;
+  double delta_y = 8;
+  // A KeyboardEvent.key value: "Enter", "a", "ArrowLeft".
+  string key = 9;
+  string text = 10;
+  // Alt=1, Control=2, Meta=4, Shift=8.
+  uint32 modifiers = 11;
+}
+// A request the agent's browsing raised, waiting for the person. It is a
+// session's pending entry of type "browser_request" whose provider data is
+// this message.
+message BrowserRequest {
+  string id = 1;
+  string session_id = 2;
+  string conversation_id = 3;
+  string collection_id = 4;
+  // site (first visit to an origin) | download | sign_in (a form with a password)
+  string kind = 5;
+  string url = 6;
+  string origin = 7;
+  // The agent's reason, when it gave one.
+  string reason = 8;
+  string file_name = 9;
+  int64 created_at_unix_millis = 10;
+  // The conversation's permission mode when asked ("yolo" still asks for sites).
+  string permission = 11;
+  string agent_name = 12;
+}
+message DecideBrowserRequestRequest {
+  string request_id = 1;
+  // site: once | conversation | workspace | deny. download, sign_in: once | deny.
+  string decision = 2;
+  // Told to the agent with a deny.
+  string reason = 3;
+}
+message BrowserWorkspaceSites {
+  string collection_id = 1;
+  string name = 2;
+  // Sites always allowed in this workspace ("Always for this workspace").
+  repeated string sites = 3;
+  // The workspace has a browser profile on disk (cookies, storage, cache).
+  bool has_data = 4;
+  int64 data_bytes = 5;
+}
+message BrowserSettings {
+  uint64 revision = 1;
+  // ask (each new site asks) | allow (any site, no asking) | off (no agent browser)
+  string default_permission = 2;
+  // Sites any agent opens without asking: example.com, *.example.com.
+  repeated string allowed_sites = 3;
+  // ask | block
+  string downloads = 4;
+  // Show the agent browser beside the chat when an agent starts browsing.
+  bool show_panel = 5;
+  repeated BrowserWorkspaceSites workspaces = 6;
+  // Why agents cannot browse on this Runner, if they cannot.
+  string problem = 7;
+}
+message ClearBrowserDataRequest {
+  string collection_id = 1;
 }

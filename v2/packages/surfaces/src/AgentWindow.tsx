@@ -31,6 +31,8 @@ import { useSessionRefresh, useSessionWorkspace } from './useSessionPolling';
 import { useFileDrop } from './useFileDrop';
 import { NewSessionForm, useSessionLauncher } from './NewSessionForm';
 import { ChatHeader, ChatStatus, SessionHeader, SessionInspection, WindowTopbar } from './ChatHeader';
+import { BrowsingBadge } from './BrowserPanel';
+import { useBrowserAutoShow } from './useBrowser';
 import { ConversationTitle } from './ConversationTitle';
 import { PermissionRestartPrompt, SessionLifecycleButton, SessionMenu, sessionMenuItems } from './SessionMenu';
 import { contextMenu } from './ContextMenu';
@@ -83,6 +85,8 @@ export type AgentWindowProps = {
   onOpenCommand?: (commandId: string) => void;
   /** Brings the main window forward: the command palette here navigates there. */
   onFocusMain?: () => void;
+  /** Shows this conversation's agent browser beside the chat (BrowserPanel.tsx). */
+  onShowBrowser?: () => void;
 };
 
 /** One independent view of a Runner session. Unmounting disconnects readers,
@@ -100,7 +104,7 @@ export function AgentWindow(props: AgentWindowProps) {
   </RunnerProvider>;
 }
 
-export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, onOpenCommand, keyboardHint = null }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: KeyHint | null }) {
+export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, onOpenCommand, onShowBrowser, keyboardHint = null }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: KeyHint | null }) {
   const { api, info, connecting, error: connectionError, refresh, revision } = useRunner();
   const keymap = useKeymap(viewState);
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -431,11 +435,13 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   // Settings → Voice → Read aloud: a reply that finishes while this conversation is shown.
   useReadAloudReplies(mode === 'agent' ? sessionID : '', transcript);
   const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
+  // The agent starts browsing: its browser shows beside the chat (Settings → Browser).
+  useBrowserAutoShow(api, session?.conversationId || session?.id || '', session?.closed ? undefined : session?.browser, onShowBrowser);
   if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError}/>;
 
   const title = <ConversationTitle api={api} session={session} sessionID={sessionID} realTitle={realTitle} suggestedTitle={titleFromMessage(firstPrompt)} branch={branch}
     onRenamed={renamed => { setSession(renamed); refresh(); }} onError={setError}/>;
-  const status = <><ChatStatus session={session} live={live}/><SubagentAttention/></>;
+  const status = <><ChatStatus session={session} live={live}/><BrowsingBadge session={session} agentName={agentName} onShow={onShowBrowser}/><SubagentAttention/></>;
   const inspection = <><BackgroundWorkButton/><SessionInspection sessionID={sessionID} session={session} activity={transcript.activity} activityTruncated={transcript.activityTruncated}/></>;
   const lifecycle = <SessionLifecycleButton session={session} allowStart={allowStart} onNewSession={newSession} onClose={() => void close()}/>;
 

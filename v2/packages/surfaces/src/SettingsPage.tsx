@@ -1,4 +1,5 @@
 import { WebSettings } from './WebSettings';
+import { BrowserSettingsPanel } from './BrowserSettingsPanel';
 import { RuntimeSettings } from './RuntimeSettings';
 import {KeyboardSettings} from './KeyboardSettings';
 import { PowerSettings } from './PowerSettings';
@@ -39,7 +40,7 @@ function windowName(window: UsageWindow) {
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'voice' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power' | 'about';
+export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'voice' | 'web' | 'browser' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power' | 'about';
 /** The sections, in the order and groups the sidebar shows them. */
 export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
   { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
@@ -53,6 +54,7 @@ export const settingsTabs: { id: SettingsTab; label: string; icon: string; group
   { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'Preferences' },
   { id: 'voice', label: 'Voice', icon: 'mic', group: 'Preferences' },
   { id: 'web', label: 'Web & links', icon: 'globe', group: 'Preferences' },
+  { id: 'browser', label: 'Browser', icon: 'browser', group: 'Preferences' },
   { id: 'keyboard', label: 'Shortcuts', icon: 'keyboard', group: 'Preferences' },
   { id: 'power', label: 'Actions & hooks', icon: 'play', group: 'Preferences' },
   { id: 'devices', label: 'Devices', icon: 'phone', group: 'System' },
@@ -287,6 +289,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
     {panel('notifications', <NotificationSettings/>)}
     {panel('voice', <VoiceSettings store={viewState}/>)}
     {panel('web', <WebSettings store={viewState}/>)}
+    {panel('browser', <BrowserSettingsPanel/>)}
     {panel('keyboard', <KeyboardSettings store={viewState}/>)}
     {panel('power', <PowerSettings viewState={viewState}/>)}
     {panel('runner', <RunnerSection onShowProcesses={onShowProcesses}/>)}

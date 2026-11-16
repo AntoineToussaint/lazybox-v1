@@ -103,3 +103,15 @@ button.danger:hover{background:var(--danger-line)}
 .repository-other[aria-pressed=true]{background:var(--info-bg);border-color:var(--info-solid);color:var(--text)}
 .repository-progress{margin-top:12px}
 .repository-done{display:flex;align-items:center;gap:6px;margin:14px 0 0;font-size:calc(12.5px * var(--text-scale));color:var(--ok)}
+
+/* The agent's browsing waits for the person (BrowserRequestCard.tsx). */
+.request.browser-request-card{padding:16px 18px;background:var(--surface);border:1px solid var(--accent-line);border-radius:10px;margin-top:16px;box-shadow:0 1px 0 color-mix(in srgb,var(--shadow) calc(25% * var(--shadow-strength)),transparent)}
+.request.browser-request-card[data-kind=sign_in],.request.browser-request-card[data-kind=download]{border-color:var(--warn-line)}
+.browser-request-card .request-head .eyebrow{color:var(--accent-soft,var(--accent))}
+.browser-request-card[data-kind=sign_in] .request-head .eyebrow,.browser-request-card[data-kind=download] .request-head .eyebrow{color:var(--warn)}
+.request.browser-request-card h3{margin-top:8px;font-size:calc(14px * var(--text-scale));font-weight:600;line-height:1.45;color:var(--text);overflow-wrap:anywhere}
+.browser-request-url{display:flex;align-items:flex-start;gap:7px;margin:8px 0 0;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface-sunken);color:var(--text-tertiary)}
+.browser-request-url>svg{flex:none;margin-top:2px}
+.browser-request-url>span{min-width:0;font-size:calc(12px * var(--code-scale));color:var(--text);overflow-wrap:anywhere;word-break:break-all}
+.browser-request-note{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:calc(11.5px * var(--text-scale));line-height:1.5;color:var(--text-muted)}
+.browser-request-note>svg{flex:none;margin-top:2px}

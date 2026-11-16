@@ -94,6 +94,11 @@ func (b *Bench) deleteLocked(ctx context.Context, head *Execution, stop bool) er
 func (b *Bench) purgeConversation(ids []string) error {
 	// A deleted conversation's attempts end, and what was said in it is forgotten.
 	b.forgetConversation(ids...)
+	if b.Browser != nil {
+		for _, id := range ids {
+			b.Browser.Forget(id)
+		}
+	}
 	for _, id := range ids {
 		// IDs come exclusively from the durable store, but still constrain deletion
 		// to one direct child of the Runner's session directory.

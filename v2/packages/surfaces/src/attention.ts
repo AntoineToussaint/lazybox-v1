@@ -1,5 +1,6 @@
 import type { AgentEvent, Session } from '@lazybox/protocol';
 import { repositoryRequestSummary } from './repository-request-model';
+import { browserRequestSummary } from './browser-model';
 import { providerData } from '@lazybox/client-core';
 import { accountLabel, awaitingFirstMessage } from './agent-status';
 import { backAt, isLimitState } from './subscription-model';
@@ -69,6 +70,7 @@ export function lastLine(text: string, limit = 160): string {
 
 export function requestSummary(request: AgentEvent): string {
   if (request.type === 'repository_request') return lastLine(repositoryRequestSummary(request));
+  if (request.type === 'browser_request') return lastLine(browserRequestSummary(request));
   const data = providerData(request.providerDataJson);
   if (request.type === 'question') {
     const questions: any[] = data.questions || data.input?.questions || [];
@@ -111,7 +113,7 @@ export function deriveAttention(session: Session, seenAt = 0): Attention {
   if (!session.closed && (session.pending.length || session.status === 'waiting_input' || session.status === 'waiting_approval')) {
     const first = session.pending[0];
     const question = first ? first.type === 'question' : session.status === 'waiting_input';
-    const kind = first?.type === 'repository_request' ? 'Repository request' : question ? 'Question' : 'Approval';
+    const kind = first?.type === 'repository_request' ? 'Repository request' : first?.type === 'browser_request' ? 'Browser' : question ? 'Question' : 'Approval';
     return { ...base, state: 'needs-input', unread: true, reason: kind + (session.pending.length > 1 ? ` · ${session.pending.length} waiting` : ''), line: first ? requestSummary(first) : message };
   }
   const fault = session.fault && session.fault !== 'native_exit_unconfirmed';

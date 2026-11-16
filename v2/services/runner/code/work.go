@@ -105,6 +105,10 @@ func configureRunnerAt(ctx context.Context, config *adapters.Configuration, addr
 	if claude := os.Getenv("LAZYBOX_V2_CLAUDE_BINARY"); claude != "" && cfg.ClaudeBinary == "" {
 		cfg.ClaudeBinary = claude
 	}
+	// The agent browser service (BROWSER.md); unset, agents get no browser.
+	if worker := os.Getenv("LAZYBOX_V2_BROWSER_WORKER"); worker != "" {
+		cfg.BrowserWorker = worker
+	}
 	if dir := os.Getenv("LAZYBOX_V2_CLI_DIR"); dir != "" {
 		// Only brief agents about a CLI they can actually run (older releases have none).
 		if info, err := os.Stat(filepath.Join(dir, "lazybox")); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {

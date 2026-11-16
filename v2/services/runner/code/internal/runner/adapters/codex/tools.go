@@ -12,8 +12,9 @@ const settingsChangeSchema = `{"type":"object","properties":{"revision":{"type":
 
 // dynamicTools are the Runner tools an execution may call, by its purpose: the
 // help assistant gets the settings tools, a coding agent the managed-command
-// tool, and other assistants (which have no Runner tools) none.
-func dynamicTools(purpose string) []map[string]any {
+// tool (and the browser tools when the Runner offers its agent browser), and
+// other assistants (which have no Runner tools) none.
+func dynamicTools(purpose string, browser bool) []map[string]any {
 	switch {
 	case purpose == "help":
 		return []map[string]any{
@@ -23,12 +24,20 @@ func dynamicTools(purpose string) []map[string]any {
 	case agent.IsAssistant(purpose):
 		return nil
 	}
-	return []map[string]any{{"type": "function", "name": agent.CommandTool, "description": "Start, read, wait for or cancel a runner-owned command. Output remains available to independent human consoles. Start requires human approval. Never repeat a start after receiving its command id. actions lists the workspace's actions (dev servers and the like, with their state and URL); start_action starts one by name (restart: true restarts it); read its output with its commandId.", "inputSchema": json.RawMessage(commandSchema)}}
+	tools := []map[string]any{{"type": "function", "name": agent.CommandTool, "description": "Start, read, wait for or cancel a runner-owned command. Output remains available to independent human consoles. Start requires human approval. Never repeat a start after receiving its command id. actions lists the workspace's actions (dev servers and the like, with their state and URL); start_action starts one by name (restart: true restarts it); read its output with its commandId.", "inputSchema": json.RawMessage(commandSchema)}}
+	if browser {
+		for _, t := range agent.BrowserTools {
+			tools = append(tools, map[string]any{"type": "function", "name": t.Name, "description": t.Description, "inputSchema": t.Schema})
+		}
+	}
+	return tools
 }
 
 // toolOffered reports whether name is one of the dynamic tools purpose offers.
+// A coding thread resumed from an earlier start may hold the browser tools
+// whatever this Runner offers now; the Runner refuses them when browsing is off.
 func toolOffered(purpose, name string) bool {
-	for _, t := range dynamicTools(purpose) {
+	for _, t := range dynamicTools(purpose, !agent.IsAssistant(purpose)) {
 		if t["name"] == name {
 			return true
 		}
@@ -44,6 +53,11 @@ func toolApproval(name string) string {
 		return ""
 	case agent.SettingsUpdateTool:
 		return "Change Lazybox settings"
+	}
+	if agent.BrowserTool(name) {
+		// The browser asks the person itself, per site, download and sign-in
+		// (BROWSER.md); a second approval per click would teach them to click through.
+		return ""
 	}
 	return "Run managed command tool"
 }
@@ -170,4 +184,15 @@ func planToolCall(raw json.RawMessage) json.RawMessage {
 	}
 	out, _ := json.Marshal(map[string]any{"type": "tool_call", "id": "plan:" + p.TurnID, "name": "update_plan", "status": "completed", "input": input})
 	return out
+}
+
+// browserContent is a browser tool's result as Codex content items: its text,
+// and a screenshot as an image.
+func browserContent(text string) []any {
+	r := agent.ParseBrowserResult(text)
+	items := []any{map[string]string{"type": "inputText", "text": r.Text}}
+	if r.Image != nil {
+		items = append(items, map[string]string{"type": "inputImage", "imageUrl": "data:" + r.Image.MediaType + ";base64," + r.Image.Data})
+	}
+	return items
 }

@@ -259,6 +259,8 @@ function PhoneConversation({ sessionId, device, collections, onBack }: { session
       {session?.fault && <p className="remote-error" role="alert">{session.fault}</p>}
       {session?.pending.map(request => request.type === 'repository_request'
         ? <p key={request.requestId} className="remote-hint">{requestSummary(request)}? The agent waits for this repository. Add it or decline on your computer.</p>
+        : request.type === 'browser_request'
+        ? <p key={request.requestId} className="remote-hint">Browser · {requestSummary(request)}? The agent's browsing waits for you. Answer on your computer.</p>
         : respond
         ? <RequestCard key={request.requestId} request={request} api={api} session={session.id} onError={setError}/>
         : <p key={request.requestId} className="remote-hint">The agent is waiting for an answer. This phone can only read; answer on your computer.</p>)}

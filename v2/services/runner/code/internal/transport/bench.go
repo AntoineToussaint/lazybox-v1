@@ -810,6 +810,8 @@ func (s *Service) sessionView(ctx context.Context, e *runner.Execution) (*pb.Ses
 			view.Pending = append(view.Pending, repositoryRequestEvent(r))
 		}
 	}
+	// So do the sites, downloads and sign-ins its agent browser asks about.
+	s.browserView(e, view)
 	return view, nil
 }
 func (s *Service) sessionResponse(ctx context.Context, e *runner.Execution) (*pb.SessionResponse, error) {

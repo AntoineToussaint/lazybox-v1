@@ -455,6 +455,27 @@ const (
 	// RunnerServiceDeclineRepositoryRequestProcedure is the fully-qualified name of the RunnerService's
 	// DeclineRepositoryRequest RPC.
 	RunnerServiceDeclineRepositoryRequestProcedure = "/lazybox.bench.v1.RunnerService/DeclineRepositoryRequest"
+	// RunnerServiceWatchBrowserProcedure is the fully-qualified name of the RunnerService's
+	// WatchBrowser RPC.
+	RunnerServiceWatchBrowserProcedure = "/lazybox.bench.v1.RunnerService/WatchBrowser"
+	// RunnerServiceControlBrowserProcedure is the fully-qualified name of the RunnerService's
+	// ControlBrowser RPC.
+	RunnerServiceControlBrowserProcedure = "/lazybox.bench.v1.RunnerService/ControlBrowser"
+	// RunnerServiceSendBrowserInputProcedure is the fully-qualified name of the RunnerService's
+	// SendBrowserInput RPC.
+	RunnerServiceSendBrowserInputProcedure = "/lazybox.bench.v1.RunnerService/SendBrowserInput"
+	// RunnerServiceDecideBrowserRequestProcedure is the fully-qualified name of the RunnerService's
+	// DecideBrowserRequest RPC.
+	RunnerServiceDecideBrowserRequestProcedure = "/lazybox.bench.v1.RunnerService/DecideBrowserRequest"
+	// RunnerServiceGetBrowserSettingsProcedure is the fully-qualified name of the RunnerService's
+	// GetBrowserSettings RPC.
+	RunnerServiceGetBrowserSettingsProcedure = "/lazybox.bench.v1.RunnerService/GetBrowserSettings"
+	// RunnerServiceSaveBrowserSettingsProcedure is the fully-qualified name of the RunnerService's
+	// SaveBrowserSettings RPC.
+	RunnerServiceSaveBrowserSettingsProcedure = "/lazybox.bench.v1.RunnerService/SaveBrowserSettings"
+	// RunnerServiceClearBrowserDataProcedure is the fully-qualified name of the RunnerService's
+	// ClearBrowserData RPC.
+	RunnerServiceClearBrowserDataProcedure = "/lazybox.bench.v1.RunnerService/ClearBrowserData"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -716,6 +737,28 @@ type RunnerServiceClient interface {
 	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
+	// drives through its browser_* tools and the person watches beside the
+	// chat. Every RPC below is the owner's. An agent reaches only its own
+	// conversation's browser, and only through the tool pipe of its own
+	// execution, never with a credential.
+	//
+	// Follows one conversation's browser: its state and recent action log
+	// first, then live frames (only while someone watches), actions and state.
+	WatchBrowser(context.Context, *connect.Request[gen.WatchBrowserRequest]) (*connect.ServerStreamForClient[gen.BrowserEvent], error)
+	// Take over / Give back / Stop / Let the agent browse again, browse freely,
+	// and the person's own navigation while they hold the browser.
+	ControlBrowser(context.Context, *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error)
+	// The person's mouse and keyboard while they hold the browser (Take over).
+	SendBrowserInput(context.Context, *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error)
+	// Answers a site, download or sign-in request the agent's browsing raised.
+	DecideBrowserRequest(context.Context, *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error)
+	// Settings → Browser.
+	GetBrowserSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error)
+	SaveBrowserSettings(context.Context, *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error)
+	// Closes a workspace's agent browsers and deletes its browser profile
+	// (cookies, storage, cache) and its always-allowed sites.
+	ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1581,6 +1624,48 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
 			connect.WithClientOptions(opts...),
 		),
+		watchBrowser: connect.NewClient[gen.WatchBrowserRequest, gen.BrowserEvent](
+			httpClient,
+			baseURL+RunnerServiceWatchBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WatchBrowser")),
+			connect.WithClientOptions(opts...),
+		),
+		controlBrowser: connect.NewClient[gen.ControlBrowserRequest, gen.BrowserState](
+			httpClient,
+			baseURL+RunnerServiceControlBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ControlBrowser")),
+			connect.WithClientOptions(opts...),
+		),
+		sendBrowserInput: connect.NewClient[gen.BrowserInputRequest, gen.BrowserState](
+			httpClient,
+			baseURL+RunnerServiceSendBrowserInputProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendBrowserInput")),
+			connect.WithClientOptions(opts...),
+		),
+		decideBrowserRequest: connect.NewClient[gen.DecideBrowserRequestRequest, gen.BrowserState](
+			httpClient,
+			baseURL+RunnerServiceDecideBrowserRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DecideBrowserRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		getBrowserSettings: connect.NewClient[gen.InfoRequest, gen.BrowserSettings](
+			httpClient,
+			baseURL+RunnerServiceGetBrowserSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetBrowserSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		saveBrowserSettings: connect.NewClient[gen.BrowserSettings, gen.BrowserSettings](
+			httpClient,
+			baseURL+RunnerServiceSaveBrowserSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SaveBrowserSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		clearBrowserData: connect.NewClient[gen.ClearBrowserDataRequest, gen.BrowserSettings](
+			httpClient,
+			baseURL+RunnerServiceClearBrowserDataProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ClearBrowserData")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1728,6 +1813,13 @@ type runnerServiceClient struct {
 	requestRepository            *connect.Client[gen.RequestRepositoryRequest, gen.RepositoryRequest]
 	waitRepositoryRequest        *connect.Client[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest]
 	declineRepositoryRequest     *connect.Client[gen.DeclineRepositoryRequestRequest, gen.RepositoryRequest]
+	watchBrowser                 *connect.Client[gen.WatchBrowserRequest, gen.BrowserEvent]
+	controlBrowser               *connect.Client[gen.ControlBrowserRequest, gen.BrowserState]
+	sendBrowserInput             *connect.Client[gen.BrowserInputRequest, gen.BrowserState]
+	decideBrowserRequest         *connect.Client[gen.DecideBrowserRequestRequest, gen.BrowserState]
+	getBrowserSettings           *connect.Client[gen.InfoRequest, gen.BrowserSettings]
+	saveBrowserSettings          *connect.Client[gen.BrowserSettings, gen.BrowserSettings]
+	clearBrowserData             *connect.Client[gen.ClearBrowserDataRequest, gen.BrowserSettings]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -2440,6 +2532,41 @@ func (c *runnerServiceClient) DeclineRepositoryRequest(ctx context.Context, req 
 	return c.declineRepositoryRequest.CallUnary(ctx, req)
 }
 
+// WatchBrowser calls lazybox.bench.v1.RunnerService.WatchBrowser.
+func (c *runnerServiceClient) WatchBrowser(ctx context.Context, req *connect.Request[gen.WatchBrowserRequest]) (*connect.ServerStreamForClient[gen.BrowserEvent], error) {
+	return c.watchBrowser.CallServerStream(ctx, req)
+}
+
+// ControlBrowser calls lazybox.bench.v1.RunnerService.ControlBrowser.
+func (c *runnerServiceClient) ControlBrowser(ctx context.Context, req *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error) {
+	return c.controlBrowser.CallUnary(ctx, req)
+}
+
+// SendBrowserInput calls lazybox.bench.v1.RunnerService.SendBrowserInput.
+func (c *runnerServiceClient) SendBrowserInput(ctx context.Context, req *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error) {
+	return c.sendBrowserInput.CallUnary(ctx, req)
+}
+
+// DecideBrowserRequest calls lazybox.bench.v1.RunnerService.DecideBrowserRequest.
+func (c *runnerServiceClient) DecideBrowserRequest(ctx context.Context, req *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error) {
+	return c.decideBrowserRequest.CallUnary(ctx, req)
+}
+
+// GetBrowserSettings calls lazybox.bench.v1.RunnerService.GetBrowserSettings.
+func (c *runnerServiceClient) GetBrowserSettings(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return c.getBrowserSettings.CallUnary(ctx, req)
+}
+
+// SaveBrowserSettings calls lazybox.bench.v1.RunnerService.SaveBrowserSettings.
+func (c *runnerServiceClient) SaveBrowserSettings(ctx context.Context, req *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error) {
+	return c.saveBrowserSettings.CallUnary(ctx, req)
+}
+
+// ClearBrowserData calls lazybox.bench.v1.RunnerService.ClearBrowserData.
+func (c *runnerServiceClient) ClearBrowserData(ctx context.Context, req *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return c.clearBrowserData.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -2699,6 +2826,28 @@ type RunnerServiceHandler interface {
 	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
+	// drives through its browser_* tools and the person watches beside the
+	// chat. Every RPC below is the owner's. An agent reaches only its own
+	// conversation's browser, and only through the tool pipe of its own
+	// execution, never with a credential.
+	//
+	// Follows one conversation's browser: its state and recent action log
+	// first, then live frames (only while someone watches), actions and state.
+	WatchBrowser(context.Context, *connect.Request[gen.WatchBrowserRequest], *connect.ServerStream[gen.BrowserEvent]) error
+	// Take over / Give back / Stop / Let the agent browse again, browse freely,
+	// and the person's own navigation while they hold the browser.
+	ControlBrowser(context.Context, *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error)
+	// The person's mouse and keyboard while they hold the browser (Take over).
+	SendBrowserInput(context.Context, *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error)
+	// Answers a site, download or sign-in request the agent's browsing raised.
+	DecideBrowserRequest(context.Context, *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error)
+	// Settings → Browser.
+	GetBrowserSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error)
+	SaveBrowserSettings(context.Context, *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error)
+	// Closes a workspace's agent browsers and deletes its browser profile
+	// (cookies, storage, cache) and its always-allowed sites.
+	ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -3560,6 +3709,48 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceWatchBrowserHandler := connect.NewServerStreamHandler(
+		RunnerServiceWatchBrowserProcedure,
+		svc.WatchBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("WatchBrowser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceControlBrowserHandler := connect.NewUnaryHandler(
+		RunnerServiceControlBrowserProcedure,
+		svc.ControlBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("ControlBrowser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendBrowserInputHandler := connect.NewUnaryHandler(
+		RunnerServiceSendBrowserInputProcedure,
+		svc.SendBrowserInput,
+		connect.WithSchema(runnerServiceMethods.ByName("SendBrowserInput")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDecideBrowserRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceDecideBrowserRequestProcedure,
+		svc.DecideBrowserRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("DecideBrowserRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetBrowserSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetBrowserSettingsProcedure,
+		svc.GetBrowserSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("GetBrowserSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSaveBrowserSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceSaveBrowserSettingsProcedure,
+		svc.SaveBrowserSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("SaveBrowserSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceClearBrowserDataHandler := connect.NewUnaryHandler(
+		RunnerServiceClearBrowserDataProcedure,
+		svc.ClearBrowserData,
+		connect.WithSchema(runnerServiceMethods.ByName("ClearBrowserData")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -3846,6 +4037,20 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceWaitRepositoryRequestHandler.ServeHTTP(w, r)
 		case RunnerServiceDeclineRepositoryRequestProcedure:
 			runnerServiceDeclineRepositoryRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceWatchBrowserProcedure:
+			runnerServiceWatchBrowserHandler.ServeHTTP(w, r)
+		case RunnerServiceControlBrowserProcedure:
+			runnerServiceControlBrowserHandler.ServeHTTP(w, r)
+		case RunnerServiceSendBrowserInputProcedure:
+			runnerServiceSendBrowserInputHandler.ServeHTTP(w, r)
+		case RunnerServiceDecideBrowserRequestProcedure:
+			runnerServiceDecideBrowserRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceGetBrowserSettingsProcedure:
+			runnerServiceGetBrowserSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSaveBrowserSettingsProcedure:
+			runnerServiceSaveBrowserSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceClearBrowserDataProcedure:
+			runnerServiceClearBrowserDataHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -4421,4 +4626,32 @@ func (UnimplementedRunnerServiceHandler) WaitRepositoryRequest(context.Context, 
 
 func (UnimplementedRunnerServiceHandler) DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeclineRepositoryRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WatchBrowser(context.Context, *connect.Request[gen.WatchBrowserRequest], *connect.ServerStream[gen.BrowserEvent]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchBrowser is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ControlBrowser(context.Context, *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ControlBrowser is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendBrowserInput(context.Context, *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendBrowserInput is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DecideBrowserRequest(context.Context, *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DecideBrowserRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetBrowserSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetBrowserSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SaveBrowserSettings(context.Context, *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveBrowserSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ClearBrowserData is not implemented"))
 }

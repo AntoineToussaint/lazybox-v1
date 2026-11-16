@@ -10,6 +10,7 @@ import { CommandCatalog } from './catalog.js';
 import { contextSnapshot } from './context.js';
 import { SettingsApprovals, settingsServer, settingsServerName, updateSettingsTool } from './settings.js';
 import { alwaysChoices, covers, decide, offered, type Grant } from './permissions.js';
+import { browserServer, browserServerName } from './browser.js';
 
 type Request = { id?: string; method?: string; params?: any; result?: any; error?: any };
 let session: Query | undefined;
@@ -45,22 +46,22 @@ const callRunner = (name: string, args: unknown) => new Promise<string>((resolve
   const id = randomUUID(); tools.set(id, { resolve, reject }); send({ id, method: 'tool', params: { name, arguments: args } });
 });
 
-/** Runner tools by purpose: the help assistant gets only Lazybox's settings, other assistants nothing, coding agents managed commands. */
-function mcpServers(purpose: string): Record<string, McpServerConfig> {
-  if (purpose === 'help') return { [settingsServerName]: settingsServer(callRunner, settingsApprovals) };
+/** Runner tools by purpose: the help assistant gets only Lazybox's settings, other assistants nothing, coding agents managed commands and, when the Runner offers it, the agent browser. */
+export function mcpServers(purpose: string, browser = false, call: typeof callRunner = callRunner): Record<string, McpServerConfig> {
+  if (purpose === 'help') return { [settingsServerName]: settingsServer(call, settingsApprovals) };
   if (['planning', 'summary'].includes(purpose)) return {};
   const commandTool = tool('command', 'Start/read/wait/cancel runner-owned commands with shared console output. Start returns an id; reuse it for read/wait/cancel, never restart a command to read output. actions lists the workspace actions (dev servers and the like, with state and URL); start_action starts one by name (restart: true restarts it); read its output with its commandId.', {
     action: z.enum(['start', 'read', 'wait', 'cancel', 'actions', 'start_action']), argv: z.array(z.string()).optional(), id: z.string().optional(), offset: z.number().int().nonnegative().optional(),
     name: z.string().optional().describe('start_action: the action to start, as actions lists it; omit for the default action.'), restart: z.boolean().optional().describe('start_action: restart it if it is running.'),
-  }, async args => ({ content: [{ type: 'text', text: await callRunner('lazybox_command', args) }] }));
-  return { lazybox: createSdkMcpServer({ name: 'lazybox', version: '0.1.0', tools: [commandTool] }) };
+  }, async args => ({ content: [{ type: 'text', text: await call('lazybox_command', args) }] }));
+  return { lazybox: createSdkMcpServer({ name: 'lazybox', version: '0.1.0', tools: [commandTool] }), ...(browser ? { [browserServerName]: browserServer(call) } : {}) };
 }
 
 async function open(options: any) {
   permission = options.permission || '';
   session = query({ prompt: input(), options: {
     ...nativeOptions(options, process.env),
-    mcpServers: mcpServers(options.purpose),
+    mcpServers: mcpServers(options.purpose, options.browser === true),
     canUseTool: async (name, original, context): Promise<PermissionResult> => {
       const kind = name === 'AskUserQuestion' ? 'question' : 'approval';
       // YOLO never covers Lazybox settings changes: those always ask the user.

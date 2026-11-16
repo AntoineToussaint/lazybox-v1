@@ -2,7 +2,7 @@
   "version": 1,
   "policyFiles": ["Makefile", "scripts/release-gates.mjs"],
   "gates": [
-    { "id": "core", "scope": "core", "command": "make", "args": ["check"], "timeoutMs": 1800000, "covers": ["test:client", "test:worker"] },
+    { "id": "core", "scope": "core", "command": "make", "args": ["check"], "timeoutMs": 1800000, "covers": ["test:client", "test:worker", "test:browser-service"] },
     { "id": "desktop", "scope": "native", "command": "make", "args": ["check-desktop"], "timeoutMs": 3600000, "covers": [] },
     { "id": "startup", "scope": "ui", "script": "test:startup" },
     { "id": "repositories", "scope": "ui", "script": "test:repositories" },
@@ -67,6 +67,7 @@
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
     { "id": "slash-commands", "scope": "ui", "script": "test:slash-commands" },
     { "id": "repository-requests", "scope": "ui", "script": "test:repository-requests" },
+    { "id": "agent-browser", "scope": "ui", "script": "test:agent-browser" },
     { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },
     { "id": "peek", "scope": "ui", "script": "test:peek" },
     { "id": "onboarding", "scope": "ui", "script": "test:onboarding" },

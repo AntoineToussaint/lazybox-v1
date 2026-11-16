@@ -28,8 +28,8 @@ export const ToolLineContext = createContext<ToolLineScope>({ root: '' });
 export const TOOL_DETAILS_EVENT = 'lazybox:tool-details';
 export function openToolDetails(id: string) { window.dispatchEvent(new CustomEvent(TOOL_DETAILS_EVENT, { detail: { id } })); }
 
-const ICONS: Record<ToolKind, string> = { read: 'file', search: 'search', list: 'folder', edit: 'pencil', command: 'terminal', web: 'external', agent: 'branch', plan: 'checklist', thinking: 'sparkle', mcp: 'activity', other: 'activity' };
-const CATEGORY_ICONS: Record<ActivityCategory, string> = { explore: 'search', test: 'play', check: 'shield', build: 'processes', install: 'download', git: 'branch', web: 'external', command: 'terminal', tool: 'activity', plan: 'checklist', edit: 'pencil', thinking: 'sparkle' };
+const ICONS: Record<ToolKind, string> = { read: 'file', search: 'search', list: 'folder', edit: 'pencil', command: 'terminal', web: 'external', browser: 'globe', agent: 'branch', plan: 'checklist', thinking: 'sparkle', mcp: 'activity', other: 'activity' };
+const CATEGORY_ICONS: Record<ActivityCategory, string> = { explore: 'search', test: 'play', check: 'shield', build: 'processes', install: 'download', git: 'branch', web: 'external', browser: 'globe', command: 'terminal', tool: 'activity', plan: 'checklist', edit: 'pencil', thinking: 'sparkle' };
 const stateLabel = (entry: ToolEntry) => entry.status === 'running' ? 'Running' : entry.status === 'failed' ? 'Failed' : entry.status === 'unknown' ? 'No result reported' : 'Done';
 const itemKey = (item: ToolItem | BriefItem) => item.kind === 'call' ? item.entry.id : `${item.kind}:${item.entries[0].id}`;
 const lastRunning = (entries: readonly ToolEntry[]) => { for (let i = entries.length - 1; i >= 0; i--) if (entries[i].status === 'running') return entries[i]; return undefined; };

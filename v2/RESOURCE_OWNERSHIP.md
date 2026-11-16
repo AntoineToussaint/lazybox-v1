@@ -79,6 +79,14 @@ terminal's workspace and publish to and finish the runs it opened
 (`terminalRPCs`; see [terminals](TERMINALS.md#what-the-shell-may-do-with-the-runner)).
 Closing the terminal, its shell exiting, or deleting the workspace revokes it.
 
+The agent browser ([BROWSER.md](BROWSER.md)) needs no credential: an agent
+drives it through its own execution's tool pipe, and the Runner derives the
+conversation from the execution, never from the call. Every browser RPC
+(watching, Take over, input, answering its requests, its settings) is the
+owner's. Its service is an ordinary Runner-owned child under the process
+guard, with Chromium its descendant; it stops with the Runner, and the
+profiles it keeps per workspace are deleted by Clear browser data.
+
 A paired phone gets neither: its credential is issued by the device gateway
 against a signature by the phone's own key, is accepted only on that gateway,
 and only for the RPCs its grants allow ([remote control](REMOTE.md)).

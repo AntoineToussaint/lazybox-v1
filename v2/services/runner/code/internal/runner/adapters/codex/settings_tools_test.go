@@ -13,7 +13,7 @@ import (
 
 func toolNames(purpose string) []string {
 	var names []string
-	for _, t := range dynamicTools(purpose) {
+	for _, t := range dynamicTools(purpose, false) {
 		names = append(names, t["name"].(string))
 	}
 	return names
@@ -34,7 +34,7 @@ func TestDynamicToolsFollowThePurpose(t *testing.T) {
 		}
 	}
 	for _, purpose := range []string{"planning", "summary"} {
-		if tools := dynamicTools(purpose); tools != nil {
+		if tools := dynamicTools(purpose, false); tools != nil {
 			t.Fatalf("%s gets tools: %v", purpose, tools)
 		}
 	}

@@ -8,6 +8,8 @@
  * calls, and the journal (and the Activity dialog) keep the full evidence.
  */
 
+import { browserVerb, describeBrowserCall } from './browser-model';
+
 export type ToolStatus = 'running' | 'completed' | 'failed' | 'unknown';
 export type DiffStat = { added: number; removed: number; files: string[] };
 export type ToolEntry = {
@@ -187,7 +189,7 @@ export function applyToolPayload(previous: ToolEntry | undefined, payload: Recor
 const HIDDEN = new Set(['AskUserQuestion', 'Task', 'Agent', 'Sub-agent']);
 export const hiddenTool = (name: string) => HIDDEN.has(name);
 
-export type ToolKind = 'read' | 'search' | 'list' | 'edit' | 'command' | 'web' | 'agent' | 'plan' | 'thinking' | 'mcp' | 'other';
+export type ToolKind = 'read' | 'search' | 'list' | 'edit' | 'command' | 'web' | 'browser' | 'agent' | 'plan' | 'thinking' | 'mcp' | 'other';
 /** The name of the line that stands for the agent thinking (its reasoning stays private). */
 export const THINKING = 'Thinking';
 const KINDS: Record<string, ToolKind> = {
@@ -197,6 +199,8 @@ const KINDS: Record<string, ToolKind> = {
   WebFetch: 'web', WebSearch: 'web', 'Web search': 'web', Task: 'agent', Agent: 'agent', 'Sub-agent': 'agent', TodoWrite: 'plan', update_plan: 'plan', [THINKING]: 'thinking',
 };
 export function kindOf(entry: Pick<ToolEntry, 'name' | 'actions' | 'input'>): ToolKind {
+  // The agent browser's calls (BROWSER.md), from Claude's MCP server or Codex's tools.
+  if (browserVerb(entry.name)) return 'browser';
   const kind = KINDS[entry.name];
   if (kind === 'command') {
     // Codex parses what a command does: all reads is a read, all searches a search.
@@ -311,6 +315,10 @@ export function describeTool(entry: ToolEntry, root = ''): ToolTitle {
       if (typeof i.url === 'string') return { verb: tense('Fetched', 'Fetching'), target: hostOf(i.url), code: false, meta, problem };
       const query = typeof i.query === 'string' ? i.query : typeof entry.input === 'string' ? entry.input : '';
       return { verb: tense('Searched the web for', 'Searching the web for'), target: query ? `“${query}”` : '', code: false, meta, problem };
+    }
+    case 'browser': {
+      const said = describeBrowserCall(browserVerb(entry.name) || '', i, running);
+      return { verb: said.verb, target: said.target, code: false, meta, problem };
     }
     case 'agent': {
       const what = typeof i.description === 'string' ? i.description : typeof i.prompt === 'string' ? firstLine(i.prompt) : '';
@@ -575,7 +583,7 @@ export function describeToolBrief(entry: ToolEntry, root = ''): ToolTitle & { as
   return { ...title, target: short, meta };
 }
 
-export type ActivityCategory = 'explore' | 'test' | 'check' | 'build' | 'install' | 'git' | 'web' | 'command' | 'tool' | 'plan' | 'edit' | 'thinking';
+export type ActivityCategory = 'explore' | 'test' | 'check' | 'build' | 'install' | 'git' | 'web' | 'browser' | 'command' | 'tool' | 'plan' | 'edit' | 'thinking';
 const EXPLORING = new Set(['sed', 'cat', 'head', 'tail', 'less', 'more', 'nl', 'wc', 'ls', 'tree', 'find', 'fd', 'rg', 'grep', 'egrep', 'fgrep', 'ag', 'ack', 'file', 'stat', 'du', 'jq', 'yq', 'awk', 'diff', 'pwd', 'which', 'type', 'realpath', 'readlink', 'sort', 'uniq', 'cut', 'column', 'xxd', 'od', 'strings', 'bat']);
 const GIT_READS = new Set(['status', 'log', 'diff', 'show', 'blame', 'branch', 'grep', 'ls-files', 'rev-parse', 'remote', 'describe', 'shortlog', 'reflog', 'ls-tree', 'cat-file', 'merge-base']);
 const INSTALLS = /^(install|i|ci|add|sync|get|fetch|download|deps|setup|bootstrap|restore)$/;
@@ -585,7 +593,7 @@ const TESTS = word('e2e|tests?|spec|pytest|jest|vitest|mocha|playwright|nextest|
 export function categoryOf(entry: ToolEntry): ActivityCategory {
   const kind = kindOf(entry);
   if (kind === 'read' || kind === 'search' || kind === 'list') return 'explore';
-  if (kind === 'web' || kind === 'plan' || kind === 'edit' || kind === 'thinking') return kind;
+  if (kind === 'web' || kind === 'browser' || kind === 'plan' || kind === 'edit' || kind === 'thinking') return kind;
   if (kind !== 'command') return 'tool';
   const parsed = parseCommand(commandText(entry));
   if (!parsed) return 'command';
@@ -604,11 +612,11 @@ export function categoryOf(entry: ToolEntry): ActivityCategory {
 const PHRASES: Record<ActivityCategory, [string, string]> = {
   explore: ['Explored the codebase', 'Exploring the codebase'], test: ['Ran tests', 'Running tests'], check: ['Ran checks', 'Running checks'],
   build: ['Built the project', 'Building the project'], install: ['Installed dependencies', 'Installing dependencies'], git: ['Worked with git', 'Working with git'],
-  web: ['Searched the web', 'Searching the web'], command: ['Ran commands', 'Running commands'], tool: ['Used tools', 'Using tools'],
+  web: ['Searched the web', 'Searching the web'], browser: ['Used the browser', 'Using the browser'], command: ['Ran commands', 'Running commands'], tool: ['Used tools', 'Using tools'],
   plan: ['Updated the plan', 'Updating the plan'], edit: ['Edited files', 'Editing files'], thinking: ['Thought', 'Thinking'],
 };
 /** The order categories are named in, when they are as frequent. */
-const NAMED_FIRST: ActivityCategory[] = ['test', 'check', 'build', 'install', 'explore', 'git', 'web', 'command', 'tool', 'edit', 'plan'];
+const NAMED_FIRST: ActivityCategory[] = ['test', 'check', 'build', 'install', 'explore', 'git', 'web', 'browser', 'command', 'tool', 'edit', 'plan'];
 const SIGNIFICANT = new Set<ActivityCategory>(['test', 'check', 'build', 'install']);
 const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 
@@ -629,17 +637,18 @@ export function spanOf(entries: readonly ToolEntry[]): number | undefined {
 
 /** The counts a summary carries: "8 commands, 3 files read, 2 searches". */
 export function stepCounts(entries: readonly ToolEntry[]): string {
-  const reads = new Set<string>(); let commands = 0, searches = 0, web = 0, edits = 0, other = 0;
+  const reads = new Set<string>(); let commands = 0, searches = 0, web = 0, browser = 0, edits = 0, other = 0;
   for (const e of stepsOf(entries)) {
     const kind = kindOf(e), i = object(e.input);
     if (kind === 'read') reads.add(String(i.file_path || i.path || e.actions?.find(a => a.type === 'read')?.path || e.id));
     else if (kind === 'search' || kind === 'list') searches++;
     else if (kind === 'command') commands++;
     else if (kind === 'web') web++;
+    else if (kind === 'browser') browser++;
     else if (kind === 'edit') edits++;
     else if (kind !== 'plan') other++;
   }
-  return [commands && plural(commands, 'command'), reads.size && `${plural(reads.size, 'file')} read`, searches && plural(searches, 'search', 'searches'), web && plural(web, 'web lookup'), edits && `${plural(edits, 'file')} edited`, other && plural(other, 'other tool')].filter(Boolean).join(', ');
+  return [commands && plural(commands, 'command'), reads.size && `${plural(reads.size, 'file')} read`, searches && plural(searches, 'search', 'searches'), web && plural(web, 'web lookup'), browser && plural(browser, 'browser step'), edits && `${plural(edits, 'file')} edited`, other && plural(other, 'other tool')].filter(Boolean).join(', ');
 }
 
 /** A run's summary: "Explored the codebase and ran tests · 8 commands, 3 files read · 58s". */

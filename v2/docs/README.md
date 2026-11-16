@@ -27,6 +27,7 @@ Task by task:
 | See less (or more) of what the agent ran | [Activity detail](guides/activity-detail.md) |
 | Check what an agent changed, comment, undo a turn, open and merge a PR | [Review an agent's work](guides/review-agent-work.md) |
 | Run my app per workspace and look at it beside the chat | [Run your app](guides/run-your-app.md) |
+| Let an agent use a browser while I watch, and take it over | [Agent browser](guides/agent-browser.md) |
 | Track a goal across several conversations, with evidence | [Missions and evidence](guides/missions.md) |
 | Keep plans and reports as versioned pages | [Artifacts](guides/artifacts.md) |
 | Use several Claude or Codex accounts, and survive limits | [Subscriptions and limits](guides/subscriptions.md) |

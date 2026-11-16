@@ -49,7 +49,11 @@ func init() {
 type standaloneOptions struct {
 	state, config, worktrees, actions, restartRequest string
 	worker, node, web, cliDir, claude                 string
-	supervised, keepAgents                            bool
+	// browserWorker is the agent browser service (BROWSER.md); the installer
+	// does not ship it yet, so an installed Runner has no agent browser unless
+	// this names one.
+	browserWorker          string
+	supervised, keepAgents bool
 }
 
 func parseStandalone(args []string, getenv func(string) string, runtime *installation.Layout) (standaloneOptions, error) {
@@ -79,6 +83,7 @@ func parseStandalone(args []string, getenv func(string) string, runtime *install
 	flags.StringVar(&o.restartRequest, "restart-request", paths.RestartRequest, "where Restart Runner records its request (with --supervised)")
 	flags.StringVar(&o.worker, "worker", pick("LAZYBOX_V2_WORKER", worker), "Claude SDK worker (dist/main.js)")
 	flags.StringVar(&o.node, "node", pick("LAZYBOX_V2_NODE", node), "Node that runs the worker")
+	flags.StringVar(&o.browserWorker, "browser-worker", getenv("LAZYBOX_V2_BROWSER_WORKER"), "agent browser service (workers/browser/dist/main.js); empty: agents get no browser")
 	flags.StringVar(&o.web, "web", pick("LAZYBOX_V2_WEB_DIR", web), "phone app the device gateway serves")
 	flags.StringVar(&o.cliDir, "cli-dir", pick("LAZYBOX_V2_CLI_DIR", cliDir), "directory of the lazybox CLI agents and hooks run")
 	flags.StringVar(&o.claude, "claude", pick("LAZYBOX_V2_CLAUDE_BINARY", claude), "Claude Code executable (default: the one the SDK ships)")
@@ -105,15 +110,16 @@ func parseStandalone(args []string, getenv func(string) string, runtime *install
 // Working launchers set through Codefly (scripts/runner-command.mjs).
 func (o standaloneOptions) environment() map[string]string {
 	env := map[string]string{
-		"LAZYBOX_V2_STATE":         o.state,
-		"LAZYBOX_V2_CONFIG":        o.config,
-		"LAZYBOX_V2_WORKTREE_ROOT": o.worktrees,
-		"LAZYBOX_V2_ACTIONS_FILE":  o.actions,
-		"LAZYBOX_V2_WORKER":        o.worker,
-		"LAZYBOX_V2_NODE":          o.node,
-		"LAZYBOX_V2_WEB_DIR":       o.web,
-		"LAZYBOX_V2_CLI_DIR":       o.cliDir,
-		"LAZYBOX_V2_CLAUDE_BINARY": o.claude,
+		"LAZYBOX_V2_STATE":          o.state,
+		"LAZYBOX_V2_CONFIG":         o.config,
+		"LAZYBOX_V2_WORKTREE_ROOT":  o.worktrees,
+		"LAZYBOX_V2_ACTIONS_FILE":   o.actions,
+		"LAZYBOX_V2_WORKER":         o.worker,
+		"LAZYBOX_V2_NODE":           o.node,
+		"LAZYBOX_V2_BROWSER_WORKER": o.browserWorker,
+		"LAZYBOX_V2_WEB_DIR":        o.web,
+		"LAZYBOX_V2_CLI_DIR":        o.cliDir,
+		"LAZYBOX_V2_CLAUDE_BINARY":  o.claude,
 	}
 	if o.keepAgents {
 		env["LAZYBOX_V2_KEEP_AGENTS"] = "1"
