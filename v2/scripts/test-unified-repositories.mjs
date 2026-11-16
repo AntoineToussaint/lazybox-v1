@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { webkit, expect } from "@playwright/test";
@@ -18,7 +19,7 @@ f.githubRepositories.push({
   htmlUrl: "https://github.com/codefly-dev/module-datasource",
 });
 f.preparationFailures.add("github:fixture-team/api");
-const server = await createServer({
+const server = await createServer({...testViteCache(import.meta.url),
   configFile: false,
   root: fileURLToPath(new URL("../apps/web", import.meta.url)),
   plugins: [react()],

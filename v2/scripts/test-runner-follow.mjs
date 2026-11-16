@@ -8,6 +8,7 @@
 // The workspace list must never silently lose entries: no empty list while the
 // Runner cannot be reached, no "create a workspace" for a Runner that has not
 // answered yet, and no stale or empty bearer left behind by a restart.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium, expect } from '@playwright/test';
@@ -21,7 +22,7 @@ const channel = fixture.openEvents('alpha-session');
 channel.push({ type: 'message_delta', text: 'Before any restart.' });
 // The window's locator: the endpoint file the Runner writes, as the native host reads it.
 const locator = { name: 'fixture-locator', configureServer(server) { server.middlewares.use('/fixture-locator', async (_req, res) => { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(await readFile(fixture.endpoint)); }); } };
-const server = await createServer({ configFile: false, root: fileURLToPath(new URL('./fixtures/desktop-window', import.meta.url)), plugins: [react(), locator], server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({...testViteCache(import.meta.url), configFile: false, root: fileURLToPath(new URL('./fixtures/desktop-window', import.meta.url)), plugins: [react(), locator], server: { host: '127.0.0.1', port: 0 } });
 const names = ['Alpha feature', 'Beta release'];
 let browser, page;
 try {

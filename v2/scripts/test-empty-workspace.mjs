@@ -1,4 +1,5 @@
 // Synthetic authority only: account selection and workspace intent, no inference.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {chromium,expect} from '@playwright/test';
@@ -7,7 +8,7 @@ import assert from 'node:assert/strict';
 import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const fixture=await startRunnerFixture();
 fixture.profiles.push(...['Gmail','Obin Subscription'].map((label,i)=>({id:`claude-${i}`,provider:'claude',label,managed:true,isolation:'environment'})));
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await server.listen();browser=await chromium.launch({headless:true});const page=await browser.newPage();

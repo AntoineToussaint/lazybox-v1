@@ -1,6 +1,7 @@
 // Sending is never silently blocked: after a provider error the next message
 // continues the conversation, and a draft whose image was lost in a window
 // reload says so, offering "Attach again…" and "Send without it".
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit,expect} from '@playwright/test';
@@ -12,7 +13,7 @@ import {monacoVimCompat} from './monaco-vim-compat.mjs';
 const fixture=await startRunnerFixture();
 const session=fixture.sessions[0];
 Object.assign(session,{fault:'provider_error',busy:false,status:'failed'});
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 await server.listen();
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64');
 let browser;

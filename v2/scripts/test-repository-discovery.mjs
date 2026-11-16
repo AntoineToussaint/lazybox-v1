@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { webkit, expect } from "@playwright/test";
@@ -5,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { startRunnerFixture } from "./fixtures/runner-ui.mjs";
 const f = await startRunnerFixture();
-const server = await createServer({
+const server = await createServer({...testViteCache(import.meta.url),
   configFile: false,
   root: fileURLToPath(new URL("../apps/web", import.meta.url)),
   plugins: [react()],

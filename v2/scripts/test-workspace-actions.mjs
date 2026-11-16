@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {chromium,webkit,expect} from '@playwright/test';
@@ -6,7 +7,7 @@ import assert from 'node:assert/strict';
 import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const fixture=await startRunnerFixture();
 const regression=process.env.REPRO_OLD_BLUR?{name:'reproduce-old-blur',enforce:'pre',transform(code,id){if(id.endsWith('/CollectionPanel.tsx'))return code.replace('<details className="workspace-actions"','<details className="workspace-actions" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node))event.currentTarget.open=false;}}');}}:null;
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[regression,react()].filter(Boolean),server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[regression,react()].filter(Boolean),server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await server.listen();browser=await(process.env.TEST_WEBKIT?webkit:chromium).launch({headless:true});const page=await browser.newPage({viewport:{width:1250,height:900}});page.setDefaultTimeout(8000);

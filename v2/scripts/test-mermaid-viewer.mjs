@@ -2,6 +2,7 @@
 // Ctrl/⌘ + wheel), pan (drag, arrow keys), fit, actual size, full screen and
 // copy of the source and the SVG. Off-screen diagrams are not rendered until
 // the reader nears them. Fixture only; WebKit by default (the desktop engine).
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit,chromium,expect} from '@playwright/test';
@@ -20,7 +21,7 @@ channel.push({type:'message_delta',text:'```mermaid\n'+offscreen+'\n```',turnId:
 for(let i=0;i<12;i++){channel.push({type:'operation_accepted',text:`Question ${i}`});channel.push({type:'message_delta',text:`Answer ${i}\n\n${'Long prose that pushes the early diagram far above the viewport. '.repeat(30)}`,turnId:`t${i+1}`});}
 channel.push({type:'operation_accepted',text:'Draw the pipeline'});
 channel.push({type:'message_delta',text:'Here is the pipeline:\n\n```mermaid\n'+wide+'\n```\n\nDIAGRAM_END',turnId:'last'});
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),logLevel:'warn',plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),logLevel:'warn',plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await mkdir('.cache',{recursive:true});await server.listen();browser=await (process.env.TEST_CHROMIUM?chromium:webkit).launch({headless:true});

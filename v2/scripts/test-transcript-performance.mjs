@@ -6,6 +6,7 @@
 //
 // PERF_TURNS, PERF_BROWSER=chromium|webkit, PERF_BUILD=1 (production bundle)
 // and PERF_RUNS tune a manual measurement; the gate uses the defaults.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer,build,preview} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit,chromium,expect} from '@playwright/test';
@@ -33,7 +34,7 @@ const proxy={'/lazybox.bench.v1.RunnerService/':{target:fixture.url}};
 let server,out,browser;
 try{
  if(process.env.PERF_BUILD){out=await mkdtemp(join(tmpdir(),'lazybox-perf-'));await build({configFile:false,root,logLevel:'warn',plugins:[react(),monacoVimCompat()],build:{outDir:out,emptyOutDir:true}});server=await preview({configFile:false,root,build:{outDir:out},preview:{host:'127.0.0.1',port:0,proxy}});}
- else{server=await createServer({configFile:false,root,logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy}});await server.listen();}
+ else{server=await createServer({...testViteCache(import.meta.url),configFile:false,root,logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy}});await server.listen();}
  const port=(server.httpServer.address()).port;
  browser=await (process.env.PERF_BROWSER==='chromium'?chromium:webkit).launch({headless:true});
  const results=[];

@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {chromium,webkit,expect} from '@playwright/test';
@@ -10,7 +11,7 @@ channel.push({type:'operation_accepted',text:'FIRST_PROMPT'});
 channel.push({type:'message_delta',text:'ANSWER_BEGINNING\n\n'});
 fixture.sessions.push({...fixture.sessions[0],id:'saved-session',title:'Saved conversation',closed:true,historical:true,status:'stopped',providerReference:'native-reference',conversationId:'saved-session'});
 fixture.sessions.push({...fixture.sessions[0],id:'deleted-session',collectionId:'deleted-workspace',title:'Retained deleted workspace conversation',closed:true,historical:true,resumeBlocked:'Workspace deleted'});
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try {
  await server.listen();browser=await(process.env.TEST_WEBKIT?webkit:chromium).launch({headless:true});

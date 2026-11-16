@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { webkit, chromium, expect } from '@playwright/test';
@@ -12,7 +13,7 @@ import { monacoVimCompat } from './monaco-vim-compat.mjs';
 const fixture = await startRunnerFixture();
 const channel = fixture.openEvents('alpha-session');
 channel.push({ type: 'message_delta', text: 'Open [README](api/README.md).' });
-const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react(), monacoVimCompat()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
+const server = await createServer({...testViteCache(import.meta.url), configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react(), monacoVimCompat()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
 const browsers = [];
 try {
   await server.listen();

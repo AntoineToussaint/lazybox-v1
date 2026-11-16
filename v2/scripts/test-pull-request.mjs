@@ -1,6 +1,7 @@
 // The PR loop on the Changes page against the fake Runner: commit (with an
 // agent-drafted message), push, open a pull request, read its checks, send the
 // failing ones to the conversation's message box, and merge when green.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {chromium,expect} from '@playwright/test';
@@ -15,7 +16,7 @@ const channel=fixture.openEvents('alpha-session');
 const api=fixture.shipState('alpha','api');
 Object.assign(api,{githubRepository:'fixture-team/api',files:[{path:'contract.ts',indexStatus:'M',worktreeStatus:'M'},{path:'new-view.tsx',indexStatus:'?',worktreeStatus:'?'}]});
 fixture.shipState('alpha','web'); // not on GitHub, nothing to ship: stays quiet
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 const writes=()=>fixture.mutations.filter(m=>['CommitWorkspaceChanges','PushWorkspaceBranch','CreatePullRequest','MergePullRequest','Apply'].includes(m.method));
 let browser;
 try{

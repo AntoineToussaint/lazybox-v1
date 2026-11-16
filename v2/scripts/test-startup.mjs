@@ -1,12 +1,13 @@
 // Isolated UI regression: every RPC is intercepted; no Runner, credentials,
 // provider process, or existing desktop session is used.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
-const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({...testViteCache(import.meta.url), configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0 } });
 let browser;
 try {
   await server.listen();

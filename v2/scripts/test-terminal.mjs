@@ -2,6 +2,7 @@
 // type into the shell, open one in a member repository, close it, and
 // re-attach after a reload without starting another shell. WebKit by default
 // (the desktop app's engine); TEST_CHROMIUM=1 runs Chromium.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit, chromium, expect} from '@playwright/test';
@@ -10,7 +11,7 @@ import assert from 'node:assert/strict';
 import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 
 const fixture=await startRunnerFixture();
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 const calls=method=>fixture.calls.filter(call=>call.method===method);
 let browser;
 try {

@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium, expect } from '@playwright/test';
@@ -11,7 +12,7 @@ const internalRepoID='github-'+'9'.repeat(64);
 Object.assign(fixture.library[0],{id:internalRepoID,name:'api',gitIdentity:'github:fixture-team/api'});
 for(const workspace of fixture.collections)workspace.members[0].spec.repositoryId=internalRepoID;
 fixture.sessions.push({...structuredClone(fixture.sessions[0]),id:'alpha-second',title:'Second alpha conversation'});
-const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
+const server = await createServer({...testViteCache(import.meta.url), configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
 let browser;
 try {
   await server.listen();

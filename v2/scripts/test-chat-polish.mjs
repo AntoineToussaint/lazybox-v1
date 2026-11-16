@@ -1,5 +1,6 @@
 // Fixture only: the compact chat header, live status, prompt recall, snippet
 // usage, equal workspace cards, the workspace home and the naming flow.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const f=await startRunnerFixture();
 const repos=['authority','cli','core','module-datasource','web-console'];
@@ -13,7 +14,7 @@ Object.assign(f.sessions[0],{title:'Fix the flaky login test',provider:'claude',
 Object.assign(f.sessions[1],{title:'beta',provider:'claude',status:'starting',agents:[{id:'root',status:'starting'}]});
 const alpha=f.openEvents('alpha-session');alpha.push({type:'operation_accepted',text:'The login test is flaky, can you find out why?'});alpha.push({type:'message_delta',text:'Let me look at the test and the CI logs.'});alpha.push({type:'activity',status:'tool',name:'Bash'});
 const beta=f.openEvents('beta-session');beta.push({type:'runner_reattached'});beta.push({type:'runner_reattached'});
-const server=await createServer({configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 try{
  await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));

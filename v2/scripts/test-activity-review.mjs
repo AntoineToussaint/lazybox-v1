@@ -1,7 +1,8 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {readFile,mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';import {NativeStatus} from '../workers/claude-sdk/src/status.ts';
 const f=await startRunnerFixture();Object.assign(f.sessions[0],{busy:true,status:'running',provider:'claude',agents:[{id:'root',status:'running'}]});
 f.library[0].gitIdentity='github:codefly-dev/module-datasource';f.library[1].gitIdentity='github:codefly-dev/module-saas-starter';const channel=f.openEvents('alpha-session');
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 try{
  await server.listen();browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1400,height:950}});page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.route('**/GetTelemetry',r=>r.fulfill({json:{contexts:[{agent:'root',used:'100',capacity:'1000',source:'sdk_summary_estimate',categories:[{name:'system_tools',tokens:'100',kind:'used',included:true,details:[{name:'Read',tokens:'60'},{name:'Bash',tokens:'40'}]}]}]}}));

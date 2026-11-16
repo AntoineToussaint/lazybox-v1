@@ -1,4 +1,5 @@
 // Browser UX against an isolated RPC fixture; no local credentials or inference.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {chromium,expect} from '@playwright/test';
@@ -9,7 +10,7 @@ import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const fixture=await startRunnerFixture();
 fixture.library.splice(0,fixture.library.length,...['api','web'].map((name,i)=>({id:i?'frontend':'backend',name,gitIdentity:`github:team/${name}`,sourceUrl:`https://github.com/team/${name}`,path:`/fixture/${name}`})));
 fixture.profiles.push({id:'saved-codex',provider:'codex',label:'Codex personal',managed:true,isolation:'environment'});
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await server.listen();browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1450,height:1000}});page.setDefaultTimeout(10000);

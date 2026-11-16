@@ -2,6 +2,7 @@
 // mark-as-seen, opening a conversation in its workspace, sidebar unread
 // markers, notifications on watched transitions (and none for the baseline),
 // and the phone layout. Fake Runner; no agent execution is started or stopped.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit, chromium, expect} from '@playwright/test';
@@ -26,7 +27,7 @@ f.sessions.push(
 );
 const session = id => f.sessions.find(s => s.id === id);
 
-const server = await createServer({configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: {host: '127.0.0.1', port: 0, proxy: {'/lazybox.bench.v1.RunnerService/': {target: f.url}}}});
+const server = await createServer({...testViteCache(import.meta.url),configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: {host: '127.0.0.1', port: 0, proxy: {'/lazybox.bench.v1.RunnerService/': {target: f.url}}}});
 let browser;
 try {
   await server.listen();

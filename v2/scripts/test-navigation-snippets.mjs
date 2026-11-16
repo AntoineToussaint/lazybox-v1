@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { webkit, expect } from "@playwright/test";
@@ -16,7 +17,7 @@ Object.assign(f.sessions[0], {
   modelReported: true,
   status: "done",
 });
-const server = await createServer({
+const server = await createServer({...testViteCache(import.meta.url),
   configFile: false,
   root: fileURLToPath(new URL("../apps/web", import.meta.url)),
   plugins: [react()],

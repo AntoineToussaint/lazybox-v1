@@ -1,5 +1,6 @@
 // Jump to any of your prompts without scrolling: the rail, the searchable
 // list and Alt+↑/↓, including prompts in history that is not mounted yet.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit,expect} from '@playwright/test';
@@ -15,7 +16,7 @@ const session=fixture.sessions[0];Object.assign(session,{closed:true,status:'sto
 const channel=fixture.openEvents(session.id);
 for(const event of longConversation({turns,toolOutputBytes:600}))channel.push(event);channel.complete();
 const root=fileURLToPath(new URL('../apps/web',import.meta.url));
-const server=await createServer({configFile:false,root,logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root,logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 await server.listen();
 let browser;
 try{

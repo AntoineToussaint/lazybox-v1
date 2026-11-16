@@ -1,6 +1,7 @@
 // Restart Runner from the app, against an explicitly fake Runner: no launcher,
 // Codefly, credentials or agents. The fixture answers RestartRunner, is down for
 // a moment, then serves as a new process (another instance ID).
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium, expect } from '@playwright/test';
@@ -10,7 +11,7 @@ import assert from 'node:assert/strict';
 import { startRunnerFixture } from './fixtures/runner-ui.mjs';
 
 const fixture = await startRunnerFixture();
-const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
+const server = await createServer({...testViteCache(import.meta.url), configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
 const restarts = () => fixture.mutations.filter(m => m.method === 'RestartRunner').length;
 let browser, page;
 try {

@@ -1,3 +1,4 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import assert from 'node:assert/strict';import {mkdir} from 'node:fs/promises';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const f=await startRunnerFixture(),channel=f.openEvents('alpha-session');Object.assign(f.sessions[0],{status:'running',busy:true,agents:[{id:'root',status:'running'}]});
 let clock=Date.now()-120000;
@@ -7,7 +8,7 @@ channel.events.push({cursor:String(channel.events.length+1),event:{type:'turn_en
 push({type:'tool_call',id:'success',name:'Bash',status:'running',input:{description:'Run workspace tests',command:'go test ./internal/runner/collections'}},clock+30000);push({type:'tool_call',id:'success',status:'completed',output:'ok  collections  2.4s'},clock+32400);
 push({type:'tool_call',id:'failed',name:'Bash',status:'running',input:{description:'Check formatting',command:'npm run lint'}},clock+35000);push({type:'tool_call',id:'failed',status:'failed',output:'src/example.ts: expected semicolon'},clock+35500);
 push({type:'tool_call',id:'running',name:'Bash',status:'running',input:{description:'Build the workspace',command:'go build ./...'}},Date.now()-5000);
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 try{
  await server.listen();browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);await page.getByRole('button',{name:'View tools and activity'}).click();const dialog=page.getByRole('dialog',{name:'Tools and activity'});
