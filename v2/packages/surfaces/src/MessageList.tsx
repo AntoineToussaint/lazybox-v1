@@ -21,6 +21,7 @@ import { ReviewAlert, ReviewCard, ReviewExchange } from './ReviewLauncher';
 import { InlineRuns, RunMessageContext } from './code-runs';
 import { RestartMark, RunnerNoticeLine, SystemEvent } from './SystemEvents';
 import { isSystemEvent } from './system-events';
+import { LineageLine } from './AgentMessages';
 
 const ownName = (id: string) => id;
 
@@ -36,6 +37,7 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   if (m.type === 'operation_accepted' && m.command) return <div className="command-line command-sent" role="note" data-message-id={m.id} title="You ran this command" onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}><Icon name="chevronRight" size={12}/><code>{m.text.trim()}</code></div>;
   if (m.type === 'review' && m.review) return <div className="review-card-anchor" data-message-id={m.id}><ReviewCard data={m.review}/></div>;
   if (m.type === 'exchange') return <ReviewExchange text={m.text} id={m.id}/>;
+  if (m.type === 'lineage' && m.lineage) return <LineageLine message={m} note={m.lineage}/>;
   if (m.type === 'review-alert') return <ReviewAlert text={m.text} id={m.id} note={m.review}/>;
   if (m.type === 'reattached') return <RestartMark message={m}/>;
   return <article className={'message ' + m.type} data-message-id={m.id} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>

@@ -13,6 +13,9 @@ import type { ViewTarget } from './workspace-model';
 import { ago, arrange, briefTemplate, columns, evidenceChip, flagLabel, headlineEvidence, liveLabel, missionSummary, statusLabel, taskActions, trustLabel, trustMeaning } from './missions-model';
 import { useMissionDetail, useMissions, type ChangeInput } from './useMissions';
 import { useMissionSelection } from './navigate-requests';
+import { GrantDialog } from './OrchestratorBadge';
+import { useOpenConversation } from './AgentMessages';
+import { ceilingLine, permissionLabel } from './orchestration-model';
 import './missions.css';
 
 const message = (error: unknown) => ConnectError.from(error).rawMessage || String(error);
@@ -113,6 +116,7 @@ function MissionBoard({ missionId, workspaceId, collections, viewState, onShowSe
       {mission.brief && <details className="mission-brief"><summary>Brief</summary><p>{mission.brief}</p></details>}
       {mission.error && <p className="missions-notice tone-warn">{mission.error}</p>}
     </div>
+    <OrchestratorStrip mission={mission} onNotice={setNotice} onError={setError} change={change}/>
     {notice && <p className="missions-notice" role="status">{notice}<button type="button" className="link-button" onClick={() => setNotice('')}>Dismiss</button></p>}
     {error && <p className="missions-error" role="alert">{error}<button type="button" className="link-button" onClick={() => setError('')}>Dismiss</button></p>}
     {!mission.canceled && !mission.error && (adding
@@ -122,7 +126,7 @@ function MissionBoard({ missionId, workspaceId, collections, viewState, onShowSe
       {columns.map(column => <section key={column.key} className={`mission-column column-${column.key}`} aria-labelledby={`column-${mission.id}-${column.key}`}>
         <h4 id={`column-${mission.id}-${column.key}`}>{column.title}<span>{board[column.key].length}</span></h4>
         {!board[column.key].length && <p className="mission-column-empty">{column.empty}</p>}
-        <ul>{board[column.key].map(task => <TaskCard key={task.id} task={task} goal={goals.get(task.goalId)} now={now} collections={collections} titles={mission.tasks}
+        <ul>{board[column.key].map(task => <TaskCard key={task.id} task={task} goal={goals.get(task.goalId)} now={now} collections={collections} titles={mission.tasks} orchestrators={mission.grants}
           onOpen={() => openConversation(task)} onEvidence={e => openEvidence(task, e)}
           onAssign={() => setDialog({ kind: 'assign', task })} onReport={() => setDialog({ kind: 'report', task })}
           onAccept={() => void change({ case: 'accept', value: { taskId: task.id, note: '' } }, `Accepted “${task.title}”.`).catch(() => {})}
@@ -169,9 +173,9 @@ function AddTask({ onAdd, onClose, mission }: { mission: Mission; onAdd(title: s
   </form>;
 }
 
-type CardProps = { task: MissionTask; goal?: string; now: number; collections: Collection[]; titles: MissionTask[]; onOpen(): void; onEvidence(e: MissionEvidence): void; onAssign(): void; onReport(): void; onAccept(): void; onReject(): void; onCancel(): void; onNotice(text: string): void; onError(text: string): void };
+type CardProps = { task: MissionTask; goal?: string; now: number; collections: Collection[]; titles: MissionTask[]; orchestrators: Mission['grants']; onOpen(): void; onEvidence(e: MissionEvidence): void; onAssign(): void; onReport(): void; onAccept(): void; onReject(): void; onCancel(): void; onNotice(text: string): void; onError(text: string): void };
 
-function TaskCard({ task, goal, now, collections, titles, onOpen, onEvidence, onAssign, onReport, onAccept, onReject, onCancel, onNotice, onError }: CardProps) {
+function TaskCard({ task, goal, now, collections, titles, orchestrators, onOpen, onEvidence, onAssign, onReport, onAccept, onReject, onCancel, onNotice, onError }: CardProps) {
   const [expanded, setExpanded] = useState(false);
   const actions = taskActions(task);
   const attempt = task.attempt;
@@ -191,6 +195,8 @@ function TaskCard({ task, goal, now, collections, titles, onOpen, onEvidence, on
       {task.trust !== task.evidenceTrust && task.status !== 'ready' && task.evidence.length > 0 && <span className="mission-evidence-trust" title={trustMeaning[task.evidenceTrust]}>evidence: {trustLabel[task.evidenceTrust]?.toLowerCase()}</span>}
       {task.flags.filter(f => f !== 'no_evidence' || task.trust === 'claimed').map(f => <span key={f} className={`mission-flag flag-${f}`}>{flagLabel[f] || f}</span>)}
       {goal && <span className="mission-goal">{goal}</span>}
+      {attempt?.parentConversationId && <span className="mission-lineage" title={`Started by the orchestrator “${orchestrators.find(g => g.conversationId === attempt.parentConversationId)?.title || 'Orchestrator'}” as its ${attempt.role || 'worker'}, at ${permissionLabel[attempt.permission] || attempt.permission} on ${attempt.profileId}`}>
+        <Icon name="subagent" size={11}/>{orchestrators.find(g => g.conversationId === attempt.parentConversationId)?.title || 'Orchestrator'}<small>{attempt.role || 'worker'}</small></span>}
     </div>
     <p className="mission-reason">{task.reason}</p>
     {attempt && <button type="button" className="mission-conversation" disabled={!attempt.sessionId || attempt.live === 'missing'} onClick={onOpen} title={attempt.sessionId ? 'Open the conversation working on this task' : 'This conversation was deleted'}>
@@ -214,6 +220,33 @@ function TaskCard({ task, goal, now, collections, titles, onOpen, onEvidence, on
     {task.nextSnippets.length > 0 && attempt?.sessionId && !attempt.endedAtUnixMillis && <NextSnippets task={task} onNotice={onNotice} onError={onError}/>}
     {actions.length > 0 && <div className="mission-actions">{actions.map((action, i) => <button key={action} type="button" className={i === 0 ? 'primary' : ''} onClick={run[action]}>{label[action]}</button>)}</div>}
   </li>;
+}
+
+/**
+ * The mission's orchestrators: the conversations the person let run its
+ * agents, what each may give them, and Revoke; or the way to name one.
+ */
+function OrchestratorStrip({ mission, onNotice, onError, change }: { mission: Mission; onNotice(text: string): void; onError(text: string): void; change(input: ChangeInput, done?: string): Promise<Mission | undefined> }) {
+  const { info } = useRunner();
+  const open = useOpenConversation();
+  const [granting, setGranting] = useState(false);
+  const [revoking, setRevoking] = useState('');
+  const live = mission.grants.filter(g => g.live);
+  const candidates = useMemo(() => latestConversations(info?.sessions || []).filter(s => !s.closed && !s.lineage?.parentConversationId), [info?.sessions]);
+  if (mission.canceled || mission.error) return null;
+  return <div className="mission-orchestrators" aria-label="Orchestrators">
+    {live.map(g => <div key={g.id} className="mission-orchestrator">
+      <Icon name="subagent" size={13}/>
+      <button type="button" className="link-button" title="Open the orchestrator's conversation" onClick={() => open(g.conversationId, g.sessionId)}>{g.title || 'Orchestrator'}</button>
+      <span className="mission-orchestrator-count">{g.liveChildren}/{g.ceiling?.maxChildren} agents</span>
+      <span className="mission-orchestrator-ceiling">{ceilingLine(g)}</span>
+      {revoking === g.id
+        ? <span className="mission-orchestrator-confirm">Its agents keep running.<button type="button" onClick={() => setRevoking('')}>Keep</button><button type="button" className="danger" autoFocus onClick={() => { setRevoking(''); void change({ case: 'revokeGrant', value: { grantId: g.id, reason: '' } }, `“${g.title || 'The orchestrator'}” can no longer run agents.`).catch(() => {}); }}>Revoke</button></span>
+        : <button type="button" className="mission-orchestrator-revoke" onClick={() => setRevoking(g.id)}>Revoke…</button>}
+    </div>)}
+    {!live.length && <button type="button" className="mission-orchestrate" disabled={!candidates.length} title={candidates.length ? 'Let one of your conversations start and drive agents for this mission' : 'Open a conversation first'} onClick={() => setGranting(true)}><Icon name="subagent" size={13}/> Let a conversation run agents…</button>}
+    {granting && <GrantDialog missionId={mission.id} candidates={candidates} onClose={() => setGranting(false)}/>}
+  </div>;
 }
 
 function TrustBadge({ trust }: { trust: string }) {

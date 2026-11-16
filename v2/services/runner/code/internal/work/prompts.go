@@ -15,6 +15,9 @@ const (
 	SourceInbox   = "inbox"   // a quick reply
 	SourceMission = "mission" // a task brief sent when a task was assigned
 	SourceHandoff = "handoff"
+	// SourceAgent: another agent's message, through Lazybox (an
+	// orchestrator's brief or note to its child, or a child's to its parent).
+	SourceAgent = "agent"
 	// SourceRepository: the Runner told an agent the answer to its request
 	// for a repository (runner/repository_requests.go).
 	SourceRepository = "repository_request"

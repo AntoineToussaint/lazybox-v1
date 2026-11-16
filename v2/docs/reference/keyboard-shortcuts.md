@@ -131,6 +131,7 @@ Act on the conversation you last clicked or focused.
 | Switch model… | — | — |
 | Change permissions… | — | — |
 | Switch subscription… | — | — |
+| Let this conversation run agents… | — | — |
 | Compact the context | — | — |
 | Start over in a new conversation | — | — |
 | Show context and token cost | — | — |

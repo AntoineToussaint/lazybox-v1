@@ -30,6 +30,7 @@ Task by task:
 | Run my app per workspace and look at it beside the chat | [Run your app](guides/run-your-app.md) |
 | Let an agent use a browser while I watch, and take it over | [Agent browser](guides/agent-browser.md) |
 | Track a goal across several conversations, with evidence | [Missions and evidence](guides/missions.md) |
+| Let one agent start and drive others for a mission, under limits I set | [Let an agent run agents](guides/orchestrator.md) |
 | Keep plans and reports as versioned pages | [Artifacts](guides/artifacts.md) |
 | Use several Claude or Codex accounts, and survive limits | [Subscriptions and limits](guides/subscriptions.md) |
 | Run Gemini CLI, Goose, OpenCode or any other ACP agent | [Gemini CLI, Goose and other agents](guides/other-agents.md) |

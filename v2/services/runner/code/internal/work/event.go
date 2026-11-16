@@ -43,6 +43,7 @@ var Versions = map[string]int{
 	TaskAssigned: 1, AttemptStarted: 1, AttemptEnded: 1, TaskReported: 1, EvidenceRecorded: 1,
 	GateRequested: 1, GatePassed: 1, GateRejected: 1,
 	PromptSubmitted: 1, SnippetSent: 1,
+	GrantIssued: 1, GrantRevoked: 1, MessageSent: 1,
 }
 
 // Known reports whether this Runner folds an event: a known type at a version
@@ -142,6 +143,14 @@ type (
 		New bool `json:"new,omitempty"`
 		// Outcome, on attempt.ended: deleted, handoff or stopped.
 		Outcome string `json:"outcome,omitempty"`
+		// Lineage, on an assignment an orchestrator made (grant.go): the
+		// conversation that started this one, under which grant, as what
+		// role, at which permission and on which subscription.
+		Parent     string `json:"parent,omitempty"`
+		Grant      string `json:"grant,omitempty"`
+		Role       string `json:"role,omitempty"`
+		Permission string `json:"permission,omitempty"`
+		Profile    string `json:"profile,omitempty"`
 	}
 	ReportPayload struct {
 		Task    string `json:"task"`

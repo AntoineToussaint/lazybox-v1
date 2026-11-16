@@ -130,6 +130,60 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 		asker, err := agents.RepositoryRequestSession(r.RequestId)
 		return err == nil && asker == who.session
 	},
+	// The Orchestrator verbs (agents.go), for the caller's own execution.
+	// Starting an agent needs a grant in force, which only the person gives;
+	// every target must be one of the children the caller started (or, for a
+	// child, its parent, which it may message and wait on but never stop).
+	pb.RunnerService_SpawnAgent_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.SpawnAgentRequest)
+		o, can := orchestration(agents)
+		return ok && can && r.SessionId != "" && r.SessionId == who.session && o.OrchestratorGrant(who.session)
+	},
+	pb.RunnerService_ListAgentLineage_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.AgentLineageRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_SendAgentMessage_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.SendAgentMessageRequest)
+		o, can := orchestration(agents)
+		return ok && can && r.SessionId != "" && r.SessionId == who.session && o.InLineage(who.session, r.To)
+	},
+	pb.RunnerService_WaitAgents_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.WaitAgentsRequest)
+		o, can := orchestration(agents)
+		if !ok || !can || r.SessionId == "" || r.SessionId != who.session {
+			return false
+		}
+		for _, target := range r.Targets {
+			if !o.InLineage(who.session, target) {
+				return false
+			}
+		}
+		return true
+	},
+	pb.RunnerService_StopChildAgent_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.StopChildAgentRequest)
+		o, can := orchestration(agents)
+		return ok && can && r.SessionId != "" && r.SessionId == who.session && r.Target != "parent" && o.InLineage(who.session, r.Target)
+	},
+	pb.RunnerService_ReportAgentTask_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.ReportAgentTaskRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+}
+
+// OrchestrationCredentials answers the Orchestrator verbs' checks
+// (runner.Bench implements it): whether an execution's conversation holds a
+// grant in force, and whether a target is in its lineage. A verifier without
+// it admits none of those verbs.
+type OrchestrationCredentials interface {
+	OrchestratorGrant(session string) bool
+	InLineage(session, target string) bool
+}
+
+func orchestration(agents AgentCredentials) (OrchestrationCredentials, bool) {
+	o, ok := agents.(OrchestrationCredentials)
+	return o, ok
 }
 
 // inOwnWorkspace admits a workspace only when it is the one the execution
@@ -257,7 +311,7 @@ func authorize(ctx context.Context, owner string, agents AgentCredentials, metho
 	if allowed := agentRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {
 		return who, nil
 	}
-	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish and follow its own session's console output, list and stop its own commands, use its own workspace's artifacts, ask the person to add a repository to its own workspace, and file findings of a review it is the reviewer of")
+	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish and follow its own session's console output, list and stop its own commands, use its own workspace's artifacts, ask the person to add a repository to its own workspace, file findings of a review it is the reviewer of, and (with an Orchestrator grant the person gave) start and drive only the agents it started; it never approves, answers for the person, passes a gate or accepts a task")
 }
 
 // LocalAuthority protects the experimental Runner's execution authority on

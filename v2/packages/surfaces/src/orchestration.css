@@ -1,0 +1,74 @@
+/* The Orchestrator: a conversation the person lets run agents, its badge,
+   its agents' messages and the lines of its tree. Quiet by default; the one
+   accent is the badge that says this conversation holds power. */
+
+/* Header: the badge and the crumb to a parent. */
+.orchestrator-chip-wrap{position:relative;display:inline-flex;flex:none}
+.chat-heading .orchestrator-chip,.chat-heading .lineage-crumb{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;border-radius:9px;font-size:calc(10.5px * var(--text-scale));line-height:1;white-space:nowrap;cursor:pointer;width:auto}
+.chat-heading .orchestrator-chip{border:1px solid var(--accent-line);background:var(--accent-bg);color:var(--accent-strong)}
+.chat-heading .orchestrator-chip b{font-weight:600;font-variant-numeric:tabular-nums}
+.chat-heading .orchestrator-chip:hover,.chat-heading .orchestrator-chip[aria-expanded="true"]{background:var(--accent-bg-strong)}
+.orchestrator-chip-wrap,.lineage-crumb{margin:0 4px 0 0}
+.chat-heading .lineage-crumb{flex:0 2 auto;min-width:0;max-width:22ch;border:1px solid var(--line);background:transparent;color:var(--text-subtle)}
+.lineage-crumb span{overflow:hidden;text-overflow:ellipsis}
+.lineage-crumb small{color:var(--text-faint);font-size:inherit}
+.chat-heading .lineage-crumb:hover{color:var(--text-soft);border-color:var(--line-strong)}
+
+.orchestrator-layer{position:fixed;inset:0;z-index:60;pointer-events:none}
+.orchestrator-card{position:fixed;pointer-events:auto;width:min(340px,calc(100vw - 32px));display:grid;gap:8px;padding:12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-raised);box-shadow:0 14px 36px color-mix(in srgb,var(--shadow) calc(55% * var(--shadow-strength)),transparent);font-size:calc(12px * var(--text-scale));color:var(--text);text-align:left;white-space:normal;cursor:default}
+.orchestrator-card header{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.orchestrator-card header strong{font-weight:500;color:var(--text-subtle)}
+.orchestrator-card .link-button{padding:0;border:0;background:none;color:var(--accent);font-weight:600;font-size:inherit;cursor:pointer;text-align:left;overflow-wrap:anywhere}
+.orchestrator-card p{margin:0;line-height:1.5}
+.orchestrator-ceiling{color:var(--text-soft)}
+.orchestrator-subs,.orchestrator-empty{color:var(--text-subtle)}
+.orchestrator-never{display:flex;gap:6px;align-items:flex-start;color:var(--text-tertiary);font-size:calc(11px * var(--text-scale))}
+.orchestrator-card h4{display:flex;gap:6px;margin:4px 0 0;font-size:calc(10px * var(--text-scale));font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)}
+.orchestrator-card h4 span{color:var(--text-disabled);letter-spacing:0}
+.orchestrator-children{list-style:none;margin:0;padding:0;display:grid;gap:2px;max-height:220px;overflow:auto}
+.orchestrator-children button{display:grid;grid-template-columns:8px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:8px;align-items:center;width:100%;padding:5px 6px;border:0;border-radius:6px;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.orchestrator-children button:hover,.orchestrator-children button:focus-visible{background:var(--surface-selected)}
+.orchestrator-children .child-dot{grid-row:1/3;width:7px;height:7px;border-radius:50%;background:var(--text-disabled)}
+.orchestrator-children .child-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.orchestrator-children small{grid-column:2;color:var(--text-faint);font-size:calc(10.5px * var(--text-scale))}
+.orchestrator-children .child-state{grid-row:1/3;grid-column:3;font-size:calc(10.5px * var(--text-scale));color:var(--text-subtle)}
+.child-dot.tone-run{background:var(--running,var(--accent))}
+.child-dot.tone-wait{background:var(--warn)}
+.child-dot.tone-done{background:var(--ok)}
+.child-dot.tone-idle{background:var(--text-tertiary)}
+.child-state.tone-wait{color:var(--warn-strong)}
+.child-state.tone-done{color:var(--ok)}
+.orchestrator-card footer{display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-top:6px;border-top:1px solid var(--line-subtle)}
+.orchestrator-card footer span{flex:1;color:var(--text-subtle);font-size:calc(11px * var(--text-scale))}
+.orchestrator-card footer button{padding:4px 10px;font-size:calc(11.5px * var(--text-scale));width:auto}
+.orchestrator-card footer .danger{background:var(--danger-solid);border:1px solid var(--danger-solid-hover);color:var(--on-danger-solid)}
+.orchestrator-card footer .danger-quiet{background:transparent;border:1px solid var(--line);color:var(--danger-strong)}
+
+/* The grant sheet. */
+.grant-dialog{width:min(540px,calc(100vw - 32px))}
+.grant-dialog h2{display:flex;align-items:center;gap:8px}
+.grant-dialog fieldset{display:grid;gap:6px;margin:0;padding:0;border:0;min-width:0}
+.grant-dialog legend{margin-bottom:6px;font-size:calc(11px * var(--text-scale));font-weight:600;color:var(--text-tertiary)}
+.grant-dialog input[type=radio],.grant-dialog input[type=checkbox]{width:14px;height:14px;flex:0 0 14px;margin:0;accent-color:var(--accent)}
+.grant-missions label{display:flex;flex-direction:row;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface-sunken);font-size:calc(12.5px * var(--text-scale));cursor:pointer;min-width:0}
+.grant-missions label small{flex:none;color:var(--text-faint)}
+.grant-missions label span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grant-missions label.chosen{border-color:var(--accent-line);background:var(--accent-bg)}
+.grant-missions .grant-new input[type=text],.grant-missions .grant-new input:not([type]){flex:1;min-width:0;padding:2px 0;border:0;background:transparent;color:var(--text);font:inherit;outline:none}
+.grant-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;font-size:calc(12px * var(--text-scale))}
+.grant-row>span{width:96px;flex:none;color:var(--text-subtle)}
+.grant-row label{display:inline-flex;flex-direction:row;align-items:center;gap:6px;color:var(--text-soft);cursor:pointer}
+.grant-row label.disabled{color:var(--text-disabled);cursor:not-allowed}
+.grant-row .grant-number{gap:8px;color:var(--text-subtle)}
+.grant-row .grant-number input{width:72px;padding:4px 6px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-sunken);color:var(--text);font:inherit}
+.grant-rules{list-style:none;margin:0;padding:8px 10px;display:grid;gap:4px;border-radius:7px;background:var(--surface-sunken);font-size:calc(11.5px * var(--text-scale));color:var(--text-soft)}
+.grant-rules li{display:flex;align-items:center;gap:7px}
+.grant-dialog footer{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.grant-dialog .grant-problem{flex:1;color:var(--text-subtle);font-size:calc(11px * var(--text-scale))}
+
+/* "Open" on a message from another agent of this tree (system-events). */
+.system-event-line .system-event-sender{flex:none;margin-left:0}
+/* One quiet line about the tree. */
+.lineage-line{display:flex;align-items:center;gap:7px;margin:4px 0 8px;padding:3px 10px;border-left:2px solid var(--accent-line);color:var(--text-tertiary);font-size:calc(12px * var(--text-scale));line-height:1.5}
+.lineage-line>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lineage-line.kind-orchestration_revoked,.lineage-line.kind-agent_stopped{border-left-color:var(--line-strong)}

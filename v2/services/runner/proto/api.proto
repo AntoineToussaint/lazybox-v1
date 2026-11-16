@@ -266,6 +266,21 @@ service RunnerService {
   // Owner only. Sent prompts, newest first, from the Runner's prompt log, with
   // the snippet chain a conversation offers next.
   rpc ListPromptHistory(ListPromptHistoryRequest) returns (PromptHistory);
+  // The Orchestrator verbs (`lazybox agents …`; audits/2026-11-16/sota-agents.md
+  // §6.3). An agent credential calls them only for its own execution. Starting
+  // an agent needs an Orchestrator grant in force, which only the person gives
+  // (UpdateMission grant); every other verb reaches only the caller's own
+  // lineage: the children it started, or its parent. None approves, answers,
+  // passes a gate or accepts a task.
+  rpc SpawnAgent(SpawnAgentRequest) returns (AgentLineage);
+  rpc ListAgentLineage(AgentLineageRequest) returns (AgentLineage);
+  rpc SendAgentMessage(SendAgentMessageRequest) returns (AgentMessageReceipt);
+  // Waits, at most timeout_seconds (bounded), until the targets reach a state
+  // or (until "event") anything happens in the lineage after after_seq.
+  rpc WaitAgents(WaitAgentsRequest) returns (AgentLineage);
+  rpc StopChildAgent(StopChildAgentRequest) returns (AgentLineage);
+  // A child reports its own task done to the person (and its parent).
+  rpc ReportAgentTask(ReportAgentTaskRequest) returns (AgentLineage);
   // Artifacts: versioned documents (plans, reports, specs, notes) of one
   // workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
   // read and put artifacts of its own execution's workspace only
@@ -889,6 +904,23 @@ message Session {
   // When the person archived the conversation; 0 when not archived. Archived
   // conversations leave the working lists but stay in History.
   int64 archived_at_unix_millis = 38;
+  // Where this conversation sits in an agent tree, when it does.
+  SessionLineage lineage = 39;
+}
+// SessionLineage nests conversations by who started them: an orchestrator's
+// children name it as their parent.
+message SessionLineage {
+  // The orchestrator conversation that started this one.
+  string parent_conversation_id = 1;
+  string parent_title = 2;
+  string mission_id = 3;
+  string mission_title = 4;
+  string task_id = 5;
+  string role = 6;
+  // This conversation holds an Orchestrator grant in force.
+  string grant_id = 7;
+  uint32 live_children = 8;
+  uint32 max_children = 9;
 }
 // QueuedMessage is a message accepted while the agent was busy, waiting to be
 // delivered as the next turn.
@@ -908,7 +940,9 @@ message QueuedMessage {
 // `origin` in its provider data.
 message MessageOrigin {
   // repository_added, repository_declined, review_brief, review_findings,
-  // review_round, agent_ask, agent_answer, mission_brief or continuation.
+  // review_round, agent_ask, agent_answer, mission_brief, continuation, or
+  // between an orchestrator and an agent it started: agent_brief, agent_note
+  // or agent_report.
   string kind = 1;
   // The event in one line: "Added authority to this workspace".
   string summary = 2;
@@ -918,6 +952,10 @@ message MessageOrigin {
   string copy = 4;
   // The agent the message speaks for ("Codex"); empty is Lazybox.
   string from = 5;
+  // From's conversation and session, when it is another agent of this one's
+  // tree (an orchestrator and the agents it started): clients open it.
+  string conversation = 6;
+  string session = 7;
 }
 
 message Repository {
@@ -1826,6 +1864,117 @@ message AskAgentRequest {
   uint32 timeout_seconds = 4;
 }
 message WaitAgentAskRequest { string ask_id = 1; uint32 timeout_seconds = 2; }
+message SpawnAgentRequest {
+  // The orchestrator's execution.
+  string session_id = 1;
+  // Idempotency: a retried spawn starts no second agent.
+  string operation_id = 2;
+  // A new task's title and brief (its first message), or an existing task.
+  string title = 3;
+  string brief = 4;
+  string task_id = 5;
+  // Within the grant's ceiling; empty: the orchestrator's own subscription
+  // and model, and the narrower of its permission and the ceiling.
+  string profile_id = 6;
+  string model = 7;
+  string permission = 8;
+  // "same" (default: the orchestrator's workspace, shared files) or "new"
+  // (a workspace of its own: its repositories on new branches started from
+  // the orchestrator's).
+  string workspace = 9;
+  // A label: worker (default), reviewer, researcher.
+  string role = 10;
+}
+message AgentLineageRequest { string session_id = 1; }
+message AgentChild {
+  string conversation_id = 1;
+  // The child's latest session.
+  string session_id = 2;
+  string title = 3;
+  string task_id = 4;
+  string task_title = 5;
+  // The task's derived status (working, needs_you, claimed_done, done).
+  string task_status = 6;
+  string collection_id = 7;
+  string workspace_name = 8;
+  string profile_id = 9;
+  string model = 10;
+  string permission = 11;
+  string role = 12;
+  // running, waiting (for the person), idle, closed or missing.
+  string live = 13;
+  string live_detail = 14;
+  // The child reported its task; report is what it said.
+  bool reported = 15;
+  string report = 16;
+  // The tail of its latest message.
+  string last_message = 17;
+  int64 started_at_unix_millis = 18;
+  // The attempt ended (stopped, deleted).
+  bool ended = 19;
+  string outcome = 20;
+  // "parent" for the caller's own parent, else "child".
+  string relation = 21;
+}
+message AgentLineageEvent {
+  uint64 seq = 1;
+  int64 at_unix_millis = 2;
+  string type = 3;
+  string conversation_id = 4;
+  string summary = 5;
+}
+message AgentLineage {
+  string mission_id = 1;
+  string mission_title = 2;
+  // The caller's own grant, when it orchestrates.
+  MissionGrant grant = 3;
+  // The caller's parent, when an orchestrator started it.
+  AgentChild parent = 4;
+  repeated AgentChild children = 5;
+  // The mission log's cursor: wait and watch continue after it.
+  uint64 seq = 6;
+  // WaitAgents: what happened in the lineage after after_seq, oldest first.
+  repeated AgentLineageEvent events = 7;
+  // WaitAgents: the condition held (else the wait timed out); why, in words.
+  bool matched = 8;
+  string reason = 9;
+  // SpawnAgent: the child just started.
+  AgentChild spawned = 10;
+}
+message SendAgentMessageRequest {
+  string session_id = 1;
+  // "parent", or a child: its conversation id, session id or title.
+  string to = 2;
+  string text = 3;
+  string operation_id = 4;
+}
+message AgentMessageReceipt {
+  string id = 1;
+  string to_conversation_id = 2;
+  string to_label = 3;
+  // queued (the receiver is in a turn) or delivered.
+  string delivery = 4;
+}
+message WaitAgentsRequest {
+  string session_id = 1;
+  // Children (conversation id, session id or title), or "parent"; empty: every live child.
+  repeated string targets = 2;
+  // idle (its turn ended), needs-input (it waits for the person), reported,
+  // closed, settled (any of these: the default) or event (anything new).
+  string until = 3;
+  // Every target must hold (the default), or any one.
+  bool any = 4;
+  uint32 timeout_seconds = 5;
+  uint64 after_seq = 6;
+}
+message StopChildAgentRequest {
+  string session_id = 1;
+  string target = 2;
+  // End the conversation and its attempt, not only its turn.
+  bool end = 3;
+  string reason = 4;
+}
+message ReportAgentTaskRequest { string session_id = 1; string summary = 2; }
 message AgentAsk {
   string id = 1;
   string review_id = 2;
@@ -2220,7 +2369,63 @@ message UpdateMissionRequest {
     TaskReport report = 10;
     GateDecision accept = 11;
     GateDecision reject = 12;
+    // The person lets one conversation run agents for this mission, and
+    // takes that back. Never an agent's: UpdateMission is owner only.
+    OrchestratorGrantChange grant = 13;
+    GrantRevoke revoke_grant = 14;
   }
+}
+message OrchestratorGrantChange {
+  // Any session of the conversation that is to orchestrate.
+  string session_id = 1;
+  OrchestratorCeiling ceiling = 2;
+}
+// The most an orchestrator's children may get. Each field only narrows.
+message OrchestratorCeiling {
+  // read-only, ask or yolo; at most the holder's own permission.
+  string permission = 1;
+  // The subscriptions children may run on; empty: the holder's own and its rotation.
+  repeated string profile_ids = 2;
+  // Children live at once (1-16, default 3).
+  uint32 max_children = 3;
+  // 1: children start no agents (default); 2-3: the orchestrator may narrow
+  // its grant for a child.
+  uint32 depth = 4;
+  // What the whole tree may spend; 0 sets no cap.
+  double budget_usd = 5;
+}
+message GrantRevoke { string grant_id = 1; string reason = 2; }
+message MissionGrant {
+  string id = 1;
+  // The conversation that orchestrates, and its latest session.
+  string conversation_id = 2;
+  string session_id = 3;
+  string title = 4;
+  // The grant this one was narrowed from, for a child orchestrator.
+  string parent_grant_id = 5;
+  OrchestratorCeiling ceiling = 6;
+  repeated string scopes = 7;
+  int64 issued_at_unix_millis = 8;
+  int64 revoked_at_unix_millis = 9;
+  string revoke_reason = 10;
+  // human, agent (narrowed for a child) or lazybox (the conversation was deleted).
+  string issued_by = 11;
+  string revoked_by = 12;
+  bool live = 13;
+  uint32 live_children = 14;
+  uint32 children = 15;
+}
+message MissionMessage {
+  string id = 1;
+  uint64 seq = 2;
+  int64 at_unix_millis = 3;
+  string from_conversation_id = 4;
+  string to_conversation_id = 5;
+  string from_label = 6;
+  string to_label = 7;
+  // note or report.
+  string kind = 8;
+  string text = 9;
 }
 message MissionEdit { string title = 1; string brief = 2; }
 message MissionCancel { string reason = 1; }
@@ -2255,6 +2460,10 @@ message Mission {
   string created_id = 16;
   // UpdateMission with assign: the session the task went to.
   string session_id = 17;
+  // Orchestrator grants, live and revoked, oldest first.
+  repeated MissionGrant grants = 18;
+  // GetMission only: messages between agents, newest first (at most 200).
+  repeated MissionMessage messages = 19;
 }
 message MissionGoal { string id = 1; string title = 2; }
 message MissionTask {
@@ -2294,6 +2503,13 @@ message MissionAttempt {
   string live = 8;
   string live_detail = 9;
   string title = 10;
+  // Lineage: the conversation that started this one, under which grant, as
+  // what role, at which permission and on which subscription.
+  string parent_conversation_id = 11;
+  string grant_id = 12;
+  string role = 13;
+  string permission = 14;
+  string profile_id = 15;
 }
 message MissionEvidence {
   string ref = 1;

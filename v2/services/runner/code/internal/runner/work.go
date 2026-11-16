@@ -317,6 +317,8 @@ func (b *Bench) forgetConversation(ids ...string) {
 	if b.Work != nil {
 		for _, id := range ids {
 			_ = b.Work.EndAttempts(id, "deleted")
+			// A deleted conversation runs no more agents.
+			_ = b.Work.RevokeHeld(id, "the conversation was deleted")
 		}
 	}
 	if b.Prompts != nil {

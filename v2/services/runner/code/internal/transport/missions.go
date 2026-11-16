@@ -113,6 +113,10 @@ func (s *Service) UpdateMission(ctx context.Context, r *pb.UpdateMissionRequest)
 		state, err = store.Decide(id, c.Accept.GetTaskId(), work.Human, key, true, c.Accept.GetNote())
 	case *pb.UpdateMissionRequest_Reject:
 		state, err = store.Decide(id, c.Reject.GetTaskId(), work.Human, key, false, c.Reject.GetNote())
+	case *pb.UpdateMissionRequest_Grant:
+		state, created, err = s.grant(ctx, id, key, c.Grant)
+	case *pb.UpdateMissionRequest_RevokeGrant:
+		state, err = s.Bench.Revoke(ctx, id, c.RevokeGrant.GetGrantId(), key, c.RevokeGrant.GetReason())
 	default:
 		return nil, grpcError(codes.InvalidArgument, errors.New("a typed change is required"))
 	}
@@ -315,6 +319,9 @@ func (s *Service) wireMission(ctx context.Context, state *work.State, readErr er
 			conversations = append(conversations, a.Conversation)
 		}
 	}
+	for _, g := range state.Grants {
+		conversations = append(conversations, g.Holder)
+	}
 	obs := s.Bench.Observe(ctx, conversations)
 	for _, v := range work.Derive(state, obs) {
 		task := &pb.MissionTask{Id: v.ID, GoalId: v.Goal, Title: v.Title, Brief: v.Brief, Status: v.Status, Trust: v.Trust, EvidenceTrust: v.EvidenceTrust, Reason: v.Reason, Flags: v.Flags, Gate: v.Gate, BlockedBy: v.BlockedBy, CreatedAtUnixMillis: millis(v.Created), UpdatedAtUnixMillis: millis(v.Task.Updated)}
@@ -343,16 +350,24 @@ func (s *Service) wireMission(ctx context.Context, state *work.State, readErr er
 		}
 		out.Tasks = append(out.Tasks, task)
 	}
+	for _, g := range state.Grants {
+		out.Grants = append(out.Grants, wireGrant(state, g, obs.Conversations[g.Holder].Session))
+	}
 	if full {
 		for i := len(state.Events) - 1; i >= 0 && len(out.Events) < 200; i-- {
 			out.Events = append(out.Events, wireMissionEvent(state, state.Events[i]))
+		}
+		for i := len(state.Messages) - 1; i >= 0 && len(out.Messages) < 200; i-- {
+			m := state.Messages[i]
+			out.Messages = append(out.Messages, &pb.MissionMessage{Id: m.Message, Seq: m.Seq, AtUnixMillis: millis(m.At), FromConversationId: m.From, ToConversationId: m.To, FromLabel: m.FromLabel, ToLabel: m.ToLabel, Kind: m.Kind, Text: m.Text})
 		}
 	}
 	return out
 }
 
 func wireAttempt(a *work.Attempt, live work.Liveness) *pb.MissionAttempt {
-	out := &pb.MissionAttempt{Id: a.ID, ConversationId: a.Conversation, SessionId: a.Execution, CollectionId: a.Workspace, StartedAtUnixMillis: millis(a.Started), Outcome: a.Outcome, Live: live.State, LiveDetail: live.Detail, Title: live.Title}
+	out := &pb.MissionAttempt{Id: a.ID, ConversationId: a.Conversation, SessionId: a.Execution, CollectionId: a.Workspace, StartedAtUnixMillis: millis(a.Started), Outcome: a.Outcome, Live: live.State, LiveDetail: live.Detail, Title: live.Title,
+		ParentConversationId: a.Parent, GrantId: a.Grant, Role: a.Role, Permission: a.Permission, ProfileId: a.Profile}
 	if live.Session != "" {
 		out.SessionId = live.Session
 	}
@@ -421,6 +436,9 @@ func eventSummary(state *work.State, e work.Event) string {
 	case work.TaskCanceled:
 		return task + " canceled" + with(p.Reason)
 	case work.TaskAssigned:
+		if e.Actor.Kind == work.ActorAgent {
+			return task + " started by an orchestrator"
+		}
 		return task + " assigned to a conversation"
 	case work.AttemptStarted:
 		return "Attempt on " + task + " started"
@@ -447,6 +465,23 @@ func eventSummary(state *work.State, e work.Event) string {
 		return "You accepted " + task + with(p.Note)
 	case work.GateRejected:
 		return "You asked for changes on " + task + with(p.Note)
+	case work.GrantIssued:
+		var g work.GrantPayload
+		_ = json.Unmarshal(e.Payload, &g)
+		who := "“" + firstNonEmpty(g.Title, "a conversation") + "”"
+		if g.Parent != "" {
+			return "An orchestrator let " + who + " run agents (narrowed)"
+		}
+		return fmt.Sprintf("You let %s run agents: up to %d at once, %s", who, g.Ceiling.MaxChildren, g.Ceiling.Permission)
+	case work.GrantRevoked:
+		return "Orchestrator grant revoked" + with(p.Reason)
+	case work.MessageSent:
+		var m work.MessagePayload
+		_ = json.Unmarshal(e.Payload, &m)
+		if m.Kind == "report" {
+			return "“" + m.FromLabel + "” reported to “" + m.ToLabel + "”"
+		}
+		return "“" + m.FromLabel + "” → “" + m.ToLabel + "”: " + strings.Join(strings.Fields(m.Text), " ")
 	}
 	return e.Type + " (not understood by this Runner; kept as recorded)"
 }

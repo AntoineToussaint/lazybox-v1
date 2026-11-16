@@ -91,6 +91,12 @@ their checks — as **evidence**. A task's *trust* is derived from that evidence
 accept or send back work at its gate. **Preview** — see
 [Missions and evidence](guides/missions.md).
 
+You can let one conversation be a mission's **orchestrator**: it starts agents
+for the mission's tasks, messages and waits on them, within limits you set
+(how many at once, their permission, their subscriptions, a budget). It never
+approves, answers for you or accepts work; its agents ask you. See
+[Let an agent run agents](guides/orchestrator.md).
+
 ## Artifacts
 
 An **artifact** is a versioned document of a workspace — a plan, a report, a

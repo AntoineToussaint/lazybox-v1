@@ -13,6 +13,7 @@ import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import type { TranscriptMessage } from './transcript-model';
 import { NOTICE_ICONS, restartTitle, systemEventView, type RunnerNotice } from './system-events';
+import { OpenSender } from './AgentMessages';
 import './system-events.css';
 
 type Menu = ((event: MouseEvent<HTMLElement>) => void) | undefined;
@@ -40,6 +41,7 @@ export function SystemEvent({ message: m, agentName, onOpenFile, onContextMenu }
         {view.detail && <span className="system-event-detail">{view.detail}</span>}
         <span className="system-event-chevron" aria-hidden="true"><Icon name="chevronRight" size={11}/></span>
       </button>
+      {m.origin!.conversation && <OpenSender origin={m.origin!}/>}
       {view.copy && <button type="button" className="icon-button system-event-copy" aria-label={`Copy ${copyWhat}`} title={`Copy ${view.copy}`} onClick={() => copyText(view.copy, `Copied ${copyWhat}`)}><Icon name="copy" size={11}/></button>}
     </div>
     {open && <div id={body} ref={opened} className="system-event-body">

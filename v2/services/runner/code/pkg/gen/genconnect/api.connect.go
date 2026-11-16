@@ -446,6 +446,24 @@ const (
 	// RunnerServiceListPromptHistoryProcedure is the fully-qualified name of the RunnerService's
 	// ListPromptHistory RPC.
 	RunnerServiceListPromptHistoryProcedure = "/lazybox.bench.v1.RunnerService/ListPromptHistory"
+	// RunnerServiceSpawnAgentProcedure is the fully-qualified name of the RunnerService's SpawnAgent
+	// RPC.
+	RunnerServiceSpawnAgentProcedure = "/lazybox.bench.v1.RunnerService/SpawnAgent"
+	// RunnerServiceListAgentLineageProcedure is the fully-qualified name of the RunnerService's
+	// ListAgentLineage RPC.
+	RunnerServiceListAgentLineageProcedure = "/lazybox.bench.v1.RunnerService/ListAgentLineage"
+	// RunnerServiceSendAgentMessageProcedure is the fully-qualified name of the RunnerService's
+	// SendAgentMessage RPC.
+	RunnerServiceSendAgentMessageProcedure = "/lazybox.bench.v1.RunnerService/SendAgentMessage"
+	// RunnerServiceWaitAgentsProcedure is the fully-qualified name of the RunnerService's WaitAgents
+	// RPC.
+	RunnerServiceWaitAgentsProcedure = "/lazybox.bench.v1.RunnerService/WaitAgents"
+	// RunnerServiceStopChildAgentProcedure is the fully-qualified name of the RunnerService's
+	// StopChildAgent RPC.
+	RunnerServiceStopChildAgentProcedure = "/lazybox.bench.v1.RunnerService/StopChildAgent"
+	// RunnerServiceReportAgentTaskProcedure is the fully-qualified name of the RunnerService's
+	// ReportAgentTask RPC.
+	RunnerServiceReportAgentTaskProcedure = "/lazybox.bench.v1.RunnerService/ReportAgentTask"
 	// RunnerServiceListArtifactsProcedure is the fully-qualified name of the RunnerService's
 	// ListArtifacts RPC.
 	RunnerServiceListArtifactsProcedure = "/lazybox.bench.v1.RunnerService/ListArtifacts"
@@ -792,6 +810,21 @@ type RunnerServiceClient interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
+	// The Orchestrator verbs (`lazybox agents …`; audits/2026-11-16/sota-agents.md
+	// §6.3). An agent credential calls them only for its own execution. Starting
+	// an agent needs an Orchestrator grant in force, which only the person gives
+	// (UpdateMission grant); every other verb reaches only the caller's own
+	// lineage: the children it started, or its parent. None approves, answers,
+	// passes a gate or accepts a task.
+	SpawnAgent(context.Context, *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	ListAgentLineage(context.Context, *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error)
+	SendAgentMessage(context.Context, *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error)
+	// Waits, at most timeout_seconds (bounded), until the targets reach a state
+	// or (until "event") anything happens in the lineage after after_seq.
+	WaitAgents(context.Context, *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error)
+	StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	// A child reports its own task done to the person (and its parent).
+	ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -1721,6 +1754,42 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
 			connect.WithClientOptions(opts...),
 		),
+		spawnAgent: connect.NewClient[gen.SpawnAgentRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceSpawnAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SpawnAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		listAgentLineage: connect.NewClient[gen.AgentLineageRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceListAgentLineageProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListAgentLineage")),
+			connect.WithClientOptions(opts...),
+		),
+		sendAgentMessage: connect.NewClient[gen.SendAgentMessageRequest, gen.AgentMessageReceipt](
+			httpClient,
+			baseURL+RunnerServiceSendAgentMessageProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendAgentMessage")),
+			connect.WithClientOptions(opts...),
+		),
+		waitAgents: connect.NewClient[gen.WaitAgentsRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceWaitAgentsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitAgents")),
+			connect.WithClientOptions(opts...),
+		),
+		stopChildAgent: connect.NewClient[gen.StopChildAgentRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceStopChildAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StopChildAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		reportAgentTask: connect.NewClient[gen.ReportAgentTaskRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceReportAgentTaskProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReportAgentTask")),
+			connect.WithClientOptions(opts...),
+		),
 		listArtifacts: connect.NewClient[gen.ListArtifactsRequest, gen.ListArtifactsResponse](
 			httpClient,
 			baseURL+RunnerServiceListArtifactsProcedure,
@@ -2027,6 +2096,12 @@ type runnerServiceClient struct {
 	createMission                *connect.Client[gen.CreateMissionRequest, gen.Mission]
 	updateMission                *connect.Client[gen.UpdateMissionRequest, gen.Mission]
 	listPromptHistory            *connect.Client[gen.ListPromptHistoryRequest, gen.PromptHistory]
+	spawnAgent                   *connect.Client[gen.SpawnAgentRequest, gen.AgentLineage]
+	listAgentLineage             *connect.Client[gen.AgentLineageRequest, gen.AgentLineage]
+	sendAgentMessage             *connect.Client[gen.SendAgentMessageRequest, gen.AgentMessageReceipt]
+	waitAgents                   *connect.Client[gen.WaitAgentsRequest, gen.AgentLineage]
+	stopChildAgent               *connect.Client[gen.StopChildAgentRequest, gen.AgentLineage]
+	reportAgentTask              *connect.Client[gen.ReportAgentTaskRequest, gen.AgentLineage]
 	listArtifacts                *connect.Client[gen.ListArtifactsRequest, gen.ListArtifactsResponse]
 	getArtifact                  *connect.Client[gen.GetArtifactRequest, gen.Artifact]
 	putArtifact                  *connect.Client[gen.PutArtifactRequest, gen.Artifact]
@@ -2751,6 +2826,36 @@ func (c *runnerServiceClient) ListPromptHistory(ctx context.Context, req *connec
 	return c.listPromptHistory.CallUnary(ctx, req)
 }
 
+// SpawnAgent calls lazybox.bench.v1.RunnerService.SpawnAgent.
+func (c *runnerServiceClient) SpawnAgent(ctx context.Context, req *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.spawnAgent.CallUnary(ctx, req)
+}
+
+// ListAgentLineage calls lazybox.bench.v1.RunnerService.ListAgentLineage.
+func (c *runnerServiceClient) ListAgentLineage(ctx context.Context, req *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.listAgentLineage.CallUnary(ctx, req)
+}
+
+// SendAgentMessage calls lazybox.bench.v1.RunnerService.SendAgentMessage.
+func (c *runnerServiceClient) SendAgentMessage(ctx context.Context, req *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error) {
+	return c.sendAgentMessage.CallUnary(ctx, req)
+}
+
+// WaitAgents calls lazybox.bench.v1.RunnerService.WaitAgents.
+func (c *runnerServiceClient) WaitAgents(ctx context.Context, req *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.waitAgents.CallUnary(ctx, req)
+}
+
+// StopChildAgent calls lazybox.bench.v1.RunnerService.StopChildAgent.
+func (c *runnerServiceClient) StopChildAgent(ctx context.Context, req *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.stopChildAgent.CallUnary(ctx, req)
+}
+
+// ReportAgentTask calls lazybox.bench.v1.RunnerService.ReportAgentTask.
+func (c *runnerServiceClient) ReportAgentTask(ctx context.Context, req *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.reportAgentTask.CallUnary(ctx, req)
+}
+
 // ListArtifacts calls lazybox.bench.v1.RunnerService.ListArtifacts.
 func (c *runnerServiceClient) ListArtifacts(ctx context.Context, req *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {
 	return c.listArtifacts.CallUnary(ctx, req)
@@ -3150,6 +3255,21 @@ type RunnerServiceHandler interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
+	// The Orchestrator verbs (`lazybox agents …`; audits/2026-11-16/sota-agents.md
+	// §6.3). An agent credential calls them only for its own execution. Starting
+	// an agent needs an Orchestrator grant in force, which only the person gives
+	// (UpdateMission grant); every other verb reaches only the caller's own
+	// lineage: the children it started, or its parent. None approves, answers,
+	// passes a gate or accepts a task.
+	SpawnAgent(context.Context, *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	ListAgentLineage(context.Context, *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error)
+	SendAgentMessage(context.Context, *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error)
+	// Waits, at most timeout_seconds (bounded), until the targets reach a state
+	// or (until "event") anything happens in the lineage after after_seq.
+	WaitAgents(context.Context, *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error)
+	StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	// A child reports its own task done to the person (and its parent).
+	ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -4075,6 +4195,42 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceSpawnAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceSpawnAgentProcedure,
+		svc.SpawnAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("SpawnAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListAgentLineageHandler := connect.NewUnaryHandler(
+		RunnerServiceListAgentLineageProcedure,
+		svc.ListAgentLineage,
+		connect.WithSchema(runnerServiceMethods.ByName("ListAgentLineage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendAgentMessageHandler := connect.NewUnaryHandler(
+		RunnerServiceSendAgentMessageProcedure,
+		svc.SendAgentMessage,
+		connect.WithSchema(runnerServiceMethods.ByName("SendAgentMessage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitAgentsHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitAgentsProcedure,
+		svc.WaitAgents,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitAgents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStopChildAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceStopChildAgentProcedure,
+		svc.StopChildAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("StopChildAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReportAgentTaskHandler := connect.NewUnaryHandler(
+		RunnerServiceReportAgentTaskProcedure,
+		svc.ReportAgentTask,
+		connect.WithSchema(runnerServiceMethods.ByName("ReportAgentTask")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListArtifactsHandler := connect.NewUnaryHandler(
 		RunnerServiceListArtifactsProcedure,
 		svc.ListArtifacts,
@@ -4517,6 +4673,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceUpdateMissionHandler.ServeHTTP(w, r)
 		case RunnerServiceListPromptHistoryProcedure:
 			runnerServiceListPromptHistoryHandler.ServeHTTP(w, r)
+		case RunnerServiceSpawnAgentProcedure:
+			runnerServiceSpawnAgentHandler.ServeHTTP(w, r)
+		case RunnerServiceListAgentLineageProcedure:
+			runnerServiceListAgentLineageHandler.ServeHTTP(w, r)
+		case RunnerServiceSendAgentMessageProcedure:
+			runnerServiceSendAgentMessageHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitAgentsProcedure:
+			runnerServiceWaitAgentsHandler.ServeHTTP(w, r)
+		case RunnerServiceStopChildAgentProcedure:
+			runnerServiceStopChildAgentHandler.ServeHTTP(w, r)
+		case RunnerServiceReportAgentTaskProcedure:
+			runnerServiceReportAgentTaskHandler.ServeHTTP(w, r)
 		case RunnerServiceListArtifactsProcedure:
 			runnerServiceListArtifactsHandler.ServeHTTP(w, r)
 		case RunnerServiceGetArtifactProcedure:
@@ -5134,6 +5302,30 @@ func (UnimplementedRunnerServiceHandler) UpdateMission(context.Context, *connect
 
 func (UnimplementedRunnerServiceHandler) ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListPromptHistory is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SpawnAgent(context.Context, *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SpawnAgent is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListAgentLineage(context.Context, *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListAgentLineage is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendAgentMessage(context.Context, *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendAgentMessage is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitAgents(context.Context, *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitAgents is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StopChildAgent is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReportAgentTask is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {

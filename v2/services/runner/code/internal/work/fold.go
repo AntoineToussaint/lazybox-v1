@@ -20,6 +20,10 @@ type State struct {
 	Seq      uint64
 	Goals    []*Goal
 	Tasks    []*Task
+	// Grants and Messages: the Orchestrator grants and the messages between
+	// agents (grant.go).
+	Grants   []*Grant
+	Messages []*Message
 	Events   []Event
 	// Ignored counts events kept in the log but not folded: unknown types,
 	// newer versions, or (when replaying leniently) events this Runner would refuse.
@@ -60,11 +64,13 @@ type Attempt struct {
 	Workspace    string
 	Execution    string
 	New          bool
-	Started      time.Time
-	StartSeq     uint64
-	Ended        bool
-	EndedAt      time.Time
-	Outcome      string
+	// Lineage (grant.go): set when an orchestrator started this conversation.
+	Parent, Grant, Role, Permission, Profile string
+	Started                                  time.Time
+	StartSeq                                 uint64
+	Ended                                    bool
+	EndedAt                                  time.Time
+	Outcome                                  string
 }
 
 type Report struct {
@@ -176,6 +182,29 @@ func (s *State) Done(t *Task) bool {
 
 func (s *State) terminal(t *Task) bool { return t.Canceled || s.Done(t) }
 
+// agentMay is every event an agent may be the actor of. A gate decision, an
+// acceptance, a cancellation, a brief change or evidence never is.
+var agentMay = map[string]bool{
+	TaskCreated:  true, // an orchestrator, with a grant in force
+	TaskAssigned: true, // an orchestrator starting its child (checkLineage)
+	AttemptEnded: true, // an orchestrator stopping its own child
+	TaskReported: true, // a child reporting its own task
+	GrantIssued:  true, // narrowed for its own child
+	GrantRevoked: true, // a grant it narrowed
+	MessageSent:  true, // to its parent or its own child
+}
+
+// reviewVerdict is a reviewer's verdict, recorded by Lazybox from the review
+// store and attributed to the reviewer that filed it: the one evidence an
+// agent is the actor of.
+func reviewVerdict(e Event) bool {
+	if e.Type != EvidenceRecorded {
+		return false
+	}
+	p, ok := decode[Evidence](e)
+	return ok && p.Kind == EvidenceReview
+}
+
 // Fold replays a mission's log strictly: the first event this Runner would
 // refuse is an error. Golden logs and appends use it.
 func Fold(events []Event) (*State, error) { return fold(events, true) }
@@ -264,7 +293,13 @@ func (s *State) fold(e Event) error {
 		// Human gates are owner-only by construction: no role, rule or agent passes one.
 		return refuse("only a person passes or rejects a gate")
 	}
+	if e.Actor.Kind == ActorAgent && !agentMay[e.Type] && !reviewVerdict(e) {
+		// What an agent may write is a short list; every other change is a person's or Lazybox's.
+		return refuse("an agent cannot record %s", e.Type)
+	}
 	switch e.Type {
+	case GrantIssued, GrantRevoked, MessageSent:
+		return s.foldGrant(e)
 	case MissionProcessPinned:
 		p, ok := decode[ProcessPayload](e)
 		if !ok {
@@ -308,6 +343,9 @@ func (s *State) fold(e Event) error {
 		}
 		if p.Goal != "" && s.goals[p.Goal] == nil {
 			return refuse("goal %q does not exist", p.Goal)
+		}
+		if e.Actor.Kind == ActorAgent && s.HeldBy(e.Actor.Conversation) == nil {
+			return refuse("only an orchestrator with a grant in force adds tasks")
 		}
 		for _, before := range p.BlockedBy {
 			if s.tasks[before] == nil {
@@ -403,7 +441,12 @@ func (s *State) foldTask(e Event) error {
 				return refuse("attempt %q exists", p.Attempt)
 			}
 		}
-		t.Attempts = append(t.Attempts, &Attempt{ID: p.Attempt, Task: t.ID, Conversation: p.Conversation, Workspace: p.Workspace, Execution: p.Execution, New: p.New})
+		if e.Actor.Kind == ActorAgent || p.Grant != "" || p.Parent != "" {
+			if err := s.checkLineage(e, p); err != nil {
+				return err
+			}
+		}
+		t.Attempts = append(t.Attempts, &Attempt{ID: p.Attempt, Task: t.ID, Conversation: p.Conversation, Workspace: p.Workspace, Execution: p.Execution, New: p.New, Parent: p.Parent, Grant: p.Grant, Role: p.Role, Permission: p.Permission, Profile: p.Profile})
 	case AttemptStarted:
 		p, _ := decode[AttemptPayload](e)
 		a := t.Current()
@@ -420,6 +463,9 @@ func (s *State) foldTask(e Event) error {
 		if a == nil || a.Ended {
 			return refuse("attempt %q is not live", p.Attempt)
 		}
+		if e.Actor.Kind == ActorAgent && (a.Parent == "" || a.Parent != e.Actor.Conversation) {
+			return refuse("an agent stops only the children it started")
+		}
 		a.Ended, a.EndedAt, a.Outcome = true, e.At, p.Outcome
 	case TaskReported:
 		p, _ := decode[ReportPayload](e)
@@ -428,6 +474,12 @@ func (s *State) foldTask(e Event) error {
 		}
 		if len(p.Summary) > maxSummary {
 			return refuse("report summary is longer than %d bytes", maxSummary)
+		}
+		if e.Actor.Kind == ActorAgent {
+			// An agent reports only the task it is the live attempt of.
+			if a := t.Current(); a == nil || a.Ended || a.Conversation != e.Actor.Conversation {
+				return refuse("an agent reports only its own task")
+			}
 		}
 		t.Reports = append(t.Reports, Report{Seq: e.Seq, At: e.At, Summary: p.Summary, Actor: e.Actor, Evidence: append([]string(nil), e.Evidence...)})
 	case EvidenceRecorded:

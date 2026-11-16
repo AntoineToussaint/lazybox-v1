@@ -7,8 +7,11 @@ written 2026-11-16, with its [decisions](#decisions-for-you) taken. Slice 0
 (the process file: §4) is implemented in
 [`internal/process`](services/runner/code/internal/process/doc.go) and
 [slice 1](#slice-1-as-built) (the mission log and the derived board, solo
-pair) in [`internal/work`](services/runner/code/internal/work/doc.go); the
-rest is not yet.
+pair) in [`internal/work`](services/runner/code/internal/work/doc.go);
+[the Orchestrator grant](#the-orchestrator-grant-and-lineage-slice-2a-as-built)
+(one conversation runs a mission's agents, under a ceiling the person sets)
+in `internal/work/grant.go` and `internal/runner/orchestrator.go`; the rest is
+not yet.
 [Software factory](SOFTWARE_FACTORY.md) describes the end state (contract,
 holdouts, verifier, merge queue); this page is the model and configuration
 underneath it.
@@ -730,6 +733,94 @@ becomes; each finding is also a `finding.filed` event on the task, and the
 person's accept or dismiss a `finding.disposed`; a rule on `finding.filed`
 with `finding.severity == 'blocker'` sends the author `fixall`. Nothing in the
 person-triggered path is replaced: a rule starts what the click starts.
+
+### The Orchestrator grant and lineage (slice 2a as built)
+
+The coordination design of [sota-agents.md §6](audits/2026-11-16/sota-agents.md#6-a-coordination-design-for-lazybox)
+starts here: a person lets one conversation run a mission's agents, and that
+conversation drives only the agents it started. Guide:
+[Let an agent run agents](docs/guides/orchestrator.md).
+
+**The grant is a mission event.** `grant.issued` (subject `grant:<id>`)
+names the holder conversation, the scopes (`session.spawn`, `session.send`,
+`session.wait`, `session.stop`, `task.create`; there is deliberately no scope
+that approves, answers, passes a gate or accepts) and a **ceiling**:
+permission (read-only, ask or yolo), the subscriptions children may run on,
+how many may be live at once (1–16, default 3), depth (1–3, default 1) and a
+budget for the tree. `grant.revoked` ends it. Only a person issues a root
+grant (`UpdateMission` `grant`, owner only); the fold
+(`internal/work/grant.go`) refuses one from anyone else, a second live grant
+for the same conversation, and (Store) the same conversation orchestrating two
+missions. The person's ceiling cannot exceed the conversation's own permission
+(`inherit` counts as ask); the subscriptions default to its own and its
+rotation, and the person may name others. A grant an agent narrows for its
+own child (depth > 1) must be a subset in every field, and falls with the
+grant it came from. Deleting the holder revokes its grants (`lazybox` actor).
+
+**Lineage is the attempt.** A spawn appends `task.created` (actor agent),
+`task.assigned` and `attempt.started` in one batch; the assignment carries
+`parent` (the orchestrator's conversation), `grant`, `role`, `permission` and
+`profile`. The fold checks the grant is in force, the actor is its holder,
+there is room for one more live child (a child counts until its task is
+accepted or canceled, or its attempt ends), and the child's permission and
+subscription are within the ceiling. The Runner (`runner/orchestrator.go`)
+narrows further before it opens anything: the child's permission is the
+narrower of the request, the ceiling and the orchestrator's permission *now*;
+it never rotates subscriptions; a parent in plan mode gets a child in plan
+mode; it uses the parent's gateway. `--workspace new` creates a workspace
+with the parent's repositories on new branches from the parent's branches.
+
+**An agent writes a short list.** `agentMay` in `fold.go` is every event an
+agent may be the actor of: `task.created` (holder), `task.assigned` (holder,
+lineage-checked), `attempt.ended` (its own child), `task.reported` (its own
+task), `grant.*` (narrowed for its own child) and `message.sent`. Plus one
+exception: a reviewer's verdict (`evidence.recorded` of kind `review`), which
+Lazybox records from the review store. Gate decisions stay `human` only.
+
+**Messages.** `message.sent` (subject `message:<id>`) goes only between a
+parent and its child (`State.Related`), from the sending agent itself, at
+most 4 KB, at most six a minute in each direction of a pair (counted from the
+log, so a restart does not reset it). The receiver gets it as a turn whose
+journal record carries `data.origin` (`agent.Origin`, kinds `agent_brief`,
+`agent_note` and `agent_report`, with the sender's conversation so clients
+can open it): clients show it as an event of the conversation from the
+sender, opening to the exact text, never as "You". The prompt log records it with source `agent`. The
+sender's transcript gets an `agent_message` line; spawns, stops and grants are
+`agent_spawned`, `agent_stopped`, `orchestration_granted|revoked` lines.
+
+**The verbs** are six RPCs on the agent allowlist (`transport/auth.go`), each
+for the caller's own execution only: `SpawnAgent` (also needs a grant in
+force), `ListAgentLineage`, `SendAgentMessage` and `WaitAgents` (every target
+in the caller's lineage: its children under a live grant, or `parent`),
+`StopChildAgent` (a child, never `parent`) and `ReportAgentTask` (a child,
+its own task: the mission's report rule opens the person's gate, and the
+parent is told). `TestOrchestratorGrantWalksEveryRPC` walks every other RPC
+and stream for the orchestrator's and the child's credentials (denied), and
+names the forbidden ones: approve, answer and permission change on the child's
+pending request, accept, reject, grant and revoke. CLI: `lazybox agents
+spawn|ls|send|wait|watch|stop|report`; `wait` and `watch` long-poll in 55 s
+steps and ride over a Runner restart.
+
+**Briefings.** The orchestrator's (what it may do, its ceiling) goes with the
+person's next message as instructions, outside the transcript; a revoke does
+the same. A child's is its session's own instructions (who started it, how to
+report and reply; approvals go to the person). Both are constants in
+`runner/orchestrator.go`, apart from `commandBriefing`.
+
+**On screen.** `/orchestrate` (⌘K *Let this conversation run agents…*, or the
+board's *Let a conversation run agents…*) opens the grant sheet. The header
+shows **Orchestrator n/m**; its card lists the ceiling and the agents with
+their state, and revokes. A child's header leads to its orchestrator
+(`Session.lineage`, which the Agents panel can nest by). The board shows the
+orchestrator above the columns and, on each card, who started it as what.
+
+**Not yet.** Plan approval before spawns, budgets reserved and enforced, the
+Missions page with Messages and Timeline tabs, leases and live overlap, and
+review-capacity WIP are the next slices of sota-agents.md §6.14. A child's
+approvals reach the person's Inbox as before, without a lineage crumb yet.
+`ask` (a blocking question to a child) is `send` plus `wait --until idle`.
+Not verified with real Claude or Codex agents: the fake provider and the
+fake Runner drive every test.
 
 ### Risks and failure modes
 

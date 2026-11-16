@@ -6,6 +6,7 @@ import { applyToolPayload, hiddenTool, THINKING, type ToolEntry } from './tool-l
 import { answerNote, requestNote, type AnswerNote, type RequestNote } from './request-model';
 import { commandLine, emptyCatalog, mergeCatalog, parseSlash, COMMAND_NAME, type CommandCatalog } from './slash-commands';
 import { legacyOrigin, messageOrigin, type MessageOrigin, type RunnerNotice } from './system-events';
+import { LINEAGE_EVENTS } from './orchestration-model';
 
 /**
  * `agentId` names the sub-agent whose card a `subagent` message is.
@@ -18,7 +19,11 @@ export type TranscriptMessage = { id: string; type: string; text: string; turnId
   /** A `notice`: what a Runner restart (or a revert) left to know. */
   notice?: RunnerNotice;
   /** A `reattached` marker: when the last of its restarts was. */
-  at?: number };
+  at?: number;
+  /** `lineage`: an agent-tree line (started, messaged, stopped, granted) and what it points at. */
+  lineage?: LineageNote };
+/** One line about an agent tree, as the Runner recorded it (runner/orchestrator.go). */
+export type LineageNote = { kind: string; conversation: string; session: string; mission: string; direction: string };
 /** An agent review of this conversation's work (the Runner's review_started /
  * review_finished events): its card follows the review live; the counts here
  * are what the last event said, for when the review record is gone. */
@@ -143,6 +148,14 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       const data = providerData(event.providerDataJson);
       const review = typeof data.review === 'string' ? data.review : '', workspace = typeof data.workspace === 'string' ? data.workspace : '';
       add({ id: record.cursor.toString(), type: event.type === 'review_exchange' ? 'exchange' : 'review-alert', text: event.text, turnId: event.turnId, ...(review ? { review: { review, workspace, reviewerSession: typeof data.reviewerSession === 'string' ? data.reviewerSession : '', reviewerLabel: typeof data.reviewerLabel === 'string' ? data.reviewerLabel : '', scopeLabel: '', blockers: 0, majors: 0, minors: 0, nits: 0, finished: true } } : {}) });
+      next.appendToLast = false;
+      continue;
+    }
+    // An agent tree's own lines: an agent started, a message sent, a grant given or taken back.
+    if (LINEAGE_EVENTS.has(event.type)) {
+      const data = providerData(event.providerDataJson);
+      const text = (key: string) => typeof data[key] === 'string' ? data[key] as string : '';
+      add({ id: record.cursor.toString(), type: 'lineage', text: event.text, turnId: event.turnId, lineage: { kind: event.type, conversation: text('conversation') || text('to'), session: text('session'), mission: text('mission'), direction: text('direction') } });
       next.appendToLast = false;
       continue;
     }

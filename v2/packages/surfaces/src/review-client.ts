@@ -21,14 +21,15 @@ export type ReviewScope = { scope: 'changes'; compare?: string } | { scope: 'tur
 
 const SHOW_CONVERSATION = 'lazybox-show-conversation';
 const SHOW_REVIEW = 'lazybox-show-review';
-export type ConversationRequest = { collectionId: string; sessionId: string };
+/** `anywhere`: show it even from another workspace (an agent tree spans workspaces). */
+export type ConversationRequest = { collectionId: string; sessionId: string; anywhere?: boolean };
 /** Ask the workspace to show a conversation (the reviewer, once started). */
 export function showConversation(request: ConversationRequest) { window.dispatchEvent(new CustomEvent<ConversationRequest>(SHOW_CONVERSATION, { detail: request })); }
 /** The workspace shows conversations other panels ask for. */
 export function useConversationRequests(workspaceId: string, show: (request: ConversationRequest) => void) {
   const ref = useRef(show); ref.current = show;
   useEffect(() => {
-    const listener = (event: Event) => { const request = (event as CustomEvent<ConversationRequest>).detail; if (!workspaceId || request.collectionId === workspaceId) ref.current(request); };
+    const listener = (event: Event) => { const request = (event as CustomEvent<ConversationRequest>).detail; if (!workspaceId || request.collectionId === workspaceId || request.anywhere) ref.current(request); };
     window.addEventListener(SHOW_CONVERSATION, listener);
     return () => window.removeEventListener(SHOW_CONVERSATION, listener);
   }, [workspaceId]);

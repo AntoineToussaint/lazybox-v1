@@ -31,6 +31,19 @@
 .mission-form-actions button,.mission-actions button,.mission-dialog footer button{padding:5px 11px;font-size:calc(12px * var(--text-scale))}
 
 .mission-head{margin-bottom:10px}
+.mission-orchestrators{display:grid;gap:6px;margin:0 0 12px}
+.mission-orchestrator{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;padding:7px 10px;border:1px solid var(--accent-line);border-radius:8px;background:var(--accent-bg);font-size:calc(12px * var(--text-scale));color:var(--text-soft)}
+.mission-orchestrator>svg{color:var(--accent-strong)}
+.missions-panel .mission-orchestrator .link-button{font-size:calc(12px * var(--text-scale));font-weight:600;text-decoration:none;color:var(--text)}
+.mission-orchestrator-count{font-variant-numeric:tabular-nums;color:var(--accent-strong);font-weight:500}
+.mission-orchestrator-ceiling{flex:1;min-width:12em;color:var(--text-subtle)}
+.missions-panel .mission-orchestrator button:not(.link-button){padding:3px 9px;font-size:calc(11px * var(--text-scale));width:auto}
+.missions-panel .mission-orchestrator-revoke{background:transparent;border:1px solid var(--line);color:var(--danger-strong)}
+.mission-orchestrator-confirm{display:inline-flex;align-items:center;gap:6px;color:var(--text-subtle)}
+.missions-panel .mission-orchestrator-confirm .danger{background:var(--danger-solid);border:1px solid var(--danger-solid-hover);color:var(--on-danger-solid)}
+.missions-panel .mission-orchestrate{display:inline-flex;align-items:center;gap:6px;justify-self:start;padding:5px 10px;font-size:calc(12px * var(--text-scale));background:transparent;border:1px dashed var(--line-strong);color:var(--text-secondary)}
+.mission-lineage{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:0 6px;border-radius:8px;border:1px solid var(--accent-line);font-size:calc(10.5px * var(--text-scale));color:var(--text-soft);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mission-lineage small{color:var(--text-faint);font-size:inherit}
 .mission-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .mission-title h3{margin:0;font-size:calc(15px * var(--text-scale));font-weight:600;letter-spacing:-.2px;color:var(--text,var(--text));overflow-wrap:anywhere}
 .mission-process{font-size:calc(10px * var(--text-scale));padding:1px 7px;border-radius:9px;border:1px solid var(--line-strong);color:var(--text-tertiary);white-space:nowrap}

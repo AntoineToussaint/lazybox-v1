@@ -10,7 +10,9 @@
 import type { MessageOrigin as WireOrigin } from '@lazybox/protocol';
 
 /** A message Lazybox wrote: who it speaks for and what happened, in one line. */
-export type MessageOrigin = { kind: string; summary: string; detail: string; copy: string; from: string };
+export type MessageOrigin = { kind: string; summary: string; detail: string; copy: string; from: string;
+  /** From's conversation, when it is another agent of this one's tree (an orchestrator or an agent it started). */
+  conversation?: string; session?: string };
 
 const text = (value: unknown) => typeof value === 'string' ? value : '';
 /** The origin of an operation_accepted record (its data's `origin`) or of a queued message. */
@@ -19,7 +21,7 @@ export function messageOrigin(value: unknown): MessageOrigin | undefined {
   const o = value as Partial<WireOrigin> & Record<string, unknown>;
   const kind = text(o.kind);
   if (!kind) return;
-  return { kind, summary: text(o.summary), detail: text(o.detail), copy: text(o.copy), from: text(o.from) };
+  return { kind, summary: text(o.summary), detail: text(o.detail), copy: text(o.copy), from: text(o.from), ...(text(o.conversation) ? { conversation: text(o.conversation), session: text(o.session) } : {}) };
 }
 
 /**
@@ -66,6 +68,10 @@ const KINDS: Record<string, Kind> = {
   agent_ask: { icon: 'ask', tone: 'ask', kind: 'Question from an agent', fallback: 'A question from the other agent' },
   agent_answer: { icon: 'ask', tone: 'ask', kind: 'Answer from an agent', fallback: 'An answer from the other agent' },
   mission_brief: { icon: 'target', tone: 'neutral', kind: 'Mission task', fallback: 'Task assigned' },
+  // Between an orchestrator and an agent it started (runner/orchestrator.go).
+  agent_brief: { icon: 'subagent', tone: 'ask', kind: 'Task from your orchestrator', fallback: 'A task from the orchestrator that started this conversation' },
+  agent_note: { icon: 'subagent', tone: 'ask', kind: 'Message from an agent', fallback: 'A message from another agent' },
+  agent_report: { icon: 'check', tone: 'ok', kind: 'Report from an agent', fallback: 'An agent reported its task done' },
   continuation: { icon: 'history', tone: 'neutral', kind: 'Continuation', fallback: 'Continued from a checkpoint' },
 };
 const UNKNOWN: Kind = { icon: 'sparkle', tone: 'neutral', kind: 'From Lazybox', fallback: 'A message from Lazybox' };

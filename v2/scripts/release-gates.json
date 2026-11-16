@@ -71,6 +71,7 @@
     { "id": "remote-inbox", "scope": "ui", "script": "test:remote-inbox" },
     { "id": "remote-push", "scope": "ui", "script": "test:remote-push" },
     { "id": "missions", "scope": "ui", "script": "test:missions" },
+    { "id": "orchestration", "scope": "ui", "script": "test:orchestration" },
     { "id": "context-menus", "scope": "ui", "script": "test:context-menus" },
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
     { "id": "slash-commands", "scope": "ui", "script": "test:slash-commands" },

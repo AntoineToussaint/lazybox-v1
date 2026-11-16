@@ -234,6 +234,8 @@ type Bench struct {
 	agentCLI agentCLIState
 	// titling is the conversation naming in progress (titles.go).
 	titling titling
+	// orchestrator serializes spawns and wakes waiting orchestrators (orchestrator.go).
+	orchestrator *orchestratorState
 }
 
 func New(cfg Config) (*Bench, error) {

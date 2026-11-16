@@ -344,7 +344,7 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 		}
 		return nil
 	}
-	update, reverted := "", ""
+	update, reverted, orchestration := "", "", ""
 	// A message or steer the agent accepts goes in the prompt log.
 	var prompt *pb.Message
 	switch o := p.Operation.(type) {
@@ -358,7 +358,8 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 		// does a revert of the workspace's files since the last one.
 		update = s.Bench.InstructionsUpdate(e)
 		reverted = s.Bench.CodeRevertNote(e)
-		op.Context = strings.TrimSpace(update + "\n\n" + reverted)
+		orchestration = s.Bench.OrchestrationNote(e)
+		op.Context = strings.TrimSpace(update + "\n\n" + reverted + "\n\n" + orchestration)
 	case *pb.ApplyRequest_Permission:
 		receipt, err := s.Bench.SetPermission(ctx, e, p.OperationId, o.Permission.GetMode())
 		if err != nil {
@@ -432,6 +433,9 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 	}
 	if reverted != "" {
 		_ = s.Bench.CodeRevertNoteDelivered(e, reverted)
+	}
+	if orchestration != "" {
+		s.Bench.OrchestrationNoteDelivered(e, orchestration)
 	}
 	return &pb.Receipt{OperationId: receipt.ID, Delivery: receipt.Delivery, ProviderId: receipt.ProviderID, Error: receipt.Error}, nil
 }
@@ -931,6 +935,7 @@ func (s *Service) sessionView(ctx context.Context, e *runner.Execution) (*pb.Ses
 	}
 	// So do the sites, downloads and sign-ins its agent browser asks about.
 	s.browserView(e, view)
+	view.Lineage = s.sessionLineage(ctx, e)
 	return view, nil
 }
 func (s *Service) sessionResponse(ctx context.Context, e *runner.Execution) (*pb.SessionResponse, error) {

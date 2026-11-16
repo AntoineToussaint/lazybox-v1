@@ -19,6 +19,7 @@ import {
   type CommandCatalog, type SlashChoice, type SlashCommand, type SlashContext, type SlashMenuState,
 } from './slash-commands';
 import { openUsage } from './TelemetryPanel';
+import { requestOrchestrate } from './OrchestratorBadge';
 import type { TranscriptMessage } from './transcript-model';
 
 /** What the chat lets its slash commands do; each is the same thing its menus and buttons do. */
@@ -65,7 +66,7 @@ type Options = {
 /** The palette's names for Lazybox's commands (actions.ts). */
 const ACTIONS: Partial<Record<string, ActionId>> = {
   model: 'chat.model', permissions: 'chat.permissions', subscription: 'chat.subscription', compact: 'chat.compact', clear: 'chat.clear',
-  context: 'chat.usage', review: 'chat.review', artifact: 'chat.artifact', stop: 'chat.stop', rename: 'chat.rename',
+  context: 'chat.usage', review: 'chat.review', artifact: 'chat.artifact', stop: 'chat.stop', rename: 'chat.rename', orchestrate: 'chat.orchestrate',
 };
 const PERMISSION_WORDS: Record<string, string> = { ask: 'ask', approve: 'ask', default: 'ask', 'read-only': 'read-only', readonly: 'read-only', 'read only': 'read-only', read: 'read-only', plan: 'read-only', yolo: 'yolo', bypass: 'yolo' };
 
@@ -213,6 +214,7 @@ export function useSlashCommands(o: Options) {
       }
       case 'artifact': void startTracking(); break;
       case 'mission': if (!runAction('missions.open')) notice('Missions open in the main window'); break;
+      case 'orchestrate': requestOrchestrate(latest.current.sessionID); break;
       case 'run': if (!runAction('code.run-last')) notice('No command block to run yet'); break;
       case 'stop': actions.interrupt(); break;
       case 'detail': {

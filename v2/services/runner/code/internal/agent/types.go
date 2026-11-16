@@ -245,6 +245,11 @@ type Origin struct {
 	Copy string `json:"copy,omitempty"`
 	// From is the agent the message speaks for ("Codex"); empty is Lazybox.
 	From string `json:"from,omitempty"`
+	// Conversation and Session name From's conversation when it is another
+	// agent of this one's tree (an orchestrator and the agents it started),
+	// so clients can open it.
+	Conversation string `json:"conversation,omitempty"`
+	Session      string `json:"session,omitempty"`
 }
 
 // Bounded is o as journaled: Summary and Detail on one line each, at most
@@ -277,7 +282,13 @@ const (
 	OriginAgentAsk           = "agent_ask"
 	OriginAgentAnswer        = "agent_answer"
 	OriginMissionBrief       = "mission_brief"
-	OriginContinuation       = "continuation"
+	// An orchestrator's brief to an agent it started, a message between an
+	// orchestrator and its agent, and an agent's report to its orchestrator
+	// (runner/orchestrator.go).
+	OriginAgentBrief   = "agent_brief"
+	OriginAgentNote    = "agent_note"
+	OriginAgentReport  = "agent_report"
+	OriginContinuation = "continuation"
 )
 
 // Delivery is "acknowledged" only if the provider actually replied. A pipe

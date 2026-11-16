@@ -159,6 +159,12 @@ const (
 	RunnerService_CreateMission_FullMethodName                = "/lazybox.bench.v1.RunnerService/CreateMission"
 	RunnerService_UpdateMission_FullMethodName                = "/lazybox.bench.v1.RunnerService/UpdateMission"
 	RunnerService_ListPromptHistory_FullMethodName            = "/lazybox.bench.v1.RunnerService/ListPromptHistory"
+	RunnerService_SpawnAgent_FullMethodName                   = "/lazybox.bench.v1.RunnerService/SpawnAgent"
+	RunnerService_ListAgentLineage_FullMethodName             = "/lazybox.bench.v1.RunnerService/ListAgentLineage"
+	RunnerService_SendAgentMessage_FullMethodName             = "/lazybox.bench.v1.RunnerService/SendAgentMessage"
+	RunnerService_WaitAgents_FullMethodName                   = "/lazybox.bench.v1.RunnerService/WaitAgents"
+	RunnerService_StopChildAgent_FullMethodName               = "/lazybox.bench.v1.RunnerService/StopChildAgent"
+	RunnerService_ReportAgentTask_FullMethodName              = "/lazybox.bench.v1.RunnerService/ReportAgentTask"
 	RunnerService_ListArtifacts_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListArtifacts"
 	RunnerService_GetArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/GetArtifact"
 	RunnerService_PutArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/PutArtifact"
@@ -454,6 +460,21 @@ type RunnerServiceClient interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(ctx context.Context, in *ListPromptHistoryRequest, opts ...grpc.CallOption) (*PromptHistory, error)
+	// The Orchestrator verbs (`lazybox agents …`; audits/2026-11-16/sota-agents.md
+	// §6.3). An agent credential calls them only for its own execution. Starting
+	// an agent needs an Orchestrator grant in force, which only the person gives
+	// (UpdateMission grant); every other verb reaches only the caller's own
+	// lineage: the children it started, or its parent. None approves, answers,
+	// passes a gate or accepts a task.
+	SpawnAgent(ctx context.Context, in *SpawnAgentRequest, opts ...grpc.CallOption) (*AgentLineage, error)
+	ListAgentLineage(ctx context.Context, in *AgentLineageRequest, opts ...grpc.CallOption) (*AgentLineage, error)
+	SendAgentMessage(ctx context.Context, in *SendAgentMessageRequest, opts ...grpc.CallOption) (*AgentMessageReceipt, error)
+	// Waits, at most timeout_seconds (bounded), until the targets reach a state
+	// or (until "event") anything happens in the lineage after after_seq.
+	WaitAgents(ctx context.Context, in *WaitAgentsRequest, opts ...grpc.CallOption) (*AgentLineage, error)
+	StopChildAgent(ctx context.Context, in *StopChildAgentRequest, opts ...grpc.CallOption) (*AgentLineage, error)
+	// A child reports its own task done to the person (and its parent).
+	ReportAgentTask(ctx context.Context, in *ReportAgentTaskRequest, opts ...grpc.CallOption) (*AgentLineage, error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -1972,6 +1993,66 @@ func (c *runnerServiceClient) ListPromptHistory(ctx context.Context, in *ListPro
 	return out, nil
 }
 
+func (c *runnerServiceClient) SpawnAgent(ctx context.Context, in *SpawnAgentRequest, opts ...grpc.CallOption) (*AgentLineage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentLineage)
+	err := c.cc.Invoke(ctx, RunnerService_SpawnAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListAgentLineage(ctx context.Context, in *AgentLineageRequest, opts ...grpc.CallOption) (*AgentLineage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentLineage)
+	err := c.cc.Invoke(ctx, RunnerService_ListAgentLineage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SendAgentMessage(ctx context.Context, in *SendAgentMessageRequest, opts ...grpc.CallOption) (*AgentMessageReceipt, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentMessageReceipt)
+	err := c.cc.Invoke(ctx, RunnerService_SendAgentMessage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) WaitAgents(ctx context.Context, in *WaitAgentsRequest, opts ...grpc.CallOption) (*AgentLineage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentLineage)
+	err := c.cc.Invoke(ctx, RunnerService_WaitAgents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) StopChildAgent(ctx context.Context, in *StopChildAgentRequest, opts ...grpc.CallOption) (*AgentLineage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentLineage)
+	err := c.cc.Invoke(ctx, RunnerService_StopChildAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ReportAgentTask(ctx context.Context, in *ReportAgentTaskRequest, opts ...grpc.CallOption) (*AgentLineage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentLineage)
+	err := c.cc.Invoke(ctx, RunnerService_ReportAgentTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListArtifactsResponse)
@@ -2526,6 +2607,21 @@ type RunnerServiceServer interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(context.Context, *ListPromptHistoryRequest) (*PromptHistory, error)
+	// The Orchestrator verbs (`lazybox agents …`; audits/2026-11-16/sota-agents.md
+	// §6.3). An agent credential calls them only for its own execution. Starting
+	// an agent needs an Orchestrator grant in force, which only the person gives
+	// (UpdateMission grant); every other verb reaches only the caller's own
+	// lineage: the children it started, or its parent. None approves, answers,
+	// passes a gate or accepts a task.
+	SpawnAgent(context.Context, *SpawnAgentRequest) (*AgentLineage, error)
+	ListAgentLineage(context.Context, *AgentLineageRequest) (*AgentLineage, error)
+	SendAgentMessage(context.Context, *SendAgentMessageRequest) (*AgentMessageReceipt, error)
+	// Waits, at most timeout_seconds (bounded), until the targets reach a state
+	// or (until "event") anything happens in the lineage after after_seq.
+	WaitAgents(context.Context, *WaitAgentsRequest) (*AgentLineage, error)
+	StopChildAgent(context.Context, *StopChildAgentRequest) (*AgentLineage, error)
+	// A child reports its own task done to the person (and its parent).
+	ReportAgentTask(context.Context, *ReportAgentTaskRequest) (*AgentLineage, error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -3034,6 +3130,24 @@ func (UnimplementedRunnerServiceServer) UpdateMission(context.Context, *UpdateMi
 }
 func (UnimplementedRunnerServiceServer) ListPromptHistory(context.Context, *ListPromptHistoryRequest) (*PromptHistory, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPromptHistory not implemented")
+}
+func (UnimplementedRunnerServiceServer) SpawnAgent(context.Context, *SpawnAgentRequest) (*AgentLineage, error) {
+	return nil, status.Error(codes.Unimplemented, "method SpawnAgent not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListAgentLineage(context.Context, *AgentLineageRequest) (*AgentLineage, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAgentLineage not implemented")
+}
+func (UnimplementedRunnerServiceServer) SendAgentMessage(context.Context, *SendAgentMessageRequest) (*AgentMessageReceipt, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendAgentMessage not implemented")
+}
+func (UnimplementedRunnerServiceServer) WaitAgents(context.Context, *WaitAgentsRequest) (*AgentLineage, error) {
+	return nil, status.Error(codes.Unimplemented, "method WaitAgents not implemented")
+}
+func (UnimplementedRunnerServiceServer) StopChildAgent(context.Context, *StopChildAgentRequest) (*AgentLineage, error) {
+	return nil, status.Error(codes.Unimplemented, "method StopChildAgent not implemented")
+}
+func (UnimplementedRunnerServiceServer) ReportAgentTask(context.Context, *ReportAgentTaskRequest) (*AgentLineage, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportAgentTask not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListArtifacts not implemented")
@@ -5611,6 +5725,114 @@ func _RunnerService_ListPromptHistory_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_SpawnAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SpawnAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SpawnAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SpawnAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SpawnAgent(ctx, req.(*SpawnAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListAgentLineage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AgentLineageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListAgentLineage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListAgentLineage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListAgentLineage(ctx, req.(*AgentLineageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SendAgentMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendAgentMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SendAgentMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SendAgentMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SendAgentMessage(ctx, req.(*SendAgentMessageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_WaitAgents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WaitAgentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).WaitAgents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_WaitAgents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).WaitAgents(ctx, req.(*WaitAgentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_StopChildAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopChildAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).StopChildAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_StopChildAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).StopChildAgent(ctx, req.(*StopChildAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ReportAgentTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportAgentTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ReportAgentTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ReportAgentTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ReportAgentTask(ctx, req.(*ReportAgentTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListArtifactsRequest)
 	if err := dec(in); err != nil {
@@ -6629,6 +6851,30 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPromptHistory",
 			Handler:    _RunnerService_ListPromptHistory_Handler,
+		},
+		{
+			MethodName: "SpawnAgent",
+			Handler:    _RunnerService_SpawnAgent_Handler,
+		},
+		{
+			MethodName: "ListAgentLineage",
+			Handler:    _RunnerService_ListAgentLineage_Handler,
+		},
+		{
+			MethodName: "SendAgentMessage",
+			Handler:    _RunnerService_SendAgentMessage_Handler,
+		},
+		{
+			MethodName: "WaitAgents",
+			Handler:    _RunnerService_WaitAgents_Handler,
+		},
+		{
+			MethodName: "StopChildAgent",
+			Handler:    _RunnerService_StopChildAgent_Handler,
+		},
+		{
+			MethodName: "ReportAgentTask",
+			Handler:    _RunnerService_ReportAgentTask_Handler,
 		},
 		{
 			MethodName: "ListArtifacts",
