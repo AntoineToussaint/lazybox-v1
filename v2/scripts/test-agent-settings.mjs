@@ -21,8 +21,9 @@ try{
  await api.check();await expect(name).toHaveValue('api');await api.uncheck();await web.check();await expect(name).toHaveValue('web');
  await api.check();await expect(name).toHaveValue('web + api');await name.fill('My feature');await api.uncheck();await expect(name).toHaveValue('My feature');
  await expect(dialog.getByLabel('Name suggestion')).toHaveCount(0);
- await dialog.locator('label').filter({has:page.getByRole('checkbox',{name:'team/api',exact:true})}).dblclick();await expect(api).toBeChecked();await expect(web).toBeChecked();await expect(name).toHaveValue('My feature');
- await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+ // Double-clicking a repository chooses it and creates the workspace at once, keeping the typed name.
+ await dialog.locator('label').filter({has:page.getByRole('checkbox',{name:'team/api',exact:true})}).dblclick();await expect(dialog).toHaveCount(0);
+ await expect(page.locator('.workspace-row').filter({hasText:'My feature'})).toBeVisible();
  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Agents & workspaces',exact:true}).click();
  await page.getByLabel('Suggested workspace names').selectOption('generated');await page.getByLabel('Default permissions').selectOption('yolo');
  await page.getByLabel('Lazybox context for every new agent').fill('Shared workspace rules');await page.getByLabel('Additional Claude context').fill('Claude-specific instructions');
