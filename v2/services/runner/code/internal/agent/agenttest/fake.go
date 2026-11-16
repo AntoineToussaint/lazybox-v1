@@ -18,12 +18,14 @@ type Adapter struct {
 	LivePermission bool
 	// StopAgent lets sessions stop a single sub-agent.
 	StopAgent bool
+	// LiveModel lets sessions switch model while running.
+	LiveModel bool
 	// Durable, when set, makes sessions re-attachable with this state.
 	Durable json.RawMessage
 }
 
 func (a *Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) {
-	a.Session = &Session{Events: make(chan agent.Event, 128), Applied: make(chan agent.Operation, 128), Ref: o.Resume, Open: o, Steer: a.Steer, LivePermission: a.LivePermission, StopAgent: a.StopAgent, detached: make(chan struct{})}
+	a.Session = &Session{Events: make(chan agent.Event, 128), Applied: make(chan agent.Operation, 128), Ref: o.Resume, Open: o, Steer: a.Steer, LivePermission: a.LivePermission, StopAgent: a.StopAgent, LiveModel: a.LiveModel, detached: make(chan struct{})}
 	if a.Durable != nil {
 		a.Session.State = a.Durable
 	}
@@ -45,6 +47,7 @@ type Session struct {
 	Steer          bool
 	LivePermission bool
 	StopAgent      bool
+	LiveModel      bool
 	Closed         bool
 	// State is the fake's DurableState; nil means it cannot outlive a Runner.
 	State     json.RawMessage
@@ -114,7 +117,7 @@ func (s *Session) AwaitCommits(ctx context.Context, n int) ([]uint64, error) {
 
 func (s *Session) Reference() string { return s.Ref }
 func (s *Session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Steer: s.Steer, LivePermission: s.LivePermission, StopAgent: s.StopAgent}
+	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Steer: s.Steer, LivePermission: s.LivePermission, StopAgent: s.StopAgent, LiveModel: s.LiveModel}
 }
 func (s *Session) Apply(ctx context.Context, o agent.Operation) (agent.Receipt, error) {
 	s.Applied <- o

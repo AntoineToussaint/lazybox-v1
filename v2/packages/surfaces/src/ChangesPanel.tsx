@@ -36,6 +36,13 @@ const age = (unix: bigint) => {
   return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`;
 };
 
+const REVIEW_EVENT = 'lazybox-open-review';
+/** Opens the review tray of a workspace's Changes panel: now if one is mounted, else when it next opens. */
+export function requestReviewTray(workspaceId: string) {
+  trays.set(workspaceId, true);
+  window.dispatchEvent(new CustomEvent(REVIEW_EVENT, { detail: workspaceId }));
+}
+
 /** A workspace-scoped projection; all Git operations belong to the Runner.
  * It shows what the branch committed since the workspace started, then what is
  * still uncommitted: an agent's work is usually in both. Each repository has
@@ -61,6 +68,7 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   // The tray shows itself once there are comments, unless the person closed it.
   const trayOpen = trayChoice ?? review.comments.length > 0;
   const showTray = (open: boolean) => { trays.set(workspaceId, open); setTrayChoice(open); };
+  useEffect(() => { const listener = (event: Event) => { if ((event as CustomEvent<string>).detail === workspaceId) setTrayChoice(true); }; window.addEventListener(REVIEW_EVENT, listener); return () => window.removeEventListener(REVIEW_EVENT, listener); }, [workspaceId]);
   const [focus, setFocus] = useState<ReviewFocus>();
   const fileLinks = useFileOpener(workspaceId, viewState);
   const [repos, setRepos] = useState<RepositoryChanges[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [revision, setRevision] = useState(0);

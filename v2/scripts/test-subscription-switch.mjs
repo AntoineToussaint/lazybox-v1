@@ -57,7 +57,7 @@ try{
  await expect(dialog).toBeVisible();
  await expect(dialog.getByRole('radio',{name:/Obin Subscription 1/})).toBeDisabled();
  await expect(dialog.getByRole('radio',{name:/Obin Subscription 1/})).toHaveAccessibleName(/current/);
- await expect(dialog.locator('.subscription-choice').filter({hasText:'Obin Subscription 2'})).toContainText(/Limit reached · back at/);
+ await expect(dialog.locator('.subscription-choice').filter({hasText:'Obin Subscription 2'})).toContainText(/Limit reached · back (tomorrow )?at/); // a reset after midnight reads "tomorrow at"
  await expect(dialog.locator('.subscription-choice').filter({hasText:'Obin Subscription 3'})).toContainText('Available');
  const auto=dialog.getByRole('checkbox',{name:'Switch automatically when a subscription reaches its limit'});
  await expect(auto).toBeChecked();

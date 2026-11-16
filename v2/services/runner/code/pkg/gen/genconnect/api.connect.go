@@ -182,6 +182,9 @@ const (
 	// RunnerServiceRestartWithPermissionProcedure is the fully-qualified name of the RunnerService's
 	// RestartWithPermission RPC.
 	RunnerServiceRestartWithPermissionProcedure = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
+	// RunnerServiceRestartWithModelProcedure is the fully-qualified name of the RunnerService's
+	// RestartWithModel RPC.
+	RunnerServiceRestartWithModelProcedure = "/lazybox.bench.v1.RunnerService/RestartWithModel"
 	// RunnerServiceSwitchSubscriptionProcedure is the fully-qualified name of the RunnerService's
 	// SwitchSubscription RPC.
 	RunnerServiceSwitchSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/SwitchSubscription"
@@ -513,6 +516,10 @@ type RunnerServiceClient interface {
 	// Continues the conversation in a new agent started with another permission
 	// mode, for an agent whose running worker cannot change mode live.
 	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Continues the conversation in a new agent started with another
+	// model, for an agent whose running worker cannot switch model live: it is
+	// ended between turns and the same provider conversation resumes.
+	RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -1020,6 +1027,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRestartWithPermissionProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
+			connect.WithClientOptions(opts...),
+		),
+		restartWithModel: connect.NewClient[gen.RestartWithModelRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceRestartWithModelProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RestartWithModel")),
 			connect.WithClientOptions(opts...),
 		),
 		switchSubscription: connect.NewClient[gen.SwitchSubscriptionRequest, gen.SessionResponse](
@@ -1623,6 +1636,7 @@ type runnerServiceClient struct {
 	listHistory                  *connect.Client[gen.ListHistoryRequest, gen.ListHistoryResponse]
 	resumeSession                *connect.Client[gen.ResumeSessionRequest, gen.SessionResponse]
 	restartWithPermission        *connect.Client[gen.RestartWithPermissionRequest, gen.SessionResponse]
+	restartWithModel             *connect.Client[gen.RestartWithModelRequest, gen.SessionResponse]
 	switchSubscription           *connect.Client[gen.SwitchSubscriptionRequest, gen.SessionResponse]
 	setSessionRotation           *connect.Client[gen.SetSessionRotationRequest, gen.SessionResponse]
 	getSession                   *connect.Client[gen.SessionRequest, gen.SessionResponse]
@@ -1964,6 +1978,11 @@ func (c *runnerServiceClient) ResumeSession(ctx context.Context, req *connect.Re
 // RestartWithPermission calls lazybox.bench.v1.RunnerService.RestartWithPermission.
 func (c *runnerServiceClient) RestartWithPermission(ctx context.Context, req *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.restartWithPermission.CallUnary(ctx, req)
+}
+
+// RestartWithModel calls lazybox.bench.v1.RunnerService.RestartWithModel.
+func (c *runnerServiceClient) RestartWithModel(ctx context.Context, req *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.restartWithModel.CallUnary(ctx, req)
 }
 
 // SwitchSubscription calls lazybox.bench.v1.RunnerService.SwitchSubscription.
@@ -2480,6 +2499,10 @@ type RunnerServiceHandler interface {
 	// Continues the conversation in a new agent started with another permission
 	// mode, for an agent whose running worker cannot change mode live.
 	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Continues the conversation in a new agent started with another
+	// model, for an agent whose running worker cannot switch model live: it is
+	// ended between turns and the same provider conversation resumes.
+	RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -2983,6 +3006,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRestartWithPermissionProcedure,
 		svc.RestartWithPermission,
 		connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRestartWithModelHandler := connect.NewUnaryHandler(
+		RunnerServiceRestartWithModelProcedure,
+		svc.RestartWithModel,
+		connect.WithSchema(runnerServiceMethods.ByName("RestartWithModel")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceSwitchSubscriptionHandler := connect.NewUnaryHandler(
@@ -3633,6 +3662,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceResumeSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceRestartWithPermissionProcedure:
 			runnerServiceRestartWithPermissionHandler.ServeHTTP(w, r)
+		case RunnerServiceRestartWithModelProcedure:
+			runnerServiceRestartWithModelHandler.ServeHTTP(w, r)
 		case RunnerServiceSwitchSubscriptionProcedure:
 			runnerServiceSwitchSubscriptionHandler.ServeHTTP(w, r)
 		case RunnerServiceSetSessionRotationProcedure:
@@ -4022,6 +4053,10 @@ func (UnimplementedRunnerServiceHandler) ResumeSession(context.Context, *connect
 
 func (UnimplementedRunnerServiceHandler) RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartWithPermission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartWithModel is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error) {

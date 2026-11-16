@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
 )
@@ -27,6 +28,9 @@ type Capabilities struct {
 	LivePermission bool `json:"livePermission,omitempty"`
 	// StopAgent: a single sub-agent can be stopped while the main agent continues.
 	StopAgent bool `json:"stopAgent,omitempty"`
+	// LiveModel: the model can change while the session runs, for its
+	// following turns.
+	LiveModel bool `json:"liveModel,omitempty"`
 }
 
 // Open contains resolved execution configuration. Env is private child-process
@@ -147,11 +151,33 @@ const (
 	Permission Kind = "permission"
 	// StopAgent stops one running sub-agent; the main agent's turn continues.
 	StopAgent Kind = "stop_agent"
+	// Model switches the running session's model for its following turns.
+	Model Kind = "model"
 )
 
 // PermissionModes are the modes a running session can switch to. Inherit
 // (the provider's own settings) is only a starting choice.
 var PermissionModes = map[string]bool{"ask": true, "read-only": true, "yolo": true}
+
+// ValidModel checks a model identifier a person chose for a running session:
+// one token the provider resolves (an alias or a full id), never free text.
+func ValidModel(model string) error {
+	if model == "" {
+		return fmt.Errorf("%w: model required", ErrInvalidModel)
+	}
+	if len(model) > 256 {
+		return fmt.Errorf("%w: model name exceeds 256 bytes", ErrInvalidModel)
+	}
+	for _, r := range model {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return fmt.Errorf("%w: model name must be one word, an alias or a model id", ErrInvalidModel)
+		}
+	}
+	return nil
+}
+
+// ErrInvalidModel marks a model name ValidModel refuses.
+var ErrInvalidModel = errors.New("invalid model")
 
 type Operation struct {
 	ID        string  `json:"id"`
@@ -177,6 +203,8 @@ type Operation struct {
 	// the provider's id for it, resolved by the engine from its agent state.
 	AgentID  string `json:"agentId,omitempty"`
 	NativeID string `json:"nativeId,omitempty"`
+	// Model is the new model of a Model operation.
+	Model string `json:"model,omitempty"`
 }
 
 // Delivery is "acknowledged" only if the provider actually replied. A pipe

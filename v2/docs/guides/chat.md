@@ -23,8 +23,40 @@ it did.
   carries on.
 - **Permission** can change mid-conversation from the session menu (⋯):
   Ask for approval, Read only or YOLO.
+- **Model** too: the session menu lists the provider's models with the current
+  one marked, and the model name in the chat header opens the same picker. The
+  switch is live; an agent started before live switching restarts between turns
+  and the conversation continues (**Restart now**).
 - **End session** stops the agent but keeps the conversation; sending a new
   message resumes it. **Delete conversation…** removes it.
+
+## Slash commands
+
+Type `/` at the start of the message box for a menu of what you can run, in
+three groups. It filters as you type; `↑`/`↓` choose, `Tab` completes, `Enter`
+runs and `Esc` closes it and leaves your text. It works in Vim insert mode too.
+
+- **Lazybox** commands do the real thing and send nothing: `/model <name>`,
+  `/permissions ask|read-only|yolo`, `/subscription`, `/compact` (the agent
+  summarizes its context; the conversation shows "Compacted context: 156k → 61k
+  tokens"), `/clear` (a new conversation in this workspace; this one is kept),
+  `/cost` and `/context` (the usage popover), `/review` (the review tray),
+  `/artifact` (track the agent's last message), `/mission`, `/run` (the last
+  command block), `/stop`, `/detail quiet|smart|verbose`, `/rename <title>` and
+  `/help`. A command that takes a choice lists it (models, modes) with the
+  current one marked; one that cannot run now says why. They are in the command
+  palette (`⌘K`) as well.
+- **The agent's own** commands — Claude's built-ins and your project's or your
+  own `.claude/commands` — with their descriptions and argument hints. Choosing
+  one completes `/name ` for its arguments; `Enter` sends it as the prompt and
+  the agent runs it. (Codex's app-server does not list custom prompts.)
+- **Snippets** by name: choosing one inserts it; those the last one sent chains
+  to (`next:`) come first.
+
+A switch of model or permissions, or a compaction, leaves one quiet line in the
+conversation rather than a message. A message that merely starts with a slash
+(`/usr/local/bin is missing`) is sent as written; an unknown `/word` asks
+"Not a command — send as text?" first, and `Enter` again sends it.
 
 ## Answer questions and approvals
 

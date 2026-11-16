@@ -14,7 +14,7 @@ import type { FileReference } from './view-state';
  * (with Vim editing and prompt recall), and the send, attach, snippet and
  * interrupt controls. The draft itself is owned by the chat.
  */
-export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, interruptInBar = false, onError }: {
+export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, interruptInBar = false, onError, slash }: {
   textarea: RefObject<HTMLTextAreaElement | null>;
   fileInput: RefObject<HTMLInputElement | null>;
   agentName: string;
@@ -54,11 +54,13 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   /** The live bar above offers the right stop for the running turn: no second Interrupt here. */
   interruptInBar?: boolean;
   onError(message: string): void;
+  /** Slash commands: the menu above the box, and its keys before any other. */
+  slash?: { onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, vimMode?: VimMode): boolean; above: ReactNode; textareaProps: Record<string, unknown> };
 }) {
   const vimEditing = useVimPreferences(viewState).composer;
   const reservedKeys = useMemo(() => leaderKeys(keymap), [keymap]);
   const vim = useComposerVim({ textarea, enabled: vimEditing, value: message, resetKey: sessionID, reserved: reservedKeys, onSend: () => { if (canSend || missingFiles.length > 0 || !!message.trim()) textarea.current?.form?.requestSubmit(); } });
-  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (onRecallKey(event, vim.mode)) return; vim.textareaProps.onKeyDown?.(event); };
+  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (slash?.onKeyDown(event, vim.mode)) return; if (onRecallKey(event, vim.mode)) return; vim.textareaProps.onKeyDown?.(event); };
   // A pasted image (a screenshot, say) attaches like a dropped file; a text paste stays native.
   const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = pastedFiles(event.clipboardData);
@@ -85,10 +87,12 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
     </div>}
     {uncertainSend && !sending && <small className="composer-hint">The previous send was not confirmed. Retrying the unchanged message checks the same operation.</small>}
     {handedOver && <p className="composer-handover" role="status">{handedOver}<button type="button" aria-label="Dismiss" onClick={onDismissHandover}>×</button></p>}
-    <textarea ref={textarea} data-agent-composer aria-label="Message" placeholder={limited ? `Message ${agentName}… (sent when the conversation continues)` : `Message ${agentName}…`} value={message}
+    {slash?.above}
+    <textarea ref={textarea} data-agent-composer aria-label="Message" placeholder={limited ? `Message ${agentName}… (sent when the conversation continues)` : `Message ${agentName}… (/ for commands)`} value={message}
       onChange={e => onChange(e.target.value)}
       disabled={!canCompose || sending}
       {...vim.textareaProps}
+      {...slash?.textareaProps}
       onKeyDown={keyDown}
       onPaste={paste}/>
     {permissionPrompt}

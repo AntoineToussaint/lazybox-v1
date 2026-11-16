@@ -125,7 +125,8 @@ try {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("tab", { name: "Shortcuts" }).click();
   await page.getByRole("button", { name: "Add entry", exact: true }).click();
-  await page.getByLabel("Key for entry 1").fill("r");
+  // `r` is the built-in "Run the last command block" (] ] r): an entry takes a free key.
+  await page.getByLabel("Key for entry 1").fill("x");
   await page.getByLabel("Snippet for entry 1").selectOption("review");
   await page.getByLabel("Action for entry 1").selectOption("insert");
   await page.getByRole("button", { name: "Save menu", exact: true }).click();
@@ -136,9 +137,9 @@ try {
   await message.press("Control+b");
   const menu = page.getByRole("status", { name: "Keyboard menu" });
   await expect(menu).toContainText("Ctrl+b");
-  await expect(menu.locator("li").filter({ hasText: "Review this change" })).toContainText("r");
+  await expect(menu.locator("li").filter({ hasText: "Review this change" })).toContainText("x");
   await expect(menu.locator("li").filter({ hasText: "Snippets" })).toContainText("s");
-  await page.keyboard.press("r");
+  await page.keyboard.press("x");
   await expect(menu).toHaveCount(0);
   await expect(message).toHaveValue("Review the current change carefully.");
   f.sessions.push({

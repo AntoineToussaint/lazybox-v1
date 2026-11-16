@@ -308,11 +308,13 @@ func threadParams(o agent.Open) map[string]any {
 }
 
 func (s *session) SessionSettings() json.RawMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return append(json.RawMessage(nil), s.settings...)
 }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
 func (s *session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: s.workflow == "plan", Approvals: true, Steer: true, Resume: true, Subagents: true, LivePermission: true, ProfileIsolation: "environment; cross-account resume unverified"}
+	return agent.Capabilities{Images: true, Files: true, Questions: s.workflow == "plan", Approvals: true, Steer: true, Resume: true, Subagents: true, LivePermission: true, LiveModel: true, ProfileIsolation: "environment; cross-account resume unverified"}
 }
 func (s *session) emit(ev agent.Event) bool {
 	select {
@@ -397,6 +399,28 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 		}
 		for key, value := range policy {
 			s.overrides[key] = value
+		}
+		s.mu.Unlock()
+		r.Delivery = "accepted"
+		return r, nil
+	case agent.Model:
+		model, err := json.Marshal(op.Model)
+		if err != nil || op.Model == "" {
+			return r, errors.New("model required")
+		}
+		// turn/start takes the model "for this turn and subsequent turns"; the
+		// overrides carry it to the next one and across a Runner restart.
+		s.mu.Lock()
+		if s.overrides == nil {
+			s.overrides = map[string]json.RawMessage{}
+		}
+		s.overrides["model"] = model
+		s.model = op.Model
+		// A same-provider handoff carries the model now in force.
+		var settings map[string]json.RawMessage
+		if json.Unmarshal(s.settings, &settings) == nil && settings != nil {
+			settings["model"] = model
+			s.settings, _ = json.Marshal(settings)
 		}
 		s.mu.Unlock()
 		r.Delivery = "accepted"

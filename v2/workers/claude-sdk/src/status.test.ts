@@ -115,3 +115,22 @@ test('task_updated moves a known task and reports its error, once', () => {
     assert.equal(s.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 'x', patch: { status: patch } }))[0].status, expected);
   }
 });
+
+test('a compaction says how far the context shrank; a sub-agent compaction does not', () => {
+  const status = new NativeStatus();
+  const events = status.normalize(message({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual', pre_tokens: 156000, post_tokens: 61000, duration_ms: 4200 } }));
+  assert.deepEqual(events.find(e => e.type === 'compacted')?.data, { trigger: 'manual', preTokens: 156000, postTokens: 61000, durationMs: 4200 });
+  const auto = status.normalize(message({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 190000 } }));
+  assert.deepEqual(auto.find(e => e.type === 'compacted')?.data, { trigger: 'auto', preTokens: 190000 });
+  const child = status.normalize(message({ type: 'system', subtype: 'compact_boundary', parent_tool_use_id: 'tool-9', compact_metadata: { trigger: 'auto', pre_tokens: 1 } }));
+  assert.equal(child.some(e => e.type === 'compacted'), false);
+});
+
+test("a slash command's printed output is the agent's answer, bounded", () => {
+  const status = new NativeStatus();
+  const [said] = status.normalize(message({ type: 'system', subtype: 'local_command_output', content: 'Session cost: $0.12' }));
+  assert.equal(said.type, 'message_delta'); assert.equal(said.text, 'Session cost: $0.12');
+  const [long] = status.normalize(message({ type: 'system', subtype: 'local_command_output', content: 'x'.repeat(70000) }));
+  assert.ok(long.text!.length < 66000 && long.text!.endsWith('[Output truncated]'));
+  assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'local_command_output', content: '' })), []);
+});

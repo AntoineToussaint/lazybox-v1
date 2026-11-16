@@ -70,6 +70,7 @@ const (
 	RunnerService_ListHistory_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ListHistory"
 	RunnerService_ResumeSession_FullMethodName                = "/lazybox.bench.v1.RunnerService/ResumeSession"
 	RunnerService_RestartWithPermission_FullMethodName        = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
+	RunnerService_RestartWithModel_FullMethodName             = "/lazybox.bench.v1.RunnerService/RestartWithModel"
 	RunnerService_SwitchSubscription_FullMethodName           = "/lazybox.bench.v1.RunnerService/SwitchSubscription"
 	RunnerService_SetSessionRotation_FullMethodName           = "/lazybox.bench.v1.RunnerService/SetSessionRotation"
 	RunnerService_GetSession_FullMethodName                   = "/lazybox.bench.v1.RunnerService/GetSession"
@@ -224,6 +225,10 @@ type RunnerServiceClient interface {
 	// Continues the conversation in a new agent started with another permission
 	// mode, for an agent whose running worker cannot change mode live.
 	RestartWithPermission(ctx context.Context, in *RestartWithPermissionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
+	// Owner only. Continues the conversation in a new agent started with another
+	// model, for an agent whose running worker cannot switch model live: it is
+	// ended between turns and the same provider conversation resumes.
+	RestartWithModel(ctx context.Context, in *RestartWithModelRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -933,6 +938,16 @@ func (c *runnerServiceClient) RestartWithPermission(ctx context.Context, in *Res
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionResponse)
 	err := c.cc.Invoke(ctx, RunnerService_RestartWithPermission_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RestartWithModel(ctx context.Context, in *RestartWithModelRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionResponse)
+	err := c.cc.Invoke(ctx, RunnerService_RestartWithModel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1946,6 +1961,10 @@ type RunnerServiceServer interface {
 	// Continues the conversation in a new agent started with another permission
 	// mode, for an agent whose running worker cannot change mode live.
 	RestartWithPermission(context.Context, *RestartWithPermissionRequest) (*SessionResponse, error)
+	// Owner only. Continues the conversation in a new agent started with another
+	// model, for an agent whose running worker cannot switch model live: it is
+	// ended between turns and the same provider conversation resumes.
+	RestartWithModel(context.Context, *RestartWithModelRequest) (*SessionResponse, error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -2301,6 +2320,9 @@ func (UnimplementedRunnerServiceServer) ResumeSession(context.Context, *ResumeSe
 }
 func (UnimplementedRunnerServiceServer) RestartWithPermission(context.Context, *RestartWithPermissionRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RestartWithPermission not implemented")
+}
+func (UnimplementedRunnerServiceServer) RestartWithModel(context.Context, *RestartWithModelRequest) (*SessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestartWithModel not implemented")
 }
 func (UnimplementedRunnerServiceServer) SwitchSubscription(context.Context, *SwitchSubscriptionRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SwitchSubscription not implemented")
@@ -3485,6 +3507,24 @@ func _RunnerService_RestartWithPermission_Handler(srv interface{}, ctx context.C
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).RestartWithPermission(ctx, req.(*RestartWithPermissionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RestartWithModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestartWithModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RestartWithModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RestartWithModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RestartWithModel(ctx, req.(*RestartWithModelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -5301,6 +5341,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RestartWithPermission",
 			Handler:    _RunnerService_RestartWithPermission_Handler,
+		},
+		{
+			MethodName: "RestartWithModel",
+			Handler:    _RunnerService_RestartWithModel_Handler,
 		},
 		{
 			MethodName: "SwitchSubscription",

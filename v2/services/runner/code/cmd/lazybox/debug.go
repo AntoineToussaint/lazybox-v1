@@ -20,7 +20,7 @@ var lifecycle = map[string]bool{
 	"session_opened": true, "turn_started": true, "turn_ended": true, "operation_accepted": true, "receipt": true, "failure": true,
 	"runner_reattached": true, "agent_status": true, "approval": true, "question": true, "request_resolved": true,
 	"session_closed": true, "profile_changed": true, "profile_switching": true, "process_exit": true, "continuation_requested": true,
-	"code_reverted": true, "unsupported_request": true,
+	"code_reverted": true, "unsupported_request": true, "model_changed": true, "permission_changed": true, "compacted": true,
 }
 
 type diagnosis struct {

@@ -31,6 +31,9 @@
 .chat-heading-meta>*+*::before{content:'·';margin:0 6px;color:var(--text-disabled)}
 .chat-heading-meta .chat-model,.chat-heading-meta .chat-account{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;color:var(--text-subtle)}
 .chat-heading-meta .chat-agent{color:var(--text-tertiary)}
+.chat-heading-meta .chat-model-button{display:inline-flex;align-items:center;gap:3px;margin:0;padding:0 4px;min-height:0;height:auto;border:0;border-radius:4px;background:none;font:inherit;line-height:inherit;white-space:nowrap;cursor:pointer}
+.chat-heading-meta .chat-model-button:hover,.chat-heading-meta .chat-model-button:focus-visible{background:var(--surface-selected);color:var(--text)}
+.chat-heading-meta .chat-model-button svg{flex:none;opacity:.6}
 .chat-status{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;overflow:hidden;font-variant-numeric:tabular-nums;color:var(--text-muted)}
 .chat-heading-meta .chat-status::before{margin-right:0}
 .chat-status[data-tone=busy]{color:var(--attention-working,var(--running))}

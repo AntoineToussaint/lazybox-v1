@@ -199,6 +199,13 @@ func validate(op agent.Operation, c agent.Capabilities) error {
 		if !agent.PermissionModes[op.Permission] {
 			return errors.New("permission must be ask, read-only or yolo")
 		}
+	case agent.Model:
+		if !c.LiveModel {
+			return agent.ErrUnsupported
+		}
+		if err := agent.ValidModel(op.Model); err != nil {
+			return err
+		}
 	case agent.Interrupt:
 	case agent.StopAgent:
 		if !c.StopAgent {

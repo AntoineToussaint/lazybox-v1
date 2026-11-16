@@ -1,0 +1,180 @@
+// Fixture only: slash commands in the message box. `/` opens the menu
+// (Lazybox · Claude · Snippets), it filters as you type, Enter runs Lazybox's
+// own commands for real (permissions, a live model switch and one that needs a
+// restart), the agent's own commands go as the prompt, a snippet is inserted,
+// an unknown /word asks before it is sent, a path is just a message, Vim
+// insert mode works, and ⌘K, the ⋯ menu and the header reach the same pickers.
+import {testViteCache} from './fixtures/vite-cache.mjs';
+import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
+const f=await startRunnerFixture();
+const data=value=>Buffer.from(JSON.stringify(value)).toString('base64');
+const catalog={commands:[{name:'compact',description:'Clear history but keep a summary',argumentHint:'<instructions>',builtin:true},{name:'review-pr',description:'Review a pull request',argumentHint:'<number>'},{name:'init',description:'Initialize a CLAUDE.md',argumentHint:'',builtin:true},{name:'model',description:'native',argumentHint:''}],models:[{value:'claude-opus-5-5',displayName:'Opus 5.5',description:'Most capable'},{value:'claude-sonnet-5',displayName:'Sonnet 5',description:'Fast and capable'}]};
+// Alpha switches models live; beta's agent started before that, so it restarts.
+Object.assign(f.sessions[0],{title:'Fix the flaky login test',provider:'claude',model:'claude-opus-5-5',modelReported:true,busy:false,status:'ready',conversationId:'alpha-conversation',capabilities:{...f.sessions[0].capabilities,liveModel:true,resume:true},agents:[{id:'root',status:'ready'}]});
+Object.assign(f.sessions[1],{title:'Release notes',provider:'claude',model:'claude-opus-5-5',modelReported:true,status:'ready',capabilities:{...f.sessions[1].capabilities,liveModel:false,resume:true},agents:[{id:'root',status:'ready'}]});
+const alpha=f.openEvents('alpha-session');alpha.push({type:'command_catalog',providerDataJson:data(catalog)});alpha.push({type:'operation_accepted',text:'Why is the login test flaky?'});alpha.push({type:'message_delta',text:'The test races the session cookie.'});alpha.push({type:'turn_ended',status:'completed'});
+const beta=f.openEvents('beta-session');beta.push({type:'command_catalog',providerDataJson:data(catalog)});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+const mod=process.platform==='darwin'?'Meta':'Control';
+const applies=()=>f.mutations.filter(m=>m.method==='Apply');
+try{
+ await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
+ // Leaving a page cuts its in-flight polls, which WebKit reports as page errors ("access control checks"): not failures.
+ let navigating=false;const errors=[];page.on('pageerror',e=>{if(!navigating)errors.push(String(e));});
+ const go=async url=>{navigating=true;await page.goto(url);await page.waitForLoadState('load');navigating=false;};
+ const base=`http://127.0.0.1:${server.httpServer.address().port}`;
+ await page.goto(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
+ const chat=page.locator('.embedded-chat').first();
+ const message=chat.getByRole('textbox',{name:'Message',exact:true});
+ const menu=chat.getByRole('listbox',{name:'Commands'});
+ await expect(message).toBeEnabled();
+ await expect(message).toHaveAttribute('placeholder',/\/ for commands/);
+
+ // `/` opens the menu: grouped, each entry with its icon, name, hint and words.
+ await message.click();await page.keyboard.type('/');
+ await expect(menu).toBeVisible();
+ await expect(chat.locator('.slash-group-label')).toHaveText(['Lazybox','Claude','Snippets']);
+ const lazyboxNames=['model','permissions','subscription','compact','clear','cost','context','review','artifact','mission','run','stop','detail','rename','help'];
+ for(const name of lazyboxNames)await expect(menu.getByRole('option',{name:new RegExp(`^/${name}( |$)`)}).first()).toBeVisible();
+ await expect(menu.getByRole('option',{name:/\/review-pr\s*<number>\s*Review a pull request/})).toBeVisible();
+ await expect(menu.getByRole('option',{name:/^\/model( |$)/})).toHaveCount(1,'Lazybox\'s /model stands in for the agent\'s');
+ await expect(menu.getByRole('option').filter({hasText:'Run tests'})).toBeVisible();
+ assert.equal(await message.getAttribute('aria-controls'),await menu.getAttribute('id'),'the box names its menu');
+ await page.screenshot({path:'.cache/slash-menu.png'});
+
+ // Filtering as you type; ↑/↓ move; Esc closes and leaves the text.
+ await page.keyboard.type('mo');
+ await expect(menu.getByRole('option',{selected:true})).toContainText('/model');
+ await page.keyboard.press('Escape');await expect(menu).toBeHidden();await expect(message).toHaveValue('/mo');
+ await message.fill('');
+
+ // /permissions: Enter shows the choices, Enter on YOLO switches live and says so in one line.
+ await page.keyboard.type('/perm');await expect(menu.getByRole('option',{selected:true})).toContainText('/permissions');
+ await page.keyboard.press('Enter');
+ const choices=chat.getByRole('listbox',{name:'/permissions choices'});
+ await expect(choices).toBeVisible();await expect(message).toHaveValue('/permissions ');
+ await expect(choices.getByRole('option',{name:/Ask for approval.*Current/})).toBeVisible();
+ await page.keyboard.type('yo');await expect(choices.getByRole('option',{selected:true})).toContainText('YOLO');
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.permission?.mode).toBe('yolo');
+ await expect(message).toHaveValue('');
+ await expect(chat.locator('.command-line').filter({hasText:'Permissions: YOLO'})).toBeVisible();
+ assert.equal(await chat.locator('.message.operation_accepted').filter({hasText:'/permissions'}).count(),0,'no fake user message');
+
+ // /model: the provider's models with the current one marked; a live switch.
+ await page.keyboard.type('/model ');
+ const models=chat.getByRole('listbox',{name:'/model choices'});
+ await expect(models.getByRole('option')).toHaveText([/Opus 5\.5.*Current/,/Sonnet 5/]);
+ await expect(models.getByRole('option',{selected:true})).toContainText('Sonnet 5');
+ await page.screenshot({path:'.cache/slash-model.png'});
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.model?.model).toBe('claude-sonnet-5');
+ await expect(chat.locator('.command-line').filter({hasText:'Switched model to claude-sonnet-5'})).toBeVisible();
+ await expect(chat.locator('.chat-heading')).toContainText('claude-sonnet-5');
+
+ // The agent's own command: Enter completes it for its argument, Enter sends it as the prompt.
+ await message.fill('');await page.keyboard.type('/review-pr');
+ await expect(menu.getByRole('option',{selected:true})).toContainText('/review-pr');
+ await page.keyboard.press('Enter');await expect(message).toHaveValue('/review-pr ');
+ await expect(chat.locator('.slash-menu-hint')).toContainText('<number>');
+ await page.keyboard.type('12');await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/review-pr 12');
+ await expect(message).toHaveValue('');
+ // A command without an argument goes at once.
+ await page.keyboard.type('/ini');await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/init');
+ // /compact is Claude's own /compact, sent without touching the draft.
+ await page.keyboard.type('/compact');await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/compact');
+ await expect(message).toHaveValue('');
+
+ // A snippet is inserted, not sent.
+ const before=applies().length;
+ await page.keyboard.type('/test');await expect(menu.getByRole('option',{selected:true})).toContainText('Run tests');
+ await page.keyboard.press('Enter');await expect(message).toHaveValue('Run the relevant tests.');
+ assert.equal(applies().length,before,'inserting a snippet sends nothing');
+ await message.fill('');
+
+ // An unknown /word asks first; Enter again sends it as text.
+ await page.keyboard.type('/deploy now');await expect(menu).toBeHidden();
+ await page.keyboard.press('Enter');
+ await expect(chat.getByRole('alert').filter({hasText:'is not a command'})).toBeVisible();
+ assert.equal(applies().length,before,'not sent yet');
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/deploy now');
+ // A path is a message like any other.
+ await page.keyboard.type('/usr/local/bin is missing');await expect(menu).toBeHidden();
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/usr/local/bin is missing');
+
+ // /detail and /help do the real thing.
+ await page.keyboard.type('/detail verbose');await page.keyboard.press('Enter');
+ await expect(page.locator('.toast').filter({hasText:'Activity detail: Verbose'})).toBeVisible();
+ await page.keyboard.type('/help');await page.keyboard.press('Enter');
+ await expect(page.getByRole('dialog',{name:/Keyboard shortcuts/})).toBeVisible();
+ await page.keyboard.press('Escape');
+
+ // ⌘K lists the commands; one that takes a choice borrows the box and gives the draft back.
+ await message.click();await message.fill('half a draft');
+ await page.keyboard.press(`${mod}+k`);
+ const palette=page.getByRole('dialog',{name:'Command palette'});
+ await palette.getByRole('combobox',{name:'Search commands'}).fill('switch model');
+ await expect(palette.getByRole('option').first()).toContainText('Switch model…');
+ for(const title of ['Change permissions…','Compact the context','Show context and token cost','Open the review tray','Rename the conversation…','Start over in a new conversation']){
+  await palette.getByRole('combobox',{name:'Search commands'}).fill(title);await expect(palette.getByRole('option').filter({hasText:title}).first()).toBeVisible();
+ }
+ // What cannot run now is not offered: nothing to interrupt while the agent is idle.
+ await palette.getByRole('combobox',{name:'Search commands'}).fill('Interrupt the agent');await expect(palette.getByRole('option').filter({hasText:'Interrupt the agent'})).toHaveCount(0);
+ await palette.getByRole('combobox',{name:'Search commands'}).fill('switch model');
+ await page.keyboard.press('Enter');
+ await expect(models).toBeVisible();await expect(message).toHaveValue('/model ');
+ await page.keyboard.press('Escape');await expect(message).toHaveValue('half a draft');
+
+ // The ⋯ menu has the same models; the header's model name opens the picker.
+ await chat.locator('summary[aria-label="Session actions"]').click();
+ const sessionMenu=chat.locator('.session-menu');
+ await expect(sessionMenu.getByRole('group',{name:'Model'}).getByRole('button',{name:'Sonnet 5'})).toHaveAttribute('aria-pressed','true');
+ await expect(sessionMenu.locator('.session-facts')).toContainText('Subscription');
+ await expect(sessionMenu.locator('.session-facts')).toContainText('Gateway');
+ await expect(sessionMenu.getByRole('button',{name:'Copy session ID'})).toBeVisible();
+ await expect(sessionMenu).not.toContainText('alpha-session');
+ await page.screenshot({path:'.cache/slash-session-menu.png'});
+ await sessionMenu.getByRole('group',{name:'Model'}).getByRole('button',{name:'Opus 5.5'}).click();
+ await expect.poll(()=>applies().at(-1)?.body.model?.model).toBe('claude-opus-5-5');
+ await page.keyboard.press('Escape');
+ await message.fill('');
+ await chat.getByRole('button',{name:/switch model/}).click();
+ await expect(models).toBeVisible();await expect(message).toHaveValue('/model ');
+ await page.keyboard.press('Escape');await expect(message).toHaveValue('','a borrowed box is given back empty');
+
+ // A model switch the agent cannot do live: Restart now continues the conversation in a new agent.
+ await go(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
+ const betaChat=page.locator('.embedded-chat').first(),betaMessage=betaChat.getByRole('textbox',{name:'Message',exact:true});
+ await expect(betaMessage).toBeEnabled();
+ await betaMessage.click();await page.keyboard.type('/model ');
+ await expect(betaChat.getByRole('listbox',{name:'/model choices'})).toContainText('Sonnet 5');
+ await page.keyboard.type('sonnet');await page.keyboard.press('Enter');
+ const restart=betaChat.getByRole('alert').filter({hasText:'Switch to claude-sonnet-5?'});
+ await expect(restart).toBeVisible();
+ await restart.getByRole('button',{name:'Restart now'}).click();
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='RestartWithModel')?.body).toEqual({sessionId:'beta-session',model:'claude-sonnet-5'});
+
+ // Vim: in insert mode the menu works and Esc closes it first; normal mode keeps its keys.
+ await go(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Shortcuts'}).click();
+ await page.getByRole('switch',{name:'Vim editing in the message box'}).check();
+ await page.getByRole('navigation',{name:'Pages'}).getByRole('button').first().click();
+ await message.click();const chip=chat.locator('.vim-mode-chip');await expect(chip).toHaveText('INSERT');
+ await page.keyboard.type('/perm');await expect(menu).toBeVisible();
+ await page.keyboard.press('Escape');await expect(menu).toBeHidden();await expect(chip).toHaveText('INSERT','the first Esc only closes the menu');
+ await page.keyboard.press('Escape');await expect(chip).toHaveText('NORMAL');
+ await expect(menu).toBeHidden();
+ await page.keyboard.press('i');await expect(chip).toHaveText('INSERT');await page.keyboard.press(`${mod}+a`);await page.keyboard.press('Backspace');await expect(message).toHaveValue('');
+ await page.keyboard.type('/permissions read');
+ await expect(chat.getByRole('listbox',{name:'/permissions choices'}).getByRole('option',{selected:true})).toContainText('Read only');
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.permission?.mode).toBe('read-only');
+
+ assert.deepEqual(errors,[]);
+ console.log('PASS: / opens the grouped command menu (Lazybox · Claude · Snippets) with icons, names, hints and descriptions; it filters and ranks as you type, Esc closes it; /permissions and /model run for real (choices with the current one marked, a live switch, a restart prompt where needed) and leave one line in the conversation; the agent\'s commands complete for arguments and go as the prompt; a snippet is inserted; an unknown /word asks first; a path is a message; /detail and /help act; ⌘K lists the commands and gives a borrowed draft back; the ⋯ menu offers the models and the header\'s model name opens the picker; Vim insert mode works. Fixture only.');
+}finally{await browser?.close();await server.close();await f.close?.();}

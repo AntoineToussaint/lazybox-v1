@@ -6,6 +6,7 @@ import { nativeOptions } from './options.js';
 import { droppedOnInterrupt } from './interrupt.js';
 import { readQuota } from './usage.js';
 import { NativeStatus } from './status.js';
+import { CommandCatalog } from './catalog.js';
 import { contextSnapshot } from './context.js';
 import { SettingsApprovals, settingsServer, settingsServerName, updateSettingsTool } from './settings.js';
 import { alwaysChoices, covers, decide, offered, type Grant } from './permissions.js';
@@ -24,6 +25,9 @@ const requests = new Map<string, { resolve: (value: PermissionResult) => void; i
 const grants: Grant[] = [];
 const tools = new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }>();
 const settingsApprovals = new SettingsApprovals();
+// The agent's own slash commands and models, said once per change.
+const catalog = new CommandCatalog();
+const sayCatalog = (value: ReturnType<CommandCatalog['fromChanged']>) => { if (value) event({ ...value, sessionId: reference }); };
 const send = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
 const event = (value: unknown) => send({ method: 'event', params: value });
 const reply = (id: string | undefined, result: unknown) => send({ id, result });
@@ -84,9 +88,11 @@ async function open(options: any) {
     },
   } });
   void receive(session);
+  // The commands and models are known before the first message is sent.
+  void session.initializationResult().then(init => sayCatalog(catalog.fromInitialize(init))).catch(() => { /* Each turn's init message still names the commands. */ });
   // Operations added after the original protocol. A running worker outlives
   // Runner upgrades, so the Runner asks this worker rather than assuming.
-  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent'] };
+  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model'] };
 }
 
 async function receive(q: Query) {
@@ -104,6 +110,10 @@ async function receive(q: Query) {
         event(normalized);
       }
       reference = status.reference || reference;
+      if (message.type === 'system' && !('parent_tool_use_id' in message && message.parent_tool_use_id)) {
+        if (message.subtype === 'init') sayCatalog(catalog.fromInitMessage(message));
+        else if (message.subtype === 'commands_changed') sayCatalog(catalog.fromChanged(message.commands));
+      }
       if(message.type==='result'&&!readingContext&&typeof q.getContextUsage==='function'){
         readingContext=true;
         void q.getContextUsage({detail:'summary'}).then(report=>event({type:'context',agentId:'root',sessionId:reference,data:contextSnapshot(report)})).catch(()=>{/* Older CLIs retain their last observed totals. */}).finally(()=>{readingContext=false;});
@@ -145,6 +155,13 @@ async function handle(request: Request) {
         // approvals granted above gives the same result.
         try { await session.setPermissionMode(native); } catch (error) { if (mode !== 'yolo') throw error; await session.setPermissionMode('default'); }
         permission = mode;
+        reply(request.id, { delivery: 'acknowledged' }); break;
+      }
+      case 'model': {
+        // The model of the following turns; the provider resolves an alias.
+        const model = p?.model;
+        if (typeof model !== 'string' || !model || model.length > 256 || /\s/.test(model)) throw new Error('model must be one word: an alias or a model id');
+        await session.setModel(model);
         reply(request.id, { delivery: 'acknowledged' }); break;
       }
       case 'stop_agent': {

@@ -50,6 +50,8 @@ import { useActions } from './actions';
 import { CodeRunContext, CodeRuns, type RunActions } from './code-runs';
 import { shellBlocksIn } from './code-run';
 import { showMenuNotice } from './ContextMenu';
+import { useSlashCommands } from './useSlashCommands';
+import { showToast } from './toasts';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -202,6 +204,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
 
   const send = async (event?: FormEvent, snippetText?: string) => {
     event?.preventDefault();
+    // `/command`: Lazybox's runs here, an unknown one asks first; the agent's goes on as the prompt.
+    if (!snippetText && !files.length && !missingFiles.length && !sendingRef.current && !sending && slash.intercept(message)) return false;
     const text = snippetText ?? message;
     // Never swallow Enter: say what is in the way.
     if (!snippetText && !sendingRef.current && !sending && missingFiles.length && (message.trim() || files.length)) { setError(`Attach ${missingFiles.length === 1 ? missingFiles[0].name : 'the files'} again, or remove ${missingFiles.length === 1 ? 'it' : 'them'}, to send.`); return false; }
@@ -276,10 +280,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     try {
       const result = await api.restartWithPermission({ sessionId: sessionID, mode });
       if (!result.session) throw new Error('Runner did not return the restarted conversation');
-      continueConversation(api, sessionID, result.session);
-      setSessionID(result.session.id); onSessionChange?.(result.session.id); refresh();
+      adopt(result.session);
     } catch (e) { setError(String(e)); }
   };
+  /** The conversation continues in a new agent (a restart in another mode or model). */
+  const adopt = (next: Session) => { continueConversation(api, sessionID, next); setSessionID(next.id); onSessionChange?.(next.id); refresh(); };
+  const setPermission = (mode: string) => { if (session?.capabilities?.livePermission) void changePermission(mode); else setRestartTo(mode); };
   const changePermission = async (mode: string) => {
     try {
       await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'permission', value: { mode } } });
@@ -390,6 +396,37 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     'code.run-last-myself': !!codeRuns && { run: () => runLast(true), enabled: canRunLast },
   });
 
+  // Slash commands: the menu over the message box, and Lazybox's own commands (useSlashCommands.tsx).
+  const provider = (activeProfile?.provider || launcher.provider) === 'codex' ? 'codex' : 'claude';
+  const slash = useSlashCommands({
+    api, viewState, enabled: mode === 'agent' && !!sessionID, session, sessionID, agentName, provider, catalog: transcript.catalog,
+    model: transcript.reportedModel || session?.model || '', conversation, shellBlock: !!codeRuns && !!lastShellBlock(), detail: activity.detail,
+    subscriptions: (profileList || []).filter(p => p.provider === provider).length, canCompose, message,
+    setText: text => { setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); },
+    textarea: composer, front: activity.current, onError: setError,
+    actions: {
+      sendText: async text => {
+        const ready = !!session && !session.closed && (!session.fault || limited || continuesAfterError);
+        if (!ready) { if (canCompose) addToDraft(text, 'Sending this continues the conversation and runs the command.'); else setError('This conversation cannot take a message now.'); return false; }
+        try {
+          await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'message', value: { text, attachments: [] } } }, { signal: AbortSignal.any([lifetime.current!.signal, AbortSignal.timeout(30_000)]) });
+          savePrompt(viewState, text, session?.conversationId || sessionID); jumpToLatest(); return true;
+        } catch (e) { setError(String(e)); return false; }
+      },
+      interrupt: () => void interrupt(), setPermission, switchSubscription: () => setSwitchingSubscription(true), adopt,
+      clear: async () => {
+        if (!session) return;
+        const opened = await api.openSession({ profileId: session.profileId, collectionId: session.collectionId, cwd: session.collectionId ? '' : session.workingDirectory,
+          options: { model: session.model, permission: session.permission, workflow: session.workflow, gatewayId: session.gatewayId && session.gatewayId !== 'direct' ? session.gatewayId : '', rotationProfileIds: [], instructions: '', noRotation: false } });
+        if (!opened.session) throw new Error('Runner did not return the new conversation');
+        setSession(undefined); setCommands([]); setCommand(''); setFiles([]); setMissingFiles([]); setUncertainSend(''); sendAttempt.current = null; setError('');
+        setSessionID(opened.session.id); onSessionChange?.(opened.session.id); refresh();
+        showToast({ tone: 'info', title: 'New conversation', body: 'The previous one is kept in this workspace.' });
+      },
+      rename: async title => { const result = await api.renameConversation({ sessionId: sessionID, title }); setSession(result.session); refresh(); },
+    },
+  });
+
   const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
   if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError}/>;
 
@@ -419,17 +456,19 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
               onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...sessionMenuItems({ session, allowStart,
                 onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),
-                onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true), activity })], { sessionId: sessionID })}
+                onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true), activity, models: slash.models, sessionID })], { sessionId: sessionID })}
+              onPickModel={session && !session.closed ? slash.models.pick : undefined}
               menu={<SessionMenu session={session} sessionID={sessionID} accountName={accountName} stream={stream} allowStart={allowStart}
                 onChangePermission={mode => void changePermission(mode)} onRestartWithPermission={setRestartTo}
                 onSwitchSubscription={() => setSwitchingSubscription(true)}
-                onNewSession={newSession} onClose={() => void close()} onDelete={() => setDeleting(true)} activity={activity}/>}/>
+                onNewSession={newSession} onClose={() => void close()} onDelete={() => setDeleting(true)} activity={activity} models={slash.models}/>}/>
             : <SessionHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} modelLabel={modelLabel} inspection={inspection}
               accountName={accountName} lifecycle={lifecycle}/>}
           {drop.dragging && <div className="file-drop-hint" role="status">Drop files to attach</div>}
           {session?.closed && <ResumeBar session={session} canResumeOnSend={canResumeOnSend} onResume={resumeSession} onError={setError}/>}
           {deleting && session && <DeleteConversationDialog session={session} onClose={() => setDeleting(false)} onDeleted={() => { setDeleting(false); newSession(); }}/>}
           {fileLinks.element}
+          {slash.dialogs}
           {transcript.error && <TranscriptNotice error={transcript.error} onRetry={transcript.retry}/>}
           <CodeRunContext.Provider value={codeRuns}><MessageArea api={api} session={session} sessionID={sessionID} transcript={transcript} scroll={scroll} spoken={spoken} agentName={agentName} limited={limited} nameFor={nameFor}
             onOpenFile={session?.collectionId ? openFile : undefined} onError={setError} detail={activity.detail}
@@ -439,7 +478,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}
-            permissionPrompt={restartTo && <PermissionRestartPrompt mode={restartTo} busy={!!session?.busy} onRestart={() => void restartWithPermission(restartTo)} onCancel={() => setRestartTo('')}/>}
+            permissionPrompt={<>{restartTo && <PermissionRestartPrompt mode={restartTo} busy={!!session?.busy} onRestart={() => void restartWithPermission(restartTo)} onCancel={() => setRestartTo('')}/>}{slash.prompt}</>}
+            slash={slash}
             onSubmit={send}
             onChange={text => { recall.reset(); setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); }}
             onRecallKey={recall.onKeyDown}

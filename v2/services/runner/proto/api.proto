@@ -61,6 +61,10 @@ service RunnerService {
   // Continues the conversation in a new agent started with another permission
   // mode, for an agent whose running worker cannot change mode live.
   rpc RestartWithPermission(RestartWithPermissionRequest) returns (SessionResponse);
+  // Owner only. Continues the conversation in a new agent started with another
+  // model, for an agent whose running worker cannot switch model live: it is
+  // ended between turns and the same provider conversation resumes.
+  rpc RestartWithModel(RestartWithModelRequest) returns (SessionResponse);
   // Owner only. Moves a live conversation to another signed-in subscription of
   // its provider and continues the same conversation: the same execution,
   // workspace, commands and queued messages, with a portable checkpoint for the
@@ -567,6 +571,11 @@ message RestartWithPermissionRequest {
   // ask, read-only or yolo.
   string mode = 2;
 }
+message RestartWithModelRequest {
+  string session_id = 1;
+  // The provider's model identifier (an alias such as "opus" or a full id).
+  string model = 2;
+}
 message SwitchSubscriptionRequest {
   string session_id = 1;
   // A configured profile of the conversation's provider. Its current profile
@@ -605,6 +614,9 @@ message Capabilities {
   // One sub-agent can be stopped (ApplyRequest.stop_agent) while the main
   // agent continues.
   bool stop_agent = 11;
+  // The model can change while the session runs (ApplyRequest.model), for
+  // the agent's following turns.
+  bool live_model = 12;
 }
 message AgentEvent {
   string type = 1;
@@ -798,7 +810,13 @@ message ApplyRequest {
     Approval approval = 7;
     Permission permission = 8;
     StopAgent stop_agent = 9;
+    ModelChange model = 10;
   }
+}
+// Switches a running session's model for its following turns, when
+// Capabilities.live_model. A setting, not a response: the owner's alone.
+message ModelChange {
+  string model = 1;
 }
 // Stops one running sub-agent, when Capabilities.stop_agent; the main agent's
 // turn continues. agent_id is an AgentActivity id other than root.

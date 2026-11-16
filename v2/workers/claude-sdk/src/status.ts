@@ -9,6 +9,8 @@ function toolPreview(value:unknown):unknown {
 }
 // A sub-agent's brief is shown to the person, not executed: bound it.
 const PROMPT_LIMIT=8000;
+// A local slash command's printed output, shown as the agent's answer.
+const OUTPUT_LIMIT=64<<10;
 function bounded(text:unknown):string|undefined{
  return typeof text==='string'&&text?(text.length>PROMPT_LIMIT?text.slice(0,PROMPT_LIMIT)+'…':text):undefined;
 }
@@ -67,6 +69,16 @@ export class NativeStatus {
       emit({type:'activity',agentId:child,status:m.status === 'compacting' ? 'compacting' : m.status === 'requesting' ? 'requesting' : 'working'});
     } else if (m.type === 'system' && m.subtype === 'compact_boundary') {
       emit({type:'activity',agentId:child,status:'working'});
+      // The conversation says it was compacted, and by how much.
+      if (!child) {
+        const meta = m.compact_metadata;
+        const tokens = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined;
+        emit({ type: 'compacted', data: compact({ trigger: meta?.trigger === 'auto' ? 'auto' : 'manual', preTokens: tokens(meta?.pre_tokens), postTokens: tokens(meta?.post_tokens), durationMs: tokens(meta?.duration_ms) }) });
+      }
+    } else if (m.type === 'system' && m.subtype === 'local_command_output' && !child) {
+      // What a slash command the agent ran itself printed (/usage, say) is its answer.
+      const output = typeof m.content === 'string' ? m.content : '';
+      if (output) emit({ type: 'message_delta', text: output.length > OUTPUT_LIMIT ? output.slice(0, OUTPUT_LIMIT) + '\n[Output truncated]' : output });
     } else if (m.type === 'rate_limit_event') {
       const limit = m.rate_limit_info;
       const state = limit.status === 'rejected' ? (limit.rateLimitType || limit.errorCode === 'credits_required' ? 'exhausted' : 'throttled') : 'available';

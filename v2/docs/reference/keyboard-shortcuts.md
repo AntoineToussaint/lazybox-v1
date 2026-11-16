@@ -68,6 +68,7 @@ Open the parts of the workspace in front.
 | Open this workspace in a new window | — | — |
 | Customize this page | — | — |
 | Layout configuration | — | — |
+| Show missions | — | — |
 
 ## Conversation
 
@@ -84,6 +85,17 @@ Act on the conversation you last clicked or focused.
 | Activity detail: Use the default | — | — |
 | Run the last command block | `]] r` | `]] r` |
 | Run the last command block myself… | — | — |
+| Slash commands | — | — |
+| Switch model… | — | — |
+| Change permissions… | — | — |
+| Switch subscription… | — | — |
+| Compact the context | — | — |
+| Start over in a new conversation | — | — |
+| Show context and token cost | — | — |
+| Open the review tray | — | — |
+| Track the last reply as an artifact… | — | — |
+| Interrupt the agent | — | — |
+| Rename the conversation… | — | — |
 
 ## Sidebar
 

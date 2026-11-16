@@ -500,6 +500,14 @@ actions:
         mutations.push({ method, body });
         const session = { id: `assistant-${sessions.length}`, collectionId:body.collectionId||'', profileId: body.profileId, purpose: body.purpose, status: 'ready', capabilities: { images: true }, pending: [] }; sessions.push(session); return json({ session });
       }
+      // Like the Runner: the agent ends between turns and the conversation continues in a new one with that model.
+      case 'RestartWithModel': case 'RestartWithPermission': {
+        mutations.push({method,body});const old=sessions.find(s=>s.id===body.sessionId);if(!old)return error('not_found','Fixture session not found');
+        if(old.busy)return error('failed_precondition','wait for the agent to finish its turn, or interrupt it, before restarting it');
+        const next={...old,id:`${old.id}-restarted-${sessions.length}`,conversationId:old.conversationId||old.id,...(body.model?{model:body.model,modelReported:false}:{permission:body.mode})};sessions.push(next);old.closed=true;
+        const channel=openEvents(next.id);channel.push(body.model?{type:'model_changed',text:body.model,status:'restart'}:{type:'permission_changed',text:body.mode,status:'restart'});
+        return json({session:next});
+      }
       case 'OpenSession': {
         mutations.push({ method, body });
         if (body.emptyWorkspace) { const session = {id:`empty-${sessions.length}`,profileId:body.profileId,workingDirectory:`/fixture/workspaces/${sessions.length}`,status:'ready',capabilities:{files:true},pending:[]};sessions.push(session);return json({session}); }
@@ -619,6 +627,9 @@ actions:
         // Like the Runner: at a subscription limit a message is accepted and
         // waits in the queue (journaled once), delivered after the switch.
         const session=sessions.find(s=>s.id===body.sessionId);
+        // Like the Runner: a live model switch is a setting, recorded as one line in the conversation.
+        if(session&&body.model){if(!session.capabilities?.liveModel)return error('unimplemented','operation unsupported by adapter');session.model=body.model.model;session.modelReported=true;eventStreams.get(session.id)?.push({type:'model_changed',text:body.model.model,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}
+        if(session&&body.permission){session.permission=body.permission.mode;eventStreams.get(session.id)?.push({type:'permission_changed',text:body.permission.mode,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}
         if(session&&['exhausted','throttled','auth_required','billing_error'].includes(session.fault)&&body.message){
           const queued=waitingMessages.get(session)||new Map();waitingMessages.set(session,queued);
           if(!queued.has(body.operationId)){queued.set(body.operationId,body.message.text);session.queued=(session.queued||0)+1;eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text});}

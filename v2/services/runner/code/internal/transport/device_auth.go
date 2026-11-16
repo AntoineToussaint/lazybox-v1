@@ -54,8 +54,8 @@ var deviceRPCs = map[string]deviceRule{
 		if !ok {
 			return false
 		}
-		// Changing a running agent's permission mode (to yolo, say) is a
-		// setting, not a response.
+		// Changing a running agent's permission mode (to yolo, say) or its
+		// model is a setting, not a response.
 		switch r.Operation.(type) {
 		case *pb.ApplyRequest_Message, *pb.ApplyRequest_Steer, *pb.ApplyRequest_Interrupt, *pb.ApplyRequest_Answer, *pb.ApplyRequest_Approval:
 			return true

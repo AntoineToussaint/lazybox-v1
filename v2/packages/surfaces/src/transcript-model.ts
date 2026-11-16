@@ -4,16 +4,17 @@ import { failureSentence, isLimitState, switchNote, type SwitchNote } from './su
 import { emptySubagents, SubagentFold, subagentRelevant, type Subagents } from './subagent-model';
 import { applyToolPayload, hiddenTool, THINKING, type ToolEntry } from './tool-lines';
 import { answerNote, requestNote, type AnswerNote, type RequestNote } from './request-model';
+import { commandLine, emptyCatalog, mergeCatalog, parseSlash, COMMAND_NAME, type CommandCatalog } from './slash-commands';
 
 /**
  * `agentId` names the sub-agent whose card a `subagent` message is.
  * `tools`: a run of the main agent's tool calls, one line each in the
  * conversation. `answered`: how a question or approval was answered.
  */
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string; tools?: ToolEntry[]; answered?: AnswerNote };
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string; tools?: ToolEntry[]; answered?: AnswerNote; /** A message that ran one of the agent's slash commands: shown as one compact line. */ command?: boolean };
 /** `requests`: what each question or approval asked, to say how it was answered. */
-export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote> };
-export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {} });
+export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote>; /** The agent's slash commands and models (`command_catalog`). */ catalog: CommandCatalog };
+export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {}, catalog: emptyCatalog() });
 
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
 export function appendTranscript(state: Transcript, record: JournalEvent): Transcript {
@@ -57,6 +58,15 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
     if (event.type === 'session_ready' || event.type === 'context' || event.type === 'usage') {
       const model = providerData(event.providerDataJson).model;
       if (typeof model === 'string' && model.trim()) next.reportedModel = model;
+    }
+    if (event.type === 'command_catalog') { next.catalog = mergeCatalog(next.catalog ?? emptyCatalog(), providerData(event.providerDataJson)); continue; }
+    // A command run (a model or permission switch, a compaction) is one quiet line.
+    const ran = commandLine(event.type, event.text, event.status, event.type === 'compacted' ? providerData(event.providerDataJson) : {});
+    if (ran) {
+      if (event.type === 'model_changed') next.reportedModel = event.text;
+      add({ id: record.cursor.toString(), type: 'command', text: ran, turnId: event.turnId });
+      next.appendToLast = false;
+      continue;
     }
     const last = (messages ?? state.messages).at(-1);
     // A restart that interrupted nothing is not worth a card: consecutive ones
@@ -116,7 +126,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       } else add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId });
       next.appendToLast = true;
     } else if ((event.type === 'operation_accepted' || event.type === 'failure') && (event.text || files?.length)) {
-      add({ id: record.cursor.toString(), type: event.type, text: event.type === 'failure' ? failureSentence(event.status, event.text) : event.text, turnId: event.turnId, files, ...(event.type === 'operation_accepted' && event.operationId ? { operationId: event.operationId } : {}) });
+      add({ id: record.cursor.toString(), type: event.type, text: event.type === 'failure' ? failureSentence(event.status, event.text) : event.text, turnId: event.turnId, files, ...(event.type === 'operation_accepted' && event.operationId ? { operationId: event.operationId } : {}), ...(event.type === 'operation_accepted' && ranCommand(event.text, next.catalog) ? { command: true } : {}) });
       next.appendToLast = false;
     } else if (BOUNDARY_TYPES.has(event.type) || (event.type === 'activity' && event.status === 'tool')) {
       next.appendToLast = false;
@@ -191,6 +201,13 @@ function settleTools(messages: TranscriptMessage[], replaceAt: (index: number, m
     const tools = message.tools.map(t => t.status === 'running' ? { ...t, status: 'unknown' as const } : t);
     if (owned.has(message)) message.tools = tools; else replaceAt(i, { ...message, tools });
   }
+}
+/** A sent message that is one of the agent's own slash commands (`/compact`, `/review-pr 12`). */
+export function ranCommand(text: string, catalog: CommandCatalog | undefined): boolean {
+  const input = parseSlash(text.trim());
+  if (!input || !COMMAND_NAME.test(input.name) || input.args.includes('\n')) return false;
+  const name = input.name.toLowerCase();
+  return name === 'compact' || !!catalog?.commands.some(c => c.name.toLowerCase() === name || c.aliases?.some(a => a.toLowerCase() === name));
 }
 const ACTIVITY_TYPES = new Set(['tool_catalog', 'tool_activity', 'turn_ended', 'failure', 'session_closed']);
 const BOUNDARY_TYPES = new Set(['turn_started', 'turn_ended', 'session_closed', 'approval', 'question', 'request_resolved']);

@@ -36,6 +36,11 @@ function ContextView({context:c,showAgent}:{context:ContextSnapshot;showAgent:bo
  </section>;
 }
 
+const USAGE_EVENT='lazybox-open-usage';
+type UsageRequest={executionId:string;part:'context'|'cost'};
+/** Opens a conversation's context and cost popover; false when no header of it is on screen. */
+export function openUsage(executionId:string,part:'context'|'cost'):boolean{return !window.dispatchEvent(new CustomEvent<UsageRequest>(USAGE_EVENT,{detail:{executionId,part},cancelable:true}));}
+
 /** Presentation only: closing a panel never stops Runner accounting. */
 export function TelemetryPanel({workspaceId,executionId,conversationId,compact=false}:{workspaceId?:string;executionId?:string;conversationId?:string;compact?:boolean}){
  const {api,info,error:connectionError}=useRunner();
@@ -49,6 +54,16 @@ export function TelemetryPanel({workspaceId,executionId,conversationId,compact=f
  },[api,workspaceId,executionId,conversationId]);
  useEffect(()=>{popover.current?.hidePopover();},[workspaceId,executionId,conversationId]);
  useEffect(()=>{const close=()=>popover.current?.hidePopover();window.addEventListener('resize',close);return()=>window.removeEventListener('resize',close);},[]);
+ // `/cost` and `/context` (and the palette) open this conversation's popover, at the part asked for.
+ const trigger=useRef<HTMLButtonElement>(null),costDetails=useRef<HTMLDetailsElement>(null);
+ useEffect(()=>{
+  if(!compact||!executionId)return;
+  const listener=(event:Event)=>{const request=(event as CustomEvent<UsageRequest>).detail;if(request.executionId!==executionId)return;event.preventDefault();
+   if(!popover.current?.matches(':popover-open'))trigger.current?.click();
+   if(costDetails.current)costDetails.current.open=request.part==="cost";
+   requestAnimationFrame(()=>(request.part==='cost'?costDetails.current:popover.current?.querySelector<HTMLElement>('.context-card'))?.scrollIntoView({block:'nearest'}));};
+  window.addEventListener(USAGE_EVENT,listener);return()=>window.removeEventListener(USAGE_EVENT,listener);
+ },[compact,executionId]);
  if(!workspaceId&&!executionId&&!conversationId)return <p className="module-empty">Select a workspace to view its usage.</p>;
  const groups=report?.groups||[],contexts=(report?.contexts||[]).filter((context,index,all)=>!conversationId||all.findIndex(value=>value.agent===context.agent)===index);
  const known=groups.filter(g=>g.nanos!==undefined),cost=known.reduce((sum,g)=>sum+Number(g.nanos)/1e9,0);
@@ -59,7 +74,7 @@ export function TelemetryPanel({workspaceId,executionId,conversationId,compact=f
   {error&&!connectionError&&<p role="status" className="telemetry-note">Usage unavailable; retrying automatically.</p>}
   {contexts.map(c=><ContextView key={`${c.scope?.execution}:${c.scope?.attempt}:${c.agent}`} context={c} showAgent={contexts.length>1}/>)}
   {!contexts.length&&<p className="telemetry-note">{report?'Context usage not reported yet.':'Loading context…'}</p>}
-  <details className="token-cost"><summary><span>Token cost</span><strong>{costLabel}{unpriced>0&&known.length?' + unpriced':''}</strong></summary><div className="token-cost-body">
+  <details className="token-cost" ref={costDetails}><summary><span>Token cost</span><strong>{costLabel}{unpriced>0&&known.length?' + unpriced':''}</strong></summary><div className="token-cost-body">
    <p className="telemetry-note">API-equivalent estimate, separate from subscription allowance and billed spend.</p>
    {(unpriced>0||incomplete>0)&&<p className="telemetry-note">{unpriced>0?`${unpriced} unpriced observations. `:''}{incomplete>0?`${incomplete} incomplete requests.`:''}</p>}
    {unpriced>0&&<p className="telemetry-note">Set model rates in Settings → Pricing. {Array.from(new Set((report?.recent||[]).filter(r=>r.nanos===undefined).map(r=>r.reason).filter(Boolean))).join(' · ')}</p>}
@@ -68,7 +83,7 @@ export function TelemetryPanel({workspaceId,executionId,conversationId,compact=f
   </div></details>
  </>;
  if(!compact)return <section className="telemetry-panel" aria-label="Workspace usage">{content}</section>;
- return <div className="telemetry-panel compact"><button className="context-trigger" popoverTarget={id} aria-expanded={open} aria-label="Context and token cost" onClick={event=>{event.currentTarget.focus();const bounds=event.currentTarget.getBoundingClientRect();if(popover.current){popover.current.style.left=`${Math.max(12,Math.min(bounds.right-380,window.innerWidth-392))}px`;popover.current.style.top=`${Math.max(12,Math.min(bounds.bottom+8,window.innerHeight-Math.min(window.innerHeight*.7,610)-12))}px`;}}} title={`Context ${percent===undefined?'not reported yet':`${percentLabel(percent)} used`}${known.length?` · ${costLabel}`:''}`}><span className="context-mini-bar" aria-hidden="true" data-level={percent===undefined?undefined:percent>=85?'high':percent>=60?'medium':undefined}><i style={{width:`${Math.max(0,Math.min(100,percent??0))}%`}}/></span><span className="context-trigger-percent">{percent===undefined?'Context':percentLabel(percent)}</span>{known.length>0&&<span className="context-trigger-cost">{cost>=0.01?`$${cost.toFixed(2)}`:costLabel}</span>}</button>
+ return <div className="telemetry-panel compact"><button ref={trigger} className="context-trigger" popoverTarget={id} aria-expanded={open} aria-label="Context and token cost" onClick={event=>{event.currentTarget.focus();const bounds=event.currentTarget.getBoundingClientRect();if(popover.current){popover.current.style.left=`${Math.max(12,Math.min(bounds.right-380,window.innerWidth-392))}px`;popover.current.style.top=`${Math.max(12,Math.min(bounds.bottom+8,window.innerHeight-Math.min(window.innerHeight*.7,610)-12))}px`;}}} title={`Context ${percent===undefined?'not reported yet':`${percentLabel(percent)} used`}${known.length?` · ${costLabel}`:''}`}><span className="context-mini-bar" aria-hidden="true" data-level={percent===undefined?undefined:percent>=85?'high':percent>=60?'medium':undefined}><i style={{width:`${Math.max(0,Math.min(100,percent??0))}%`}}/></span><span className="context-trigger-percent">{percent===undefined?'Context':percentLabel(percent)}</span>{known.length>0&&<span className="context-trigger-cost">{cost>=0.01?`$${cost.toFixed(2)}`:costLabel}</span>}</button>
   <div id={id} ref={popover} popover="auto" className="context-popover" onToggle={event=>setOpen(event.newState==='open')}><header><strong>Context</strong><button aria-label="Close context" popoverTarget={id} popoverTargetAction="hide">×</button></header>{content}</div>
  </div>;
 }

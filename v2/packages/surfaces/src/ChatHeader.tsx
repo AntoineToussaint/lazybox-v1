@@ -61,7 +61,7 @@ type HeaderProps = {
 };
 
 /** The header of a chat embedded in a workspace panel or a detached window. */
-export function ChatHeader({ agentName, session, sessionID, title, status, modelLabel, inspection, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu, onContextMenu }: HeaderProps & {
+export function ChatHeader({ agentName, session, sessionID, title, status, modelLabel, inspection, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu, onContextMenu, onPickModel }: HeaderProps & {
   /** The conversation's actions on a right-click, the same as its ⋯ menu. */
   onContextMenu?: MouseEventHandler<HTMLElement>;
   realTitle: string;
@@ -71,6 +71,8 @@ export function ChatHeader({ agentName, session, sessionID, title, status, model
   shownAccount: string;
   onOpenChat?(): void;
   menu: ReactNode;
+  /** The model picker (`/model`): the model name opens it. */
+  onPickModel?(): void;
 }) {
   const [header, narrow] = useNarrow(760);
   return <header ref={header} className="chat-heading" data-narrow={narrow || undefined} onContextMenu={onContextMenu}>
@@ -80,7 +82,9 @@ export function ChatHeader({ agentName, session, sessionID, title, status, model
       <div className="chat-heading-meta">
         {realTitle && branch && <span className="chat-meta-branch" title={branch.title}><Icon name="branch" size={11}/>{branch.name}</span>}
         <span className="chat-agent">{agentName}</span>
-        {modelLabel && <span className="chat-model" title={modelRequested ? 'Requested model; the provider has not confirmed it yet' : 'Model'}>{modelLabel}</span>}
+        {modelLabel && (onPickModel
+          ? <button type="button" className="chat-model chat-model-button" title={(modelRequested ? 'Requested model; the provider has not confirmed it yet. ' : '') + 'Switch model (/model)'} aria-label={`Model ${modelLabel}: switch model`} onClick={onPickModel}>{modelLabel}<Icon name="chevron" size={10}/></button>
+          : <span className="chat-model" title={modelRequested ? 'Requested model; the provider has not confirmed it yet' : 'Model'}>{modelLabel}</span>)}
         {shownAccount && <span className="chat-account" title="Account">{shownAccount}</span>}
         {status}
       </div>

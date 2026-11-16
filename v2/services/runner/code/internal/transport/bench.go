@@ -85,7 +85,7 @@ func rpcError(err error) error {
 	if errors.Is(err, journal.ErrFull) || errors.Is(err, runner.ErrRepositoryRequestLimit) {
 		code = codes.ResourceExhausted
 	}
-	if errors.Is(err, runner.ErrInvalidRepositoryRequest) {
+	if errors.Is(err, runner.ErrInvalidRepositoryRequest) || errors.Is(err, agent.ErrInvalidModel) {
 		code = codes.InvalidArgument
 	}
 	return grpcError(code, err)
@@ -107,7 +107,7 @@ func wireEvent(e agent.Event) *pb.AgentEvent {
 func wireSession(e *runner.Execution) *pb.Session {
 	s := e.Engine.Snapshot()
 	c := s.Capabilities
-	w := &pb.Session{Id: s.ID, ProfileId: s.Profile, ProviderReference: s.Reference, GatewayId: s.GatewayID, Busy: s.Busy, Closed: s.Closed, Fault: s.Fault, Queued: uint32(s.Queued), WorkId: e.WorkID, PreviousExecutionId: e.Previous, CollectionId: e.CollectionID, WorkingDirectory: e.Cwd, Purpose: e.Purpose, Status: string(s.Status), Account: wireAccount(s.Account), ActivityTruncated: s.ActivityTruncated, RotationProfileIds: e.Options.RotationProfiles, Capabilities: &pb.Capabilities{Images: c.Images, Files: c.Files, Questions: c.Questions, Approvals: c.Approvals, Steer: c.Steer, Resume: c.Resume, PendingResume: c.PendingResume, ProfileIsolation: c.ProfileIsolation, Subagents: c.Subagents, LivePermission: c.LivePermission, StopAgent: c.StopAgent}}
+	w := &pb.Session{Id: s.ID, ProfileId: s.Profile, ProviderReference: s.Reference, GatewayId: s.GatewayID, Busy: s.Busy, Closed: s.Closed, Fault: s.Fault, Queued: uint32(s.Queued), WorkId: e.WorkID, PreviousExecutionId: e.Previous, CollectionId: e.CollectionID, WorkingDirectory: e.Cwd, Purpose: e.Purpose, Status: string(s.Status), Account: wireAccount(s.Account), ActivityTruncated: s.ActivityTruncated, RotationProfileIds: e.Options.RotationProfiles, Capabilities: &pb.Capabilities{Images: c.Images, Files: c.Files, Questions: c.Questions, Approvals: c.Approvals, Steer: c.Steer, Resume: c.Resume, PendingResume: c.PendingResume, ProfileIsolation: c.ProfileIsolation, Subagents: c.Subagents, LivePermission: c.LivePermission, StopAgent: c.StopAgent, LiveModel: c.LiveModel}}
 	w.ConversationId = e.Saved.ConversationID
 	w.Permission, w.Workflow = e.Options.Permission, e.Options.Workflow
 	w.Title = s.Title
@@ -334,6 +334,12 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		op.Context = strings.TrimSpace(update + "\n\n" + reverted)
 	case *pb.ApplyRequest_Permission:
 		receipt, err := s.Bench.SetPermission(ctx, e, p.OperationId, o.Permission.GetMode())
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &pb.Receipt{OperationId: receipt.ID, Delivery: receipt.Delivery, ProviderId: receipt.ProviderID, Error: receipt.Error}, nil
+	case *pb.ApplyRequest_Model:
+		receipt, err := s.Bench.SetModel(ctx, e, p.OperationId, o.Model.GetModel())
 		if err != nil {
 			return nil, rpcError(err)
 		}
@@ -707,6 +713,17 @@ func (s *Service) RestartWithPermission(ctx context.Context, r *pb.RestartWithPe
 		return nil, rpcError(err)
 	}
 	next, err := s.Bench.RestartWithPermission(ctx, e, r.Mode)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return s.sessionResponse(ctx, next)
+}
+func (s *Service) RestartWithModel(ctx context.Context, r *pb.RestartWithModelRequest) (*pb.SessionResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	next, err := s.Bench.RestartWithModel(ctx, e, r.Model)
 	if err != nil {
 		return nil, rpcError(err)
 	}
