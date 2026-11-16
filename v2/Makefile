@@ -16,7 +16,7 @@ WORKSPACE_MANIFESTS := $(wildcard apps/*/package.json packages/*/package.json wo
 
 .PHONY: help deps generate check check-go check-workspaces build build-go build-worker build-web test test-real test-browser fmt fmt-check run web
 help:
-	@printf '%s\n' 'make dev        Build and run isolated Lazybox Dev' 'make stage      Validate and freeze a Working candidate' 'make promote RELEASE=<id>  Pin a candidate for the next Working launch' 'make working    Run the pinned Working installation' 'make run        Run the Codefly gRPC Runner with temporary ports' 'make desktop    Build and launch the native Tauri agent window' 'make web        Optional browser test client (prints its authenticated URL)' 'make check      Format, vet, typecheck, test, generated-code and workspace checks' 'make check-desktop Native Rust format, tests, and clippy' 'make test       Deterministic Go tests' 'make test-outlive  Race-checked tests that agents and commands outlive a Runner restart' 'make test-real  Explicit real-provider tests; requires existing provider login' 'make build      Compile the Runner, test CLI, SDK worker, and browser client'
+	@printf '%s\n' 'make dev        Build and run isolated Lazybox Dev' 'make stage      Validate and freeze a Working candidate' 'make promote RELEASE=<id>  Pin a candidate for the next Working launch' 'make working    Run the pinned Working installation' 'make run        Run the Codefly gRPC Runner with temporary ports' 'make desktop    Build and launch the native Tauri agent window' 'make web        Optional browser test client (prints its authenticated URL)' 'make check      Format, vet, typecheck, test, generated-code and workspace checks' 'make check-desktop Native Rust format, tests, and clippy' 'make test       Deterministic Go tests' 'make test-outlive  Race-checked tests that agents and commands outlive a Runner restart' 'make stress-go RUN=<test>  Repeat Go tests under GOMAXPROCS=1, -race and CPU load' 'make stress-ui SUITES=<names>  Repeat UI suites, several at once' 'make test-real  Explicit real-provider tests; requires existing provider login' 'make build      Compile the Runner, test CLI, SDK worker, and browser client'
 
 deps: node_modules/.package-lock.json
 node_modules/.package-lock.json: package.json package-lock.json $(WORKSPACE_MANIFESTS)
@@ -152,3 +152,12 @@ test-outlive: build-worker
 	status=$$?; if ls $(RACE_LOGS)/race.* >/dev/null 2>&1; then cat $(RACE_LOGS)/race.*; echo 'data races reported (above)'; exit 1; fi; exit $$status
 test-real-outlive: build-worker
 	cd $(GO_ROOT) && LAZYBOX_V2_REAL=1 LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js) go test -timeout 14m -v ./tests/integration -run '^TestRealAgentOutlivesRunnerRestart$$'
+
+# Flake detection (RELEASE_GATES.md): repeat tests under the conditions that
+# expose races. make stress-go RUN=TestName [PKGS=./internal/x] [COUNT=50] [LOAD=n]
+# make stress-ui SUITES='chat-polish file-navigation' [RUNS=10] [PARALLEL=3] [LOAD=n]
+.PHONY: stress-go stress-ui
+stress-go: build-worker
+	LAZYBOX_V2_WORKER=$(abspath workers/claude-sdk/dist/main.js) node scripts/stress.mjs go $(if $(COUNT),--count $(COUNT)) $(if $(LOAD),--load $(LOAD)) $(if $(RUN),--run '$(RUN)') $(PKGS)
+stress-ui: deps
+	node scripts/stress.mjs ui $(if $(RUNS),--runs $(RUNS)) $(if $(PARALLEL),--parallel $(PARALLEL)) $(if $(LOAD),--load $(LOAD)) $(SUITES)

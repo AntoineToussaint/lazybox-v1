@@ -126,6 +126,33 @@ another output. Run mutable-tree validation while editing is idle, or use
 `make stage` for a separate snapshot. Dependencies and generated outputs may be
 validated/rebuilt; source changes are reported, not silently blessed.
 
+## Flake detection
+
+A gate that fails once and passes on a re-run is a race or wrong
+synchronisation until its cause is found. Re-running until green or raising a
+timeout hides it. Reproduce it first, under the conditions that expose it:
+
+```sh
+make -C v2 stress-go RUN='^TestName$' PKGS=./internal/runner [COUNT=50] [LOAD=15]
+make -C v2 stress-ui SUITES='chat-polish file-navigation' [RUNS=10] [PARALLEL=3] [LOAD=0]
+```
+
+`stress-go` runs `go test -race` with `GOMAXPROCS=1`, alongside `LOAD` busy
+loops (default: one per core). `stress-ui` runs each suite `RUNS` times in
+`PARALLEL` lanes at once, so suites contend for the machine and anything they
+share. Both report failures per test, keep each failing run's log, and never
+retry. Record the failure rate before and after the fix, with the run count.
+A diagnosis is confirmed by widening the suspected window, for example a delay
+just before the operation, until the test fails every time, and showing that
+the fix passes with that delay still in place.
+
+Shared state between UI suites stays out of the way by design. Each suite has
+its own Vite dependency cache (`scripts/fixtures/vite-cache.mjs`), because
+suites with different configs otherwise rewrite one shared cache under each
+other. `test:transcript-performance` bounds a long conversation's opening
+relative to a short calibration conversation opened alongside it. The
+absolute budgets apply only with `PERF_STRICT=1`, on a quiet machine.
+
 ## Watcher diagnostic
 
 ```sh
