@@ -150,3 +150,4 @@
 .runtime-repository[open]>summary{margin-bottom:10px}
 .runtime-repository textarea{width:100%;box-sizing:border-box;font-size:calc(12px * var(--text-scale))}
 .runtime-settings .runtime-check{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:calc(12px * var(--text-scale))}
+.runtime-repository>summary{min-height:28px}

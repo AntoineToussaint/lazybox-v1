@@ -149,6 +149,30 @@ try {
     await page.context().close();
   }
 
+  // 6. A command you are asked to allow is shown whole at any width: wrapped, never cut or behind a sideways scroll.
+  {
+    const long = 'rm -rf services/front-door/dist && pnpm --filter front-door build --mode production --reporter=append-only --config ./configs/a/very/deep/path/production.config.ts';
+    const beta = fixture.sessions[1];
+    const approval = { type: 'approval', requestId: 'approval-long', text: 'Bash', providerDataJson: Buffer.from(JSON.stringify({ tool: 'Bash', input: { command: long, description: 'Clean and rebuild the front door' }, toolUseId: 'tool-long' })).toString('base64') };
+    Object.assign(beta, { busy: true, status: 'waiting_approval', pending: [approval] });
+    fixture.openEvents(beta.id).push(approval);
+    for (const width of [1440, 800, 390]) {
+      const page = await (await browser.newContext({ viewport: { width, height: 900 } })).newPage(); page.setDefaultTimeout(15000);
+      await page.goto(url.replace('collection=alpha&session=alpha-session', 'collection=beta&session=beta-session'));
+      const command = page.locator('.request .approval-what pre').first();
+      await expect(command).toContainText('production.config.ts');
+      const fit = await command.evaluate(node => ({ wide: node.scrollWidth - node.clientWidth, tall: node.scrollHeight - node.clientHeight, right: node.getBoundingClientRect().right }));
+      assert.ok(fit.wide <= 1, `the command is not cut or scrolled sideways at ${width}px (${fit.wide}px hidden)`);
+      assert.ok(fit.tall <= 1, `the whole command is on screen at ${width}px`);
+      assert.ok(fit.right <= width, `the command stays inside the window at ${width}px`);
+      await expect(page.locator('.request .approval-what').getByRole('button', { name: /Copy/ })).toBeVisible();
+      // "Request details" is a control: tall enough to hit.
+      assert.ok((await page.locator('.request .request-metadata > summary').first().boundingBox()).height >= 24, 'the details disclosure is at least 24px tall');
+      if (width === 390) await page.screenshot({ path: '.cache/polish-pass-approval-phone.png' });
+      await page.context().close();
+    }
+  }
+
   assert.deepEqual(errors, []);
   console.log('PASS polish pass: a narrow chat keeps its title and a whole message box; a phone reaches every page tab and keeps the step on one row; a page opened from the header closes with its ×; the header fits half a screen. Fixture only.');
 } finally { await browser?.close(); await server.close(); await fixture.close(); }

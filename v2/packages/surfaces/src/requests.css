@@ -68,3 +68,9 @@ button.danger:hover{background:var(--danger-line)}
 @media (max-width:640px){.question{flex-direction:column}.request .question-preview{margin-top:0;max-height:200px}.question-hint{display:none}.request-key{display:none}}
 .decision-text code,.request-answered code{font-family:var(--font-mono);font-size:calc(11.5px * var(--code-scale));color:var(--text);background:var(--surface-selected);border-radius:3px;padding:0 4px}
 .decision-scope{font-style:normal;margin-left:8px;font-size:calc(10.5px * var(--text-scale));color:var(--info-soft);background:var(--info-bg);border:1px solid var(--info-line-subtle);border-radius:999px;padding:0 7px;white-space:nowrap}
+/* A command you are asked to allow is shown whole: it wraps, it is never cut at the card's edge or put
+   behind a sideways scroll. Its Copy button stays in the block's header. */
+.request .approval-what .code-block pre,.request .approval-what .code-block code{white-space:pre-wrap!important;overflow-wrap:anywhere;word-break:break-word}
+.request .approval-what .code-block pre{overflow-x:hidden;max-height:min(320px,40dvh)}
+/* Disclosures are controls: a row tall enough to hit. */
+.request .request-metadata>summary{display:flex;align-items:center;min-height:24px;cursor:pointer}

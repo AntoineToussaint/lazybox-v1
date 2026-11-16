@@ -25,7 +25,7 @@ small{color:var(--text-muted);font-size:calc(11px * var(--text-scale));overflow-
 .topbar p{margin-top:5px;color:var(--text-muted);font-size:calc(12px * var(--text-scale))}
 .topbar>.pill{margin-left:auto}
 .pill{border:1px solid var(--ok-line-subtle);color:var(--ok-soft);font-size:calc(10px * var(--text-scale));padding:6px 9px;border-radius:100px;max-width:180px;overflow-wrap:anywhere}
-.eyebrow{color:var(--text-muted);letter-spacing:1.4px;font-size:calc(9px * var(--text-scale));text-transform:uppercase}
+.eyebrow{color:var(--text-muted);letter-spacing:1.4px;font-size:calc(10.5px * var(--text-scale));text-transform:uppercase}
 .connection-retry{padding:20px 28px}
 .session-setup{width:100%;max-width:560px;margin:0 auto;padding:60px 28px;overflow:auto}
 .session-setup>h2{font-size:calc(30px * var(--text-scale));margin-top:18px;letter-spacing:-1px}
@@ -56,7 +56,7 @@ small{color:var(--text-muted);font-size:calc(11px * var(--text-scale));overflow-
 .attachment{margin-right:auto;max-width:120px;overflow:hidden;cursor:pointer;font-size:calc(10px * var(--text-scale))}
 .attachment input{display:none}
 .attachment{max-width:none;background:transparent;font-size:calc(11px * var(--text-scale))}
-.composer-hint{display:block;margin-top:8px;font-size:calc(10px * var(--text-scale))}
+.composer-hint{display:block;margin-top:8px;font-size:calc(11px * var(--text-scale))}
 .event-detail{padding:14px 28px;font-size:calc(10px * var(--text-scale));color:var(--text-faint);flex-shrink:0}
 .event-detail pre{max-height:100px;overflow:auto}
 .request{padding:18px;background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;margin-top:20px}
@@ -166,3 +166,4 @@ small{color:var(--text-muted);font-size:calc(11px * var(--text-scale));overflow-
 .pill.run-running{color:var(--accent);border-color:var(--accent-line)}.pill.run-ok{color:var(--ok);border-color:var(--ok-line)}.pill.run-failed{color:var(--danger);border-color:var(--danger-line)}.pill.run-stopped{color:var(--warn-soft);border-color:var(--warn-line)}
 .console{position:relative}
 .console-jump{position:absolute;right:18px;bottom:44px;z-index:2;padding:4px 10px;border:1px solid var(--line-bold);border-radius:12px;background:color-mix(in srgb,var(--surface-hover) 93%,transparent);color:var(--text-soft);font-size:calc(11px * var(--text-scale));box-shadow:0 6px 18px color-mix(in srgb,var(--shadow) calc(40% * var(--shadow-strength)),transparent)}
+.session-options>summary{display:flex;align-items:center;min-height:24px}
