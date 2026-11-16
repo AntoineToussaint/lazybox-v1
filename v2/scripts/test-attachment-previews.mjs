@@ -14,8 +14,10 @@ import { startRunnerFixture } from './fixtures/runner-ui.mjs';
 const fixture = await startRunnerFixture();
 const server = await createServer({...testViteCache(import.meta.url), configFile: false, logLevel: 'error', root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
 const VIEWPORT = { width: 1280, height: 800 };
-// Screenshots after the fade and scale-in, not halfway through them.
-const settle = page => page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished)));
+// Screenshots after the fade and scale-in, not halfway through them. A
+// transition cancelled meanwhile (the dock's tab-strip scrollbar fades on a
+// resize and is cut short by the next) has settled too: its finished rejects.
+const settle = page => page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
 const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 const reads = path => fixture.calls.filter(call => call.method === 'ReadAttachment' && (!path || call.body.path === path)).length;
 const data = value => Buffer.from(JSON.stringify(value)).toString('base64');
