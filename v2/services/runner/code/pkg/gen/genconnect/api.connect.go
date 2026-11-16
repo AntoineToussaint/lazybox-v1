@@ -464,6 +464,9 @@ const (
 	// RunnerServiceReportAgentTaskProcedure is the fully-qualified name of the RunnerService's
 	// ReportAgentTask RPC.
 	RunnerServiceReportAgentTaskProcedure = "/lazybox.bench.v1.RunnerService/ReportAgentTask"
+	// RunnerServiceProposePlanProcedure is the fully-qualified name of the RunnerService's ProposePlan
+	// RPC.
+	RunnerServiceProposePlanProcedure = "/lazybox.bench.v1.RunnerService/ProposePlan"
 	// RunnerServiceListArtifactsProcedure is the fully-qualified name of the RunnerService's
 	// ListArtifacts RPC.
 	RunnerServiceListArtifactsProcedure = "/lazybox.bench.v1.RunnerService/ListArtifacts"
@@ -825,6 +828,11 @@ type RunnerServiceClient interface {
 	StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error)
 	// A child reports its own task done to the person (and its parent).
 	ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error)
+	// An orchestrator proposes how it would split the mission into agents,
+	// with an estimate (`lazybox mission plan`). It waits for the person's
+	// approval (UpdateMission approve_plan, owner only) before any of them
+	// starts when the grant requires a plan.
+	ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -1790,6 +1798,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ReportAgentTask")),
 			connect.WithClientOptions(opts...),
 		),
+		proposePlan: connect.NewClient[gen.ProposePlanRequest, gen.MissionPlan](
+			httpClient,
+			baseURL+RunnerServiceProposePlanProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ProposePlan")),
+			connect.WithClientOptions(opts...),
+		),
 		listArtifacts: connect.NewClient[gen.ListArtifactsRequest, gen.ListArtifactsResponse](
 			httpClient,
 			baseURL+RunnerServiceListArtifactsProcedure,
@@ -2102,6 +2116,7 @@ type runnerServiceClient struct {
 	waitAgents                   *connect.Client[gen.WaitAgentsRequest, gen.AgentLineage]
 	stopChildAgent               *connect.Client[gen.StopChildAgentRequest, gen.AgentLineage]
 	reportAgentTask              *connect.Client[gen.ReportAgentTaskRequest, gen.AgentLineage]
+	proposePlan                  *connect.Client[gen.ProposePlanRequest, gen.MissionPlan]
 	listArtifacts                *connect.Client[gen.ListArtifactsRequest, gen.ListArtifactsResponse]
 	getArtifact                  *connect.Client[gen.GetArtifactRequest, gen.Artifact]
 	putArtifact                  *connect.Client[gen.PutArtifactRequest, gen.Artifact]
@@ -2856,6 +2871,11 @@ func (c *runnerServiceClient) ReportAgentTask(ctx context.Context, req *connect.
 	return c.reportAgentTask.CallUnary(ctx, req)
 }
 
+// ProposePlan calls lazybox.bench.v1.RunnerService.ProposePlan.
+func (c *runnerServiceClient) ProposePlan(ctx context.Context, req *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error) {
+	return c.proposePlan.CallUnary(ctx, req)
+}
+
 // ListArtifacts calls lazybox.bench.v1.RunnerService.ListArtifacts.
 func (c *runnerServiceClient) ListArtifacts(ctx context.Context, req *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {
 	return c.listArtifacts.CallUnary(ctx, req)
@@ -3270,6 +3290,11 @@ type RunnerServiceHandler interface {
 	StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error)
 	// A child reports its own task done to the person (and its parent).
 	ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error)
+	// An orchestrator proposes how it would split the mission into agents,
+	// with an estimate (`lazybox mission plan`). It waits for the person's
+	// approval (UpdateMission approve_plan, owner only) before any of them
+	// starts when the grant requires a plan.
+	ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -4231,6 +4256,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ReportAgentTask")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceProposePlanHandler := connect.NewUnaryHandler(
+		RunnerServiceProposePlanProcedure,
+		svc.ProposePlan,
+		connect.WithSchema(runnerServiceMethods.ByName("ProposePlan")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListArtifactsHandler := connect.NewUnaryHandler(
 		RunnerServiceListArtifactsProcedure,
 		svc.ListArtifacts,
@@ -4685,6 +4716,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceStopChildAgentHandler.ServeHTTP(w, r)
 		case RunnerServiceReportAgentTaskProcedure:
 			runnerServiceReportAgentTaskHandler.ServeHTTP(w, r)
+		case RunnerServiceProposePlanProcedure:
+			runnerServiceProposePlanHandler.ServeHTTP(w, r)
 		case RunnerServiceListArtifactsProcedure:
 			runnerServiceListArtifactsHandler.ServeHTTP(w, r)
 		case RunnerServiceGetArtifactProcedure:
@@ -5326,6 +5359,10 @@ func (UnimplementedRunnerServiceHandler) StopChildAgent(context.Context, *connec
 
 func (UnimplementedRunnerServiceHandler) ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReportAgentTask is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ProposePlan is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {

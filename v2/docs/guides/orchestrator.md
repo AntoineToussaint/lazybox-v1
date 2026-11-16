@@ -21,10 +21,41 @@ The sheet asks:
 | **Subscriptions** | The accounts its agents may run on. By default, the conversation's own. |
 | **At once** | How many of its agents may run at the same time (default 3). An agent counts until you accept its task or it is stopped. |
 | **Budget** | What the whole tree may spend, or no cap. |
+| **Approve its plan first** | On by default: it starts no agent until you approve its plan (below). |
 
 **Let it run agents** gives the right. The conversation's header shows an
 **Orchestrator 0/3** badge, and the conversation hears what it may do with
 your next message.
+
+## Approve its plan
+
+With **Approve its plan first** on, the orchestrator first proposes how it
+would split the mission: each task with who does it, at what permission, in
+which workspace, the paths it would change, the order, and an estimate.
+The plan waits for you in its conversation (**Review plan…** on the line
+*Proposed a plan*), in the Inbox under **Plans to approve**, and on the
+Missions board.
+
+The sheet lists the tasks in the order they can start (tasks at the same
+step run side by side). A path two tasks would both change is flagged: they
+would edit the same files, so order them or give them their own
+workspaces. Set the **Budget cap** (it starts at the estimate and a quarter)
+and how many agents may run **At once**, add a note if you like, and
+**Approve** (⌘↵). Approving creates the plan's tasks on the board; the
+orchestrator is told and starts them, in order, and nothing else.
+**Reject…** tells it why.
+
+## Budget
+
+Each agent the orchestrator starts reserves its plan estimate against the
+cap. When what the tree spent (the orchestrator and every agent it started)
+plus what its running agents reserved would pass the cap, the next agent is
+not started: the board says **New agents paused** with what was spent and
+reserved, and **Raise budget** lets it go on. At 80% the board's budget line
+turns amber. Each task on the board shows what it cost against its
+estimate (*$2.10 / $4*). Costs are API-equivalent prices from Lazybox's
+usage records, not an invoice; agents already running are not stopped at
+the cap, only new ones.
 
 ## What it can and cannot do
 
@@ -34,6 +65,7 @@ your next message.
 | Message, wait on and stop **the agents it started** | Reach any conversation it did not start |
 | Give an agent its own workspace (new branches from its own) | Give an agent more permission, other subscriptions or more agents than you allowed |
 | Read what its agents reported | Pass a gate or accept a task |
+| Propose a plan (`lazybox mission plan`) | Approve its own plan, or raise its budget |
 
 Every agent it starts asks **you** for approvals, labelled with where it came
 from. A message from an agent never counts as your consent.
@@ -75,7 +107,13 @@ lazybox agents watch                   # follow them live
 lazybox agents stop <agent> [--end]
 lazybox agents send parent "…"          # from an agent it started
 lazybox agents report "what I did and how I checked it"
+lazybox mission plan -                  # YAML: summary; tasks with key, title, brief, role,
+                                        # permission, workspace, paths, estimate_usd, after
 ```
+
+From your own terminal: `lazybox mission approve <mission> --cap 20 [--wip 3]`,
+`lazybox mission reject <mission> --note "…"` and
+`lazybox mission budget <mission> --cap 40`.
 
 A report asks you to accept the task on the board, and tells the
 orchestrator. `wait` and `watch` keep going across a Runner restart: the

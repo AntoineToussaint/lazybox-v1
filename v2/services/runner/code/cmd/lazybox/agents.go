@@ -177,8 +177,36 @@ func (c *cli) printLineage(out *pb.AgentLineage) {
 	if p := out.Parent; p != nil {
 		c.out("Started by “%s” (your orchestrator) for “%s” · it is %s.\n", p.Title, out.MissionTitle, liveWord(p))
 	}
-	if len(out.Children) == 0 && out.Grant != nil {
-		c.out("No agents yet: lazybox agents spawn --title … --brief …\n")
+	if g := out.Grant; g != nil && g.Ceiling != nil && g.Ceiling.BudgetUsd > 0 {
+		state := ""
+		if g.BudgetState == "exhausted" {
+			state = " · new agents paused until the person raises it"
+		}
+		c.out("Budget: $%.2f spent, $%.2f reserved of $%.2f%s.\n", out.SpentUsd, out.ReservedUsd, g.Ceiling.BudgetUsd, state)
+	}
+	if p := out.Plan; p != nil {
+		c.out("Plan %s (%s, est. $%.2f):\n", p.Id, p.State, p.TotalUsd)
+		started := map[string]string{}
+		for _, ch := range out.Children {
+			started[ch.TaskId] = liveWord(ch)
+		}
+		for _, t := range p.Tasks {
+			id, state := t.TaskId, "waiting for the person"
+			if id == "" {
+				id = "-"
+			} else if s, ok := started[t.TaskId]; ok {
+				state = s
+			} else {
+				state = "ready to start: lazybox agents spawn --task " + t.TaskId
+			}
+			if p.State != "approved" {
+				state = p.State
+			}
+			c.out("  %-12s %-14s %s · %s\n", t.Key, id, truncate(t.Title, 32), state)
+		}
+	}
+	if len(out.Children) == 0 && out.Grant != nil && out.Plan == nil {
+		c.out("No agents yet: lazybox agents spawn --title … --brief …, or propose a plan: lazybox mission plan -\n")
 	}
 	for _, ch := range out.Children {
 		line := fmt.Sprintf("  %-28s %-14s %-9s %-10s %s", truncate(ch.Title, 28), liveWord(ch), ch.Role, ch.Permission, ch.TaskStatus)

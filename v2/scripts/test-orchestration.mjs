@@ -65,7 +65,10 @@ async function run(scheme) {
   await sheet.getByLabel('New mission').fill('Ship search');
   await sheet.getByLabel('Agents at once').fill('3');
   await sheet.getByLabel('Budget in dollars').fill('20');
-  await expect(sheet.locator('.grant-row small')).toHaveText('$20 for the whole tree');
+  await expect(sheet.locator('.grant-row small').first()).toHaveText('$20 for the whole tree');
+  // Approving a plan first is the default; this run starts agents right away.
+  await expect(sheet.getByLabel(/Approve its plan first/)).toBeChecked();
+  await sheet.getByLabel(/Approve its plan first/).uncheck();
   await expect(sheet.locator('.grant-rules')).toContainText('Never approves, answers for you, passes a gate or accepts a task');
   await page.screenshot({ path: `${shots}orchestration-grant-${scheme}.png` });
   await sheet.getByRole('button', { name: 'Let it run agents' }).click();
@@ -76,6 +79,7 @@ async function run(scheme) {
   assert.equal(granted.grant.ceiling.maxChildren, 3);
   assert.equal(granted.grant.ceiling.budgetUsd, 20);
   assert.deepEqual(granted.grant.ceiling.profileIds, ['claude-default']);
+  assert.ok(!granted.grant.ceiling.planRequired, "the plan step was turned off");
 
   // The badge says it holds power, and how much is in use; the transcript says when it was given.
   const chip = chat.locator('.orchestrator-chip');

@@ -98,6 +98,9 @@ type Ceiling struct {
 	Depth int `json:"depth"`
 	// BudgetUSD is what the whole tree may spend; 0 sets no cap.
 	BudgetUSD float64 `json:"budget_usd,omitempty"`
+	// PlanRequired: no agent starts before the person approved a plan
+	// (plan.go); then only the approved plan's tasks start.
+	PlanRequired bool `json:"plan_required,omitempty"`
 }
 
 // Within reports whether c asks for no more than limit, and says what is wider.
@@ -118,6 +121,9 @@ func (c Ceiling) Within(limit Ceiling) (bool, string) {
 	}
 	if limit.BudgetUSD > 0 && (c.BudgetUSD <= 0 || c.BudgetUSD > limit.BudgetUSD) {
 		return false, "more budget than its own"
+	}
+	if limit.PlanRequired && !c.PlanRequired {
+		return false, "the right to start agents without an approved plan"
 	}
 	return true, ""
 }

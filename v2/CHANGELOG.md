@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.6] - 2026-11-17 · Let an agent run agents, within limits you set
+
+- **An orchestrator** Type /orchestrate (or ⌘K, Let this conversation run agents…) to let one conversation start and drive agents for a mission: how many at once, their permission (never above its own), their subscriptions and a budget. Its header shows Orchestrator 2/3; click it for its agents and Revoke.
+- **Only the agents it started** It messages, waits on and stops only its own agents (lazybox agents spawn, send, wait, watch, stop). It never approves, answers for you, passes a gate or accepts a task: its agents ask you, and you accept their work.
+- **Messages read as theirs** A message between an orchestrator and its agent is an event from that agent, opening to exactly what was sent, with Open to go to it. An agent's header leads back to its orchestrator, and the board shows who started each task.
+- **Approve the plan first** The orchestrator proposes its split (tasks, paths, order, estimate); you approve it once, with a $ cap and how many agents at once, on one sheet that flags paths two tasks would both change. It starts only the plan's tasks.
+- **A budget that holds** Each agent reserves its estimate against the cap; past it, new agents pause and the board asks you to raise it. Every task shows what it cost against its estimate.
 ## [2026-11-17.5] - 2026-11-17 · Panels from the keyboard
 
 - **Move between panels with arrows** ⌥⌘ and an arrow moves the focus to the panel group on that side; a ring shows where you are, and a screen reader says it. ⌥⇧⌘ and an arrow moves the panel into that group, or swaps two panels, and ⌃⌘ and an arrow moves the group's edge (held down, it keeps going, faster).

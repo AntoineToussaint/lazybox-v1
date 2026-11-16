@@ -62,15 +62,18 @@ export function createMissionFake({ sessions, collections, events }) {
     const snippets = attempt ? prompts.filter(p => p.conversationId === attempt.conversationId && p.source?.kind === 'snippet') : [];
     return { id: t.id, goalId: '', title: t.title, brief: t.brief, ...view, attempt: attempt ? wireAttempt(attempt) : undefined, attempts: t.attempts.map(wireAttempt), evidence: t.evidence,
       report: t.report || '', reportedAtUnixMillis: t.reportedAt || '0', decisionNote: t.decisionNote || '', blockedBy: t.blockedBy, createdAtUnixMillis: t.created, updatedAtUnixMillis: t.updated,
-      lastSnippet: snippets[0]?.source.snippetKey || '', nextSnippets: snippets[0]?.next || [] };
+      lastSnippet: snippets[0]?.source.snippetKey || '', nextSnippets: snippets[0]?.next || [], costUsd: t.costUsd || 0, estimateUsd: t.estimateUsd || 0, planId: t.planId || '' };
   };
   const liveChildren = (m, g) => m.tasks.filter(t => { const a = t.attempts.at(-1); return a && !a.ended && a.grantId === g.id && !t.accepted && !t.canceled; }).length;
-  const wireGrant = (m, g) => ({ ...g, liveChildren: liveChildren(m, g), children: m.tasks.filter(t => t.attempts.some(a => a.grantId === g.id)).length });
-  const wire = (m, full) => ({ id: m.id, title: m.title, brief: m.brief, process: 'solo-pair', processDigest: 'sha256:fixture', autonomy: 3, createdAtUnixMillis: m.createdAtUnixMillis, updatedAtUnixMillis: m.updatedAtUnixMillis, canceled: m.canceled, seq: String(m.seq), goals: [], tasks: m.tasks.map(t => derive(m, t)), events: full ? m.events.slice(0, 200) : [], error: '', ignored: 0, grants: m.grants.map(g => wireGrant(m, g)), messages: full ? m.messages.slice(0, 200) : [] });
+  const wireGrant = (m, g) => ({ ...g, liveChildren: liveChildren(m, g), children: m.tasks.filter(t => t.attempts.some(a => a.grantId === g.id)).length, spentUsd: g.spentUsd || 0, reservedUsd: g.reservedUsd || 0, budgetState: g.budgetState || '' });
+  const pathsMeet = (a, b) => { const ta = a.replace(/\*+$/, ''), tb = b.replace(/\*+$/, ''); return ta === tb || (ta.endsWith('/') && tb.startsWith(ta)) || (tb.endsWith('/') && ta.startsWith(tb)); };
+  const overlapsOf = tasks => { const out = []; tasks.forEach((a, i) => tasks.slice(i + 1).forEach(b => a.paths.forEach(pa => b.paths.forEach(pb => { if (!pathsMeet(pa, pb)) return; const path = pa.length >= pb.length ? pa : pb; const o = out.find(v => v.path === path); if (o) { for (const k of [a.key, b.key]) if (!o.keys.includes(k)) o.keys.push(k); } else out.push({ path, keys: [a.key, b.key] }); })))); return out; };
+  const wirePlan = p => ({ ...p, totalUsd: p.tasks.reduce((n, t) => n + (t.estimateUsd || 0), 0), overlaps: overlapsOf(p.tasks) });
+  const wire = (m, full) => ({ id: m.id, title: m.title, brief: m.brief, process: 'solo-pair', processDigest: 'sha256:fixture', autonomy: 3, createdAtUnixMillis: m.createdAtUnixMillis, updatedAtUnixMillis: m.updatedAtUnixMillis, canceled: m.canceled, seq: String(m.seq), goals: [], tasks: m.tasks.map(t => derive(m, t)), events: full ? m.events.slice(0, 200) : [], error: '', ignored: 0, grants: m.grants.map(g => wireGrant(m, g)), messages: full ? m.messages.slice(0, 200) : [], plans: [...m.plans].reverse().map(wirePlan) });
   const refuse = message => ({ error: { code: 'failed_precondition', message } });
 
   const create = (title, brief = '') => {
-    const m = { id: id('m'), title, brief, canceled: false, seq: 0, events: [], tasks: [], grants: [], messages: [], createdAtUnixMillis: ms(), updatedAtUnixMillis: ms(), operations: new Map() };
+    const m = { id: id('m'), title, brief, canceled: false, seq: 0, events: [], tasks: [], grants: [], messages: [], plans: [], createdAtUnixMillis: ms(), updatedAtUnixMillis: ms(), operations: new Map() };
     missions.push(m); append(m, 'mission.created', 'mission', { title }); append(m, 'mission.process_pinned', 'mission', {}, 'lazybox');
     return m;
   };
@@ -136,12 +139,29 @@ export function createMissionFake({ sessions, collections, events }) {
       const own = ['read-only', 'ask', 'yolo'].includes(session.permission) ? session.permission : 'ask', c = body.grant.ceiling || {};
       if (['read-only', 'ask', 'yolo'].indexOf(c.permission || own) > ['read-only', 'ask', 'yolo'].indexOf(own)) return refuse(`its agents cannot run at ${c.permission} while it runs at ${own}; raise its own permission first`);
       const g = { id: id('gr'), conversationId: conversationOf(session.id), sessionId: session.id, title: session.title || 'Orchestrator', parentGrantId: '', scopes: ['session.spawn', 'session.send', 'session.wait', 'session.stop', 'task.create'],
-        ceiling: { permission: c.permission || own, profileIds: c.profileIds?.length ? c.profileIds : [session.profileId], maxChildren: c.maxChildren || 3, depth: c.depth || 1, budgetUsd: c.budgetUsd || 0 },
+        ceiling: { permission: c.permission || own, profileIds: c.profileIds?.length ? c.profileIds : [session.profileId], maxChildren: c.maxChildren || 3, depth: c.depth || 1, budgetUsd: c.budgetUsd || 0, planRequired: !!c.planRequired },
         issuedAtUnixMillis: ms(), revokedAtUnixMillis: '0', revokeReason: '', issuedBy: 'human', revokedBy: '', live: true };
       m.grants.push(g); createdId = g.id;
       session.lineage = { ...(session.lineage || {}), grantId: g.id, missionId: m.id, missionTitle: m.title, liveChildren: 0, maxChildren: g.ceiling.maxChildren, parentConversationId: session.lineage?.parentConversationId || '', parentTitle: session.lineage?.parentTitle || '', taskId: session.lineage?.taskId || '', role: session.lineage?.role || '' };
       append(m, 'grant.issued', 'grant:' + g.id, { title: g.title });
       push(session.id, { type: 'orchestration_granted', text: `You let this conversation run agents for “${m.title}”: up to ${g.ceiling.maxChildren} at once, ${g.ceiling.permission} or narrower.`, data: { mission: m.id, grant: g.id } });
+    } else if (body.approvePlan || body.rejectPlan) {
+      const d = body.approvePlan || body.rejectPlan, p = m.plans.find(v => v.id === d.planId);
+      if (!p || p.state !== 'proposed') return refuse(`plan “${d.planId}” is not waiting for a decision`);
+      Object.assign(p, { state: body.approvePlan ? 'approved' : 'rejected', capUsd: d.capUsd || 0, note: d.note || '', decidedAtUnixMillis: ms() });
+      const g = m.grants.find(v => v.id === p.grantId);
+      if (body.approvePlan) {
+        const ids = {};
+        for (const t of p.tasks) { const task = addTask(m, t.title, t.brief || ''); ids[t.key] = task.id; Object.assign(task, { estimateUsd: t.estimateUsd || 0, planId: p.id }); t.taskId = task.id; }
+        for (const t of p.tasks) m.tasks.find(v => v.id === ids[t.key]).blockedBy = (t.after || []).map(k => ids[k]);
+        if (g) { g.ceiling.budgetUsd = d.capUsd || 0; if (d.maxChildren) g.ceiling.maxChildren = d.maxChildren; g.budgetState = ''; }
+      }
+      append(m, body.approvePlan ? 'plan.approved' : 'plan.rejected', 'plan:' + p.id, { note: d.note });
+      if (g) push(g.sessionId, { type: 'plan_decided', text: body.approvePlan ? `You approved the plan: ${p.tasks.length} tasks, ${d.capUsd ? '$' + d.capUsd.toFixed(2) + ' cap' : 'no budget cap'}.` : 'You rejected the plan.', data: { mission: m.id, plan: p.id } });
+    } else if (body.raiseBudget) {
+      const g = m.grants.find(v => v.id === body.raiseBudget.grantId); if (!g || !g.live) return refuse('the grant is not in force');
+      Object.assign(g.ceiling, { budgetUsd: body.raiseBudget.capUsd }); g.budgetState = '';
+      append(m, 'budget.raised', 'grant:' + g.id, {});
     } else if (body.revokeGrant) {
       const g = m.grants.find(v => v.id === body.revokeGrant.grantId); if (!g) return refuse('grant does not exist');
       if (!g.live) return refuse('grant is already revoked');
@@ -203,6 +223,23 @@ export function createMissionFake({ sessions, collections, events }) {
     refreshLineage(m);
   };
 
+  /** An orchestrator proposes a plan (`lazybox mission plan`). */
+  const proposePlan = (sessionId, { summary = '', tasks }) => {
+    const conversation = conversationOf(sessionId), m = missions.find(v => v.grants.some(g => g.live && g.conversationId === conversation));
+    const g = m.grants.find(v => v.live && v.conversationId === conversation);
+    for (const p of m.plans) if (p.grantId === g.id && p.state === 'proposed') p.state = 'superseded';
+    const plan = { id: id('pl'), grantId: g.id, summary, tasks: tasks.map(t => ({ key: t.key, title: t.title, brief: t.brief || '', role: t.role || '', profileId: t.profileId || '', permission: t.permission || '', workspace: t.workspace || '', paths: t.paths || [], estimateUsd: t.estimateUsd || 0, after: t.after || [], taskId: '' })), state: 'proposed', capUsd: 0, note: '', proposedAtUnixMillis: ms(), decidedAtUnixMillis: '0', conversationId: conversation, proposedBy: 'agent' };
+    m.plans.push(plan); append(m, 'plan.proposed', 'plan:' + plan.id, {}, 'agent');
+    const total = plan.tasks.reduce((n, t) => n + t.estimateUsd, 0);
+    push(sessionId, { type: 'plan_proposed', text: `Proposed a plan: ${plan.tasks.length} agents · est. $${total.toFixed(2)} · waiting for your approval`, data: { mission: m.id, plan: plan.id } });
+    return plan;
+  };
+  /** What a grant's tree spent and reserved, as the Runner would measure it. */
+  const setBudget = (grantId, { spentUsd = 0, reservedUsd = 0, budgetState = '' }) => {
+    for (const m of missions) for (const g of m.grants) if (g.id === grantId) Object.assign(g, { spentUsd, reservedUsd, budgetState });
+  };
+  const setCost = (taskId, costUsd) => { for (const m of missions) for (const t of m.tasks) if (t.id === taskId) t.costUsd = costUsd; };
+
   /** One RPC, or undefined when it is not a mission RPC. */
   const handle = (method, body) => {
     switch (method) {
@@ -224,5 +261,5 @@ export function createMissionFake({ sessions, collections, events }) {
     if (snippet) source = { kind: 'snippet', snippetKey: snippet.key };
     prompts.unshift({ text, conversationId: conversationOf(body.sessionId), collectionId: session?.collectionId || '', sessionId: body.sessionId, atUnixMillis: ms(), source, next });
   };
-  return { handle, missions, prompts, create, addTask, assign, recordRun, recordPullRequest, recordApply, spawnChild, agentMessage, reportChild };
+  return { handle, missions, prompts, create, addTask, assign, recordRun, recordPullRequest, recordApply, spawnChild, agentMessage, reportChild, proposePlan, setBudget, setCost };
 }

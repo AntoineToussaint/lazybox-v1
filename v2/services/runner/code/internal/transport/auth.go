@@ -170,6 +170,13 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 		r, ok := req.(*pb.ReportAgentTaskRequest)
 		return ok && r.SessionId != "" && r.SessionId == who.session
 	},
+	// A plan is proposed only by an orchestrator with a grant in force; only
+	// the person decides it (UpdateMission, owner only).
+	pb.RunnerService_ProposePlan_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.ProposePlanRequest)
+		o, can := orchestration(agents)
+		return ok && can && r.SessionId != "" && r.SessionId == who.session && o.OrchestratorGrant(who.session)
+	},
 }
 
 // OrchestrationCredentials answers the Orchestrator verbs' checks

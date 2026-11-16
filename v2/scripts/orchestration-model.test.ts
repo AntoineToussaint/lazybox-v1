@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ceilingLine, childState, defaultGrant, effectivePermission, grantOf, grantProblem, permissionChoices, profileLabel } from '../packages/surfaces/src/orchestration-model';
+import { budgetLine, defaultCap, overlapsOf, pendingPlans, planOrder, ceilingLine, childState, defaultGrant, effectivePermission, grantOf, grantProblem, permissionChoices, profileLabel } from '../packages/surfaces/src/orchestration-model';
 import { emptyTranscript, foldTranscript } from '../packages/surfaces/src/transcript-model';
 import { systemEventView } from '../packages/surfaces/src/system-events';
 
@@ -14,7 +14,7 @@ test('a grant offers at most the conversation’s own permission; inherit counts
 
 test('a grant defaults to the conversation’s own subscriptions and says what is missing', () => {
   const draft = defaultGrant({ permission: 'yolo', profileId: 'claude-default', rotationProfileIds: ['claude-work', 'claude-default'] } as never);
-  assert.deepEqual(draft, { permission: 'yolo', profileIds: ['claude-default', 'claude-work'], maxChildren: 3, budgetUsd: 0 });
+  assert.deepEqual(draft, { permission: 'yolo', profileIds: ['claude-default', 'claude-work'], maxChildren: 3, budgetUsd: 0, planRequired: true });
   assert.equal(grantProblem(draft), undefined);
   assert.match(grantProblem({ ...draft, profileIds: [] })!, /at least one subscription/);
   assert.match(grantProblem({ ...draft, maxChildren: 40 })!, /Between 1 and 16/);
@@ -51,5 +51,21 @@ test('the transcript shows another agent’s message as theirs, and the tree’s
   assert.equal(view.kind, 'Message from an agent');
   assert.equal(view.line, 'Indexer: done');
   assert.equal(view.sentBy, 'Indexer’s message, as Lazybox gave it to Claude');
-  assert.deepEqual(folded.messages[2].lineage, { kind: 'agent_spawned', conversation: 'c1', session: 's1', mission: 'm', direction: '' });
+  assert.deepEqual(folded.messages[2].lineage, { kind: 'agent_spawned', conversation: 'c1', session: 's1', mission: 'm', direction: '', plan: '' });
+});
+
+test('a plan reads in the order its tasks can start, with the paths two share', () => {
+  const task = (key: string, after: string[] = []) => ({ key, after }) as never;
+  assert.deepEqual(planOrder([task('rank', ['index']), task('index'), task('docs'), task('ship', ['rank', 'docs'])]).map(({ task, step }) => `${(task as { key: string }).key}:${step}`), ['index:1', 'docs:1', 'rank:2', 'ship:3']);
+  const overlaps = [{ path: 'search/rank.go', keys: ['index', 'rank'] }] as never;
+  assert.deepEqual(overlapsOf(overlaps, 'index', 'search/'), ['rank']);
+  assert.deepEqual(overlapsOf(overlaps, 'rank', 'search/rank.go'), ['index']);
+  assert.deepEqual(overlapsOf(overlaps, 'docs', 'docs/'), []);
+  assert.equal(defaultCap(8.5, 0), 11);
+  assert.equal(defaultCap(8.5, 20), 20);
+  assert.equal(defaultCap(0, 0), 0);
+  assert.equal(budgetLine({ spentUsd: 9.4, reservedUsd: 3, ceiling: { budgetUsd: 12 } } as never), '$9.40 spent · $3 reserved · $12 cap');
+  assert.equal(budgetLine({ spentUsd: 0, reservedUsd: 0, ceiling: { budgetUsd: 0 } } as never), '$0 spent · no cap');
+  const missions = [{ canceled: false, plans: [{ id: 'p1', state: 'proposed' }, { id: 'p0', state: 'approved' }] }, { canceled: true, plans: [{ id: 'p2', state: 'proposed' }] }] as never;
+  assert.deepEqual(pendingPlans(missions).map(p => p.plan.id), ['p1']);
 });

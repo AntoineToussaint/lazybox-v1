@@ -41,6 +41,7 @@ The person granted this conversation the right to start and drive other agents f
 - ` + "`lazybox agents ls`" + ` lists your agents with their state; ` + "`lazybox agents wait [AGENT…] --until settled|idle|needs-input|reported|closed [--any] [--timeout 10m]`" + ` blocks until they get there; ` + "`lazybox agents watch`" + ` follows them live.
 - ` + "`lazybox agents send AGENT \"…\"`" + ` messages one (at most 4 KB and 6 a minute: send references to files, runs and artifacts, not pasted output). Their messages and reports reach you as labelled messages.
 - ` + "`lazybox agents stop AGENT [--end]`" + ` interrupts its turn, or ends it.
+- %s
 - You coordinate; you do not approve, answer for the person, pass gates or accept tasks. Your agents' approvals and questions go to the person, and the person accepts their work. Prefer few agents with clear, non-overlapping briefs.`
 
 // orchestratorRevoked is what a conversation is told when its grant ends.
@@ -159,7 +160,7 @@ func (b *Bench) Grant(ctx context.Context, r GrantRequest) (*work.State, string,
 	}
 	o := b.orch()
 	o.mu.Lock()
-	o.notes[conversation] = fmt.Sprintf(orchestratorBriefing, state.Title, grant, c.MaxChildren, c.Permission, profilesLabel(c.Profiles), budgetLabel(c.BudgetUSD))
+	o.notes[conversation] = fmt.Sprintf(orchestratorBriefing, state.Title, grant, c.MaxChildren, c.Permission, profilesLabel(c.Profiles), budgetLabel(c.BudgetUSD), planBriefing(c.PlanRequired))
 	o.mu.Unlock()
 	o.broadcast()
 	b.recordLineageEvent(e, "orchestration_granted", fmt.Sprintf("You let this conversation run agents for “%s”: up to %d at once, %s or narrower%s.", state.Title, c.MaxChildren, c.Permission, budgetLabel(c.BudgetUSD)), map[string]any{"mission": state.ID, "grant": grant})
@@ -359,6 +360,15 @@ func (b *Bench) Spawn(ctx context.Context, r SpawnRequest) (LineageView, error) 
 	if parent, err = b.latest(parent); err != nil {
 		return LineageView{}, err
 	}
+	// An approved plan's task brings its choices and its estimate; a grant
+	// that requires a plan starts nothing else.
+	estimate, err := b.planned(state, g, &r)
+	if err != nil {
+		return LineageView{}, err
+	}
+	if err := b.checkBudget(ctx, state, g, estimate, parent); err != nil {
+		return LineageView{}, err
+	}
 	// Capabilities only shrink: the narrower of what was asked, the grant's
 	// ceiling and the orchestrator's own permission right now.
 	limit := work.NarrowerPermission(g.Ceiling.Permission, parent.Options.Permission)
@@ -496,6 +506,11 @@ func truncateRunes(s string, n int) string {
 		r = r[:n]
 	}
 	return string(r)
+}
+
+// lazyboxOrigin marks a message Lazybox itself writes to an orchestrator.
+func lazyboxOrigin(kind, summary, detail string) agent.Origin {
+	return agent.Origin{Kind: kind, Summary: summary, Detail: detail}
 }
 
 // ---- Messages ---------------------------------------------------------------
@@ -689,6 +704,7 @@ type ChildView struct {
 	Reported, Ended                                           bool
 	Queued                                                    int
 	Started                                                   time.Time
+	CostUSD, EstimateUSD                                      float64
 }
 
 // LineageEvent is one mission event that concerns a lineage.
@@ -713,6 +729,10 @@ type LineageView struct {
 	Matched      bool
 	Reason       string
 	Spawned      *ChildView
+	// Budget of the caller's grant: spent by the tree, reserved by live agents.
+	Budget TreeBudget
+	// Plan is the caller's newest plan.
+	Plan *work.Plan
 }
 
 // Lineage is the calling agent's own tree: its grant and children, or its parent.
@@ -769,9 +789,21 @@ func (b *Bench) agentTree(ctx context.Context, e *Execution, after uint64) (Line
 	for _, v := range work.Derive(state, obs) {
 		rows[v.ID] = v
 	}
+	if view.Grant != nil {
+		view.Budget = b.treeBudget(ctx, state, view.Grant)
+		for i := len(state.Plans) - 1; i >= 0 && view.Plan == nil; i-- {
+			if state.Plans[i].Grant == view.Grant.Grant {
+				view.Plan = state.Plans[i]
+			}
+		}
+	}
 	for _, ch := range children {
 		v := b.childView(ctx, ch.Task, ch.Attempt, obs.Conversations[ch.Attempt.Conversation], rows[ch.Task.ID])
 		v.Relation = "child"
+		v.CostUSD = b.ConversationCost(ctx, ch.Attempt.Conversation)
+		if entry, ok := state.ApprovedTask(ch.Attempt.Grant, ch.Task.ID); ok {
+			v.EstimateUSD = entry.EstimateUSD
+		}
 		if !v.Ended && rows[ch.Task.ID].Status != work.StatusDone && rows[ch.Task.ID].Status != work.StatusCanceled {
 			view.LiveChildren++
 		}

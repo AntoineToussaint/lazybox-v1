@@ -1,4 +1,4 @@
-import type { Mission, MissionAttempt, MissionGrant, MissionTask, Session } from '@lazybox/protocol';
+import type { Mission, MissionAttempt, MissionGrant, MissionPlan, MissionTask, PlanOverlap, PlanTask, Session } from '@lazybox/protocol';
 
 /**
  * The Orchestrator grant, as people see it (audits/2026-11-16/sota-agents.md
@@ -23,10 +23,10 @@ export function permissionChoices(own: string | undefined): { mode: PermissionMo
 }
 
 /** What the person grants, before it is sent. */
-export type GrantDraft = { permission: PermissionMode; profileIds: string[]; maxChildren: number; budgetUsd: number };
+export type GrantDraft = { permission: PermissionMode; profileIds: string[]; maxChildren: number; budgetUsd: number; /** No agent starts before the person approves a plan (recommended). */ planRequired: boolean };
 
 export function defaultGrant(session: Pick<Session, 'permission' | 'profileId' | 'rotationProfileIds'> | undefined): GrantDraft {
-  return { permission: effectivePermission(session?.permission), profileIds: [...new Set([session?.profileId || '', ...(session?.rotationProfileIds || [])].filter(Boolean))], maxChildren: 3, budgetUsd: 0 };
+  return { permission: effectivePermission(session?.permission), profileIds: [...new Set([session?.profileId || '', ...(session?.rotationProfileIds || [])].filter(Boolean))], maxChildren: 3, budgetUsd: 0, planRequired: true };
 }
 
 /** Why a draft cannot be granted yet, or undefined. */
@@ -86,6 +86,51 @@ export function profileLabel(profiles: readonly { id: string; provider: string; 
   return (p.provider === 'codex' ? 'Codex' : 'Claude') + (p.label ? ` · ${p.label}` : '');
 }
 
+/** Whether two path globs can name the same file (a trailing / is a folder). */
+export function pathsMeet(a: string, b: string): boolean {
+  const ta = a.replace(/\*+$/, ''), tb = b.replace(/\*+$/, '');
+  return ta === tb || (ta.endsWith('/') && tb.startsWith(ta)) || (tb.endsWith('/') && ta.startsWith(tb));
+}
+
+/** The other tasks of a plan that share one of a task's paths. */
+export function overlapsOf(overlaps: readonly PlanOverlap[], key: string, path: string): string[] {
+  const out = new Set<string>();
+  for (const o of overlaps) if (o.keys.includes(key) && pathsMeet(o.path, path)) for (const k of o.keys) if (k !== key) out.add(k);
+  return [...out];
+}
+
+/** A plan's tasks in the order they can start, each with its step (tasks at the same step run side by side). */
+export function planOrder(tasks: readonly PlanTask[]): { task: PlanTask; step: number }[] {
+  const step = new Map<string, number>();
+  const at = (task: PlanTask, seen = new Set<string>()): number => {
+    if (step.has(task.key)) return step.get(task.key)!;
+    if (seen.has(task.key)) return 1;
+    seen.add(task.key);
+    const before = task.after.map(k => tasks.find(t => t.key === k)).filter((t): t is PlanTask => !!t);
+    const value = before.length ? Math.max(...before.map(t => at(t, seen))) + 1 : 1;
+    step.set(task.key, value);
+    return value;
+  };
+  return tasks.map(task => ({ task, step: at(task) })).sort((a, b) => a.step - b.step);
+}
+
+/** The cap a plan sheet offers: the grant's when it has one, else the estimate and a quarter, rounded up. */
+export function defaultCap(total: number, grantBudget: number): number {
+  if (grantBudget > 0) return Math.max(grantBudget, Math.ceil(total));
+  return total > 0 ? Math.ceil(total * 1.25) : 0;
+}
+
+/** The plan of a mission waiting for the person, newest first. */
+export function pendingPlans(missions: readonly Mission[]): { mission: Mission; plan: MissionPlan }[] {
+  return missions.flatMap(mission => mission.canceled ? [] : mission.plans.filter(p => p.state === 'proposed').map(plan => ({ mission, plan })));
+}
+
+/** One line on a tree's budget: "$3.10 spent · $5 reserved · $12 cap". */
+export function budgetLine(grant: Pick<MissionGrant, 'spentUsd' | 'reservedUsd' | 'ceiling'>): string {
+  const cap = grant.ceiling?.budgetUsd || 0;
+  return [`${usd(grant.spentUsd)} spent`, grant.reservedUsd > 0 ? `${usd(grant.reservedUsd)} reserved` : '', cap > 0 ? `${usd(cap)} cap` : 'no cap'].filter(Boolean).join(' · ');
+}
+
 /** Lineage lines Lazybox records in a conversation (runner/orchestrator.go). */
-export const LINEAGE_EVENTS = new Set(['agent_spawned', 'agent_message', 'agent_stopped', 'orchestration_granted', 'orchestration_revoked']);
-export const lineageIcon: Record<string, string> = { agent_spawned: 'subagent', agent_message: 'send', agent_stopped: 'stop', orchestration_granted: 'shield', orchestration_revoked: 'lock' };
+export const LINEAGE_EVENTS = new Set(['agent_spawned', 'agent_message', 'agent_stopped', 'orchestration_granted', 'orchestration_revoked', 'plan_proposed', 'plan_decided', 'budget_exhausted', 'budget_raised']);
+export const lineageIcon: Record<string, string> = { agent_spawned: 'subagent', agent_message: 'send', agent_stopped: 'stop', orchestration_granted: 'shield', orchestration_revoked: 'lock', plan_proposed: 'checklist', plan_decided: 'check', budget_exhausted: 'alert', budget_raised: 'card' };

@@ -814,13 +814,56 @@ their state, and revokes. A child's header leads to its orchestrator
 (`Session.lineage`, which the Agents panel can nest by). The board shows the
 orchestrator above the columns and, on each card, who started it as what.
 
-**Not yet.** Plan approval before spawns, budgets reserved and enforced, the
+**Not yet** (in this slice). Plan approval and budgets are below; the
 Missions page with Messages and Timeline tabs, leases and live overlap, and
 review-capacity WIP are the next slices of sota-agents.md §6.14. A child's
 approvals reach the person's Inbox as before, without a lineage crumb yet.
 `ask` (a blocking question to a child) is `send` plus `wait --until idle`.
 Not verified with real Claude or Codex agents: the fake provider and the
 fake Runner drive every test.
+
+### Plan approval and budgets (slices 2b and 2d as built)
+
+**The plan** (`internal/work/plan.go`) is `plan.proposed` (subject
+`plan:<id>`, actor the grant's holder): up to 16 tasks, each with a key,
+title, brief, role, permission and subscription (within the ceiling),
+workspace (`same`/`new`), paths (relative; a trailing `/` is a folder), an
+estimate and `after` keys (no cycles). A new proposal supersedes one still
+waiting. `plan.approved` and `plan.rejected` are a person's only; approval
+carries the $ cap and the fan-out, which become the grant's, and the same
+batch creates the plan's tasks with their `blocks` edges (actor `rule`,
+role `plan`). `Plan.Overlaps` lists paths more than one task names. The
+orchestrator is told the decision as a turn (`agent.Origin` kind
+`plan_decided`) and in its transcript.
+
+**Plan first.** A grant's ceiling may require a plan (`plan_required`; the
+grant sheet's default). Then `SpawnAgent` starts only tasks of an approved
+plan of that grant, only once every task it waits for is accepted, and
+takes the plan's role, permission, subscription and workspace as defaults
+(still narrowed as in 2a). A narrowed grant keeps the requirement.
+
+**Budget.** A tree's spend is the telemetry cost of the orchestrator's and
+every child's conversation (API-equivalent prices, unpriced usage counted
+as nothing; cached 5 s). A live child reserves what it has not spent of its
+plan estimate. `SpawnAgent` refuses a spawn whose estimate would take spent
++ reserved past the cap and records `budget.exhausted` once (actor
+`lazybox`); past 80% it records `budget.warning`. `budget.raised` (the
+person's) sets a new cap and clears it. The board shows each task's cost
+against its estimate and each grant's spent, reserved and cap.
+
+**Surfaces.** `ProposePlan` is on the agent allowlist for a holder only;
+`UpdateMission` `approve_plan`, `reject_plan` and `raise_budget` are the
+owner's. CLI: `lazybox mission plan <file|->` (agent), `mission
+approve|reject|budget` (person); `lazybox agents ls` shows the plan's tasks
+with their ids and the budget. The plan sheet (`PlanSheet.tsx`) opens from
+the orchestrator's transcript, the Inbox (**Plans to approve**), the
+board and the badge. Tests: `plan_test.go`, `plans_test.go`,
+`mission_test.go`, `test:orchestration-plans`.
+
+**Not yet.** Agents already running are not paused at the cap (the design's
+turn-end pause in the metering gateway); an estimate is the orchestrator's
+own, not computed from model prices and history. Paths are declared, not
+leased: overlap is flagged in the plan only.
 
 ### Risks and failure modes
 

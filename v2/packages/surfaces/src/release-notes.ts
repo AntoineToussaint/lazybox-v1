@@ -9,6 +9,18 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.6',
+    date: '2026-11-17',
+    title: 'Let an agent run agents, within limits you set',
+    items: [
+      { title: 'An orchestrator', body: 'Type /orchestrate (or ⌘K, Let this conversation run agents…) to let one conversation start and drive agents for a mission: how many at once, their permission (never above its own), their subscriptions and a budget. Its header shows Orchestrator 2/3; click it for its agents and Revoke.' },
+      { title: 'Only the agents it started', body: 'It messages, waits on and stops only its own agents (lazybox agents spawn, send, wait, watch, stop). It never approves, answers for you, passes a gate or accepts a task: its agents ask you, and you accept their work.' },
+      { title: 'Messages read as theirs', body: 'A message between an orchestrator and its agent is an event from that agent, opening to exactly what was sent, with Open to go to it. An agent\'s header leads back to its orchestrator, and the board shows who started each task.' },
+      { title: 'Approve the plan first', body: 'The orchestrator proposes its split (tasks, paths, order, estimate); you approve it once, with a $ cap and how many agents at once, on one sheet that flags paths two tasks would both change. It starts only the plan\'s tasks.' },
+      { title: 'A budget that holds', body: 'Each agent reserves its estimate against the cap; past it, new agents pause and the board asks you to raise it. Every task shows what it cost against its estimate.' },
+    ],
+  },
+  {
     id: '2026-11-17.5',
     date: '2026-11-17',
     title: 'Panels from the keyboard',

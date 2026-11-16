@@ -72,3 +72,42 @@
 .lineage-line{display:flex;align-items:center;gap:7px;margin:4px 0 8px;padding:3px 10px;border-left:2px solid var(--accent-line);color:var(--text-tertiary);font-size:calc(12px * var(--text-scale));line-height:1.5}
 .lineage-line>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lineage-line.kind-orchestration_revoked,.lineage-line.kind-agent_stopped{border-left-color:var(--line-strong)}
+
+/* Plans and budgets: the person's one look before agents start, and what the tree spends. */
+.plan-sheet{width:min(640px,calc(100vw - 32px))}
+.plan-sheet h2{display:flex;align-items:center;gap:8px}
+.plan-for{margin:0;font-size:calc(12.5px * var(--text-scale));color:var(--text-soft);line-height:1.5}
+.plan-tasks{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:min(46vh,420px);overflow:auto}
+.plan-tasks>li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-sunken)}
+.plan-step{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--surface-active);color:var(--text-subtle);font-size:calc(10.5px * var(--text-scale));font-variant-numeric:tabular-nums}
+.plan-task-main{display:grid;gap:5px;min-width:0}
+.plan-task-head{display:flex;align-items:baseline;gap:8px}
+.plan-task-head strong{flex:1;min-width:0;font-size:calc(13px * var(--text-scale));font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.plan-estimate{font-variant-numeric:tabular-nums;color:var(--text-soft);font-size:calc(12px * var(--text-scale))}
+.plan-task-meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:calc(11px * var(--text-scale));color:var(--text-subtle)}
+.plan-paths{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px}
+.plan-paths li{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border:1px solid var(--line);border-radius:6px;font-size:calc(10.5px * var(--code-scale))}
+.plan-paths li code{font-family:var(--font-mono,ui-monospace,monospace);color:var(--text-soft)}
+.plan-paths li.overlap{border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn-strong)}
+.plan-paths li.overlap code{color:var(--warn-strong)}
+.plan-brief summary{cursor:pointer;font-size:calc(11px * var(--text-scale));color:var(--text-muted)}
+.plan-brief p{margin:4px 0 0;white-space:pre-wrap;font-size:calc(11.5px * var(--text-scale));line-height:1.5;color:var(--text-soft)}
+.plan-overlaps{display:flex;gap:6px;align-items:flex-start;margin:0;padding:7px 10px;border:1px solid var(--warn-line);border-radius:7px;background:var(--warn-bg);color:var(--warn-strong);font-size:calc(11.5px * var(--text-scale));line-height:1.5}
+.plan-totals{display:flex;gap:14px;align-items:baseline;font-size:calc(12px * var(--text-scale));color:var(--text-subtle)}
+.plan-totals b{color:var(--text);font-variant-numeric:tabular-nums}
+.plan-limits small{color:var(--text-subtle)}
+.plan-limits small.plan-warn{color:var(--warn-strong)}
+.plan-sheet .plan-note{display:grid;gap:5px}
+.plan-sheet footer{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.plan-sheet footer .plan-reject{margin-right:auto;color:var(--danger-strong)}
+.plan-sheet footer .danger{background:var(--danger-solid);border:1px solid var(--danger-solid-hover);color:var(--on-danger-solid)}
+.plan-shortcut{font-size:calc(10.5px * var(--text-scale));color:var(--text-faint)}
+
+.orchestrator-budget{color:var(--text-subtle)}
+.orchestrator-budget.budget-warning{color:var(--warn-strong)}
+.orchestrator-budget.budget-exhausted{color:var(--danger-strong)}
+.orchestrator-plan{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--accent-line);border-radius:7px;background:var(--accent-bg);font-size:calc(11.5px * var(--text-scale))}
+.orchestrator-plan span{flex:1}
+.orchestrator-card .orchestrator-plan button{padding:3px 9px;font-size:calc(11px * var(--text-scale));width:auto}
+.lineage-state{margin-left:auto;font-size:calc(11px * var(--text-scale));color:var(--text-faint)}
+.lineage-line .lineage-review{color:var(--accent-strong);border-color:var(--accent-line)}

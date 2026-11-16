@@ -165,6 +165,7 @@ const (
 	RunnerService_WaitAgents_FullMethodName                   = "/lazybox.bench.v1.RunnerService/WaitAgents"
 	RunnerService_StopChildAgent_FullMethodName               = "/lazybox.bench.v1.RunnerService/StopChildAgent"
 	RunnerService_ReportAgentTask_FullMethodName              = "/lazybox.bench.v1.RunnerService/ReportAgentTask"
+	RunnerService_ProposePlan_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ProposePlan"
 	RunnerService_ListArtifacts_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListArtifacts"
 	RunnerService_GetArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/GetArtifact"
 	RunnerService_PutArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/PutArtifact"
@@ -475,6 +476,11 @@ type RunnerServiceClient interface {
 	StopChildAgent(ctx context.Context, in *StopChildAgentRequest, opts ...grpc.CallOption) (*AgentLineage, error)
 	// A child reports its own task done to the person (and its parent).
 	ReportAgentTask(ctx context.Context, in *ReportAgentTaskRequest, opts ...grpc.CallOption) (*AgentLineage, error)
+	// An orchestrator proposes how it would split the mission into agents,
+	// with an estimate (`lazybox mission plan`). It waits for the person's
+	// approval (UpdateMission approve_plan, owner only) before any of them
+	// starts when the grant requires a plan.
+	ProposePlan(ctx context.Context, in *ProposePlanRequest, opts ...grpc.CallOption) (*MissionPlan, error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -2053,6 +2059,16 @@ func (c *runnerServiceClient) ReportAgentTask(ctx context.Context, in *ReportAge
 	return out, nil
 }
 
+func (c *runnerServiceClient) ProposePlan(ctx context.Context, in *ProposePlanRequest, opts ...grpc.CallOption) (*MissionPlan, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MissionPlan)
+	err := c.cc.Invoke(ctx, RunnerService_ProposePlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListArtifactsResponse)
@@ -2622,6 +2638,11 @@ type RunnerServiceServer interface {
 	StopChildAgent(context.Context, *StopChildAgentRequest) (*AgentLineage, error)
 	// A child reports its own task done to the person (and its parent).
 	ReportAgentTask(context.Context, *ReportAgentTaskRequest) (*AgentLineage, error)
+	// An orchestrator proposes how it would split the mission into agents,
+	// with an estimate (`lazybox mission plan`). It waits for the person's
+	// approval (UpdateMission approve_plan, owner only) before any of them
+	// starts when the grant requires a plan.
+	ProposePlan(context.Context, *ProposePlanRequest) (*MissionPlan, error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -3148,6 +3169,9 @@ func (UnimplementedRunnerServiceServer) StopChildAgent(context.Context, *StopChi
 }
 func (UnimplementedRunnerServiceServer) ReportAgentTask(context.Context, *ReportAgentTaskRequest) (*AgentLineage, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportAgentTask not implemented")
+}
+func (UnimplementedRunnerServiceServer) ProposePlan(context.Context, *ProposePlanRequest) (*MissionPlan, error) {
+	return nil, status.Error(codes.Unimplemented, "method ProposePlan not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListArtifacts not implemented")
@@ -5833,6 +5857,24 @@ func _RunnerService_ReportAgentTask_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ProposePlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProposePlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ProposePlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ProposePlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ProposePlan(ctx, req.(*ProposePlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListArtifactsRequest)
 	if err := dec(in); err != nil {
@@ -6875,6 +6917,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReportAgentTask",
 			Handler:    _RunnerService_ReportAgentTask_Handler,
+		},
+		{
+			MethodName: "ProposePlan",
+			Handler:    _RunnerService_ProposePlan_Handler,
 		},
 		{
 			MethodName: "ListArtifacts",

@@ -281,6 +281,11 @@ service RunnerService {
   rpc StopChildAgent(StopChildAgentRequest) returns (AgentLineage);
   // A child reports its own task done to the person (and its parent).
   rpc ReportAgentTask(ReportAgentTaskRequest) returns (AgentLineage);
+  // An orchestrator proposes how it would split the mission into agents,
+  // with an estimate (`lazybox mission plan`). It waits for the person's
+  // approval (UpdateMission approve_plan, owner only) before any of them
+  // starts when the grant requires a plan.
+  rpc ProposePlan(ProposePlanRequest) returns (MissionPlan);
   // Artifacts: versioned documents (plans, reports, specs, notes) of one
   // workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
   // read and put artifacts of its own execution's workspace only
@@ -1915,6 +1920,9 @@ message AgentChild {
   string outcome = 20;
   // "parent" for the caller's own parent, else "child".
   string relation = 21;
+  // What its conversation cost so far, and its plan estimate.
+  double cost_usd = 22;
+  double estimate_usd = 23;
 }
 message AgentLineageEvent {
   uint64 seq = 1;
@@ -1940,6 +1948,11 @@ message AgentLineage {
   string reason = 9;
   // SpawnAgent: the child just started.
   AgentChild spawned = 10;
+  // The caller's newest plan: what it proposed and, once approved, the task each entry became.
+  MissionPlan plan = 11;
+  // The caller's grant's tree: spent and reserved against its cap (also on grant).
+  double spent_usd = 12;
+  double reserved_usd = 13;
 }
 message SendAgentMessageRequest {
   string session_id = 1;
@@ -2373,7 +2386,63 @@ message UpdateMissionRequest {
     // takes that back. Never an agent's: UpdateMission is owner only.
     OrchestratorGrantChange grant = 13;
     GrantRevoke revoke_grant = 14;
+    // The person decides an orchestrator's plan; approving creates its tasks
+    // and makes the cap and fan-out the grant's. Then raises a budget that
+    // stopped new agents.
+    PlanDecision approve_plan = 15;
+    PlanDecision reject_plan = 16;
+    BudgetRaise raise_budget = 17;
   }
+}
+message PlanDecision {
+  string plan_id = 1;
+  // Approval: what the whole tree may spend (0: no cap) and how many agents at once (0: unchanged).
+  double cap_usd = 2;
+  uint32 max_children = 3;
+  string note = 4;
+}
+message BudgetRaise { string grant_id = 1; double cap_usd = 2; }
+message PlanTask {
+  // Names the task inside the plan; after refers to keys.
+  string key = 1;
+  string title = 2;
+  string brief = 3;
+  string role = 4;
+  string profile_id = 5;
+  string permission = 6;
+  // same or new.
+  string workspace = 7;
+  // Paths it would change (relative; a trailing / names a folder).
+  repeated string paths = 8;
+  double estimate_usd = 9;
+  repeated string after = 10;
+  // Once approved: the mission task it became.
+  string task_id = 11;
+}
+message PlanOverlap { string path = 1; repeated string keys = 2; }
+message MissionPlan {
+  string id = 1;
+  string grant_id = 2;
+  string summary = 3;
+  repeated PlanTask tasks = 4;
+  double total_usd = 5;
+  // proposed, approved, rejected or superseded.
+  string state = 6;
+  double cap_usd = 7;
+  string note = 8;
+  int64 proposed_at_unix_millis = 9;
+  int64 decided_at_unix_millis = 10;
+  // Paths more than one task would change: parallel writers collide there.
+  repeated PlanOverlap overlaps = 11;
+  // The orchestrator that proposed it.
+  string conversation_id = 12;
+  string proposed_by = 13;
+}
+message ProposePlanRequest {
+  string session_id = 1;
+  string operation_id = 2;
+  string summary = 3;
+  repeated PlanTask tasks = 4;
 }
 message OrchestratorGrantChange {
   // Any session of the conversation that is to orchestrate.
@@ -2393,6 +2462,8 @@ message OrchestratorCeiling {
   uint32 depth = 4;
   // What the whole tree may spend; 0 sets no cap.
   double budget_usd = 5;
+  // No agent starts before the person approves a plan; then only its tasks.
+  bool plan_required = 6;
 }
 message GrantRevoke { string grant_id = 1; string reason = 2; }
 message MissionGrant {
@@ -2414,6 +2485,11 @@ message MissionGrant {
   bool live = 13;
   uint32 live_children = 14;
   uint32 children = 15;
+  // What the tree (the orchestrator and its agents) spent, what its live
+  // agents reserved of their estimates, and "" / warning / exhausted.
+  double spent_usd = 16;
+  double reserved_usd = 17;
+  string budget_state = 18;
 }
 message MissionMessage {
   string id = 1;
@@ -2464,6 +2540,8 @@ message Mission {
   repeated MissionGrant grants = 18;
   // GetMission only: messages between agents, newest first (at most 200).
   repeated MissionMessage messages = 19;
+  // Orchestrators' plans, newest first.
+  repeated MissionPlan plans = 20;
 }
 message MissionGoal { string id = 1; string title = 2; }
 message MissionTask {
@@ -2490,6 +2568,10 @@ message MissionTask {
   int64 created_at_unix_millis = 18; int64 updated_at_unix_millis = 19;
   // The snippet last sent to the current attempt's conversation, and what it chains to.
   string last_snippet = 20; repeated string next_snippets = 21;
+  // What its conversations cost so far, and the estimate of the plan it came from.
+  double cost_usd = 22;
+  double estimate_usd = 23;
+  string plan_id = 24;
 }
 message MissionAttempt {
   string id = 1; string conversation_id = 2;

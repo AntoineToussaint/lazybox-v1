@@ -117,6 +117,13 @@ func (s *Service) UpdateMission(ctx context.Context, r *pb.UpdateMissionRequest)
 		state, created, err = s.grant(ctx, id, key, c.Grant)
 	case *pb.UpdateMissionRequest_RevokeGrant:
 		state, err = s.Bench.Revoke(ctx, id, c.RevokeGrant.GetGrantId(), key, c.RevokeGrant.GetReason())
+	case *pb.UpdateMissionRequest_ApprovePlan:
+		d := c.ApprovePlan
+		state, err = s.Bench.DecidePlan(ctx, id, d.GetPlanId(), key, true, d.GetCapUsd(), int(d.GetMaxChildren()), d.GetNote())
+	case *pb.UpdateMissionRequest_RejectPlan:
+		state, err = s.Bench.DecidePlan(ctx, id, c.RejectPlan.GetPlanId(), key, false, 0, 0, c.RejectPlan.GetNote())
+	case *pb.UpdateMissionRequest_RaiseBudget:
+		state, err = s.Bench.RaiseBudget(ctx, id, c.RaiseBudget.GetGrantId(), key, c.RaiseBudget.GetCapUsd())
 	default:
 		return nil, grpcError(codes.InvalidArgument, errors.New("a typed change is required"))
 	}
@@ -335,6 +342,27 @@ func (s *Service) wireMission(ctx context.Context, state *work.State, readErr er
 		if report, ok := v.LastReport(); ok {
 			task.Report, task.ReportedAtUnixMillis = report.Summary, millis(report.At)
 		}
+		// What it cost so far, against what its plan estimated.
+		seen := map[string]bool{}
+		for _, a := range v.Attempts {
+			if !seen[a.Conversation] {
+				seen[a.Conversation] = true
+				task.CostUsd += s.Bench.ConversationCost(ctx, a.Conversation)
+			}
+		}
+		for _, p := range state.Plans {
+			for key, created := range p.Created {
+				if created != v.ID {
+					continue
+				}
+				task.PlanId = p.Plan
+				for _, entry := range p.Tasks {
+					if entry.Key == key {
+						task.EstimateUsd = entry.EstimateUSD
+					}
+				}
+			}
+		}
 		for i := len(v.Gates) - 1; i >= 0; i-- {
 			if g := v.Gates[i]; g.Type != work.GateRequested {
 				task.DecisionNote = g.Note
@@ -351,7 +379,10 @@ func (s *Service) wireMission(ctx context.Context, state *work.State, readErr er
 		out.Tasks = append(out.Tasks, task)
 	}
 	for _, g := range state.Grants {
-		out.Grants = append(out.Grants, wireGrant(state, g, obs.Conversations[g.Holder].Session))
+		out.Grants = append(out.Grants, wireGrant(state, g, obs.Conversations[g.Holder].Session, s.Bench.TreeBudgetOf(ctx, state, g)))
+	}
+	for i := len(state.Plans) - 1; i >= 0; i-- {
+		out.Plans = append(out.Plans, wirePlan(state.Plans[i]))
 	}
 	if full {
 		for i := len(state.Events) - 1; i >= 0 && len(out.Events) < 200; i-- {
@@ -475,6 +506,20 @@ func eventSummary(state *work.State, e work.Event) string {
 		return fmt.Sprintf("You let %s run agents: up to %d at once, %s", who, g.Ceiling.MaxChildren, g.Ceiling.Permission)
 	case work.GrantRevoked:
 		return "Orchestrator grant revoked" + with(p.Reason)
+	case work.PlanProposed:
+		var p work.PlanPayload
+		_ = json.Unmarshal(e.Payload, &p)
+		return fmt.Sprintf("An orchestrator proposed a plan of %d tasks", len(p.Tasks))
+	case work.PlanApproved:
+		return "You approved a plan" + capSuffix(e)
+	case work.PlanRejected:
+		return "You rejected a plan" + with(p.Note)
+	case work.BudgetRaised:
+		return "You set the tree's budget" + capSuffix(e)
+	case work.BudgetWarning:
+		return "The tree used 80% of its budget" + capSuffix(e)
+	case work.BudgetExhausted:
+		return "The tree reached its budget; new agents paused" + capSuffix(e)
 	case work.MessageSent:
 		var m work.MessagePayload
 		_ = json.Unmarshal(e.Payload, &m)

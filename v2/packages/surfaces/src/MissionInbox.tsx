@@ -3,6 +3,8 @@ import { ConnectError } from '@lazybox/client-core';
 import { Icon } from './Icons';
 import { awaitingRows, evidenceChip, flagLabel, headlineEvidence, trustLabel, trustMeaning, type AwaitingRow } from './missions-model';
 import { useMissions } from './useMissions';
+import { pendingPlans, usd } from './orchestration-model';
+import { ReviewPlanButton } from './PlanSheet';
 import type { ViewTarget } from './workspace-model';
 import './missions.css';
 
@@ -18,12 +20,21 @@ export function useAwaitingTasks(): number {
  */
 export function MissionInboxSection({ onOpen }: { onOpen(target: ViewTarget): void }) {
   const missions = useMissions();
-  const rows = awaitingRows(missions.missions);
-  if (!rows.length) return null;
-  return <section className="inbox-group inbox-missions group-awaiting" aria-labelledby="inbox-group-awaiting">
-    <h3 id="inbox-group-awaiting"><Icon name="target" size={13}/>Awaiting acceptance<span>{rows.length}</span></h3>
-    <ul>{rows.map(row => <AwaitingTask key={row.task.id} row={row} onOpen={onOpen} update={missions.update}/>)}</ul>
-  </section>;
+  const rows = awaitingRows(missions.missions), plans = pendingPlans(missions.missions);
+  return <>
+    {plans.length > 0 && <section className="inbox-group inbox-missions group-plans" aria-labelledby="inbox-group-plans">
+      <h3 id="inbox-group-plans"><Icon name="checklist" size={13}/>Plans to approve<span>{plans.length}</span></h3>
+      <ul>{plans.map(({ mission, plan }) => <li key={plan.id} className="inbox-item inbox-task inbox-plan">
+        <div className="inbox-task-head"><strong>{mission.grants.find(g => g.id === plan.grantId)?.title || 'An orchestrator'} proposes {plan.tasks.length} {plan.tasks.length === 1 ? 'agent' : 'agents'}</strong></div>
+        <span className="inbox-task-meta">{mission.title} · est. {usd(plan.totalUsd)}{plan.overlaps.length ? ` · ${plan.overlaps.length} shared ${plan.overlaps.length === 1 ? 'path' : 'paths'}` : ''}</span>
+        <div className="inbox-task-actions"><ReviewPlanButton mission={mission} plan={plan}/></div>
+      </li>)}</ul>
+    </section>}
+    {rows.length > 0 && <section className="inbox-group inbox-missions group-awaiting" aria-labelledby="inbox-group-awaiting">
+      <h3 id="inbox-group-awaiting"><Icon name="target" size={13}/>Awaiting acceptance<span>{rows.length}</span></h3>
+      <ul>{rows.map(row => <AwaitingTask key={row.task.id} row={row} onOpen={onOpen} update={missions.update}/>)}</ul>
+    </section>}
+  </>;
 }
 
 function AwaitingTask({ row: { mission, task }, onOpen, update }: { row: AwaitingRow; onOpen(target: ViewTarget): void; update: ReturnType<typeof useMissions>['update'] }) {

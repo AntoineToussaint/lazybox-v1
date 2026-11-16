@@ -23,7 +23,7 @@ export type TranscriptMessage = { id: string; type: string; text: string; turnId
   /** `lineage`: an agent-tree line (started, messaged, stopped, granted) and what it points at. */
   lineage?: LineageNote };
 /** One line about an agent tree, as the Runner recorded it (runner/orchestrator.go). */
-export type LineageNote = { kind: string; conversation: string; session: string; mission: string; direction: string };
+export type LineageNote = { kind: string; conversation: string; session: string; mission: string; direction: string; plan: string };
 /** An agent review of this conversation's work (the Runner's review_started /
  * review_finished events): its card follows the review live; the counts here
  * are what the last event said, for when the review record is gone. */
@@ -155,7 +155,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
     if (LINEAGE_EVENTS.has(event.type)) {
       const data = providerData(event.providerDataJson);
       const text = (key: string) => typeof data[key] === 'string' ? data[key] as string : '';
-      add({ id: record.cursor.toString(), type: 'lineage', text: event.text, turnId: event.turnId, lineage: { kind: event.type, conversation: text('conversation') || text('to'), session: text('session'), mission: text('mission'), direction: text('direction') } });
+      add({ id: record.cursor.toString(), type: 'lineage', text: event.text, turnId: event.turnId, lineage: { kind: event.type, conversation: text('conversation') || text('to'), session: text('session'), mission: text('mission'), direction: text('direction'), plan: text('plan') } });
       next.appendToLast = false;
       continue;
     }

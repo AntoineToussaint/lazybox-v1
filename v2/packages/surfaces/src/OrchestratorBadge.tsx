@@ -9,7 +9,8 @@ import { useMissions } from './useMissions';
 import { runAction } from './actions';
 import { selectMission } from './navigate-requests';
 import { useOpenConversation } from './AgentMessages';
-import { ceilingLine, childrenOf, childState, defaultGrant, grantOf, grantProblem, permissionChoices, permissionLabel, profileLabel, usd, type GrantDraft } from './orchestration-model';
+import { budgetLine, ceilingLine, childrenOf, childState, defaultGrant, grantOf, grantProblem, permissionChoices, permissionLabel, profileLabel, usd, type GrantDraft } from './orchestration-model';
+import { ReviewPlanButton } from './PlanSheet';
 import './orchestration.css';
 
 const message = (error: unknown) => ConnectError.from(error).rawMessage || String(error);
@@ -99,6 +100,8 @@ function OrchestratorCard({ mission, conversation, missionTitle, grantId, onClos
       <button type="button" className="link-button" onClick={() => { selectMission(mission?.id || ''); runAction('missions.open'); onClose(); }}>{missionTitle}</button>
     </header>
     {grant && <p className="orchestrator-ceiling">{ceilingLine(grant)}</p>}
+    {grant && (grant.spentUsd > 0 || (grant.ceiling?.budgetUsd || 0) > 0) && <p className={`orchestrator-budget${grant.budgetState ? ' budget-' + grant.budgetState : ''}`}>{budgetLine(grant)}{grant.budgetState === 'exhausted' ? ' · new agents paused' : ''}</p>}
+    {mission && mission.plans.filter(p => p.state === 'proposed' && p.grantId === grantId).map(p => <div key={p.id} className="orchestrator-plan"><Icon name="checklist" size={12}/><span>Plan waiting: {p.tasks.length} tasks · est. {usd(p.totalUsd)}</span><ReviewPlanButton mission={mission} plan={p} label="Review…"/></div>)}
     {grant && <p className="orchestrator-subs">On {grant.ceiling?.profileIds.map(id => profileLabel(info?.profiles || [], id)).join(', ')}</p>}
     <p className="orchestrator-never"><Icon name="shield" size={11}/> It never approves, answers for you, passes a gate or accepts a task: those stay yours.</p>
     <h4>Its agents <span>{children.length}</span></h4>
@@ -152,7 +155,7 @@ export function GrantDialog({ session: given, onClose, missionId, candidates }: 
     setBusy(true); setError('');
     try {
       const mission = chosen === 'new' ? await missions.create(title.trim(), '') : open.find(m => m.id === chosen)!;
-      await missions.update(mission.id, { case: 'grant', value: { sessionId: session.id, ceiling: { permission: draft.permission, profileIds: draft.profileIds, maxChildren: draft.maxChildren, depth: 1, budgetUsd: draft.budgetUsd } } });
+      await missions.update(mission.id, { case: 'grant', value: { sessionId: session.id, ceiling: { permission: draft.permission, profileIds: draft.profileIds, maxChildren: draft.maxChildren, depth: 1, budgetUsd: draft.budgetUsd, planRequired: draft.planRequired } } });
       onClose();
     } catch (e) { setError(message(e)); setBusy(false); }
   };
@@ -181,6 +184,10 @@ export function GrantDialog({ session: given, onClose, missionId, candidates }: 
           <label className="grant-number">At once<input type="number" min={1} max={16} value={draft.maxChildren} aria-label="Agents at once" onChange={e => setDraft(d => ({ ...d, maxChildren: Math.max(1, Math.min(16, Number(e.target.value) || 1)) }))}/></label>
           <label className="grant-number">Budget $<input type="number" min={0} step={1} value={draft.budgetUsd || ''} placeholder="no cap" aria-label="Budget in dollars" onChange={e => setDraft(d => ({ ...d, budgetUsd: Math.max(0, Number(e.target.value) || 0) }))}/></label>
           {draft.budgetUsd > 0 && <small>{usd(draft.budgetUsd)} for the whole tree</small>}
+        </div>
+        <div className="grant-row">
+          <span>Plan</span>
+          <label><input type="checkbox" checked={draft.planRequired} onChange={e => setDraft(d => ({ ...d, planRequired: e.target.checked }))}/>Approve its plan first <small>before any agent starts</small></label>
         </div>
       </fieldset>
       <ul className="grant-rules">

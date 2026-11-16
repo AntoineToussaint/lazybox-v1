@@ -24,7 +24,9 @@ type State struct {
 	// agents (grant.go).
 	Grants   []*Grant
 	Messages []*Message
-	Events   []Event
+	// Plans are orchestrators' proposals and the person's decisions (plan.go).
+	Plans  []*Plan
+	Events []Event
 	// Ignored counts events kept in the log but not folded: unknown types,
 	// newer versions, or (when replaying leniently) events this Runner would refuse.
 	Ignored int
@@ -192,6 +194,7 @@ var agentMay = map[string]bool{
 	GrantIssued:  true, // narrowed for its own child
 	GrantRevoked: true, // a grant it narrowed
 	MessageSent:  true, // to its parent or its own child
+	PlanProposed: true, // an orchestrator, for the person to approve
 }
 
 // reviewVerdict is a reviewer's verdict, recorded by Lazybox from the review
@@ -300,6 +303,8 @@ func (s *State) fold(e Event) error {
 	switch e.Type {
 	case GrantIssued, GrantRevoked, MessageSent:
 		return s.foldGrant(e)
+	case PlanProposed, PlanApproved, PlanRejected, BudgetRaised, BudgetWarning, BudgetExhausted:
+		return s.foldPlan(e)
 	case MissionProcessPinned:
 		p, ok := decode[ProcessPayload](e)
 		if !ok {

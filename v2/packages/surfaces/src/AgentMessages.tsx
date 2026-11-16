@@ -3,6 +3,8 @@ import { Icon } from './Icons';
 import { useRunner } from './RunnerContext';
 import { showConversation } from './review-client';
 import { lineageIcon } from './orchestration-model';
+import { useMissions } from './useMissions';
+import { ReviewPlanButton } from './PlanSheet';
 import type { MessageOrigin } from './system-events';
 import type { LineageNote, TranscriptMessage } from './transcript-model';
 import './orchestration.css';
@@ -33,5 +35,15 @@ export function LineageLine({ message, note }: { message: TranscriptMessage; not
     <Icon name={lineageIcon[note.kind] || 'subagent'} size={12}/>
     <span title={message.text}>{message.text}</span>
     {target && <button type="button" className="lineage-open" onClick={() => open(target, note.session)}>Open</button>}
+    {note.kind === 'plan_proposed' && note.plan && <PlanReview mission={note.mission} plan={note.plan}/>}
   </div>;
+}
+
+/** On "Proposed a plan": review it, while it waits. */
+function PlanReview({ mission: missionId, plan: planId }: { mission: string; plan: string }) {
+  const { missions } = useMissions();
+  const mission = missions.find(m => m.id === missionId), plan = mission?.plans.find(p => p.id === planId);
+  if (!mission || !plan) return null;
+  if (plan.state !== 'proposed') return <span className="lineage-state">{plan.state}</span>;
+  return <ReviewPlanButton mission={mission} plan={plan} label="Review plan…" className="lineage-open lineage-review"/>;
 }

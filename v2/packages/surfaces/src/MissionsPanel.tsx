@@ -15,7 +15,8 @@ import { useMissionDetail, useMissions, type ChangeInput } from './useMissions';
 import { useMissionSelection } from './navigate-requests';
 import { GrantDialog } from './OrchestratorBadge';
 import { useOpenConversation } from './AgentMessages';
-import { ceilingLine, permissionLabel } from './orchestration-model';
+import { budgetLine, ceilingLine, permissionLabel, usd } from './orchestration-model';
+import { ReviewPlanButton } from './PlanSheet';
 import './missions.css';
 
 const message = (error: unknown) => ConnectError.from(error).rawMessage || String(error);
@@ -195,6 +196,7 @@ function TaskCard({ task, goal, now, collections, titles, orchestrators, onOpen,
       {task.trust !== task.evidenceTrust && task.status !== 'ready' && task.evidence.length > 0 && <span className="mission-evidence-trust" title={trustMeaning[task.evidenceTrust]}>evidence: {trustLabel[task.evidenceTrust]?.toLowerCase()}</span>}
       {task.flags.filter(f => f !== 'no_evidence' || task.trust === 'claimed').map(f => <span key={f} className={`mission-flag flag-${f}`}>{flagLabel[f] || f}</span>)}
       {goal && <span className="mission-goal">{goal}</span>}
+      {task.costUsd > 0 || task.estimateUsd > 0 ? <span className={`mission-cost${task.estimateUsd > 0 && task.costUsd > task.estimateUsd ? ' over' : ''}`} title={task.estimateUsd > 0 ? `Cost so far against the plan's estimate of ${usd(task.estimateUsd)}` : 'Cost so far'}>{usd(task.costUsd)}{task.estimateUsd > 0 ? ` / ${usd(task.estimateUsd)}` : ''}</span> : null}
       {attempt?.parentConversationId && <span className="mission-lineage" title={`Started by the orchestrator “${orchestrators.find(g => g.conversationId === attempt.parentConversationId)?.title || 'Orchestrator'}” as its ${attempt.role || 'worker'}, at ${permissionLabel[attempt.permission] || attempt.permission} on ${attempt.profileId}`}>
         <Icon name="subagent" size={11}/>{orchestrators.find(g => g.conversationId === attempt.parentConversationId)?.title || 'Orchestrator'}<small>{attempt.role || 'worker'}</small></span>}
     </div>
@@ -239,14 +241,31 @@ function OrchestratorStrip({ mission, onNotice, onError, change }: { mission: Mi
       <Icon name="subagent" size={13}/>
       <button type="button" className="link-button" title="Open the orchestrator's conversation" onClick={() => open(g.conversationId, g.sessionId)}>{g.title || 'Orchestrator'}</button>
       <span className="mission-orchestrator-count">{g.liveChildren}/{g.ceiling?.maxChildren} agents</span>
-      <span className="mission-orchestrator-ceiling">{ceilingLine(g)}</span>
+      <span className="mission-orchestrator-ceiling">{ceilingLine(g)}{g.ceiling?.planRequired ? ' · plan first' : ''}</span>
+      <span className={`mission-orchestrator-budget${g.budgetState ? ' budget-' + g.budgetState : ''}`} title="What the orchestrator and its agents spent, and what its running agents reserved of their estimates">{budgetLine(g)}</span>
       {revoking === g.id
         ? <span className="mission-orchestrator-confirm">Its agents keep running.<button type="button" onClick={() => setRevoking('')}>Keep</button><button type="button" className="danger" autoFocus onClick={() => { setRevoking(''); void change({ case: 'revokeGrant', value: { grantId: g.id, reason: '' } }, `“${g.title || 'The orchestrator'}” can no longer run agents.`).catch(() => {}); }}>Revoke</button></span>
         : <button type="button" className="mission-orchestrator-revoke" onClick={() => setRevoking(g.id)}>Revoke…</button>}
+      {mission.plans.filter(p => p.state === 'proposed' && p.grantId === g.id).map(p => <div key={p.id} className="mission-plan-waiting" role="status">
+        <Icon name="checklist" size={13}/><span><b>Plan waiting for you:</b> {p.tasks.length} {p.tasks.length === 1 ? 'agent' : 'agents'} · est. {usd(p.totalUsd)}{p.overlaps.length ? ` · ${p.overlaps.length} shared ${p.overlaps.length === 1 ? 'path' : 'paths'}` : ''}</span>
+        <ReviewPlanButton mission={mission} plan={p}/>
+      </div>)}
+      {g.budgetState === 'exhausted' && <BudgetStop mission={mission} grantId={g.id} cap={g.ceiling?.budgetUsd || 0} spent={g.spentUsd} reserved={g.reservedUsd} change={change}/>}
     </div>)}
     {!live.length && <button type="button" className="mission-orchestrate" disabled={!candidates.length} title={candidates.length ? 'Let one of your conversations start and drive agents for this mission' : 'Open a conversation first'} onClick={() => setGranting(true)}><Icon name="subagent" size={13}/> Let a conversation run agents…</button>}
     {granting && <GrantDialog missionId={mission.id} candidates={candidates} onClose={() => setGranting(false)}/>}
   </div>;
+}
+
+/** New agents paused at the cap: the person raises it, here. */
+function BudgetStop({ mission, grantId, cap, spent, reserved, change }: { mission: Mission; grantId: string; cap: number; spent: number; reserved: number; change(input: ChangeInput, done?: string): Promise<Mission | undefined> }) {
+  const [value, setValue] = useState(() => Math.ceil(Math.max(cap * 1.5, spent + reserved + 5)));
+  const [busy, setBusy] = useState(false);
+  return <form className="mission-budget-stop" role="alert" onSubmit={event => { event.preventDefault(); setBusy(true); void change({ case: 'raiseBudget', value: { grantId, capUsd: value } }, `The tree of “${mission.title}” may spend ${usd(value)}; new agents may start.`).catch(() => {}).finally(() => setBusy(false)); }}>
+    <Icon name="alert" size={13}/><span><b>New agents paused.</b> {usd(spent)} spent and {usd(reserved)} reserved of the {usd(cap)} budget.</span>
+    <label className="grant-number">New cap $<input type="number" min={0} step={1} value={value} aria-label="New budget cap in dollars" onChange={e => setValue(Math.max(0, Number(e.target.value) || 0))}/></label>
+    <button className="primary" disabled={busy || value <= cap}>Raise budget</button>
+  </form>;
 }
 
 function TrustBadge({ trust }: { trust: string }) {
