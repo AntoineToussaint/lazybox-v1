@@ -134,3 +134,41 @@ func TestPermissionChangeRefusedWhereItCannotWork(t *testing.T) {
 		t.Fatalf("YOLO must stay incompatible with plan mode: %v", err)
 	}
 }
+
+func TestAgentWithoutLivePermissionRestartsInTheNewModeAndContinues(t *testing.T) {
+	b, err := New(Config{State: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	fake := &agenttest.Adapter{}
+	b.Adapters["codex"] = fake
+	e, err := b.OpenEmptyWorkspace("codex-default", accounts.Options{Permission: "ask"}, "direct")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = b.SetPermission(context.Background(), e, "live", "yolo"); err == nil {
+		t.Fatal("a worker without live permission changes must refuse a live change")
+	}
+	fake.Session.Events <- agent.Event{Type: "turn_started", TurnID: "t"}
+	waitHistory(t, func() bool { return e.Engine.Snapshot().Busy })
+	if _, err = b.RestartWithPermission(context.Background(), e, "yolo"); err == nil || !strings.Contains(err.Error(), "finish its turn") {
+		t.Fatalf("a busy agent must not be restarted: %v", err)
+	}
+	fake.Session.Events <- agent.Event{Type: "turn_ended", TurnID: "t", Status: "completed", SessionID: "native-reference"}
+	waitHistory(t, func() bool { return !e.Engine.Snapshot().Busy })
+	next, err := b.RestartWithPermission(context.Background(), e, "yolo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.ID == e.ID || next.Previous != e.ID {
+		t.Fatalf("restart must continue the conversation as a successor: %q after %q", next.ID, e.ID)
+	}
+	if got := fake.Session.Open; got.Permission != "yolo" || got.Resume != "native-reference" {
+		t.Fatalf("new agent must start in the new mode on the same provider conversation: %+v", got)
+	}
+	saved, err := b.History.Get(context.Background(), next.ID)
+	if err != nil || saved.Options.Permission != "yolo" {
+		t.Fatalf("mode not kept: %v %q", err, saved.Options.Permission)
+	}
+}

@@ -167,6 +167,9 @@ const (
 	// RunnerServiceResumeSessionProcedure is the fully-qualified name of the RunnerService's
 	// ResumeSession RPC.
 	RunnerServiceResumeSessionProcedure = "/lazybox.bench.v1.RunnerService/ResumeSession"
+	// RunnerServiceRestartWithPermissionProcedure is the fully-qualified name of the RunnerService's
+	// RestartWithPermission RPC.
+	RunnerServiceRestartWithPermissionProcedure = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
 	// RunnerServiceGetSessionProcedure is the fully-qualified name of the RunnerService's GetSession
 	// RPC.
 	RunnerServiceGetSessionProcedure = "/lazybox.bench.v1.RunnerService/GetSession"
@@ -286,6 +289,9 @@ type RunnerServiceClient interface {
 	SaveWorkspaceFile(context.Context, *connect.Request[gen.SaveWorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
 	ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error)
 	ResumeSession(context.Context, *connect.Request[gen.ResumeSessionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Continues the conversation in a new agent started with another permission
+	// mode, for an agent whose running worker cannot change mode live.
+	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -594,6 +600,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ResumeSession")),
 			connect.WithClientOptions(opts...),
 		),
+		restartWithPermission: connect.NewClient[gen.RestartWithPermissionRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceRestartWithPermissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
+			connect.WithClientOptions(opts...),
+		),
 		getSession: connect.NewClient[gen.SessionRequest, gen.SessionResponse](
 			httpClient,
 			baseURL+RunnerServiceGetSessionProcedure,
@@ -788,6 +800,7 @@ type runnerServiceClient struct {
 	saveWorkspaceFile            *connect.Client[gen.SaveWorkspaceFileRequest, gen.WorkspaceFile]
 	listHistory                  *connect.Client[gen.ListHistoryRequest, gen.ListHistoryResponse]
 	resumeSession                *connect.Client[gen.ResumeSessionRequest, gen.SessionResponse]
+	restartWithPermission        *connect.Client[gen.RestartWithPermissionRequest, gen.SessionResponse]
 	getSession                   *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	apply                        *connect.Client[gen.ApplyRequest, gen.Receipt]
 	closeSession                 *connect.Client[gen.SessionRequest, gen.SessionResponse]
@@ -1039,6 +1052,11 @@ func (c *runnerServiceClient) ResumeSession(ctx context.Context, req *connect.Re
 	return c.resumeSession.CallUnary(ctx, req)
 }
 
+// RestartWithPermission calls lazybox.bench.v1.RunnerService.RestartWithPermission.
+func (c *runnerServiceClient) RestartWithPermission(ctx context.Context, req *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.restartWithPermission.CallUnary(ctx, req)
+}
+
 // GetSession calls lazybox.bench.v1.RunnerService.GetSession.
 func (c *runnerServiceClient) GetSession(ctx context.Context, req *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.getSession.CallUnary(ctx, req)
@@ -1206,6 +1224,9 @@ type RunnerServiceHandler interface {
 	SaveWorkspaceFile(context.Context, *connect.Request[gen.SaveWorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
 	ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error)
 	ResumeSession(context.Context, *connect.Request[gen.ResumeSessionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Continues the conversation in a new agent started with another permission
+	// mode, for an agent whose running worker cannot change mode live.
+	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -1510,6 +1531,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ResumeSession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceRestartWithPermissionHandler := connect.NewUnaryHandler(
+		RunnerServiceRestartWithPermissionProcedure,
+		svc.RestartWithPermission,
+		connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceGetSessionHandler := connect.NewUnaryHandler(
 		RunnerServiceGetSessionProcedure,
 		svc.GetSession,
@@ -1746,6 +1773,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceListHistoryHandler.ServeHTTP(w, r)
 		case RunnerServiceResumeSessionProcedure:
 			runnerServiceResumeSessionHandler.ServeHTTP(w, r)
+		case RunnerServiceRestartWithPermissionProcedure:
+			runnerServiceRestartWithPermissionHandler.ServeHTTP(w, r)
 		case RunnerServiceGetSessionProcedure:
 			runnerServiceGetSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceApplyProcedure:
@@ -1981,6 +2010,10 @@ func (UnimplementedRunnerServiceHandler) ListHistory(context.Context, *connect.R
 
 func (UnimplementedRunnerServiceHandler) ResumeSession(context.Context, *connect.Request[gen.ResumeSessionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResumeSession is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartWithPermission is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {

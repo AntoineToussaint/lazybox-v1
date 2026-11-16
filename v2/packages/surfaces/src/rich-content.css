@@ -24,3 +24,8 @@
 .file-preview-dialog[open]{display:flex;flex-direction:column}.file-preview-dialog h2{font-size:15px;overflow-wrap:anywhere;min-width:0}.file-preview-toolbar{display:flex;align-items:center;gap:12px;padding:12px 0;color:#999;flex-wrap:wrap}.file-preview-toolbar button:first-of-type{margin-left:auto}
 .file-preview-content{min-height:0;max-height:60dvh;overflow:auto;flex:1}.file-preview-content .rich-content{padding:16px;line-height:1.7}
 .file-lines{font-size:12px;line-height:1.7;margin:0;padding:12px 0;tab-size:4}.file-lines>div{min-width:max-content;padding-right:16px}.line-number{display:inline-block;width:5em;padding-right:16px;text-align:right;color:#737280;user-select:none}.highlighted-line{background:#3c344d}
+/* "anywhere" lets a cell shrink to one character ("Se/rv/ic/e"); in tables only
+   break words that cannot fit, and give the first column, usually names, room to stay readable. */
+.rich-content th,.rich-content td,.rich-content th p,.rich-content td p,.rich-content th code,.rich-content td code{overflow-wrap:break-word;word-break:normal}
+.rich-content th,.rich-content td{min-width:7ch;vertical-align:top}
+.rich-content tr>:first-child{min-width:14ch}

@@ -567,6 +567,17 @@ func (s *Service) ListHistory(ctx context.Context, r *pb.ListHistoryRequest) (*p
 	}
 	return response, nil
 }
+func (s *Service) RestartWithPermission(ctx context.Context, r *pb.RestartWithPermissionRequest) (*pb.SessionResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	next, err := s.Bench.RestartWithPermission(ctx, e, r.Mode)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return s.sessionResponse(ctx, next)
+}
 func (s *Service) ResumeSession(ctx context.Context, r *pb.ResumeSessionRequest) (*pb.SessionResponse, error) {
 	e, err := s.Bench.Resume(ctx, r.SessionId, r.ProcessesStopped)
 	if err != nil {

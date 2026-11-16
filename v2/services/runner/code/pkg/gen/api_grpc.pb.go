@@ -65,6 +65,7 @@ const (
 	RunnerService_SaveWorkspaceFile_FullMethodName            = "/lazybox.bench.v1.RunnerService/SaveWorkspaceFile"
 	RunnerService_ListHistory_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ListHistory"
 	RunnerService_ResumeSession_FullMethodName                = "/lazybox.bench.v1.RunnerService/ResumeSession"
+	RunnerService_RestartWithPermission_FullMethodName        = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
 	RunnerService_GetSession_FullMethodName                   = "/lazybox.bench.v1.RunnerService/GetSession"
 	RunnerService_Apply_FullMethodName                        = "/lazybox.bench.v1.RunnerService/Apply"
 	RunnerService_CloseSession_FullMethodName                 = "/lazybox.bench.v1.RunnerService/CloseSession"
@@ -140,6 +141,9 @@ type RunnerServiceClient interface {
 	SaveWorkspaceFile(ctx context.Context, in *SaveWorkspaceFileRequest, opts ...grpc.CallOption) (*WorkspaceFile, error)
 	ListHistory(ctx context.Context, in *ListHistoryRequest, opts ...grpc.CallOption) (*ListHistoryResponse, error)
 	ResumeSession(ctx context.Context, in *ResumeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
+	// Continues the conversation in a new agent started with another permission
+	// mode, for an agent whose running worker cannot change mode live.
+	RestartWithPermission(ctx context.Context, in *RestartWithPermissionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	GetSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	Apply(ctx context.Context, in *ApplyRequest, opts ...grpc.CallOption) (*Receipt, error)
 	CloseSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
@@ -634,6 +638,16 @@ func (c *runnerServiceClient) ResumeSession(ctx context.Context, in *ResumeSessi
 	return out, nil
 }
 
+func (c *runnerServiceClient) RestartWithPermission(ctx context.Context, in *RestartWithPermissionRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionResponse)
+	err := c.cc.Invoke(ctx, RunnerService_RestartWithPermission_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) GetSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionResponse)
@@ -950,6 +964,9 @@ type RunnerServiceServer interface {
 	SaveWorkspaceFile(context.Context, *SaveWorkspaceFileRequest) (*WorkspaceFile, error)
 	ListHistory(context.Context, *ListHistoryRequest) (*ListHistoryResponse, error)
 	ResumeSession(context.Context, *ResumeSessionRequest) (*SessionResponse, error)
+	// Continues the conversation in a new agent started with another permission
+	// mode, for an agent whose running worker cannot change mode live.
+	RestartWithPermission(context.Context, *RestartWithPermissionRequest) (*SessionResponse, error)
 	GetSession(context.Context, *SessionRequest) (*SessionResponse, error)
 	Apply(context.Context, *ApplyRequest) (*Receipt, error)
 	CloseSession(context.Context, *SessionRequest) (*SessionResponse, error)
@@ -1119,6 +1136,9 @@ func (UnimplementedRunnerServiceServer) ListHistory(context.Context, *ListHistor
 }
 func (UnimplementedRunnerServiceServer) ResumeSession(context.Context, *ResumeSessionRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResumeSession not implemented")
+}
+func (UnimplementedRunnerServiceServer) RestartWithPermission(context.Context, *RestartWithPermissionRequest) (*SessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestartWithPermission not implemented")
 }
 func (UnimplementedRunnerServiceServer) GetSession(context.Context, *SessionRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
@@ -2016,6 +2036,24 @@ func _RunnerService_ResumeSession_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_RestartWithPermission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestartWithPermissionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RestartWithPermission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RestartWithPermission_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RestartWithPermission(ctx, req.(*RestartWithPermissionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_GetSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SessionRequest)
 	if err := dec(in); err != nil {
@@ -2609,6 +2647,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResumeSession",
 			Handler:    _RunnerService_ResumeSession_Handler,
+		},
+		{
+			MethodName: "RestartWithPermission",
+			Handler:    _RunnerService_RestartWithPermission_Handler,
 		},
 		{
 			MethodName: "GetSession",

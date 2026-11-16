@@ -78,25 +78,62 @@ func (b *Bench) InstructionsDelivered(ctx context.Context, e *Execution, update 
 // SetPermission changes a running session's permission mode and remembers it,
 // so a resume or a subscription rotation keeps the new mode.
 func (b *Bench) SetPermission(ctx context.Context, e *Execution, operationID, mode string) (agent.Receipt, error) {
-	if !agent.PermissionModes[mode] {
-		return agent.Receipt{}, errors.New("permission must be ask, read-only or yolo")
-	}
-	if agent.IsAssistant(e.Purpose) {
-		return agent.Receipt{}, errors.New("assistant conversations are read-only")
-	}
-	if mode == "yolo" && e.Options.Workflow == "plan" {
-		return agent.Receipt{}, errors.New("YOLO is incompatible with plan mode")
+	if err := permissionAllowed(e, mode); err != nil {
+		return agent.Receipt{}, err
 	}
 	r, err := e.Engine.Apply(ctx, agent.Operation{ID: operationID, Kind: agent.Permission, Permission: mode})
 	if err != nil || r.Delivery == "failed" {
 		return r, err
 	}
-	if err = b.History.Amend(ctx, e.ID, func(r *sessionstore.Record) { r.Options.Permission = mode }); err != nil {
-		return r, err
+	return r, b.remember(ctx, e, mode)
+}
+
+func permissionAllowed(e *Execution, mode string) error {
+	if !agent.PermissionModes[mode] {
+		return errors.New("permission must be ask, read-only or yolo")
+	}
+	if agent.IsAssistant(e.Purpose) {
+		return errors.New("assistant conversations are read-only")
+	}
+	if mode == "yolo" && e.Options.Workflow == "plan" {
+		return errors.New("YOLO is incompatible with plan mode")
+	}
+	return nil
+}
+
+func (b *Bench) remember(ctx context.Context, e *Execution, mode string) error {
+	if err := b.History.Amend(ctx, e.ID, func(r *sessionstore.Record) { r.Options.Permission = mode }); err != nil {
+		return err
 	}
 	e.activity.Lock()
 	e.Options.Permission = mode
 	e.Saved.Options.Permission = mode
 	e.activity.Unlock()
-	return r, nil
+	return nil
+}
+
+// RestartWithPermission changes mode for an agent whose running worker predates
+// live permission changes: the agent is ended between turns and the same
+// provider conversation resumes in a new agent started in that mode.
+func (b *Bench) RestartWithPermission(ctx context.Context, e *Execution, mode string) (*Execution, error) {
+	if err := permissionAllowed(e, mode); err != nil {
+		return nil, err
+	}
+	state := e.Engine.Snapshot()
+	if state.Closed {
+		return nil, errors.New("the conversation has ended; resume it to continue")
+	}
+	if state.Busy || len(state.Pending) > 0 || state.Queued > 0 {
+		return nil, errors.New("wait for the agent to finish its turn, or interrupt it, before restarting it")
+	}
+	if state.Reference == "" || !state.Capabilities.Resume {
+		return nil, errors.New("this conversation cannot be resumed by its provider; start a new conversation with that permission")
+	}
+	if err := b.remember(ctx, e, mode); err != nil {
+		return nil, err
+	}
+	if err := b.StopExecution(ctx, e.ID); err != nil {
+		return nil, err
+	}
+	return b.Resume(ctx, e.ID, false)
 }

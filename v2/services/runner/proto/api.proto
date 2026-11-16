@@ -49,6 +49,9 @@ service RunnerService {
   rpc SaveWorkspaceFile(SaveWorkspaceFileRequest) returns (WorkspaceFile);
   rpc ListHistory(ListHistoryRequest) returns (ListHistoryResponse);
   rpc ResumeSession(ResumeSessionRequest) returns (SessionResponse);
+  // Continues the conversation in a new agent started with another permission
+  // mode, for an agent whose running worker cannot change mode live.
+  rpc RestartWithPermission(RestartWithPermissionRequest) returns (SessionResponse);
   rpc GetSession(SessionRequest) returns (SessionResponse);
   rpc Apply(ApplyRequest) returns (Receipt);
   rpc CloseSession(SessionRequest) returns (SessionResponse);
@@ -226,6 +229,11 @@ message WorkspaceDiffRequest { string collection_id = 1; string member = 2; stri
   string compare = 6; }
 message WorkspaceDiff { string text = 1; bool truncated = 2; bool binary = 3; }
 message ListHistoryResponse { repeated Session sessions = 1; bool has_more = 2; }
+message RestartWithPermissionRequest {
+  string session_id = 1;
+  // ask, read-only or yolo.
+  string mode = 2;
+}
 message ResumeSessionRequest {
   string session_id = 1;
   // Explicit reconciliation after an unclean shutdown, never inferred by a client.
