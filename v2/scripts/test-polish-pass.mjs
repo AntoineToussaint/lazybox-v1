@@ -1,7 +1,8 @@
 // Fixture only: layout defects a person hits without doing anything unusual.
 // A chat squeezed by docked panels keeps its title and a working message box;
 // a phone reaches every page tab and keeps the running step on one row; a
-// page opened from the header (Changes) closes again. WebKit, the desktop engine.
+// page opened from the header (Changes) closes again; the header fits a window
+// snapped to half a screen. WebKit, the desktop engine.
 import { testViteCache } from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -100,6 +101,20 @@ try {
     await page.context().close();
   }
 
+  // 4. Half a laptop screen: the header fits. Page tabs and the page menu stay on screen, nothing scrolls sideways.
+  for (const width of [800, 900, 1024, 1100]) {
+    const page = await open({ width, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `no sideways page scroll at ${width}px`);
+    for (const control of [page.locator('.workspace-header > nav').getByRole('button', { name: 'Work', exact: true }), page.locator('.workspace-header > nav').getByRole('button', { name: 'Settings', exact: true }), page.locator('.workspace-header-actions summary[aria-label="Page actions"]'), page.getByRole('button', { name: 'New conversation', exact: true }).first()]) {
+      const bounds = await control.boundingBox();
+      assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `a header control is on screen at ${width}px`);
+      // Nothing lies on top of it.
+      assert.ok(await control.evaluate(node => { const r = node.getBoundingClientRect(), top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!top && (node === top || node.contains(top)); }), `a header control is not covered at ${width}px`);
+    }
+    if (width === 800) await page.screenshot({ path: '.cache/polish-pass-half-screen.png' });
+    await page.context().close();
+  }
+
   assert.deepEqual(errors, []);
-  console.log('PASS polish pass: a narrow chat keeps its title and a whole message box; a phone reaches every page tab and keeps the step on one row; a page opened from the header closes with its ×. Fixture only.');
+  console.log('PASS polish pass: a narrow chat keeps its title and a whole message box; a phone reaches every page tab and keeps the step on one row; a page opened from the header closes with its ×; the header fits half a screen. Fixture only.');
 } finally { await browser?.close(); await server.close(); await fixture.close(); }

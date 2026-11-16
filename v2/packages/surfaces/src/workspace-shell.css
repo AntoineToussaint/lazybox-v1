@@ -50,6 +50,14 @@
   .workspace-shell .workspace-header{gap:14px}.workspace-shell .workspace-brand{min-width:88px}
   .workspace-shell .workspace-header .runner-indicator{display:none}
 }
+/* Half a laptop screen (a window snapped to one side): the header's tools become icons with their
+   tooltips, so the page tabs and the page menu stay on screen and the page never scrolls sideways. */
+@media(min-width:761px) and (max-width:1040px){
+  .workspace-shell .workspace-header{gap:8px}
+  .workspace-shell .workspace-header-actions{gap:2px}
+  .workspace-shell .toolbar-action{width:34px;height:34px;padding:0;justify-content:center}
+  .workspace-shell .toolbar-action>span{display:none}
+}
 @media(max-width:760px){
   .workspace-shell .workspace-header{gap:6px;padding:0 8px;flex-shrink:0}
   .workspace-shell .mobile-navigation-button{display:inline-flex!important;width:36px;height:36px}
