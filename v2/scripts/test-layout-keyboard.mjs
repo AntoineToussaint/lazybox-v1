@@ -123,10 +123,14 @@ async function scenario(browser,scheme){
  await expect.poll(active).toMatch(/^changes/);
  await key('Control+5');
  await expect(said).toHaveText(/has 2 tabs/);
+ // The sidebar is Workspaces above Agents, each its own group: ⌥⌘ ↑ ↓ move between them.
  await key('Meta+Alt+ArrowLeft');
- await key('Control+2');
+ await expect.poll(active).toMatch(/^(collections|agents)/);
+ await key('Meta+Alt+ArrowUp');
+ await expect.poll(active).toMatch(/^collections/);
+ await key('Meta+Alt+ArrowDown');
  await expect.poll(active).toMatch(/^agents/);
- await key('Control+1');
+ await key('Meta+Alt+ArrowUp');
  await expect.poll(active).toMatch(/^collections/);
 
  // ---- Move: a tab splits out where there is no group, joins a neighbour, and a lone panel swaps.
@@ -191,8 +195,9 @@ async function scenario(browser,scheme){
  await expect.poll(()=>height('console')).toBeGreaterThan(outputHeight+20);
  await expect(said).toHaveText(/Command output, \d+% of the height/);
  // The sidebar: its edge changes its one width (a tap is 5 % of the page), and it is remembered.
+ // Left of the command output is Agents, the sidebar's lower half.
  await key('Meta+Alt+ArrowLeft');
- await expect.poll(active).toMatch(/^collections/);
+ await expect.poll(active).toMatch(/^agents/);
  await key('Control+Meta+ArrowRight');
  await expect.poll(()=>width('collections')).toBe(352);
  await expect(said).toHaveText('Workspaces sidebar, 352 pixels wide');
