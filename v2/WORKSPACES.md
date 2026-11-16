@@ -235,7 +235,9 @@ also available through Customize page. Different repository failures stay
 independent. GitHub API access is not required for this local inspection.
 Each repository also carries its PR loop: commit, push, open a pull request,
 follow its checks, send failing checks to the conversation, and merge. See
-[the PR loop](GITHUB.md#the-pr-loop).
+[the PR loop](GITHUB.md#the-pr-loop). Every diff takes inline review comments,
+kept per workspace on the Runner and sent to a conversation as one message;
+see [review comments](GITHUB.md#review-comments).
 
 Conversation names belong to the durable conversation, across native resumes.
 Automatic titles come from the first attempt; a follow-up after resuming does not

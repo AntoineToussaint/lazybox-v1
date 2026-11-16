@@ -1,12 +1,16 @@
 import { useFileOpener } from './file-links';
-import { CodeBlock } from './RichContent';
 import { useEffect, useState } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
-import type { ChangedFile, RepositoryChanges, Session, WorkspaceDiff } from '@lazybox/protocol';
+import type { ChangedFile, RepositoryChanges, ReviewComment, Session, WorkspaceDiff } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { RepositoryShip, useWorkConversation } from './PullRequestFlow';
 import { composeInConversation } from './compose';
 import type { ViewTarget } from './workspace-model';
+import { ReviewDiff, type ReviewFocus } from './ReviewDiff';
+import { ReviewTray } from './ReviewTray';
+import { useWorkspaceReview } from './useWorkspaceReview';
+import { isPending, type ReviewView } from './review-model';
+import { Icon } from './Icons';
 
 type Selection = { member: string; path: string; committed: boolean };
 
@@ -16,6 +20,8 @@ const UNCOMMITTED = ':uncommitted', START = ':start';
 const compareRef = (compare: string) => compare === UNCOMMITTED || compare === START ? '' : compare;
 
 const notices = new Map<string, string>();
+// Whether the person opened or closed the review tray, per workspace.
+const trays = new Map<string, boolean>();
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const age = (unix: bigint) => {
   const minutes = Math.max(0, Math.round((Date.now() / 1000 - Number(unix)) / 60));
@@ -30,16 +36,24 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   const { api } = useRunner();
   const conversation = useWorkConversation(workspaceId, sessionId);
   const [notice, setNotice] = useState(() => { const value = notices.get(workspaceId) || ''; notices.delete(workspaceId); return value; });
-  // Failing checks go to the message box of the conversation that did the
-  // work, opened beside this page, for the person to review and send.
-  const sendToAgent = (text: string) => {
-    if (!conversation) { void navigator.clipboard?.writeText(text).catch(() => {}); setNotice('No conversation in this workspace yet. The failing checks were copied: start one and paste them.'); return; }
-    const said = `Added to the message box of “${conversation.title || 'the conversation'}”. Review it and send.`;
-    composeInConversation({ sessionId: conversation.id, text });
+  // Failing checks and review comments go to the message box of a
+  // conversation (the one that did the work, unless the person picks another),
+  // opened beside this page, for the person to review and send.
+  const sendToAgent = (text: string, to: Session | undefined = conversation) => {
+    if (!to) { void navigator.clipboard?.writeText(text).catch(() => {}); setNotice('No conversation in this workspace yet. The failing checks were copied: start one and paste them.'); return; }
+    const said = `Added to the message box of “${to.title || 'the conversation'}”. Review it and send.`;
+    composeInConversation({ sessionId: to.id, text });
     // Opening the chat beside this panel remounts it; the notice survives that.
     notices.set(workspaceId, said); setNotice(said);
-    onShowSession?.({ collectionId: workspaceId, sessionId: conversation.id, commandId: '' });
+    onShowSession?.({ collectionId: workspaceId, sessionId: to.id, commandId: '' });
   };
+  const review = useWorkspaceReview(workspaceId);
+  const pending = review.comments.filter(isPending).length;
+  const [trayChoice, setTrayChoice] = useState<boolean | undefined>(() => trays.get(workspaceId));
+  // The tray shows itself once there are comments, unless the person closed it.
+  const trayOpen = trayChoice ?? review.comments.length > 0;
+  const showTray = (open: boolean) => { trays.set(workspaceId, open); setTrayChoice(open); };
+  const [focus, setFocus] = useState<ReviewFocus>();
   const fileLinks = useFileOpener(workspaceId, viewState);
   const [repos, setRepos] = useState<RepositoryChanges[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [revision, setRevision] = useState(0);
   const [compare, setCompare] = useState<string>(START), [selection, setSelection] = useState<Selection>(), [staged, setStaged] = useState(false), [savedDiff, setDiff] = useState<{ key: string; value: WorkspaceDiff }>(), [diffError, setDiffError] = useState('');
@@ -78,16 +92,27 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
       .then(value => { if (!control.signal.aborted) setDiff({ key: diffKey, value }); }, error => { if (!control.signal.aborted) setDiffError(String(error)); });
     return () => control.abort();
   }, [api, workspaceId, selection, staged, revision, compare, diffKey]);
+  // Show a comment in its diff: the file it was made on, in the list it was
+  // made from when the file is still there, else wherever it is changed now.
+  const jump = (comment: ReviewComment) => {
+    const repo = repos.find(value => value.member === comment.member);
+    const inBranch = compare !== UNCOMMITTED && !!repo?.committed.some(file => file.path === comment.path), inWork = !!repo?.files.some(file => file.path === comment.path);
+    if (!inBranch && !inWork) { void fileLinks.open({ path: `${comment.member}/${comment.path}`, line: comment.currentStartLine || comment.startLine }, {}, { exact: true }); return; }
+    const committed = comment.view === 'branch' ? inBranch : !inWork;
+    setSelection({ member: comment.member, path: comment.path, committed }); setStaged(!committed && comment.view === 'staged');
+    setFocus(previous => ({ id: comment.id, nonce: (previous?.nonce || 0) + 1 }));
+  };
   if (!workspaceId) return <p className="module-empty">Choose a workspace to review its changes.</p>;
+  const selectedRepo = selection && repos.find(repo => repo.member === selection.member);
   const showCommitted = compare !== UNCOMMITTED;
   const committed = showCommitted ? repos.reduce((sum, repo) => sum + repo.committed.length, 0) : 0, uncommitted = repos.reduce((sum, repo) => sum + repo.files.length, 0);
   const summary = loading ? 'Reading changes…' : !committed && !uncommitted ? 'No changes yet' : [committed && `${plural(committed, 'file')} changed ${compare === START ? 'on the branch' : 'vs ' + compare}`, uncommitted && `${uncommitted} uncommitted`].filter(Boolean).join(' · ');
   const refresh = () => setRevision(value => value + 1);
   return <section className="changes-panel" aria-label="Workspace changes">
-    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} onRefresh={refresh}/>
+    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)}/>
     {error && <p className="error" role="alert">{error}</p>}
     {notice && <p className="changes-notice" role="status"><span>{notice}</span><button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></p>}
-    <div className="changes-columns">
+    <div className={`changes-columns${trayOpen ? ' with-review' : ''}`}>
       <nav aria-label="Changed files">
         {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent}/>)}
       </nav>
@@ -100,17 +125,19 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
               {!selection.committed && <label><input type="checkbox" checked={staged} onChange={event => setStaged(event.target.checked)}/> Staged</label>}
             </header>
             <div className="diff-comparison">{selection.committed ? (compare === START ? 'Workspace start → latest commit' : `${compare} (merge base) → latest commit`) : staged ? 'Last commit → staged' : 'Staged → working tree (uncommitted)'}</div>
-            <DiffBody diff={diff} error={diffError} empty={selection.committed ? 'branch' : staged ? 'staged' : 'unstaged'}/>
+            <DiffBody diff={diff} error={diffError} empty={selection.committed ? 'branch' : staged ? 'staged' : 'unstaged'}
+              review={{ workspaceId, member: selection.member, path: selection.path, view: selection.committed ? 'branch' : staged ? 'staged' : 'uncommitted', base: selection.committed ? selectedRepo?.base || '' : '', focus }}/>
           </>
           : <div className="diff-empty"><h3>{loading ? 'Reading changes…' : 'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}
       </div>
+      {trayOpen && <ReviewTray workspaceId={workspaceId} review={review} conversation={conversation} onJump={jump} onSend={(text, to) => sendToAgent(text, to)} onClose={() => showTray(false)}/>}
     </div>
     {fileLinks.element}
   </section>;
 }
 
-/** What changed in total, what it is compared with, and a refresh. */
-function ChangesHeader({ summary, compare, repos, onCompare, onRefresh }: { summary: string; compare: string; repos: RepositoryChanges[]; onCompare(compare: string): void; onRefresh(): void }) {
+/** What changed in total, what it is compared with, the review tray, and a refresh. */
+function ChangesHeader({ summary, compare, repos, onCompare, onRefresh, pending, trayOpen, onToggleTray }: { summary: string; compare: string; repos: RepositoryChanges[]; onCompare(compare: string): void; onRefresh(): void; pending: number; trayOpen: boolean; onToggleTray(): void }) {
   const defaults = [...new Set(repos.map(repo => repo.defaultBranch).filter(Boolean))];
   const current = new Set(repos.map(repo => repo.branch));
   const others = [...new Set(repos.flatMap(repo => repo.branches))].filter(name => !defaults.includes(name) && !current.has(name)).sort();
@@ -126,6 +153,7 @@ function ChangesHeader({ summary, compare, repos, onCompare, onRefresh }: { summ
       {defaults.map(name => <option key={'d:' + name} value={name}>{name}</option>)}
       {others.length > 0 && <optgroup label="Other branches">{others.map(name => <option key={name} value={name}>{name}</option>)}</optgroup>}
     </select></label>
+    <button className="changes-review-toggle" aria-pressed={trayOpen} aria-label={`Review comments${pending ? `, ${pending} pending` : ''}`} onClick={onToggleTray}><Icon name="chat" size={14}/>Review{pending > 0 && <span aria-hidden="true">{pending}</span>}</button>
     <button onClick={onRefresh}>Refresh changes</button>
   </header>;
 }
@@ -169,8 +197,9 @@ function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, 
   </section>;
 }
 
-/** The selected file's diff, or why there is none. */
-function DiffBody({ diff, error, empty }: { diff?: WorkspaceDiff; error: string; empty: 'branch' | 'staged' | 'unstaged' }) {
+type DiffReview = { workspaceId: string; member: string; path: string; view: ReviewView; base: string; focus?: ReviewFocus };
+/** The selected file's diff, open to review comments, or why there is none. */
+function DiffBody({ diff, error, empty, review }: { diff?: WorkspaceDiff; error: string; empty: 'branch' | 'staged' | 'unstaged'; review: DiffReview }) {
   if (error) return <p role="alert" className="error">{error}</p>;
   if (!diff) return <p role="status">Loading diff…</p>;
   return <>
@@ -178,7 +207,7 @@ function DiffBody({ diff, error, empty }: { diff?: WorkspaceDiff; error: string;
     {diff.binary
       ? <p>Binary file · text preview unavailable</p>
       : diff.text
-        ? <CodeBlock text={diff.text} language="diff" label="File diff"/>
+        ? <ReviewDiff {...review} text={diff.text}/>
         : <p className="module-empty">No {empty} diff for this file. Refresh if the agent has changed it.</p>}
   </>;
 }

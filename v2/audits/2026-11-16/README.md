@@ -130,6 +130,13 @@ names what to reuse from V1 and which tool sets the bar.
 4. **Inline review comments → agent.** Comment on lines in the Changes diff;
    comments become the agent's next message with file:line anchors. Reuse V1
    `core/src/review.rs` (findings, freshness, disposition).
+   *Landed:* comments on lines and ranges in every Changes diff, threads with
+   edit/delete/resolve/won't fix, a Review tray, one message per review in
+   the chosen conversation's message box (never sent for the person),
+   per-comment freshness (current / moved / outdated) and opt-in resolution
+   when a commit changes the lines, persisted per workspace on the Runner
+   ([review comments](../../GITHUB.md#review-comments)). *Still open:*
+   publishing to GitHub as a PR review, replies, comments in the Editor.
 5. **Workspace runtime.** Committable `.lazybox/` setup, run and archive
    scripts per repository; a port block per workspace (`LAZYBOX_PORT`); run
    actions with a live preview and stop/restart; non-concurrent mode for apps

@@ -27,6 +27,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/preferences"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/repositories"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/repositorycatalog"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/terminals"
@@ -115,11 +116,13 @@ type Execution struct {
 	RecoveryRequired          bool
 }
 type Bench struct {
-	RepositoryCatalog   *repositorycatalog.Cache
-	Telemetry           telemetry.Store
-	Meter               *telemetry.Gateway
-	Prices              telemetry.Pricer
-	Preferences         *preferences.Store
+	RepositoryCatalog *repositorycatalog.Cache
+	Telemetry         telemetry.Store
+	Meter             *telemetry.Gateway
+	Prices            telemetry.Pricer
+	Preferences       *preferences.Store
+	// Reviews holds each workspace's inline review comments.
+	Reviews             *reviews.Store
 	GitHub              *githubconnection.Manager
 	GitHubAPI           github.API
 	GitHubPulls         github.PullRequests
@@ -341,6 +344,11 @@ func New(cfg Config) (*Bench, error) {
 		basePrices[model] = rate
 	}
 	b.Preferences, err = preferences.Open(filepath.Join(cfg.State, "runner-settings.json"), basePrices)
+	if err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	b.Reviews, err = reviews.New(filepath.Join(cfg.State, "reviews"))
 	if err != nil {
 		_ = b.Detach()
 		return nil, err

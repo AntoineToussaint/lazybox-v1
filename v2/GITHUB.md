@@ -181,6 +181,73 @@ A repository whose origin is not on GitHub can commit and push; its card says
 pull requests need GitHub. Without a GitHub connection, a GitHub origin says to
 connect one.
 
+## Review comments
+
+Every diff on the **Changes** page (uncommitted, staged, and the branch
+compared with the workspace start, the default branch or any other branch)
+takes inline comments, and the agent receives them as one message.
+
+- **Comment.** Hover a line and click **+**; drag along the **+** column or
+  Shift-click a second line for a range (within one hunk). Removed lines take
+  comments too. The box takes Markdown; ⌘↩ / Ctrl+Enter saves, Esc cancels.
+  From the keyboard: Tab to a line's **+**, Enter (Shift+Enter extends).
+- **Threads** sit under the last line they cover and say which diff and commit
+  they were made on (`uncommitted changes on 1a2b3c4d`, `branch diff
+  main…1a2b3c4d`). Edit, Delete (confirmed), Resolve, Won't fix and Reopen are
+  on the card. A comment whose lines are not in the diff on screen is listed
+  above it with the lines quoted.
+- **Review tray.** **Review** in the Changes header (with the pending count)
+  opens the tray: every comment of the workspace by file, filtered Pending,
+  Sent, Done or All. Clicking one shows it in its diff. It opens by itself once
+  there are comments, unless you closed it.
+- **Send to the agent.** **Send N comments to the agent** puts one message in
+  the message box of the conversation chosen in the tray (the current one by
+  default), opened beside Changes: each comment with `member/path:line`, the
+  quoted lines in a fenced block, the diff it was read in, and whether it is
+  outdated. Untick a comment to leave it out. Nothing is sent for you; the
+  comments are marked **Sent** to that conversation, and **Reopen** makes one
+  pending again.
+
+### Anchoring and freshness
+
+The Runner keeps each comment's member, path, side, line range, quoted lines
+and their content hash (trailing whitespace ignored), the member's commit, and
+the file's hash. On every read it anchors each comment against the working
+tree, as V1's review `Freshness` does for a report:
+
+| State | Meaning |
+| --- | --- |
+| current | The quoted lines are still at their lines. |
+| moved | The same lines exist elsewhere; the comment re-anchors to the occurrence nearest where it was made. |
+| outdated | The lines are gone (or the file is). The quote is kept and shown. A comment on removed lines is outdated once the file changes at all. |
+| unknown | The file could not be read (too large, binary, unavailable). |
+
+The diff on screen places a thread by its quoted lines, not by number alone,
+because a branch diff shows the commit while the anchor is computed on the
+working tree.
+
+Disposition follows V1's finding outcomes: **open** (pending), **sent**,
+**resolved**, **won't fix**. With **Resolve sent comments when a commit changes
+their lines** ticked in the tray (off by default, per workspace), a sent
+comment is resolved when HEAD has moved since it was sent, that commit range
+changed the file, and the quoted lines are in neither HEAD nor the working
+tree. It stays visible, labelled `Resolved by <commit>`, and can be reopened.
+
+### Storage and access
+
+Comments persist in `<state>/reviews/<workspace>.json` (private file, atomic
+writes), so every window of the Runner shows them (windows re-read every 4 s
+while visible and on focus) and they survive restarts; deleting the workspace
+deletes them. The RPCs are `ListReviewComments`, `AddReviewComment`,
+`EditReviewComment`, `DeleteReviewComment`, `SetReviewDisposition` and
+`SetReviewAutoResolve`; each returns the whole anchored review. They take a
+workspace, a member name and a relative path, never an absolute one, and are
+the owner's alone: an agent's or a terminal's scoped credential is denied,
+reading included.
+
+Not implemented: publishing comments to GitHub as a pull request review,
+comments in the Editor (it has no diff view), and replies within a thread.
+
 ## Scope and evidence
 
 Implemented: personal-token and App connection lifecycles, App-token refresh,
@@ -192,7 +259,7 @@ The repository browser does not expose a second issue/PR browsing workflow. See 
 
 Not yet implemented: background inbox synchronization, durable task/event
 reconciliation, opening a tracker record directly into a session, incremental
-fetching of imported source copies, review comments, auto-merge, or
+fetching of imported source copies, publishing review comments to GitHub, auto-merge, or
 remote Hub coordination. Re-importing an existing repository is idempotent; it
 does not fetch a newer base. Live App identity and repository listing have been verified. Live personal-token
 authorization, organization-policy behavior and private cloning remain unverified;

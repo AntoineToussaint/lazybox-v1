@@ -21,6 +21,10 @@ func (s *Service) DeleteWorkspace(ctx context.Context, r *pb.DeleteWorkspaceRequ
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	// Its review comments anchor to worktrees that no longer exist.
+	if s.Bench.Reviews != nil {
+		_ = s.Bench.Reviews.Forget(r.CollectionId)
+	}
 	return &pb.CollectionResponse{Collection: wireCollection(c)}, nil
 }
 func (s *Service) StopSessionResources(ctx context.Context, r *pb.SessionRequest) (*pb.SessionResponse, error) {

@@ -24,7 +24,10 @@ ambiguous reference for the client to offer as a choice.
 The PR loop's writes (`CommitWorkspaceChanges`, `PushWorkspaceBranch`) resolve
 members the same way and go through `gitpublish`, the only package that writes a
 member's history; pull requests go through `github.PullRequests`. See
-[the PR loop](GITHUB.md#the-pr-loop).
+[the PR loop](GITHUB.md#the-pr-loop). Inline review comments
+(`ListReviewComments` and the writes beside it) take the same workspace and
+member identity, are stored by `internal/runner/reviews` and anchored against
+the working tree on every read; see [review comments](GITHUB.md#review-comments).
 
 ## Responsibility boundaries
 

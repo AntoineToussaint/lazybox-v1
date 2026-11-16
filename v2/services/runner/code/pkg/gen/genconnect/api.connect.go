@@ -276,6 +276,24 @@ const (
 	// RunnerServiceMergePullRequestProcedure is the fully-qualified name of the RunnerService's
 	// MergePullRequest RPC.
 	RunnerServiceMergePullRequestProcedure = "/lazybox.bench.v1.RunnerService/MergePullRequest"
+	// RunnerServiceListReviewCommentsProcedure is the fully-qualified name of the RunnerService's
+	// ListReviewComments RPC.
+	RunnerServiceListReviewCommentsProcedure = "/lazybox.bench.v1.RunnerService/ListReviewComments"
+	// RunnerServiceAddReviewCommentProcedure is the fully-qualified name of the RunnerService's
+	// AddReviewComment RPC.
+	RunnerServiceAddReviewCommentProcedure = "/lazybox.bench.v1.RunnerService/AddReviewComment"
+	// RunnerServiceEditReviewCommentProcedure is the fully-qualified name of the RunnerService's
+	// EditReviewComment RPC.
+	RunnerServiceEditReviewCommentProcedure = "/lazybox.bench.v1.RunnerService/EditReviewComment"
+	// RunnerServiceDeleteReviewCommentProcedure is the fully-qualified name of the RunnerService's
+	// DeleteReviewComment RPC.
+	RunnerServiceDeleteReviewCommentProcedure = "/lazybox.bench.v1.RunnerService/DeleteReviewComment"
+	// RunnerServiceSetReviewDispositionProcedure is the fully-qualified name of the RunnerService's
+	// SetReviewDisposition RPC.
+	RunnerServiceSetReviewDispositionProcedure = "/lazybox.bench.v1.RunnerService/SetReviewDisposition"
+	// RunnerServiceSetReviewAutoResolveProcedure is the fully-qualified name of the RunnerService's
+	// SetReviewAutoResolve RPC.
+	RunnerServiceSetReviewAutoResolveProcedure = "/lazybox.bench.v1.RunnerService/SetReviewAutoResolve"
 	// RunnerServiceListProcessesProcedure is the fully-qualified name of the RunnerService's
 	// ListProcesses RPC.
 	RunnerServiceListProcessesProcedure = "/lazybox.bench.v1.RunnerService/ListProcesses"
@@ -397,6 +415,15 @@ type RunnerServiceClient interface {
 	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// Inline review comments on a workspace's changes, kept per workspace on the
+	// Runner so every window shows them. Owner only. Every reply is the whole
+	// review, each comment anchored against the working tree as it is now.
+	ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	AddReviewComment(context.Context, *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	EditReviewComment(context.Context, *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
@@ -918,6 +945,42 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
 			connect.WithClientOptions(opts...),
 		),
+		listReviewComments: connect.NewClient[gen.ListReviewCommentsRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceListReviewCommentsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListReviewComments")),
+			connect.WithClientOptions(opts...),
+		),
+		addReviewComment: connect.NewClient[gen.AddReviewCommentRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceAddReviewCommentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AddReviewComment")),
+			connect.WithClientOptions(opts...),
+		),
+		editReviewComment: connect.NewClient[gen.EditReviewCommentRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceEditReviewCommentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("EditReviewComment")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteReviewComment: connect.NewClient[gen.DeleteReviewCommentRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceDeleteReviewCommentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DeleteReviewComment")),
+			connect.WithClientOptions(opts...),
+		),
+		setReviewDisposition: connect.NewClient[gen.SetReviewDispositionRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceSetReviewDispositionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetReviewDisposition")),
+			connect.WithClientOptions(opts...),
+		),
+		setReviewAutoResolve: connect.NewClient[gen.SetReviewAutoResolveRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceSetReviewAutoResolveProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetReviewAutoResolve")),
+			connect.WithClientOptions(opts...),
+		),
 		listProcesses: connect.NewClient[gen.ListProcessesRequest, gen.ProcessInventory](
 			httpClient,
 			baseURL+RunnerServiceListProcessesProcedure,
@@ -1035,6 +1098,12 @@ type runnerServiceClient struct {
 	createPullRequest            *connect.Client[gen.CreatePullRequestRequest, gen.PullRequestStatus]
 	getPullRequest               *connect.Client[gen.GetPullRequestRequest, gen.PullRequestStatus]
 	mergePullRequest             *connect.Client[gen.MergePullRequestRequest, gen.PullRequestStatus]
+	listReviewComments           *connect.Client[gen.ListReviewCommentsRequest, gen.WorkspaceReview]
+	addReviewComment             *connect.Client[gen.AddReviewCommentRequest, gen.WorkspaceReview]
+	editReviewComment            *connect.Client[gen.EditReviewCommentRequest, gen.WorkspaceReview]
+	deleteReviewComment          *connect.Client[gen.DeleteReviewCommentRequest, gen.WorkspaceReview]
+	setReviewDisposition         *connect.Client[gen.SetReviewDispositionRequest, gen.WorkspaceReview]
+	setReviewAutoResolve         *connect.Client[gen.SetReviewAutoResolveRequest, gen.WorkspaceReview]
 	listProcesses                *connect.Client[gen.ListProcessesRequest, gen.ProcessInventory]
 	stopProcess                  *connect.Client[gen.StopProcessRequest, gen.ProcessInventory]
 	cleanUpOrphanProcesses       *connect.Client[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse]
@@ -1452,6 +1521,36 @@ func (c *runnerServiceClient) MergePullRequest(ctx context.Context, req *connect
 	return c.mergePullRequest.CallUnary(ctx, req)
 }
 
+// ListReviewComments calls lazybox.bench.v1.RunnerService.ListReviewComments.
+func (c *runnerServiceClient) ListReviewComments(ctx context.Context, req *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.listReviewComments.CallUnary(ctx, req)
+}
+
+// AddReviewComment calls lazybox.bench.v1.RunnerService.AddReviewComment.
+func (c *runnerServiceClient) AddReviewComment(ctx context.Context, req *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.addReviewComment.CallUnary(ctx, req)
+}
+
+// EditReviewComment calls lazybox.bench.v1.RunnerService.EditReviewComment.
+func (c *runnerServiceClient) EditReviewComment(ctx context.Context, req *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.editReviewComment.CallUnary(ctx, req)
+}
+
+// DeleteReviewComment calls lazybox.bench.v1.RunnerService.DeleteReviewComment.
+func (c *runnerServiceClient) DeleteReviewComment(ctx context.Context, req *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.deleteReviewComment.CallUnary(ctx, req)
+}
+
+// SetReviewDisposition calls lazybox.bench.v1.RunnerService.SetReviewDisposition.
+func (c *runnerServiceClient) SetReviewDisposition(ctx context.Context, req *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.setReviewDisposition.CallUnary(ctx, req)
+}
+
+// SetReviewAutoResolve calls lazybox.bench.v1.RunnerService.SetReviewAutoResolve.
+func (c *runnerServiceClient) SetReviewAutoResolve(ctx context.Context, req *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.setReviewAutoResolve.CallUnary(ctx, req)
+}
+
 // ListProcesses calls lazybox.bench.v1.RunnerService.ListProcesses.
 func (c *runnerServiceClient) ListProcesses(ctx context.Context, req *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {
 	return c.listProcesses.CallUnary(ctx, req)
@@ -1581,6 +1680,15 @@ type RunnerServiceHandler interface {
 	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// Inline review comments on a workspace's changes, kept per workspace on the
+	// Runner so every window shows them. Owner only. Every reply is the whole
+	// review, each comment anchored against the working tree as it is now.
+	ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	AddReviewComment(context.Context, *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	EditReviewComment(context.Context, *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
@@ -2098,6 +2206,42 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListReviewCommentsHandler := connect.NewUnaryHandler(
+		RunnerServiceListReviewCommentsProcedure,
+		svc.ListReviewComments,
+		connect.WithSchema(runnerServiceMethods.ByName("ListReviewComments")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAddReviewCommentHandler := connect.NewUnaryHandler(
+		RunnerServiceAddReviewCommentProcedure,
+		svc.AddReviewComment,
+		connect.WithSchema(runnerServiceMethods.ByName("AddReviewComment")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceEditReviewCommentHandler := connect.NewUnaryHandler(
+		RunnerServiceEditReviewCommentProcedure,
+		svc.EditReviewComment,
+		connect.WithSchema(runnerServiceMethods.ByName("EditReviewComment")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDeleteReviewCommentHandler := connect.NewUnaryHandler(
+		RunnerServiceDeleteReviewCommentProcedure,
+		svc.DeleteReviewComment,
+		connect.WithSchema(runnerServiceMethods.ByName("DeleteReviewComment")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetReviewDispositionHandler := connect.NewUnaryHandler(
+		RunnerServiceSetReviewDispositionProcedure,
+		svc.SetReviewDisposition,
+		connect.WithSchema(runnerServiceMethods.ByName("SetReviewDisposition")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetReviewAutoResolveHandler := connect.NewUnaryHandler(
+		RunnerServiceSetReviewAutoResolveProcedure,
+		svc.SetReviewAutoResolve,
+		connect.WithSchema(runnerServiceMethods.ByName("SetReviewAutoResolve")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListProcessesHandler := connect.NewUnaryHandler(
 		RunnerServiceListProcessesProcedure,
 		svc.ListProcesses,
@@ -2294,6 +2438,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetPullRequestHandler.ServeHTTP(w, r)
 		case RunnerServiceMergePullRequestProcedure:
 			runnerServiceMergePullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceListReviewCommentsProcedure:
+			runnerServiceListReviewCommentsHandler.ServeHTTP(w, r)
+		case RunnerServiceAddReviewCommentProcedure:
+			runnerServiceAddReviewCommentHandler.ServeHTTP(w, r)
+		case RunnerServiceEditReviewCommentProcedure:
+			runnerServiceEditReviewCommentHandler.ServeHTTP(w, r)
+		case RunnerServiceDeleteReviewCommentProcedure:
+			runnerServiceDeleteReviewCommentHandler.ServeHTTP(w, r)
+		case RunnerServiceSetReviewDispositionProcedure:
+			runnerServiceSetReviewDispositionHandler.ServeHTTP(w, r)
+		case RunnerServiceSetReviewAutoResolveProcedure:
+			runnerServiceSetReviewAutoResolveHandler.ServeHTTP(w, r)
 		case RunnerServiceListProcessesProcedure:
 			runnerServiceListProcessesHandler.ServeHTTP(w, r)
 		case RunnerServiceStopProcessProcedure:
@@ -2639,6 +2795,30 @@ func (UnimplementedRunnerServiceHandler) GetPullRequest(context.Context, *connec
 
 func (UnimplementedRunnerServiceHandler) MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.MergePullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListReviewComments is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AddReviewComment(context.Context, *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AddReviewComment is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) EditReviewComment(context.Context, *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.EditReviewComment is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeleteReviewComment is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetReviewDisposition is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetReviewAutoResolve is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {

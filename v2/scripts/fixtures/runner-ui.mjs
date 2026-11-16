@@ -78,6 +78,22 @@ export async function startRunnerFixture() {
   const ship=new Map();
   const hex=()=>randomUUID().replaceAll('-','').padEnd(40,'0').slice(0,40);
   const shipState=(collectionId,member)=>{const key=collectionId+'/'+member;if(!ship.has(key)){const spec=collections.find(c=>c.id===collectionId)?.members.find(m=>m.spec.name===member)?.spec;ship.set(key,{branch:spec?.branch||'feature/'+member,head:hex(),files:[],commits:[],committed:[],upstream:'',ahead:0,githubRepository:'',pr:undefined,mergeRefusal:''});}return ship.get(key);};
+  // Review comments, per workspace, as the Runner keeps them. A test sets
+  // diffs (what ReadWorkspaceDiff returns per workspace/member/path) and
+  // workingFiles (a file's current text, for freshness; absent: unchanged).
+  const reviews=new Map(),diffs=new Map(),workingFiles=new Map();
+  const reviewOf=collectionId=>{if(!reviews.has(collectionId))reviews.set(collectionId,{autoResolve:false,comments:[]});return reviews.get(collectionId);};
+  const anchorOf=(collectionId,c)=>{
+   const text=workingFiles.get(`${collectionId}/${c.member}/${c.path}`);
+   if(text===undefined)return {freshness:'current',currentStartLine:c.side==='old'?0:c.startLine,currentEndLine:c.side==='old'?0:c.endLine,freshnessReason:''};
+   if(text===null)return {freshness:'outdated',currentStartLine:0,currentEndLine:0,freshnessReason:'The file no longer exists.'};
+   if(c.side==='old')return {freshness:'outdated',currentStartLine:0,currentEndLine:0,freshnessReason:'The file changed since; the removed lines are quoted as they were.'};
+   const lines=text.replace(/\n$/,'').split('\n'),n=c.snippet.length;let best=0;
+   for(let i=0;i+n<=lines.length;i++)if(c.snippet.every((line,k)=>lines[i+k].trimEnd()===line.trimEnd())&&(!best||Math.abs(i+1-c.startLine)<Math.abs(best-c.startLine)))best=i+1;
+   if(!best)return {freshness:'outdated',currentStartLine:0,currentEndLine:0,freshnessReason:'These lines changed since the comment was made.'};
+   return {freshness:best===c.startLine?'current':'moved',currentStartLine:best,currentEndLine:best+n-1,freshnessReason:best===c.startLine?'':'The same lines moved; the comment follows them.'};
+  };
+  const reviewReply=(collectionId,addedId='')=>{const r=reviewOf(collectionId);return {autoResolve:r.autoResolve,addedId,comments:r.comments.map(c=>({...c,...anchorOf(collectionId,c)}))};};
   const pullRequest=state=>state.pr?{...state.pr,githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:true}:{githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:false,...(state.githubRepository?{}:{unavailable:'origin is not a GitHub repository; push works, pull requests need GitHub'})};
 
   let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:'',rotationExcludedProfileIds:[]};
@@ -286,7 +302,23 @@ export async function startRunnerFixture() {
         const collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Workspace missing');
         return json({repositories:collection.members.map(m=>{const s=shipState(collection.id,m.spec.name);return {member:m.spec.name,branch:s.branch,head:s.head,base:'c'.repeat(40),files:s.files,committed:s.committed,commits:s.commits,branches:[s.branch,'main','origin/main','release/2'],defaultBranch:'origin/main',upstream:s.upstream,ahead:s.ahead,githubRepository:s.githubRepository};})});
       }
-      case 'ReadWorkspaceDiff': return json({text:`@@ fixture ${body.committed?'branch':'working tree'} diff @@\n+${body.path}`});
+      case 'ReadWorkspaceDiff': {const text=diffs.get(`${body.collectionId}/${body.member}/${body.path}`);return json({text:text??`@@ fixture ${body.committed?'branch':'working tree'} diff @@\n+${body.path}`});}
+      case 'ListReviewComments': if(!collections.some(c=>c.id===body.collectionId))return error('not_found','workspace missing');return json(reviewReply(body.collectionId));
+      case 'AddReviewComment': {
+        mutations.push({method,body});const r=reviewOf(body.collectionId);const snippet=body.snippet||[];
+        if(!(body.body||'').trim())return error('failed_precondition','write a comment first');
+        const now=String(Math.floor(Date.now()/1000)),c={id:'rc-'+randomUUID().slice(0,8),member:body.member,path:body.path,side:body.side,startLine:body.startLine,endLine:body.startLine+snippet.length-1,snippet,hash:'fixture',body:body.body.trimEnd(),head:shipState(body.collectionId,body.member).head,view:body.view,base:body.base||'',createdAtUnix:now,updatedAtUnix:now,disposition:'open'};
+        r.comments.push(c);return json(reviewReply(body.collectionId,c.id));
+      }
+      case 'EditReviewComment': {mutations.push({method,body});const c=reviewOf(body.collectionId).comments.find(c=>c.id===body.id);if(!c)return error('not_found','review comment not found');c.body=body.body.trimEnd();return json(reviewReply(body.collectionId));}
+      case 'DeleteReviewComment': {mutations.push({method,body});const r=reviewOf(body.collectionId);if(!r.comments.some(c=>c.id===body.id))return error('not_found','review comment not found');r.comments=r.comments.filter(c=>c.id!==body.id);return json(reviewReply(body.collectionId));}
+      case 'SetReviewDisposition': {
+        mutations.push({method,body});const r=reviewOf(body.collectionId);const chosen=r.comments.filter(c=>(body.ids||[]).includes(c.id));
+        if(chosen.length!==(body.ids||[]).length)return error('not_found','review comment not found');
+        for(const c of chosen){Object.assign(c,{disposition:body.disposition,resolvedBy:'',note:''});if(body.disposition==='sent')Object.assign(c,{sentTo:body.sessionId,sentToTitle:body.sessionTitle||'',sentHead:shipState(body.collectionId,c.member).head,sentAtUnix:String(Math.floor(Date.now()/1000))});if(body.disposition==='open')Object.assign(c,{sentTo:'',sentToTitle:'',sentHead:'',sentAtUnix:'0'});}
+        return json(reviewReply(body.collectionId));
+      }
+      case 'SetReviewAutoResolve': mutations.push({method,body});reviewOf(body.collectionId).autoResolve=!!body.enabled;return json(reviewReply(body.collectionId));
       case 'CommitWorkspaceChanges': {
         mutations.push({method,body});const s=shipState(body.collectionId,body.member);
         const paths=body.paths||[];const chosen=s.files.filter(f=>!paths.length||paths.includes(f.path));
@@ -396,7 +428,7 @@ export async function startRunnerFixture() {
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents,
+  return { attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

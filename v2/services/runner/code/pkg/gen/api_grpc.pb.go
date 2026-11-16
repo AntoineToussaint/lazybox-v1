@@ -102,6 +102,12 @@ const (
 	RunnerService_CreatePullRequest_FullMethodName            = "/lazybox.bench.v1.RunnerService/CreatePullRequest"
 	RunnerService_GetPullRequest_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetPullRequest"
 	RunnerService_MergePullRequest_FullMethodName             = "/lazybox.bench.v1.RunnerService/MergePullRequest"
+	RunnerService_ListReviewComments_FullMethodName           = "/lazybox.bench.v1.RunnerService/ListReviewComments"
+	RunnerService_AddReviewComment_FullMethodName             = "/lazybox.bench.v1.RunnerService/AddReviewComment"
+	RunnerService_EditReviewComment_FullMethodName            = "/lazybox.bench.v1.RunnerService/EditReviewComment"
+	RunnerService_DeleteReviewComment_FullMethodName          = "/lazybox.bench.v1.RunnerService/DeleteReviewComment"
+	RunnerService_SetReviewDisposition_FullMethodName         = "/lazybox.bench.v1.RunnerService/SetReviewDisposition"
+	RunnerService_SetReviewAutoResolve_FullMethodName         = "/lazybox.bench.v1.RunnerService/SetReviewAutoResolve"
 	RunnerService_ListProcesses_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListProcesses"
 	RunnerService_StopProcess_FullMethodName                  = "/lazybox.bench.v1.RunnerService/StopProcess"
 	RunnerService_CleanUpOrphanProcesses_FullMethodName       = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
@@ -215,6 +221,15 @@ type RunnerServiceClient interface {
 	CreatePullRequest(ctx context.Context, in *CreatePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
 	GetPullRequest(ctx context.Context, in *GetPullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
 	MergePullRequest(ctx context.Context, in *MergePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
+	// Inline review comments on a workspace's changes, kept per workspace on the
+	// Runner so every window shows them. Owner only. Every reply is the whole
+	// review, each comment anchored against the working tree as it is now.
+	ListReviewComments(ctx context.Context, in *ListReviewCommentsRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	AddReviewComment(ctx context.Context, in *AddReviewCommentRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	EditReviewComment(ctx context.Context, in *EditReviewCommentRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	DeleteReviewComment(ctx context.Context, in *DeleteReviewCommentRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	SetReviewDisposition(ctx context.Context, in *SetReviewDispositionRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	SetReviewAutoResolve(ctx context.Context, in *SetReviewAutoResolveRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error)
@@ -1097,6 +1112,66 @@ func (c *runnerServiceClient) MergePullRequest(ctx context.Context, in *MergePul
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListReviewComments(ctx context.Context, in *ListReviewCommentsRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_ListReviewComments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) AddReviewComment(ctx context.Context, in *AddReviewCommentRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_AddReviewComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) EditReviewComment(ctx context.Context, in *EditReviewCommentRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_EditReviewComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) DeleteReviewComment(ctx context.Context, in *DeleteReviewCommentRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_DeleteReviewComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SetReviewDisposition(ctx context.Context, in *SetReviewDispositionRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_SetReviewDisposition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SetReviewAutoResolve(ctx context.Context, in *SetReviewAutoResolveRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_SetReviewAutoResolve_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProcessInventory)
@@ -1253,6 +1328,15 @@ type RunnerServiceServer interface {
 	CreatePullRequest(context.Context, *CreatePullRequestRequest) (*PullRequestStatus, error)
 	GetPullRequest(context.Context, *GetPullRequestRequest) (*PullRequestStatus, error)
 	MergePullRequest(context.Context, *MergePullRequestRequest) (*PullRequestStatus, error)
+	// Inline review comments on a workspace's changes, kept per workspace on the
+	// Runner so every window shows them. Owner only. Every reply is the whole
+	// review, each comment anchored against the working tree as it is now.
+	ListReviewComments(context.Context, *ListReviewCommentsRequest) (*WorkspaceReview, error)
+	AddReviewComment(context.Context, *AddReviewCommentRequest) (*WorkspaceReview, error)
+	EditReviewComment(context.Context, *EditReviewCommentRequest) (*WorkspaceReview, error)
+	DeleteReviewComment(context.Context, *DeleteReviewCommentRequest) (*WorkspaceReview, error)
+	SetReviewDisposition(context.Context, *SetReviewDispositionRequest) (*WorkspaceReview, error)
+	SetReviewAutoResolve(context.Context, *SetReviewAutoResolveRequest) (*WorkspaceReview, error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error)
@@ -1524,6 +1608,24 @@ func (UnimplementedRunnerServiceServer) GetPullRequest(context.Context, *GetPull
 }
 func (UnimplementedRunnerServiceServer) MergePullRequest(context.Context, *MergePullRequestRequest) (*PullRequestStatus, error) {
 	return nil, status.Error(codes.Unimplemented, "method MergePullRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListReviewComments(context.Context, *ListReviewCommentsRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListReviewComments not implemented")
+}
+func (UnimplementedRunnerServiceServer) AddReviewComment(context.Context, *AddReviewCommentRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddReviewComment not implemented")
+}
+func (UnimplementedRunnerServiceServer) EditReviewComment(context.Context, *EditReviewCommentRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method EditReviewComment not implemented")
+}
+func (UnimplementedRunnerServiceServer) DeleteReviewComment(context.Context, *DeleteReviewCommentRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteReviewComment not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetReviewDisposition(context.Context, *SetReviewDispositionRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetReviewDisposition not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetReviewAutoResolve(context.Context, *SetReviewAutoResolveRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetReviewAutoResolve not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProcesses not implemented")
@@ -3009,6 +3111,114 @@ func _RunnerService_MergePullRequest_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListReviewComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListReviewCommentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListReviewComments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListReviewComments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListReviewComments(ctx, req.(*ListReviewCommentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_AddReviewComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddReviewCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).AddReviewComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_AddReviewComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).AddReviewComment(ctx, req.(*AddReviewCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_EditReviewComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditReviewCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).EditReviewComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_EditReviewComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).EditReviewComment(ctx, req.(*EditReviewCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_DeleteReviewComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteReviewCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).DeleteReviewComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_DeleteReviewComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).DeleteReviewComment(ctx, req.(*DeleteReviewCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SetReviewDisposition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetReviewDispositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetReviewDisposition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetReviewDisposition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetReviewDisposition(ctx, req.(*SetReviewDispositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SetReviewAutoResolve_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetReviewAutoResolveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetReviewAutoResolve(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetReviewAutoResolve_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetReviewAutoResolve(ctx, req.(*SetReviewAutoResolveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListProcesses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListProcessesRequest)
 	if err := dec(in); err != nil {
@@ -3417,6 +3627,30 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MergePullRequest",
 			Handler:    _RunnerService_MergePullRequest_Handler,
+		},
+		{
+			MethodName: "ListReviewComments",
+			Handler:    _RunnerService_ListReviewComments_Handler,
+		},
+		{
+			MethodName: "AddReviewComment",
+			Handler:    _RunnerService_AddReviewComment_Handler,
+		},
+		{
+			MethodName: "EditReviewComment",
+			Handler:    _RunnerService_EditReviewComment_Handler,
+		},
+		{
+			MethodName: "DeleteReviewComment",
+			Handler:    _RunnerService_DeleteReviewComment_Handler,
+		},
+		{
+			MethodName: "SetReviewDisposition",
+			Handler:    _RunnerService_SetReviewDisposition_Handler,
+		},
+		{
+			MethodName: "SetReviewAutoResolve",
+			Handler:    _RunnerService_SetReviewAutoResolve_Handler,
 		},
 		{
 			MethodName: "ListProcesses",

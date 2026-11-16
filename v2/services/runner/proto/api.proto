@@ -106,6 +106,15 @@ service RunnerService {
   rpc CreatePullRequest(CreatePullRequestRequest) returns (PullRequestStatus);
   rpc GetPullRequest(GetPullRequestRequest) returns (PullRequestStatus);
   rpc MergePullRequest(MergePullRequestRequest) returns (PullRequestStatus);
+  // Inline review comments on a workspace's changes, kept per workspace on the
+  // Runner so every window shows them. Owner only. Every reply is the whole
+  // review, each comment anchored against the working tree as it is now.
+  rpc ListReviewComments(ListReviewCommentsRequest) returns (WorkspaceReview);
+  rpc AddReviewComment(AddReviewCommentRequest) returns (WorkspaceReview);
+  rpc EditReviewComment(EditReviewCommentRequest) returns (WorkspaceReview);
+  rpc DeleteReviewComment(DeleteReviewCommentRequest) returns (WorkspaceReview);
+  rpc SetReviewDisposition(SetReviewDispositionRequest) returns (WorkspaceReview);
+  rpc SetReviewAutoResolve(SetReviewAutoResolveRequest) returns (WorkspaceReview);
   // Owner only. Every process the Runner hosts so it outlives the Runner
   // (agents, managed commands, terminals), held by this Runner or orphaned.
   rpc ListProcesses(ListProcessesRequest) returns (ProcessInventory);
@@ -1023,3 +1032,77 @@ message OrchestrationProcessExplanation {
   bool valid = 5;
   repeated OrchestrationProcessIssue issues = 6;
 }
+
+// Inline review comments (see GITHUB.md, "Review comments").
+message ReviewComment {
+  string id = 1;
+  string member = 2;
+  // Relative to the member's worktree.
+  string path = 3;
+  // "new": the file as changed (added and unchanged lines); "old": lines the
+  // change removed.
+  string side = 4;
+  // 1-based and inclusive, numbered as that side was when the comment was made.
+  uint32 start_line = 5;
+  uint32 end_line = 6;
+  // The lines as the person saw them, and their content hash.
+  repeated string snippet = 7;
+  string hash = 8;
+  // Markdown.
+  string body = 9;
+  // The member's commit when the comment was made, and the diff it was read
+  // in: view is "uncommitted", "staged" or "branch"; base is what a branch
+  // diff compared with (a branch, or the workspace's start commit).
+  string head = 10;
+  string view = 11;
+  string base = 12;
+  int64 created_at_unix = 13;
+  int64 updated_at_unix = 14;
+  // "open", "sent", "resolved" or "wont_fix".
+  string disposition = 15;
+  // The conversation it was put in for the agent, and the commit then.
+  string sent_to = 16;
+  string sent_to_title = 17;
+  int64 sent_at_unix = 18;
+  string sent_head = 19;
+  // The commit that changed the lines when the Runner resolved it on its own,
+  // and a sentence saying so.
+  string resolved_by = 20;
+  string note = 21;
+  // Computed on every read against the working tree: "current", "moved"
+  // (re-anchored to the same lines elsewhere), "outdated" or "unknown".
+  string freshness = 22;
+  uint32 current_start_line = 23;
+  uint32 current_end_line = 24;
+  string freshness_reason = 25;
+}
+message WorkspaceReview {
+  repeated ReviewComment comments = 1;
+  // Resolve a sent comment when a later commit changes its lines.
+  bool auto_resolve = 2;
+  // The comment an add created.
+  string added_id = 3;
+}
+message ListReviewCommentsRequest { string collection_id = 1; }
+message AddReviewCommentRequest {
+  string collection_id = 1;
+  string member = 2;
+  string path = 3;
+  string side = 4;
+  uint32 start_line = 5;
+  repeated string snippet = 6;
+  string body = 7;
+  string view = 8;
+  string base = 9;
+}
+message EditReviewCommentRequest { string collection_id = 1; string id = 2; string body = 3; }
+message DeleteReviewCommentRequest { string collection_id = 1; string id = 2; }
+message SetReviewDispositionRequest {
+  string collection_id = 1;
+  repeated string ids = 2;
+  string disposition = 3;
+  // With "sent": the conversation whose message box received them.
+  string session_id = 4;
+  string session_title = 5;
+}
+message SetReviewAutoResolveRequest { string collection_id = 1; bool enabled = 2; }
