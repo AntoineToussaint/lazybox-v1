@@ -18,7 +18,11 @@ import (
 // commandBriefing tells every coding agent how to run noisy commands. It is
 // part of the Runner, not the editable settings, so it changes with the
 // binary instead of needing a settings migration.
-const commandBriefing = `## Running commands in Lazybox
+const commandBriefing = `## Your Lazybox workspace
+You work inside a Lazybox workspace: your working directory holds one or more repositories, each a git worktree on this workspace's branch. Read and change code there.
+- If the task needs a repository or directory that is not in this workspace (another module, a library you must change, a sibling service), do not read or edit it in place elsewhere on disk. Ask the person to add it to the workspace (Workspace → Add repositories), naming the repository and why you need it, and wait for it to appear before changing it. Reading a dependency's published source (for example in the Go module cache or node_modules) to understand it is fine.
+
+## Running commands in Lazybox
 Run tests, builds, linters, installs and other noisy commands as ` + "`lazybox run -- <command>`" + ` instead of calling them directly. The user sees the full output live in the Lazybox console. You receive a compact view: the exit status first, failures and errors kept, passing and progress lines dropped, and the path of a file with the full output whenever something was dropped or the command failed. The exit status is the command's own.
 - Do not pipe through head, tail or grep, and do not add 2>&1. lazybox already captures both streams and keeps the failures; truncating the output yourself can hide the error.
 - For shell syntax (pipes, &&, redirects), wrap it: ` + "`lazybox run -- sh -c '...'`" + `.
