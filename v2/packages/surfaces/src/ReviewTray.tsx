@@ -164,7 +164,9 @@ export function ReviewTray({ workspaceId, review, conversation, focusReview = ''
     if (query.filter === 'pending') return counts.sent ? `Nothing pending. ${plural(counts.sent, 'comment')} sent to the agent, under Sent.` : counts.proposed ? `Nothing pending. Accept findings under To triage to send them.` : 'Nothing pending. New comments show up here.';
     return 'Nothing here.';
   };
-  return <aside className="review-tray" aria-label="Review">
+  // Escape closes the tray; a field's own Escape comes first.
+  const closeOnEscape = (event: KeyboardEvent<HTMLElement>) => { if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as Element).closest('select,textarea')) { event.preventDefault(); onClose(); } };
+  return <aside className="review-tray" aria-label="Review" onKeyDown={closeOnEscape}>
     <header>
       <h3><Icon name="chat" size={14}/>Review</h3>
       <small>{summary}</small>

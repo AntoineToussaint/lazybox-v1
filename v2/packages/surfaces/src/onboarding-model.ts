@@ -51,6 +51,8 @@ export function whatsNewDecision(seen: string | null | undefined, releases: read
 const arrows: Record<string, string> = { ArrowDown: '↓', ArrowUp: '↑', ArrowLeft: '←', ArrowRight: '→' };
 /** One key binding as separate keys to draw ("] ] c" → ["]", "]", "c"]; "ArrowDown" → "↓"). */
 export const keyParts = (binding: string) => binding.trim().split(/\s+/).filter(Boolean).map(key => arrows[key] || key);
+/** The binding a lesson teaches when an action has several ("⌘⇧N or ] ] c"): its leader sequence, the system the welcome explains. */
+const lessonKeys = (value: string | undefined) => { const all = (value || '').split(/\s+or\s+/).map(b => b.trim()).filter(Boolean); return keyParts(all.find(b => b.includes(' ')) || all[0] || ''); };
 
 export type KeyLesson = { keys: string[][]; label: string; detail: string };
 /**
@@ -61,7 +63,7 @@ export type KeyLesson = { keys: string[][]; label: string; detail: string };
 export function essentialKeys(map: Keymap, goToFile: string): KeyLesson[] {
   return [
     { keys: [keyParts(map['navigation.exit'])], label: 'Leave the agent', detail: 'From the message box to navigation; every other shortcut starts here.' },
-    { keys: [keyParts(map['conversation.new'])], label: 'New conversation', detail: 'In the workspace you are in.' },
+    { keys: [lessonKeys(map['conversation.new'])], label: 'New conversation', detail: 'In the workspace you are in.' },
     { keys: [[goToFile]], label: 'Go to file', detail: 'Fuzzy-find any file in the workspace, from anywhere.' },
     { keys: [keyParts(map['inbox.open'])], label: 'Inbox', detail: 'Everything waiting for you: questions, approvals, finished work.' },
     { keys: [keyParts(map['navigation.next']), keyParts(map['navigation.previous'])], label: 'Next / previous', detail: 'Move through workspaces and conversations in navigation.' },

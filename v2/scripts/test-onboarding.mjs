@@ -57,7 +57,7 @@ try{
   assert.equal(await stored(page,welcomeKey),'seen');
   // Shown once: a reload does not show it again.
   await page.reload();
-  await expect(page.getByText('Create a workspace to group your repositories and conversations.')).toBeVisible();
+  await expect(page.getByText('Start a task: its repositories, an agent and your first message, in a workspace of its own.')).toBeVisible();
   await page.waitForTimeout(600);
   await expect(page.getByRole('dialog',{name:'Welcome to Lazybox'})).toHaveCount(0);
   // Help reopens it; Escape closes it; Create a workspace opens the new-workspace flow.

@@ -63,13 +63,15 @@ Open the parts of the workspace in front.
 
 | Action | macOS | Windows / Linux |
 | --- | --- | --- |
+| New task | `⌘N` | `Ctrl+N` |
 | New workspace | `]] w` | `]] w` |
-| New conversation | `]] c` | `]] c` |
+| New conversation | `⇧⌘N` or `]] c` | `Ctrl+Shift+N` or `]] c` |
 | Review changes | `]] d` | `]] d` |
 | Review changes with Codex | — | — |
 | Review changes with Claude | — | — |
 | Browse files | `]] e` | `]] e` |
 | Open a terminal | — | — |
+| Open in Terminal | — | — |
 | Show artifacts | `]] a` | `]] a` |
 | Open a web page | `]] b` | `]] b` |
 | Show or hide command output | `]] o` | `]] o` |

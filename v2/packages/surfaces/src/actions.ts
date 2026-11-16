@@ -79,14 +79,18 @@ const slotDefinitions = workspaceSlots.map((n): ActionDefinition & { id: `worksp
 const tail = [
   { id: 'files.find', title: 'Go to file', group: 'Go to', icon: 'search', keys: '] ] f or Mod+p', scope: 'global', keywords: 'open file quick', menu: { section: 'Go', title: 'Go to File…', separatorBefore: true } },
   { id: 'navigation.exit', title: 'Focus the sidebar', group: 'Go to', icon: 'sidebar', keys: '] ]', scope: 'global', required: true, keywords: 'leave agent navigation leader' },
+  // One sheet: repositories, branch, agent, mode and the first message; Enter starts it all (NewTaskSheet.tsx).
+  { id: 'task.new', title: 'New task', group: 'Workspace', icon: 'agent', keys: 'Mod+n', scope: 'global', overDialogs: true, keywords: 'new workspace conversation agent prompt start repository branch create begin work', menu: { section: 'File', title: 'New Task…' } },
   { id: 'workspace.new', title: 'New workspace', group: 'Workspace', icon: 'plus', keys: '] ] w', scope: 'global', keywords: 'create add repositories', menu: { section: 'File', title: 'New Workspace…' } },
-  { id: 'conversation.new', title: 'New conversation', group: 'Workspace', icon: 'chat', keys: '] ] c', scope: 'global', keywords: 'start agent session chat', menu: { section: 'File', title: 'New Conversation…' } },
+  { id: 'conversation.new', title: 'New conversation', group: 'Workspace', icon: 'chat', keys: 'Mod+Shift+n or ] ] c', scope: 'global', keywords: 'start agent session chat in this workspace', menu: { section: 'File', title: 'New Conversation…' } },
   { id: 'changes.show', title: 'Review changes', group: 'Workspace', icon: 'branch', keys: '] ] d', scope: 'global', keywords: 'diff git commit pull request' },
   // Another agent reviews the workspace's changes, read-only (ReviewActions.tsx).
   { id: 'review.codex', title: 'Review changes with Codex', group: 'Workspace', icon: 'review', keys: '', scope: 'global', keywords: 'agent cross review findings second opinion codex' },
   { id: 'review.claude', title: 'Review changes with Claude', group: 'Workspace', icon: 'review', keys: '', scope: 'global', keywords: 'agent cross review findings second opinion claude' },
   { id: 'files.explorer', title: 'Browse files', group: 'Workspace', icon: 'folder', keys: '] ] e', scope: 'global', keywords: 'explorer tree' },
   { id: 'terminal.open', title: 'Open a terminal', group: 'Workspace', icon: 'terminal', keys: '', scope: 'global', keywords: 'shell console' },
+  // The person's own terminal app at the workspace's folder (handoff.tsx); a browser copies the cd.
+  { id: 'terminal.external', title: 'Open in Terminal', group: 'Workspace', icon: 'terminal', keys: '', scope: 'global', keywords: 'your own terminal app iterm ghostty wezterm warp cd folder worktree external shell lazybox run' },
   { id: 'artifacts.open', title: 'Show artifacts', group: 'Workspace', icon: 'artifact', keys: '] ] a', scope: 'global', keywords: 'documents reports' },
   { id: 'web.open', title: 'Open a web page', group: 'Workspace', icon: 'globe', keys: '] ] b', scope: 'global', keywords: 'browser web viewer url link site preview', menu: { section: 'File', title: 'New Web Panel' } },
   { id: 'console.toggle', title: 'Show or hide command output', group: 'Workspace', icon: 'output', keys: '] ] o', scope: 'global', keywords: 'console close open log run tests' },

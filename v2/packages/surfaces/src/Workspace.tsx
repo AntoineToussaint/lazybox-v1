@@ -31,6 +31,8 @@ import { builtinPanels, sentence, type PanelModule, type PanelTitle } from './Pa
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { OtherWindows, type OtherWindow } from './OtherWindows';
 import { NewConversationDialog } from './NewConversationDialog';
+import { NewTaskHost } from './NewTaskSheet';
+import { useHandoffMenus, useTerminalAction } from './handoff';
 import { LayoutConfiguration, PageConfig } from './PageEditor';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { readPreference, writePreference } from './view-state';
@@ -151,6 +153,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const hasDetached = layout.pages.some(page => allPanels(page).some(panel => panel.detached));
   const page = layout.pages.find(value => value.id === layout.selectedPage)!;
   const refresh = () => { refreshCatalog(); refreshRunner(); };
+  // Open in Terminal and Continue in… in this window's menus, and the palette's Open in Terminal.
+  useHandoffMenus();
+  useTerminalAction(workspaceID, page.selection.collectionId === workspaceID ? page.selection.sessionId : '');
 
   // Page and layout commands. Each one reads the live layout (`current`), so
   // commands issued in one event build on each other.
@@ -773,6 +778,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       onShowModule={kind => kind === 'terminal' ? showTerminal() : kind === 'web' ? void openWeb({ url: '', newPanel: true }) : void showModule(kind)}/>
     {!settings && <OtherWindows windows={otherWindows} putBackKeys={putBackKeys} onPutAllBack={putAllBack}/>}
     {repositoryWorkspace && <WorkspaceRepositories workspace={collections.find(value => value.id === repositoryWorkspace.id) || repositoryWorkspace} onClose={() => setRepositoryWorkspace(undefined)} onSaved={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder}/>}
+    {!fixedWorkspaceId && <NewTaskHost viewState={viewState} onStarted={target => { refreshCatalog(); refreshRunner(); showSession(target); }}/>}
     <NewConversationDialog open={newSession} quickStart={quickStart} workspaceID={workspaceID} workspaceName={collections.find(value => value.id === workspaceID)?.name} viewState={sessionStore}
       onQuickStart={() => setQuickStart(true)} onClose={() => { setNewSession(false); conversationGroup.current = ''; }} onStarted={showNewSession}/>
     <RestartNotice/>
@@ -789,7 +795,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         {locked && <button onClick={() => commit(defaultLayout({ ...initialTarget, collectionId: workspaceID }), true)}>Reset retained layout</button>}
         {configuring && <LayoutConfiguration json={json} disabled={hasDetached || !!pending} onChange={setJSON} onClose={() => setConfiguring(false)}
           onImport={() => { try { if (commit(repairLayout(parseLayout(json)), true)) setConfiguring(false); } catch (error) { setError(String(error)); } }}/>}
-        <WorkspaceSwitcher selection={page.selection} workspaceID={workspaceID} collections={collections} info={info} locked={!!pending || !!fixedWorkspaceId}
+        <WorkspaceSwitcher selection={page.selection} workspaceID={workspaceID} collections={collections} info={info} locked={!!pending || !!fixedWorkspaceId} conversationShown={kindsShown.get('chat') === 'shown' && !!page.selection.sessionId}
           onSelect={select} onShowRepositories={setRepositoryWorkspace}/>
         {editing && <PageConfig page={page} layout={layout} hasDetached={hasDetached} pending={!!pending} commit={commit} changePage={changePage} onDone={() => setEditing(false)}/>}
         {narrow && mobilePanels.length > 1 && <MobilePanelSwitcher panels={mobilePanels} active={mobilePanel} title={panel => registry[panel.kind]?.title || panel.kind}

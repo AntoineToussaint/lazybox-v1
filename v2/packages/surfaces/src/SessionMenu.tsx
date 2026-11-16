@@ -7,6 +7,8 @@ import { ACTIVITY_DETAILS } from './tool-lines';
 import type { SlashChoice } from './slash-commands';
 import { showMenuNotice } from './ContextMenu';
 import { requestRename } from './ConversationTitle';
+import { conversationHandoffItems, useHandoffMenus } from './handoff';
+import { useRunner } from './RunnerContext';
 
 /** The model picker: the same choices and switch as `/model` (useSlashCommands.tsx). */
 export type ModelChoices = { choices: SlashChoice[]; live: boolean; disabled?: string; choose(value: string): void; /** Any model id: `/model ` in the message box. */ pick(): void };
@@ -64,6 +66,13 @@ export function sessionMenuItems({ session, allowStart, onChangePermission, onRe
   ];
 }
 
+/** Handing the conversation to your own tools goes before Delete, which stays last. */
+export function withHandoff(items: MenuItem[], handoff: MenuItem[]): MenuItem[] {
+  if (!handoff.length) return items;
+  const danger = items.findIndex(item => !!item && item !== 'separator' && !!item.danger);
+  return danger < 0 ? [...items, 'separator', ...handoff] : [...items.slice(0, danger), ...handoff, ...items.slice(danger)];
+}
+
 /** The ⋯ menu of a chat: what it runs on, its permissions and subscription, and ending or deleting it. */
 export function SessionMenu({ session, sessionID, accountName, stream, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, activity, models }: {
   session?: Session;
@@ -82,6 +91,10 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
   models?: ModelChoices;
 }) {
   const live = stream === 'Live';
+  // Open in Terminal and Continue in Claude Code / Codex…, here and in the header's and rows' menus.
+  useHandoffMenus();
+  const { api, info } = useRunner();
+  const handoff = conversationHandoffItems(api, session, info);
   return <ActionMenu className="session-menu" label="Session actions">
     <strong>Session{live ? '' : <span className="session-connection" role="status"><span aria-hidden="true"/>{stream}</span>}</strong>
     <dl className="session-facts">
@@ -103,7 +116,7 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
     </div>}
     {activity && <ActivityDetailChoice activity={activity}/>}
     {session?.closed && !allowStart && <span>Saved conversation</span>}
-    <ActionMenuItems items={sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, sessionID }).filter(item => !item || item === 'separator' || !item.submenu)}/>
+    <ActionMenuItems items={withHandoff(sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, sessionID }).filter(item => !item || item === 'separator' || !item.submenu), handoff)}/>
   </ActionMenu>;
 }
 

@@ -68,14 +68,16 @@ const storageKey = "keyboard:v2";
  * thirteen actions; version 2 predates `] ] v` (activity detail) and `] ] b` (web panel);
  * version 3 predates `] ] r` (run the last command block); version 4 predates the
  * voice keys (⌥Space, ⌥⇧Space); version 5 predates the panel-group keys (⌘⌥ arrows,
- * ⌘⌥⇧ arrows, ⌃⌘ arrows, ⌃1–9, ⌘T) and the reset chord.
+ * ⌘⌥⇧ arrows, ⌃⌘ arrows, ⌃1–9, ⌘T) and the reset chord; version 6 predates ⌘N
+ * (a new task) and ⌘⇧N (a new conversation in this workspace).
  */
-const keymapVersion = 6;
+const keymapVersion = 7;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
  * tmux keymap), minus any key that would collide with a saved one or with an
- * entry of the person's own `]]` menu. Go to file gains Mod+P the same way.
+ * entry of the person's own `]]` menu. Go to file gains Mod+P the same way,
+ * and New conversation Mod+Shift+N.
  */
 export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac = isMac): Keymap {
   const saved = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -91,7 +93,7 @@ export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac
   if (!kept.size || version >= keymapVersion) return withFixedKeys(map, mac);
   const leader = map["navigation.exit"];
   const menuKeys = new Set(menu.map((entry) => canonicalBinding(`${leader} ${entry.key}`)));
-  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
+  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : a.id === "conversation.new" && version < 7 ? [resolveMod("Mod+Shift+n", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
   for (const { action } of added) if (!kept.has(action.id)) map[action.id] = "";
   for (const { action, candidates } of added)
     for (const binding of candidates) {

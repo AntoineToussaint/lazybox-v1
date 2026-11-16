@@ -83,6 +83,19 @@ On a fresh install Lazybox greets you once with the three things it needs:
 You can reopen the welcome any time from **Help (?) → Welcome and getting
 started**. After an update, a quiet card in the corner lists **What's new**.
 
+## The fastest start: New task (`⌘N`)
+
+`⌘N` (File → New Task…, or **New task** where the window is empty) opens one
+sheet: type what the agent should do, pick the repositories (recent ones
+first; type to search), check the branch it suggests from your message (Edit
+to change it or the workspace's name), the agent and how it works (Ask for
+approval, Plan first, Read only, YOLO). **Enter** creates the workspace on its
+branch and the conversation, and sends your message; **⌘Enter** does it in
+the background so you can start the next one. The sheet remembers your last
+repositories, agent and mode; Escape keeps an unsent message for next time.
+*Start without a repository* makes an empty workspace. The steps below do the
+same one at a time.
+
 ## Your first workspace
 
 A **workspace** is a named place to work: one or several repositories, each
@@ -113,7 +126,7 @@ Lazybox asks you to **review its scripts** before running its setup — see
 
 ![A workspace: the sidebar of workspaces, a conversation with the agent's work folded into one line each, its plan, a turn marker, and the plan it published as an artifact](images/hero.webp)
 
-1. Press `]] c` (or the **+** beside the workspace name).
+1. Press `⌘⇧N` or `]] c` (or the **+** beside the workspace name).
 2. Choose the **agent** (Claude or Codex), the **account**, and the
    **permissions**:
    - **Ask for approval** — the agent asks before running commands or editing.

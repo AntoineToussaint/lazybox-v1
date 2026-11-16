@@ -77,5 +77,10 @@ Settings → Notifications:
   `⌘J` to jump to it.
 - **Dock badge** with the number of conversations waiting for you.
 - **Sounds:** a short sound when something needs you (on by default) and when
-  an agent is done (off by default), each with a preview.
+  an agent is done (off by default). Each one is Lazybox's soft chime, a macOS
+  system sound (Glass, Ping… — in the desktop app) or a short file of your own
+  (WAV, AIFF, MP3…, up to 512 KB), played when you choose it and with ▶. One
+  **Volume** for all, and **Only when Lazybox is in the background** keeps
+  them quiet while you are looking at it. These choices belong to this
+  computer, so they are kept by this browser or app, not on the Runner.
 - **Send a test notification** to check your system allows them.

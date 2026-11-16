@@ -22,6 +22,7 @@ import { TerminalPanel } from './TerminalPanel';
 import { conversationReader } from './transcript-cache';
 import type { ViewTarget } from './workspace-model';
 import { WorkspaceHome } from './WorkspaceHome';
+import { NewTaskStart } from './NewTaskSheet';
 import { HelpAssistant } from './HelpAssistant';
 import { useAskRequests } from './help-requests';
 
@@ -58,6 +59,8 @@ function ChatModule({ target, onTarget, viewState, collections, onOpenChat, onNe
   const collection = collections.find(value => value.id === target.collectionId);
   // A workspace with no conversation open shows what it holds and how to start, not a form.
   if (collection && !target.sessionId) return <WorkspaceHome workspace={collection} viewState={viewState} onNewConversation={onNewConversation} onShowModule={onShowModule} onTarget={onTarget}/>;
+  // Nothing chosen yet: how to start, not an empty chat.
+  if (!target.collectionId && !target.sessionId) return <NewTaskStart viewState={viewState}/>;
   return <ChatPanel key={JSON.stringify([target.collectionId, conversationReader(api, target.sessionId).identity])} embedded showCommands={false} onOpenChat={onOpenChat}
     collectionId={target.collectionId} initialSessionId={target.sessionId}
     allowStart={!!collection && collection.state === 'ready' && !collection.ownershipUncertain}

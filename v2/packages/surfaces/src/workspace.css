@@ -29,6 +29,11 @@
 .worktree-count{font-size:calc(11px * var(--text-scale));font-weight:400;color:var(--text-faint);border-left:1px solid var(--line-strong);padding-left:12px;white-space:nowrap}
 .session-switcher{margin-left:auto;position:relative;max-width:220px}
 .workspace-context .session-switcher select{color:var(--text-subtle);font-size:calc(11px * var(--text-scale));font-weight:400}
+/* A chat panel names the conversation: the switcher shows only the count, its list one click away. */
+.session-switcher.is-compact .session-switcher-face{display:inline-flex;align-items:center;gap:6px;padding:5px 20px 5px 0;color:var(--text-subtle);font-size:calc(11px * var(--text-scale));white-space:nowrap}
+.workspace-context .session-switcher.is-compact select{position:absolute;inset:0;width:100%;opacity:0}
+.session-switcher.is-compact:hover .session-switcher-face,.session-switcher.is-compact:focus-within .session-switcher-face{color:var(--text)}
+.session-switcher.is-compact:focus-within{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
 .page-layout{flex:1;min-height:0;overflow:hidden}
 .split-row{flex-direction:row}.split-column{flex-direction:column}
 /* Panels render once into stable hosts that move between layout slots, so docking or closing a neighbour never remounts them. */

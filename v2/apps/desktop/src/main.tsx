@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, configureVoice, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
+import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, configureExternalTerminal, configureSystemSounds, configureVoice, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
 import type { AppHost, AppInfo, ChatReturn, AttentionDestination, AttentionHost, AvailableUpdate, FeedbackDiagnostics, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateError, UpdateErrorKind, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
 import { FirstRun } from './FirstRun';
 
@@ -292,6 +292,14 @@ configureContextMenus({
   revealInFinder: path => invoke<void>('plugin:opener|reveal_item_in_dir', { paths: [path] }),
   ...(import.meta.env.DEV ? { inspect: () => invoke<void>('plugin:webview|internal_toggle_devtools') } : {}),
 });
+// "Open in Terminal" opens the person's own terminal app at a workspace's
+// folder, and notification sounds can be macOS system sounds: both played by
+// the host (src-tauri/src/terminal.rs, sounds.rs), never by the page.
+configureExternalTerminal({
+  installed: () => invoke<string[]>('terminal_apps'),
+  open: request => invoke('open_terminal', { request }),
+});
+configureSystemSounds({ play: (name, level) => invoke<void>('play_system_sound', { name, level }) });
 // An installed release's first run opens the setup window instead (release.rs).
 const firstRun = getCurrentWebview().label === 'setup';
 createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}>{firstRun ? <FirstRun/> : <DesktopApp/>}</WindowErrorBoundary></React.StrictMode>);

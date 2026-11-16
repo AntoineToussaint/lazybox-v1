@@ -1,6 +1,7 @@
 import { WebSettings } from './WebSettings';
 import { BrowserSettingsPanel } from './BrowserSettingsPanel';
 import { RuntimeSettings } from './RuntimeSettings';
+import { TerminalSettings } from './handoff';
 import {KeyboardSettings} from './KeyboardSettings';
 import { PowerSettings } from './PowerSettings';
 import { NotificationSettings } from './NotificationSettings';
@@ -303,7 +304,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
     {panel('process', <OrchestrationProcessSettings/>)}
     {panel('updates', <UpdateSettings app={app}/>)}
     {panel('about', <AboutSettings app={app} onShowUpdates={() => select('updates', true)}/>)}
-    {panel('agents', <><AgentSettings/><AcpAgentsSettings/></>)}
+    {panel('agents', <><AgentSettings/><AcpAgentsSettings/><TerminalSettings/></>)}
     {panel('workspaces', <RuntimeSettings/>)}
     {panel('devices', <DevicesSettings/>)}
     {panel('pricing', <PricingSettings/>)}

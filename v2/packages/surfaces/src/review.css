@@ -88,10 +88,17 @@
 .changes-review-toggle{display:inline-flex;align-items:center;gap:6px}
 .changes-review-toggle span{min-width:18px;padding:0 5px;border-radius:999px;background:var(--accent-solid);color:var(--on-accent-solid);font-size:calc(11px * var(--text-scale));line-height:calc(16px * var(--text-scale));text-align:center}
 .changes-columns.with-review{grid-template-columns:minmax(200px,22%) minmax(0,1fr) minmax(250px,300px)}
-/* Narrow Changes panels (a chat docked beside it, a small window) put the
-   tray under the files and the diff instead of squeezing the diff. */
+/* Narrow Changes panels (a chat docked beside it, a small window) keep the
+   diff its whole height and width: the tray takes the left column under the
+   files, which keep at most a third of it, so a comment's thread in the diff
+   is never covered and the tray stays in view while going from one to the next. */
 .changes-panel{container-type:inline-size}
 @container (max-width:1100px){
-  .changes-columns.with-review{grid-template-columns:minmax(180px,30%) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
-  .changes-columns.with-review .review-tray{grid-column:1/-1;border-left:0;border-top:1px solid var(--border,var(--line-subtle));padding:8px 0 0;max-height:40vh;min-height:180px}
+  .changes-columns.with-review{grid-template-columns:minmax(220px,32%) minmax(0,1fr);grid-template-rows:minmax(0,auto) minmax(0,1fr)}
+  .changes-columns.with-review>nav{grid-column:1;grid-row:1;max-height:28vh}
+  .changes-columns.with-review>.diff-view{grid-column:2;grid-row:1/span 2}
+  .changes-columns.with-review .review-tray{grid-column:1;grid-row:2;min-height:0;overflow:auto;overscroll-behavior:contain;border-left:0;border-top:1px solid var(--border,var(--line-subtle));padding:0 4px 0 0}
+  /* Short of height, the tray scrolls as one: its Send button is never out of reach. */
+  .changes-columns.with-review .review-tray-list{flex:1 0 auto;min-height:48px;overflow:visible}
+  .changes-columns.with-review .review-tray>footer .review-muted{display:none}
 }

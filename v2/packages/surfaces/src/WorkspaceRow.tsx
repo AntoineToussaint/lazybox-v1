@@ -10,6 +10,7 @@ import { agentLine, type RowGit } from "./workspace-row-model";
 import { GitLine } from "./WorkspaceGitLine";
 import { Icon } from "./Icons";
 import { useRunner } from "./RunnerContext";
+import { workspaceTerminalItem } from "./handoff";
 import { useUnread } from "./useAttention";
 import { SessionMark, useLiveStatus } from "./LiveIndicator";
 import { generatedName, repositoryGroups, suggestWorkspaceName } from "./repository-model";
@@ -89,6 +90,7 @@ export function WorkspaceRow({
     { label: "Add repositories…", icon: "repository", run: onAdd },
     { label: "Manage repositories…", icon: "sliders", run: onManage },
     { label: "Rename workspace", icon: "pencil", shortcut: "F2", run: rename },
+    workspaceTerminalItem(api, workspace.id),
     "separator",
     conversation && { label: "Delete conversation…", danger: true, run: onDeleteConversation },
     { label: "Delete workspace…", danger: true, run: onDelete },

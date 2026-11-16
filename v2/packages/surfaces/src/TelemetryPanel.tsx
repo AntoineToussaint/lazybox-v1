@@ -57,10 +57,14 @@ type UsageRequest={executionId:string;part:'context'|'cost'};
 /** Opens a conversation's context and cost popover; false when no header of it is on screen. */
 export function openUsage(executionId:string,part:'context'|'cost'):boolean{return !window.dispatchEvent(new CustomEvent<UsageRequest>(USAGE_EVENT,{detail:{executionId,part},cancelable:true}));}
 
-/** Presentation only: closing a panel never stops Runner accounting. */
+/**
+ * Presentation only: closing a panel never stops Runner accounting. Compact
+ * (the chat header's chip), it shows nothing until the conversation has usage:
+ * an empty grey meter says nothing (`data-empty` hides it; `/context` still opens it).
+ */
 export function TelemetryPanel({workspaceId,executionId,conversationId,compact=false}:{workspaceId?:string;executionId?:string;conversationId?:string;compact?:boolean}){
  const {api,info,error:connectionError}=useRunner();
- const [report,setReport]=useState<TelemetryReport>(),[error,setError]=useState(''),[open,setOpen]=useState(false);
+ const [report,setReport]=useState<TelemetryReport>(),[error,setError]=useState(''),[open,setOpen]=useState(false),[asked,setAsked]=useState(false);
  const id=useId(),popover=useRef<HTMLDivElement>(null);
  useEffect(()=>{
   setReport(undefined);setError('');if(!workspaceId&&!executionId&&!conversationId)return;
@@ -75,9 +79,13 @@ export function TelemetryPanel({workspaceId,executionId,conversationId,compact=f
  useEffect(()=>{
   if(!compact||!executionId)return;
   const listener=(event:Event)=>{const request=(event as CustomEvent<UsageRequest>).detail;if(request.executionId!==executionId)return;event.preventDefault();
-   if(!popover.current?.matches(':popover-open'))trigger.current?.click();
-   if(costDetails.current)costDetails.current.open=request.part==="cost";
-   requestAnimationFrame(()=>(request.part==='cost'?costDetails.current:popover.current?.querySelector<HTMLElement>('.context-card'))?.scrollIntoView({block:'nearest'}));};
+   // Before any usage the chip is hidden: show it first, so the popover has a place to open from.
+   setAsked(true);
+   requestAnimationFrame(()=>{
+    if(!popover.current?.matches(':popover-open'))trigger.current?.click();
+    if(costDetails.current)costDetails.current.open=request.part==="cost";
+    requestAnimationFrame(()=>(request.part==='cost'?costDetails.current:popover.current?.querySelector<HTMLElement>('.context-card'))?.scrollIntoView({block:'nearest'}));
+   });};
   window.addEventListener(USAGE_EVENT,listener);return()=>window.removeEventListener(USAGE_EVENT,listener);
  },[compact,executionId]);
  if(!workspaceId&&!executionId&&!conversationId)return <p className="module-empty">Select a workspace to view its usage.</p>;
@@ -100,7 +108,7 @@ export function TelemetryPanel({workspaceId,executionId,conversationId,compact=f
   </div></details>
  </>;
  if(!compact)return <section className="telemetry-panel" aria-label="Workspace usage">{content}</section>;
- return <div className="telemetry-panel compact"><button ref={trigger} className="context-trigger" popoverTarget={id} aria-expanded={open} aria-label="Context and token cost" onClick={event=>{event.currentTarget.focus();const bounds=event.currentTarget.getBoundingClientRect();if(popover.current){popover.current.style.left=`${Math.max(12,Math.min(bounds.right-380,window.innerWidth-392))}px`;popover.current.style.top=`${Math.max(12,Math.min(bounds.bottom+8,window.innerHeight-Math.min(window.innerHeight*.7,610)-12))}px`;}}} title={`Context ${percent===undefined?'not reported yet':`${percentLabel(percent)} used`}${known.length?` · ${costLabel}`:''}`}><span className="context-mini-bar" aria-hidden="true" data-level={percent===undefined?undefined:percent>=85?'high':percent>=60?'medium':undefined}><i style={{width:`${Math.max(0,Math.min(100,percent??0))}%`}}/></span><span className="context-trigger-percent">{percent===undefined?'Context':percentLabel(percent)}</span>{known.length>0&&<span className="context-trigger-cost">{cost>=0.01?`$${cost.toFixed(2)}`:costLabel}</span>}</button>
-  <div id={id} ref={popover} popover="auto" className="context-popover" onToggle={event=>setOpen(event.newState==='open')}><header><strong>Context</strong><button aria-label="Close context" popoverTarget={id} popoverTargetAction="hide">×</button></header>{content}</div>
+ return <div className="telemetry-panel compact"><button ref={trigger} className="context-trigger" popoverTarget={id} aria-expanded={open} data-empty={percent===undefined&&!known.length&&!open&&!asked?true:undefined} aria-label="Context and token cost" onClick={event=>{event.currentTarget.focus();const bounds=event.currentTarget.getBoundingClientRect();if(popover.current){popover.current.style.left=`${Math.max(12,Math.min(bounds.right-380,window.innerWidth-392))}px`;popover.current.style.top=`${Math.max(12,Math.min(bounds.bottom+8,window.innerHeight-Math.min(window.innerHeight*.7,610)-12))}px`;}}} title={`Context ${percent===undefined?'not reported yet':`${percentLabel(percent)} used`}${known.length?` · ${costLabel}`:''}`}><span className="context-mini-bar" aria-hidden="true" data-level={percent===undefined?undefined:percent>=85?'high':percent>=60?'medium':undefined}><i style={{width:`${Math.max(0,Math.min(100,percent??0))}%`}}/></span><span className="context-trigger-percent">{percent===undefined?'Context':percentLabel(percent)}</span>{known.length>0&&<span className="context-trigger-cost">{cost>=0.01?`$${cost.toFixed(2)}`:costLabel}</span>}</button>
+  <div id={id} ref={popover} popover="auto" className="context-popover" onToggle={event=>{setOpen(event.newState==='open');if(event.newState!=='open')setAsked(false);}}><header><strong>Context</strong><button aria-label="Close context" popoverTarget={id} popoverTargetAction="hide">×</button></header>{content}</div>
  </div>;
 }

@@ -8,6 +8,7 @@ import { conversationName, conversationTitle } from './conversation-model';
 import { conversationOpeners } from './conversation-requests';
 import { copyText, showMenuNotice, type MenuItem } from './ContextMenu';
 import { openPeek } from './Peek';
+import { conversationHandoffItems } from './handoff';
 import { DeleteConversationDialog } from './DeleteConversationDialog';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import type { ViewTarget } from './workspace-model';
@@ -20,11 +21,11 @@ import type { ViewTarget } from './workspace-model';
  *
  *   Open · Open beside · Open in new window · Peek
  *   Rename · Pin · Mark as read
- *   Copy ID · Stop
+ *   Copy ID · Stop · Open in Terminal · Continue in Claude Code…
  *   Archive… · Delete…
  */
 export function useConversationActions({ onOpen, onDeleted }: { onOpen?(target: ViewTarget): void; onDeleted?(session: Session): void } = {}) {
-  const { api, refresh } = useRunner();
+  const { api, info, refresh } = useRunner();
   const { seen, mark } = useSeen();
   const [deleting, setDeleting] = useState<Session>();
   const [archiving, setArchiving] = useState<Session>();
@@ -62,6 +63,8 @@ export function useConversationActions({ onOpen, onDeleted }: { onOpen?(target: 
       'separator',
       { label: 'Copy ID', icon: 'copy', run: () => void copyText(session.conversationId || session.id, 'Copied conversation ID') },
       { label: 'Stop', icon: 'stop', disabled: (!session.busy || session.closed) && 'The agent is not working', run: () => void stop(session) },
+      // Open in Terminal · Continue in Claude Code / Codex… (handoff.tsx).
+      ...conversationHandoffItems(api, session, info),
       'separator',
       archived
         ? { label: 'Unarchive', icon: 'archive', run: () => void unarchive(session) }

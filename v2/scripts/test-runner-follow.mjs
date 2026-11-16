@@ -89,7 +89,7 @@ try {
   fixture.runner.down = true;
   await page.reload();
   await expect(page.getByRole('status').filter({ hasText: 'Reconnecting to the Runner… Your workspaces appear as soon as it answers.' })).toBeVisible({ timeout: 8000 });
-  await expect(page.getByText('Create a workspace to group your repositories and conversations.')).toHaveCount(0);
+  await expect(page.getByText('Start a task: its repositories, an agent and your first message, in a workspace of its own.')).toHaveCount(0);
   await page.screenshot({ path: '.cache/runner-follow-reconnecting.png' });
   fixture.runner.down = false;
   for (const name of names) await expect(list.getByText(name, { exact: true })).toBeVisible({ timeout: 8000 });
@@ -98,7 +98,7 @@ try {
   fixture.runner.listDelayMs = 2500;
   await page.reload();
   await expect(page.getByRole('status').filter({ hasText: 'Loading workspaces…' })).toBeVisible();
-  await expect(page.getByText('Create a workspace to group your repositories and conversations.')).toHaveCount(0);
+  await expect(page.getByText('Start a task: its repositories, an agent and your first message, in a workspace of its own.')).toHaveCount(0);
   for (const name of names) await expect(list.getByText(name, { exact: true })).toBeVisible({ timeout: 8000 });
   fixture.runner.listDelayMs = 0;
 

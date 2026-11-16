@@ -237,3 +237,10 @@ p.settings-empty[role=status]{border-style:solid;border-color:transparent;text-a
 .chat-settings-preview .tool-lines{margin:0}
 
 .enrollment-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+/* Settings → Notifications → Sounds: which sound, a preview, on/off; one volume. */
+.sound-option .notification-sound-control{justify-content:flex-end}
+.sound-option .notification-sound-control select{min-width:0;flex:1;max-width:180px}
+.sound-option .sound-error{grid-column:1/-1;margin:0}
+.sound-volume{display:flex;align-items:center;gap:10px;color:var(--s-muted)}
+.sound-volume input[type=range]{flex:1;min-width:0;accent-color:var(--accent-solid)}
+.sound-volume output{min-width:3.5ch;text-align:right;font-variant-numeric:tabular-nums;font-size:calc(12px * var(--text-scale));color:var(--s-text)}

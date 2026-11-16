@@ -116,6 +116,14 @@ outcome, the failures, the path of the full output — to your message; `--to`
 does the same for a named conversation. The agent never gets the full output
 dumped into its context.
 
+**Open in Terminal** (on a workspace, a conversation or a Files row, or from
+the command palette) opens your own terminal at that folder: Ghostty, iTerm,
+WezTerm, Warp, Terminal, or a command of your own, chosen in Settings → Agents
+& workspaces → *Your terminal* (Automatic picks the first one installed). It
+starts with `LAZYBOX_RUNNER` naming this app's Runner, so `lazybox run` and
+`lazybox log` there reach the right Runner even when several are registered.
+In a browser, it copies the `cd` to paste instead.
+
 **From your own terminal** (iTerm, Ghostty…) `lazybox log` and `lazybox run`
 find the Runner by themselves (the installed app's, or Working's), and publish
 to the workspace your current directory is in — its folder or one of its

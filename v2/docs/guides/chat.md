@@ -196,10 +196,22 @@ anything running or failed always shows. A background command (Claude's
 does (*Generate the protobuf code*), whole, with what runs beneath it, and
 opens a panel with its script and the output the agent last read.
 
+## Continue in Claude Code or Codex
+
+When you need something of the provider's own CLI that Lazybox does not map
+(`/mcp`, a plugin, its own plan mode), **Continue in Claude Code…** (or
+**Continue in Codex…**) in the conversation's ⋯ menu and its right-click menu
+copies its resume command, in its folder — `cd <folder> && claude --resume
+<id>` or `codex resume <id>` — to paste in your terminal. Let the agent finish
+its turn here first. A conversation on a subscription Lazybox keeps apart from
+your own CLI sign-in says so instead: its history is in that subscription's
+private folder.
+
 ## What it costs
 
-The usage popover in the chat header (`/cost`) shows the context window and
-the conversation's **token cost**: input, cache read, cache write and output,
+The usage popover in the chat header (`/cost`) shows the context window once
+the agent has reported usage (before that the header shows no meter; `/context`
+still opens it) and the conversation's **token cost**: input, cache read, cache write and output,
 each with its tokens and what it cost, then the total and how much of the
 input the prompt cache served. The cost is an API-equivalent estimate, not a
 bill. Usage without a price says which model and why — a model with no price

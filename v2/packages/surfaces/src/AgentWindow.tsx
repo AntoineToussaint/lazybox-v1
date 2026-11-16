@@ -37,7 +37,8 @@ import { ToolActivity } from './ToolActivity';
 import { BrowsingBadge } from './BrowserPanel';
 import { useBrowserAutoShow } from './useBrowser';
 import { ConversationTitle } from './ConversationTitle';
-import { PermissionRestartPrompt, SessionLifecycleButton, SessionMenu, sessionMenuItems } from './SessionMenu';
+import { PermissionRestartPrompt, SessionLifecycleButton, SessionMenu, sessionMenuItems, withHandoff } from './SessionMenu';
+import { conversationHandoffItems } from './handoff';
 import { contextMenu } from './ContextMenu';
 import { ResumeBar, TranscriptNotice } from './SessionNotices';
 import { useSubagentHost } from './SubagentHost';
@@ -472,9 +473,9 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} statusText={live.text + (session?.queued ? ` · ${session.queued} queued` : '')} statusBusy={live.tone === 'busy' || live.tone === 'waiting'}
               modelLabel={modelLabel} stats={stats} realTitle={realTitle} branch={branch} shownAccount={headerAccount} onOpenChat={onOpenChat}
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
-              onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...sessionMenuItems({ session, allowStart,
+              onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart,
                 onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),
-                onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true), activity, models: slash.models, sessionID })], { sessionId: sessionID })}
+                onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true), activity, models: slash.models, sessionID }), conversationHandoffItems(api, session, info))], { sessionId: sessionID })}
               onPickModel={session && !session.closed ? slash.models.pick : undefined}
               menu={<SessionMenu session={session} sessionID={sessionID} accountName={accountName} stream={stream} allowStart={allowStart}
                 onChangePermission={mode => void changePermission(mode)} onRestartWithPermission={setRestartTo}

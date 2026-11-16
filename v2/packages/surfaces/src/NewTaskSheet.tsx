@@ -1,0 +1,305 @@
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import type { RunnerClient } from '@lazybox/client-core';
+import type { InfoResponse } from '@lazybox/protocol';
+import type { ViewStateStore } from '@lazybox/platform';
+import { actionEnabled, bindings, displayBinding, runAction, useAction, useActionRevision } from './actions';
+import { useKeymap } from './keyboard';
+import { AgentPicker } from './AgentPicker';
+import { accountLabel } from './agent-status';
+import { composeInConversation } from './compose';
+import { DialogHeader, DraggableDialog } from './DraggableDialog';
+import { Icon } from './Icons';
+import { agentTitle } from './providers';
+import { useRepositoryCatalog } from './repository-catalog';
+import { repositoryLabel } from './repository-model';
+import { useRunner } from './RunnerContext';
+import { useRunnerSettings } from './RunnerSettings';
+import { showToast } from './toasts';
+import { readLaunchChoices, readPreference, writePreference } from './view-state';
+import { modeOf, parseTaskChoices, rankRepositories, rememberTask, TASK_MODES, taskBranch, taskName, taskProblem, type TaskChoices, type TaskMode, type TaskProblem } from './new-task-model';
+import type { ViewTarget } from './workspace-model';
+import './new-task.css';
+
+/**
+ * New task (⌘N): one sheet for everything a piece of work starts with — its
+ * repositories, the branch, the agent, how it works, and the first message.
+ * Enter creates the workspace and the conversation together and sends the
+ * message; ⌘Enter does the same in the background, so several can be started
+ * in a row. The sheet remembers the last repositories, agent and mode, and an
+ * unsent message survives closing it. A new conversation in the workspace
+ * already open stays one key away (⌘⇧N, New conversation).
+ */
+
+type Draft = { prompt: string; identities: string[]; empty: boolean; name?: string; branch?: string; provider: string; profile: string; mode: TaskMode };
+type Plan = { prompt: string; name: string; branch: string; identities: string[]; empty: boolean; provider: string; profileId: string; mode: TaskMode; agent: string };
+type Progress = (message: string) => void;
+/** Where a start got to, so trying again picks up there instead of making a second workspace. */
+type Attempt = { spec: string; requestKey: string; operationId: string; collectionId?: string; sessionId?: string; sent?: boolean };
+
+const CHOICES = 'new-task';
+/** The unsent sheet of this window: an Escape never loses a long message. */
+let unsent: Draft | undefined;
+
+async function startTask(api: RunnerClient, plan: Plan, attempt: Attempt, progress: Progress): Promise<{ collectionId: string; sessionId: string }> {
+  if (!attempt.collectionId) {
+    progress(plan.identities.length ? 'Preparing the workspace…' : 'Creating the workspace…');
+    let collection: { id: string } | undefined;
+    for await (const update of api.prepareWorkspace({ requestKey: attempt.requestKey, collectionId: '', name: plan.name, repositoryIdentities: [...plan.identities].sort(), branch: plan.empty ? '' : plan.branch }, { timeoutMs: 600_000 })) {
+      if (update.message) progress(update.message);
+      if (update.collection) collection = update.collection;
+    }
+    if (!collection) throw new Error('The Runner stopped before the workspace was ready. Start again: it picks up the same workspace.');
+    attempt.collectionId = collection.id;
+  }
+  if (!attempt.sessionId) {
+    progress(`Starting ${plan.agent}…`);
+    const mode = modeOf(plan.mode);
+    const opened = await api.openSession({ profileId: plan.profileId, collectionId: attempt.collectionId, options: { model: '', permission: mode.permission, workflow: mode.workflow, gatewayId: '', rotationProfileIds: [], noRotation: false, instructions: '' } });
+    if (!opened.session) throw new Error('The Runner did not start the conversation.');
+    attempt.sessionId = opened.session.id;
+  }
+  if (plan.prompt.trim() && !attempt.sent) {
+    progress('Sending your message…');
+    await api.apply({ sessionId: attempt.sessionId, operationId: attempt.operationId, operation: { case: 'message', value: { text: plan.prompt, attachments: [] } } }, { timeoutMs: 30_000 });
+    attempt.sent = true;
+  }
+  return { collectionId: attempt.collectionId, sessionId: attempt.sessionId };
+}
+
+/** The sheet and its key, mounted once per workspace window. */
+export function NewTaskHost({ viewState, onStarted }: { viewState?: ViewStateStore; onStarted(target: ViewTarget): void }) {
+  const [open, setOpen] = useState(false);
+  const [failure, setFailure] = useState('');
+  const sheet = useRef<HTMLDialogElement | null>(null);
+  useAction('task.new', () => { if (sheet.current?.open) sheet.current.querySelector<HTMLTextAreaElement>('.new-task-prompt')?.focus(); else { setFailure(''); setOpen(true); } });
+  return open ? <NewTaskSheet ref={sheet} viewState={viewState} failure={failure} onClose={() => setOpen(false)}
+    onStarted={onStarted} onFailed={message => { setFailure(message); setOpen(true); }}/> : null;
+}
+
+function NewTaskSheet({ ref, viewState, failure, onClose, onStarted, onFailed }: { ref: RefObject<HTMLDialogElement | null>; viewState?: ViewStateStore; failure: string; onClose(): void; onStarted(target: ViewTarget): void; onFailed(message: string): void }) {
+  const { api, info } = useRunner();
+  const { settings } = useRunnerSettings();
+  const { catalog, loading: catalogLoading } = useRepositoryCatalog(api);
+  const [remembered] = useState<TaskChoices>(() => { try { return parseTaskChoices(readPreference(viewState, CHOICES)); } catch { return parseTaskChoices(null); } });
+  const [draft, setDraft] = useState<Draft>(() => unsent || {
+    prompt: '', identities: remembered.identities, empty: false, provider: remembered.provider || readLaunchChoices(viewState).provider || 'claude', profile: remembered.profile, mode: remembered.mode,
+  });
+  const change = (next: Partial<Draft>) => setDraft(current => { const value = { ...current, ...next }; unsent = value; return value; });
+  const [query, setQuery] = useState(''), [listOpen, setListOpen] = useState(false), [active, setActive] = useState(0);
+  const [editingName, setEditingName] = useState(draft.name !== undefined || draft.branch !== undefined);
+  const [problem, setProblem] = useState<TaskProblem>(), [error, setError] = useState(failure);
+  const [busy, setBusy] = useState(false), [progress, setProgress] = useState('');
+  const attempt = useRef<Attempt>({ spec: '', requestKey: '', operationId: '' });
+  const background = useRef(false);
+  const prompt = useRef<HTMLTextAreaElement>(null), search = useRef<HTMLInputElement>(null);
+  const id = useId();
+
+  useEffect(() => {
+    ref.current?.showModal();
+    const field = prompt.current;
+    if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
+  }, []);
+
+  const entries = catalog?.entries || [];
+  // Remembered repositories the catalog no longer lists are dropped once it has loaded.
+  useEffect(() => {
+    if (!catalog) return;
+    const known = draft.identities.filter(identity => entries.some(entry => entry.identity === identity));
+    if (known.length !== draft.identities.length) change({ identities: known });
+    else if (!known.length && !draft.empty && !unsent && entries.length === 1) change({ identities: [entries[0].identity] });
+  }, [catalog]);
+  const label = (identity: string) => { const entry = entries.find(e => e.identity === identity); return entry ? repositoryLabel({ gitIdentity: entry.identity, name: entry.name }) : identity.replace(/^github:/, ''); };
+  const chosen = useMemo(() => new Set(draft.identities), [draft.identities]);
+  const options = useMemo(() => rankRepositories(entries, { query, recent: remembered.recent, chosen }), [entries, query, chosen]);
+
+  const profiles = (info?.profiles || []).filter(p => p.provider === draft.provider);
+  const profileId = profiles.find(p => p.id === draft.profile)?.id || profiles.find(p => p.managed)?.id || profiles[0]?.id || '';
+  const agent = agentTitle(draft.provider, info?.profiles);
+  const generated = settings?.naming === 'generated' ? settings.suggestedName : '';
+  const name = taskName({ custom: draft.name, prompt: draft.prompt, labels: draft.identities.map(label), generated });
+  const branch = taskBranch(name, draft.branch);
+
+  const plan = (): Plan | undefined => {
+    const found = taskProblem({ identities: draft.identities, empty: draft.empty, profileId, name, branch, ready: !!info });
+    setProblem(found);
+    if (found) {
+      if (found.field === 'repositories') { search.current?.focus(); setListOpen(true); }
+      if (found.field === 'name' || found.field === 'branch') setEditingName(true);
+      return undefined;
+    }
+    return { prompt: draft.prompt, name, branch, identities: draft.empty ? [] : draft.identities, empty: draft.empty, provider: draft.provider, profileId, mode: draft.mode, agent };
+  };
+
+  const start = async (inBackground: boolean) => {
+    if (busy) { if (inBackground) moveToBackground(); return; }
+    const value = plan();
+    if (!value) return;
+    const spec = JSON.stringify({ ...value, prompt: '' });
+    if (spec !== attempt.current.spec) attempt.current = { spec, requestKey: crypto.randomUUID(), operationId: crypto.randomUUID() };
+    else if (value.prompt !== draft.prompt) attempt.current.operationId = crypto.randomUUID();
+    try { writePreference(viewState, CHOICES, JSON.stringify(rememberTask(remembered, { identities: value.identities, provider: value.provider, profile: value.profileId, mode: value.mode }))); } catch { /* the next sheet starts from the defaults */ }
+    setBusy(true); setError(''); setProgress('');
+    background.current = inBackground;
+    // In the background the sheet gets out of the way at once; the start goes on and reports in a toast.
+    if (inBackground) { announceBackground(value); onClose(); }
+    const run = attempt.current;
+    try {
+      const target = await startTask(api, value, run, message => { if (!background.current) setProgress(message); });
+      unsent = undefined;
+      if (background.current) showToast({ id: `task:${run.requestKey}`, tone: 'review', title: `Started “${value.name}”`, body: value.prompt.trim() ? `${value.agent} has your message.` : `${value.agent} is ready.`, action: { label: 'Open', run: () => onStarted({ ...target, commandId: '' }) }, button: { label: 'Open', run: () => onStarted({ ...target, commandId: '' }) } });
+      else { onClose(); onStarted({ ...target, commandId: '' }); }
+    } catch (failure) {
+      const message = String(failure).replace(/^(Connect)?Error: /, '');
+      // The conversation exists but did not take the message: it waits in its message box.
+      if (run.sessionId && !run.sent && value.prompt.trim()) composeInConversation({ sessionId: run.sessionId, text: value.prompt });
+      if (background.current) showToast({ id: `task:${run.requestKey}`, tone: 'failed', title: `Could not start “${value.name}”`, body: message, action: { label: 'Show', run: () => onFailed(message) }, button: { label: 'Show', run: () => onFailed(message) } });
+      else { setError(message); setBusy(false); setProgress(''); }
+    }
+  };
+  const announceBackground = (value: Plan) => showToast({ id: `task:${attempt.current.requestKey}`, tone: 'info', title: `Starting “${value.name}”…`, body: value.identities.length ? `${value.identities.length === 1 ? label(value.identities[0]) : `${value.identities.length} repositories`} · ${value.agent}` : value.agent, timeout: 4000 });
+  /** Escape or ⌘Enter while starting: the start goes on, the sheet gets out of the way. */
+  const moveToBackground = () => {
+    if (!background.current) {
+      background.current = true;
+      const value = plan(); if (value) announceBackground(value);
+    }
+    onClose();
+  };
+
+  const submit = (event?: FormEvent) => { event?.preventDefault(); void start(false); };
+  // A pick closes the list (typing or ↓ opens it again for another), so the sheet stays readable.
+  const pick = (identity: string) => { change({ identities: [...draft.identities, identity], empty: false }); setQuery(''); setActive(0); setListOpen(false); setProblem(undefined); };
+  const remove = (identity: string) => change({ identities: draft.identities.filter(value => value !== identity) });
+  const noRepository = () => { change({ identities: [], empty: true }); setQuery(''); setListOpen(false); setProblem(undefined); prompt.current?.focus(); };
+  const rows = options.length + 1; // the repositories, then "Start without a repository"
+
+  const searchKeys = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    switch (event.key) {
+      case 'ArrowDown': event.preventDefault(); setListOpen(true); setActive(a => listOpen ? (a + 1) % rows : 0); return;
+      case 'ArrowUp': event.preventDefault(); setListOpen(true); setActive(a => (a - 1 + rows) % rows); return;
+      case 'Enter':
+        if (event.metaKey || event.ctrlKey) return;
+        if (listOpen && (query.trim() || active > 0 || !draft.identities.length)) { event.preventDefault(); if (active < options.length) pick(options[active].entry.identity); else noRepository(); return; }
+        event.preventDefault(); submit(); return;
+      case 'Escape': if (listOpen) { event.preventDefault(); event.stopPropagation(); setListOpen(false); } return;
+      case 'Backspace':
+        if (!query && draft.identities.length) { event.preventDefault(); remove(draft.identities.at(-1)!); if (draft.identities.length === 1) setListOpen(true); }
+        else if (!query && draft.empty) { change({ empty: false }); setListOpen(true); }
+        return;
+      case 'Tab': setListOpen(false); return;
+    }
+  };
+  const promptKeys = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); }
+  };
+  // ⌘Enter anywhere in the sheet starts in the background, before a field (the agent picker) takes it.
+  const sheetKeys = (event: KeyboardEvent<HTMLDialogElement>) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); void start(true); }
+  };
+  useEffect(() => { if (active >= rows) setActive(0); }, [rows]);
+  useEffect(() => { if (listOpen) ref.current?.querySelector(`#${CSS.escape(`${id}-repo-${active}`)}`)?.scrollIntoView({ block: 'nearest' }); }, [active, listOpen]);
+
+  const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+';
+  return <DraggableDialog ref={ref} className="new-task-sheet" aria-labelledby={`${id}-title`} onKeyDownCapture={sheetKeys}
+    onCancel={event => { event.preventDefault(); if (busy) moveToBackground(); else onClose(); }} onClose={() => { if (!busy) onClose(); }}>
+    <DialogHeader>
+      <div><h2 id={`${id}-title`}>New task</h2><p>A workspace on its own branch, an agent, and your first message.</p></div>
+      <button type="button" aria-label="Close new task" title={busy ? 'Keeps starting in the background' : 'Close · your message is kept'} onClick={() => busy ? moveToBackground() : onClose()}>×</button>
+    </DialogHeader>
+    <form onSubmit={submit} aria-busy={busy || undefined}>
+      <textarea ref={prompt} className="new-task-prompt" aria-label="First message" rows={4} maxLength={100_000} disabled={busy} placeholder="What should the agent do?"
+        value={draft.prompt} onChange={event => { change({ prompt: event.target.value }); setProblem(undefined); }} onKeyDown={promptKeys}/>
+
+      <div className="new-task-field" data-invalid={problem?.field === 'repositories' || undefined}>
+        <label className="new-task-label" htmlFor={`${id}-search`}><Icon name="repository" size={13}/>Repositories</label>
+        <div className="new-task-repos" onClick={event => { if (event.target === event.currentTarget) search.current?.focus(); }}>
+          {draft.identities.map(identity => <span key={identity} className="new-task-chip" title={identity}>
+            <span>{label(identity)}</span>
+            <button type="button" aria-label={`Remove ${label(identity)}`} disabled={busy} onClick={() => remove(identity)}><Icon name="close" size={12}/></button>
+          </span>)}
+          {draft.empty && <span className="new-task-chip is-empty"><span>No repository</span><button type="button" aria-label="Choose repositories instead" disabled={busy} onClick={() => { change({ empty: false }); search.current?.focus(); }}><Icon name="close" size={11}/></button></span>}
+          <input ref={search} id={`${id}-search`} role="combobox" aria-expanded={listOpen} aria-controls={`${id}-repos`} aria-autocomplete="list" autoComplete="off" spellCheck={false} disabled={busy}
+            aria-activedescendant={listOpen ? `${id}-repo-${active}` : undefined} aria-label="Add a repository"
+            placeholder={draft.identities.length || draft.empty ? 'Add another…' : 'Search your repositories…'}
+            value={query} onChange={event => { setQuery(event.target.value); setActive(0); setListOpen(true); }} onFocus={() => { if (!draft.identities.length && !draft.empty) setListOpen(true); }} onClick={() => setListOpen(true)} onBlur={() => setListOpen(false)} onKeyDown={searchKeys}/>
+        </div>
+        {listOpen && <ul className="new-task-repo-list" id={`${id}-repos`} role="listbox" aria-label="Repositories" onMouseDown={event => event.preventDefault()}>
+          {options.map((option, index) => <li key={option.entry.identity} id={`${id}-repo-${index}`} role="option" aria-selected={index === active} className={index === active ? 'active' : undefined}
+            onPointerMove={() => setActive(index)} onClick={() => pick(option.entry.identity)}>
+            <Icon name="repository" size={13}/><span className="new-task-repo-name">{label(option.entry.identity)}</span>{option.recent && <small>Recent</small>}
+          </li>)}
+          {!options.length && <li className="new-task-repo-empty" aria-disabled="true">{catalogLoading ? 'Loading your repositories…' : query ? `No repository matches “${query}”` : entries.length ? 'Every repository is chosen' : 'No repositories yet'}</li>}
+          <li id={`${id}-repo-${options.length}`} role="option" aria-selected={active === options.length} className={`new-task-repo-none${active === options.length ? ' active' : ''}`} onPointerMove={() => setActive(options.length)} onClick={noRepository}>
+            <Icon name="folder" size={13}/><span>Start without a repository</span>
+          </li>
+          <li className="new-task-repo-more" aria-hidden="true"><button type="button" tabIndex={-1} onClick={() => { onClose(); runAction('settings.open', 'repositories'); }}><Icon name="plus" size={12}/>Add repositories…</button></li>
+        </ul>}
+      </div>
+
+      {!draft.empty && <div className="new-task-field" data-invalid={problem?.field === 'branch' || problem?.field === 'name' || undefined}>
+        <span className="new-task-label"><Icon name="branch" size={13}/>Branch</span>
+        {editingName
+          ? <div className="new-task-naming">
+            <label>Workspace<input aria-label="Workspace name" value={draft.name ?? name} maxLength={128} disabled={busy} onChange={event => change({ name: event.target.value })}/></label>
+            <label>Branch<input aria-label="Branch" className="mono" spellCheck={false} value={draft.branch ?? branch} maxLength={200} disabled={busy} placeholder="The Runner’s default" onChange={event => change({ branch: event.target.value })}/></label>
+            <button type="button" className="link-button" disabled={busy} onClick={() => { change({ name: undefined, branch: undefined }); setEditingName(false); }}>Use the suggestion</button>
+          </div>
+          : <p className="new-task-branch"><code data-testid="new-task-branch">{branch || 'the Runner’s default'}</code><span className="new-task-name" title="The workspace's name">{name}</span>
+            <button type="button" className="link-button" disabled={busy} onClick={() => setEditingName(true)}>Edit</button></p>}
+      </div>}
+
+      <div className="new-task-field new-task-agent" data-invalid={problem?.field === 'agent' || undefined}>
+        <span className="new-task-label" aria-hidden="true"><Icon name="agent" size={13}/>Agent</span>
+        <div className="new-task-controls">
+          <AgentPicker value={draft.provider} disabled={!info || busy} onChange={provider => change({ provider, profile: '' })}/>
+          {profiles.length > 1 && <select aria-label="Account" value={profileId} disabled={busy} onChange={event => change({ profile: event.target.value })}>
+            {profiles.map(p => <option key={p.id} value={p.id}>{p.label || p.id}{p.availability && !['available', 'unknown'].includes(p.availability.state) ? ` · ${accountLabel(p.availability.state)}` : ''}</option>)}
+          </select>}
+        </div>
+      </div>
+      <div className="new-task-field">
+        <label className="new-task-label" htmlFor={`${id}-mode`}><Icon name="shield" size={13}/>Mode</label>
+        <div className="new-task-controls">
+          <select id={`${id}-mode`} aria-label="Mode" value={draft.mode} disabled={busy} onChange={event => change({ mode: event.target.value as TaskMode })}>
+            {TASK_MODES.map(mode => <option key={mode.id} value={mode.id}>{mode.id === 'default' ? defaultModeLabel(info, settings?.permission) : mode.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {(problem || error) && <p className="new-task-problem" role="alert">{problem?.message || error}</p>}
+      {busy && <div className="new-task-progress" role="status"><span>{progress || 'Starting…'}</span><progress aria-label="Starting the task"/><small>Esc keeps it going in the background.</small></div>}
+      <footer>
+        <span className="new-task-keys" aria-hidden="true"><kbd>↵</kbd> start · <kbd>{mod}↵</kbd> in the background · <kbd>⇧↵</kbd> new line</span>
+        <button type="button" className="new-task-background" disabled={busy} title={`Start it and keep working here (${mod}↵)`} onClick={() => void start(true)}>Start in background</button>
+        <button type="submit" className="primary" disabled={busy}>{busy ? 'Starting…' : draft.prompt.trim() ? 'Start' : 'Create'}<kbd>↵</kbd></button>
+      </footer>
+    </form>
+  </DraggableDialog>;
+}
+
+const defaultModeLabel = (info: InfoResponse | undefined, permission?: string) => {
+  const value = permission || info?.defaultPermission || '';
+  return `Runner default${value ? ` · ${value === 'yolo' ? 'YOLO' : value === 'read-only' ? 'read only' : value === 'ask' ? 'ask' : value}` : ''}`;
+};
+
+/**
+ * Where there is nothing to show yet (no workspace chosen, none created): the
+ * one way in, New task, with its key; choosing a workspace in the sidebar is
+ * the other.
+ */
+export function NewTaskStart({ viewState, compact = false }: { viewState?: ViewStateStore; compact?: boolean }) {
+  const keymap = useKeymap(viewState);
+  useActionRevision();
+  const keys = bindings(keymap['task.new'])[0];
+  const shortcut = keys ? displayBinding(keys).join(' ') : '';
+  const button = <button type="button" className="primary new-task-start-button" disabled={!actionEnabled('task.new')} onClick={() => runAction('task.new')}><Icon name="plus" size={14}/>New task{shortcut && <kbd>{shortcut}</kbd>}</button>;
+  if (compact) return <div className="new-task-start is-compact">{button}</div>;
+  return <section className="new-task-start" aria-label="Start">
+    <span className="new-task-start-icon" aria-hidden="true"><Icon name="agent" size={20}/></span>
+    <h2>Start something</h2>
+    <p>Pick the repositories, an agent and say what to do: Lazybox makes the workspace on its own branch and the agent starts on your message.</p>
+    {button}
+    <small>Or choose a workspace or a conversation on the left.</small>
+  </section>;
+}

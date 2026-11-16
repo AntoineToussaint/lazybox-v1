@@ -10,6 +10,8 @@ mod host;
 mod layout;
 mod placement;
 mod release;
+mod sounds;
+mod terminal;
 mod updates;
 mod viewer;
 mod viewstate;
@@ -167,6 +169,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             attention::notify_attention,
             attention::take_attention_destination,
             attention::set_attention_badge,
+            terminal::terminal_apps,
+            terminal::open_terminal,
+            sounds::play_system_sound,
             capture::capture_window,
             capture::focus_window,
             appearance::ui_zoom,

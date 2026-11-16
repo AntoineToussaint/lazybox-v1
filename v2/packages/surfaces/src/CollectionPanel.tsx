@@ -9,6 +9,7 @@ import { DraggableDialog, DialogHeader } from "./DraggableDialog";
 import { DeleteWorkspaceDialog } from "./DeleteWorkspaceDialog";
 import { WorkspaceRepositoryDialog } from "./WorkspaceRepositoryDialog";
 import { ConversationList } from "./ConversationList";
+import { NewTaskStart } from "./NewTaskSheet";
 import { useEffect, useRef, useState } from "react";
 import type { Collection, Repository, Session } from "@lazybox/protocol";
 import { useRunner } from "./RunnerContext";
@@ -239,9 +240,10 @@ export function CollectionPanel({
         })}
       </nav>
       {loaded && !error && !connectionError && !collections.length && (
-        <p className="module-empty">
-          Create a workspace to group your repositories and conversations.
-        </p>
+        <div className="module-empty collection-start">
+          <p>Start a task: its repositories, an agent and your first message, in a workspace of its own.</p>
+          <NewTaskStart compact />
+        </div>
       )}
       <ConversationList
         sessions={index.sessions.filter(isWorkConversation)}

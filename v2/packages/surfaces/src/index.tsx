@@ -25,3 +25,5 @@ export { AppearanceSettings } from './AppearanceSettings';
 export { PREFERENCE_EVENT } from './view-state';
 export { layoutCommands, runLayoutCommand, type LayoutCommand } from './layout-commands';
 export { configureVoice } from './voice/voice-session';
+export { configureExternalTerminal, type ExternalTerminalHost } from './handoff';
+export { configureSystemSounds, type SystemSoundHost } from './sounds';

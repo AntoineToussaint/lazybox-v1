@@ -27,7 +27,9 @@ try{
  await expect(header).toContainText('claude-fable-5-1');
  await expect(header.locator('.chat-status')).toContainText('Running a command');
  await expect(chat.locator('.agent-inspection-bar')).toHaveCount(0);
- await expect(header.getByRole('button',{name:'Context and token cost'})).toBeVisible();
+ // No usage reported yet: no Context meter, not an empty grey bar (R12).
+ await expect(header.locator('[aria-label="Context and token cost"]')).toHaveAttribute('data-empty','true');
+ await expect(header.locator('[aria-label="Context and token cost"]'),'Context stays out of the way until there is usage').toBeHidden();
  await expect(header.locator('[aria-label="View tools and activity"]')).toHaveAttribute('data-empty','true');
  await expect(header.locator('[aria-label="View tools and activity"]'),'Activity stays out of the way until there is some').toBeHidden();
  {const h=(await header.boundingBox()).height;assert.ok(h<=64,`the header is one compact row: ${h}`);}

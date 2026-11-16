@@ -76,7 +76,7 @@ try {
   await expect(palette.locator('.command-palette-prefixes')).toContainText('#Workspaces');
   await expect(palette.locator('.command-palette-prefixes')).toContainText('/Files');
   await expect(palette.getByRole('group', {name: 'Needs you'}).getByRole('option')).toHaveText([/Ship release notes/]);
-  await expect(palette.getByRole('group', {name: 'Actions'}).getByRole('option').filter({hasText: 'New conversation'}).locator('kbd')).toHaveText([']', ']', 'c']);
+  await expect(palette.getByRole('group', {name: 'Actions'}).getByRole('option').filter({hasText: 'New conversation'}).locator('kbd')).toHaveText(['⇧⌘N']);
   await page.screenshot({path: '/tmp/lazybox-palette-empty.png'});
   // ⌘K again closes it, and focus goes back where it was.
   await page.keyboard.press(`${mod}+k`);
