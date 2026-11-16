@@ -1,6 +1,7 @@
 import type { OpenModifiers } from './file-links';
 import { memo } from 'react';
 import { RichContent } from './RichContent';
+import { SentAttachments } from './AttachmentThumbnail';
 import './message-list.css';
 import type { FileLink } from './file-reference';
 import type { TranscriptMessage } from './transcript-model';
@@ -15,7 +16,7 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   return <article className={'message ' + m.type} data-message-id={m.id}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>
     <RichContent text={m.text} onOpenFile={onOpenFile}/>
-    {m.files?.length ? <ul className="sent-files" aria-label="Sent attachments">{m.files.map((file, i) => <li key={i}>↳ {file.name} · {Math.ceil(file.size / 1024)} KiB</li>)}</ul> : null}
+    {m.files?.length ? <SentAttachments files={m.files}/> : null}
   </article>;
 });
 

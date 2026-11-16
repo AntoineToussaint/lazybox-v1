@@ -16,6 +16,7 @@ const paths: Record<string, string[]> = {
   send: ['M12 19V5', 'm6 11 6-6 6 6'],
   more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
   file: ['M14 3H6v18h12V7z', 'M14 3v4h4'],
+  image: ['M4 5h16v14H4z', 'm4 16 5-5 4 4 2-2 5 5', 'M15.5 9.5h.01'],
   up: ['M12 19V7', 'm6 11 6-6 6 6', 'M5 4h14'],
   chevronRight: ['m10 8 4 4-4 4'],
   close: ['M6 6l12 12', 'M18 6 6 18'],

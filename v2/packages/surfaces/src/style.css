@@ -57,11 +57,6 @@ small{color:#87929f;font-size:11px;overflow-wrap:anywhere}
 .attachment input{display:none}
 .attachment{max-width:none;background:transparent;font-size:11px}
 .composer-hint{display:block;margin-top:8px;font-size:10px}
-.attached-files,.sent-files{list-style:none;padding:0;margin:0 0 12px;display:flex;flex-wrap:wrap;gap:8px}
-.attached-files li{display:flex;align-items:center;gap:12px;border:1px solid #384436;border-radius:6px;padding:6px 10px;min-width:0;max-width:100%;background:#1a2118}
-.attached-files li>span{overflow-wrap:anywhere}
-.attached-files button{padding:2px 6px;background:transparent;border:0;font-size:16px}
-.sent-files{margin-top:10px;margin-bottom:0;color:#b9d5a5;font-size:11px}
 .event-detail{padding:14px 28px;font-size:10px;color:#7b8998;flex-shrink:0}
 .event-detail pre{max-height:100px;overflow:auto}
 .request{padding:18px;background:#24231c;border:1px solid #666045;border-radius:8px;margin-top:20px}

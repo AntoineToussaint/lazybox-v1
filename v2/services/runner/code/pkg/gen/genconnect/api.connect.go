@@ -187,6 +187,9 @@ const (
 	RunnerServiceGetSessionProcedure = "/lazybox.bench.v1.RunnerService/GetSession"
 	// RunnerServiceApplyProcedure is the fully-qualified name of the RunnerService's Apply RPC.
 	RunnerServiceApplyProcedure = "/lazybox.bench.v1.RunnerService/Apply"
+	// RunnerServiceReadAttachmentProcedure is the fully-qualified name of the RunnerService's
+	// ReadAttachment RPC.
+	RunnerServiceReadAttachmentProcedure = "/lazybox.bench.v1.RunnerService/ReadAttachment"
 	// RunnerServiceCloseSessionProcedure is the fully-qualified name of the RunnerService's
 	// CloseSession RPC.
 	RunnerServiceCloseSessionProcedure = "/lazybox.bench.v1.RunnerService/CloseSession"
@@ -352,6 +355,11 @@ type RunnerServiceClient interface {
 	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
+	// Owner only. The bytes of an image a sent message carried, so the
+	// conversation can show it: only a file the Runner retained as a message
+	// attachment (the path an operation_accepted record lists), only an image
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	DeleteConversation(context.Context, *connect.Request[gen.DeleteConversationRequest]) (*connect.Response[gen.DeleteConversationResponse], error)
@@ -730,6 +738,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("Apply")),
 			connect.WithClientOptions(opts...),
 		),
+		readAttachment: connect.NewClient[gen.ReadAttachmentRequest, gen.AttachmentContent](
+			httpClient,
+			baseURL+RunnerServiceReadAttachmentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReadAttachment")),
+			connect.WithClientOptions(opts...),
+		),
 		closeSession: connect.NewClient[gen.SessionRequest, gen.SessionResponse](
 			httpClient,
 			baseURL+RunnerServiceCloseSessionProcedure,
@@ -991,6 +1005,7 @@ type runnerServiceClient struct {
 	setSessionRotation           *connect.Client[gen.SetSessionRotationRequest, gen.SessionResponse]
 	getSession                   *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	apply                        *connect.Client[gen.ApplyRequest, gen.Receipt]
+	readAttachment               *connect.Client[gen.ReadAttachmentRequest, gen.AttachmentContent]
 	closeSession                 *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	stopSessionResources         *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	deleteConversation           *connect.Client[gen.DeleteConversationRequest, gen.DeleteConversationResponse]
@@ -1287,6 +1302,11 @@ func (c *runnerServiceClient) Apply(ctx context.Context, req *connect.Request[ge
 	return c.apply.CallUnary(ctx, req)
 }
 
+// ReadAttachment calls lazybox.bench.v1.RunnerService.ReadAttachment.
+func (c *runnerServiceClient) ReadAttachment(ctx context.Context, req *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error) {
+	return c.readAttachment.CallUnary(ctx, req)
+}
+
 // CloseSession calls lazybox.bench.v1.RunnerService.CloseSession.
 func (c *runnerServiceClient) CloseSession(ctx context.Context, req *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.closeSession.CallUnary(ctx, req)
@@ -1519,6 +1539,11 @@ type RunnerServiceHandler interface {
 	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
+	// Owner only. The bytes of an image a sent message carried, so the
+	// conversation can show it: only a file the Runner retained as a message
+	// attachment (the path an operation_accepted record lists), only an image
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	DeleteConversation(context.Context, *connect.Request[gen.DeleteConversationRequest]) (*connect.Response[gen.DeleteConversationResponse], error)
@@ -1893,6 +1918,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("Apply")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceReadAttachmentHandler := connect.NewUnaryHandler(
+		RunnerServiceReadAttachmentProcedure,
+		svc.ReadAttachment,
+		connect.WithSchema(runnerServiceMethods.ByName("ReadAttachment")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceCloseSessionHandler := connect.NewUnaryHandler(
 		RunnerServiceCloseSessionProcedure,
 		svc.CloseSession,
@@ -2203,6 +2234,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceApplyProcedure:
 			runnerServiceApplyHandler.ServeHTTP(w, r)
+		case RunnerServiceReadAttachmentProcedure:
+			runnerServiceReadAttachmentHandler.ServeHTTP(w, r)
 		case RunnerServiceCloseSessionProcedure:
 			runnerServiceCloseSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceStopSessionResourcesProcedure:
@@ -2486,6 +2519,10 @@ func (UnimplementedRunnerServiceHandler) GetSession(context.Context, *connect.Re
 
 func (UnimplementedRunnerServiceHandler) Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.Apply is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReadAttachment is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {

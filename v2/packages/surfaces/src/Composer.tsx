@@ -1,4 +1,6 @@
-import { useMemo, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useMemo, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { ComposerAttachment } from './AttachmentThumbnail';
+import { fileKey, pastedFiles } from './attachment-images';
 import type { Session } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import type { VimMode } from './composer-vim';
@@ -12,7 +14,7 @@ import type { FileReference } from './view-state';
  * (with Vim editing and prompt recall), and the send, attach, snippet and
  * interrupt controls. The draft itself is owned by the chat.
  */
-export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt }: {
+export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, onError }: {
   textarea: RefObject<HTMLTextAreaElement | null>;
   fileInput: RefObject<HTMLInputElement | null>;
   agentName: string;
@@ -46,21 +48,28 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   onDropMissingFiles(): void;
   onDismissHandover(): void;
   onOpenSnippets(): void;
-  onSelectFiles(files: FileList | null): void;
+  /** Files chosen, dropped or pasted. */
+  onSelectFiles(files: FileList | File[] | null): void;
   onInterrupt(): void;
+  onError(message: string): void;
 }) {
   const vimEditing = useVimPreferences(viewState).composer;
   const reservedKeys = useMemo(() => leaderKeys(keymap), [keymap]);
   const vim = useComposerVim({ textarea, enabled: vimEditing, value: message, resetKey: sessionID, reserved: reservedKeys, onSend: () => { if (canSend || missingFiles.length > 0) textarea.current?.form?.requestSubmit(); } });
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (onRecallKey(event, vim.mode)) return; vim.textareaProps.onKeyDown?.(event); };
+  // A pasted image (a screenshot, say) attaches like a dropped file; a text paste stays native.
+  const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = pastedFiles(event.clipboardData);
+    if (!pasted.length) { vim.textareaProps.onPaste?.(event); return; }
+    event.preventDefault();
+    if (!canAttach) { onError('This conversation cannot accept files right now.'); return; }
+    onSelectFiles(pasted);
+  };
   const sendLabel = sending ? 'Sending…' : session?.busy ? 'Queue follow-up' : 'Send message';
 
   return <form className="composer" onSubmit={onSubmit}>
     {files.length > 0 && <ul className="attached-files" aria-label="Attached files">
-      {files.map((file, i) => <li key={i}>
-        <span>{file.name} <small>{Math.ceil(file.size / 1024)} KiB</small></span>
-        <button type="button" aria-label={`Remove ${file.name}`} disabled={sending} onClick={() => onRemoveFile(i)}>×</button>
-      </li>)}
+      {files.map((file, i) => <ComposerAttachment key={fileKey(file, i, files)} file={file} disabled={sending} onRemove={() => onRemoveFile(i)}/>)}
     </ul>}
     {missingFiles.length > 0 && <div className="restore-files" role="group" aria-label="Files to attach again">
       <p>The window reloaded, so {missingFiles.length === 1 ? 'this file needs' : 'these files need'} to be attached again (or removed) before sending:</p>
@@ -78,7 +87,8 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
       onChange={e => onChange(e.target.value)}
       disabled={!canCompose || sending}
       {...vim.textareaProps}
-      onKeyDown={keyDown}/>
+      onKeyDown={keyDown}
+      onPaste={paste}/>
     {permissionPrompt}
     <div className="row">
       {vim.mode && <span className="vim-mode-chip" data-mode={vim.mode} role="status" aria-label={`Vim ${vim.mode} mode`} title="Vim editing: Esc for normal mode, i to type, Enter in normal mode sends. Turn it off in Settings → Shortcuts.">{vim.status}</span>}

@@ -29,7 +29,8 @@ try{
 
  await expect(page.getByRole('button',{name:'Attach files',exact:true})).toBeEnabled();
  await page.locator('input[type=file]').first().setInputFiles({name:'CleanShot.png',mimeType:'image/png',buffer:png});
- await expect(page.getByRole('list',{name:'Attached files'})).toContainText('CleanShot.png');
+ // An attached image is a thumbnail named by its label (attachment-previews covers the rest).
+ await expect(page.getByRole('list',{name:'Attached files'}).getByRole('button',{name:/^Open CleanShot\.png,/})).toBeVisible();
  await composer.fill('I want to do MCP');
  await page.reload();
  const notice=page.getByRole('group',{name:'Files to attach again'});

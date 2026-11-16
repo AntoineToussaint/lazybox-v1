@@ -363,7 +363,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             onDismissHandover={() => setHandedOver('')}
             onOpenSnippets={() => setSnippetsOpen(true)}
             onSelectFiles={selectFiles}
-            onInterrupt={() => void interrupt()}/>
+            onInterrupt={() => void interrupt()}
+            onError={setError}/>
           {showCommands && !assistant && <SessionCommands api={api} session={session} sessionID={sessionID} commands={commands} currentCommand={currentCommand} open={commandsOpen} viewState={viewState}
             onToggle={setCommandsOpen} onSelect={setCommand} onError={setError} onOpenViewer={onOpenViewer}
             onSendToAgent={canCompose && !sending ? text => { addToDraft(text, HANDOVER_NOTICE); return ''; } : undefined}/>}

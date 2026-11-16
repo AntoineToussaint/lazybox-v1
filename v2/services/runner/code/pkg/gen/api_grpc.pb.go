@@ -72,6 +72,7 @@ const (
 	RunnerService_SetSessionRotation_FullMethodName           = "/lazybox.bench.v1.RunnerService/SetSessionRotation"
 	RunnerService_GetSession_FullMethodName                   = "/lazybox.bench.v1.RunnerService/GetSession"
 	RunnerService_Apply_FullMethodName                        = "/lazybox.bench.v1.RunnerService/Apply"
+	RunnerService_ReadAttachment_FullMethodName               = "/lazybox.bench.v1.RunnerService/ReadAttachment"
 	RunnerService_CloseSession_FullMethodName                 = "/lazybox.bench.v1.RunnerService/CloseSession"
 	RunnerService_StopSessionResources_FullMethodName         = "/lazybox.bench.v1.RunnerService/StopSessionResources"
 	RunnerService_DeleteConversation_FullMethodName           = "/lazybox.bench.v1.RunnerService/DeleteConversation"
@@ -172,6 +173,11 @@ type RunnerServiceClient interface {
 	SetSessionRotation(ctx context.Context, in *SetSessionRotationRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	GetSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	Apply(ctx context.Context, in *ApplyRequest, opts ...grpc.CallOption) (*Receipt, error)
+	// Owner only. The bytes of an image a sent message carried, so the
+	// conversation can show it: only a file the Runner retained as a message
+	// attachment (the path an operation_accepted record lists), only an image
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	ReadAttachment(ctx context.Context, in *ReadAttachmentRequest, opts ...grpc.CallOption) (*AttachmentContent, error)
 	CloseSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	StopSessionResources(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*DeleteConversationResponse, error)
@@ -764,6 +770,16 @@ func (c *runnerServiceClient) Apply(ctx context.Context, in *ApplyRequest, opts 
 	return out, nil
 }
 
+func (c *runnerServiceClient) ReadAttachment(ctx context.Context, in *ReadAttachmentRequest, opts ...grpc.CallOption) (*AttachmentContent, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachmentContent)
+	err := c.cc.Invoke(ctx, RunnerService_ReadAttachment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) CloseSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionResponse)
@@ -1195,6 +1211,11 @@ type RunnerServiceServer interface {
 	SetSessionRotation(context.Context, *SetSessionRotationRequest) (*SessionResponse, error)
 	GetSession(context.Context, *SessionRequest) (*SessionResponse, error)
 	Apply(context.Context, *ApplyRequest) (*Receipt, error)
+	// Owner only. The bytes of an image a sent message carried, so the
+	// conversation can show it: only a file the Runner retained as a message
+	// attachment (the path an operation_accepted record lists), only an image
+	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+	ReadAttachment(context.Context, *ReadAttachmentRequest) (*AttachmentContent, error)
 	CloseSession(context.Context, *SessionRequest) (*SessionResponse, error)
 	StopSessionResources(context.Context, *SessionRequest) (*SessionResponse, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*DeleteConversationResponse, error)
@@ -1413,6 +1434,9 @@ func (UnimplementedRunnerServiceServer) GetSession(context.Context, *SessionRequ
 }
 func (UnimplementedRunnerServiceServer) Apply(context.Context, *ApplyRequest) (*Receipt, error) {
 	return nil, status.Error(codes.Unimplemented, "method Apply not implemented")
+}
+func (UnimplementedRunnerServiceServer) ReadAttachment(context.Context, *ReadAttachmentRequest) (*AttachmentContent, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadAttachment not implemented")
 }
 func (UnimplementedRunnerServiceServer) CloseSession(context.Context, *SessionRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CloseSession not implemented")
@@ -2466,6 +2490,24 @@ func _RunnerService_Apply_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ReadAttachment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReadAttachmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ReadAttachment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ReadAttachment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ReadAttachment(ctx, req.(*ReadAttachmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_CloseSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SessionRequest)
 	if err := dec(in); err != nil {
@@ -3267,6 +3309,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Apply",
 			Handler:    _RunnerService_Apply_Handler,
+		},
+		{
+			MethodName: "ReadAttachment",
+			Handler:    _RunnerService_ReadAttachment_Handler,
 		},
 		{
 			MethodName: "CloseSession",

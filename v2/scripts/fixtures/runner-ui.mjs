@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-process.json', import.meta.url), 'utf8'));
@@ -16,6 +16,8 @@ export async function startRunnerFixture() {
   let token = randomUUID(), url = '';
   const calls = [], mutations = [];
   const workspaceFiles=new Map();
+  // Message attachments the fake Runner retained, by the path its journal lists.
+  const attachments=new Map();let attachmentReadDelayMs=0;
   // Every workspace member holds the same small tree, so the Files panel, Go
   // to file and link resolution have folders and names to work with. Paths
   // outside it still read as a generic file, as before.
@@ -337,7 +339,22 @@ export async function startRunnerFixture() {
           const queued=waitingMessages.get(session)||new Map();waitingMessages.set(session,queued);
           if(!queued.has(body.operationId)){queued.set(body.operationId,body.message.text);session.queued=(session.queued||0)+1;eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text});}
         }
+        // A message with files is retained like the Runner's attachment store
+        // (by execution and content digest) and journaled with the file list a
+        // conversation shows its thumbnails from.
+        else if(session&&body.message?.attachments?.length){
+          const files=body.message.attachments.map(file=>{const data=Buffer.from(file.data||'','base64');const path=`/fixture/attachments/${session.id}/${createHash('sha256').update(data).digest('hex')}/${file.name}`;attachments.set(path,{name:file.name,mediaType:file.mediaType||'application/octet-stream',data});return {name:file.name,mediaType:file.mediaType||'application/octet-stream',path,size:data.length};});
+          eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text||'',providerDataJson:Buffer.from(JSON.stringify({files})).toString('base64')});
+        }
         return json({ operationId: body.operationId, delivery: 'accepted' });
+      }
+      // Like the Runner: only a retained attachment, only an image a browser displays.
+      case 'ReadAttachment': {
+        const file=attachments.get(body.path);
+        if(!file)return error(String(body.path||'').startsWith('/fixture/attachments/')?'not_found':'invalid_argument','not a retained message attachment');
+        if(!/^image\/(png|jpeg|gif|webp)$/.test(file.mediaType))return error('failed_precondition','only PNG, JPEG, GIF and WebP attachments can be previewed');
+        if(attachmentReadDelayMs)await new Promise(resolve=>setTimeout(resolve,attachmentReadDelayMs));
+        return json({name:file.name,mediaType:file.mediaType,data:file.data.toString('base64')});
       }
       // A switch continues the same conversation: the fixture journals what the
       // Runner does (switching, switched with its origin) and clears the limit.
@@ -379,7 +396,7 @@ export async function startRunnerFixture() {
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents,
+  return { attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents,
     get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

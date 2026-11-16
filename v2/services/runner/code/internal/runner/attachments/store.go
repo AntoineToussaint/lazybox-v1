@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -148,4 +149,98 @@ func (s *Store) Delete(session string) error {
 	}
 	delete(s.sessions, session)
 	return nil
+}
+
+// ErrNotPreviewable is a retained file that is not an image a browser displays.
+var ErrNotPreviewable = errors.New("only PNG, JPEG, GIF and WebP attachments can be previewed")
+
+// ErrNotAttachment is a path that is not one this store retained.
+var ErrNotAttachment = errors.New("not a retained message attachment")
+
+// ErrTooLarge is a retained file over the per-file bound, which Put never
+// writes: something else changed the store.
+var ErrTooLarge = fmt.Errorf("attachment is larger than %d MiB", MaxFileBytes>>20)
+
+// Previewable is the image types a conversation shows from their bytes. SVG is
+// left out on purpose: it is a document that can carry script.
+func Previewable(mediaType string) bool {
+	switch mediaType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return true
+	}
+	return false
+}
+
+// ReadImage returns a retained attachment's bytes for display, when path is
+// exactly one Put made (root/<execution>/<sha256>/<name>), nothing on the way
+// links out of the store, the file is a regular file of at most MaxFileBytes
+// whose content still has that digest, and the bytes are an image a browser
+// displays. The media type is detected from the bytes, never taken from the
+// sender. Retention bookkeeping is not consulted, so attachments sent before
+// a Runner restart stay readable until their conversation is deleted.
+func (s *Store) ReadImage(path string) (agent.File, []byte, error) {
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return agent.File{}, nil, ErrNotAttachment
+	}
+	rel, err := filepath.Rel(s.root, path)
+	if err != nil {
+		return agent.File{}, nil, ErrNotAttachment
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) != 3 || !validName(parts[0]) || !isDigest(parts[1]) || !validName(parts[2]) {
+		return agent.File{}, nil, ErrNotAttachment
+	}
+	root, err := filepath.EvalSymlinks(s.root)
+	if err != nil {
+		return agent.File{}, nil, err
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return agent.File{}, nil, err
+	}
+	if resolved != filepath.Join(root, rel) {
+		return agent.File{}, nil, ErrNotAttachment
+	}
+	f, err := os.Open(resolved)
+	if err != nil {
+		return agent.File{}, nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return agent.File{}, nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return agent.File{}, nil, ErrNotAttachment
+	}
+	if info.Size() > MaxFileBytes {
+		return agent.File{}, nil, ErrTooLarge
+	}
+	data, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
+	if err != nil {
+		return agent.File{}, nil, err
+	}
+	if len(data) > MaxFileBytes {
+		return agent.File{}, nil, ErrTooLarge
+	}
+	if digest := sha256.Sum256(data); hex.EncodeToString(digest[:]) != parts[1] {
+		return agent.File{}, nil, errors.New("attachment changed on disk since it was sent")
+	}
+	mediaType := http.DetectContentType(data)
+	if !Previewable(mediaType) {
+		return agent.File{}, nil, ErrNotPreviewable
+	}
+	return agent.File{Name: parts[2], MediaType: mediaType, Path: path, Size: int64(len(data))}, data, nil
+}
+
+func isDigest(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	for _, c := range value {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }

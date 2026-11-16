@@ -2,7 +2,7 @@ import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 import { failureSentence, isLimitState, switchNote, type SwitchNote } from './subscription-model';
 
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number }[]; count?: number; switched?: SwitchNote };
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote };
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'' });
 

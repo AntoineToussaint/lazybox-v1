@@ -13,6 +13,7 @@
     { "id": "settings", "scope": "ui", "script": "test:settings" },
     { "id": "dialogs", "scope": "ui", "script": "test:dialogs" },
     { "id": "attachments", "scope": "ui", "script": "test:attachments" },
+    { "id": "attachment-previews", "scope": "ui", "script": "test:attachment-previews" },
     { "id": "empty-workspace", "scope": "ui", "script": "test:empty-workspace" },
     { "id": "telemetry", "scope": "ui", "script": "test:telemetry" },
     { "id": "agent-settings", "scope": "ui", "script": "test:agent-settings" },

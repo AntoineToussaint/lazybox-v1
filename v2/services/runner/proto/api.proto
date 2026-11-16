@@ -64,6 +64,11 @@ service RunnerService {
   rpc SetSessionRotation(SetSessionRotationRequest) returns (SessionResponse);
   rpc GetSession(SessionRequest) returns (SessionResponse);
   rpc Apply(ApplyRequest) returns (Receipt);
+  // Owner only. The bytes of an image a sent message carried, so the
+  // conversation can show it: only a file the Runner retained as a message
+  // attachment (the path an operation_accepted record lists), only an image
+  // type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB.
+  rpc ReadAttachment(ReadAttachmentRequest) returns (AttachmentContent);
   rpc CloseSession(SessionRequest) returns (SessionResponse);
   rpc StopSessionResources(SessionRequest) returns (SessionResponse);
   rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
@@ -525,6 +530,16 @@ message Message {
 }
 message FileAttachment {
   string name = 1;
+  string media_type = 2;
+  bytes data = 3;
+}
+message ReadAttachmentRequest {
+  // As the operation_accepted record of the message lists it.
+  string path = 1;
+}
+message AttachmentContent {
+  string name = 1;
+  // Detected from the bytes, not taken from the sender.
   string media_type = 2;
   bytes data = 3;
 }
