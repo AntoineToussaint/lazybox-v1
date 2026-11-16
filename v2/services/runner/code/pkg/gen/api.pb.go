@@ -239,8 +239,11 @@ type RunnerSettings struct {
 	// Hosts new agents, commands and terminals: "sessionhost" or "tmux"; "" keeps
 	// the Runner configuration's choice. Running processes keep theirs.
 	ProcessBackend string `protobuf:"bytes,9,opt,name=process_backend,json=processBackend,proto3" json:"process_backend,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Subscriptions left out of automatic switching; every other signed-in
+	// subscription of a conversation's provider is in its default pool.
+	RotationExcludedProfileIds []string `protobuf:"bytes,10,rep,name=rotation_excluded_profile_ids,json=rotationExcludedProfileIds,proto3" json:"rotation_excluded_profile_ids,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *RunnerSettings) Reset() {
@@ -334,6 +337,13 @@ func (x *RunnerSettings) GetProcessBackend() string {
 		return x.ProcessBackend
 	}
 	return ""
+}
+
+func (x *RunnerSettings) GetRotationExcludedProfileIds() []string {
+	if x != nil {
+		return x.RotationExcludedProfileIds
+	}
+	return nil
 }
 
 type SetModelPriceRequest struct {
@@ -1964,8 +1974,10 @@ type RunnerOptions struct {
 	Workflow           string                 `protobuf:"bytes,4,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	RotationProfileIds []string               `protobuf:"bytes,5,rep,name=rotation_profile_ids,json=rotationProfileIds,proto3" json:"rotation_profile_ids,omitempty"`
 	Instructions       string                 `protobuf:"bytes,6,opt,name=instructions,proto3" json:"instructions,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Keep this conversation on the selected subscription: no automatic switching.
+	NoRotation    bool `protobuf:"varint,7,opt,name=no_rotation,json=noRotation,proto3" json:"no_rotation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RunnerOptions) Reset() {
@@ -2038,6 +2050,13 @@ func (x *RunnerOptions) GetInstructions() string {
 		return x.Instructions
 	}
 	return ""
+}
+
+func (x *RunnerOptions) GetNoRotation() bool {
+	if x != nil {
+		return x.NoRotation
+	}
+	return false
 }
 
 type OpenSessionRequest struct {
@@ -11446,7 +11465,7 @@ const file_api_proto_rawDesc = "" +
 	"\tmax_input\x18\b \x01(\x03R\bmaxInput\x12\x18\n" +
 	"\aversion\x18\t \x01(\tR\aversion\x12\x16\n" +
 	"\x06custom\x18\n" +
-	" \x01(\bR\x06custom\"\xd0\x02\n" +
+	" \x01(\bR\x06custom\"\x93\x03\n" +
 	"\x0eRunnerSettings\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x16\n" +
 	"\x06naming\x18\x02 \x01(\tR\x06naming\x12\x1e\n" +
@@ -11458,7 +11477,9 @@ const file_api_proto_rawDesc = "" +
 	"\rcodex_context\x18\x06 \x01(\tR\fcodexContext\x124\n" +
 	"\x06prices\x18\a \x03(\v2\x1c.lazybox.bench.v1.ModelPriceR\x06prices\x12%\n" +
 	"\x0esuggested_name\x18\b \x01(\tR\rsuggestedName\x12'\n" +
-	"\x0fprocess_backend\x18\t \x01(\tR\x0eprocessBackend\"~\n" +
+	"\x0fprocess_backend\x18\t \x01(\tR\x0eprocessBackend\x12A\n" +
+	"\x1drotation_excluded_profile_ids\x18\n" +
+	" \x03(\tR\x1arotationExcludedProfileIds\"~\n" +
 	"\x14SetModelPriceRequest\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x122\n" +
 	"\x05price\x18\x02 \x01(\v2\x1c.lazybox.bench.v1.ModelPriceR\x05price\x12\x16\n" +
@@ -11613,7 +11634,7 @@ const file_api_proto_rawDesc = "" +
 	"\x10AttachmentLimits\x12\x1b\n" +
 	"\tmax_files\x18\x01 \x01(\rR\bmaxFiles\x12$\n" +
 	"\x0emax_file_bytes\x18\x02 \x01(\x04R\fmaxFileBytes\x12*\n" +
-	"\x11max_message_bytes\x18\x03 \x01(\x04R\x0fmaxMessageBytes\"\xd6\x01\n" +
+	"\x11max_message_bytes\x18\x03 \x01(\x04R\x0fmaxMessageBytes\"\xf7\x01\n" +
 	"\rRunnerOptions\x12\x14\n" +
 	"\x05model\x18\x01 \x01(\tR\x05model\x12\x1e\n" +
 	"\n" +
@@ -11623,7 +11644,9 @@ const file_api_proto_rawDesc = "" +
 	"gateway_id\x18\x03 \x01(\tR\tgatewayId\x12\x1a\n" +
 	"\bworkflow\x18\x04 \x01(\tR\bworkflow\x120\n" +
 	"\x14rotation_profile_ids\x18\x05 \x03(\tR\x12rotationProfileIds\x12\"\n" +
-	"\finstructions\x18\x06 \x01(\tR\finstructions\"\xf9\x01\n" +
+	"\finstructions\x18\x06 \x01(\tR\finstructions\x12\x1f\n" +
+	"\vno_rotation\x18\a \x01(\bR\n" +
+	"noRotation\"\xf9\x01\n" +
 	"\x12OpenSessionRequest\x12\x1d\n" +
 	"\n" +
 	"profile_id\x18\x01 \x01(\tR\tprofileId\x12\x10\n" +

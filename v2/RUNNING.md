@@ -137,7 +137,7 @@ Exhausted subscription capacity, temporary throttling, authentication failure, b
 The default inherited profiles keep the current provider credential/configuration
 environment. Capacity or authentication errors do not switch subscriptions,
 inject another API key, or trigger logout/login. Changing the selected account
-requires an explicit profile choice or an explicitly enabled rotation pool; a gateway credential route also requires
+requires an explicit profile choice or rotation to another enrolled, isolated subscription of the same provider (on by default, see below); a gateway credential route also requires
 explicit configuration. Implementation checks use isolated fixture profiles.
 
 ## Test client
@@ -280,8 +280,12 @@ do initial setup before starting work; executions are not restored by a Runner
 restart.
 Do not duplicate enrolled IDs in the Runner configuration.
 
-Select **Subscription rotation** in session startup and check the isolated
-profiles that may be used. Or pass an explicit pool through the CLI:
+Rotation is on by default: a new conversation may switch to every other
+enrolled subscription of its provider. Uncheck **Switch subscriptions
+automatically** in session startup (CLI: `--no-rotate`) to keep one
+conversation on its account, or turn off **Automatic switching** on an account
+in Settings → Subscriptions to leave it out of new conversations. Or pass an
+explicit pool through the CLI:
 
 ```sh
 bin/lazybox --endpoint "$ENDPOINT" open --profile claude-work --collection "$COLLECTION" --rotate-profiles claude-work,claude-personal

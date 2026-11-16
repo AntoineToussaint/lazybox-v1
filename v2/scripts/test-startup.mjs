@@ -46,13 +46,20 @@ try {
   await page.getByRole('button', { name: 'Start Codex ↗' }).click();
   await expect.poll(() => opens.length).toBe(3);
   assert.equal(opens.at(-1).options.permission, 'read-only', 'explicit permission choice is lost');
-  await page.getByText('Subscription rotation', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'codex-work', exact: true }).check();
+  // Rotation is on by default: the Runner picks the pool (every other signed-in
+  // subscription of the provider); the person can keep this one conversation put.
+  const rotation = page.getByRole('checkbox', { name: 'Switch subscriptions automatically', exact: true });
+  await expect(rotation).toBeChecked();
+  await expect(page.locator('.rotation-choice')).toContainText('When this account hits a limit: codex-work');
+  assert.ok(!opens.at(-1).options?.noRotation && !opens.at(-1).options?.rotationProfileIds?.length, 'default start must leave the pool to the Runner');
+  await rotation.uncheck();
+  await expect(page.locator('.rotation-choice')).toContainText('Stays on this account, even at a limit');
   await page.getByRole('button', { name: 'Start Codex ↗' }).click();
   await expect.poll(() => opens.length).toBe(4);
-  assert.deepEqual(opens.at(-1).options.rotationProfileIds, ['codex-work']);
+  assert.equal(opens.at(-1).options.noRotation, true, 'opting out is not transmitted');
+  assert.ok(!opens.at(-1).options.rotationProfileIds?.length);
   assert.equal(opens.at(-1).profileId, 'codex-default');
-  console.log('PASS: both providers retain current permissions/account/model/route by default; failed startup does not switch profiles; explicit restriction is transmitted. All RPCs intercepted; no provider started.');
+  console.log('PASS: both providers retain current permissions/account/model/route by default; failed startup does not switch profiles; rotation is on by default and its opt-out is transmitted. All RPCs intercepted; no provider started.');
 } finally {
   await browser?.close();
   await server.close();

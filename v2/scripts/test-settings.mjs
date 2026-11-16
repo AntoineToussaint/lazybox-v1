@@ -29,6 +29,14 @@ try {
  await expect(codex.getByRole('progressbar',{name:'5-hour limit used'})).toHaveAttribute('value','45');
  assert.equal(fixture.mutations.length,0,'opening settings mutated execution');
  await codex.getByRole('button',{name:'Refresh usage',exact:true}).click();await expect(codex).toContainText('50% used');
+ // Every saved subscription is in automatic switching by default; one switch takes an account out, and back.
+ const switching=codex.getByRole('switch',{name:'Automatic switching',exact:true});
+ await expect(switching).toBeChecked();await switching.uncheck();await expect(switching).not.toBeChecked();
+ await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SaveRunnerSettings').at(-1)?.body.rotationExcludedProfileIds).toEqual(['codex-saved']);
+ await switching.check();await expect(switching).toBeChecked();
+ await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SaveRunnerSettings').at(-1)?.body.rotationExcludedProfileIds??[]).toEqual([]);
+ const saves=fixture.mutations.filter(m=>m.method==='SaveRunnerSettings');assert.equal(saves.length,2);assert.ok(saves.every(m=>m.body.naming==='repositories'&&m.body.context),'a switch must not reset other Runner settings');
+ assert.equal(fixture.mutations.length,2,'switching an account must not touch execution');
  await mkdir('.cache',{recursive:true});await page.screenshot({path:'.cache/settings-subscriptions.png',fullPage:true});
  await page.getByRole('button',{name:'Add subscription',exact:true}).click();
  let dialog=page.getByRole('dialog');await dialog.getByLabel('Account name',{exact:true}).fill('Work');
@@ -131,5 +139,5 @@ try {
  assert.ok(narrowSecond.y>narrowFirst.y,'narrow Settings view should use one column');
  assert.ok(await page.locator('.settings-page').evaluate(node=>node.scrollWidth<=node.clientWidth),'subscription identities cause horizontal overflow');
  await expect(cards.last().locator('.subscription-email')).toHaveText('long.account.identity@engineering.example.invalid');
- console.log('PASS: Settings enrollment, per-account refresh, retained drafts, and compact ten-account layout with responsive wrapping. Fake authority only; no live login/inference.');
+ console.log('PASS: Settings enrollment, per-account refresh, per-account automatic-switching opt-out, retained drafts, and compact ten-account layout with responsive wrapping. Fake authority only; no live login/inference.');
 } catch (error) {if(activePage){await activePage.screenshot({path:'.cache/settings-test-failure.png',fullPage:true});console.error(error);if(await activePage.locator('.subscription-dialog').count())console.error((await activePage.locator('.subscription-dialog').innerText()).slice(0,1500));}throw error;} finally {await browser?.close();await server.close();await fixture.close();}

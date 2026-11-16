@@ -6,10 +6,20 @@ This requirement applies from the first agent contract. Provider-specific accoun
 
 The implementation preserves inherited native settings and credentials by
 default. On 2026-10-29 the user explicitly requested once-only enrollment and
-rotation among saved subscriptions. Rotation is now implemented behind an
-explicit pool: `RunnerOptions.rotation_profile_ids` or configured
-`defaults.rotationProfiles`. An empty pool leaves account selection unchanged.
-No implicit provider change, global logout/login, or API-key fallback is used.
+rotation among saved subscriptions. Rotation is on by default: a new
+conversation's pool is every other signed-in subscription (enrolled, isolated
+profile) of the same provider, sorted by ID and capped at 16. Two opt-outs
+narrow it: **Settings → Subscriptions → Automatic switching** takes one account
+out of every new conversation's pool (`RunnerSettings.rotation_excluded_profile_ids`),
+and unchecking **Switch subscriptions automatically** when starting a
+conversation keeps that one on its selected account (`RunnerOptions.no_rotation`,
+saved with the conversation). An explicit `RunnerOptions.rotation_profile_ids`
+or configured `defaults.rotationProfiles` still wins, and a configured empty
+list disables the default. The pool is resolved when a conversation starts;
+subscriptions added or excluded later apply to conversations started afterwards,
+and a resumed conversation keeps its saved pool. An empty pool leaves account
+selection unchanged. No implicit provider change, global logout/login, or
+API-key fallback is used.
 
 ## Implemented local Runner path
 

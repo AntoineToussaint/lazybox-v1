@@ -31,12 +31,14 @@ type Profile struct {
 type Login struct{ ID, URL, Code string }
 
 type Options struct {
-	Instructions     string         `json:"instructions,omitempty"`
-	RotationProfiles []string       `json:"rotationProfiles,omitempty"`
-	Workflow         string         `json:"workflow,omitempty"`
-	Model            string         `json:"model,omitempty"`
-	Permission       string         `json:"permission,omitempty"`
-	Gateway          *agent.Gateway `json:"gateway,omitempty"`
+	Instructions     string   `json:"instructions,omitempty"`
+	RotationProfiles []string `json:"rotationProfiles,omitempty"`
+	// NoRotation keeps the conversation on its selected subscription.
+	NoRotation bool           `json:"noRotation,omitempty"`
+	Workflow   string         `json:"workflow,omitempty"`
+	Model      string         `json:"model,omitempty"`
+	Permission string         `json:"permission,omitempty"`
+	Gateway    *agent.Gateway `json:"gateway,omitempty"`
 }
 
 func (o Options) Validate() error {
@@ -46,7 +48,7 @@ func (o Options) Validate() error {
 	if o.Permission == "yolo" && o.Workflow == "plan" {
 		return errors.New("YOLO is incompatible with plan mode")
 	}
-	if len(o.RotationProfiles) > 16 {
+	if len(o.RotationProfiles) > MaxRotationProfiles {
 		return errors.New("at most 16 rotation profiles")
 	}
 	seen := map[string]bool{}
@@ -71,6 +73,32 @@ func (o Options) Validate() error {
 		}
 	}
 	return nil
+}
+
+// MaxRotationProfiles bounds a rotation pool (see Options.Validate).
+const MaxRotationProfiles = 16
+
+// DefaultRotationPool is the pool a conversation rotates through when nobody
+// chose one: every other signed-in (isolated, enrolled) subscription of the
+// selected profile's provider, minus the ones excluded from automatic
+// switching. IDs are sorted so the cap keeps the same profiles every time.
+func DefaultRotationPool(profiles []Profile, selected Profile, excluded []string) []string {
+	skip := map[string]bool{selected.ID: true}
+	for _, id := range excluded {
+		skip[id] = true
+	}
+	pool := []string{}
+	for _, p := range profiles {
+		if p.Provider == selected.Provider && p.Isolation == "environment" && !skip[p.ID] {
+			skip[p.ID] = true
+			pool = append(pool, p.ID)
+		}
+	}
+	sort.Strings(pool)
+	if len(pool) > MaxRotationProfiles {
+		pool = pool[:MaxRotationProfiles]
+	}
+	return pool
 }
 
 func Resolve(p Profile, inherited []string) ([]string, error) {

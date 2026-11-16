@@ -1,6 +1,7 @@
 package accounts
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -76,5 +77,22 @@ func TestInheritedProfileKeepsCurrentSubscriptionAndPermissionEnvironment(t *tes
 				t.Fatalf("%s changed inherited environment", provider)
 			}
 		}
+	}
+}
+
+func TestDefaultRotationPoolIsSortedBoundedAndProviderScoped(t *testing.T) {
+	profiles := []Profile{{ID: "claude-default", Provider: "claude", Isolation: "inherited"}, {ID: "codex-x", Provider: "codex", Isolation: "environment"}}
+	for i := 20; i > 0; i-- {
+		profiles = append(profiles, Profile{ID: fmt.Sprintf("claude-%02d", i), Provider: "claude", Isolation: "environment"})
+	}
+	pool := DefaultRotationPool(profiles, Profile{ID: "claude-01", Provider: "claude"}, []string{"claude-02"})
+	if len(pool) != MaxRotationProfiles || pool[0] != "claude-03" || pool[len(pool)-1] != "claude-18" {
+		t.Fatalf("pool %v must be the first %d other isolated claude subscriptions by ID", pool, MaxRotationProfiles)
+	}
+	if err := (Options{RotationProfiles: pool}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if got := DefaultRotationPool(profiles[:2], profiles[0], nil); len(got) != 0 {
+		t.Fatalf("inherited sign-ins and other providers are never in the pool: %v", got)
 	}
 }

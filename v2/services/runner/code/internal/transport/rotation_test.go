@@ -5,6 +5,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent/agenttest"
+	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -104,5 +105,68 @@ func TestAutomaticRotationKeepsCollectionCommandsAndSiblingAccount(t *testing.T)
 	}
 	if len(b.Commands.List(e.ID)) != 2 {
 		t.Fatal("command replay or loss")
+	}
+}
+
+// A new conversation rotates across the provider's other signed-in
+// subscriptions unless someone opted it out, chose a pool, or excluded an
+// account in Settings.
+func TestDefaultRotationPoolCoversSignedInSubscriptionsWithOptOuts(t *testing.T) {
+	service, _ := collectionService(t)
+	b := service.Bench
+	b.Adapters["codex"] = &agenttest.Adapter{}
+	root := filepath.Join(b.Config.State, "accounts")
+	for _, p := range []accounts.Profile{
+		{ID: "work", Provider: "codex", Isolation: "environment", Home: filepath.Join(root, "work", "codex")},
+		{ID: "personal", Provider: "codex", Isolation: "environment", Home: filepath.Join(root, "personal", "codex")},
+		{ID: "spare", Provider: "codex", Isolation: "environment", Home: filepath.Join(root, "spare", "codex")},
+		{ID: "claude-saved", Provider: "claude", Isolation: "environment", Home: filepath.Join(root, "claude-saved", "claude")},
+	} {
+		if err := accounts.StoreProfile(b.Config.State, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := b.ReloadProfiles(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	pool := func(options *pb.RunnerOptions, profile string) []string {
+		t.Helper()
+		r, err := service.OpenSession(ctx, &pb.OpenSessionRequest{ProfileId: profile, Cwd: t.TempDir(), Options: options})
+		if err != nil {
+			t.Fatal(err)
+		}
+		e, err := b.Get(r.Session.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return e.Options.RotationProfiles
+	}
+	if got := pool(nil, "codex-default"); strings.Join(got, ",") != "personal,spare,work" {
+		t.Fatalf("default pool %v: every signed-in codex subscription, sorted, and no other provider", got)
+	}
+	if got := pool(nil, "work"); strings.Join(got, ",") != "personal,spare" {
+		t.Fatalf("default pool %v must not contain the selected subscription", got)
+	}
+	settings, err := service.GetRunnerSettings(ctx, &pb.InfoRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings.RotationExcludedProfileIds = []string{"spare"}
+	if settings, err = service.SaveRunnerSettings(ctx, settings); err != nil || strings.Join(settings.RotationExcludedProfileIds, ",") != "spare" {
+		t.Fatalf("exclusion not saved: %v %v", settings, err)
+	}
+	if got := pool(nil, "codex-default"); strings.Join(got, ",") != "personal,work" {
+		t.Fatalf("excluded subscription still in the pool: %v", got)
+	}
+	if got := pool(&pb.RunnerOptions{NoRotation: true, RotationProfileIds: []string{"work"}}, "codex-default"); len(got) != 0 {
+		t.Fatalf("opted-out conversation still rotates: %v", got)
+	}
+	if got := pool(&pb.RunnerOptions{RotationProfileIds: []string{"spare"}}, "codex-default"); strings.Join(got, ",") != "spare" {
+		t.Fatalf("explicit pool lost: %v", got)
+	}
+	b.Config.Defaults.RotationProfiles = []string{}
+	if got := pool(nil, "codex-default"); len(got) != 0 {
+		t.Fatalf("a configured empty default must disable rotation: %v", got)
 	}
 }

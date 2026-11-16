@@ -138,8 +138,10 @@ small{color:#87929f;font-size:11px;overflow-wrap:anywhere}
 .agent-activity, .account-notice { padding: .6rem 1rem; border-bottom: 1px solid var(--line, #303038); color: var(--muted, #a4a4ad); font-size: .85rem; }
 .agent-activity ul { list-style: none; margin: .5rem 0; padding: 0; }
 .agent-activity li { display: flex; justify-content: space-between; gap: 1rem; padding: .25rem 0; }
-.rotation-choice { display: flex; align-items: center; gap: .5rem; margin: .5rem 0; }
-.rotation-choice input { width: auto; }
+.rotation-choice { display: flex; flex-direction: column; gap: 3px; margin: 0; }
+.rotation-choice label { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px !important; cursor: pointer; }
+.rotation-choice input { width: auto; margin: 0; }
+.rotation-choice small { padding-left: 21px; color: #81828f; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .assistant-purpose { display: flex; align-items: center; gap: .5rem; padding: .5rem 1rem; font-size: .85rem; }
 
 /* Shared by embedded, detached, and standalone chat surfaces. The overlay does

@@ -182,6 +182,7 @@ func (s *Service) OpenSession(ctx context.Context, r *pb.OpenSessionRequest) (*p
 		options.Workflow = p.Options.Workflow
 		options.Permission = p.Options.Permission
 		options.RotationProfiles = p.Options.RotationProfileIds
+		options.NoRotation = p.Options.NoRotation
 		gateway = p.Options.GatewayId
 	}
 	if p.EmptyWorkspace && (p.CollectionId != "" || p.Cwd != "" || p.ResumeReference != "") {
@@ -211,6 +212,7 @@ func (s *Service) OpenAssistant(ctx context.Context, p *pb.OpenAssistantRequest)
 		options.Model = p.Options.Model
 		options.Instructions = p.Options.Instructions
 		options.RotationProfiles = p.Options.RotationProfileIds
+		options.NoRotation = p.Options.NoRotation
 		gateway = p.Options.GatewayId
 	}
 	e, err := s.Bench.OpenAssistant(p.ProfileId, p.Purpose, p.Context, options, gateway, p.CollectionId)

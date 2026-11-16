@@ -113,6 +113,9 @@ message RunnerSettings { uint64 revision = 1; string naming = 2; string permissi
   // Hosts new agents, commands and terminals: "sessionhost" or "tmux"; "" keeps
   // the Runner configuration's choice. Running processes keep theirs.
   string process_backend = 9;
+  // Subscriptions left out of automatic switching; every other signed-in
+  // subscription of a conversation's provider is in its default pool.
+  repeated string rotation_excluded_profile_ids = 10;
 }
 message SetModelPriceRequest { uint64 revision = 1; ModelPrice price = 2; bool remove = 3; }
 message RenameCollectionRequest { string collection_id = 1; string name = 2; }
@@ -207,6 +210,8 @@ message RunnerOptions {
   string workflow = 4;
   repeated string rotation_profile_ids = 5;
   string instructions = 6;
+  // Keep this conversation on the selected subscription: no automatic switching.
+  bool no_rotation = 7;
 }
 message OpenSessionRequest {
   string profile_id = 1;

@@ -566,9 +566,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 				options.Permission = "read-only"
 			}
 		}
-		if options.RotationProfiles == nil {
-			options.RotationProfiles = b.Config.Defaults.RotationProfiles
-		}
+		options.RotationProfiles = rotationPool(options, b.Config.Defaults.RotationProfiles, b.Profiles(), selected, prefs.RotationExcluded)
 		options.Gateway = nil
 		if options.Model == "" {
 			options.Model = b.Config.Defaults.Model
@@ -907,6 +905,22 @@ func (b *Bench) GatewayID(e *Execution) string {
 }
 
 // Profiles returns a snapshot of the live account registry.
+// rotationPool resolves which subscriptions a new conversation may switch to.
+// An explicit opt-out wins, then an explicit pool, then the configured default
+// (an explicit empty list there disables rotation), and otherwise every other
+// signed-in subscription of the provider that was not excluded in Settings.
+func rotationPool(options accounts.Options, configured []string, profiles []accounts.Profile, selected accounts.Profile, excluded []string) []string {
+	switch {
+	case options.NoRotation:
+		return nil
+	case options.RotationProfiles != nil:
+		return options.RotationProfiles
+	case configured != nil:
+		return configured
+	}
+	return accounts.DefaultRotationPool(profiles, selected, excluded)
+}
+
 func (b *Bench) Profiles() []accounts.Profile {
 	b.profileMu.RLock()
 	defer b.profileMu.RUnlock()

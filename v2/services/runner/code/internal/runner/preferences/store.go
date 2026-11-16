@@ -27,6 +27,8 @@ type Data struct {
 	// ProcessBackend hosts new agents, commands and terminals: "sessionhost" or
 	// "tmux"; "" keeps the Runner configuration's.
 	ProcessBackend string `json:"processBackend,omitempty"`
+	// RotationExcluded lists subscriptions left out of automatic switching.
+	RotationExcluded []string `json:"rotationExcluded,omitempty"`
 }
 type Store struct {
 	mu   sync.RWMutex
@@ -68,6 +70,14 @@ func validate(d Data) error {
 	if len(d.Context)+len(d.ClaudeContext)+len(d.CodexContext) > 64<<10 {
 		return errors.New("agent context exceeds 64 KiB")
 	}
+	if len(d.RotationExcluded) > 256 {
+		return errors.New("at most 256 subscriptions excluded from switching")
+	}
+	for _, id := range d.RotationExcluded {
+		if id == "" || len(id) > 128 {
+			return errors.New("invalid subscription excluded from switching")
+		}
+	}
 	if len(d.Prices) > 512 {
 		return errors.New("at most 512 model price overrides")
 	}
@@ -99,6 +109,7 @@ func clone(d Data) Data {
 		copy[k] = v
 	}
 	d.Prices = copy
+	d.RotationExcluded = append([]string(nil), d.RotationExcluded...)
 	return d
 }
 func (s *Store) Snapshot() Data { s.mu.RLock(); defer s.mu.RUnlock(); return clone(s.data) }

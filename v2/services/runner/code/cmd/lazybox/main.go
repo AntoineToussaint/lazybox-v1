@@ -124,7 +124,8 @@ func run() error {
 	session := flags.String("session", os.Getenv("LAZYBOX_V2_SESSION_ID"), "execution id")
 	id := flags.String("id", "", "command id, or idempotent operation id for agent operations")
 	profile := flags.String("profile", "", "configured account profile id")
-	rotate := flags.String("rotate-profiles", "", "comma-separated isolated profiles explicitly enabled for rotation")
+	rotate := flags.String("rotate-profiles", "", "comma-separated isolated profiles this conversation may switch to (default: every other signed-in subscription of the provider)")
+	noRotate := flags.Bool("no-rotate", false, "keep this conversation on --profile; never switch subscriptions automatically")
 	purpose := flags.String("purpose", "help", "assistant purpose: help, planning, summary")
 	contextFile := flags.String("context", "", "assistant context text file")
 	cwd := flags.String("cwd", "", "absolute working directory")
@@ -176,7 +177,7 @@ func run() error {
 			}
 			contextText = string(data)
 		}
-		return output(client.OpenAssistant(ctx, connect.NewRequest(&pb.OpenAssistantRequest{ProfileId: *profile, Purpose: *purpose, Context: contextText, Options: &pb.RunnerOptions{Model: *model, GatewayId: *gateway, RotationProfileIds: rotationProfiles}})))
+		return output(client.OpenAssistant(ctx, connect.NewRequest(&pb.OpenAssistantRequest{ProfileId: *profile, Purpose: *purpose, Context: contextText, Options: &pb.RunnerOptions{Model: *model, GatewayId: *gateway, RotationProfileIds: rotationProfiles, NoRotation: *noRotate}})))
 	case "info":
 		return output(client.Info(ctx, connect.NewRequest(&pb.InfoRequest{})))
 	case "repositories":
@@ -212,7 +213,7 @@ func run() error {
 				return err
 			}
 		}
-		return output(client.OpenSession(ctx, connect.NewRequest(&pb.OpenSessionRequest{ProfileId: *profile, Cwd: *cwd, CollectionId: *collection, ResumeReference: *resume, Options: &pb.RunnerOptions{Model: *model, Workflow: *workflow, Permission: *permission, GatewayId: *gateway, RotationProfileIds: rotationProfiles}})))
+		return output(client.OpenSession(ctx, connect.NewRequest(&pb.OpenSessionRequest{ProfileId: *profile, Cwd: *cwd, CollectionId: *collection, ResumeReference: *resume, Options: &pb.RunnerOptions{Model: *model, Workflow: *workflow, Permission: *permission, GatewayId: *gateway, RotationProfileIds: rotationProfiles, NoRotation: *noRotate}})))
 	case "send":
 		message := &pb.Message{Text: *text}
 		if *image != "" {

@@ -9,7 +9,7 @@ import { accountLabel } from './agent-status';
 import { Icon } from './Icons';
 import './settings.css';
 import { RepositoryBrowser } from './RepositoryBrowser';
-import { AgentSettings, PricingSettings } from './RunnerSettings';
+import { AgentSettings, PricingSettings, useRunnerSettings } from './RunnerSettings';
 import { RunnerSection } from './RunnerControl';
 
 
@@ -159,6 +159,22 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
     } catch { if (!lifetime.current?.signal.aborted) setRefreshErrors(value => ({ ...value, [profile.id]: 'Usage could not be refreshed. Previous observations are retained.' })); }
     finally { usageInFlight.current.delete(profile.id); if (!lifetime.current?.signal.aborted) setRefreshing(new Set(usageInFlight.current)); }
   };
+  // Per-account opt-out of automatic switching; every saved subscription is in by default.
+  const { settings: runnerSettings, setSettings: setRunnerSettings } = useRunnerSettings();
+  const [rotationSaving, setRotationSaving] = useState('');
+  const excluded = runnerSettings?.rotationExcludedProfileIds || [];
+  const setRotation = async (profile: Profile, use: boolean) => {
+    if (!runnerSettings || rotationSaving) return;
+    setRotationSaving(profile.id); setRefreshErrors(value => ({ ...value, [profile.id]: '' }));
+    try {
+      const next = use ? excluded.filter(id => id !== profile.id) : [...excluded.filter(id => id !== profile.id), profile.id];
+      const request = { ...runnerSettings, rotationExcludedProfileIds: next };
+      setRunnerSettings(request); // The switch moves now; a failed save reloads the Runner's value.
+      setRunnerSettings(await api.saveRunnerSettings(request, { timeoutMs: 10000 }));
+      window.dispatchEvent(new Event('lazybox-settings-saved'));
+    } catch { setRefreshErrors(value => ({ ...value, [profile.id]: 'Could not save automatic switching. Settings may have changed in another window; try again.' })); window.dispatchEvent(new Event('lazybox-settings-saved')); }
+    finally { setRotationSaving(''); }
+  };
   const profiles = info?.profiles.filter(profile => profile.managed).map(profile => (updated[profile.id]?.availability?.observedAtUnixMillis || 0n) > (profile.availability?.observedAtUnixMillis || 0n) ? updated[profile.id] : profile) || [];
   const pending = !!flowID && !terminal(flow?.state);
   return <section className="settings-page" aria-labelledby="settings-title">
@@ -182,7 +198,7 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
           <header><span className={`provider-mark ${profile.provider}`}>{codex ? '›' : '✳'}</span><div><h3>{profile.label || (codex ? 'Current Codex account' : 'Current Claude account')}</h3>{usage?.email && <small className="subscription-email">{usage.email}</small>}<span>{codex ? 'Codex' : 'Claude'}{usage?.plan ? ` · ${usage.plan}` : ''}</span></div><span className={`account-state state-${usage?.state || 'unknown'}`}>{(!usage?.state || usage.state === 'unknown') ? 'Saved' : accountLabel(usage.state)}</span></header>
           <div className="subscription-usage">{windows.length ? windows.map(window => <div className="usage-window" key={window.name}><div><span>{windowName(window)}</span><strong>{Number.isFinite(window.usedPercent) ? `${window.usedPercent.toLocaleString(undefined, { maximumFractionDigits: 1 })}% used` : 'Unavailable'}</strong></div><progress max="100" value={Math.max(0, Math.min(100, window.usedPercent))} aria-label={`${windowName(window)} used`} /><small title={window.resetAt > 0n ? new Date(Number(window.resetAt) * 1000).toLocaleString() : undefined}>{resetLabel(window.resetAt) || 'Reset time not reported'}</small></div>) : <div className="usage-unavailable"><span>Usage not reported yet</span><small>Read current subscription usage from your account.</small></div>}</div>
           {refreshErrors[profile.id] && <p className="settings-error" role="alert">{refreshErrors[profile.id]}</p>}
-          <footer><small>{usage && usage.observedAtUnixMillis > 0n ? `Last report ${new Date(Number(usage.observedAtUnixMillis)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : profile.isolation === 'inherited' ? 'Uses current CLI sign-in' : info?.sharedSubscriptions ? 'Shared subscription' : 'Saved on this Runner'}</small><button disabled={refreshing.has(profile.id)} onClick={() => void updateUsage(profile)}><Icon name="refresh"/>{refreshing.has(profile.id) ? 'Refreshing…' : 'Refresh usage'}</button></footer>
+          <footer>{profile.isolation === 'environment' ? <label className="rotation-toggle" title={`When another ${codex ? 'Codex' : 'Claude'} subscription hits a limit, its conversations can continue on this one. Applies to conversations started afterwards.`}><input type="checkbox" role="switch" checked={!excluded.includes(profile.id)} disabled={!runnerSettings || !!rotationSaving} onChange={event => void setRotation(profile, event.target.checked)}/><span>Automatic switching</span></label> : <small>{profile.isolation === 'inherited' ? 'Uses current CLI sign-in' : info?.sharedSubscriptions ? 'Shared subscription' : 'Saved on this Runner'}</small>}<button disabled={refreshing.has(profile.id)} title={usage && usage.observedAtUnixMillis > 0n ? `Last report ${new Date(Number(usage.observedAtUnixMillis)).toLocaleString()}` : undefined} onClick={() => void updateUsage(profile)}><Icon name="refresh"/>{refreshing.has(profile.id) ? 'Refreshing…' : 'Refresh usage'}</button></footer>
         </article>;
       })}</div>
       <p className="usage-note">Usage is the provider’s reported subscription allowance. Missing data stays unavailable.</p>

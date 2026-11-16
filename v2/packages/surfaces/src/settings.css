@@ -21,3 +21,12 @@
 
 .runner-preferences input,.runner-preferences select,.runner-preferences textarea { box-sizing:border-box; min-width:0; max-width:100%; }
 @media(max-width:600px){.price-fields{grid-template-columns:1fr}.price-catalog{grid-template-columns:1fr}.workspace-naming{flex-wrap:wrap}}
+
+/* Per-account opt-out of automatic subscription switching: one quiet switch row. */
+.rotation-toggle { display:flex !important; flex-direction:row !important; align-items:center; gap:7px !important; margin:0; font-size:11px !important; color:#a9aab6; cursor:pointer; }
+.rotation-toggle input { appearance:none; flex:none; width:24px; height:14px; margin:0; border-radius:7px; background:#3a3b45; position:relative; cursor:pointer; transition:background .15s; }
+.rotation-toggle input::after { content:''; position:absolute; top:2px; left:2px; width:10px; height:10px; border-radius:50%; background:#8d8e9b; transition:transform .15s, background .15s; }
+.rotation-toggle input:checked { background:#8b7bc4; }
+.rotation-toggle input:checked::after { transform:translateX(10px); background:#f4f0ff; }
+.rotation-toggle input:disabled { opacity:.6; cursor:default; }
+@media (prefers-reduced-motion: reduce) { .rotation-toggle input, .rotation-toggle input::after { transition:none; } }
