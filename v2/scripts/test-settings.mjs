@@ -119,6 +119,22 @@ try {
  await expect(dialog.getByRole('heading',{name:'Sign-in cancelled',exact:true})).toBeVisible();await dialog.getByRole('button',{name:'Close',exact:true}).click();
  await expect(page.getByRole('article',{name:'Cancelled subscription',exact:true})).toHaveCount(0);
  await page.screenshot({path:'.cache/settings-subscriptions-added.png',fullPage:true});
+ // Settings → Process shows the effective orchestration process, read-only: phases left to right, then role cards.
+ const before=fixture.mutations.length;
+ await page.getByRole('tab',{name:'Process',exact:true}).click();
+ const processView=page.locator('.orchestration-process');
+ await expect(processView.getByRole('heading',{name:'Process',exact:true})).toBeVisible();
+ await expect(processView.locator('.process-verdict')).toHaveText('Valid · reviewed-team · autonomy 4 · $60 · 10h per mission');
+ await expect(processView.locator('.process-phases li')).toHaveText([/plan.*contract \(human\)/,/build.*all_verified \(rule\)/,/integrate.*merged \(check\)/,/accept.*accepted \(human\)/]);
+ await expect(processView.getByRole('article',{name:'coordinator role',exact:true})).toContainText('session.spawn:worker');
+ await expect(processView.getByRole('article',{name:'verifier role',exact:true})).toContainText("not worker's");
+ await expect(processView.getByRole('article',{name:'transition role',exact:true})).toContainText('on timer every 30m');
+ await processView.getByRole('combobox',{name:'For workspace'}).selectOption({index:1});
+ await expect(processView.locator('.process-layers')).toContainText('api/.lazybox/process.yaml');
+ await expect(processView.locator('.process-issues')).toContainText('roles.worker.instructions.file');
+ assert.equal(fixture.mutations.length,before,'reading the process changed something');
+ assert.ok(await page.locator('.settings-page').evaluate(node=>node.scrollWidth<=node.clientWidth),'the process view overflows horizontally');
+ await page.screenshot({path:'.cache/settings-process.png',fullPage:true});
  await page.getByRole('button',{name:'Work',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Message',exact:true})).toHaveValue('draft preserved while editing settings');
  assert.equal(fixture.calls.filter(c=>['OpenSession','OpenAssistant','Apply','CloseSession','StartCommand'].includes(c.method)).length,0,'settings started/stopped an agent or command');

@@ -5,6 +5,9 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-process.json', import.meta.url), 'utf8'));
 
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
 const stream = values => Buffer.concat([...values.map(value => frame(value)), frame({}, 2)]);
@@ -358,6 +361,13 @@ export async function startRunnerFixture() {
         return json({session});
       }
       case 'CloseSession': mutations.push({ method, body }); return error('failed_precondition', 'Closing a surface must not close a session');
+      // The real reviewed-team preset as the Runner sends it (`lazybox process show --json --preset reviewed-team`).
+      case 'GetOrchestrationProcess': return json({
+        preset: 'reviewed-team', valid: true, digest: 'sha256:fixture', json: JSON.stringify(orchestrationProcess), userFile: '/fixture/state/process.yaml',
+        layers: [{ kind: 'preset', source: 'reviewed-team', digest: 'sha256:preset' }, ...(body.collectionId ? [{ kind: 'repository', source: 'api/.lazybox/process.yaml', digest: 'sha256:repo' }] : [])],
+        issues: body.collectionId ? [{ severity: 'warning', path: 'roles.worker.instructions.file', message: '.lazybox/roles/worker.md does not exist in this repository; the role starts without these instructions', layer: 'preset:reviewed-team', source: 'preset reviewed-team', line: 39, column: 26 }] : [],
+        candidates: body.collectionId ? [{ repositoryId: 'api', name: 'api', path: '/fixture/api/.lazybox/process.yaml', digest: 'sha256:repo' }] : [],
+      });
       default: return error('unimplemented', `Unsupported fixture RPC ${method}`);
     }
   };

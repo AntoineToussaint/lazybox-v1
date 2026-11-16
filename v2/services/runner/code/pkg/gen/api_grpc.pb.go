@@ -104,6 +104,8 @@ const (
 	RunnerService_ListProcesses_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListProcesses"
 	RunnerService_StopProcess_FullMethodName                  = "/lazybox.bench.v1.RunnerService/StopProcess"
 	RunnerService_CleanUpOrphanProcesses_FullMethodName       = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
+	RunnerService_GetOrchestrationProcess_FullMethodName      = "/lazybox.bench.v1.RunnerService/GetOrchestrationProcess"
+	RunnerService_ExplainOrchestrationProcess_FullMethodName  = "/lazybox.bench.v1.RunnerService/ExplainOrchestrationProcess"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -216,6 +218,13 @@ type RunnerServiceClient interface {
 	StopProcess(ctx context.Context, in *StopProcessRequest, opts ...grpc.CallOption) (*ProcessInventory, error)
 	// Owner only. The safe sweep: stops every host this Runner does not hold.
 	CleanUpOrphanProcesses(ctx context.Context, in *CleanUpOrphanProcessesRequest, opts ...grpc.CallOption) (*CleanUpOrphanProcessesResponse, error)
+	// Owner only. The orchestration process (v2/ORCHESTRATION.md §4) a mission
+	// in a workspace would run: a built-in preset, the user's process file and
+	// the repository's committed .lazybox/process.yaml, resolved under the
+	// user's ceiling and validated. Read-only; nothing runs it yet.
+	GetOrchestrationProcess(ctx context.Context, in *OrchestrationProcessRequest, opts ...grpc.CallOption) (*OrchestrationProcess, error)
+	// Owner only. What that process does on one event type, in firing order.
+	ExplainOrchestrationProcess(ctx context.Context, in *ExplainOrchestrationProcessRequest, opts ...grpc.CallOption) (*OrchestrationProcessExplanation, error)
 }
 
 type runnerServiceClient struct {
@@ -1102,6 +1111,26 @@ func (c *runnerServiceClient) CleanUpOrphanProcesses(ctx context.Context, in *Cl
 	return out, nil
 }
 
+func (c *runnerServiceClient) GetOrchestrationProcess(ctx context.Context, in *OrchestrationProcessRequest, opts ...grpc.CallOption) (*OrchestrationProcess, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrchestrationProcess)
+	err := c.cc.Invoke(ctx, RunnerService_GetOrchestrationProcess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ExplainOrchestrationProcess(ctx context.Context, in *ExplainOrchestrationProcessRequest, opts ...grpc.CallOption) (*OrchestrationProcessExplanation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrchestrationProcessExplanation)
+	err := c.cc.Invoke(ctx, RunnerService_ExplainOrchestrationProcess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1212,6 +1241,13 @@ type RunnerServiceServer interface {
 	StopProcess(context.Context, *StopProcessRequest) (*ProcessInventory, error)
 	// Owner only. The safe sweep: stops every host this Runner does not hold.
 	CleanUpOrphanProcesses(context.Context, *CleanUpOrphanProcessesRequest) (*CleanUpOrphanProcessesResponse, error)
+	// Owner only. The orchestration process (v2/ORCHESTRATION.md §4) a mission
+	// in a workspace would run: a built-in preset, the user's process file and
+	// the repository's committed .lazybox/process.yaml, resolved under the
+	// user's ceiling and validated. Read-only; nothing runs it yet.
+	GetOrchestrationProcess(context.Context, *OrchestrationProcessRequest) (*OrchestrationProcess, error)
+	// Owner only. What that process does on one event type, in firing order.
+	ExplainOrchestrationProcess(context.Context, *ExplainOrchestrationProcessRequest) (*OrchestrationProcessExplanation, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1473,6 +1509,12 @@ func (UnimplementedRunnerServiceServer) StopProcess(context.Context, *StopProces
 }
 func (UnimplementedRunnerServiceServer) CleanUpOrphanProcesses(context.Context, *CleanUpOrphanProcessesRequest) (*CleanUpOrphanProcessesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CleanUpOrphanProcesses not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetOrchestrationProcess(context.Context, *OrchestrationProcessRequest) (*OrchestrationProcess, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOrchestrationProcess not implemented")
+}
+func (UnimplementedRunnerServiceServer) ExplainOrchestrationProcess(context.Context, *ExplainOrchestrationProcessRequest) (*OrchestrationProcessExplanation, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExplainOrchestrationProcess not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -2979,6 +3021,42 @@ func _RunnerService_CleanUpOrphanProcesses_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_GetOrchestrationProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OrchestrationProcessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetOrchestrationProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetOrchestrationProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetOrchestrationProcess(ctx, req.(*OrchestrationProcessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ExplainOrchestrationProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExplainOrchestrationProcessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ExplainOrchestrationProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ExplainOrchestrationProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ExplainOrchestrationProcess(ctx, req.(*ExplainOrchestrationProcessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3305,6 +3383,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CleanUpOrphanProcesses",
 			Handler:    _RunnerService_CleanUpOrphanProcesses_Handler,
+		},
+		{
+			MethodName: "GetOrchestrationProcess",
+			Handler:    _RunnerService_GetOrchestrationProcess_Handler,
+		},
+		{
+			MethodName: "ExplainOrchestrationProcess",
+			Handler:    _RunnerService_ExplainOrchestrationProcess_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

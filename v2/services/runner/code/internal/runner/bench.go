@@ -72,6 +72,10 @@ type Config struct {
 	// OutputFallbackRoot is where the CLI saves them when a sandbox keeps it
 	// out of OutputRoot. Empty selects <temp>/lazybox-output, the CLI's own default.
 	OutputFallbackRoot string `json:"-"`
+	// ProcessFile is the user's orchestration process file: their defaults
+	// and the ceiling no repository process may exceed (internal/process).
+	// Empty selects <State>/process.yaml, so each environment has its own.
+	ProcessFile string `json:"processFile,omitempty"`
 	// OutputBudget bounds both roots together; the oldest files go first.
 	// Zero selects 1 GiB.
 	OutputBudget    int64                    `json:"commandOutputBudget,omitempty"`
@@ -190,6 +194,9 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if cfg.TerminalHostRoot == "" {
 		cfg.TerminalHostRoot = filepath.Join(cfg.State, "terminal-hosts")
+	}
+	if cfg.ProcessFile == "" {
+		cfg.ProcessFile = filepath.Join(cfg.State, "process.yaml")
 	}
 	if err := cfg.Processes.Validate(); err != nil {
 		return nil, err

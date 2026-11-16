@@ -180,6 +180,17 @@ some-command 2>&1 | bin/lazybox log --session EXECUTION --title tests
 some-command 2>&1 | lazybox log --title "go test ./..." [--to CONVERSATION]
 ```
 
+To check an orchestration process file ([Orchestration §4](ORCHESTRATION.md#4-the-process-file)) before committing it, from the repository root (no Runner needed):
+
+```sh
+bin/lazybox process validate            # .lazybox/process.yaml over the presets; exits 1 on an error
+bin/lazybox process explain task.reported
+bin/lazybox process show [--json]       # the effective process
+bin/lazybox process validate --workspace COLLECTION   # the Runner's view: your process.yaml and ceiling too
+```
+
+The user layer is `process.yaml` in the Runner's state directory (`processFile` in the Runner config); pass it to the file-only commands with `--user`.
+
 The pipe publisher echoes stdin and returns a visible failure if publication fails, including startup failure. Capture EOF does not establish the producer's exit status; use shell `pipefail` or managed execution when that status matters. Agents and their managed commands get their execution's own endpoint file and identity so `lazybox run` and `lazybox log` work without guessing a daemon path. That credential publishes only that execution's console; `approve`, `answer`, `send`, `close` and every other verb need the owner's `endpoint.json`.
 
 ## Retention and failure behavior

@@ -110,6 +110,13 @@ service RunnerService {
   rpc StopProcess(StopProcessRequest) returns (ProcessInventory);
   // Owner only. The safe sweep: stops every host this Runner does not hold.
   rpc CleanUpOrphanProcesses(CleanUpOrphanProcessesRequest) returns (CleanUpOrphanProcessesResponse);
+  // Owner only. The orchestration process (v2/ORCHESTRATION.md §4) a mission
+  // in a workspace would run: a built-in preset, the user's process file and
+  // the repository's committed .lazybox/process.yaml, resolved under the
+  // user's ceiling and validated. Read-only; nothing runs it yet.
+  rpc GetOrchestrationProcess(OrchestrationProcessRequest) returns (OrchestrationProcess);
+  // Owner only. What that process does on one event type, in firing order.
+  rpc ExplainOrchestrationProcess(ExplainOrchestrationProcessRequest) returns (OrchestrationProcessExplanation);
 }
 
 message InfoRequest {}
@@ -905,4 +912,99 @@ message CleanUpOrphanProcessesResponse {
   // Hosts the sweep left alone because it could not confirm their state.
   string problem = 2;
   ProcessInventory inventory = 3;
+}
+
+message OrchestrationProcessRequest {
+  // Workspace whose repositories' committed .lazybox/process.yaml is read;
+  // empty resolves the user's process file over the presets alone.
+  string collection_id = 1;
+  // The workspace repository (id or name) whose process file applies. Empty
+  // applies the only one that has a file; with several, none applies and
+  // notice says so.
+  string repository = 2;
+  // Tasks in the mission, which selects the default preset; 0 without one.
+  uint32 tasks = 3;
+}
+message OrchestrationProcessLayer {
+  // preset, user or repository.
+  string kind = 1;
+  string source = 2;
+  // sha256 of the file as read: what a person approves before first use.
+  string digest = 3;
+}
+message OrchestrationProcessIssue {
+  // error or warning.
+  string severity = 1;
+  // Key path in the effective process, such as roles.worker.permission.
+  string path = 2;
+  string message = 3;
+  // The layer and file that wrote the value, when known.
+  string layer = 4;
+  string source = 5;
+  uint32 line = 6;
+  uint32 column = 7;
+}
+message OrchestrationProcessCandidate {
+  string repository_id = 1;
+  string name = 2;
+  string path = 3;
+  string digest = 4;
+}
+message OrchestrationProcess {
+  string preset = 1;
+  bool valid = 2;
+  // The effective process as a process file, and as JSON in the shape of the
+  // published schema (process.v1.json). Empty when a layer cannot be parsed.
+  string yaml = 3;
+  string json = 4;
+  // sha256 of the effective process: what a mission pins.
+  string digest = 5;
+  // Lowest first: preset, user, repository.
+  repeated OrchestrationProcessLayer layers = 6;
+  repeated OrchestrationProcessIssue issues = 7;
+  // Workspace repositories that carry a process file.
+  repeated OrchestrationProcessCandidate candidates = 8;
+  // Why no repository file applies although some exist, or empty.
+  string notice = 9;
+  // The user's ceiling as JSON (the schema's Ceiling).
+  string ceiling_json = 10;
+  // Where the user's process file is read from (it may not exist).
+  string user_file = 11;
+}
+message ExplainOrchestrationProcessRequest {
+  OrchestrationProcessRequest process = 1;
+  // An event type such as task.reported, or timer or stall.
+  string event_type = 2;
+}
+message OrchestrationReaction {
+  // rule, trigger or notification.
+  string kind = 1;
+  // Where it is in the process: rules[2], roles.coordinator.triggers[0].
+  string path = 2;
+  // CEL condition; empty fires always.
+  string condition = 3;
+  // The role it wakes or acts on, with that role's permission and scopes.
+  string role = 4;
+  string permission = 5;
+  repeated string scopes = 6;
+  // A person starts the role (manual trigger).
+  bool manual = 7;
+  // A rule's count limit per subject; 0 without one.
+  uint32 limit = 8;
+  // Where a notification goes.
+  repeated string to = 9;
+  // Event types it may cause.
+  repeated string emits = 10;
+  string summary = 11;
+}
+message OrchestrationProcessExplanation {
+  string event_type = 1;
+  // In firing order: rules, then role triggers, then notifications.
+  repeated OrchestrationReaction reactions = 2;
+  // The same, written for a person.
+  string text = 3;
+  // The effective process explained, and its problems.
+  string digest = 4;
+  bool valid = 5;
+  repeated OrchestrationProcessIssue issues = 6;
 }

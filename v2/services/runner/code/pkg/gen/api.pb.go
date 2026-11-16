@@ -11617,6 +11617,701 @@ func (x *CleanUpOrphanProcessesResponse) GetInventory() *ProcessInventory {
 	return nil
 }
 
+type OrchestrationProcessRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Workspace whose repositories' committed .lazybox/process.yaml is read;
+	// empty resolves the user's process file over the presets alone.
+	CollectionId string `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	// The workspace repository (id or name) whose process file applies. Empty
+	// applies the only one that has a file; with several, none applies and
+	// notice says so.
+	Repository string `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
+	// Tasks in the mission, which selects the default preset; 0 without one.
+	Tasks         uint32 `protobuf:"varint,3,opt,name=tasks,proto3" json:"tasks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestrationProcessRequest) Reset() {
+	*x = OrchestrationProcessRequest{}
+	mi := &file_api_proto_msgTypes[167]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestrationProcessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestrationProcessRequest) ProtoMessage() {}
+
+func (x *OrchestrationProcessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[167]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestrationProcessRequest.ProtoReflect.Descriptor instead.
+func (*OrchestrationProcessRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{167}
+}
+
+func (x *OrchestrationProcessRequest) GetCollectionId() string {
+	if x != nil {
+		return x.CollectionId
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessRequest) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessRequest) GetTasks() uint32 {
+	if x != nil {
+		return x.Tasks
+	}
+	return 0
+}
+
+type OrchestrationProcessLayer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// preset, user or repository.
+	Kind   string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Source string `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	// sha256 of the file as read: what a person approves before first use.
+	Digest        string `protobuf:"bytes,3,opt,name=digest,proto3" json:"digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestrationProcessLayer) Reset() {
+	*x = OrchestrationProcessLayer{}
+	mi := &file_api_proto_msgTypes[168]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestrationProcessLayer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestrationProcessLayer) ProtoMessage() {}
+
+func (x *OrchestrationProcessLayer) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[168]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestrationProcessLayer.ProtoReflect.Descriptor instead.
+func (*OrchestrationProcessLayer) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{168}
+}
+
+func (x *OrchestrationProcessLayer) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessLayer) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessLayer) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+type OrchestrationProcessIssue struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// error or warning.
+	Severity string `protobuf:"bytes,1,opt,name=severity,proto3" json:"severity,omitempty"`
+	// Key path in the effective process, such as roles.worker.permission.
+	Path    string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Message string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	// The layer and file that wrote the value, when known.
+	Layer         string `protobuf:"bytes,4,opt,name=layer,proto3" json:"layer,omitempty"`
+	Source        string `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"`
+	Line          uint32 `protobuf:"varint,6,opt,name=line,proto3" json:"line,omitempty"`
+	Column        uint32 `protobuf:"varint,7,opt,name=column,proto3" json:"column,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestrationProcessIssue) Reset() {
+	*x = OrchestrationProcessIssue{}
+	mi := &file_api_proto_msgTypes[169]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestrationProcessIssue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestrationProcessIssue) ProtoMessage() {}
+
+func (x *OrchestrationProcessIssue) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[169]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestrationProcessIssue.ProtoReflect.Descriptor instead.
+func (*OrchestrationProcessIssue) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{169}
+}
+
+func (x *OrchestrationProcessIssue) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessIssue) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessIssue) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessIssue) GetLayer() string {
+	if x != nil {
+		return x.Layer
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessIssue) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessIssue) GetLine() uint32 {
+	if x != nil {
+		return x.Line
+	}
+	return 0
+}
+
+func (x *OrchestrationProcessIssue) GetColumn() uint32 {
+	if x != nil {
+		return x.Column
+	}
+	return 0
+}
+
+type OrchestrationProcessCandidate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RepositoryId  string                 `protobuf:"bytes,1,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Digest        string                 `protobuf:"bytes,4,opt,name=digest,proto3" json:"digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestrationProcessCandidate) Reset() {
+	*x = OrchestrationProcessCandidate{}
+	mi := &file_api_proto_msgTypes[170]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestrationProcessCandidate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestrationProcessCandidate) ProtoMessage() {}
+
+func (x *OrchestrationProcessCandidate) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[170]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestrationProcessCandidate.ProtoReflect.Descriptor instead.
+func (*OrchestrationProcessCandidate) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{170}
+}
+
+func (x *OrchestrationProcessCandidate) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessCandidate) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessCandidate) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessCandidate) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+type OrchestrationProcess struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Preset string                 `protobuf:"bytes,1,opt,name=preset,proto3" json:"preset,omitempty"`
+	Valid  bool                   `protobuf:"varint,2,opt,name=valid,proto3" json:"valid,omitempty"`
+	// The effective process as a process file, and as JSON in the shape of the
+	// published schema (process.v1.json). Empty when a layer cannot be parsed.
+	Yaml string `protobuf:"bytes,3,opt,name=yaml,proto3" json:"yaml,omitempty"`
+	Json string `protobuf:"bytes,4,opt,name=json,proto3" json:"json,omitempty"`
+	// sha256 of the effective process: what a mission pins.
+	Digest string `protobuf:"bytes,5,opt,name=digest,proto3" json:"digest,omitempty"`
+	// Lowest first: preset, user, repository.
+	Layers []*OrchestrationProcessLayer `protobuf:"bytes,6,rep,name=layers,proto3" json:"layers,omitempty"`
+	Issues []*OrchestrationProcessIssue `protobuf:"bytes,7,rep,name=issues,proto3" json:"issues,omitempty"`
+	// Workspace repositories that carry a process file.
+	Candidates []*OrchestrationProcessCandidate `protobuf:"bytes,8,rep,name=candidates,proto3" json:"candidates,omitempty"`
+	// Why no repository file applies although some exist, or empty.
+	Notice string `protobuf:"bytes,9,opt,name=notice,proto3" json:"notice,omitempty"`
+	// The user's ceiling as JSON (the schema's Ceiling).
+	CeilingJson string `protobuf:"bytes,10,opt,name=ceiling_json,json=ceilingJson,proto3" json:"ceiling_json,omitempty"`
+	// Where the user's process file is read from (it may not exist).
+	UserFile      string `protobuf:"bytes,11,opt,name=user_file,json=userFile,proto3" json:"user_file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestrationProcess) Reset() {
+	*x = OrchestrationProcess{}
+	mi := &file_api_proto_msgTypes[171]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestrationProcess) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestrationProcess) ProtoMessage() {}
+
+func (x *OrchestrationProcess) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[171]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestrationProcess.ProtoReflect.Descriptor instead.
+func (*OrchestrationProcess) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{171}
+}
+
+func (x *OrchestrationProcess) GetPreset() string {
+	if x != nil {
+		return x.Preset
+	}
+	return ""
+}
+
+func (x *OrchestrationProcess) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *OrchestrationProcess) GetYaml() string {
+	if x != nil {
+		return x.Yaml
+	}
+	return ""
+}
+
+func (x *OrchestrationProcess) GetJson() string {
+	if x != nil {
+		return x.Json
+	}
+	return ""
+}
+
+func (x *OrchestrationProcess) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *OrchestrationProcess) GetLayers() []*OrchestrationProcessLayer {
+	if x != nil {
+		return x.Layers
+	}
+	return nil
+}
+
+func (x *OrchestrationProcess) GetIssues() []*OrchestrationProcessIssue {
+	if x != nil {
+		return x.Issues
+	}
+	return nil
+}
+
+func (x *OrchestrationProcess) GetCandidates() []*OrchestrationProcessCandidate {
+	if x != nil {
+		return x.Candidates
+	}
+	return nil
+}
+
+func (x *OrchestrationProcess) GetNotice() string {
+	if x != nil {
+		return x.Notice
+	}
+	return ""
+}
+
+func (x *OrchestrationProcess) GetCeilingJson() string {
+	if x != nil {
+		return x.CeilingJson
+	}
+	return ""
+}
+
+func (x *OrchestrationProcess) GetUserFile() string {
+	if x != nil {
+		return x.UserFile
+	}
+	return ""
+}
+
+type ExplainOrchestrationProcessRequest struct {
+	state   protoimpl.MessageState       `protogen:"open.v1"`
+	Process *OrchestrationProcessRequest `protobuf:"bytes,1,opt,name=process,proto3" json:"process,omitempty"`
+	// An event type such as task.reported, or timer or stall.
+	EventType     string `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExplainOrchestrationProcessRequest) Reset() {
+	*x = ExplainOrchestrationProcessRequest{}
+	mi := &file_api_proto_msgTypes[172]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExplainOrchestrationProcessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExplainOrchestrationProcessRequest) ProtoMessage() {}
+
+func (x *ExplainOrchestrationProcessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[172]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExplainOrchestrationProcessRequest.ProtoReflect.Descriptor instead.
+func (*ExplainOrchestrationProcessRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{172}
+}
+
+func (x *ExplainOrchestrationProcessRequest) GetProcess() *OrchestrationProcessRequest {
+	if x != nil {
+		return x.Process
+	}
+	return nil
+}
+
+func (x *ExplainOrchestrationProcessRequest) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+type OrchestrationReaction struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// rule, trigger or notification.
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// Where it is in the process: rules[2], roles.coordinator.triggers[0].
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// CEL condition; empty fires always.
+	Condition string `protobuf:"bytes,3,opt,name=condition,proto3" json:"condition,omitempty"`
+	// The role it wakes or acts on, with that role's permission and scopes.
+	Role       string   `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	Permission string   `protobuf:"bytes,5,opt,name=permission,proto3" json:"permission,omitempty"`
+	Scopes     []string `protobuf:"bytes,6,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	// A person starts the role (manual trigger).
+	Manual bool `protobuf:"varint,7,opt,name=manual,proto3" json:"manual,omitempty"`
+	// A rule's count limit per subject; 0 without one.
+	Limit uint32 `protobuf:"varint,8,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Where a notification goes.
+	To []string `protobuf:"bytes,9,rep,name=to,proto3" json:"to,omitempty"`
+	// Event types it may cause.
+	Emits         []string `protobuf:"bytes,10,rep,name=emits,proto3" json:"emits,omitempty"`
+	Summary       string   `protobuf:"bytes,11,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestrationReaction) Reset() {
+	*x = OrchestrationReaction{}
+	mi := &file_api_proto_msgTypes[173]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestrationReaction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestrationReaction) ProtoMessage() {}
+
+func (x *OrchestrationReaction) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[173]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestrationReaction.ProtoReflect.Descriptor instead.
+func (*OrchestrationReaction) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{173}
+}
+
+func (x *OrchestrationReaction) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *OrchestrationReaction) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *OrchestrationReaction) GetCondition() string {
+	if x != nil {
+		return x.Condition
+	}
+	return ""
+}
+
+func (x *OrchestrationReaction) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *OrchestrationReaction) GetPermission() string {
+	if x != nil {
+		return x.Permission
+	}
+	return ""
+}
+
+func (x *OrchestrationReaction) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
+func (x *OrchestrationReaction) GetManual() bool {
+	if x != nil {
+		return x.Manual
+	}
+	return false
+}
+
+func (x *OrchestrationReaction) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *OrchestrationReaction) GetTo() []string {
+	if x != nil {
+		return x.To
+	}
+	return nil
+}
+
+func (x *OrchestrationReaction) GetEmits() []string {
+	if x != nil {
+		return x.Emits
+	}
+	return nil
+}
+
+func (x *OrchestrationReaction) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+type OrchestrationProcessExplanation struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	EventType string                 `protobuf:"bytes,1,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	// In firing order: rules, then role triggers, then notifications.
+	Reactions []*OrchestrationReaction `protobuf:"bytes,2,rep,name=reactions,proto3" json:"reactions,omitempty"`
+	// The same, written for a person.
+	Text string `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	// The effective process explained, and its problems.
+	Digest        string                       `protobuf:"bytes,4,opt,name=digest,proto3" json:"digest,omitempty"`
+	Valid         bool                         `protobuf:"varint,5,opt,name=valid,proto3" json:"valid,omitempty"`
+	Issues        []*OrchestrationProcessIssue `protobuf:"bytes,6,rep,name=issues,proto3" json:"issues,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrchestrationProcessExplanation) Reset() {
+	*x = OrchestrationProcessExplanation{}
+	mi := &file_api_proto_msgTypes[174]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrchestrationProcessExplanation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrchestrationProcessExplanation) ProtoMessage() {}
+
+func (x *OrchestrationProcessExplanation) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[174]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrchestrationProcessExplanation.ProtoReflect.Descriptor instead.
+func (*OrchestrationProcessExplanation) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{174}
+}
+
+func (x *OrchestrationProcessExplanation) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessExplanation) GetReactions() []*OrchestrationReaction {
+	if x != nil {
+		return x.Reactions
+	}
+	return nil
+}
+
+func (x *OrchestrationProcessExplanation) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessExplanation) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *OrchestrationProcessExplanation) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *OrchestrationProcessExplanation) GetIssues() []*OrchestrationProcessIssue {
+	if x != nil {
+		return x.Issues
+	}
+	return nil
+}
+
 var File_api_proto protoreflect.FileDescriptor
 
 const file_api_proto_rawDesc = "" +
@@ -12609,12 +13304,77 @@ const file_api_proto_rawDesc = "" +
 	"\x1eCleanUpOrphanProcessesResponse\x12\x18\n" +
 	"\astopped\x18\x01 \x01(\rR\astopped\x12\x18\n" +
 	"\aproblem\x18\x02 \x01(\tR\aproblem\x12@\n" +
-	"\tinventory\x18\x03 \x01(\v2\".lazybox.bench.v1.ProcessInventoryR\tinventory*d\n" +
+	"\tinventory\x18\x03 \x01(\v2\".lazybox.bench.v1.ProcessInventoryR\tinventory\"x\n" +
+	"\x1bOrchestrationProcessRequest\x12#\n" +
+	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x02 \x01(\tR\n" +
+	"repository\x12\x14\n" +
+	"\x05tasks\x18\x03 \x01(\rR\x05tasks\"_\n" +
+	"\x19OrchestrationProcessLayer\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x16\n" +
+	"\x06digest\x18\x03 \x01(\tR\x06digest\"\xbf\x01\n" +
+	"\x19OrchestrationProcessIssue\x12\x1a\n" +
+	"\bseverity\x18\x01 \x01(\tR\bseverity\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12\x14\n" +
+	"\x05layer\x18\x04 \x01(\tR\x05layer\x12\x16\n" +
+	"\x06source\x18\x05 \x01(\tR\x06source\x12\x12\n" +
+	"\x04line\x18\x06 \x01(\rR\x04line\x12\x16\n" +
+	"\x06column\x18\a \x01(\rR\x06column\"\x84\x01\n" +
+	"\x1dOrchestrationProcessCandidate\x12#\n" +
+	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x16\n" +
+	"\x06digest\x18\x04 \x01(\tR\x06digest\"\xb7\x03\n" +
+	"\x14OrchestrationProcess\x12\x16\n" +
+	"\x06preset\x18\x01 \x01(\tR\x06preset\x12\x14\n" +
+	"\x05valid\x18\x02 \x01(\bR\x05valid\x12\x12\n" +
+	"\x04yaml\x18\x03 \x01(\tR\x04yaml\x12\x12\n" +
+	"\x04json\x18\x04 \x01(\tR\x04json\x12\x16\n" +
+	"\x06digest\x18\x05 \x01(\tR\x06digest\x12C\n" +
+	"\x06layers\x18\x06 \x03(\v2+.lazybox.bench.v1.OrchestrationProcessLayerR\x06layers\x12C\n" +
+	"\x06issues\x18\a \x03(\v2+.lazybox.bench.v1.OrchestrationProcessIssueR\x06issues\x12O\n" +
+	"\n" +
+	"candidates\x18\b \x03(\v2/.lazybox.bench.v1.OrchestrationProcessCandidateR\n" +
+	"candidates\x12\x16\n" +
+	"\x06notice\x18\t \x01(\tR\x06notice\x12!\n" +
+	"\fceiling_json\x18\n" +
+	" \x01(\tR\vceilingJson\x12\x1b\n" +
+	"\tuser_file\x18\v \x01(\tR\buserFile\"\x8c\x01\n" +
+	"\"ExplainOrchestrationProcessRequest\x12G\n" +
+	"\aprocess\x18\x01 \x01(\v2-.lazybox.bench.v1.OrchestrationProcessRequestR\aprocess\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x02 \x01(\tR\teventType\"\x97\x02\n" +
+	"\x15OrchestrationReaction\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1c\n" +
+	"\tcondition\x18\x03 \x01(\tR\tcondition\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12\x1e\n" +
+	"\n" +
+	"permission\x18\x05 \x01(\tR\n" +
+	"permission\x12\x16\n" +
+	"\x06scopes\x18\x06 \x03(\tR\x06scopes\x12\x16\n" +
+	"\x06manual\x18\a \x01(\bR\x06manual\x12\x14\n" +
+	"\x05limit\x18\b \x01(\rR\x05limit\x12\x0e\n" +
+	"\x02to\x18\t \x03(\tR\x02to\x12\x14\n" +
+	"\x05emits\x18\n" +
+	" \x03(\tR\x05emits\x12\x18\n" +
+	"\asummary\x18\v \x01(\tR\asummary\"\x8e\x02\n" +
+	"\x1fOrchestrationProcessExplanation\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x01 \x01(\tR\teventType\x12E\n" +
+	"\treactions\x18\x02 \x03(\v2'.lazybox.bench.v1.OrchestrationReactionR\treactions\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\x12\x16\n" +
+	"\x06digest\x18\x04 \x01(\tR\x06digest\x12\x14\n" +
+	"\x05valid\x18\x05 \x01(\bR\x05valid\x12C\n" +
+	"\x06issues\x18\x06 \x03(\v2+.lazybox.bench.v1.OrchestrationProcessIssueR\x06issues*d\n" +
 	"\bDecision\x12\x18\n" +
 	"\x14DECISION_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fDECISION_ACCEPT\x10\x01\x12\x14\n" +
 	"\x10DECISION_DECLINE\x10\x02\x12\x13\n" +
-	"\x0fDECISION_CANCEL\x10\x032\xf1@\n" +
+	"\x0fDECISION_CANCEL\x10\x032\xecB\n" +
 	"\rRunnerService\x12O\n" +
 	"\fListSnippets\x12\x1d.lazybox.bench.v1.InfoRequest\x1a .lazybox.bench.v1.SnippetCatalog\x12j\n" +
 	"\x14GetRepositoryCatalog\x12-.lazybox.bench.v1.GetRepositoryCatalogRequest\x1a#.lazybox.bench.v1.RepositoryCatalog\x12g\n" +
@@ -12701,7 +13461,9 @@ const file_api_proto_rawDesc = "" +
 	"\x10MergePullRequest\x12).lazybox.bench.v1.MergePullRequestRequest\x1a#.lazybox.bench.v1.PullRequestStatus\x12[\n" +
 	"\rListProcesses\x12&.lazybox.bench.v1.ListProcessesRequest\x1a\".lazybox.bench.v1.ProcessInventory\x12W\n" +
 	"\vStopProcess\x12$.lazybox.bench.v1.StopProcessRequest\x1a\".lazybox.bench.v1.ProcessInventory\x12{\n" +
-	"\x16CleanUpOrphanProcesses\x12/.lazybox.bench.v1.CleanUpOrphanProcessesRequest\x1a0.lazybox.bench.v1.CleanUpOrphanProcessesResponseB4Z2github.com/AntoineToussaint/lazybox/v2/pkg/gen;genb\x06proto3"
+	"\x16CleanUpOrphanProcesses\x12/.lazybox.bench.v1.CleanUpOrphanProcessesRequest\x1a0.lazybox.bench.v1.CleanUpOrphanProcessesResponse\x12p\n" +
+	"\x17GetOrchestrationProcess\x12-.lazybox.bench.v1.OrchestrationProcessRequest\x1a&.lazybox.bench.v1.OrchestrationProcess\x12\x86\x01\n" +
+	"\x1bExplainOrchestrationProcess\x124.lazybox.bench.v1.ExplainOrchestrationProcessRequest\x1a1.lazybox.bench.v1.OrchestrationProcessExplanationB4Z2github.com/AntoineToussaint/lazybox/v2/pkg/gen;genb\x06proto3"
 
 var (
 	file_api_proto_rawDescOnce sync.Once
@@ -12716,177 +13478,185 @@ func file_api_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 168)
+var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 176)
 var file_api_proto_goTypes = []any{
-	(Decision)(0),                             // 0: lazybox.bench.v1.Decision
-	(*InfoRequest)(nil),                       // 1: lazybox.bench.v1.InfoRequest
-	(*ModelPrice)(nil),                        // 2: lazybox.bench.v1.ModelPrice
-	(*RunnerSettings)(nil),                    // 3: lazybox.bench.v1.RunnerSettings
-	(*SetModelPriceRequest)(nil),              // 4: lazybox.bench.v1.SetModelPriceRequest
-	(*RenameCollectionRequest)(nil),           // 5: lazybox.bench.v1.RenameCollectionRequest
-	(*TelemetryRequest)(nil),                  // 6: lazybox.bench.v1.TelemetryRequest
-	(*TelemetryScope)(nil),                    // 7: lazybox.bench.v1.TelemetryScope
-	(*TokenCounts)(nil),                       // 8: lazybox.bench.v1.TokenCounts
-	(*ContextDetail)(nil),                     // 9: lazybox.bench.v1.ContextDetail
-	(*ContextCategory)(nil),                   // 10: lazybox.bench.v1.ContextCategory
-	(*ContextSnapshot)(nil),                   // 11: lazybox.bench.v1.ContextSnapshot
-	(*UsageRecord)(nil),                       // 12: lazybox.bench.v1.UsageRecord
-	(*UsageGroup)(nil),                        // 13: lazybox.bench.v1.UsageGroup
-	(*TelemetryReport)(nil),                   // 14: lazybox.bench.v1.TelemetryReport
-	(*AddSubscriptionRequest)(nil),            // 15: lazybox.bench.v1.AddSubscriptionRequest
-	(*SubscriptionEnrollmentRequest)(nil),     // 16: lazybox.bench.v1.SubscriptionEnrollmentRequest
-	(*RefreshSubscriptionRequest)(nil),        // 17: lazybox.bench.v1.RefreshSubscriptionRequest
-	(*SubscriptionEnrollment)(nil),            // 18: lazybox.bench.v1.SubscriptionEnrollment
-	(*UsageWindow)(nil),                       // 19: lazybox.bench.v1.UsageWindow
-	(*Profile)(nil),                           // 20: lazybox.bench.v1.Profile
-	(*Gateway)(nil),                           // 21: lazybox.bench.v1.Gateway
-	(*InfoResponse)(nil),                      // 22: lazybox.bench.v1.InfoResponse
-	(*RestartRunnerRequest)(nil),              // 23: lazybox.bench.v1.RestartRunnerRequest
-	(*RestartRunnerResponse)(nil),             // 24: lazybox.bench.v1.RestartRunnerResponse
-	(*AttachmentLimits)(nil),                  // 25: lazybox.bench.v1.AttachmentLimits
-	(*RunnerOptions)(nil),                     // 26: lazybox.bench.v1.RunnerOptions
-	(*OpenSessionRequest)(nil),                // 27: lazybox.bench.v1.OpenSessionRequest
-	(*OpenAssistantRequest)(nil),              // 28: lazybox.bench.v1.OpenAssistantRequest
-	(*AccountObservation)(nil),                // 29: lazybox.bench.v1.AccountObservation
-	(*AgentActivity)(nil),                     // 30: lazybox.bench.v1.AgentActivity
-	(*ListHistoryRequest)(nil),                // 31: lazybox.bench.v1.ListHistoryRequest
-	(*RenameConversationRequest)(nil),         // 32: lazybox.bench.v1.RenameConversationRequest
-	(*WorkspaceChangesRequest)(nil),           // 33: lazybox.bench.v1.WorkspaceChangesRequest
-	(*ChangedFile)(nil),                       // 34: lazybox.bench.v1.ChangedFile
-	(*Commit)(nil),                            // 35: lazybox.bench.v1.Commit
-	(*RepositoryChanges)(nil),                 // 36: lazybox.bench.v1.RepositoryChanges
-	(*WorkspaceChanges)(nil),                  // 37: lazybox.bench.v1.WorkspaceChanges
-	(*CommitWorkspaceChangesRequest)(nil),     // 38: lazybox.bench.v1.CommitWorkspaceChangesRequest
-	(*CommitWorkspaceChangesResponse)(nil),    // 39: lazybox.bench.v1.CommitWorkspaceChangesResponse
-	(*PushWorkspaceBranchRequest)(nil),        // 40: lazybox.bench.v1.PushWorkspaceBranchRequest
-	(*PushWorkspaceBranchResponse)(nil),       // 41: lazybox.bench.v1.PushWorkspaceBranchResponse
-	(*CreatePullRequestRequest)(nil),          // 42: lazybox.bench.v1.CreatePullRequestRequest
-	(*GetPullRequestRequest)(nil),             // 43: lazybox.bench.v1.GetPullRequestRequest
-	(*MergePullRequestRequest)(nil),           // 44: lazybox.bench.v1.MergePullRequestRequest
-	(*PullRequestCheck)(nil),                  // 45: lazybox.bench.v1.PullRequestCheck
-	(*PullRequestStatus)(nil),                 // 46: lazybox.bench.v1.PullRequestStatus
-	(*WorkspaceDiffRequest)(nil),              // 47: lazybox.bench.v1.WorkspaceDiffRequest
-	(*WorkspaceDiff)(nil),                     // 48: lazybox.bench.v1.WorkspaceDiff
-	(*ListHistoryResponse)(nil),               // 49: lazybox.bench.v1.ListHistoryResponse
-	(*RestartWithPermissionRequest)(nil),      // 50: lazybox.bench.v1.RestartWithPermissionRequest
-	(*SwitchSubscriptionRequest)(nil),         // 51: lazybox.bench.v1.SwitchSubscriptionRequest
-	(*SetSessionRotationRequest)(nil),         // 52: lazybox.bench.v1.SetSessionRotationRequest
-	(*ResumeSessionRequest)(nil),              // 53: lazybox.bench.v1.ResumeSessionRequest
-	(*SessionRequest)(nil),                    // 54: lazybox.bench.v1.SessionRequest
-	(*Capabilities)(nil),                      // 55: lazybox.bench.v1.Capabilities
-	(*AgentEvent)(nil),                        // 56: lazybox.bench.v1.AgentEvent
-	(*Session)(nil),                           // 57: lazybox.bench.v1.Session
-	(*Repository)(nil),                        // 58: lazybox.bench.v1.Repository
-	(*AddLocalRepositoryRequest)(nil),         // 59: lazybox.bench.v1.AddLocalRepositoryRequest
-	(*AddLocalRepositoryResponse)(nil),        // 60: lazybox.bench.v1.AddLocalRepositoryResponse
-	(*ListRepositoriesRequest)(nil),           // 61: lazybox.bench.v1.ListRepositoriesRequest
-	(*ListRepositoriesResponse)(nil),          // 62: lazybox.bench.v1.ListRepositoriesResponse
-	(*WorktreeSpec)(nil),                      // 63: lazybox.bench.v1.WorktreeSpec
-	(*CollectionSpec)(nil),                    // 64: lazybox.bench.v1.CollectionSpec
-	(*CollectionWorktree)(nil),                // 65: lazybox.bench.v1.CollectionWorktree
-	(*Collection)(nil),                        // 66: lazybox.bench.v1.Collection
-	(*CreateCollectionRequest)(nil),           // 67: lazybox.bench.v1.CreateCollectionRequest
-	(*AddCollectionRepositoriesRequest)(nil),  // 68: lazybox.bench.v1.AddCollectionRepositoriesRequest
-	(*CollectionRequest)(nil),                 // 69: lazybox.bench.v1.CollectionRequest
-	(*CollectionResponse)(nil),                // 70: lazybox.bench.v1.CollectionResponse
-	(*ListCollectionsRequest)(nil),            // 71: lazybox.bench.v1.ListCollectionsRequest
-	(*ListCollectionsResponse)(nil),           // 72: lazybox.bench.v1.ListCollectionsResponse
-	(*ReconcileCollectionRequest)(nil),        // 73: lazybox.bench.v1.ReconcileCollectionRequest
-	(*SessionResponse)(nil),                   // 74: lazybox.bench.v1.SessionResponse
-	(*Image)(nil),                             // 75: lazybox.bench.v1.Image
-	(*Message)(nil),                           // 76: lazybox.bench.v1.Message
-	(*FileAttachment)(nil),                    // 77: lazybox.bench.v1.FileAttachment
-	(*Interrupt)(nil),                         // 78: lazybox.bench.v1.Interrupt
-	(*Answers)(nil),                           // 79: lazybox.bench.v1.Answers
-	(*Answer)(nil),                            // 80: lazybox.bench.v1.Answer
-	(*Approval)(nil),                          // 81: lazybox.bench.v1.Approval
-	(*ApplyRequest)(nil),                      // 82: lazybox.bench.v1.ApplyRequest
-	(*Permission)(nil),                        // 83: lazybox.bench.v1.Permission
-	(*Receipt)(nil),                           // 84: lazybox.bench.v1.Receipt
-	(*WatchEventsRequest)(nil),                // 85: lazybox.bench.v1.WatchEventsRequest
-	(*JournalEvent)(nil),                      // 86: lazybox.bench.v1.JournalEvent
-	(*Checkpoint)(nil),                        // 87: lazybox.bench.v1.Checkpoint
-	(*ContinueSessionRequest)(nil),            // 88: lazybox.bench.v1.ContinueSessionRequest
-	(*CommandRequest)(nil),                    // 89: lazybox.bench.v1.CommandRequest
-	(*StartCommandRequest)(nil),               // 90: lazybox.bench.v1.StartCommandRequest
-	(*RegisterPipeRequest)(nil),               // 91: lazybox.bench.v1.RegisterPipeRequest
-	(*PublishRequest)(nil),                    // 92: lazybox.bench.v1.PublishRequest
-	(*FinishPipeRequest)(nil),                 // 93: lazybox.bench.v1.FinishPipeRequest
-	(*CommandReport)(nil),                     // 94: lazybox.bench.v1.CommandReport
-	(*CommandStatus)(nil),                     // 95: lazybox.bench.v1.CommandStatus
-	(*ListCommandsRequest)(nil),               // 96: lazybox.bench.v1.ListCommandsRequest
-	(*ClaimCommandShareResponse)(nil),         // 97: lazybox.bench.v1.ClaimCommandShareResponse
-	(*ListCommandsResponse)(nil),              // 98: lazybox.bench.v1.ListCommandsResponse
-	(*ReadCommandRequest)(nil),                // 99: lazybox.bench.v1.ReadCommandRequest
-	(*ReadCommandResponse)(nil),               // 100: lazybox.bench.v1.ReadCommandResponse
-	(*WatchOutputRequest)(nil),                // 101: lazybox.bench.v1.WatchOutputRequest
-	(*OutputEvent)(nil),                       // 102: lazybox.bench.v1.OutputEvent
-	(*OpenTerminalRequest)(nil),               // 103: lazybox.bench.v1.OpenTerminalRequest
-	(*TerminalRequest)(nil),                   // 104: lazybox.bench.v1.TerminalRequest
-	(*TerminalStatus)(nil),                    // 105: lazybox.bench.v1.TerminalStatus
-	(*ListTerminalsRequest)(nil),              // 106: lazybox.bench.v1.ListTerminalsRequest
-	(*ListTerminalsResponse)(nil),             // 107: lazybox.bench.v1.ListTerminalsResponse
-	(*WatchTerminalRequest)(nil),              // 108: lazybox.bench.v1.WatchTerminalRequest
-	(*TerminalEvent)(nil),                     // 109: lazybox.bench.v1.TerminalEvent
-	(*WriteTerminalRequest)(nil),              // 110: lazybox.bench.v1.WriteTerminalRequest
-	(*ResizeTerminalRequest)(nil),             // 111: lazybox.bench.v1.ResizeTerminalRequest
-	(*VersionRequest)(nil),                    // 112: lazybox.bench.v1.VersionRequest
-	(*VersionResponse)(nil),                   // 113: lazybox.bench.v1.VersionResponse
-	(*GetGitHubConnectionRequest)(nil),        // 114: lazybox.bench.v1.GetGitHubConnectionRequest
-	(*ListRepositoryDiscoveryRequest)(nil),    // 115: lazybox.bench.v1.ListRepositoryDiscoveryRequest
-	(*ScanRepositoryRootRequest)(nil),         // 116: lazybox.bench.v1.ScanRepositoryRootRequest
-	(*DiscoveredRepository)(nil),              // 117: lazybox.bench.v1.DiscoveredRepository
-	(*RepositorySearchRoot)(nil),              // 118: lazybox.bench.v1.RepositorySearchRoot
-	(*RepositoryDiscovery)(nil),               // 119: lazybox.bench.v1.RepositoryDiscovery
-	(*ConnectGitHubPersonalTokenRequest)(nil), // 120: lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
-	(*ConfigureGitHubAppRequest)(nil),         // 121: lazybox.bench.v1.ConfigureGitHubAppRequest
-	(*GitHubConnection)(nil),                  // 122: lazybox.bench.v1.GitHubConnection
-	(*BeginGitHubSignInRequest)(nil),          // 123: lazybox.bench.v1.BeginGitHubSignInRequest
-	(*GitHubSignInRequest)(nil),               // 124: lazybox.bench.v1.GitHubSignInRequest
-	(*GitHubSignIn)(nil),                      // 125: lazybox.bench.v1.GitHubSignIn
-	(*ListGitHubInstallationsRequest)(nil),    // 126: lazybox.bench.v1.ListGitHubInstallationsRequest
-	(*GitHubInstallation)(nil),                // 127: lazybox.bench.v1.GitHubInstallation
-	(*ListGitHubInstallationsResponse)(nil),   // 128: lazybox.bench.v1.ListGitHubInstallationsResponse
-	(*ListGitHubRepositoriesRequest)(nil),     // 129: lazybox.bench.v1.ListGitHubRepositoriesRequest
-	(*GitHubRepository)(nil),                  // 130: lazybox.bench.v1.GitHubRepository
-	(*ListGitHubRepositoriesResponse)(nil),    // 131: lazybox.bench.v1.ListGitHubRepositoriesResponse
-	(*ImportGitHubRepositoryRequest)(nil),     // 132: lazybox.bench.v1.ImportGitHubRepositoryRequest
-	(*ImportGitHubRepositoryResponse)(nil),    // 133: lazybox.bench.v1.ImportGitHubRepositoryResponse
-	(*ListGitHubItemsRequest)(nil),            // 134: lazybox.bench.v1.ListGitHubItemsRequest
-	(*GitHubItem)(nil),                        // 135: lazybox.bench.v1.GitHubItem
-	(*ListGitHubItemsResponse)(nil),           // 136: lazybox.bench.v1.ListGitHubItemsResponse
-	(*WorkspaceDeletionPreview)(nil),          // 137: lazybox.bench.v1.WorkspaceDeletionPreview
-	(*DeleteWorkspaceRequest)(nil),            // 138: lazybox.bench.v1.DeleteWorkspaceRequest
-	(*WorkspaceFileRequest)(nil),              // 139: lazybox.bench.v1.WorkspaceFileRequest
-	(*WorkspaceDirectoryEntry)(nil),           // 140: lazybox.bench.v1.WorkspaceDirectoryEntry
-	(*WorkspaceFile)(nil),                     // 141: lazybox.bench.v1.WorkspaceFile
-	(*SaveWorkspaceFileRequest)(nil),          // 142: lazybox.bench.v1.SaveWorkspaceFileRequest
-	(*SearchWorkspaceFilesRequest)(nil),       // 143: lazybox.bench.v1.SearchWorkspaceFilesRequest
-	(*WorkspaceFileMatch)(nil),                // 144: lazybox.bench.v1.WorkspaceFileMatch
-	(*WorkspaceFileSearch)(nil),               // 145: lazybox.bench.v1.WorkspaceFileSearch
-	(*ResolveWorkspacePathRequest)(nil),       // 146: lazybox.bench.v1.ResolveWorkspacePathRequest
-	(*WorkspacePathMatch)(nil),                // 147: lazybox.bench.v1.WorkspacePathMatch
-	(*WorkspacePathResolution)(nil),           // 148: lazybox.bench.v1.WorkspacePathResolution
-	(*DeleteConversationRequest)(nil),         // 149: lazybox.bench.v1.DeleteConversationRequest
-	(*DeleteConversationResponse)(nil),        // 150: lazybox.bench.v1.DeleteConversationResponse
-	(*RemoveRepositoryRequest)(nil),           // 151: lazybox.bench.v1.RemoveRepositoryRequest
-	(*GetRepositoryCatalogRequest)(nil),       // 152: lazybox.bench.v1.GetRepositoryCatalogRequest
-	(*RepositoryCatalogEntry)(nil),            // 153: lazybox.bench.v1.RepositoryCatalogEntry
-	(*RepositoryCatalogSource)(nil),           // 154: lazybox.bench.v1.RepositoryCatalogSource
-	(*RepositoryCatalog)(nil),                 // 155: lazybox.bench.v1.RepositoryCatalog
-	(*PrepareWorkspaceRequest)(nil),           // 156: lazybox.bench.v1.PrepareWorkspaceRequest
-	(*WorkspacePreparation)(nil),              // 157: lazybox.bench.v1.WorkspacePreparation
-	(*Snippet)(nil),                           // 158: lazybox.bench.v1.Snippet
-	(*SnippetCatalog)(nil),                    // 159: lazybox.bench.v1.SnippetCatalog
-	(*ListProcessesRequest)(nil),              // 160: lazybox.bench.v1.ListProcessesRequest
-	(*StopProcessRequest)(nil),                // 161: lazybox.bench.v1.StopProcessRequest
-	(*CleanUpOrphanProcessesRequest)(nil),     // 162: lazybox.bench.v1.CleanUpOrphanProcessesRequest
-	(*ProcessUsage)(nil),                      // 163: lazybox.bench.v1.ProcessUsage
-	(*HostedProcess)(nil),                     // 164: lazybox.bench.v1.HostedProcess
-	(*ProcessHosting)(nil),                    // 165: lazybox.bench.v1.ProcessHosting
-	(*ProcessInventory)(nil),                  // 166: lazybox.bench.v1.ProcessInventory
-	(*CleanUpOrphanProcessesResponse)(nil),    // 167: lazybox.bench.v1.CleanUpOrphanProcessesResponse
-	nil,                                       // 168: lazybox.bench.v1.Answer.AnswersEntry
+	(Decision)(0),                              // 0: lazybox.bench.v1.Decision
+	(*InfoRequest)(nil),                        // 1: lazybox.bench.v1.InfoRequest
+	(*ModelPrice)(nil),                         // 2: lazybox.bench.v1.ModelPrice
+	(*RunnerSettings)(nil),                     // 3: lazybox.bench.v1.RunnerSettings
+	(*SetModelPriceRequest)(nil),               // 4: lazybox.bench.v1.SetModelPriceRequest
+	(*RenameCollectionRequest)(nil),            // 5: lazybox.bench.v1.RenameCollectionRequest
+	(*TelemetryRequest)(nil),                   // 6: lazybox.bench.v1.TelemetryRequest
+	(*TelemetryScope)(nil),                     // 7: lazybox.bench.v1.TelemetryScope
+	(*TokenCounts)(nil),                        // 8: lazybox.bench.v1.TokenCounts
+	(*ContextDetail)(nil),                      // 9: lazybox.bench.v1.ContextDetail
+	(*ContextCategory)(nil),                    // 10: lazybox.bench.v1.ContextCategory
+	(*ContextSnapshot)(nil),                    // 11: lazybox.bench.v1.ContextSnapshot
+	(*UsageRecord)(nil),                        // 12: lazybox.bench.v1.UsageRecord
+	(*UsageGroup)(nil),                         // 13: lazybox.bench.v1.UsageGroup
+	(*TelemetryReport)(nil),                    // 14: lazybox.bench.v1.TelemetryReport
+	(*AddSubscriptionRequest)(nil),             // 15: lazybox.bench.v1.AddSubscriptionRequest
+	(*SubscriptionEnrollmentRequest)(nil),      // 16: lazybox.bench.v1.SubscriptionEnrollmentRequest
+	(*RefreshSubscriptionRequest)(nil),         // 17: lazybox.bench.v1.RefreshSubscriptionRequest
+	(*SubscriptionEnrollment)(nil),             // 18: lazybox.bench.v1.SubscriptionEnrollment
+	(*UsageWindow)(nil),                        // 19: lazybox.bench.v1.UsageWindow
+	(*Profile)(nil),                            // 20: lazybox.bench.v1.Profile
+	(*Gateway)(nil),                            // 21: lazybox.bench.v1.Gateway
+	(*InfoResponse)(nil),                       // 22: lazybox.bench.v1.InfoResponse
+	(*RestartRunnerRequest)(nil),               // 23: lazybox.bench.v1.RestartRunnerRequest
+	(*RestartRunnerResponse)(nil),              // 24: lazybox.bench.v1.RestartRunnerResponse
+	(*AttachmentLimits)(nil),                   // 25: lazybox.bench.v1.AttachmentLimits
+	(*RunnerOptions)(nil),                      // 26: lazybox.bench.v1.RunnerOptions
+	(*OpenSessionRequest)(nil),                 // 27: lazybox.bench.v1.OpenSessionRequest
+	(*OpenAssistantRequest)(nil),               // 28: lazybox.bench.v1.OpenAssistantRequest
+	(*AccountObservation)(nil),                 // 29: lazybox.bench.v1.AccountObservation
+	(*AgentActivity)(nil),                      // 30: lazybox.bench.v1.AgentActivity
+	(*ListHistoryRequest)(nil),                 // 31: lazybox.bench.v1.ListHistoryRequest
+	(*RenameConversationRequest)(nil),          // 32: lazybox.bench.v1.RenameConversationRequest
+	(*WorkspaceChangesRequest)(nil),            // 33: lazybox.bench.v1.WorkspaceChangesRequest
+	(*ChangedFile)(nil),                        // 34: lazybox.bench.v1.ChangedFile
+	(*Commit)(nil),                             // 35: lazybox.bench.v1.Commit
+	(*RepositoryChanges)(nil),                  // 36: lazybox.bench.v1.RepositoryChanges
+	(*WorkspaceChanges)(nil),                   // 37: lazybox.bench.v1.WorkspaceChanges
+	(*CommitWorkspaceChangesRequest)(nil),      // 38: lazybox.bench.v1.CommitWorkspaceChangesRequest
+	(*CommitWorkspaceChangesResponse)(nil),     // 39: lazybox.bench.v1.CommitWorkspaceChangesResponse
+	(*PushWorkspaceBranchRequest)(nil),         // 40: lazybox.bench.v1.PushWorkspaceBranchRequest
+	(*PushWorkspaceBranchResponse)(nil),        // 41: lazybox.bench.v1.PushWorkspaceBranchResponse
+	(*CreatePullRequestRequest)(nil),           // 42: lazybox.bench.v1.CreatePullRequestRequest
+	(*GetPullRequestRequest)(nil),              // 43: lazybox.bench.v1.GetPullRequestRequest
+	(*MergePullRequestRequest)(nil),            // 44: lazybox.bench.v1.MergePullRequestRequest
+	(*PullRequestCheck)(nil),                   // 45: lazybox.bench.v1.PullRequestCheck
+	(*PullRequestStatus)(nil),                  // 46: lazybox.bench.v1.PullRequestStatus
+	(*WorkspaceDiffRequest)(nil),               // 47: lazybox.bench.v1.WorkspaceDiffRequest
+	(*WorkspaceDiff)(nil),                      // 48: lazybox.bench.v1.WorkspaceDiff
+	(*ListHistoryResponse)(nil),                // 49: lazybox.bench.v1.ListHistoryResponse
+	(*RestartWithPermissionRequest)(nil),       // 50: lazybox.bench.v1.RestartWithPermissionRequest
+	(*SwitchSubscriptionRequest)(nil),          // 51: lazybox.bench.v1.SwitchSubscriptionRequest
+	(*SetSessionRotationRequest)(nil),          // 52: lazybox.bench.v1.SetSessionRotationRequest
+	(*ResumeSessionRequest)(nil),               // 53: lazybox.bench.v1.ResumeSessionRequest
+	(*SessionRequest)(nil),                     // 54: lazybox.bench.v1.SessionRequest
+	(*Capabilities)(nil),                       // 55: lazybox.bench.v1.Capabilities
+	(*AgentEvent)(nil),                         // 56: lazybox.bench.v1.AgentEvent
+	(*Session)(nil),                            // 57: lazybox.bench.v1.Session
+	(*Repository)(nil),                         // 58: lazybox.bench.v1.Repository
+	(*AddLocalRepositoryRequest)(nil),          // 59: lazybox.bench.v1.AddLocalRepositoryRequest
+	(*AddLocalRepositoryResponse)(nil),         // 60: lazybox.bench.v1.AddLocalRepositoryResponse
+	(*ListRepositoriesRequest)(nil),            // 61: lazybox.bench.v1.ListRepositoriesRequest
+	(*ListRepositoriesResponse)(nil),           // 62: lazybox.bench.v1.ListRepositoriesResponse
+	(*WorktreeSpec)(nil),                       // 63: lazybox.bench.v1.WorktreeSpec
+	(*CollectionSpec)(nil),                     // 64: lazybox.bench.v1.CollectionSpec
+	(*CollectionWorktree)(nil),                 // 65: lazybox.bench.v1.CollectionWorktree
+	(*Collection)(nil),                         // 66: lazybox.bench.v1.Collection
+	(*CreateCollectionRequest)(nil),            // 67: lazybox.bench.v1.CreateCollectionRequest
+	(*AddCollectionRepositoriesRequest)(nil),   // 68: lazybox.bench.v1.AddCollectionRepositoriesRequest
+	(*CollectionRequest)(nil),                  // 69: lazybox.bench.v1.CollectionRequest
+	(*CollectionResponse)(nil),                 // 70: lazybox.bench.v1.CollectionResponse
+	(*ListCollectionsRequest)(nil),             // 71: lazybox.bench.v1.ListCollectionsRequest
+	(*ListCollectionsResponse)(nil),            // 72: lazybox.bench.v1.ListCollectionsResponse
+	(*ReconcileCollectionRequest)(nil),         // 73: lazybox.bench.v1.ReconcileCollectionRequest
+	(*SessionResponse)(nil),                    // 74: lazybox.bench.v1.SessionResponse
+	(*Image)(nil),                              // 75: lazybox.bench.v1.Image
+	(*Message)(nil),                            // 76: lazybox.bench.v1.Message
+	(*FileAttachment)(nil),                     // 77: lazybox.bench.v1.FileAttachment
+	(*Interrupt)(nil),                          // 78: lazybox.bench.v1.Interrupt
+	(*Answers)(nil),                            // 79: lazybox.bench.v1.Answers
+	(*Answer)(nil),                             // 80: lazybox.bench.v1.Answer
+	(*Approval)(nil),                           // 81: lazybox.bench.v1.Approval
+	(*ApplyRequest)(nil),                       // 82: lazybox.bench.v1.ApplyRequest
+	(*Permission)(nil),                         // 83: lazybox.bench.v1.Permission
+	(*Receipt)(nil),                            // 84: lazybox.bench.v1.Receipt
+	(*WatchEventsRequest)(nil),                 // 85: lazybox.bench.v1.WatchEventsRequest
+	(*JournalEvent)(nil),                       // 86: lazybox.bench.v1.JournalEvent
+	(*Checkpoint)(nil),                         // 87: lazybox.bench.v1.Checkpoint
+	(*ContinueSessionRequest)(nil),             // 88: lazybox.bench.v1.ContinueSessionRequest
+	(*CommandRequest)(nil),                     // 89: lazybox.bench.v1.CommandRequest
+	(*StartCommandRequest)(nil),                // 90: lazybox.bench.v1.StartCommandRequest
+	(*RegisterPipeRequest)(nil),                // 91: lazybox.bench.v1.RegisterPipeRequest
+	(*PublishRequest)(nil),                     // 92: lazybox.bench.v1.PublishRequest
+	(*FinishPipeRequest)(nil),                  // 93: lazybox.bench.v1.FinishPipeRequest
+	(*CommandReport)(nil),                      // 94: lazybox.bench.v1.CommandReport
+	(*CommandStatus)(nil),                      // 95: lazybox.bench.v1.CommandStatus
+	(*ListCommandsRequest)(nil),                // 96: lazybox.bench.v1.ListCommandsRequest
+	(*ClaimCommandShareResponse)(nil),          // 97: lazybox.bench.v1.ClaimCommandShareResponse
+	(*ListCommandsResponse)(nil),               // 98: lazybox.bench.v1.ListCommandsResponse
+	(*ReadCommandRequest)(nil),                 // 99: lazybox.bench.v1.ReadCommandRequest
+	(*ReadCommandResponse)(nil),                // 100: lazybox.bench.v1.ReadCommandResponse
+	(*WatchOutputRequest)(nil),                 // 101: lazybox.bench.v1.WatchOutputRequest
+	(*OutputEvent)(nil),                        // 102: lazybox.bench.v1.OutputEvent
+	(*OpenTerminalRequest)(nil),                // 103: lazybox.bench.v1.OpenTerminalRequest
+	(*TerminalRequest)(nil),                    // 104: lazybox.bench.v1.TerminalRequest
+	(*TerminalStatus)(nil),                     // 105: lazybox.bench.v1.TerminalStatus
+	(*ListTerminalsRequest)(nil),               // 106: lazybox.bench.v1.ListTerminalsRequest
+	(*ListTerminalsResponse)(nil),              // 107: lazybox.bench.v1.ListTerminalsResponse
+	(*WatchTerminalRequest)(nil),               // 108: lazybox.bench.v1.WatchTerminalRequest
+	(*TerminalEvent)(nil),                      // 109: lazybox.bench.v1.TerminalEvent
+	(*WriteTerminalRequest)(nil),               // 110: lazybox.bench.v1.WriteTerminalRequest
+	(*ResizeTerminalRequest)(nil),              // 111: lazybox.bench.v1.ResizeTerminalRequest
+	(*VersionRequest)(nil),                     // 112: lazybox.bench.v1.VersionRequest
+	(*VersionResponse)(nil),                    // 113: lazybox.bench.v1.VersionResponse
+	(*GetGitHubConnectionRequest)(nil),         // 114: lazybox.bench.v1.GetGitHubConnectionRequest
+	(*ListRepositoryDiscoveryRequest)(nil),     // 115: lazybox.bench.v1.ListRepositoryDiscoveryRequest
+	(*ScanRepositoryRootRequest)(nil),          // 116: lazybox.bench.v1.ScanRepositoryRootRequest
+	(*DiscoveredRepository)(nil),               // 117: lazybox.bench.v1.DiscoveredRepository
+	(*RepositorySearchRoot)(nil),               // 118: lazybox.bench.v1.RepositorySearchRoot
+	(*RepositoryDiscovery)(nil),                // 119: lazybox.bench.v1.RepositoryDiscovery
+	(*ConnectGitHubPersonalTokenRequest)(nil),  // 120: lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
+	(*ConfigureGitHubAppRequest)(nil),          // 121: lazybox.bench.v1.ConfigureGitHubAppRequest
+	(*GitHubConnection)(nil),                   // 122: lazybox.bench.v1.GitHubConnection
+	(*BeginGitHubSignInRequest)(nil),           // 123: lazybox.bench.v1.BeginGitHubSignInRequest
+	(*GitHubSignInRequest)(nil),                // 124: lazybox.bench.v1.GitHubSignInRequest
+	(*GitHubSignIn)(nil),                       // 125: lazybox.bench.v1.GitHubSignIn
+	(*ListGitHubInstallationsRequest)(nil),     // 126: lazybox.bench.v1.ListGitHubInstallationsRequest
+	(*GitHubInstallation)(nil),                 // 127: lazybox.bench.v1.GitHubInstallation
+	(*ListGitHubInstallationsResponse)(nil),    // 128: lazybox.bench.v1.ListGitHubInstallationsResponse
+	(*ListGitHubRepositoriesRequest)(nil),      // 129: lazybox.bench.v1.ListGitHubRepositoriesRequest
+	(*GitHubRepository)(nil),                   // 130: lazybox.bench.v1.GitHubRepository
+	(*ListGitHubRepositoriesResponse)(nil),     // 131: lazybox.bench.v1.ListGitHubRepositoriesResponse
+	(*ImportGitHubRepositoryRequest)(nil),      // 132: lazybox.bench.v1.ImportGitHubRepositoryRequest
+	(*ImportGitHubRepositoryResponse)(nil),     // 133: lazybox.bench.v1.ImportGitHubRepositoryResponse
+	(*ListGitHubItemsRequest)(nil),             // 134: lazybox.bench.v1.ListGitHubItemsRequest
+	(*GitHubItem)(nil),                         // 135: lazybox.bench.v1.GitHubItem
+	(*ListGitHubItemsResponse)(nil),            // 136: lazybox.bench.v1.ListGitHubItemsResponse
+	(*WorkspaceDeletionPreview)(nil),           // 137: lazybox.bench.v1.WorkspaceDeletionPreview
+	(*DeleteWorkspaceRequest)(nil),             // 138: lazybox.bench.v1.DeleteWorkspaceRequest
+	(*WorkspaceFileRequest)(nil),               // 139: lazybox.bench.v1.WorkspaceFileRequest
+	(*WorkspaceDirectoryEntry)(nil),            // 140: lazybox.bench.v1.WorkspaceDirectoryEntry
+	(*WorkspaceFile)(nil),                      // 141: lazybox.bench.v1.WorkspaceFile
+	(*SaveWorkspaceFileRequest)(nil),           // 142: lazybox.bench.v1.SaveWorkspaceFileRequest
+	(*SearchWorkspaceFilesRequest)(nil),        // 143: lazybox.bench.v1.SearchWorkspaceFilesRequest
+	(*WorkspaceFileMatch)(nil),                 // 144: lazybox.bench.v1.WorkspaceFileMatch
+	(*WorkspaceFileSearch)(nil),                // 145: lazybox.bench.v1.WorkspaceFileSearch
+	(*ResolveWorkspacePathRequest)(nil),        // 146: lazybox.bench.v1.ResolveWorkspacePathRequest
+	(*WorkspacePathMatch)(nil),                 // 147: lazybox.bench.v1.WorkspacePathMatch
+	(*WorkspacePathResolution)(nil),            // 148: lazybox.bench.v1.WorkspacePathResolution
+	(*DeleteConversationRequest)(nil),          // 149: lazybox.bench.v1.DeleteConversationRequest
+	(*DeleteConversationResponse)(nil),         // 150: lazybox.bench.v1.DeleteConversationResponse
+	(*RemoveRepositoryRequest)(nil),            // 151: lazybox.bench.v1.RemoveRepositoryRequest
+	(*GetRepositoryCatalogRequest)(nil),        // 152: lazybox.bench.v1.GetRepositoryCatalogRequest
+	(*RepositoryCatalogEntry)(nil),             // 153: lazybox.bench.v1.RepositoryCatalogEntry
+	(*RepositoryCatalogSource)(nil),            // 154: lazybox.bench.v1.RepositoryCatalogSource
+	(*RepositoryCatalog)(nil),                  // 155: lazybox.bench.v1.RepositoryCatalog
+	(*PrepareWorkspaceRequest)(nil),            // 156: lazybox.bench.v1.PrepareWorkspaceRequest
+	(*WorkspacePreparation)(nil),               // 157: lazybox.bench.v1.WorkspacePreparation
+	(*Snippet)(nil),                            // 158: lazybox.bench.v1.Snippet
+	(*SnippetCatalog)(nil),                     // 159: lazybox.bench.v1.SnippetCatalog
+	(*ListProcessesRequest)(nil),               // 160: lazybox.bench.v1.ListProcessesRequest
+	(*StopProcessRequest)(nil),                 // 161: lazybox.bench.v1.StopProcessRequest
+	(*CleanUpOrphanProcessesRequest)(nil),      // 162: lazybox.bench.v1.CleanUpOrphanProcessesRequest
+	(*ProcessUsage)(nil),                       // 163: lazybox.bench.v1.ProcessUsage
+	(*HostedProcess)(nil),                      // 164: lazybox.bench.v1.HostedProcess
+	(*ProcessHosting)(nil),                     // 165: lazybox.bench.v1.ProcessHosting
+	(*ProcessInventory)(nil),                   // 166: lazybox.bench.v1.ProcessInventory
+	(*CleanUpOrphanProcessesResponse)(nil),     // 167: lazybox.bench.v1.CleanUpOrphanProcessesResponse
+	(*OrchestrationProcessRequest)(nil),        // 168: lazybox.bench.v1.OrchestrationProcessRequest
+	(*OrchestrationProcessLayer)(nil),          // 169: lazybox.bench.v1.OrchestrationProcessLayer
+	(*OrchestrationProcessIssue)(nil),          // 170: lazybox.bench.v1.OrchestrationProcessIssue
+	(*OrchestrationProcessCandidate)(nil),      // 171: lazybox.bench.v1.OrchestrationProcessCandidate
+	(*OrchestrationProcess)(nil),               // 172: lazybox.bench.v1.OrchestrationProcess
+	(*ExplainOrchestrationProcessRequest)(nil), // 173: lazybox.bench.v1.ExplainOrchestrationProcessRequest
+	(*OrchestrationReaction)(nil),              // 174: lazybox.bench.v1.OrchestrationReaction
+	(*OrchestrationProcessExplanation)(nil),    // 175: lazybox.bench.v1.OrchestrationProcessExplanation
+	nil,                                        // 176: lazybox.bench.v1.Answer.AnswersEntry
 }
 var file_api_proto_depIdxs = []int32{
 	2,   // 0: lazybox.bench.v1.RunnerSettings.prices:type_name -> lazybox.bench.v1.ModelPrice
@@ -12933,7 +13703,7 @@ var file_api_proto_depIdxs = []int32{
 	57,  // 41: lazybox.bench.v1.SessionResponse.session:type_name -> lazybox.bench.v1.Session
 	75,  // 42: lazybox.bench.v1.Message.images:type_name -> lazybox.bench.v1.Image
 	77,  // 43: lazybox.bench.v1.Message.attachments:type_name -> lazybox.bench.v1.FileAttachment
-	168, // 44: lazybox.bench.v1.Answer.answers:type_name -> lazybox.bench.v1.Answer.AnswersEntry
+	176, // 44: lazybox.bench.v1.Answer.answers:type_name -> lazybox.bench.v1.Answer.AnswersEntry
 	0,   // 45: lazybox.bench.v1.Approval.decision:type_name -> lazybox.bench.v1.Decision
 	76,  // 46: lazybox.bench.v1.ApplyRequest.message:type_name -> lazybox.bench.v1.Message
 	76,  // 47: lazybox.bench.v1.ApplyRequest.steer:type_name -> lazybox.bench.v1.Message
@@ -12970,180 +13740,190 @@ var file_api_proto_depIdxs = []int32{
 	164, // 78: lazybox.bench.v1.ProcessInventory.processes:type_name -> lazybox.bench.v1.HostedProcess
 	165, // 79: lazybox.bench.v1.ProcessInventory.hosting:type_name -> lazybox.bench.v1.ProcessHosting
 	166, // 80: lazybox.bench.v1.CleanUpOrphanProcessesResponse.inventory:type_name -> lazybox.bench.v1.ProcessInventory
-	79,  // 81: lazybox.bench.v1.Answer.AnswersEntry.value:type_name -> lazybox.bench.v1.Answers
-	1,   // 82: lazybox.bench.v1.RunnerService.ListSnippets:input_type -> lazybox.bench.v1.InfoRequest
-	152, // 83: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:input_type -> lazybox.bench.v1.GetRepositoryCatalogRequest
-	156, // 84: lazybox.bench.v1.RunnerService.PrepareWorkspace:input_type -> lazybox.bench.v1.PrepareWorkspaceRequest
-	112, // 85: lazybox.bench.v1.RunnerService.Version:input_type -> lazybox.bench.v1.VersionRequest
-	1,   // 86: lazybox.bench.v1.RunnerService.GetRunnerSettings:input_type -> lazybox.bench.v1.InfoRequest
-	3,   // 87: lazybox.bench.v1.RunnerService.SaveRunnerSettings:input_type -> lazybox.bench.v1.RunnerSettings
-	4,   // 88: lazybox.bench.v1.RunnerService.SetModelPrice:input_type -> lazybox.bench.v1.SetModelPriceRequest
-	1,   // 89: lazybox.bench.v1.RunnerService.Info:input_type -> lazybox.bench.v1.InfoRequest
-	6,   // 90: lazybox.bench.v1.RunnerService.GetTelemetry:input_type -> lazybox.bench.v1.TelemetryRequest
-	5,   // 91: lazybox.bench.v1.RunnerService.RenameCollection:input_type -> lazybox.bench.v1.RenameCollectionRequest
-	15,  // 92: lazybox.bench.v1.RunnerService.AddSubscription:input_type -> lazybox.bench.v1.AddSubscriptionRequest
-	16,  // 93: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
-	16,  // 94: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
-	17,  // 95: lazybox.bench.v1.RunnerService.RefreshSubscription:input_type -> lazybox.bench.v1.RefreshSubscriptionRequest
-	114, // 96: lazybox.bench.v1.RunnerService.GetGitHubConnection:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
-	121, // 97: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:input_type -> lazybox.bench.v1.ConfigureGitHubAppRequest
-	120, // 98: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:input_type -> lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
-	115, // 99: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:input_type -> lazybox.bench.v1.ListRepositoryDiscoveryRequest
-	116, // 100: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:input_type -> lazybox.bench.v1.ScanRepositoryRootRequest
-	123, // 101: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:input_type -> lazybox.bench.v1.BeginGitHubSignInRequest
-	124, // 102: lazybox.bench.v1.RunnerService.GetGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
-	124, // 103: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
-	114, // 104: lazybox.bench.v1.RunnerService.DisconnectGitHub:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
-	126, // 105: lazybox.bench.v1.RunnerService.ListGitHubInstallations:input_type -> lazybox.bench.v1.ListGitHubInstallationsRequest
-	129, // 106: lazybox.bench.v1.RunnerService.ListGitHubRepositories:input_type -> lazybox.bench.v1.ListGitHubRepositoriesRequest
-	132, // 107: lazybox.bench.v1.RunnerService.ImportGitHubRepository:input_type -> lazybox.bench.v1.ImportGitHubRepositoryRequest
-	134, // 108: lazybox.bench.v1.RunnerService.ListGitHubItems:input_type -> lazybox.bench.v1.ListGitHubItemsRequest
-	59,  // 109: lazybox.bench.v1.RunnerService.AddLocalRepository:input_type -> lazybox.bench.v1.AddLocalRepositoryRequest
-	61,  // 110: lazybox.bench.v1.RunnerService.ListRepositories:input_type -> lazybox.bench.v1.ListRepositoriesRequest
-	151, // 111: lazybox.bench.v1.RunnerService.RemoveRepository:input_type -> lazybox.bench.v1.RemoveRepositoryRequest
-	67,  // 112: lazybox.bench.v1.RunnerService.CreateCollection:input_type -> lazybox.bench.v1.CreateCollectionRequest
-	68,  // 113: lazybox.bench.v1.RunnerService.AddCollectionRepositories:input_type -> lazybox.bench.v1.AddCollectionRepositoriesRequest
-	69,  // 114: lazybox.bench.v1.RunnerService.GetCollection:input_type -> lazybox.bench.v1.CollectionRequest
-	71,  // 115: lazybox.bench.v1.RunnerService.ListCollections:input_type -> lazybox.bench.v1.ListCollectionsRequest
-	69,  // 116: lazybox.bench.v1.RunnerService.ArchiveCollection:input_type -> lazybox.bench.v1.CollectionRequest
-	73,  // 117: lazybox.bench.v1.RunnerService.ReconcileCollection:input_type -> lazybox.bench.v1.ReconcileCollectionRequest
-	27,  // 118: lazybox.bench.v1.RunnerService.OpenSession:input_type -> lazybox.bench.v1.OpenSessionRequest
-	28,  // 119: lazybox.bench.v1.RunnerService.OpenAssistant:input_type -> lazybox.bench.v1.OpenAssistantRequest
-	32,  // 120: lazybox.bench.v1.RunnerService.RenameConversation:input_type -> lazybox.bench.v1.RenameConversationRequest
-	33,  // 121: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:input_type -> lazybox.bench.v1.WorkspaceChangesRequest
-	47,  // 122: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:input_type -> lazybox.bench.v1.WorkspaceDiffRequest
-	139, // 123: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:input_type -> lazybox.bench.v1.WorkspaceFileRequest
-	142, // 124: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:input_type -> lazybox.bench.v1.SaveWorkspaceFileRequest
-	143, // 125: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:input_type -> lazybox.bench.v1.SearchWorkspaceFilesRequest
-	146, // 126: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:input_type -> lazybox.bench.v1.ResolveWorkspacePathRequest
-	31,  // 127: lazybox.bench.v1.RunnerService.ListHistory:input_type -> lazybox.bench.v1.ListHistoryRequest
-	53,  // 128: lazybox.bench.v1.RunnerService.ResumeSession:input_type -> lazybox.bench.v1.ResumeSessionRequest
-	50,  // 129: lazybox.bench.v1.RunnerService.RestartWithPermission:input_type -> lazybox.bench.v1.RestartWithPermissionRequest
-	51,  // 130: lazybox.bench.v1.RunnerService.SwitchSubscription:input_type -> lazybox.bench.v1.SwitchSubscriptionRequest
-	52,  // 131: lazybox.bench.v1.RunnerService.SetSessionRotation:input_type -> lazybox.bench.v1.SetSessionRotationRequest
-	54,  // 132: lazybox.bench.v1.RunnerService.GetSession:input_type -> lazybox.bench.v1.SessionRequest
-	82,  // 133: lazybox.bench.v1.RunnerService.Apply:input_type -> lazybox.bench.v1.ApplyRequest
-	54,  // 134: lazybox.bench.v1.RunnerService.CloseSession:input_type -> lazybox.bench.v1.SessionRequest
-	54,  // 135: lazybox.bench.v1.RunnerService.StopSessionResources:input_type -> lazybox.bench.v1.SessionRequest
-	149, // 136: lazybox.bench.v1.RunnerService.DeleteConversation:input_type -> lazybox.bench.v1.DeleteConversationRequest
-	69,  // 137: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:input_type -> lazybox.bench.v1.CollectionRequest
-	138, // 138: lazybox.bench.v1.RunnerService.DeleteWorkspace:input_type -> lazybox.bench.v1.DeleteWorkspaceRequest
-	88,  // 139: lazybox.bench.v1.RunnerService.ContinueSession:input_type -> lazybox.bench.v1.ContinueSessionRequest
-	85,  // 140: lazybox.bench.v1.RunnerService.WatchEvents:input_type -> lazybox.bench.v1.WatchEventsRequest
-	90,  // 141: lazybox.bench.v1.RunnerService.StartCommand:input_type -> lazybox.bench.v1.StartCommandRequest
-	91,  // 142: lazybox.bench.v1.RunnerService.RegisterPipe:input_type -> lazybox.bench.v1.RegisterPipeRequest
-	92,  // 143: lazybox.bench.v1.RunnerService.Publish:input_type -> lazybox.bench.v1.PublishRequest
-	93,  // 144: lazybox.bench.v1.RunnerService.FinishPipe:input_type -> lazybox.bench.v1.FinishPipeRequest
-	96,  // 145: lazybox.bench.v1.RunnerService.ListCommands:input_type -> lazybox.bench.v1.ListCommandsRequest
-	89,  // 146: lazybox.bench.v1.RunnerService.ClaimCommandShare:input_type -> lazybox.bench.v1.CommandRequest
-	99,  // 147: lazybox.bench.v1.RunnerService.ReadCommand:input_type -> lazybox.bench.v1.ReadCommandRequest
-	89,  // 148: lazybox.bench.v1.RunnerService.WaitCommand:input_type -> lazybox.bench.v1.CommandRequest
-	89,  // 149: lazybox.bench.v1.RunnerService.CancelCommand:input_type -> lazybox.bench.v1.CommandRequest
-	101, // 150: lazybox.bench.v1.RunnerService.WatchOutput:input_type -> lazybox.bench.v1.WatchOutputRequest
-	103, // 151: lazybox.bench.v1.RunnerService.OpenTerminal:input_type -> lazybox.bench.v1.OpenTerminalRequest
-	106, // 152: lazybox.bench.v1.RunnerService.ListTerminals:input_type -> lazybox.bench.v1.ListTerminalsRequest
-	108, // 153: lazybox.bench.v1.RunnerService.WatchTerminal:input_type -> lazybox.bench.v1.WatchTerminalRequest
-	110, // 154: lazybox.bench.v1.RunnerService.WriteTerminal:input_type -> lazybox.bench.v1.WriteTerminalRequest
-	111, // 155: lazybox.bench.v1.RunnerService.ResizeTerminal:input_type -> lazybox.bench.v1.ResizeTerminalRequest
-	104, // 156: lazybox.bench.v1.RunnerService.CloseTerminal:input_type -> lazybox.bench.v1.TerminalRequest
-	23,  // 157: lazybox.bench.v1.RunnerService.RestartRunner:input_type -> lazybox.bench.v1.RestartRunnerRequest
-	38,  // 158: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:input_type -> lazybox.bench.v1.CommitWorkspaceChangesRequest
-	40,  // 159: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:input_type -> lazybox.bench.v1.PushWorkspaceBranchRequest
-	42,  // 160: lazybox.bench.v1.RunnerService.CreatePullRequest:input_type -> lazybox.bench.v1.CreatePullRequestRequest
-	43,  // 161: lazybox.bench.v1.RunnerService.GetPullRequest:input_type -> lazybox.bench.v1.GetPullRequestRequest
-	44,  // 162: lazybox.bench.v1.RunnerService.MergePullRequest:input_type -> lazybox.bench.v1.MergePullRequestRequest
-	160, // 163: lazybox.bench.v1.RunnerService.ListProcesses:input_type -> lazybox.bench.v1.ListProcessesRequest
-	161, // 164: lazybox.bench.v1.RunnerService.StopProcess:input_type -> lazybox.bench.v1.StopProcessRequest
-	162, // 165: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:input_type -> lazybox.bench.v1.CleanUpOrphanProcessesRequest
-	159, // 166: lazybox.bench.v1.RunnerService.ListSnippets:output_type -> lazybox.bench.v1.SnippetCatalog
-	155, // 167: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:output_type -> lazybox.bench.v1.RepositoryCatalog
-	157, // 168: lazybox.bench.v1.RunnerService.PrepareWorkspace:output_type -> lazybox.bench.v1.WorkspacePreparation
-	113, // 169: lazybox.bench.v1.RunnerService.Version:output_type -> lazybox.bench.v1.VersionResponse
-	3,   // 170: lazybox.bench.v1.RunnerService.GetRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
-	3,   // 171: lazybox.bench.v1.RunnerService.SaveRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
-	3,   // 172: lazybox.bench.v1.RunnerService.SetModelPrice:output_type -> lazybox.bench.v1.RunnerSettings
-	22,  // 173: lazybox.bench.v1.RunnerService.Info:output_type -> lazybox.bench.v1.InfoResponse
-	14,  // 174: lazybox.bench.v1.RunnerService.GetTelemetry:output_type -> lazybox.bench.v1.TelemetryReport
-	70,  // 175: lazybox.bench.v1.RunnerService.RenameCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	18,  // 176: lazybox.bench.v1.RunnerService.AddSubscription:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	18,  // 177: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	18,  // 178: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	20,  // 179: lazybox.bench.v1.RunnerService.RefreshSubscription:output_type -> lazybox.bench.v1.Profile
-	122, // 180: lazybox.bench.v1.RunnerService.GetGitHubConnection:output_type -> lazybox.bench.v1.GitHubConnection
-	122, // 181: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:output_type -> lazybox.bench.v1.GitHubConnection
-	122, // 182: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:output_type -> lazybox.bench.v1.GitHubConnection
-	119, // 183: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	119, // 184: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	125, // 185: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	125, // 186: lazybox.bench.v1.RunnerService.GetGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	125, // 187: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	122, // 188: lazybox.bench.v1.RunnerService.DisconnectGitHub:output_type -> lazybox.bench.v1.GitHubConnection
-	128, // 189: lazybox.bench.v1.RunnerService.ListGitHubInstallations:output_type -> lazybox.bench.v1.ListGitHubInstallationsResponse
-	131, // 190: lazybox.bench.v1.RunnerService.ListGitHubRepositories:output_type -> lazybox.bench.v1.ListGitHubRepositoriesResponse
-	133, // 191: lazybox.bench.v1.RunnerService.ImportGitHubRepository:output_type -> lazybox.bench.v1.ImportGitHubRepositoryResponse
-	136, // 192: lazybox.bench.v1.RunnerService.ListGitHubItems:output_type -> lazybox.bench.v1.ListGitHubItemsResponse
-	60,  // 193: lazybox.bench.v1.RunnerService.AddLocalRepository:output_type -> lazybox.bench.v1.AddLocalRepositoryResponse
-	62,  // 194: lazybox.bench.v1.RunnerService.ListRepositories:output_type -> lazybox.bench.v1.ListRepositoriesResponse
-	119, // 195: lazybox.bench.v1.RunnerService.RemoveRepository:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	70,  // 196: lazybox.bench.v1.RunnerService.CreateCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	70,  // 197: lazybox.bench.v1.RunnerService.AddCollectionRepositories:output_type -> lazybox.bench.v1.CollectionResponse
-	70,  // 198: lazybox.bench.v1.RunnerService.GetCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	72,  // 199: lazybox.bench.v1.RunnerService.ListCollections:output_type -> lazybox.bench.v1.ListCollectionsResponse
-	70,  // 200: lazybox.bench.v1.RunnerService.ArchiveCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	70,  // 201: lazybox.bench.v1.RunnerService.ReconcileCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	74,  // 202: lazybox.bench.v1.RunnerService.OpenSession:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 203: lazybox.bench.v1.RunnerService.OpenAssistant:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 204: lazybox.bench.v1.RunnerService.RenameConversation:output_type -> lazybox.bench.v1.SessionResponse
-	37,  // 205: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:output_type -> lazybox.bench.v1.WorkspaceChanges
-	48,  // 206: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:output_type -> lazybox.bench.v1.WorkspaceDiff
-	141, // 207: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
-	141, // 208: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
-	145, // 209: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:output_type -> lazybox.bench.v1.WorkspaceFileSearch
-	148, // 210: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:output_type -> lazybox.bench.v1.WorkspacePathResolution
-	49,  // 211: lazybox.bench.v1.RunnerService.ListHistory:output_type -> lazybox.bench.v1.ListHistoryResponse
-	74,  // 212: lazybox.bench.v1.RunnerService.ResumeSession:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 213: lazybox.bench.v1.RunnerService.RestartWithPermission:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 214: lazybox.bench.v1.RunnerService.SwitchSubscription:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 215: lazybox.bench.v1.RunnerService.SetSessionRotation:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 216: lazybox.bench.v1.RunnerService.GetSession:output_type -> lazybox.bench.v1.SessionResponse
-	84,  // 217: lazybox.bench.v1.RunnerService.Apply:output_type -> lazybox.bench.v1.Receipt
-	74,  // 218: lazybox.bench.v1.RunnerService.CloseSession:output_type -> lazybox.bench.v1.SessionResponse
-	74,  // 219: lazybox.bench.v1.RunnerService.StopSessionResources:output_type -> lazybox.bench.v1.SessionResponse
-	150, // 220: lazybox.bench.v1.RunnerService.DeleteConversation:output_type -> lazybox.bench.v1.DeleteConversationResponse
-	137, // 221: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:output_type -> lazybox.bench.v1.WorkspaceDeletionPreview
-	70,  // 222: lazybox.bench.v1.RunnerService.DeleteWorkspace:output_type -> lazybox.bench.v1.CollectionResponse
-	74,  // 223: lazybox.bench.v1.RunnerService.ContinueSession:output_type -> lazybox.bench.v1.SessionResponse
-	86,  // 224: lazybox.bench.v1.RunnerService.WatchEvents:output_type -> lazybox.bench.v1.JournalEvent
-	95,  // 225: lazybox.bench.v1.RunnerService.StartCommand:output_type -> lazybox.bench.v1.CommandStatus
-	95,  // 226: lazybox.bench.v1.RunnerService.RegisterPipe:output_type -> lazybox.bench.v1.CommandStatus
-	95,  // 227: lazybox.bench.v1.RunnerService.Publish:output_type -> lazybox.bench.v1.CommandStatus
-	95,  // 228: lazybox.bench.v1.RunnerService.FinishPipe:output_type -> lazybox.bench.v1.CommandStatus
-	98,  // 229: lazybox.bench.v1.RunnerService.ListCommands:output_type -> lazybox.bench.v1.ListCommandsResponse
-	97,  // 230: lazybox.bench.v1.RunnerService.ClaimCommandShare:output_type -> lazybox.bench.v1.ClaimCommandShareResponse
-	100, // 231: lazybox.bench.v1.RunnerService.ReadCommand:output_type -> lazybox.bench.v1.ReadCommandResponse
-	95,  // 232: lazybox.bench.v1.RunnerService.WaitCommand:output_type -> lazybox.bench.v1.CommandStatus
-	95,  // 233: lazybox.bench.v1.RunnerService.CancelCommand:output_type -> lazybox.bench.v1.CommandStatus
-	102, // 234: lazybox.bench.v1.RunnerService.WatchOutput:output_type -> lazybox.bench.v1.OutputEvent
-	105, // 235: lazybox.bench.v1.RunnerService.OpenTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	107, // 236: lazybox.bench.v1.RunnerService.ListTerminals:output_type -> lazybox.bench.v1.ListTerminalsResponse
-	109, // 237: lazybox.bench.v1.RunnerService.WatchTerminal:output_type -> lazybox.bench.v1.TerminalEvent
-	105, // 238: lazybox.bench.v1.RunnerService.WriteTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	105, // 239: lazybox.bench.v1.RunnerService.ResizeTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	105, // 240: lazybox.bench.v1.RunnerService.CloseTerminal:output_type -> lazybox.bench.v1.TerminalStatus
-	24,  // 241: lazybox.bench.v1.RunnerService.RestartRunner:output_type -> lazybox.bench.v1.RestartRunnerResponse
-	39,  // 242: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:output_type -> lazybox.bench.v1.CommitWorkspaceChangesResponse
-	41,  // 243: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:output_type -> lazybox.bench.v1.PushWorkspaceBranchResponse
-	46,  // 244: lazybox.bench.v1.RunnerService.CreatePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
-	46,  // 245: lazybox.bench.v1.RunnerService.GetPullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
-	46,  // 246: lazybox.bench.v1.RunnerService.MergePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
-	166, // 247: lazybox.bench.v1.RunnerService.ListProcesses:output_type -> lazybox.bench.v1.ProcessInventory
-	166, // 248: lazybox.bench.v1.RunnerService.StopProcess:output_type -> lazybox.bench.v1.ProcessInventory
-	167, // 249: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:output_type -> lazybox.bench.v1.CleanUpOrphanProcessesResponse
-	166, // [166:250] is the sub-list for method output_type
-	82,  // [82:166] is the sub-list for method input_type
-	82,  // [82:82] is the sub-list for extension type_name
-	82,  // [82:82] is the sub-list for extension extendee
-	0,   // [0:82] is the sub-list for field type_name
+	169, // 81: lazybox.bench.v1.OrchestrationProcess.layers:type_name -> lazybox.bench.v1.OrchestrationProcessLayer
+	170, // 82: lazybox.bench.v1.OrchestrationProcess.issues:type_name -> lazybox.bench.v1.OrchestrationProcessIssue
+	171, // 83: lazybox.bench.v1.OrchestrationProcess.candidates:type_name -> lazybox.bench.v1.OrchestrationProcessCandidate
+	168, // 84: lazybox.bench.v1.ExplainOrchestrationProcessRequest.process:type_name -> lazybox.bench.v1.OrchestrationProcessRequest
+	174, // 85: lazybox.bench.v1.OrchestrationProcessExplanation.reactions:type_name -> lazybox.bench.v1.OrchestrationReaction
+	170, // 86: lazybox.bench.v1.OrchestrationProcessExplanation.issues:type_name -> lazybox.bench.v1.OrchestrationProcessIssue
+	79,  // 87: lazybox.bench.v1.Answer.AnswersEntry.value:type_name -> lazybox.bench.v1.Answers
+	1,   // 88: lazybox.bench.v1.RunnerService.ListSnippets:input_type -> lazybox.bench.v1.InfoRequest
+	152, // 89: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:input_type -> lazybox.bench.v1.GetRepositoryCatalogRequest
+	156, // 90: lazybox.bench.v1.RunnerService.PrepareWorkspace:input_type -> lazybox.bench.v1.PrepareWorkspaceRequest
+	112, // 91: lazybox.bench.v1.RunnerService.Version:input_type -> lazybox.bench.v1.VersionRequest
+	1,   // 92: lazybox.bench.v1.RunnerService.GetRunnerSettings:input_type -> lazybox.bench.v1.InfoRequest
+	3,   // 93: lazybox.bench.v1.RunnerService.SaveRunnerSettings:input_type -> lazybox.bench.v1.RunnerSettings
+	4,   // 94: lazybox.bench.v1.RunnerService.SetModelPrice:input_type -> lazybox.bench.v1.SetModelPriceRequest
+	1,   // 95: lazybox.bench.v1.RunnerService.Info:input_type -> lazybox.bench.v1.InfoRequest
+	6,   // 96: lazybox.bench.v1.RunnerService.GetTelemetry:input_type -> lazybox.bench.v1.TelemetryRequest
+	5,   // 97: lazybox.bench.v1.RunnerService.RenameCollection:input_type -> lazybox.bench.v1.RenameCollectionRequest
+	15,  // 98: lazybox.bench.v1.RunnerService.AddSubscription:input_type -> lazybox.bench.v1.AddSubscriptionRequest
+	16,  // 99: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
+	16,  // 100: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
+	17,  // 101: lazybox.bench.v1.RunnerService.RefreshSubscription:input_type -> lazybox.bench.v1.RefreshSubscriptionRequest
+	114, // 102: lazybox.bench.v1.RunnerService.GetGitHubConnection:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
+	121, // 103: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:input_type -> lazybox.bench.v1.ConfigureGitHubAppRequest
+	120, // 104: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:input_type -> lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
+	115, // 105: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:input_type -> lazybox.bench.v1.ListRepositoryDiscoveryRequest
+	116, // 106: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:input_type -> lazybox.bench.v1.ScanRepositoryRootRequest
+	123, // 107: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:input_type -> lazybox.bench.v1.BeginGitHubSignInRequest
+	124, // 108: lazybox.bench.v1.RunnerService.GetGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
+	124, // 109: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
+	114, // 110: lazybox.bench.v1.RunnerService.DisconnectGitHub:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
+	126, // 111: lazybox.bench.v1.RunnerService.ListGitHubInstallations:input_type -> lazybox.bench.v1.ListGitHubInstallationsRequest
+	129, // 112: lazybox.bench.v1.RunnerService.ListGitHubRepositories:input_type -> lazybox.bench.v1.ListGitHubRepositoriesRequest
+	132, // 113: lazybox.bench.v1.RunnerService.ImportGitHubRepository:input_type -> lazybox.bench.v1.ImportGitHubRepositoryRequest
+	134, // 114: lazybox.bench.v1.RunnerService.ListGitHubItems:input_type -> lazybox.bench.v1.ListGitHubItemsRequest
+	59,  // 115: lazybox.bench.v1.RunnerService.AddLocalRepository:input_type -> lazybox.bench.v1.AddLocalRepositoryRequest
+	61,  // 116: lazybox.bench.v1.RunnerService.ListRepositories:input_type -> lazybox.bench.v1.ListRepositoriesRequest
+	151, // 117: lazybox.bench.v1.RunnerService.RemoveRepository:input_type -> lazybox.bench.v1.RemoveRepositoryRequest
+	67,  // 118: lazybox.bench.v1.RunnerService.CreateCollection:input_type -> lazybox.bench.v1.CreateCollectionRequest
+	68,  // 119: lazybox.bench.v1.RunnerService.AddCollectionRepositories:input_type -> lazybox.bench.v1.AddCollectionRepositoriesRequest
+	69,  // 120: lazybox.bench.v1.RunnerService.GetCollection:input_type -> lazybox.bench.v1.CollectionRequest
+	71,  // 121: lazybox.bench.v1.RunnerService.ListCollections:input_type -> lazybox.bench.v1.ListCollectionsRequest
+	69,  // 122: lazybox.bench.v1.RunnerService.ArchiveCollection:input_type -> lazybox.bench.v1.CollectionRequest
+	73,  // 123: lazybox.bench.v1.RunnerService.ReconcileCollection:input_type -> lazybox.bench.v1.ReconcileCollectionRequest
+	27,  // 124: lazybox.bench.v1.RunnerService.OpenSession:input_type -> lazybox.bench.v1.OpenSessionRequest
+	28,  // 125: lazybox.bench.v1.RunnerService.OpenAssistant:input_type -> lazybox.bench.v1.OpenAssistantRequest
+	32,  // 126: lazybox.bench.v1.RunnerService.RenameConversation:input_type -> lazybox.bench.v1.RenameConversationRequest
+	33,  // 127: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:input_type -> lazybox.bench.v1.WorkspaceChangesRequest
+	47,  // 128: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:input_type -> lazybox.bench.v1.WorkspaceDiffRequest
+	139, // 129: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:input_type -> lazybox.bench.v1.WorkspaceFileRequest
+	142, // 130: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:input_type -> lazybox.bench.v1.SaveWorkspaceFileRequest
+	143, // 131: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:input_type -> lazybox.bench.v1.SearchWorkspaceFilesRequest
+	146, // 132: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:input_type -> lazybox.bench.v1.ResolveWorkspacePathRequest
+	31,  // 133: lazybox.bench.v1.RunnerService.ListHistory:input_type -> lazybox.bench.v1.ListHistoryRequest
+	53,  // 134: lazybox.bench.v1.RunnerService.ResumeSession:input_type -> lazybox.bench.v1.ResumeSessionRequest
+	50,  // 135: lazybox.bench.v1.RunnerService.RestartWithPermission:input_type -> lazybox.bench.v1.RestartWithPermissionRequest
+	51,  // 136: lazybox.bench.v1.RunnerService.SwitchSubscription:input_type -> lazybox.bench.v1.SwitchSubscriptionRequest
+	52,  // 137: lazybox.bench.v1.RunnerService.SetSessionRotation:input_type -> lazybox.bench.v1.SetSessionRotationRequest
+	54,  // 138: lazybox.bench.v1.RunnerService.GetSession:input_type -> lazybox.bench.v1.SessionRequest
+	82,  // 139: lazybox.bench.v1.RunnerService.Apply:input_type -> lazybox.bench.v1.ApplyRequest
+	54,  // 140: lazybox.bench.v1.RunnerService.CloseSession:input_type -> lazybox.bench.v1.SessionRequest
+	54,  // 141: lazybox.bench.v1.RunnerService.StopSessionResources:input_type -> lazybox.bench.v1.SessionRequest
+	149, // 142: lazybox.bench.v1.RunnerService.DeleteConversation:input_type -> lazybox.bench.v1.DeleteConversationRequest
+	69,  // 143: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:input_type -> lazybox.bench.v1.CollectionRequest
+	138, // 144: lazybox.bench.v1.RunnerService.DeleteWorkspace:input_type -> lazybox.bench.v1.DeleteWorkspaceRequest
+	88,  // 145: lazybox.bench.v1.RunnerService.ContinueSession:input_type -> lazybox.bench.v1.ContinueSessionRequest
+	85,  // 146: lazybox.bench.v1.RunnerService.WatchEvents:input_type -> lazybox.bench.v1.WatchEventsRequest
+	90,  // 147: lazybox.bench.v1.RunnerService.StartCommand:input_type -> lazybox.bench.v1.StartCommandRequest
+	91,  // 148: lazybox.bench.v1.RunnerService.RegisterPipe:input_type -> lazybox.bench.v1.RegisterPipeRequest
+	92,  // 149: lazybox.bench.v1.RunnerService.Publish:input_type -> lazybox.bench.v1.PublishRequest
+	93,  // 150: lazybox.bench.v1.RunnerService.FinishPipe:input_type -> lazybox.bench.v1.FinishPipeRequest
+	96,  // 151: lazybox.bench.v1.RunnerService.ListCommands:input_type -> lazybox.bench.v1.ListCommandsRequest
+	89,  // 152: lazybox.bench.v1.RunnerService.ClaimCommandShare:input_type -> lazybox.bench.v1.CommandRequest
+	99,  // 153: lazybox.bench.v1.RunnerService.ReadCommand:input_type -> lazybox.bench.v1.ReadCommandRequest
+	89,  // 154: lazybox.bench.v1.RunnerService.WaitCommand:input_type -> lazybox.bench.v1.CommandRequest
+	89,  // 155: lazybox.bench.v1.RunnerService.CancelCommand:input_type -> lazybox.bench.v1.CommandRequest
+	101, // 156: lazybox.bench.v1.RunnerService.WatchOutput:input_type -> lazybox.bench.v1.WatchOutputRequest
+	103, // 157: lazybox.bench.v1.RunnerService.OpenTerminal:input_type -> lazybox.bench.v1.OpenTerminalRequest
+	106, // 158: lazybox.bench.v1.RunnerService.ListTerminals:input_type -> lazybox.bench.v1.ListTerminalsRequest
+	108, // 159: lazybox.bench.v1.RunnerService.WatchTerminal:input_type -> lazybox.bench.v1.WatchTerminalRequest
+	110, // 160: lazybox.bench.v1.RunnerService.WriteTerminal:input_type -> lazybox.bench.v1.WriteTerminalRequest
+	111, // 161: lazybox.bench.v1.RunnerService.ResizeTerminal:input_type -> lazybox.bench.v1.ResizeTerminalRequest
+	104, // 162: lazybox.bench.v1.RunnerService.CloseTerminal:input_type -> lazybox.bench.v1.TerminalRequest
+	23,  // 163: lazybox.bench.v1.RunnerService.RestartRunner:input_type -> lazybox.bench.v1.RestartRunnerRequest
+	38,  // 164: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:input_type -> lazybox.bench.v1.CommitWorkspaceChangesRequest
+	40,  // 165: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:input_type -> lazybox.bench.v1.PushWorkspaceBranchRequest
+	42,  // 166: lazybox.bench.v1.RunnerService.CreatePullRequest:input_type -> lazybox.bench.v1.CreatePullRequestRequest
+	43,  // 167: lazybox.bench.v1.RunnerService.GetPullRequest:input_type -> lazybox.bench.v1.GetPullRequestRequest
+	44,  // 168: lazybox.bench.v1.RunnerService.MergePullRequest:input_type -> lazybox.bench.v1.MergePullRequestRequest
+	160, // 169: lazybox.bench.v1.RunnerService.ListProcesses:input_type -> lazybox.bench.v1.ListProcessesRequest
+	161, // 170: lazybox.bench.v1.RunnerService.StopProcess:input_type -> lazybox.bench.v1.StopProcessRequest
+	162, // 171: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:input_type -> lazybox.bench.v1.CleanUpOrphanProcessesRequest
+	168, // 172: lazybox.bench.v1.RunnerService.GetOrchestrationProcess:input_type -> lazybox.bench.v1.OrchestrationProcessRequest
+	173, // 173: lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess:input_type -> lazybox.bench.v1.ExplainOrchestrationProcessRequest
+	159, // 174: lazybox.bench.v1.RunnerService.ListSnippets:output_type -> lazybox.bench.v1.SnippetCatalog
+	155, // 175: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:output_type -> lazybox.bench.v1.RepositoryCatalog
+	157, // 176: lazybox.bench.v1.RunnerService.PrepareWorkspace:output_type -> lazybox.bench.v1.WorkspacePreparation
+	113, // 177: lazybox.bench.v1.RunnerService.Version:output_type -> lazybox.bench.v1.VersionResponse
+	3,   // 178: lazybox.bench.v1.RunnerService.GetRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
+	3,   // 179: lazybox.bench.v1.RunnerService.SaveRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
+	3,   // 180: lazybox.bench.v1.RunnerService.SetModelPrice:output_type -> lazybox.bench.v1.RunnerSettings
+	22,  // 181: lazybox.bench.v1.RunnerService.Info:output_type -> lazybox.bench.v1.InfoResponse
+	14,  // 182: lazybox.bench.v1.RunnerService.GetTelemetry:output_type -> lazybox.bench.v1.TelemetryReport
+	70,  // 183: lazybox.bench.v1.RunnerService.RenameCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	18,  // 184: lazybox.bench.v1.RunnerService.AddSubscription:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	18,  // 185: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	18,  // 186: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	20,  // 187: lazybox.bench.v1.RunnerService.RefreshSubscription:output_type -> lazybox.bench.v1.Profile
+	122, // 188: lazybox.bench.v1.RunnerService.GetGitHubConnection:output_type -> lazybox.bench.v1.GitHubConnection
+	122, // 189: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:output_type -> lazybox.bench.v1.GitHubConnection
+	122, // 190: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:output_type -> lazybox.bench.v1.GitHubConnection
+	119, // 191: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	119, // 192: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	125, // 193: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	125, // 194: lazybox.bench.v1.RunnerService.GetGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	125, // 195: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	122, // 196: lazybox.bench.v1.RunnerService.DisconnectGitHub:output_type -> lazybox.bench.v1.GitHubConnection
+	128, // 197: lazybox.bench.v1.RunnerService.ListGitHubInstallations:output_type -> lazybox.bench.v1.ListGitHubInstallationsResponse
+	131, // 198: lazybox.bench.v1.RunnerService.ListGitHubRepositories:output_type -> lazybox.bench.v1.ListGitHubRepositoriesResponse
+	133, // 199: lazybox.bench.v1.RunnerService.ImportGitHubRepository:output_type -> lazybox.bench.v1.ImportGitHubRepositoryResponse
+	136, // 200: lazybox.bench.v1.RunnerService.ListGitHubItems:output_type -> lazybox.bench.v1.ListGitHubItemsResponse
+	60,  // 201: lazybox.bench.v1.RunnerService.AddLocalRepository:output_type -> lazybox.bench.v1.AddLocalRepositoryResponse
+	62,  // 202: lazybox.bench.v1.RunnerService.ListRepositories:output_type -> lazybox.bench.v1.ListRepositoriesResponse
+	119, // 203: lazybox.bench.v1.RunnerService.RemoveRepository:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	70,  // 204: lazybox.bench.v1.RunnerService.CreateCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	70,  // 205: lazybox.bench.v1.RunnerService.AddCollectionRepositories:output_type -> lazybox.bench.v1.CollectionResponse
+	70,  // 206: lazybox.bench.v1.RunnerService.GetCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	72,  // 207: lazybox.bench.v1.RunnerService.ListCollections:output_type -> lazybox.bench.v1.ListCollectionsResponse
+	70,  // 208: lazybox.bench.v1.RunnerService.ArchiveCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	70,  // 209: lazybox.bench.v1.RunnerService.ReconcileCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	74,  // 210: lazybox.bench.v1.RunnerService.OpenSession:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 211: lazybox.bench.v1.RunnerService.OpenAssistant:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 212: lazybox.bench.v1.RunnerService.RenameConversation:output_type -> lazybox.bench.v1.SessionResponse
+	37,  // 213: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:output_type -> lazybox.bench.v1.WorkspaceChanges
+	48,  // 214: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:output_type -> lazybox.bench.v1.WorkspaceDiff
+	141, // 215: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
+	141, // 216: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
+	145, // 217: lazybox.bench.v1.RunnerService.SearchWorkspaceFiles:output_type -> lazybox.bench.v1.WorkspaceFileSearch
+	148, // 218: lazybox.bench.v1.RunnerService.ResolveWorkspacePath:output_type -> lazybox.bench.v1.WorkspacePathResolution
+	49,  // 219: lazybox.bench.v1.RunnerService.ListHistory:output_type -> lazybox.bench.v1.ListHistoryResponse
+	74,  // 220: lazybox.bench.v1.RunnerService.ResumeSession:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 221: lazybox.bench.v1.RunnerService.RestartWithPermission:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 222: lazybox.bench.v1.RunnerService.SwitchSubscription:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 223: lazybox.bench.v1.RunnerService.SetSessionRotation:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 224: lazybox.bench.v1.RunnerService.GetSession:output_type -> lazybox.bench.v1.SessionResponse
+	84,  // 225: lazybox.bench.v1.RunnerService.Apply:output_type -> lazybox.bench.v1.Receipt
+	74,  // 226: lazybox.bench.v1.RunnerService.CloseSession:output_type -> lazybox.bench.v1.SessionResponse
+	74,  // 227: lazybox.bench.v1.RunnerService.StopSessionResources:output_type -> lazybox.bench.v1.SessionResponse
+	150, // 228: lazybox.bench.v1.RunnerService.DeleteConversation:output_type -> lazybox.bench.v1.DeleteConversationResponse
+	137, // 229: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:output_type -> lazybox.bench.v1.WorkspaceDeletionPreview
+	70,  // 230: lazybox.bench.v1.RunnerService.DeleteWorkspace:output_type -> lazybox.bench.v1.CollectionResponse
+	74,  // 231: lazybox.bench.v1.RunnerService.ContinueSession:output_type -> lazybox.bench.v1.SessionResponse
+	86,  // 232: lazybox.bench.v1.RunnerService.WatchEvents:output_type -> lazybox.bench.v1.JournalEvent
+	95,  // 233: lazybox.bench.v1.RunnerService.StartCommand:output_type -> lazybox.bench.v1.CommandStatus
+	95,  // 234: lazybox.bench.v1.RunnerService.RegisterPipe:output_type -> lazybox.bench.v1.CommandStatus
+	95,  // 235: lazybox.bench.v1.RunnerService.Publish:output_type -> lazybox.bench.v1.CommandStatus
+	95,  // 236: lazybox.bench.v1.RunnerService.FinishPipe:output_type -> lazybox.bench.v1.CommandStatus
+	98,  // 237: lazybox.bench.v1.RunnerService.ListCommands:output_type -> lazybox.bench.v1.ListCommandsResponse
+	97,  // 238: lazybox.bench.v1.RunnerService.ClaimCommandShare:output_type -> lazybox.bench.v1.ClaimCommandShareResponse
+	100, // 239: lazybox.bench.v1.RunnerService.ReadCommand:output_type -> lazybox.bench.v1.ReadCommandResponse
+	95,  // 240: lazybox.bench.v1.RunnerService.WaitCommand:output_type -> lazybox.bench.v1.CommandStatus
+	95,  // 241: lazybox.bench.v1.RunnerService.CancelCommand:output_type -> lazybox.bench.v1.CommandStatus
+	102, // 242: lazybox.bench.v1.RunnerService.WatchOutput:output_type -> lazybox.bench.v1.OutputEvent
+	105, // 243: lazybox.bench.v1.RunnerService.OpenTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	107, // 244: lazybox.bench.v1.RunnerService.ListTerminals:output_type -> lazybox.bench.v1.ListTerminalsResponse
+	109, // 245: lazybox.bench.v1.RunnerService.WatchTerminal:output_type -> lazybox.bench.v1.TerminalEvent
+	105, // 246: lazybox.bench.v1.RunnerService.WriteTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	105, // 247: lazybox.bench.v1.RunnerService.ResizeTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	105, // 248: lazybox.bench.v1.RunnerService.CloseTerminal:output_type -> lazybox.bench.v1.TerminalStatus
+	24,  // 249: lazybox.bench.v1.RunnerService.RestartRunner:output_type -> lazybox.bench.v1.RestartRunnerResponse
+	39,  // 250: lazybox.bench.v1.RunnerService.CommitWorkspaceChanges:output_type -> lazybox.bench.v1.CommitWorkspaceChangesResponse
+	41,  // 251: lazybox.bench.v1.RunnerService.PushWorkspaceBranch:output_type -> lazybox.bench.v1.PushWorkspaceBranchResponse
+	46,  // 252: lazybox.bench.v1.RunnerService.CreatePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
+	46,  // 253: lazybox.bench.v1.RunnerService.GetPullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
+	46,  // 254: lazybox.bench.v1.RunnerService.MergePullRequest:output_type -> lazybox.bench.v1.PullRequestStatus
+	166, // 255: lazybox.bench.v1.RunnerService.ListProcesses:output_type -> lazybox.bench.v1.ProcessInventory
+	166, // 256: lazybox.bench.v1.RunnerService.StopProcess:output_type -> lazybox.bench.v1.ProcessInventory
+	167, // 257: lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses:output_type -> lazybox.bench.v1.CleanUpOrphanProcessesResponse
+	172, // 258: lazybox.bench.v1.RunnerService.GetOrchestrationProcess:output_type -> lazybox.bench.v1.OrchestrationProcess
+	175, // 259: lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess:output_type -> lazybox.bench.v1.OrchestrationProcessExplanation
+	174, // [174:260] is the sub-list for method output_type
+	88,  // [88:174] is the sub-list for method input_type
+	88,  // [88:88] is the sub-list for extension type_name
+	88,  // [88:88] is the sub-list for extension extendee
+	0,   // [0:88] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_init() }
@@ -13174,7 +13954,7 @@ func file_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_rawDesc), len(file_api_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   168,
+			NumMessages:   176,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -2,8 +2,11 @@
 
 How Lazybox should let an agent manage other agents on one machine: keep the
 mission, split it into goals and tasks, start and watch workers, move work
-through phases, and leave a record a person can trust. It is a design for
-discussion, written 2026-11-16; nothing here is implemented.
+through phases, and leave a record a person can trust. It is a design,
+written 2026-11-16, with its [decisions](#decisions-for-you) taken. Slice 0
+(the process file: §4) is implemented in
+[`internal/process`](services/runner/code/internal/process/doc.go); the rest
+is not yet.
 [Software factory](SOFTWARE_FACTORY.md) describes the end state (contract,
 holdouts, verifier, merge queue); this page is the model and configuration
 underneath it.
@@ -212,10 +215,17 @@ types plus a condition), `concurrency` (live instances) and `wip` (tasks in
 hand).
 
 **Rules before agents.** A trigger's action is either a fixed verb
-(`start`, `send`, `request_gate`, `enter_phase`, `create_task`, `notify`,
-`escalate`, `stop`, `exec`) or "wake role X with this event". The defaults
+(`start`, `send`, `request_gate`, `enter_phase`, `enter_next_phase`,
+`create_task`, `notify`, `escalate`, `stop`, `exec`, `integration.queue`) or
+`wake: <role>` with this event. The defaults
 use rules for every mechanical move and agents only for judgment, because
 agent-driven transitions are slow, cost tokens on every event and can loop.
+A rule may carry `limit: N` (fires at most N times per subject); a
+`create_task: fix` is charged to the task's `budgets.task.retries`.
+
+The scopes a role may hold, and the CEL variables each event type offers, are
+catalogs in code (`lazybox process events`); there is deliberately no scope
+that passes a gate.
 
 ## 4. The process file
 
@@ -224,21 +234,31 @@ agent-driven transitions are slow, cost tokens on every event and can loop.
 | Layer | File | Edited by | Can |
 | --- | --- | --- | --- |
 | Built-in presets | in the binary | releases | everything |
-| User | `~/.config/lazybox/process.yaml` | Settings → Process | set defaults and the **ceiling** |
-| Repository | `<repo>/.lazybox/process.yaml` (committed) | PR | choose a preset, add roles, gates, checks; only **within** the ceiling |
+| User | `process.yaml` in the Runner's state directory (`processFile` in the Runner config), so each environment has its own | Settings → Process | set defaults and the **ceiling** |
+| Repository | `<repo>/.lazybox/process.yaml` (committed) | PR | choose a preset (`extends:`), add roles, gates, checks; only **within** the ceiling |
 | Workspace | Runner state | Settings or the workspace menu | pick which repo's file wins in a multi-repo workspace; override |
 | Mission | `mission.process_pinned` event | at mission start | snapshot of the resolved process and its digest |
 
 - **Pinning.** A mission runs the process it started with. Editing a file
   never changes a live mission; "adopt the new process" is an explicit,
   recorded event.
+- **Combining.** The preset is the repository's `extends`, else the user's,
+  else solo pair (reviewed team once a mission has more than one task). Each
+  layer changes only what it sets: scalars, nested mappings field by field,
+  lists replaced whole, roles and gates merged by name (`null` removes one).
+  The user's role defaults apply to roles the chosen preset has.
 - **The ceiling.** A cloned repository is untrusted input. Its process file
   cannot raise autonomy, budgets, permissions or providers above the user's
-  ceiling, and the first use of a new file digest asks the person (like
-  `direnv allow`).
+  ceiling (reviewed team's limits until the person sets one): going above it
+  is an error at the line that asked, never a silent clamp, and an unset
+  budget takes the ceiling's value. Only the user's file may set a ceiling.
+  The first use of a new file digest asks the person (like `direnv allow`).
 - **Conditions** use [CEL](https://cel.dev) — non-Turing-complete, bounded,
   already the policy language of Kubernetes admission — over the derived
-  state: `task.paths.exists(p, p.startsWith("migrations/"))`.
+  state: `task.paths.exists(p, p.startsWith("migrations/"))`. Evaluation is
+  bounded again here (1 KiB of source, two nested comprehensions, a cost
+  limit and a deadline per evaluation); an evaluation error means "did not
+  fire" and is recorded.
 - **Escape hatch**: `exec` runs a repository script through `lazybox run`
   with the event in `LAZYBOX_EVENT` (a file path); its output is evidence, it
   holds no Runner credential.
@@ -246,17 +266,29 @@ agent-driven transitions are slow, cost tokens on every event and can loop.
 ### Validation
 
 1. **Schema**: a JSON Schema generated from the Go types, published with the
-   binary; editors get completion through a `# yaml-language-server: $schema=`
-   line.
+   binary (`lazybox process schema`; committed as
+   `internal/process/schema/process.v1.json`); editors get completion through
+   a `# yaml-language-server: $schema=` line. Every file is checked against it
+   before it is decoded, so a wrong key or value is reported at its line.
 2. **Semantics** (`lazybox process validate`): roles referenced exist; event
    types are known; every phase is reachable and has an exit; no role holds a
    forbidden scope; budgets fit the ceiling; autonomy 5 without container
    isolation is an error, not a warning; triggers cannot form a cycle without a
-   budget or count limit.
+   budget or count limit (a rule's `limit`, fix tasks under
+   `budgets.task.retries`, an agent's budget, or a human gate or manual
+   trigger, which waits for a person). Conditions are compiled per event:
+   a rule on `task.reported` cannot read `gate`.
 3. **Explain** (`lazybox process explain task.reported`): which rules and
-   roles fire, in order, with what scopes.
-4. **Replay**: run a changed process against a recorded mission log and show
-   where it would have diverged (which gates, which extra agents, what cost).
+   roles fire, in order (rules in file order, then role triggers, then
+   notifications), with what scopes and what they may cause.
+4. **Replay** (slice 4, it needs a mission log): run a changed process
+   against a recorded mission log and show where it would have diverged
+   (which gates, which extra agents, what cost).
+
+`lazybox process validate|show|explain` read files (no Runner needed, for a
+PR); with `--workspace` they ask the Runner, whose owner-only
+`GetOrchestrationProcess` and `ExplainOrchestrationProcess` also back the
+read-only Settings → Process view.
 
 ### How people edit it
 
@@ -279,7 +311,7 @@ Settings → Process, not only YAML:
 You coordinate; one worker builds; the other provider reviews on demand.
 
 ```yaml
-# yaml-language-server: $schema=https://lazybox.dev/schema/process.v1.json
+# yaml-language-server: $schema=https://lazybox.ai/schema/process.v1.json
 version: 1
 name: solo-pair
 autonomy: 3                      # you review every PR
@@ -316,7 +348,7 @@ roles:
 rules:
   - {on: task.reported, do: {request_gate: reviewed}}
   - {on: finding.filed, if: "finding.severity == 'blocker'", do: {send: worker, snippet: fixall}}
-  - {on: gate.passed, if: "gate.id == 'reviewed'", do: {enter_phase: merge}}
+  - {on: gate.passed, do: enter_next_phase}
 notifications:
   - {on: [gate.requested, task.question, escalation.raised], to: [inbox, desktop]}
 snippets:
@@ -393,7 +425,7 @@ roles:
       - {on: budget.warning}
       - {on: stall, after: 20m}       # no event for a live task
 rules:
-  - {on: task.reported, if: "task.evidence.any(e, e.kind == 'run' && e.exit == 0)",
+  - {on: task.reported, if: "task.evidence.exists(e, e.kind == 'run' && e.exit == 0)",
      do: {start: verifier}}
   - {on: task.reported, if: "!task.evidence.exists(e, e.kind == 'run')",
      do: {send: worker, text: "Report rejected: run the tests with lazybox run."}}
@@ -606,6 +638,12 @@ already answers "what is going on, who claimed what, and what actually ran".
 | Drift over long runs (Cursor) | Transition agent proposes fresh attempts from a handoff packet when context fills |
 
 ### Decisions for you
+
+**Decided 2026-11-16: every recommendation below was accepted** (optional
+goals; a committed per-repository file, the workspace choosing which wins,
+under the user's ceiling; CEL; solo pair then reviewed team; the transition
+agent in slice 4; existing agent files read as instructions; prompt history
+in the Runner; missions local, the event envelope offered to the Hub).
 
 1. **Hierarchy.** Mission → Goal → Task → Attempt with optional goals, or
    drop goals and hang assertions on the mission.

@@ -282,6 +282,12 @@ const (
 	// RunnerServiceCleanUpOrphanProcessesProcedure is the fully-qualified name of the RunnerService's
 	// CleanUpOrphanProcesses RPC.
 	RunnerServiceCleanUpOrphanProcessesProcedure = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
+	// RunnerServiceGetOrchestrationProcessProcedure is the fully-qualified name of the RunnerService's
+	// GetOrchestrationProcess RPC.
+	RunnerServiceGetOrchestrationProcessProcedure = "/lazybox.bench.v1.RunnerService/GetOrchestrationProcess"
+	// RunnerServiceExplainOrchestrationProcessProcedure is the fully-qualified name of the
+	// RunnerService's ExplainOrchestrationProcess RPC.
+	RunnerServiceExplainOrchestrationProcessProcedure = "/lazybox.bench.v1.RunnerService/ExplainOrchestrationProcess"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -392,6 +398,13 @@ type RunnerServiceClient interface {
 	StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error)
 	// Owner only. The safe sweep: stops every host this Runner does not hold.
 	CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error)
+	// Owner only. The orchestration process (v2/ORCHESTRATION.md §4) a mission
+	// in a workspace would run: a built-in preset, the user's process file and
+	// the repository's committed .lazybox/process.yaml, resolved under the
+	// user's ceiling and validated. Read-only; nothing runs it yet.
+	GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error)
+	// Owner only. What that process does on one event type, in firing order.
+	ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -909,6 +922,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("CleanUpOrphanProcesses")),
 			connect.WithClientOptions(opts...),
 		),
+		getOrchestrationProcess: connect.NewClient[gen.OrchestrationProcessRequest, gen.OrchestrationProcess](
+			httpClient,
+			baseURL+RunnerServiceGetOrchestrationProcessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetOrchestrationProcess")),
+			connect.WithClientOptions(opts...),
+		),
+		explainOrchestrationProcess: connect.NewClient[gen.ExplainOrchestrationProcessRequest, gen.OrchestrationProcessExplanation](
+			httpClient,
+			baseURL+RunnerServiceExplainOrchestrationProcessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ExplainOrchestrationProcess")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -998,6 +1023,8 @@ type runnerServiceClient struct {
 	listProcesses                *connect.Client[gen.ListProcessesRequest, gen.ProcessInventory]
 	stopProcess                  *connect.Client[gen.StopProcessRequest, gen.ProcessInventory]
 	cleanUpOrphanProcesses       *connect.Client[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse]
+	getOrchestrationProcess      *connect.Client[gen.OrchestrationProcessRequest, gen.OrchestrationProcess]
+	explainOrchestrationProcess  *connect.Client[gen.ExplainOrchestrationProcessRequest, gen.OrchestrationProcessExplanation]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1420,6 +1447,16 @@ func (c *runnerServiceClient) CleanUpOrphanProcesses(ctx context.Context, req *c
 	return c.cleanUpOrphanProcesses.CallUnary(ctx, req)
 }
 
+// GetOrchestrationProcess calls lazybox.bench.v1.RunnerService.GetOrchestrationProcess.
+func (c *runnerServiceClient) GetOrchestrationProcess(ctx context.Context, req *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error) {
+	return c.getOrchestrationProcess.CallUnary(ctx, req)
+}
+
+// ExplainOrchestrationProcess calls lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess.
+func (c *runnerServiceClient) ExplainOrchestrationProcess(ctx context.Context, req *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error) {
+	return c.explainOrchestrationProcess.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -1528,6 +1565,13 @@ type RunnerServiceHandler interface {
 	StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error)
 	// Owner only. The safe sweep: stops every host this Runner does not hold.
 	CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error)
+	// Owner only. The orchestration process (v2/ORCHESTRATION.md §4) a mission
+	// in a workspace would run: a built-in preset, the user's process file and
+	// the repository's committed .lazybox/process.yaml, resolved under the
+	// user's ceiling and validated. Read-only; nothing runs it yet.
+	GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error)
+	// Owner only. What that process does on one event type, in firing order.
+	ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2041,6 +2085,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("CleanUpOrphanProcesses")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceGetOrchestrationProcessHandler := connect.NewUnaryHandler(
+		RunnerServiceGetOrchestrationProcessProcedure,
+		svc.GetOrchestrationProcess,
+		connect.WithSchema(runnerServiceMethods.ByName("GetOrchestrationProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceExplainOrchestrationProcessHandler := connect.NewUnaryHandler(
+		RunnerServiceExplainOrchestrationProcessProcedure,
+		svc.ExplainOrchestrationProcess,
+		connect.WithSchema(runnerServiceMethods.ByName("ExplainOrchestrationProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -2211,6 +2267,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceStopProcessHandler.ServeHTTP(w, r)
 		case RunnerServiceCleanUpOrphanProcessesProcedure:
 			runnerServiceCleanUpOrphanProcessesHandler.ServeHTTP(w, r)
+		case RunnerServiceGetOrchestrationProcessProcedure:
+			runnerServiceGetOrchestrationProcessHandler.ServeHTTP(w, r)
+		case RunnerServiceExplainOrchestrationProcessProcedure:
+			runnerServiceExplainOrchestrationProcessHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2554,4 +2614,12 @@ func (UnimplementedRunnerServiceHandler) StopProcess(context.Context, *connect.R
 
 func (UnimplementedRunnerServiceHandler) CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetOrchestrationProcess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess is not implemented"))
 }
