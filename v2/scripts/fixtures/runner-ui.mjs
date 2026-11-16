@@ -148,6 +148,8 @@ export async function startRunnerFixture() {
   // runs. A tiny local page stands in for the dev server an action would start,
   // so a preview really loads; every other port is only a number.
   const previewServer = createServer((req, res) => {
+    // The Web panel's fixture of a page that never answers (scripts/test-web-viewer.mjs).
+    if (req.url.startsWith('/stall')) return;
     const page = req.url.startsWith('/about') ? 'About the fixture app' : 'Fixture app home';
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`<!doctype html><title>${page}</title><body style="font-family:sans-serif"><h1>${page}</h1><p>Served at ${req.url}</p><a href="/about">About</a></body>`);

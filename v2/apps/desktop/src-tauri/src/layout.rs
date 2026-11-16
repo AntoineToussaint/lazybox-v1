@@ -20,6 +20,9 @@ pub struct Target {
     pub panel_id: String,
     /// An artifact page in its own window (with its workspace's collection_id).
     pub artifact_id: String,
+    /// A web page in its own window (a detached Web panel), and the page it opened on.
+    pub web_id: String,
+    pub web_url: String,
 }
 
 pub fn valid_id(id: &str) -> bool {
@@ -42,6 +45,13 @@ impl Target {
                     || self.collection_id.is_empty()
                     || !self.panel_id.is_empty()
                     || !self.command_id.is_empty()))
+            || (!self.web_id.is_empty()
+                && (!valid_id(&self.web_id)
+                    || crate::viewer::page_url(&self.web_url).is_err()
+                    || !self.session_id.is_empty()
+                    || !self.panel_id.is_empty()
+                    || !self.artifact_id.is_empty()))
+            || (self.web_id.is_empty() && !self.web_url.is_empty())
         {
             return Err("Invalid session or command identity".into());
         }
@@ -81,6 +91,52 @@ impl Default for Layout {
             sequence: 0,
             surfaces: BTreeMap::from([("main".into(), main)]),
         }
+    }
+}
+
+#[cfg(test)]
+mod web_window_tests {
+    use super::*;
+    #[test]
+    fn a_web_window_is_one_per_panel_and_opens_only_a_web_page() {
+        let mut layout = Layout::default();
+        let target = Target {
+            web_id: "panel-1".into(),
+            web_url: "https://example.com/docs".into(),
+            collection_id: "alpha".into(),
+            ..Target::default()
+        };
+        let label = layout.web(target.clone()).expect("web window");
+        assert_eq!(label, "web-panel-1");
+        assert_eq!(layout.web(target.clone()).expect("reuse"), label);
+        layout.validate().expect("valid layout");
+        for bad in [
+            Target {
+                web_url: "file:///etc/passwd".into(),
+                ..target.clone()
+            },
+            Target {
+                web_url: "http://tauri.localhost/".into(),
+                ..target.clone()
+            },
+            Target {
+                web_id: "../x".into(),
+                ..target.clone()
+            },
+            Target {
+                session_id: "s1".into(),
+                ..target.clone()
+            },
+            Target {
+                web_id: String::new(),
+                ..target.clone()
+            },
+        ] {
+            assert!(layout.web(bad).is_err());
+        }
+        let mut moved = target;
+        moved.web_id = "panel-2".into();
+        assert!(layout.save_target(&label, moved).is_err());
     }
 }
 
@@ -185,6 +241,10 @@ impl Layout {
                     !surface.target.artifact_id.is_empty()
                         && label == &format!("artifact-{}", surface.target.artifact_id)
                 }
+                _ if label.starts_with("web-") => {
+                    !surface.target.web_id.is_empty()
+                        && label == &format!("web-{}", surface.target.web_id)
+                }
                 _ => false,
             };
             if label != &surface.label
@@ -220,7 +280,8 @@ impl Layout {
                 || target.command_id != current.target.command_id
                 || target.collection_id != current.target.collection_id
                 || target.panel_id != current.target.panel_id
-                || target.artifact_id != current.target.artifact_id)
+                || target.artifact_id != current.target.artifact_id
+                || target.web_id != current.target.web_id)
         {
             return Err("A detached viewer cannot change its execution identity".into());
         }
@@ -311,6 +372,42 @@ impl Layout {
             }
             return Ok(label);
         }
+        if self.surfaces.len() >= MAX_SURFACES {
+            let oldest = self
+                .surfaces
+                .values()
+                .filter(|s| !s.open && s.label != "main")
+                .min_by_key(|s| s.changed)
+                .map(|s| s.label.clone())
+                .ok_or("Saved window limit reached")?;
+            self.surfaces.remove(&oldest);
+        }
+        self.surfaces.insert(
+            label.clone(),
+            Surface {
+                label: label.clone(),
+                target,
+                open: false,
+                changed: self.sequence,
+                geometry: None,
+                maximized: false,
+            },
+        );
+        Ok(label)
+    }
+    /// The window of one detached Web panel; opening it again reuses that window.
+    pub fn web(&mut self, target: Target) -> Result<String, String> {
+        target.validate()?;
+        if target.web_id.is_empty() {
+            return Err("Web window identity required".into());
+        }
+        let label = format!("web-{}", target.web_id);
+        if self.surfaces.contains_key(&label) {
+            return Ok(label);
+        }
+        self.insert(label, target)
+    }
+    fn insert(&mut self, label: String, target: Target) -> Result<String, String> {
         if self.surfaces.len() >= MAX_SURFACES {
             let oldest = self
                 .surfaces

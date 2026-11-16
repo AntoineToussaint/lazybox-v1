@@ -12,7 +12,7 @@ import type { ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
 import { useCommandRuns } from './command-runs';
 import { requestTerminal } from './TerminalPanel';
-import { retireMonitor, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, closable, defaultDock, dockPanel, dockedSide, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnChat, showCodePanel, type DockSide, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { retireMonitor, defaultLayout, emptyTarget, insertDocked, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, closable, defaultDock, dockPanel, dockedSide, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnChat, showCodePanel, type DockSide, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
@@ -40,6 +40,9 @@ import { useTurnChangesHost } from './turn-checkpoints';
 import { Onboarding } from './Onboarding';
 import { PeekHost } from './Peek';
 import { openArtifact } from './artifact-events';
+import { useLinkPreferences, useWebViewer, type ViewerRequest } from './web-links';
+import { WebViewsContext } from './WebViewer';
+import { lastWebPanel, requestWebPage, WebWindowContext } from './WebPanel';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -50,7 +53,11 @@ export function Workspace(props: Props) {
     <AttentionScope root={props.viewState?.root} host={props.host}>
       <RepositoryHostContext.Provider value={props.host || {}}>
         <ArtifactHostContext.Provider value={props.host || {}}>
-          <WorkspaceView {...props}/>
+          <WebViewsContext.Provider value={props.host?.webViews}>
+            <WebWindowContext.Provider value={props.host?.openWebWindow}>
+              <WorkspaceView {...props}/>
+            </WebWindowContext.Provider>
+          </WebViewsContext.Provider>
         </ArtifactHostContext.Provider>
       </RepositoryHostContext.Provider>
     </AttentionScope>
@@ -222,6 +229,23 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   // An artifact asked for (tracked from a message or a file) is shown in the Artifacts panel.
   useOpenArtifactRequests(workspaceID, () => void showModule('artifacts'));
   useKeyboardAction('artifacts.open', () => { if (workspaceID) showModule('artifacts'); }, () => !!workspaceID);
+  /** A web page in the page's Web panel (the one used last), or in a new one beside the work. */
+  useLinkPreferences(viewState);
+  const openWeb = ({ url, newPanel }: ViewerRequest): boolean => {
+    const live = livePage();
+    const shown = panels(live.layout).filter(panel => panel.kind === 'web' && !panel.detached);
+    let chosen = newPanel ? undefined : shown.find(panel => panel.id === lastWebPanel()) || shown[0];
+    if (!chosen) {
+      if (panels(live.layout).length >= 12) { setError('This page already has 12 panels; close one to open a web page here.'); return false; }
+      chosen = { id: crypto.randomUUID(), kind: 'web', binding: { mode: 'follow' }, detached: false };
+      if (!changePage({ ...live, layout: insertDocked(live.layout, chosen, rememberedDock('web')) })) return false;
+    } else if (chosen.collapsed) changePanel(chosen.id, value => ({ ...value, collapsed: false }));
+    requestWebPage(chosen.id, url);
+    setSettings(false); setMobilePanelId(chosen.id);
+    return true;
+  };
+  useWebViewer(openWeb);
+  useKeyboardAction('web.open', () => { openWeb({ url: '', newPanel: !panels(livePage().layout).some(panel => panel.kind === 'web' && !panel.detached) }); });
   /** Show this workspace's terminal: the open panel, or one docked beside the work. It starts a shell only when none is running. */
   const showTerminal = () => { if (workspaceID && showModule('terminal')) requestTerminal(workspaceID); };
   // A panel asked for in another workspace is shown once that workspace's page is.
@@ -302,7 +326,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const mobilePanels = panels(displayedLayout || page.layout).filter(panel => panel.kind !== 'collections');
   const terminalReady = !!workspaceID && collections.find(value => value.id === workspaceID)?.state === 'ready';
   // Panels this page could show but does not (or shows collapsed), offered from the page menu.
-  const hiddenModules = Object.entries(registry).filter(([kind]) => !pagePanels.has(kind) && !panels(page.layout).some(panel => panel.kind === kind && !panel.detached && !panel.collapsed));
+  const hiddenModules = Object.entries(registry).filter(([kind, value]) => !pagePanels.has(kind) && (value.multiple || !panels(page.layout).some(panel => panel.kind === kind && !panel.detached && !panel.collapsed)));
   const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) || mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
   const detachedPanels = panels(page.layout).filter(p => p.detached);
   const navigator = useWorkspaceCommands({
@@ -341,7 +365,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     <CommandCenter viewState={viewState} navigator={navigator}/>
     <WorkspaceHeader pages={layout.pages} selectedPage={page.id} settings={settings} pending={!!pending} fixedWorkspace={!!fixedWorkspaceId} navigatorOpen={navigatorOpen}
       collections={collections} selection={page.selection} viewState={viewState} workspaceID={workspaceID} info={info} terminalReady={terminalReady} canShowNewSession={canShowNewSession}
-      editing={editing} hiddenModules={hiddenModules} openPreview={host?.openPreview} canOpenWorkspaceWindow={!!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId}
+      editing={editing} hiddenModules={hiddenModules} canOpenWorkspaceWindow={!!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId}
       onOpenNavigator={() => setNavigatorOpen(true)}
       onSelectPage={id => { setSettings(false); commit({ ...layout, selectedPage: id }); }}
       onOpenSettings={() => setSettings(true)}
@@ -354,7 +378,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       onOpenWorkspaceWindow={() => void host!.openWorkspace!(workspaceID)}
       onToggleEditing={() => setEditing(value => !value)}
       onToggleConfiguring={() => { setJSON(JSON.stringify(layout, null, 2)); setConfiguring(value => !value); }}
-      onShowModule={kind => kind === 'terminal' ? showTerminal() : void showModule(kind)}/>
+      onShowModule={kind => kind === 'terminal' ? showTerminal() : kind === 'web' ? void openWeb({ url: '', newPanel: true }) : void showModule(kind)}/>
     {!settings && detachedPanels.length > 0 && <DetachedTabs panels={detachedPanels} selection={page.selection} sessions={info?.sessions} onOpen={p => void detach(p)} onDock={p => void dock(p)}/>}
     {repositoryWorkspace && <WorkspaceRepositories workspace={collections.find(value => value.id === repositoryWorkspace.id) || repositoryWorkspace} onClose={() => setRepositoryWorkspace(undefined)} onSaved={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder}/>}
     <NewConversationDialog open={newSession} quickStart={quickStart} workspaceID={workspaceID} workspaceName={collections.find(value => value.id === workspaceID)?.name} viewState={sessionStore}

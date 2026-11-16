@@ -17,8 +17,9 @@ Conductor's setup/run/archive scripts and `CONDUCTOR_PORT`.
   repository's setup and actions: state, port, URL, the last output line,
   **Start / Restart / Stop**, **Log** (the command's console, inline) and
   **Preview**. Setup can be run again from here.
-- **Preview** shows what an action serves (its `url`) in the page, with an
-  address bar, back and forward, reload and **Open in browser**.
+- **Preview** shows what an action serves (its `url`) in the page, in the
+  same viewer as the [Web panel](WORKSPACES.md#the-web-panel): address bar,
+  back and forward, reload, zoom and **Open in browser**.
 - **Review scripts** appears when a repository's scripts are new or changed.
   The dialog shows the file, marks what changed since you last approved it,
   and offers **Approve and run setup**, **Approve** or **Not now**.
@@ -162,25 +163,23 @@ program holds it, the start is refused with the port and `lsof -i :<port>`.
 
 ## Preview
 
-The Preview panel loads the action's URL in an iframe. A page on another
-origin hides its own navigation from Lazybox, so back and forward step through
-the addresses opened in Preview's address bar (and the action's URL), not
-through links clicked inside the page; reload reloads the frame. **Open in
-browser** opens the current address in your browser: in the desktop app
-through the `open_preview` command (http/https loopback addresses only), in a
-browser with `window.open`.
+The Preview panel is the Web panel's viewer on the action's URL
+([WORKSPACES.md](WORKSPACES.md#the-web-panel)): in the desktop app a native
+web view over the panel, in a browser an iframe. A restart or another action
+starts a new history at its address. In the desktop app links followed inside
+the page are history too; in a browser a page on another origin hides its own
+navigation, so back and forward step through the addresses opened in the
+address bar. **Open in browser** opens the current address in your browser
+(the desktop host's `open_link`, http/https/mailto only; `window.open` in a
+browser).
 
 Limits:
 
 - `localhost` is the machine running the window. With a Runner on another
   machine the preview does not reach the action; open it there, or forward the
   port.
-- In the desktop app the page CSP allows frames from `http://localhost:*` and
-  `http://127.0.0.1:*`. Whether WKWebView loads an `http://localhost` frame in
-  a `tauri://` page was not verified in a built app; Open in browser always
-  works.
-- A site that forbids framing (`X-Frame-Options`, `frame-ancestors`) shows
-  blank: use Open in browser.
+- In a browser, a page that forbids framing (`X-Frame-Options`,
+  `frame-ancestors`) shows blank, with a line saying so and Open in browser.
 
 ## Agents
 
@@ -213,9 +212,9 @@ copy), `internal/runner/workspace_runtime.go` (lifecycle and actions),
   with `$LAZYBOX_PORT_n` or the workspace id, and setup/archive hooks.
 - An action that leaves its process group (`setsid`, `nohup … &`) is not
   stopped by Stop, as with any managed command.
-- The Preview's back/forward cannot follow navigation inside a cross-origin
-  page (see Preview).
-- Not verified: the desktop (Tauri) app build and its Preview frame; a live
+- In a browser, the Preview's back/forward cannot follow navigation inside a
+  cross-origin page (see Preview).
+- Not verified: the desktop (Tauri) app build and its native Preview view; a live
   Runner restart in Dev with an action running (covered by
   `TestActionRunsOnTheWorkspacePortsOutlivesTheRunnerAndStopsGracefully`,
   which detaches and reopens the Runner in one process).

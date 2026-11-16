@@ -1,3 +1,4 @@
+import { WebSettings } from './WebSettings';
 import { RuntimeSettings } from './RuntimeSettings';
 import {KeyboardSettings} from './KeyboardSettings';
 import { NotificationSettings } from './NotificationSettings';
@@ -33,7 +34,7 @@ function windowName(window: UsageWindow) {
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'devices' | 'keyboard' | 'runner' | 'process';
+export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process';
 /** The sections, in the order and groups the sidebar shows them. */
 export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
   { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
@@ -43,6 +44,7 @@ export const settingsTabs: { id: SettingsTab; label: string; icon: string; group
   { id: 'workspaces', label: 'Workspaces', icon: 'folder', group: 'Work' },
   { id: 'process', label: 'Process', icon: 'activity', group: 'Work' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'Preferences' },
+  { id: 'web', label: 'Web & links', icon: 'globe', group: 'Preferences' },
   { id: 'keyboard', label: 'Shortcuts', icon: 'keyboard', group: 'Preferences' },
   { id: 'devices', label: 'Devices', icon: 'phone', group: 'System' },
   { id: 'runner', label: 'Runner', icon: 'processes', group: 'System' },
@@ -271,6 +273,7 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
     </aside>
     <div className="settings-content">
     {panel('notifications', <NotificationSettings/>)}
+    {panel('web', <WebSettings store={viewState}/>)}
     {panel('keyboard', <KeyboardSettings store={viewState}/>)}
     {panel('runner', <RunnerSection onShowProcesses={onShowProcesses}/>)}
     {panel('process', <OrchestrationProcessSettings/>)}

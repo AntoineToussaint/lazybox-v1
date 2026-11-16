@@ -260,6 +260,109 @@ older manifests load without moving their folders. Older binaries do not support
 these manifests, so use an updated Working build after this upgrade.
 The [storage and ownership contract](COLLECTIONS.md) describes those internals.
 
+### The Web panel
+
+A **Web panel** is a small browser beside the work: an address bar that takes
+an address (`github.com/org/repo`, `localhost:3000`) or words to search for,
+back and forward, reload (stop while loading), a progress bar, zoom, **copy
+address** and **open in your browser** (↗). The page's origin is always on
+screen, in bold before the rest of the address, with a padlock for https, an
+open padlock for plain http on the web, and a terminal mark for this machine.
+The panel's header shows the page's title and icon (in the browser build, its
+host: another origin's title is private to it). A page may hold several Web
+panels; each keeps its own history (50 pages) and zoom with the panel, across
+restarts.
+
+- **Open one**: ⌥-click (Alt-click) any web link in Lazybox: a chat message,
+  an artifact, a pull request or check. It opens in the page's Web panel used
+  last, or in a new one docked beside the work. A right-click on a link offers
+  **Open in Lazybox**, **Open in a new Lazybox panel**, **Open in your
+  browser** and **Copy link** (the `link` context-menu scope, for every web link
+  in the window); hovering a link says what ⌥-click does. **Page
+  actions (⋯) → New web panel** and `] ] b` open an empty one, which lists the
+  workspace's running app previews to open with a click.
+- **A plain click** still opens your browser, as before. **Settings → Web &
+  links** swaps the two: links open in a Web panel and ⌥-click opens the
+  browser. ⌘/Ctrl- and Shift-click always open the browser. The same page sets
+  the search engine (Google, DuckDuckGo, Bing, Kagi, Startpage). Windows
+  without a workspace page (a chat or artifact window) open links in the
+  browser.
+- **⋯ → Move to a new window** (also on a right-click on the panel's header)
+  moves the page into a window of its own with the same toolbar; **Move back to the workspace** there opens it in a new Web
+  panel of the main window and closes the window.
+- The workspace's **Preview** panel ([WORKSPACE_RUNTIME.md](WORKSPACE_RUNTIME.md))
+  is the same viewer, on the running action's address.
+- The address bar refuses anything but a web page: `javascript:`, `file:`,
+  `data:`, an app's own scheme, an address with a user name or password
+  (`https://bank.example@evil.test`), and Lazybox's own address.
+
+**In the desktop app the page is a native web view**, a Tauri child webview
+(`Window::add_child`, Tauri's `unstable` multiwebview feature) of the window the
+panel is docked in, placed over the panel's box. Sites that refuse to be framed
+(`X-Frame-Options`, `frame-ancestors`: GitHub, Google and most sign-in pages)
+show, which an iframe cannot do. The alternative, a separate native viewer
+window with its own toolbar, would not dock, resize or move with the work, and
+would put every page in a window to manage: the panel is what was asked for.
+The costs of the child webview, and what pays for them:
+
+- It is drawn above the whole page, so it follows the panel's box on every
+  layout change (resize, docking, a divider, scrolling, the page's own ⌘+ zoom)
+  and steps aside — hidden — while anything of the app's own would be under
+  it: a menu or popover over it, any modal dialog, the dock preview while a
+  panel is dragged, a collapsed panel, another page or Settings. A view whose
+  panel goes away is hidden at once and closed a minute later, so a visit to
+  Settings and back keeps the page as it was (`native-web-view.ts`).
+- A window with a child webview is no longer a single-webview "WebviewWindow"
+  to Tauri, so the host's commands take the calling webview and window instead
+  (`host.rs`). `unstable` is pinned with Tauri (`=2.12.5`); an upgrade re-checks it.
+- Keyboard focus is in the page while you use it, as in a browser; app
+  shortcuts work again once you click outside it. Its own ⌘+/⌘- do not zoom it:
+  use the panel's zoom.
+
+**A viewer is not part of the app.** Tauri gives a webview the capabilities
+that name its own label or its window's label, so the app's capabilities name
+the app's webviews (`main`, `workspace-*`, `chat-*`, `console-*`,
+`artifact-*`, `web-*`) and never a window; a viewer is labelled `viewer-…`,
+which nothing matches (`no_capability_reaches_a_web_viewer`). Tauri also refuses
+any command from a remote origin without a remote capability, and there is
+none. A viewer only loads http and https pages (and the `about:`, `blob:` and
+`data:` frames pages are made of); it never navigates to the app's own origins
+(`tauri.localhost`, `ipc.localhost`, `asset.localhost`) or to `file:` or another
+app's scheme — such a link shows **Open it** in the panel instead, which hands it
+to the system. Its website data (cookies, storage, cache) is its own store
+(macOS 14+; on older macOS WebKit's single per-app store, which the app's
+`tauri://` origin shares with no web origin), so sign-ins made in a viewer stay
+there. It never downloads: a download shows **Open in browser**. Camera,
+microphone and other device permissions are denied. Nothing fills in
+credentials: no script of Lazybox's runs in the page except one that reads its
+title and icon link after it loads; the icon is fetched by the host without
+cookies, and a page on the web never makes it fetch from this machine or the
+local network (`viewer.rs`).
+
+**In a browser** (the web client) the page is an iframe, sandboxed without top
+navigation and sent no referrer. A browser does not tell a page that a frame was
+refused (Chromium and WebKit both report a refused frame exactly like a loaded
+cross-origin one, checked with Playwright), so: a page that has not loaded after
+12 seconds shows **This page isn't loading here** with **Open in browser** and
+**Try again**; a refused frame a browser leaves blank (`about:blank`) shows
+**This site can't be shown here**; and a page from another site carries a
+dismissible line, *Blank page? Some sites refuse to be shown inside other
+apps*, with **Open in browser**. Links followed inside a page from another
+origin stay that page's own history (in the desktop app every load is history).
+
+Not verified: the desktop app with the native viewer was compiled, unit-tested
+and linted, not run in a built app: placement over a docked panel, hiding under
+menus, the separate data store and the icon fetch are unexercised in WKWebView.
+Windows and Linux (the `data_directory` store) were not built.
+
+**Tests**: `npm run test:web-viewer` (the panel in the browser build: link
+routing by click, ⌥-click and menu, the address bar, search, history, zoom,
+copy, the stalled-page fallback, Settings, a new panel, moving to a window and
+back, persistence, phone width); `node --import tsx --test
+scripts/web-viewer.test.ts` (addresses, search, history, zoom, link hints,
+placement); `make check-desktop` (URL and navigation policy, frame scaling,
+icon rules, the web window surface, capability isolation).
+
 ## Review and conversation continuity
 
 **Review changes** opens a workspace page using the same module registry as chat

@@ -66,7 +66,7 @@ try {
   await preview.getByRole('button', { name: 'Reload preview', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'About the fixture app' })).toBeVisible();
   await address.fill('javascript:alert(1)'); await address.press('Enter');
-  await expect(preview.getByRole('alert')).toHaveText('Enter a web address (http or https).');
+  await expect(preview.getByRole('alert')).toContainText('Lazybox shows web pages (http and https), not javascript: links.');
   await address.fill(`${home}about`); await address.press('Enter');
   const [opened] = await Promise.all([context.waitForEvent('page'), preview.getByRole('button', { name: 'Open in browser', exact: true }).click()]);
   await expect.poll(() => opened.url()).toBe(`${home}about`);

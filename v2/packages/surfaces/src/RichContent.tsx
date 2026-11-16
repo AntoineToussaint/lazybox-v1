@@ -15,7 +15,7 @@ import rust from 'highlight.js/lib/languages/rust';
 import yaml from 'highlight.js/lib/languages/yaml';
 import diff from 'highlight.js/lib/languages/diff';
 import './rich-content.css';
-import { contextMenu, copyText } from './ContextMenu';
+import { contextMenu } from './ContextMenu';
 import { codeBlockItems, fileLinkItems } from './chat-context-menu';
 import type { OpenModifiers } from './file-links';
 for (const [name, language] of Object.entries({json,bash,typescript,python,go,rust,yaml,diff})) hljs.registerLanguage(name,language);
@@ -39,7 +39,7 @@ const components={
   const text=codeText(child.props.children).replace(/\n$/,'');
   return language==='mermaid'?<MermaidDiagram text={text} sourceView={mermaidSource}/>:<CodeBlock text={text} language={language}/>;
  },
- a:({href,children}:{href?:string;children?:ReactNode})=>href&&/^https?:\/\//i.test(href)?<a href={href} target="_blank" rel="noopener noreferrer" onContextMenu={contextMenu('link',()=>[{label:'Open link',icon:'external',run:()=>{window.open(href,'_blank','noopener,noreferrer');}},{label:'Copy link',icon:'link',run:()=>copyText(href,'Copied link')}],{href})}>{children}</a>:<span className="content-reference">{children}</span>,
+ a:({href,children}:{href?:string;children?:ReactNode})=>href&&/^https?:\/\//i.test(href)?<a href={href} target="_blank" rel="noopener noreferrer">{children}</a>:<span className="content-reference">{children}</span>,
  // Do not load external images from model output just by viewing a message.
  img:({alt}:{alt?:string})=><span className="content-reference">{alt||'Image reference'}</span>,
 };

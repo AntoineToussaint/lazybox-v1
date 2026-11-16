@@ -56,6 +56,14 @@ export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTa
       if (!opened) throw new Error('The artifact window was blocked by the browser');
       opened.focus();
     },
+    async openWebWindow(target) {
+      const url = new URL(location.href);
+      url.search = new URLSearchParams({ view: 'web', web: target.webId, url: target.url, collection: target.collectionId }).toString();
+      url.hash = new URLSearchParams({ token }).toString();
+      const opened = window.open(url, `web-${target.webId}`);
+      if (!opened) throw new Error('The web window was blocked by the browser');
+      opened.focus();
+    },
     async dockChat(panelId) {
       if (await request('dock', { panelId })) return;
       const child = windows.get(panelId);
@@ -92,4 +100,15 @@ function browserAttention(): AttentionHost {
     async notificationPermission() { return permission(); },
     async requestNotificationPermission() { return permission() === 'unsupported' ? 'unsupported' : await Notification.requestPermission(); },
   };
+}
+
+/** A web window's page going back to the main window (Move back to the workspace). */
+export function dockWebPage(scope: string, url: string) {
+  const channel = new BroadcastChannel(`lazybox-web:${scope}`);
+  channel.postMessage({ url }); channel.close();
+}
+export function onDockedWebPage(scope: string, open: (url: string) => boolean) {
+  const channel = new BroadcastChannel(`lazybox-web:${scope}`);
+  channel.onmessage = event => { if (typeof event.data?.url === 'string' && open(event.data.url)) window.focus(); };
+  window.addEventListener('pagehide', () => channel.close(), { once: true });
 }

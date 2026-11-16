@@ -8,7 +8,7 @@ use std::sync::{
     Mutex,
     atomic::{AtomicI32, Ordering},
 };
-use tauri::{Emitter, Manager, WebviewWindow};
+use tauri::{Emitter, Manager, Window};
 use tauri_plugin_notification::NotificationExt;
 
 /// Where a clicked notification leads: one conversation in one workspace, or
@@ -154,7 +154,7 @@ pub fn take_attention_destination(
 
 /// The dock (macOS) or taskbar (Linux) badge; zero removes it.
 #[tauri::command]
-pub fn set_attention_badge(window: WebviewWindow, count: u32) -> Result<(), String> {
+pub fn set_attention_badge(window: Window, count: u32) -> Result<(), String> {
     let count = (count > 0).then_some(i64::from(count.min(999)));
     window.set_badge_count(count).map_err(|e| e.to_string())
 }

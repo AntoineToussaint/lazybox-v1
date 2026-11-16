@@ -12,6 +12,7 @@ import { FileExplorer } from './FileExplorer';
 import { ProcessesPanel } from './ProcessesPanel';
 import { ActionsPanel } from './ActionsPanel';
 import { PreviewPanel } from './PreviewPanel';
+import { WebPanel } from './WebPanel';
 import { MissionsPanel } from './MissionsPanel';
 import { useRunner } from './RunnerContext';
 import { TelemetryPanel } from './TelemetryPanel';
@@ -20,8 +21,12 @@ import { conversationReader } from './transcript-cache';
 import type { ViewTarget } from './workspace-model';
 import { WorkspaceHome } from './WorkspaceHome';
 
+/** What a panel's header shows while its module has something better than its kind's title: a web page's title and icon. */
+export type PanelTitle = { text: string; /** An image URL (a page's icon). */ icon?: string; tooltip?: string };
 export type ModuleProps = {
   workspaceId: string;
+  /** This panel's identity on its page, stable while it is open. */
+  panelId?: string;
   chooseRepositoryFolder?(): Promise<string | null>;
   target: ViewTarget;
   onTarget(target: ViewTarget): void;
@@ -36,10 +41,13 @@ export type ModuleProps = {
   onShowSession?(target: ViewTarget): void;
   onShowPanel?(kind: string, target?: ViewTarget): void;
   onShowModule?(kind: 'terminal' | 'changes'): void;
-  /** Closes this panel (a terminal panel whose last shell exited cleanly). */
+  /** Closes this panel (a terminal panel whose last shell exited cleanly, a web page moved to its own window). */
   onClosePanel?(): void;
+  /** Replaces the header's title while set; undefined restores the kind's title. */
+  onPanelTitle?(title?: PanelTitle): void;
 };
-export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
+/** `multiple`: a page may hold several panels of this kind (the page menu adds a new one). */
+export type PanelModule = { title: string; icon?: string; multiple?: boolean; Component: ComponentType<ModuleProps> };
 
 function ChatModule({ target, onTarget, viewState, collections, onOpenChat, onNewConversation, onShowModule, onShowPanel }: ModuleProps) {
   const { api } = useRunner();
@@ -83,6 +91,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   processes: { title: 'Processes', icon: 'processes', Component: ({ workspaceId, onShowSession, onShowPanel }) => <ProcessesPanel workspaceId={workspaceId} onShowSession={onShowSession} onShowPanel={onShowPanel}/> },
   actions: { title: 'Actions', icon: 'play', Component: ({ workspaceId, viewState, onShowPanel }) => <ActionsPanel key={workspaceId} workspaceId={workspaceId} viewState={viewState} onShowPanel={onShowPanel}/> },
   preview: { title: 'Preview', icon: 'eye', Component: ({ workspaceId }) => <PreviewPanel key={workspaceId} workspaceId={workspaceId}/> },
+  web: { title: 'Web', icon: 'globe', multiple: true, Component: props => <WebPanel key={props.panelId} {...props}/> },
   files: { title: 'Files', icon: 'folder', Component: ({ workspaceId, collections }) => <FileExplorer workspaceId={workspaceId} collections={collections}/> },
   editor: { title: 'Editor', icon: 'file', Component: ({ workspaceId, viewState }) => <EditorArea workspaceId={workspaceId} viewState={viewState}/> },
   artifacts: { title: 'Artifacts', icon: 'artifact', Component: ({ workspaceId, collections, viewState, target, onShowSession }) => <ArtifactsPanel workspaceId={workspaceId} collections={collections} viewState={viewState} target={target} onShowSession={onShowSession}/> },

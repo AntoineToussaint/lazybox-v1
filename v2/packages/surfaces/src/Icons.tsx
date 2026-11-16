@@ -78,6 +78,10 @@ const paths: Record<string, string[]> = {
   phone: ['M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z', 'M11 18h2'],
   shield: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z', 'm9 12 2 2 4-4'],
   copy: ['M8 8h12v12H8z', 'M16 8V4H4v12h4'],
+  // The Web panel: a globe, a padlock for a secure page, a page that is not.
+  globe: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3'],
+  lock: ['M6 11h12v10H6z', 'M9 11V8a3 3 0 0 1 6 0v3'],
+  unlock: ['M6 11h12v10H6z', 'M9 11V8a3 3 0 0 1 5.8-1'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;

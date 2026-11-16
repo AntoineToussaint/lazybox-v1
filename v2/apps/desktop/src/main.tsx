@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, ArtifactWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
-import type { AttentionDestination, AttentionHost, SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
+import { AgentWindow, ArtifactWindow, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
+import type { AttentionDestination, AttentionHost, NativeWebViews, SurfaceHost, SurfaceTarget, ViewStateStore, WebViewEvent, WorkspaceHost } from '@lazybox/platform';
 
-type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact'; notice: string; viewState: Record<string,string> };
+type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact' | 'web'; notice: string; viewState: Record<string,string> };
 const publishMenu = (items: NativeMenuItem[]) => invoke<void>('set_action_menu', { items });
 const fetchRunner: typeof globalThis.fetch = (input, init) => nativeFetch(input, { ...init, maxRedirections: 0 });
 
@@ -30,6 +31,26 @@ const desktopAttention: AttentionHost = {
     return () => { disposed = true; stop?.(); };
   },
 };
+
+/**
+ * The Web panel's native views: child webviews of this window, placed over
+ * their panels (apps/desktop/src-tauri/src/viewer.rs). Views a previous load
+ * of this page left behind are closed before the first is shown.
+ */
+const reset = invoke<void>('web_view_reset').catch(error => console.error('Could not reset web views', error));
+const desktopWebViews: NativeWebViews = {
+  show: async (id, url, frame, zoom) => { await reset; await invoke<void>('web_view_show', { id, url, frame, zoom }); },
+  hide: async id => { await reset; await invoke<void>('web_view_hide', { id }); },
+  navigate: (id, url) => invoke<void>('web_view_navigate', { id, url }),
+  action: (id, action) => invoke<void>('web_view_action', { id, action }),
+  zoom: (id, zoom) => invoke<void>('web_view_zoom', { id, zoom }),
+  subscribe(listener) {
+    let disposed = false, stop: (() => void) | undefined;
+    void getCurrentWebview().listen<WebViewEvent>('web-view', event => listener(event.payload)).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+    return () => { disposed = true; stop?.(); };
+  },
+};
+const openLink = (url: string) => invoke<void>('open_link', { url });
 
 type Renew = () => Promise<{ baseUrl: string; token: string } | undefined>;
 function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstrap; followRestart(): void; renew: Renew }) {
@@ -62,11 +83,13 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     openWorkspace: collectionId => invoke<void>('open_workspace', { collectionId }),
     chooseRepositoryFolder: () => invoke<string | null>('choose_repository_folder'),
     openSignIn: url => invoke<void>('open_sign_in', { url }),
-    openPreview: url => invoke<void>('open_preview', { url }),
     copySignInCode: code => invoke<void>('copy_sign_in_code', { code }),
     openChat: target => invoke<void>('open_chat', target),
     dockChat: panelId => invoke<void>('dock_chat', { panelId }),
     openArtifact: target => invoke<void>('open_artifact', target),
+    openLink,
+    webViews: desktopWebViews,
+    openWebWindow: target => invoke<void>('open_web_window', target),
   }), [followRestart, notifies]);
   const saveSelection = useCallback((target: { collectionId: string; sessionId: string; commandId: string }) => host.saveTarget({ ...target, commandsOpen: false }), [host]);
   const openViewer = useCallback((sessionId: string, commandId: string) => invoke<void>('open_console', { sessionId, commandId }), []);
@@ -83,8 +106,16 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
   }, []);
   useNativeActionMenu(viewState, notifies ? publishMenu : undefined);
   const focusMain = useCallback(() => void host.reopenAgent().catch(() => {}), [host]);
+  // A web window moved back to the workspace: its page opens in a Web panel here.
+  useEffect(() => {
+    if (bootstrap.kind !== 'workspace') return;
+    let disposed = false; let stop: (() => void) | undefined;
+    void getCurrentWebview().listen<string>('web-dock', event => { if (!openInViewer(event.payload, true)) void openLink(event.payload).catch(e => setError(String(e))); }).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+    return () => { disposed = true; stop?.(); };
+  }, [bootstrap.kind]);
   const action = async (callback: () => Promise<void>) => { try { await callback(); setError(''); } catch (error) { setError(String(error)); } };
   return <div className="desktop-root">
+    {bootstrap.kind === 'web' ? <WebWindow id={bootstrap.target.webId || 'web'} url={bootstrap.target.webUrl || ''} viewState={viewState} webViews={desktopWebViews} applicationName={bootstrap.applicationName} onDock={url => invoke<void>('dock_web', { url })}/> : <>
     {bootstrap.kind !== 'workspace' && <WindowControls applicationName={bootstrap.applicationName} onWorkspace={() => void action(host.reopenAgent)} onReopenClosed={() => void action(host.reopenClosed)} onReconnect={() => void action(host.reconnect)}/>}
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {bootstrap.kind === 'artifact' ? <ArtifactWindow connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner, renew }} collectionId={bootstrap.target.collectionId || ''} artifactId={bootstrap.target.artifactId || ''}/> : bootstrap.kind === 'workspace' ? <Workspace
@@ -105,6 +136,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
       onOpenViewer={openViewer}
       onFocusMain={focusMain}
     />}
+    </>}
   </div>;
 }
 // The host rereads this window's Runner locator. A restarted Runner (a Codefly
@@ -119,17 +151,10 @@ function DesktopApp() {
   if (bootstrap) return <>{shown && <div className="error" role="alert">{shown}<button onClick={()=>void invoke('reconnect_view').then(()=>setReconnectError(''),e=>setReconnectError(String(e)))}>Reconnect this window</button></div>}<DesktopWindow bootstrap={bootstrap} followRestart={follow} renew={renew}/></>;
   return <p role={error ? 'alert' : 'status'}>{error ? `Unable to restore this window: ${error}` : 'Restoring your windows…'}</p>;
 }
-// Web links open in the person's browser, never inside the app's window:
-// chat messages, artifacts, PR and check links, Markdown anywhere.
-document.addEventListener('click', event => {
-  if (event.defaultPrevented || event.button !== 0) return;
-  const anchor = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
-  if (!anchor) return;
-  const href = anchor.getAttribute('href') || '';
-  if (!/^(https?:|mailto:)/i.test(href)) return;
-  event.preventDefault();
-  void invoke('open_link', { url: anchor.href }).catch(error => console.error('Could not open link', error));
-}, true);
+// Web links open in the person's browser (or, with ⌥ or the Settings choice,
+// in a Web panel), never inside the app's own page: chat messages, artifacts,
+// PR and check links, Markdown anywhere. See web-links.ts.
+installLinkRouting(openLink);
 window.open = ((url?: string | URL) => { const href = String(url || ''); if (/^(https?:|mailto:)/i.test(href)) void invoke('open_link', { url: href }).catch(error => console.error('Could not open link', error)); return null; }) as typeof window.open;
 // Context menus reveal workspace files in Finder; a development build opens
 // the inspector from them (Alt+right-click also shows WebKit's own menu).

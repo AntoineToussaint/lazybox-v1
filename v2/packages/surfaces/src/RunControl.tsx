@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { WorkspaceAction } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { ActionMenu } from './ActionMenu';
 import { Icon } from './Icons';
 import { ScriptApprovalDialog } from './ScriptApprovalDialog';
-import { actionName, defaultAction, elapsed, isLive, needsApproval, portLabel, requestActionFocus, requestPreview, runLabel, setPreviewOpener, setupsRunning, useRecentNotice, useTicker, useWorkspaceRuntime } from './workspace-runtime';
+import { actionName, defaultAction, elapsed, isLive, needsApproval, portLabel, requestActionFocus, requestPreview, runLabel, setupsRunning, useRecentNotice, useTicker, useWorkspaceRuntime } from './workspace-runtime';
 import './workspace-runtime.css';
 
 type Props = {
@@ -13,8 +13,6 @@ type Props = {
   disabled?: boolean;
   /** Shows the page's panel of this kind ("actions", "preview"). */
   onShowPanel(kind: string): unknown;
-  /** The desktop host opens previews in the system browser. */
-  openPreview?(url: string): Promise<void>;
 };
 
 /**
@@ -22,9 +20,8 @@ type Props = {
  * the others; while something runs it shows what, where and for how long, with
  * Stop; while setup runs it says so; scripts waiting for approval show Review.
  */
-export function RunControl({ workspaceId, disabled, onShowPanel, openPreview }: Props) {
+export function RunControl({ workspaceId, disabled, onShowPanel }: Props) {
   const { api } = useRunner();
-  useEffect(() => { setPreviewOpener(openPreview); }, [openPreview]);
   const { runtime, unsupported, notice, busy, store } = useWorkspaceRuntime(api, workspaceId);
   const [reviewing, setReviewing] = useState('');
   const setups = setupsRunning(runtime);

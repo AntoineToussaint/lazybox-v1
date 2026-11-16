@@ -79,7 +79,7 @@ export const dockShare = (kind: string, side: DockSide) => {
   if (kind === 'editor') return across ? 0.55 : 0.5;
   if (kind === 'files') return across ? 0.24 : 0.3;
   // A page wants width; the action list wants room for a log.
-  if (kind === 'preview') return across ? 0.45 : 0.5;
+  if (kind === 'preview' || kind === 'web') return across ? 0.45 : 0.5;
   if (kind === 'actions') return across ? 0.35 : 0.38;
   return kind === 'terminal' && across ? 0.4 : 0.3;
 };

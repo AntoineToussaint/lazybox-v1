@@ -1,11 +1,11 @@
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import { useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import { ActionMenu } from './ActionMenu';
 import { Icon } from './Icons';
 import { ActionMenuItems } from './ActionMenuItems';
 import { contextMenu } from './ContextMenu';
 import type { MenuItem } from './context-menu-model';
-import { sentence, type ModuleProps, type PanelModule } from './PanelRegistry';
+import { sentence, type ModuleProps, type PanelModule, type PanelTitle } from './PanelRegistry';
 import { closable, dockSides, type DockSide, type Panel, type ViewTarget } from './workspace-model';
 
 /** What a panel can ask of its page. */
@@ -51,11 +51,13 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
 }) {
   const onTarget = (next: ViewTarget) => actions.retarget(panel, next);
   const detachable = panel.kind === 'chat' && canDetach && !!target.sessionId && !panel.detached;
+  // What the module shows instead of its kind's title (a web page's own title and icon).
+  const [live, setLive] = useState<PanelTitle>();
   return <section className={`workspace-panel panel-${panel.kind}${panel.collapsed && !editing ? ' is-collapsed' : ''}${editing ? ' is-editing' : ''}${docking ? ' is-docking' : ''}`} aria-label={definition?.title || panel.kind} data-panel-id={panel.id} data-mobile-active={mobileActive || undefined}>
     <header className="module-header" onPointerDown={editing ? undefined : event => actions.startDrag(event, panel)}
       onContextMenu={editing ? undefined : contextMenu('panel', () => panelItems({ panel, actions, pending, only, docked, detach: detachable ? () => actions.detach(panel) : undefined }), { kind: panel.kind, id: panel.id })}>
       {!editing
-        ? <PanelHeader panel={panel} definition={definition} actions={actions} pending={pending} only={only} docked={docked} detach={detachable ? () => actions.detach(panel) : undefined}/>
+        ? <PanelHeader panel={panel} definition={definition} actions={actions} pending={pending} only={only} docked={docked} detach={detachable ? () => actions.detach(panel) : undefined} live={live}/>
         : panel.kind === 'console'
           ? <button className="module-title" aria-label={panel.collapsed ? 'Show command output' : 'Hide command output'} aria-expanded={!panel.collapsed} onClick={() => actions.toggleCollapsed(panel)}><Icon name="terminal"/><span>{definition?.title}</span><Icon name="chevron" size={13}/></button>
           : <strong>{definition?.title || panel.kind}</strong>}
@@ -71,10 +73,10 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
       {panel.detached
         ? <DetachedMessage canDetach={canDetach} pending={pending} onOpen={() => actions.detach(panel)} onDock={() => actions.dock(panel)}/>
         : definition
-          ? <definition.Component {...module} target={target} viewState={store}
+          ? <definition.Component {...module} target={target} viewState={store} panelId={panel.id} onPanelTitle={setLive}
             onTarget={panel.kind === 'collections' ? next => next.sessionId ? actions.showSession(next) : onTarget(next) : onTarget}
             onOpenChat={panel.kind === 'chat' && canDetach && target.sessionId ? () => actions.detach(panel) : undefined}
-            onClosePanel={panel.kind === 'terminal' ? () => actions.close(panel) : undefined}/>
+            onClosePanel={panel.kind === 'terminal' || panel.kind === 'web' ? () => actions.close(panel) : undefined}/>
           : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}
     </div>}
   </section>;
@@ -93,13 +95,14 @@ function panelItems({ panel, actions, pending, only, docked, detach }: PanelMenu
 }
 
 /** A panel's own header: its title collapses it, ⋯ docks it at any edge, × closes it. */
-function PanelHeader({ panel, definition, actions, pending, only, docked, detach }: PanelMenu & { definition?: PanelModule }) {
+function PanelHeader({ panel, definition, actions, pending, only, docked, detach, live }: PanelMenu & { definition?: PanelModule; live?: PanelTitle }) {
   const title = definition?.title || panel.kind, name = sentence(title);
+  const shown = live?.text || title;
   const canClose = closable(panel) && !only;
   return <>
-    <button className="module-title" aria-label={`${panel.collapsed ? 'Show' : 'Hide'} ${name}`} aria-expanded={!panel.collapsed} title={`${panel.collapsed ? 'Show' : 'Collapse'} ${name} · drag to dock`} onClick={() => actions.toggleCollapsed(panel)}>
-      <Icon name={definition?.icon || 'file'}/>
-      <span>{title}</span>
+    <button className="module-title" aria-label={`${panel.collapsed ? 'Show' : 'Hide'} ${live ? `${name}: ${live.text}` : name}`} aria-expanded={!panel.collapsed} title={`${live?.tooltip ? `${live.tooltip}\n` : ''}${panel.collapsed ? 'Show' : 'Collapse'} ${name} · drag to dock`} onClick={() => actions.toggleCollapsed(panel)}>
+      {live?.icon ? <img className="panel-live-icon" src={live.icon} alt=""/> : <Icon name={definition?.icon || 'file'}/>}
+      <span>{shown}</span>
       <Icon name="chevron" size={13}/>
     </button>
     <ActionMenu className="panel-menu" label={`${title} panel actions`}>

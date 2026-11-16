@@ -6,6 +6,7 @@ mod attention;
 mod host;
 mod layout;
 mod placement;
+mod viewer;
 mod viewstate;
 
 const RPC_PATH: &str = "/lazybox.bench.v1.RunnerService/";
@@ -120,12 +121,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(attention::Attention::default())
+        .manage(viewer::Viewers::default())
         .invoke_handler(tauri::generate_handler![
             host::runner_bootstrap,
             host::save_view_state,
             host::open_sign_in,
-            host::open_preview,
             host::open_link,
+            host::open_web_window,
+            host::dock_web,
+            viewer::web_view_show,
+            viewer::web_view_hide,
+            viewer::web_view_navigate,
+            viewer::web_view_zoom,
+            viewer::web_view_action,
+            viewer::web_view_reset,
             host::copy_sign_in_code,
             host::choose_repository_folder,
             host::save_surface,

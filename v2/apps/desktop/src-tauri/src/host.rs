@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{
-    Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    Emitter, Manager, State, Webview, WebviewUrl, WebviewWindowBuilder, WindowEvent,
     ipc::CapabilityBuilder,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
 };
@@ -36,6 +36,18 @@ pub struct Host {
     /// it reports no identity; an identified Runner is followed regardless.
     pub restart: Mutex<Option<(String, Instant)>>,
 }
+
+/// The app's own webviews: its windows' pages. A capability names these and
+/// nothing else, so a Web panel's viewer (a child webview inside one of these
+/// windows, labelled `viewer-…`) holds no capability, whatever window it is in.
+pub const APP_WEBVIEWS: [&str; 6] = [
+    "main",
+    "workspace-*",
+    "console-*",
+    "chat-*",
+    "artifact-*",
+    "web-*",
+];
 
 /// How long a requested restart may take before the window stops following
 /// the locator to a new origin (Dev may rebuild the Runner first).
@@ -206,7 +218,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let allowed = serde_json::json!({ "url": format!("{}{RPC_PATH}*", connection.url) });
     app.add_capability(
         CapabilityBuilder::new("local-runner")
-            .windows(["main", "workspace-*", "console-*", "chat-*", "artifact-*"])
+            .webviews(APP_WEBVIEWS)
             .permission("core:default")
             // The zoom hotkeys (Cmd+= / Cmd+- / Cmd+0) set the webview zoom.
             .permission("core:webview:allow-set-webview-zoom")
@@ -344,7 +356,7 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     };
     let displays = monitors(app)?;
     let placement = placement::fit(surface.geometry.as_ref(), &displays)?;
-    if let Some(window) = app.get_webview_window(label) {
+    if let Some(window) = app.get_window(label) {
         if !window.is_maximized().map_err(|e| e.to_string())?
             && !window.is_fullscreen().map_err(|e| e.to_string())?
         {
@@ -369,6 +381,8 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
         "Chat"
     } else if label.starts_with("artifact-") {
         "Artifact"
+    } else if label.starts_with("web-") {
+        "Web"
     } else {
         "Console"
     };
@@ -401,10 +415,7 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn runner_bootstrap(
-    window: WebviewWindow,
-    host: State<'_, Host>,
-) -> Result<WindowBootstrap, String> {
+pub fn runner_bootstrap(window: Webview, host: State<'_, Host>) -> Result<WindowBootstrap, String> {
     let layout = host.layout.lock().map_err(|e| e.to_string())?;
     let surface = layout
         .surfaces
@@ -466,6 +477,8 @@ pub fn runner_bootstrap(
             "workspace"
         } else if window.label().starts_with("artifact-") {
             "artifact"
+        } else if window.label().starts_with("web-") {
+            "web"
         } else if !surface.target.panel_id.is_empty() {
             "chat"
         } else {
@@ -475,11 +488,7 @@ pub fn runner_bootstrap(
     })
 }
 #[tauri::command]
-pub fn save_surface(
-    app: tauri::AppHandle,
-    window: WebviewWindow,
-    target: Target,
-) -> Result<(), String> {
+pub fn save_surface(app: tauri::AppHandle, window: Webview, target: Target) -> Result<(), String> {
     mutate(&app, |layout| layout.save_target(window.label(), target))
 }
 #[tauri::command]
@@ -513,11 +522,50 @@ pub fn open_chat(
         })
     })?;
     if let Err(error) = open(&app, &label) {
-        if let Some(window) = app.get_webview_window(&label) {
+        if let Some(window) = app.get_window(&label) {
             let _ = window.close();
         }
         let _ = mutate(&app, |layout| layout.close(&label));
         return Err(error);
+    }
+    Ok(())
+}
+/// A Web panel moved to a window of its own (the same viewer, full window).
+#[tauri::command]
+pub fn open_web_window(
+    app: tauri::AppHandle,
+    web_id: String,
+    url: String,
+    collection_id: String,
+) -> Result<(), String> {
+    let label = mutate(&app, |layout| {
+        layout.web(Target {
+            web_id,
+            web_url: url,
+            collection_id,
+            ..Target::default()
+        })
+    })?;
+    open(&app, &label)
+}
+/// A detached Web panel goes back: its page opens in a Web panel of the main
+/// window, and its own window closes.
+#[tauri::command]
+pub fn dock_web(app: tauri::AppHandle, window: Webview, url: String) -> Result<(), String> {
+    let label = window.label().to_string();
+    if !label.starts_with("web-") {
+        return Err("Only a web window can be moved back to the workspace".into());
+    }
+    let page = crate::viewer::page_url(&url)?;
+    open(&app, "main")?;
+    app.emit_to(
+        tauri::EventTarget::webview("main"),
+        "web-dock",
+        page.as_str(),
+    )
+    .map_err(|e| e.to_string())?;
+    if let Some(window) = app.get_window(&label) {
+        window.close().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -558,7 +606,7 @@ pub fn dock_chat(app: tauri::AppHandle, panel_id: String) -> Result<(), String> 
         return Err("Invalid chat panel identity".into());
     }
     let label = format!("chat-{panel_id}");
-    if let Some(window) = app.get_webview_window(&label) {
+    if let Some(window) = app.get_window(&label) {
         window.close().map_err(|error| error.to_string())?;
     }
     mutate(&app, |layout| {
@@ -683,7 +731,7 @@ pub fn reopen_closed(app: tauri::AppHandle) -> Result<(), String> {
     open(&app, &label)
 }
 #[tauri::command]
-pub fn reconnect_view(window: WebviewWindow, host: State<'_, Host>) -> Result<(), String> {
+pub fn reconnect_view(window: Webview, host: State<'_, Host>) -> Result<(), String> {
     if let Some(path) = &host.reload_endpoint {
         let mut current = host.connection.lock().map_err(|e| e.to_string())?;
         let next = current.reconnected(path).map_err(|e| e.to_string())?;
@@ -693,7 +741,7 @@ pub fn reconnect_view(window: WebviewWindow, host: State<'_, Host>) -> Result<()
 }
 
 /// Install the HTTP scope for a connection's origin, then make it current.
-fn adopt(window: &WebviewWindow, current: &mut Bootstrap, next: Bootstrap) -> Result<(), String> {
+fn adopt(window: &Webview, current: &mut Bootstrap, next: Bootstrap) -> Result<(), String> {
     if next.url != current.url {
         window
             .app_handle()
@@ -702,7 +750,7 @@ fn adopt(window: &WebviewWindow, current: &mut Bootstrap, next: Bootstrap) -> Re
                     "reconnected-{:x}",
                     Sha256::digest(next.url.as_bytes())
                 ))
-                .windows(["main", "workspace-*", "console-*", "chat-*", "artifact-*"])
+                .webviews(APP_WEBVIEWS)
                 .permission_scoped(
                     "http:default",
                     vec![serde_json::json!({"url":format!("{}{RPC_PATH}*",next.url)})],
@@ -734,11 +782,7 @@ pub fn expect_runner_restart(host: State<'_, Host>) -> Result<(), String> {
 /// While a requested restart is armed, adopt the successor the locator names.
 /// Every window's periodic bootstrap read runs this, so whichever reads first
 /// moves them all; the rest then see an unchanged origin.
-fn follow_restart(
-    window: &WebviewWindow,
-    host: &Host,
-    path: &std::path::Path,
-) -> Result<(), String> {
+fn follow_restart(window: &Webview, host: &Host, path: &std::path::Path) -> Result<(), String> {
     let mut armed = host.restart.lock().map_err(|e| e.to_string())?;
     let Some((previous, deadline)) = armed.clone() else {
         return Ok(());
@@ -815,9 +859,11 @@ pub fn window_event(window: &tauri::Window, event: &WindowEvent) {
                 .lock()
                 .ok()
                 .and_then(|layout| layout.survivor(label));
-            if let Some(window) = survivor.and_then(|label| app.get_webview_window(&label)) {
+            if let Some(window) = survivor.and_then(|label| app.get_window(&label)) {
                 let _ = window.set_focus();
             }
+            // A Web panel's views go with the window they were docked in.
+            crate::viewer::forget(app, &app.state::<crate::viewer::Viewers>(), label);
             Ok(())
         }
         _ => Ok(()),
@@ -830,8 +876,9 @@ pub fn window_event(window: &tauri::Window, event: &WindowEvent) {
 pub fn menu_event(app: &tauri::AppHandle, id: &str) {
     if let Some(action) = id.strip_prefix("action:") {
         // The window in front runs it; with none in front, the main window.
+        // Windows, not webview windows: a window showing a Web panel holds more than one webview.
         let label = app
-            .webview_windows()
+            .windows()
             .into_iter()
             .find(|(_, w)| w.is_focused().unwrap_or(false))
             .map(|(label, _)| label)
@@ -845,9 +892,10 @@ pub fn menu_event(app: &tauri::AppHandle, id: &str) {
         "reopen-agent" => open(app, "main"),
         "reopen-closed" => reopen_closed(app.clone()),
         "reload-view" => app
-            .webview_windows()
+            .windows()
             .values()
             .find(|w| w.is_focused().unwrap_or(false))
+            .and_then(|w| app.get_webview(w.label()))
             .ok_or("No focused view to reconnect".into())
             .and_then(|w| w.reload().map_err(|e| e.to_string())),
         _ => return,
@@ -917,26 +965,51 @@ mod tests {
             assert!(sign_in_url(value).is_err());
         }
     }
+    /// A Web panel's viewer is a child webview inside an app window. Tauri
+    /// grants a capability to a webview whose own label, or whose window's
+    /// label, matches it: so capabilities name the app's webviews, never its
+    /// windows, and no pattern matches a viewer.
     #[test]
-    fn previews_open_only_loopback_web_pages() {
-        for value in [
-            "http://localhost:20000/",
-            "http://127.0.0.1:20001/app?x=1",
-            "https://[::1]:20002/",
-            "http://web.localhost:20003/",
-        ] {
-            assert!(preview_url(value).is_ok(), "{value}");
+    fn no_capability_reaches_a_web_viewer() {
+        let patterns: Vec<glob::Pattern> = APP_WEBVIEWS
+            .iter()
+            .map(|p| glob::Pattern::new(p).expect("pattern"))
+            .collect();
+        for owner in ["main", "workspace-alpha", "web-panel-1"] {
+            for id in ["web-1", "preview-alpha", "window-panel-1"] {
+                let viewer = crate::viewer::label(owner, id);
+                assert!(
+                    !patterns.iter().any(|p| p.matches(&viewer)),
+                    "{viewer} would hold the app's capabilities"
+                );
+            }
         }
-        for value in [
-            "file:///etc/passwd",
-            "javascript:alert(1)",
-            "http://example.com:20000/",
-            "http://localhost.evil.test/",
-            "http://user:secret@localhost:20000/",
-            "ftp://localhost/",
+        for app_webview in [
+            "main",
+            "workspace-alpha",
+            "chat-panel",
+            "console-command",
+            "artifact-a1",
+            "web-panel-1",
         ] {
-            assert!(preview_url(value).is_err(), "{value}");
+            assert!(
+                patterns.iter().any(|p| p.matches(app_webview)),
+                "{app_webview}"
+            );
         }
+        let source = include_str!("host.rs");
+        assert!(
+            !source.contains(&[".windows", "(["].concat()),
+            "a capability scoped by window label would cover the viewers inside that window"
+        );
+        // And no capability is declared outside this code.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!root.join("capabilities").exists());
+        let config: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(root.join("tauri.conf.json")).expect("tauri.conf.json"),
+        )
+        .expect("config");
+        assert!(config["app"]["security"].get("capabilities").is_none());
     }
     #[test]
     fn saved_window_scope_changes_with_runner_authority_without_persisting_credentials() {
@@ -989,11 +1062,7 @@ fn sign_in_url(raw: &str) -> Result<url::Url, String> {
     Ok(url)
 }
 #[tauri::command]
-pub fn open_sign_in(
-    app: tauri::AppHandle,
-    window: WebviewWindow,
-    url: String,
-) -> Result<(), String> {
+pub fn open_sign_in(app: tauri::AppHandle, window: Webview, url: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     if window.label() != "main" {
         return Err("Sign-in belongs to the Settings window".into());
@@ -1046,40 +1115,10 @@ mod external_link_tests {
     }
 }
 
-/// A workspace preview is a page an action serves on this machine: http(s) on
-/// a loopback host, never a credential or another host.
-fn preview_url(raw: &str) -> Result<url::Url, String> {
-    let url = url::Url::parse(raw).map_err(|_| "Invalid preview URL".to_string())?;
-    let loopback = match url.host() {
-        Some(url::Host::Domain(name)) => name == "localhost" || name.ends_with(".localhost"),
-        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
-        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
-        None => false,
-    };
-    if !matches!(url.scheme(), "http" | "https")
-        || !loopback
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return Err("Expected a preview on localhost".into());
-    }
-    Ok(url)
-}
-
-/// Opens a workspace action's preview in the system browser.
-#[tauri::command]
-pub fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let url = preview_url(&url)?;
-    app.opener()
-        .open_url(url.as_str(), None::<&str>)
-        .map_err(|_| "Could not open the preview in your browser".into())
-}
-
 #[tauri::command]
 pub async fn choose_repository_folder(
     app: tauri::AppHandle,
-    window: WebviewWindow,
+    window: Webview,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
     validate_repository_picker_window(window.label())?;
@@ -1114,7 +1153,7 @@ fn validate_repository_picker_window(label: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn copy_sign_in_code(
     app: tauri::AppHandle,
-    window: WebviewWindow,
+    window: Webview,
     code: String,
 ) -> Result<(), String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;

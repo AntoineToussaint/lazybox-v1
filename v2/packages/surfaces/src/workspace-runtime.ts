@@ -266,10 +266,3 @@ export function useRuntimeRequest(workspaceId: string, kind: Request['kind'], on
   });
 }
 
-/** How a preview opens outside the app: the desktop host's system browser, else a new tab. */
-let externalOpener: ((url: string) => Promise<void>) | undefined;
-export function setPreviewOpener(opener?: (url: string) => Promise<void>) { externalOpener = opener; }
-export async function openExternally(url: string) {
-  if (externalOpener) return externalOpener(url);
-  window.open(url, '_blank', 'noopener,noreferrer');
-}

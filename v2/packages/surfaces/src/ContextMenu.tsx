@@ -66,7 +66,7 @@
  * | `terminal-tab`  | a terminal's tab              | `{ terminalId: string; workspaceId: string }`                 |
  * | `turn`          | an agent turn's marker        | `{ turn: number }`                                            |
  * | `diff-line`     | a line of the Changes diff    | `{ member; path; line: number; side: 'old' \| 'new' }`        |
- * | `link`          | a web link in rich content    | `{ href: string }`                                            |
+ * | `link`          | any web link (`web-links.ts`) | `{ href: string }`                                            |
  * | `session`       | a chat's header               | `{ sessionId: string }`                                       |
  * | `subagent`      | a sub-agent / background command card, chip or row | `{ agentId: string; kind: 'agent' \| 'command' }` |
  * | `live-bar`      | the running turn's live bar   | `{ sessionId: string; commandId: string }`                    |
