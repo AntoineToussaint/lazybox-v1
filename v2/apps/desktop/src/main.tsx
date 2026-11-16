@@ -3,10 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, ArtifactWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, useRunnerLocator } from '@lazybox/surfaces';
+import { AgentWindow, ArtifactWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
 import type { AttentionDestination, AttentionHost, SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact'; notice: string; viewState: Record<string,string> };
+const publishMenu = (items: NativeMenuItem[]) => invoke<void>('set_action_menu', { items });
 const fetchRunner: typeof globalThis.fetch = (input, init) => nativeFetch(input, { ...init, maxRedirections: 0 });
 
 /**
@@ -74,6 +75,14 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     void listen<string>('desktop-error', event => setError(event.payload)).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
     return () => { disposed = true; stop?.(); };
   }, []);
+  // The menu bar's action items run here when this window is in front; the main window keeps the menu current.
+  useEffect(() => {
+    let disposed = false; let stop: (() => void) | undefined;
+    void listen<string>('menu-action', event => { runMenuAction(event.payload); }).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+    return () => { disposed = true; stop?.(); };
+  }, []);
+  useNativeActionMenu(viewState, notifies ? publishMenu : undefined);
+  const focusMain = useCallback(() => void host.reopenAgent().catch(() => {}), [host]);
   const action = async (callback: () => Promise<void>) => { try { await callback(); setError(''); } catch (error) { setError(String(error)); } };
   return <div className="desktop-root">
     {bootstrap.kind !== 'workspace' && <WindowControls applicationName={bootstrap.applicationName} onWorkspace={() => void action(host.reopenAgent)} onReopenClosed={() => void action(host.reopenClosed)} onReconnect={() => void action(host.reconnect)}/>}
@@ -94,6 +103,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
       initialCommandsOpen={bootstrap.target.commandsOpen}
       onViewChange={bootstrap.kind === 'console' ? saveTarget : undefined}
       onOpenViewer={openViewer}
+      onFocusMain={focusMain}
     />}
   </div>;
 }

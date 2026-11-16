@@ -12,6 +12,7 @@ import {
   type VimPreferences,
 } from "./keyboard";
 import { Icon } from "./Icons";
+import { actionGroups, isMac } from "./actions";
 import { SettingsGroup, SettingsHeader, SettingsRow } from "./settings-parts";
 
 export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
@@ -22,7 +23,7 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
     <section className="keyboard-settings">
       <SettingsHeader
         title="Keyboard"
-        description={<>Keys work outside the message box. Separate a sequence with spaces: <code>Ctrl+b</code> is a chord, <code>] ] s</code> a sequence.</>}
+        description={<>Sequences and single keys work outside text fields; chords such as <code>{isMac ? "Meta+k" : "Ctrl+k"}</code> work everywhere. Separate a sequence with spaces (<code>] ] s</code>), and alternatives with <code>or</code> (<code>{isMac ? "Meta+k" : "Ctrl+k"} or ] ] p</code>). Leave a field empty for no shortcut. Press <kbd>?</kbd> anywhere to see them all.</>}
       />
       <form
         onSubmit={(e) => {
@@ -53,24 +54,29 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
               <option value="arrows">Arrow keys · ]] leader</option>
             </select>
           </SettingsRow>
-          {keyboardActions.map((a) => (
-            <SettingsRow key={a.id} label={a.label} htmlFor={`shortcut-${a.id}`}>
-              <input
-                id={`shortcut-${a.id}`}
-                className="shortcut-input"
-                aria-label={a.label}
-                spellCheck={false}
-                autoComplete="off"
-                value={map[a.id]}
-                onChange={(e) => {
-                  setMap({ ...map, [a.id as Action]: e.target.value });
-                  setDirty(true);
-                  setStatus("");
-                }}
-              />
-            </SettingsRow>
-          ))}
         </SettingsGroup>
+        {actionGroups.map((group) => (
+          <SettingsGroup key={group} title={group}>
+            {keyboardActions.filter((a) => a.group === group).map((a) => (
+              <SettingsRow key={a.id} label={a.label} htmlFor={`shortcut-${a.id}`}>
+                <input
+                  id={`shortcut-${a.id}`}
+                  className="shortcut-input"
+                  aria-label={a.label}
+                  placeholder="No shortcut"
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={map[a.id]}
+                  onChange={(e) => {
+                    setMap({ ...map, [a.id as Action]: e.target.value });
+                    setDirty(true);
+                    setStatus("");
+                  }}
+                />
+              </SettingsRow>
+            ))}
+          </SettingsGroup>
+        ))}
         <div className="settings-savebar">
           <p role="status" className={status === "Shortcuts saved." ? "settings-saved" : status ? "settings-inline-error" : "settings-dirty"}>
             {status === "Shortcuts saved." && <Icon name="check" size={14} />}

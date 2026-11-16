@@ -35,7 +35,7 @@ function windowName(window: UsageWindow) {
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
 export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'devices' | 'keyboard' | 'runner' | 'process';
 /** The sections, in the order and groups the sidebar shows them. */
-const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
+export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
   { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
   { id: 'pricing', label: 'Pricing', icon: 'tag', group: 'Accounts' },
   { id: 'repositories', label: 'Repositories', icon: 'repository', group: 'Work' },

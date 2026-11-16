@@ -18,7 +18,7 @@ use std::{
 use tauri::{
     Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
     ipc::CapabilityBuilder,
-    menu::{Menu, MenuItem, Submenu},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
 };
 
 pub struct Host {
@@ -230,37 +230,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         notice: Mutex::new(notice),
         restart: Mutex::new(None),
     });
-    let menu = Menu::default(app.handle())?;
-    let surfaces = Submenu::with_items(
-        app,
-        "Surfaces",
-        true,
-        &[
-            &MenuItem::with_id(
-                app,
-                "reopen-agent",
-                "Reopen Agent",
-                true,
-                Some("CmdOrCtrl+Shift+A"),
-            )?,
-            &MenuItem::with_id(
-                app,
-                "reopen-closed",
-                "Reopen Last Closed Window",
-                true,
-                Some("CmdOrCtrl+Shift+T"),
-            )?,
-            &MenuItem::with_id(
-                app,
-                "reload-view",
-                "Reconnect This Window",
-                true,
-                Some("CmdOrCtrl+R"),
-            )?,
-        ],
-    )?;
-    menu.append(&surfaces)?;
-    app.set_menu(menu)?;
+    app.set_menu(build_menu(app.handle(), &[])?)?;
     for (_, label) in restore {
         open(app.handle(), &label)?;
     }
@@ -599,6 +569,104 @@ pub fn dock_chat(app: tauri::AppHandle, panel_id: String) -> Result<(), String> 
     })?;
     open(&app, "main")
 }
+/// One menu entry for an action of the web UI's action registry
+/// (`packages/surfaces/src/actions.ts`): the registry, not this file, decides
+/// what the menu offers and which keys it shows.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionMenuItem {
+    /// `action:<registry id>`; a click emits `menu-action` with the registry id.
+    pub id: String,
+    pub title: String,
+    /// "File", "Go" or "Help".
+    pub section: String,
+    pub accelerator: Option<String>,
+    #[serde(default)]
+    pub separator_before: bool,
+}
+
+const ACTION_SECTIONS: [&str; 3] = ["File", "Go", "Help"];
+
+/// The app menu: the platform defaults, the window commands, and the action
+/// registry's entries by section.
+fn build_menu(
+    app: &tauri::AppHandle,
+    actions: &[ActionMenuItem],
+) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::default(app)?;
+    let surfaces = Submenu::with_items(
+        app,
+        "Surfaces",
+        true,
+        &[
+            &MenuItem::with_id(
+                app,
+                "reopen-agent",
+                "Reopen Agent",
+                true,
+                Some("CmdOrCtrl+Shift+A"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "reopen-closed",
+                "Reopen Last Closed Window",
+                true,
+                Some("CmdOrCtrl+Shift+T"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "reload-view",
+                "Reconnect This Window",
+                true,
+                Some("CmdOrCtrl+R"),
+            )?,
+        ],
+    )?;
+    menu.append(&surfaces)?;
+    for section in ACTION_SECTIONS {
+        let items: Vec<&ActionMenuItem> = actions
+            .iter()
+            .filter(|item| item.section == section && item.id.starts_with("action:"))
+            .collect();
+        if items.is_empty() {
+            continue;
+        }
+        let submenu = Submenu::new(app, section, true)?;
+        for (index, item) in items.into_iter().enumerate() {
+            if item.separator_before && index > 0 {
+                submenu.append(&PredefinedMenuItem::separator(app)?)?;
+            }
+            // An accelerator the platform cannot parse leaves the item without one.
+            let entry = match MenuItem::with_id(
+                app,
+                item.id.as_str(),
+                item.title.as_str(),
+                true,
+                item.accelerator.as_deref(),
+            ) {
+                Ok(entry) => entry,
+                Err(_) => MenuItem::with_id(
+                    app,
+                    item.id.as_str(),
+                    item.title.as_str(),
+                    true,
+                    None::<&str>,
+                )?,
+            };
+            submenu.append(&entry)?;
+        }
+        menu.append(&submenu)?;
+    }
+    Ok(menu)
+}
+
+/// The main window publishes the action menu at start and whenever its keys change.
+#[tauri::command]
+pub fn set_action_menu(app: tauri::AppHandle, items: Vec<ActionMenuItem>) -> Result<(), String> {
+    let menu = build_menu(&app, &items).map_err(|e| e.to_string())?;
+    app.set_menu(menu).map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn reopen_agent(app: tauri::AppHandle) -> Result<(), String> {
     open(&app, "main")
@@ -760,6 +828,19 @@ pub fn window_event(window: &tauri::Window, event: &WindowEvent) {
 }
 
 pub fn menu_event(app: &tauri::AppHandle, id: &str) {
+    if let Some(action) = id.strip_prefix("action:") {
+        // The window in front runs it; with none in front, the main window.
+        let label = app
+            .webview_windows()
+            .into_iter()
+            .find(|(_, w)| w.is_focused().unwrap_or(false))
+            .map(|(label, _)| label)
+            .unwrap_or_else(|| "main".to_string());
+        if let Err(error) = app.emit_to(label.as_str(), "menu-action", action) {
+            report(app, error.to_string());
+        }
+        return;
+    }
     let result = match id {
         "reopen-agent" => open(app, "main"),
         "reopen-closed" => reopen_closed(app.clone()),

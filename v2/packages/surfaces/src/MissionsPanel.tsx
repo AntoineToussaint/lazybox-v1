@@ -11,6 +11,7 @@ import type { ModuleProps } from './PanelRegistry';
 import type { ViewTarget } from './workspace-model';
 import { ago, arrange, briefTemplate, columns, evidenceChip, flagLabel, headlineEvidence, liveLabel, missionSummary, statusLabel, taskActions, trustLabel, trustMeaning } from './missions-model';
 import { useMissionDetail, useMissions, type ChangeInput } from './useMissions';
+import { useMissionSelection } from './navigate-requests';
 import './missions.css';
 
 const message = (error: unknown) => ConnectError.from(error).rawMessage || String(error);
@@ -27,6 +28,8 @@ export function MissionsPanel({ workspaceId, collections, viewState, onShowSessi
   const [selected, setSelected] = useState(() => readPreference(viewState, selectedKey) || '');
   const [creating, setCreating] = useState(false);
   const choose = (id: string) => { setSelected(id); try { writePreference(viewState, selectedKey, id); } catch { /* a convenience */ } };
+  // A mission chosen in the command palette.
+  useMissionSelection(id => { setCreating(false); choose(id); });
   const current = missions.missions.find(m => m.id === selected) || missions.missions.find(m => !m.canceled) || missions.missions[0];
   const open = missions.missions.filter(m => !m.canceled), closed = missions.missions.filter(m => m.canceled);
   return <section className="missions-panel" aria-label="Missions and tasks">

@@ -178,8 +178,9 @@ export function seenMark(row: Pick<Attention, 'at' | 'turnEndedAt'>): number {
   return Math.max(row.at, row.turnEndedAt);
 }
 
-export type NotificationPreferences = { needsInput: boolean; failed: boolean; review: boolean; badge: boolean };
-export const defaultNotificationPreferences: NotificationPreferences = { needsInput: true, failed: true, review: false, badge: true };
+/** Notifications (a system notification, or a toast in a focused window) per kind; sounds apart from them. */
+export type NotificationPreferences = { needsInput: boolean; failed: boolean; review: boolean; badge: boolean; soundNeedsYou: boolean; soundDone: boolean };
+export const defaultNotificationPreferences: NotificationPreferences = { needsInput: true, failed: true, review: false, badge: true, soundNeedsYou: true, soundDone: false };
 export type AttentionNotice = { key: string; kind: 'needs-input' | 'failed' | 'review'; title: string; body: string; collectionId: string; sessionId: string };
 
 /**

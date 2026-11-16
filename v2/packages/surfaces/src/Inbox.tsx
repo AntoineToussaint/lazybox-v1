@@ -5,8 +5,10 @@ import { Icon } from './Icons';
 import { useLiveStatus } from './LiveIndicator';
 import { useRunner } from './RunnerContext';
 import { conversationDetails, conversationTitle } from './conversation-model';
-import { useKeyboardAction, useKeymap } from './keyboard';
-import { ageLabel, attentionTitle, noticeFor, seenMark, type Attention, type AttentionState, type Inbox } from './attention';
+import { useKeyboardAction, useKeymap, type Keymap } from './keyboard';
+import { ageLabel, attentionTitle, seenMark, type Attention, type AttentionState, type Inbox } from './attention';
+import { attentionChanges, deliverAttention } from './attention-alerts';
+import { bindings, displayKey, isChord } from './actions';
 import { useAttentionHost, useInbox, useNotificationPreferences, useViewingReader } from './useAttention';
 import { MissionInboxSection, useAwaitingTasks } from './MissionInbox';
 import type { ViewTarget } from './workspace-model';
@@ -34,7 +36,7 @@ export function AttentionCenter({ collections, selection, onOpen, viewState }: {
   const [open, setOpen] = useState(false);
   const keymap = useKeymap(viewState);
   useKeyboardAction('inbox.open', () => setOpen(true));
-  useAttentionNotifier(inbox, collections, selection, onOpen);
+  useAttentionNotifier(inbox, collections, selection, onOpen, keymap);
   const awaiting = useAwaitingTasks();
   const needsInput = inbox.counts['needs-input'] + awaiting, count = inbox.unread + awaiting;
   const label = [inbox.unread ? `Inbox, ${inbox.unread} ${inbox.unread === 1 ? 'conversation needs' : 'conversations need'} attention` : 'Inbox', awaiting ? `${awaiting} ${awaiting === 1 ? 'task awaits' : 'tasks await'} acceptance` : ''].filter(Boolean).join(', ');
@@ -121,26 +123,24 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
 }
 
 /** Notifications and the dock badge, from the one window whose host can show them. */
-function useAttentionNotifier(inbox: Inbox, collections: Collection[], selection: ViewTarget, onOpen: (target: ViewTarget) => void) {
+function useAttentionNotifier(inbox: Inbox, collections: Collection[], selection: ViewTarget, onOpen: (target: ViewTarget) => void, keymap: Keymap) {
   const host = useAttentionHost();
   const [preferences] = useNotificationPreferences();
   const viewing = useViewingReader();
   const previous = useRef<Map<string, Attention>>(undefined);
-  const latest = useRef({ collections, selection, preferences, viewing }); latest.current = { collections, selection, preferences, viewing };
+  const open = useRef(onOpen); open.current = onOpen;
+  const latest = useRef({ collections, selection, preferences, viewing, keymap }); latest.current = { collections, selection, preferences, viewing, keymap };
   useEffect(() => {
     if (!host?.notifyAttention) return;
     const before = previous.current, { collections, selection, preferences, viewing } = latest.current;
     previous.current = new Map(inbox.rows.map(row => [row.key, row]));
     if (!before) return;
-    const here = document.visibilityState === 'visible' && document.hasFocus() ? inbox.rows.find(row => row.session.id === selection.sessionId)?.key : '';
+    const focused = document.visibilityState === 'visible' && document.hasFocus();
+    const here = focused ? inbox.rows.find(row => row.session.id === selection.sessionId)?.key : '';
     const elsewhere = viewing();
-    const notices = inbox.rows.flatMap(row => {
-      const notice = noticeFor(before.get(row.key), row, preferences, row.key === here || row.key === elsewhere, collections.find(value => value.id === row.session.collectionId)?.name);
-      return notice ? [notice] : [];
-    });
-    // A burst (many agents failing at once) is one summary, not a wall of banners.
-    const shown = notices.length > 3 ? [...notices.slice(0, 2), { ...notices[2], title: `${notices.length - 2} more conversations need you`, body: 'Open the Lazybox inbox to see them all.' }] : notices;
-    for (const notice of shown) void host.notifyAttention(notice).catch(() => {});
+    const notices = attentionChanges(before, inbox.rows, row => row.key === here || row.key === elsewhere, row => collections.find(value => value.id === row.session.collectionId)?.name);
+    const next = bindings(latest.current.keymap['attention.next']).find(isChord);
+    deliverAttention(notices, preferences, { host, focused, nextKey: next ? displayKey(next) : undefined, open: notice => open.current({ collectionId: notice.collectionId, sessionId: notice.sessionId, commandId: '' }) });
   }, [host, inbox.rows]);
   const badge = preferences.badge ? inbox.counts['needs-input'] : 0;
   useEffect(() => {
@@ -148,6 +148,5 @@ function useAttentionNotifier(inbox: Inbox, collections: Collection[], selection
     void host.setAttentionBadge(badge).catch(() => {});
   }, [host, badge]);
   useEffect(() => () => { void host?.setAttentionBadge?.(0).catch(() => {}); }, [host]);
-  const open = useRef(onOpen); open.current = onOpen;
   useEffect(() => host?.onAttentionOpen?.(destination => open.current({ collectionId: destination.collectionId, sessionId: destination.sessionId, commandId: '' })), [host]);
 }

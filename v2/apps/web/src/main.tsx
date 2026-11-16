@@ -32,6 +32,7 @@ createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErr
   viewState={viewState}
   initialSessionId={initial.get('session') || undefined}
   initialCommandId={initial.get('command') || undefined}
+  onFocusMain={() => window.opener?.focus()}
   onSessionChange={session => {
     const url = new URL(location.href);
     if (session) url.searchParams.set('session', session); else url.searchParams.delete('session');

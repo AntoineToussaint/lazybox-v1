@@ -1,128 +1,116 @@
 import { readPreference, writePreference } from "./view-state";
 import { useEffect, useRef, useState } from "react";
 import type { ViewStateStore } from "@lazybox/platform";
-export const keyboardActions = [
-  {
-    id: "navigation.exit",
-    label: "Leave agent for navigation",
-    scope: "global",
-    keys: "] ]",
-  },
-  {
-    id: "workspace.new",
-    label: "New workspace",
-    scope: "global",
-    keys: "] ] w",
-  },
-  {
-    id: "conversation.new",
-    label: "New conversation",
-    scope: "global",
-    keys: "] ] c",
-  },
-  { id: "snippets.open", label: "Snippets", scope: "global", keys: "] ] s" },
-  { id: "inbox.open", label: "Inbox", scope: "global", keys: "] ] i" },
-  { id: "files.find", label: "Go to file", scope: "global", keys: "] ] f" },
-  { id: "files.explorer", label: "Files", scope: "global", keys: "] ] e" },
-  { id: "artifacts.open", label: "Artifacts", scope: "global", keys: "] ] a" },
-  {
-    id: "navigation.next",
-    label: "Next entry",
-    scope: "navigation",
-    keys: "j",
-  },
-  {
-    id: "navigation.previous",
-    label: "Previous entry",
-    scope: "navigation",
-    keys: "k",
-  },
-  {
-    id: "navigation.parent",
-    label: "Workspace / left pane",
-    scope: "navigation",
-    keys: "h",
-  },
-  {
-    id: "navigation.open",
-    label: "Open entry / agent",
-    scope: "navigation",
-    keys: "l",
-  },
-  { id: "chat.send", label: "Send message", scope: "agent", keys: "Enter" },
-] as const;
-export type Action = (typeof keyboardActions)[number]["id"];
+import { actionDefinition, actionDefinitions, bindings, canonicalBinding, isChord, isMac, joinBindings, resolveMod, runAction, useAction, type ActionId } from "./actions";
+/** Every keyboard action, from the action registry (actions.ts). */
+export const keyboardActions = actionDefinitions.map((definition) => ({ id: definition.id as Action, label: definition.title as string, scope: definition.scope as string, keys: definition.keys as string, group: definition.group as string }));
+export type Action = ActionId;
 export type Keymap = Record<Action, string>;
-export function keyboardPreset(preset = "vim"): Keymap {
-  const map = Object.fromEntries(
-    keyboardActions.map((a) => [a.id, a.keys]),
-  ) as Keymap;
-  if (preset === "arrows") {
-    map["navigation.next"] = "ArrowDown";
-    map["navigation.previous"] = "ArrowUp";
-    map["navigation.parent"] = "ArrowLeft";
-    map["navigation.open"] = "ArrowRight";
-  }
+const tmuxNavigation: Partial<Record<Action, string>> = { "navigation.next": "ArrowDown", "navigation.previous": "ArrowUp", "navigation.parent": "ArrowLeft", "navigation.open": "ArrowRight" };
+/** A full keymap from a preset: Vim (`]]` and h j k l), arrows, or a tmux-style Ctrl+b prefix. */
+export function keyboardPreset(preset = "vim", mac = isMac): Keymap {
+  const map = Object.fromEntries(actionDefinitions.map((a) => [a.id, resolveMod(a.keys, mac)])) as Keymap;
+  if (preset === "arrows") Object.assign(map, tmuxNavigation);
   if (preset === "tmux")
     for (const id of Object.keys(map) as Action[]) {
-      map[id] = map[id].replace("] ]", "Ctrl+b");
-      if (id.startsWith("navigation.") && id !== "navigation.exit")
-        map[id] =
-          "Ctrl+b " +
-          ((
-            {
-              "navigation.next": "ArrowDown",
-              "navigation.previous": "ArrowUp",
-              "navigation.parent": "ArrowLeft",
-              "navigation.open": "ArrowRight",
-            } as Partial<Keymap>
-          )[id] || map[id]);
+      map[id] = withLeader(map[id], "Ctrl+b");
+      if (tmuxNavigation[id]) map[id] = "Ctrl+b " + tmuxNavigation[id];
     }
   return map;
 }
+/** Rewrites the `] ]` leader of every sequence in a keymap value to another leader. */
+function withLeader(value: string, leader: string): string {
+  return joinBindings(bindings(value).map((binding) => (binding === "] ]" ? leader : binding.startsWith("] ] ") ? `${leader} ${binding.slice(4)}` : binding)));
+}
+const keyPattern = /^(?:(?:Ctrl|Meta|Alt|Shift)\+)*(?:[^\s+]|\+|Enter|Escape|Tab|Space|ArrowDown|ArrowUp|ArrowLeft|ArrowRight|Backspace|Delete|Home|End|PageUp|PageDown|F[1-9][0-9]?)$/;
+/** Two actions can fire from the same place: one of them global, or both in one scope. */
+const overlaps = (a: { scope: string }, b: { scope: string }) => a.scope === b.scope || a.scope === "global" || b.scope === "global";
 export function validateKeymap(map: Keymap): string {
   for (const action of keyboardActions) {
-    const value = map[action.id]?.trim();
-    if (!value) return `Set a shortcut for ${action.label}.`;
-    if(value.split(/\s+/).some(key=>!/^(?:(?:Ctrl|Meta|Alt|Shift)\+)*(?:[^\s+]|Enter|Escape|Tab|Space|ArrowDown|ArrowUp|ArrowLeft|ArrowRight|Backspace|Delete|Home|End|PageUp|PageDown|F[1-9][0-9]?)$/.test(key)))return `Invalid key in ${action.label}. Use a character or a key such as Ctrl+b or ArrowDown.`;
-    if (value.split(/\s+/).length > 4)
-      return "Shortcuts support up to four keys.";
+    const value = map[action.id]?.trim() || "";
+    if (!value) {
+      if (actionDefinition(action.id)?.required) return `Set a shortcut for ${action.label}.`;
+      continue;
+    }
+    for (const binding of bindings(value)) {
+      if (binding.split(/\s+/).some((key) => !keyPattern.test(key))) return `Invalid key in ${action.label}. Use a character or a key such as Ctrl+b or ArrowDown.`;
+      if (binding.split(/\s+/).length > 4) return "Shortcuts support up to four keys.";
+    }
   }
+  const owners: { binding: string; action: (typeof keyboardActions)[number] }[] = [];
   for (const a of keyboardActions)
-    for (const b of keyboardActions)
-      if (
-        a.id !== b.id &&
-        map[a.id].trim().replace(/\s+/g," ") === map[b.id].trim().replace(/\s+/g," ") &&
-        (a.scope === b.scope || a.scope === "global" || b.scope === "global")
-      )
-        return `${a.label} conflicts with ${b.label}.`;
+    for (const binding of new Set(bindings(map[a.id]).map(canonicalBinding))) {
+      const taken = owners.find((owner) => owner.binding === binding && owner.action.id !== a.id && overlaps(a, owner.action));
+      if (taken) return `${a.label} conflicts with ${taken.action.label}.`;
+      owners.push({ binding, action: a });
+    }
   return "";
 }
 const storageKey = "keyboard:v2";
+/** Keymaps saved before the action registry (no version) hold only the first thirteen actions. */
+const keymapVersion = 2;
+/**
+ * A saved keymap, brought up to date. Saved keys always win. An action the
+ * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
+ * tmux keymap), minus any key that would collide with a saved one or with an
+ * entry of the person's own `]]` menu. Go to file gains Mod+P the same way.
+ */
+export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac = isMac): Keymap {
+  const saved = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const version = typeof saved.__version === "number" ? saved.__version : 1;
+  const defaults = keyboardPreset("vim", mac);
+  const map = { ...defaults };
+  const kept = new Set<Action>();
+  for (const a of keyboardActions)
+    if (typeof saved[a.id] === "string") {
+      map[a.id] = joinBindings(bindings(saved[a.id] as string).map(canonicalBinding));
+      kept.add(a.id);
+    }
+  if (!kept.size || version >= keymapVersion) return map;
+  const leader = map["navigation.exit"];
+  const menuKeys = new Set(menu.map((entry) => canonicalBinding(`${leader} ${entry.key}`)));
+  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" ? [resolveMod("Mod+p", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
+  for (const { action } of added) if (!kept.has(action.id)) map[action.id] = "";
+  for (const { action, candidates } of added)
+    for (const binding of candidates) {
+      const clash = menuKeys.has(binding) || keyboardActions.some((other) => other.id !== action.id && overlaps(action, other) && bindings(map[other.id]).some((value) => canonicalBinding(value) === binding));
+      if (!clash && !bindings(map[action.id]).includes(binding)) map[action.id] = joinBindings([...bindings(map[action.id]), binding]);
+    }
+  return map;
+}
 export function readKeymap(store?: ViewStateStore): Keymap {
   try {
-    const raw = JSON.parse(
-      readPreference(store, storageKey) ||
-        "null",
-    );
-    const map = { ...keyboardPreset(), ...raw };
+    const map = migrateKeymap(JSON.parse(readPreference(store, storageKey) || "null"), readMenu(store));
     return validateKeymap(map) ? keyboardPreset() : normalizeKeymap(map);
   } catch {
     return keyboardPreset();
   }
 }
-function normalizeKeymap(map:Keymap):Keymap{return Object.fromEntries(keyboardActions.map(a=>[a.id,map[a.id].trim().replace(/\s+/g," ")])) as Keymap;}
+function normalizeKeymap(map: Keymap): Keymap {
+  return Object.fromEntries(keyboardActions.map((a) => [a.id, joinBindings(bindings(map[a.id]).map(canonicalBinding))])) as Keymap;
+}
 export function saveKeymap(map: Keymap, store?: ViewStateStore) {
   const error = validateKeymap(map);
   if (error) throw Error(error);
-  map=normalizeKeymap(map);
-  writePreference(store, storageKey, JSON.stringify(map));
+  map = normalizeKeymap(map);
+  writePreference(store, storageKey, JSON.stringify({ ...map, __version: keymapVersion }));
   window.dispatchEvent(new Event("lazybox-keymap"));
+}
+/** The keys of an action, one string per alternative. */
+export function actionKeys(map: Keymap, id: Action): string[] {
+  return bindings(map[id]);
+}
+/** Single chords a keydown listener runs at once (sequence prefixes such as tmux's Ctrl+b excluded). */
+export function chordBindings(map: Keymap): Map<string, Action> {
+  const prefixes = new Set(keyboardActions.flatMap((a) => bindings(map[a.id]).filter((b) => b.includes(" ")).map((b) => b.split(" ")[0])));
+  const chords = new Map<string, Action>();
+  for (const a of keyboardActions) for (const binding of bindings(map[a.id])) if (isChord(binding) && !prefixes.has(binding) && a.scope === "global") chords.set(binding, a.id);
+  return chords;
 }
 /** The first key of every global sequence (the leader, such as "]"), as
  * KeyboardEvent.key: Vim editing leaves these to the keyboard dispatcher. */
 export function leaderKeys(map: Keymap): string[] {
-  return [...new Set(keyboardActions.filter((a) => a.scope === "global").map((a) => map[a.id].trim().split(/\s+/)[0]).map((key) => (key === "Space" ? " " : key)))];
+  return [...new Set(keyboardActions.filter((a) => a.scope === "global").flatMap((a) => bindings(map[a.id]).filter((binding) => binding.includes(" ")).map((binding) => binding.split(" ")[0])).map((key) => (key === "Space" ? " " : key)))];
 }
 /** Opt-in Vim editing, separately for the message box and the file editor. */
 export type VimPreferences = { composer: boolean; editor: boolean };
@@ -162,8 +150,8 @@ export type MenuEntry = { key: string; label: string; snippet: string; mode: "se
 export type KeyHint = { prefix: string; items: { keys: string; label: string }[] };
 const menuKey = "leader-menu:v1";
 const builtInMenuKeys = (map: Keymap) => {
-  const leader = map["navigation.exit"].trim();
-  return keyboardActions.map((a) => map[a.id].trim()).filter((keys) => keys.startsWith(leader + " ")).map((keys) => keys.slice(leader.length + 1));
+  const leader = bindings(map["navigation.exit"])[0] || "] ]";
+  return keyboardActions.flatMap((a) => bindings(map[a.id])).filter((keys) => keys.startsWith(leader + " ")).map((keys) => keys.slice(leader.length + 1));
 };
 export function readMenu(store?: ViewStateStore): MenuEntry[] {
   try {
@@ -201,19 +189,13 @@ export function useMenuSnippet(callback: (entry: MenuEntry) => void) {
   }, []);
 }
 
+/** Runs an action of the registry (actions.ts). */
 export function invokeAction(id: Action) {
-  window.dispatchEvent(new CustomEvent("lazybox-action", { detail: id }));
+  runAction(id);
 }
-export function useKeyboardAction(id: Action, callback: () => void) {
-  const ref = useRef(callback);
-  ref.current = callback;
-  useEffect(() => {
-    const listener = (event: Event) => {
-      if ((event as CustomEvent).detail === id) ref.current();
-    };
-    window.addEventListener("lazybox-action", listener);
-    return () => window.removeEventListener("lazybox-action", listener);
-  }, [id]);
+/** Registers what an action does while the component is mounted; see useAction in actions.ts. */
+export function useKeyboardAction(id: Action, callback: () => void, enabled?: () => boolean) {
+  useAction(id, callback, enabled);
 }
 function eventKey(e: KeyboardEvent) {
   return `${e.ctrlKey ? "Ctrl+" : ""}${e.metaKey ? "Meta+" : ""}${e.altKey ? "Alt+" : ""}${e.shiftKey && (e.key.length > 1 || /^[a-z]$/i.test(e.key)) ? "Shift+" : ""}${e.key === " " ? "Space" : e.key.length === 1 ? e.key.toLowerCase() : e.key}`;
@@ -260,12 +242,16 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
         reset();
         return;
       }
-      const leader = map["navigation.exit"].trim();
+      const leader = bindings(map["navigation.exit"])[0] || "] ]";
+      // Typing in the message box: a bare character (such as "?") is text, not a shortcut.
+      const typing = agent && !["normal", "visual"].includes(target.dataset.vimMode || "");
+      const chords = chordBindings(map);
       // User entries live under the leader, next to the built-in actions.
+      // Single chords (Mod+K) belong to the chord listener (useActionKeys).
       const candidates: { id: string; label: string; keys: string; entry?: MenuEntry }[] = [
         ...keyboardActions
           .filter((a) => a.scope === "global" || (a.scope === "agent" && agent) || (a.scope === "navigation" && navigation))
-          .map((a) => ({ id: a.id as string, label: a.label as string, keys: map[a.id] })),
+          .flatMap((a) => bindings(map[a.id]).filter((keys) => !chords.has(keys) && !(typing && keys.length === 1 && keys !== "]")).map((keys) => ({ id: a.id as string, label: a.label as string, keys }))),
         ...menu.map((entry) => ({ id: "menu:" + entry.key, label: entry.label || entry.snippet, keys: `${leader} ${entry.key}`, entry })),
       ];
       const key = eventKey(e);
@@ -307,7 +293,7 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
       sequence = next;
       const exact = matches.find((a) => a.keys === next.join(" "));
       if (exact?.entry) window.dispatchEvent(new CustomEvent("lazybox-menu", { detail: exact.entry }));
-      else if (exact) invokeAction(exact.id as Action);
+      else if (exact) runAction(exact.id, undefined, "keys");
       const descendants = matches.filter((a) => a.keys.split(/\s+/).length > next.length);
       if (descendants.length)
         setHint({

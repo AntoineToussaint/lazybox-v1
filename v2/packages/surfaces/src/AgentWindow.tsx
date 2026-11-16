@@ -1,4 +1,5 @@
 import { LeaderMenu } from './LeaderMenu';
+import { DetachedCommands } from './DetachedCommands';
 import { SnippetPicker } from './SnippetPicker';
 import { useKeyboardNavigation, useKeyboardAction, useKeymap, useMenuSnippet, type KeyHint } from './keyboard';
 import { continueConversation } from './transcript-cache';
@@ -71,6 +72,8 @@ export type AgentWindowProps = {
   onOpenViewer?: (sessionId: string, commandId: string) => void | Promise<void>;
   /** Shows one of this conversation's managed commands in the host's command console. */
   onOpenCommand?: (commandId: string) => void;
+  /** Brings the main window forward: the command palette here navigates there. */
+  onFocusMain?: () => void;
 };
 
 /** One independent view of a Runner session. Unmounting disconnects readers,
@@ -82,6 +85,7 @@ export function AgentWindow(props: AgentWindowProps) {
   return <RunnerProvider connection={props.connection}>
     <AttentionScope root={props.viewState?.root}>
       <ChatPanel {...props} keyboardHint={keyboardHint}/>
+      <DetachedCommands viewState={props.viewState} collectionId={props.collectionId || ''} sessionId={props.initialSessionId || ''} onFocusMain={props.onFocusMain}/>
     </AttentionScope>
   </RunnerProvider>;
 }

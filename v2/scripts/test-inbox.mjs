@@ -37,6 +37,8 @@ try {
   // A recording stand-in for the browser's Notification API, already allowed.
   await page.addInitScript(() => {
     window.__notices = [];
+    // Whether Lazybox is the app in front: a window in front shows a toast instead of a banner.
+    window.__focused = true; document.hasFocus = () => window.__focused;
     window.Notification = class { static permission = 'granted'; static async requestPermission() { return 'granted'; }
       constructor(title, options) { this.title = title; this.body = options?.body; this.tag = options?.tag; window.__notices.push(this); } close() {} };
   });
@@ -50,7 +52,8 @@ try {
   await page.waitForTimeout(3500);
   assert.deepEqual(await page.evaluate(() => window.__notices.map(n => n.title)), [], 'what was already waiting at load is a baseline, not news');
 
-  // Three agents move while the person is elsewhere: one finishes, one fails, one asks.
+  // Three agents move while the person is in another app: one finishes, one fails, one asks.
+  await page.evaluate(() => { window.__focused = false; });
   Object.assign(session('review-session'), {status: 'done', busy: false, agents: root('done', Date.now(), {turnEndedAtUnixMillis: ms(Date.now()), lastTurnStatus: 'completed'}), lastMessage: 'I split the parser into three files.\n\n**All 42 tests pass.**'});
   Object.assign(session('failing-session'), {status: 'failed', busy: false, fault: 'provider delivery failed; reconcile before continuing', agents: root('failed', Date.now())});
   Object.assign(session('approval-session'), {status: 'waiting_approval', busy: false, agents: root('waiting_approval', Date.now()), pending: [{type: 'approval', requestId: 'a-deps', text: 'Bash', providerDataJson: data({input: {command: 'npm update'}})}]});
@@ -58,6 +61,8 @@ try {
   await expect.poll(() => page.evaluate(() => window.__notices.map(n => n.title).sort())).toEqual(['Approval needed · Bump dependencies', 'Failed · Deploy preview']);
   assert.equal(await page.evaluate(() => window.__notices.find(n => n.title.startsWith('Failed')).body), 'Beta release · A message could not be delivered to the agent');
   await expect.poll(() => page.title()).toMatch(/^\(2\) /);
+  assert.equal(await page.locator('.toast').count(), 0, 'a window in the background shows banners, not toasts');
+  await page.evaluate(() => { window.__focused = true; });
 
   // Sidebar: the finished conversation is marked unread in its workspace.
   const reviewRow = page.locator('.page-layout .conversation-row').filter({hasText: 'Refactor the parser'});
@@ -140,7 +145,11 @@ try {
   await inboxButton.click(); await inbox.locator('.inbox-row').filter({hasText: 'Bump dependencies'}).click();
   await expect(page.getByRole('combobox', {name: 'Session', exact: true})).toHaveValue('approval-session');
   Object.assign(session('alpha-session'), {status: 'done', busy: false, agents: root('done', Date.now(), {turnEndedAtUnixMillis: ms(Date.now()), lastTurnStatus: 'completed'}), lastMessage: 'Indexed 12 endpoints.'});
-  await expect.poll(() => page.evaluate(() => window.__notices.map(n => n.title)), {timeout: 10_000}).toContain('Ready for review · Index the API');
+  // Lazybox is in front, so it is a toast in the window, not a system banner.
+  await expect(page.locator('.toast[data-tone="review"]')).toContainText('Ready for review · Index the API', {timeout: 10_000});
+  assert.equal(await page.evaluate(() => window.__notices.filter(n => n.title.startsWith('Ready for review')).length), 0);
+  await page.locator('.toast[data-tone="review"]').getByRole('button', {name: /Ready for review/}).click();
+  await expect(page.getByRole('combobox', {name: 'Session', exact: true})).toHaveValue('alpha-session');
 
   // Phone: the entry stays in the header as an icon with its count; the list fills the screen.
   await page.setViewportSize({width: 390, height: 844});

@@ -21,7 +21,9 @@ import { AttentionScope } from './useAttention';
 import { QuickOpen } from './QuickOpen';
 import { FilePreview } from './FilePreview';
 import type { FileLink } from './file-reference';
-import { Workbench, WorkbenchContext, modKey } from './workbench';
+import { Workbench, WorkbenchContext } from './workbench';
+import { CommandCenter } from './CommandCenter';
+import { useWorkspaceCommands } from './useWorkspaceCommands';
 import { builtinPanels, pagePanels, sentence, type PanelModule } from './PanelRegistry';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { DetachedTabs } from './DetachedTabs';
@@ -211,21 +213,12 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     workbench.host = { showEditor: () => void showCode('editor'), showFiles: () => void showCode('files'), quickOpen: () => setQuickOpen(true), quickLook: (path, line) => setQuickLook({ path, line }) };
   });
   const focusFiles = () => { if (showCode('files')) workbench?.focusTree(); };
-  // Go to file is the editor's own shortcut, wherever focus is, as in any editor.
-  useEffect(() => {
-    if (!workbench) return;
-    const keydown = (event: KeyboardEvent) => {
-      if (!modKey(event) || event.altKey || event.shiftKey || event.code !== 'KeyP' || event.defaultPrevented || document.querySelector('dialog[open]')) return;
-      event.preventDefault(); event.stopPropagation(); setQuickOpen(true);
-    };
-    window.addEventListener('keydown', keydown, true);
-    return () => window.removeEventListener('keydown', keydown, true);
-  }, [workbench]);
-  useKeyboardAction('files.find', () => { if (workbench) setQuickOpen(true); });
-  useKeyboardAction('files.explorer', () => { if (workbench) focusFiles(); });
+  // Go to file (Mod+P or ] ] f, from the keymap) works wherever focus is, as in any editor.
+  useKeyboardAction('files.find', () => { if (workbench) setQuickOpen(true); }, () => !!workbench);
+  useKeyboardAction('files.explorer', () => { if (workbench) focusFiles(); }, () => !!workbench);
   // An artifact asked for (tracked from a message or a file) is shown in the Artifacts panel.
   useOpenArtifactRequests(workspaceID, () => void showModule('artifacts'));
-  useKeyboardAction('artifacts.open', () => { if (workspaceID) showModule('artifacts'); });
+  useKeyboardAction('artifacts.open', () => { if (workspaceID) showModule('artifacts'); }, () => !!workspaceID);
   /** Show this workspace's terminal: the open panel, or one docked beside the work. It starts a shell only when none is running. */
   const showTerminal = () => { if (workspaceID && showModule('terminal')) requestTerminal(workspaceID); };
   // A panel asked for in another workspace is shown once that workspace's page is.
@@ -309,6 +302,15 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const hiddenModules = Object.entries(registry).filter(([kind]) => !pagePanels.has(kind) && !panels(page.layout).some(panel => panel.kind === kind && !panel.detached && !panel.collapsed));
   const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) || mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
   const detachedPanels = panels(page.layout).filter(p => p.detached);
+  const navigator = useWorkspaceCommands({
+    root: viewState?.root || '', main: !fixedWorkspaceId, collections, selection: page.selection, workspaceId: workspaceID, workbench, registry,
+    canStartConversation: !!info && !pending && canShowNewSession, terminalReady, canOpenWorkspaceWindow: !!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId,
+    showSession, selectWorkspace: select, closeSettings: () => setSettings(false),
+    showPanel: kind => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : void showModule(kind),
+    openSettings: tab => { setSettingsTab(tab as SettingsTab); setSettings(true); },
+    newConversation: () => beginConversation(), openWorkspaceWindow: () => void host?.openWorkspace?.(workspaceID),
+    toggleEditing: () => { if (!settings) setEditing(value => !value); }, toggleConfiguring: () => { if (!settings) { setJSON(JSON.stringify(current.current, null, 2)); setConfiguring(value => !value); } },
+  });
 
   const panelActions: PanelActions = {
     toggleCollapsed, dockTo, close: closePanel, startDrag, showSession,
@@ -333,6 +335,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
 
   return <WorkbenchContext.Provider value={workbench}><main className={`workspace-shell${editing ? ' layout-editing' : ''}`}>
     <LeaderMenu hint={keyboardHint}/>
+    <CommandCenter viewState={viewState} navigator={navigator}/>
     <WorkspaceHeader pages={layout.pages} selectedPage={page.id} settings={settings} pending={!!pending} fixedWorkspace={!!fixedWorkspaceId} navigatorOpen={navigatorOpen}
       collections={collections} selection={page.selection} viewState={viewState} workspaceID={workspaceID} info={info} terminalReady={terminalReady} canShowNewSession={canShowNewSession}
       editing={editing} hiddenModules={hiddenModules} openPreview={host?.openPreview} canOpenWorkspaceWindow={!!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId}
