@@ -363,8 +363,11 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     event.preventDefault();
     const text=state.index<0?state.draft:state.list[state.index];
     recall.current=state.index<0?null:state;
+    // The text and caret are placed now, not a frame later: a late placement
+    // would move the caret, or collapse the selection, of whatever was typed
+    // or selected in between. The render that follows finds the box current.
+    el.value=text;el.setSelectionRange(text.length,text.length);el.scrollTop=el.scrollHeight;
     setMessage(text);setUncertainSend('');sendAttempt.current=null;persistDraft(text,files,missingFiles);
-    requestAnimationFrame(()=>{const node=composer.current;if(node){node.setSelectionRange(text.length,text.length);node.scrollTop=node.scrollHeight;}});
     return true;
   };
   const composerKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{if(recallKey(event))return;vim.textareaProps.onKeyDown?.(event);};

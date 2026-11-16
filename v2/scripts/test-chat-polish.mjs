@@ -64,15 +64,30 @@ try{
  await message.press('ArrowUp');await expect(message).toHaveValue('first prompt');
  await message.press('ArrowUp');await expect(message).toHaveValue('The login test is flaky, can you find out why?');
  await message.press('ArrowDown');await expect(message).toHaveValue('first prompt');
- await message.press('ArrowDown');await message.press('ArrowDown');await expect(message).toHaveValue('');
- await message.fill('half a draft');await message.press('ArrowUp');await expect(message).toHaveValue('half a draft','a draft is never replaced from the middle');
+ await message.press('ArrowDown');await expect(message).toHaveValue('second prompt');
+ // What is typed or selected right after a recall keeps its caret and
+ // selection: nothing recall deferred to a later frame may move them. Frames
+ // are held across each step so that interleaving happens every run.
+ const holdFrames=()=>page.evaluate(()=>{const held=[];window.__heldFrames=held;window.__requestFrame=window.requestAnimationFrame;window.requestAnimationFrame=cb=>held.push(cb);});
+ const releaseFrames=()=>page.evaluate(()=>{window.requestAnimationFrame=window.__requestFrame;for(const cb of window.__heldFrames.splice(0))cb(performance.now());});
+ await holdFrames();
+ await message.press('ArrowDown');await expect(message).toHaveValue('');
+ await message.fill('half a draft');
+ await releaseFrames();
+ assert.equal(await message.evaluate(n=>n.selectionStart),'half a draft'.length,'typing after a recall keeps its caret');
+ await message.press('ArrowUp');await expect(message).toHaveValue('half a draft','a draft is never replaced from the middle');
  await message.press('Home');await message.press('ArrowUp');await expect(message).toHaveValue('second prompt');
+ await holdFrames();
  await message.press('ArrowDown');await expect(message).toHaveValue('half a draft');
- await message.fill('');
+ await message.evaluate(n=>n.select());
+ await releaseFrames();
+ await message.press('Backspace');await expect(message,'a selection made after a recall is kept').toHaveValue('');
 
  // Snippets: the last used comes first; Frequent counts uses.
  await chat.getByRole('button',{name:'Snippets',exact:true}).click();let picker=page.getByRole('dialog',{name:'Snippets',exact:true});
- await picker.getByRole('searchbox').fill('Run the relevant');await picker.getByRole('searchbox').press('Enter');await expect(picker).toHaveCount(0);
+ // Enter sends the selected snippet; the list loads from the Runner, so wait for it.
+ await picker.getByRole('searchbox').fill('Run the relevant');await expect(picker.getByRole('option',{selected:true})).toContainText('test');
+ await picker.getByRole('searchbox').press('Enter');await expect(picker).toHaveCount(0);
  await chat.getByRole('button',{name:'Snippets',exact:true}).click();picker=page.getByRole('dialog',{name:'Snippets',exact:true});
  await expect(picker.getByRole('option').first()).toContainText('test');await expect(picker.getByRole('option').first()).toContainText('Last used');
  await picker.getByRole('button',{name:'Frequent',exact:true}).click();
