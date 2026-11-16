@@ -105,19 +105,19 @@ try {
   await expect(split.getByRole('button', { name: 'Accept' })).toBeVisible();
   await page.screenshot({ path: '/tmp/lazybox-missions-claimed.png' });
 
-  // The inbox counts it and offers the decision, with what backs the report.
+  // The inbox counts it and offers the decision, with what backs the report:
+  // the Inbox is the Agents panel under Workspaces, the decision on top, focused.
   const inboxButton = page.locator('.inbox-action');
   await expect(inboxButton).toHaveAccessibleName(/1 task awaits acceptance/);
   await inboxButton.click();
-  const inbox = page.getByRole('dialog', { name: 'Inbox' });
+  const inbox = page.locator('.panel-agents');
   const awaiting = inbox.locator('.group-awaiting');
+  await expect(awaiting.getByRole('button', { name: 'Accept' })).toBeFocused();
   await expect(awaiting.locator('h3')).toHaveText(/Awaiting acceptance\s*1/);
   await expect(awaiting.locator('.inbox-task')).toContainText('Split the parser');
   await expect(awaiting.locator('.inbox-task')).toContainText('Ship the parser split · “Split into lexer, parser and ast.”');
   await expect(awaiting.locator('.trust-badge')).toHaveText('Claimed');
-  await expect(inbox.locator('.inbox-summary')).toHaveText('1 waiting for you');
-  await expect(inbox.locator('.inbox-caught-up')).toHaveCount(0);
-  await page.keyboard.press('Escape');
+  await expect(inbox.locator('.agents-summary')).toHaveText('1 waiting for you');
 
   // A passing run makes it observed; checks passing on the PR verify it.
   fixture.missions.recordRun(taskSession, { title: 'go test ./...', exitCode: 0 });
@@ -140,7 +140,6 @@ try {
   await awaiting.getByRole('button', { name: 'Accept' }).click();
   await expect(awaiting).toHaveCount(0);
   await expect(inboxButton).not.toHaveAccessibleName(/awaits acceptance/);
-  await page.keyboard.press('Escape');
   await expect(split.locator('.mission-status')).toHaveText('Done');
   await expect(split.locator('.trust-badge')).toHaveText('Accepted');
   await expect(card('Document the parser').locator('.mission-status')).toHaveText('Ready');

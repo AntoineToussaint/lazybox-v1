@@ -817,7 +817,10 @@ orchestrator above the columns and, on each card, who started it as what.
 **Not yet** (in this slice). Plan approval and budgets, the Missions page
 with its Timeline, Messages and Leases tabs, live overlap and review
 capacity are below; the merge train is designed there, not built. A child's
-approvals reach the person's Inbox as before, without a lineage crumb yet.
+approvals reach the person's Agents list and Inbox labelled *started by
+<orchestrator> · <mission>*, and the Agents list nests an orchestrator's
+agents under it (`agents-model.ts` `nestByLineage`); plans to approve and
+tasks to accept sit at its top and in the Inbox count.
 `ask` (a blocking question to a child) is `send` plus `wait --until idle`.
 Not verified with real Claude or Codex agents: the fake provider and the
 fake Runner drive every test.

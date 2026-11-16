@@ -50,9 +50,34 @@ export function agentSections(inbox: Pick<Inbox, 'rows'>, grouping: Grouping, wo
   return [...sections, ...[...byWorkspace].map(([id, list]) => ({ id: `w:${id}`, title: workspaceName(list[0]), rows: list }))];
 }
 
+/**
+ * An agent tree in a section: the agents an orchestrator started follow it,
+ * one level in, when they are in the same section (Session.lineage); an agent
+ * whose orchestrator is elsewhere keeps its place and says who started it.
+ */
+export function nestByLineage(rows: readonly Attention[]): { row: Attention; depth: 0 | 1 }[] {
+  const conversation = (row: Attention) => row.session.conversationId || row.session.id;
+  const present = new Set(rows.map(conversation));
+  const nested = (row: Attention) => !!row.session.lineage?.parentConversationId && present.has(row.session.lineage.parentConversationId);
+  const out: { row: Attention; depth: 0 | 1 }[] = [];
+  for (const row of rows) {
+    if (nested(row)) continue;
+    out.push({ row, depth: 0 });
+    for (const child of rows) if (nested(child) && child.session.lineage!.parentConversationId === conversation(row)) out.push({ row: child, depth: 1 });
+  }
+  return out;
+}
+
+/** Where an agent came from, for its row: "started by Search lead · Ship search". */
+export function lineageLabel(session: Session): string {
+  const l = session.lineage;
+  if (!l?.parentConversationId) return '';
+  return ['started by ' + (l.parentTitle || 'an orchestrator'), l.missionTitle].filter(Boolean).join(' · ');
+}
+
 /** The rows in reading order, skipping folded sections: what j/k walk. */
 export function visibleRows(sections: readonly AgentSection[], folded: readonly string[]): Attention[] {
-  return sections.filter(section => !folded.includes(section.id)).flatMap(section => section.rows);
+  return sections.filter(section => !folded.includes(section.id)).flatMap(section => nestByLineage(section.rows).map(item => item.row));
 }
 
 export type SubagentRow = { id: string; name: string; status: string; tone: 'busy' | 'waiting'; detail: string; since: number };

@@ -61,12 +61,16 @@ async function run(scheme) {
   // The plan waits in the orchestrator's conversation…
   const line = chat.locator('.lineage-line.kind-plan_proposed');
   await expect(line).toContainText('Proposed a plan: 3 agents · est. $8.50 · waiting for your approval');
-  // …in the inbox…
-  await page.locator('.inbox-action').click();
-  const inbox = page.getByRole('dialog', { name: 'Inbox' });
+  // …in the Inbox (the Agents panel), on top, its Review focused, and counted…
+  const inboxButton = page.locator('.inbox-action');
+  await expect(inboxButton).toHaveAccessibleName(/1 plan awaits approval/);
+  await inboxButton.click();
+  const inbox = page.locator('.panel-agents');
   await expect(inbox.locator('.group-plans')).toContainText('Search lead proposes 3 agents');
   await expect(inbox.locator('.group-plans')).toContainText('Ship search · est. $8.50 · 1 shared path');
-  await page.keyboard.press('Escape');
+  await expect(inbox.locator('.group-plans').getByRole('button', { name: 'Review plan…' })).toBeFocused();
+  await expect(inbox.locator('.agents-summary')).toHaveText('1 waiting for you');
+  await page.screenshot({ path: `${shots}orchestration-inbox-${scheme}.png` });
   // …and on the board, from where it opens too.
   await page.locator('summary[aria-label="Panels"]').click();
   await page.getByRole('button', { name: 'Show Missions', exact: true }).click();

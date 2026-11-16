@@ -21,6 +21,7 @@ export const releaseNotes: readonly Release[] = [
       { title: 'The missions board as a page', body: '⌘K, Open the missions board: the columns side by side, and tabs for a Timeline of everything every agent did (one lane each, what each event reacts to one click away), the Messages between agents, and Leases.' },
       { title: 'Overlaps seen as they happen', body: 'After every turn Lazybox compares what the mission\'s agents changed; two agents on the same file, or one inside another\'s exclusive lease (lazybox lease claim), flag both cards and tell the orchestrator. Nothing is blocked.' },
       { title: 'Work sized to your review', body: 'While three tasks (or the grant\'s number) wait for your review, the orchestrator\'s new agents are held, and the board says so.' },
+      { title: 'Agent trees in the Agents list', body: 'An orchestrator\'s agents nest under it, with their role; one listed apart (waiting for your approval, say) says who started it. Plans to approve and tasks to accept sit at the top, and the Inbox counts them.' },
     ],
   },
   {

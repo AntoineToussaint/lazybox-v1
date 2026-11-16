@@ -5,7 +5,8 @@ import { Icon } from './Icons';
 import { AttentionIcon, LiveText } from './Inbox';
 import { conversationDetails, conversationName } from './conversation-model';
 import { ageLabel, attentionTitle, conversationKey, seenMark, type Attention } from './attention';
-import { agentSections, isPinned, liveSubagents, metaLine, visibleRows, type Grouping } from './agents-model';
+import { agentSections, isPinned, lineageLabel, liveSubagents, metaLine, nestByLineage, visibleRows, type Grouping } from './agents-model';
+import { useMissionAttention } from './MissionInbox';
 import { useInbox } from './useAttention';
 import { useRunner } from './RunnerContext';
 import { readPreference, writePreference } from './view-state';
@@ -72,7 +73,8 @@ export function AgentsPanel({ collections, target, viewState, onShowSession }: {
   const markAll = () => inbox.mark(unread.map(row => ({ key: row.key, at: seenMark(row) })));
   const rowOf = (key?: string) => inbox.rows.find(row => row.key === key);
   const focusable = () => [...panel.current?.querySelectorAll<HTMLElement>('.agent-row, .agent-subagent') || []];
-  const focusFirst = () => { const first = panel.current?.querySelector<HTMLElement>('.agent-row'); (first || filterInput.current)?.focus({ preventScroll: false }); first?.scrollIntoView({ block: 'nearest' }); };
+  // A plan to approve or a task to accept comes first: it is what waits on the person.
+  const focusFirst = () => { const first = panel.current?.querySelector<HTMLElement>('.inbox-missions .inbox-task-actions button, .agent-row'); (first || filterInput.current)?.focus({ preventScroll: false }); first?.scrollIntoView({ block: 'nearest' }); };
   useAgentsFocusRequests(focusFirst);
 
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -100,7 +102,8 @@ export function AgentsPanel({ collections, target, viewState, onShowSession }: {
     else if (event.key === 'ArrowLeft') { event.preventDefault(); toggleExpanded(row.key, false); element.closest<HTMLElement>('[data-key]')?.querySelector<HTMLElement>('.agent-row')?.focus(); }
   };
 
-  const waiting = inbox.counts['needs-input'];
+  const missionAttention = useMissionAttention();
+  const waiting = inbox.counts['needs-input'] + missionAttention;
   const visibleCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
   const summary = filtering ? `${visibleCount} of ${inbox.rows.length}` : waiting ? `${waiting} waiting for you` : unread.length ? `${unread.length} to review` : inbox.rows.length ? 'Nothing needs you' : '';
   return <div ref={panel} className="agents-panel" onKeyDown={keyDown} data-peek-list>
@@ -131,10 +134,11 @@ export function AgentsPanel({ collections, target, viewState, onShowSession }: {
           {section.state ? <AttentionIcon state={section.state} size={12}/> : section.id === 'pinned' ? <span className="agents-group-pin" aria-hidden="true"><Icon name="pin" size={11}/></span> : null}
           <span className="agents-group-name">{section.title}</span><b>{section.rows.length}</b>
         </button>
-        {!shut && <ul>{section.rows.map(row => {
+        {!shut && <ul>{nestByLineage(section.rows).map(({ row, depth }) => {
           const title = conversationName(row.session), pinned = isPinned(row.session), dot = row.unread && row.state !== 'needs-input';
           const subagents = liveSubagents(row.session), open_ = expanded.includes(row.key);
-          return <li key={row.key} data-key={row.key} data-state={row.state} data-unread={dot || undefined} data-pinned={pinned || undefined}
+          const lineage = row.session.lineage, from = depth ? '' : lineageLabel(row.session);
+          return <li key={row.key} data-key={row.key} data-state={row.state} data-unread={dot || undefined} data-pinned={pinned || undefined} data-depth={depth || undefined} data-orchestrator={lineage?.grantId ? '' : undefined}
             onContextMenu={contextMenu('conversation', () => actions.items(row.session, { rename: () => setRenaming(row.key) }), { sessionId: row.session.id, workspaceId: row.session.collectionId }, `Conversation ${title}`)}>
             {renaming === row.key
               ? <div className="agent-renaming"><AttentionIcon state={row.state} size={14}/><InlineConversationRename session={row.session} onDone={() => { setRenaming(''); requestAnimationFrame(() => panel.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(row.key)}"] .agent-row`)?.focus()); }}/></div>
@@ -143,7 +147,10 @@ export function AgentsPanel({ collections, target, viewState, onShowSession }: {
                   <span className="agent-mark"><AttentionIcon state={row.state} size={14}/>{dot && <i className="unread-dot"/>}</span>
                   <span className="sr-only">{attentionTitle[row.state]}{dot ? ', unread' : ''}{pinned ? ', pinned' : ''}: </span>
                   <span className="agent-main">
-                    <span className="agent-title"><strong>{title}</strong>{pinned && section.id !== 'pinned' && <span className="agent-pinned" aria-hidden="true"><Icon name="pin" size={10}/></span>}</span>
+                    <span className="agent-title"><strong>{title}</strong>{pinned && section.id !== 'pinned' && <span className="agent-pinned" aria-hidden="true"><Icon name="pin" size={10}/></span>}
+                      {depth > 0 && <span className="agent-role agent-lineage" title={lineageLabel(row.session)}>{lineage?.role || 'agent'}</span>}
+                      {lineage?.grantId && <span className="agent-orchestrator" title={`Orchestrator of “${lineage.missionTitle}”: ${lineage.liveChildren} of ${lineage.maxChildren} agents running`}><Icon name="subagent" size={10}/>{lineage.liveChildren}/{lineage.maxChildren}</span>}</span>
+                    {from && <span className="agent-lineage" title={lineageLabel(row.session)}><Icon name="subagent" size={10}/>{from}</span>}
                     <span className="agent-meta">{row.state === 'working' ? <>{grouping === 'priority' && <span className="agent-workspace">{workspace(row)}</span>}<LiveText session={row.session}/></> : <span>{metaLine(row, workspace(row), grouping === 'priority' || section.id === 'pinned')}</span>}</span>
                   </span>
                   <time className="agent-age" dateTime={row.at ? new Date(row.at).toISOString() : undefined}>{ageLabel(row.at, now)}</time>

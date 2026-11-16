@@ -85,3 +85,20 @@
 .agents-empty{display:flex;flex-direction:column;align-items:center;gap:8px;margin:auto 0;padding:24px 16px;text-align:center;color:var(--text-muted)}
 .agents-empty p{margin:0;font-size:calc(11.5px * var(--text-scale));line-height:1.5}
 .workspace-shell .agents-empty button{padding:4px 10px;font-size:calc(11px * var(--text-scale))}
+
+/* Agent trees (Session.lineage): an orchestrator's agents nest one level
+   under it; an agent away from its orchestrator says who started it. */
+.agents-group li[data-depth="1"]{margin-left:14px;border-left:1px solid var(--line-subtle);padding-left:4px}
+.agent-title .agent-orchestrator{flex:none;display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:0 5px;border:1px solid var(--accent-line);border-radius:7px;background:var(--accent-bg);color:var(--accent-strong);font-size:calc(9.5px * var(--text-scale));line-height:calc(14px * var(--text-scale));font-variant-numeric:tabular-nums}
+.agent-main .agent-lineage{display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:calc(10px * var(--text-scale));line-height:calc(14px * var(--text-scale));color:var(--text-faint)}
+.inbox-lineage{display:block;font-size:calc(11px * var(--text-scale));color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* What missions need from the person, at the top of the Agents list: plans to
+   approve and tasks to accept, before any conversation. */
+.agents-list .inbox-missions{margin:2px 0 8px;padding:6px 6px 4px;border:1px solid var(--attention-input-line,var(--warn-line));border-radius:8px;background:var(--surface-raised)}
+.agents-list .inbox-missions h3{display:flex;align-items:center;gap:6px;margin:0 2px 4px;font-size:calc(10.5px * var(--text-scale));font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+.agents-list .inbox-missions h3 span{margin-left:auto;font-variant-numeric:tabular-nums}
+.agents-list .inbox-missions ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.agents-list .inbox-missions .inbox-task{padding:6px 6px}
+.agents-list .inbox-missions .inbox-task-head strong{font-size:calc(12px * var(--text-scale))}
+.agent-title .agent-role{flex:none;padding:0 5px;border:1px solid var(--line);border-radius:7px;font-size:calc(9.5px * var(--text-scale));line-height:calc(14px * var(--text-scale));color:var(--text-subtle)}

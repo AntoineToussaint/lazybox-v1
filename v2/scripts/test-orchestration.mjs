@@ -93,6 +93,24 @@ async function run(scheme) {
   await expect(chat.locator('.lineage-line.kind-agent_spawned')).toHaveCount(2);
   await expect(chat.locator('.lineage-line.kind-agent_spawned').first()).toContainText('Started “Index the corpus” · worker · ask');
 
+  // The Agents panel nests them under their orchestrator, which shows how many run.
+  const agents = page.locator('.panel-agents');
+  const orchRow = agents.locator('li[data-orchestrator]').filter({ hasText: 'Search lead' });
+  await expect(orchRow.locator('.agent-orchestrator')).toHaveText('2/3', { timeout: 15_000 });
+  const nested = agents.locator('li[data-depth="1"]');
+  await expect(nested).toHaveCount(2);
+  await expect(nested.first().locator('.agent-role')).toHaveText(/worker|researcher/);
+  const order = await agents.locator('li[data-key]').evaluateAll(nodes => nodes.map(n => n.querySelector('.agent-title strong')?.textContent || ''));
+  const lead = order.indexOf('Search lead');
+  assert.ok(lead >= 0 && ['Index the corpus', 'Rank results'].every(t => order.indexOf(t) > lead), `children follow their orchestrator: ${order}`);
+  // A child that asks for approval asks the person, saying who started it.
+  index.pending = [{ type: 'approval', requestId: 'req-1', text: 'Bash go test ./search', providerDataJson: '' }];
+  index.status = 'waiting_approval'; index.busy = false;
+  const asking = agents.locator('li[data-state="needs-input"]').filter({ hasText: 'Index the corpus' });
+  await expect(asking.locator('.agent-lineage')).toHaveText('started by Search lead · Ship search', { timeout: 15_000 });
+  await page.screenshot({ path: `${shots}orchestration-agents-${scheme}.png` });
+  index.pending = []; index.status = 'running'; index.busy = true;
+
   // A child's message is an event of the conversation, from the child, never "You".
   fixture.missions.agentMessage(index.id, 'alpha-session', 'Found the tokenizer in search/lex.go; see run r_12.');
   const from = chat.locator('.system-event[data-kind=agent_note]').last();

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { budgetLine, defaultCap, lanesOf, messageThreads, overlapsOf, overlapsOfTask, pendingPlans, planOrder, reviewHeld, ceilingLine, childState, defaultGrant, effectivePermission, grantOf, grantProblem, permissionChoices, profileLabel } from '../packages/surfaces/src/orchestration-model';
 import { emptyTranscript, foldTranscript } from '../packages/surfaces/src/transcript-model';
 import { systemEventView } from '../packages/surfaces/src/system-events';
+import { lineageLabel, nestByLineage } from '../packages/surfaces/src/agents-model';
 
 test('a grant offers at most the conversation’s own permission; inherit counts as ask', () => {
   assert.equal(effectivePermission('inherit'), 'ask');
@@ -89,4 +90,12 @@ test('the timeline has a lane per actor; messages read as threads; holds and ove
   assert.deepEqual(overlapsOfTask(mission, 't2'), [{ other: 'Index', paths: ['search/rank.go'], kind: 'files' }]);
   assert.deepEqual(reviewHeld(mission), { waiting: 2, limit: 2 });
   assert.equal(reviewHeld({ ...(mission as object), awaitingReview: 1 } as never), undefined);
+});
+
+test('the Agents list nests an orchestrator’s agents under it, and says who started one shown apart', () => {
+  const row = (id: string, parent = '') => ({ key: id, session: { id, conversationId: id, lineage: parent ? { parentConversationId: parent, parentTitle: 'Search lead', missionTitle: 'Ship search', role: 'worker' } : undefined } }) as never;
+  const nested = nestByLineage([row('c1', 'orch'), row('other'), row('orch'), row('c2', 'orch'), row('lost', 'gone')]);
+  assert.deepEqual(nested.map(({ row, depth }) => `${(row as { key: string }).key}:${depth}`), ['other:0', 'orch:0', 'c1:1', 'c2:1', 'lost:0']);
+  assert.equal(lineageLabel((row('c1', 'orch') as { session: never }).session), 'started by Search lead · Ship search');
+  assert.equal(lineageLabel((row('orch') as { session: never }).session), '');
 });

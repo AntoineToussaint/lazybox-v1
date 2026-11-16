@@ -11,7 +11,8 @@ import { ageLabel, attentionTitle, seenMark, type Attention, type AttentionState
 import { attentionChanges, deliverAttention } from './attention-alerts';
 import { bindings, displayKey, isChord } from './actions';
 import { useAttentionHost, useInbox, useNotificationPreferences, useViewingReader } from './useAttention';
-import { MissionInboxSection, useAwaitingTasks } from './MissionInbox';
+import { MissionInboxSection, useAwaitingTasks, useMissionAttention } from './MissionInbox';
+import { lineageLabel } from './agents-model';
 import type { ViewTarget } from './workspace-model';
 import './inbox.css';
 import { contextMenu } from './ContextMenu';
@@ -43,9 +44,9 @@ export function AttentionCenter({ collections, selection, onOpen, viewState }: {
   const show = () => { if (conversationOpeners()?.showAgents()) requestAgentsFocus(); else setOpen(true); };
   useKeyboardAction('inbox.open', show);
   useAttentionNotifier(inbox, collections, selection, onOpen, keymap);
-  const awaiting = useAwaitingTasks();
-  const needsInput = inbox.counts['needs-input'] + awaiting, count = inbox.unread + awaiting;
-  const label = [inbox.unread ? `Inbox, ${inbox.unread} ${inbox.unread === 1 ? 'conversation needs' : 'conversations need'} attention` : 'Inbox', awaiting ? `${awaiting} ${awaiting === 1 ? 'task awaits' : 'tasks await'} acceptance` : ''].filter(Boolean).join(', ');
+  const awaiting = useAwaitingTasks(), plans = useMissionAttention() - awaiting;
+  const needsInput = inbox.counts['needs-input'] + awaiting + plans, count = inbox.unread + awaiting + plans;
+  const label = [inbox.unread ? `Inbox, ${inbox.unread} ${inbox.unread === 1 ? 'conversation needs' : 'conversations need'} attention` : 'Inbox', awaiting ? `${awaiting} ${awaiting === 1 ? 'task awaits' : 'tasks await'} acceptance` : '', plans ? `${plans} ${plans === 1 ? 'plan awaits' : 'plans await'} approval` : ''].filter(Boolean).join(', ');
   return <>
     <button className="toolbar-action inbox-action" aria-label={label} title={`Inbox (${keymap['inbox.open']})`} aria-expanded={open} onClick={show}>
       <Icon name="inbox"/><span>Inbox</span>
@@ -85,7 +86,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
       if (row?.unread && row.state !== 'needs-input') { event.preventDefault(); markSeen([row]); }
     }
   };
-  const waiting = inbox.counts['needs-input'] + useAwaitingTasks();
+  const waiting = inbox.counts['needs-input'] + useMissionAttention();
   const summary = waiting ? `${waiting} waiting for you` : unseen.length ? `${unseen.length} to review` : inbox.rows.length ? 'All caught up' : '';
   return <dialog ref={dialog} className="inbox-dialog" aria-labelledby="inbox-title" onCancel={onClose} onKeyDown={keyDown}
     onClick={event => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose(); } }}>
@@ -114,6 +115,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
               <span className="inbox-main">
                 <span className="inbox-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationName(row.session)}</strong></span>
                 <span className="inbox-meta"><span>{workspace(row)}</span><span>{conversationDetails(row.session, info?.profiles || [], false)}</span></span>
+                {lineageLabel(row.session) && <span className="inbox-lineage">{lineageLabel(row.session)}</span>}
                 {(row.line || row.state !== 'idle') && <span className="inbox-line">{row.state === 'working' ? <LiveText session={row.session}/> : <em>{row.reason}</em>}{row.line && <> · {row.line}</>}</span>}
               </span>
               <time className="inbox-age" dateTime={row.at ? new Date(row.at).toISOString() : undefined} title={row.at ? new Date(row.at).toLocaleString() : undefined}>{ageLabel(row.at, now)}</time>

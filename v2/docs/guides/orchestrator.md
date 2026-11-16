@@ -33,8 +33,9 @@ With **Approve its plan first** on, the orchestrator first proposes how it
 would split the mission: each task with who does it, at what permission, in
 which workspace, the paths it would change, the order, and an estimate.
 The plan waits for you in its conversation (**Review plan…** on the line
-*Proposed a plan*), in the Inbox under **Plans to approve**, and on the
-Missions board.
+*Proposed a plan*), at the top of the Agents list under **Plans to approve**
+(the Inbox button counts it and focuses its Review), and on the Missions
+board.
 
 The sheet lists the tasks in the order they can start (tasks at the same
 step run side by side). A path two tasks would both change is flagged: they
@@ -114,6 +115,11 @@ from. A message from an agent never counts as your consent.
   you.
 - **An agent it started** shows its orchestrator in its header; click it to
   go back up.
+- **The Agents list** (under Workspaces) nests an orchestrator's agents under
+  it, each with its role, and the orchestrator shows how many run (*2/3*).
+  An agent listed apart from it, such as one that waits for your approval,
+  says *started by Search lead · Ship search*. Its approvals are yours,
+  never the orchestrator's.
 - **The Missions board** shows the orchestrator above the columns, and on
   each card who started it and as what (*worker*, *researcher*…).
 

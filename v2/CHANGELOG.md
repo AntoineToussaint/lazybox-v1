@@ -24,6 +24,7 @@ continue on lines indented by two spaces.
 - **The missions board as a page** ⌘K, Open the missions board: the columns side by side, and tabs for a Timeline of everything every agent did (one lane each, what each event reacts to one click away), the Messages between agents, and Leases.
 - **Overlaps seen as they happen** After every turn Lazybox compares what the mission's agents changed; two agents on the same file, or one inside another's exclusive lease (lazybox lease claim), flag both cards and tell the orchestrator. Nothing is blocked.
 - **Work sized to your review** While three tasks (or the grant's number) wait for your review, the orchestrator's new agents are held, and the board says so.
+- **Agent trees in the Agents list** An orchestrator's agents nest under it, with their role; one listed apart (waiting for your approval, say) says who started it. Plans to approve and tasks to accept sit at the top, and the Inbox counts them.
 
 ## [2026-11-17.5] - 2026-11-17 · Panels from the keyboard
 

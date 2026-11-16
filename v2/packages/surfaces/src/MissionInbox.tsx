@@ -13,6 +13,12 @@ export function useAwaitingTasks(): number {
   return awaitingRows(useMissions().missions).length;
 }
 
+/** What waits on the person in missions: tasks to accept and plans to approve. */
+export function useMissionAttention(): number {
+  const { missions } = useMissions();
+  return awaitingRows(missions).length + pendingPlans(missions).length;
+}
+
 /**
  * The inbox's "Awaiting acceptance" group: a task reported done waits at its
  * human gate until the person accepts it or asks for changes, here or on the
