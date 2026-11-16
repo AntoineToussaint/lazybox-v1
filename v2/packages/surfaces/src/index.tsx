@@ -16,3 +16,4 @@ export { useNativeActionMenu, runMenuAction, type NativeMenuItem } from './nativ
 export { actionsFor, actionMenuItems, runAction, useAction, useActions, actionDefinitions, type ActionId, type ResolvedAction } from './actions';
 export { WebWindow } from './WebWindow';
 export { installLinkRouting, openInViewer } from './web-links';
+export { userCommands, useUserCommands, type UserCommand } from './user-commands';

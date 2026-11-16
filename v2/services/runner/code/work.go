@@ -93,6 +93,14 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 	if root := os.Getenv("LAZYBOX_V2_WORKTREE_ROOT"); root != "" {
 		cfg.WorktreeRoot = root
 	}
+	// The person's actions and hooks file (POWER.md); the launchers pass
+	// ~/.config/lazybox/actions.yaml. Unset, the Runner reads <state>/actions.yaml.
+	if file := os.Getenv("LAZYBOX_V2_ACTIONS_FILE"); file != "" && cfg.ActionsFile == "" {
+		cfg.ActionsFile = file
+	}
+	if cfg.ActionsFile != "" && !filepath.IsAbs(cfg.ActionsFile) {
+		return nil, errors.New("actionsFile must be an absolute path")
+	}
 	// The owner's endpoint file. Agents get their own (runner.Bench.AgentEndpoint).
 	endpoint := filepath.Join(cfg.State, "endpoint.json")
 	instance, err := codefly.For(ctx).API(standards.CONNECT).ResolveNetworkInstance()

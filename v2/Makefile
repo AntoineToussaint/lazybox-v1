@@ -118,7 +118,7 @@ environments:
 share-subscriptions:
 	node scripts/environments.mjs share-subscriptions '$(SUBSCRIPTION_STATE)'
 test-environments:
-	node --test scripts/environments.test.mjs scripts/runner-service.test.mjs scripts/runner-restart.test.mjs scripts/release-gates.test.mjs
+	node --test scripts/environments.test.mjs scripts/runner-service.test.mjs scripts/runner-restart.test.mjs scripts/release-gates.test.mjs scripts/user-config.test.mjs
 
 .PHONY: runner-service-plan runner-service-install runner-service-start runner-service-stop runner-service-status runner-service-uninstall working-client
 runner-service-plan runner-service-install runner-service-start runner-service-stop runner-service-status runner-service-uninstall:

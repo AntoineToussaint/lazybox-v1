@@ -212,6 +212,30 @@ service RunnerService {
   // Owner only. Opens a GitHub issue with the artifact as its body, in a
   // workspace repository's GitHub project, through the GitHub connection.
   rpc CreateArtifactIssue(CreateArtifactIssueRequest) returns (CreateArtifactIssueResponse);
+  // Power-user extensibility (POWER.md), owner only. The user's actions and
+  // hooks file as the Runner last loaded it: actions the app offers in its
+  // menus and runs with the owner's own rules, hooks the Runner fires on
+  // events, and every problem with the file by line.
+  rpc GetUserActions(GetUserActionsRequest) returns (UserActions);
+  // Owner only. Creates the actions file with a commented starter and its
+  // JSON Schema beside it, when there is none; never replaces a file.
+  rpc InitUserActions(GetUserActionsRequest) returns (UserActions);
+  // Owner only. Recent hook runs, newest first; each run's output is its
+  // command's (ReadCommand).
+  rpc ListHookRuns(ListHookRunsRequest) returns (HookRuns);
+  // Owner only. Fires one hook now with a sample event, as Settings' Test does.
+  rpc TestHook(TestHookRequest) returns (HookRun);
+  // Owner only. Asks the person's open Lazybox window to do something the CLI
+  // cannot: show a workspace, conversation or file (`lazybox open`), take a
+  // screenshot (`lazybox shot`) or run a user action (`lazybox actions run`).
+  // Refused at once when no window is open to handle it.
+  rpc PostUiRequest(UiRequest) returns (UiRequest);
+  // Owner only. Waits for a posted request's outcome (bounded).
+  rpc WaitUiRequest(WaitUiRequestRequest) returns (UiRequest);
+  // Owner only. A window follows the requests addressed to it…
+  rpc WatchUiRequests(WatchUiRequestsRequest) returns (stream UiRequest);
+  // …and answers each one, with a screenshot's PNG when one was asked for.
+  rpc CompleteUiRequest(CompleteUiRequestRequest) returns (UiRequest);
 }
 
 message InfoRequest {}
@@ -1813,4 +1837,161 @@ message CreateArtifactIssueRequest {
 message CreateArtifactIssueResponse {
   int64 number = 1;
   string url = 2;
+}
+
+// Power-user extensibility (POWER.md): the actions and hooks file.
+message GetUserActionsRequest {}
+message UserActions {
+  // The file the Runner reads, and whether it exists.
+  string path = 1;
+  bool exists = 2;
+  // The file as a whole could not be read (YAML syntax, say). The actions and
+  // hooks below are then the last version that loaded, if any (stale).
+  string error = 3;
+  // Problems with single entries; an entry with an error is left out.
+  repeated UserActionIssue issues = 4;
+  repeated UserAction actions = 5;
+  repeated UserHook hooks = 6;
+  // Increases whenever what the file declares changes.
+  uint64 revision = 7;
+  int64 loaded_at_unix_millis = 8;
+  // The JSON Schema of the file, and where InitUserActions writes it.
+  string schema = 9;
+  string schema_path = 10;
+  // The events hooks may follow, for Settings and completions.
+  repeated string events = 11;
+  // The actions and hooks above come from an earlier version of the file,
+  // because the current one does not load.
+  bool stale = 12;
+}
+message UserActionIssue {
+  // Where in the file: "actions[2].steps[0]", say.
+  string path = 1;
+  uint32 line = 2;
+  string message = 3;
+  // "error" leaves the entry out; "warning" keeps it.
+  string severity = 4;
+}
+message UserAction {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string icon = 4;
+  // One key after the leader (]] t), or empty.
+  string key = 5;
+  // Where the action is offered: palette, menu (the ]] which-key menu),
+  // conversation (its menu) and workspace (its row's menu).
+  repeated string where = 6;
+  repeated UserActionStep steps = 7;
+  // Ask before running.
+  bool confirm = 8;
+}
+message UserActionStep {
+  // send, open, run, command, permission or wait.
+  string kind = 1;
+  string name = 2;
+  // always (default), succeeded or failed: whether the step runs, from the
+  // result of the last step before it that has no condition.
+  string when = 3;
+  // send: the text, or a snippet's key; to: current (default), new, or a
+  // conversation's id or title; wait: also wait for the turn to end.
+  string text = 4;
+  string snippet = 5;
+  string to = 6;
+  bool wait = 7;
+  // open: a panel kind, a web URL, or a workspace file and line.
+  string panel = 8;
+  string url = 9;
+  string file = 10;
+  uint32 line = 11;
+  // run: a workspace action's key (its scripts' approval applies).
+  string action = 12;
+  // command: a shell command run as a managed command of the conversation.
+  string command = 13;
+  // permission: ask, read-only or yolo.
+  string permission = 14;
+  // wait: idle or needs-input.
+  string until = 15;
+  uint32 timeout_seconds = 16;
+}
+message UserHook {
+  string id = 1;
+  string description = 2;
+  repeated string on = 3;
+  // Filters: every one set must match. Workspace and conversation match the
+  // name or title, with * as a wildcard; repository matches owner/name.
+  repeated string workspaces = 4;
+  repeated string conversations = 5;
+  repeated string repositories = 6;
+  // Exactly one of: a program and its arguments, a shell line, a webhook.
+  repeated string run = 7;
+  string shell = 8;
+  string webhook = 9;
+  map<string, string> headers = 10;
+  // Credential grants for the hook's own `lazybox` calls: read, respond,
+  // start. Without grants a hook holds no Runner credential at all.
+  repeated string grants = 11;
+  uint32 timeout_seconds = 12;
+  bool enabled = 13;
+}
+message ListHookRunsRequest { uint32 limit = 1; }
+message HookRuns { repeated HookRun runs = 1; }
+message HookRun {
+  string id = 1;
+  string hook_id = 2;
+  string event = 3;
+  // running, succeeded, failed or skipped.
+  string state = 4;
+  // The managed command holding the run's output (ReadCommand).
+  string command_id = 5;
+  optional int32 exit_code = 6;
+  string error = 7;
+  // One line about the event: "Alpha feature · fix the tests needs input".
+  string summary = 8;
+  string collection_id = 9;
+  string session_id = 10;
+  int64 started_at_unix_millis = 11;
+  int64 ended_at_unix_millis = 12;
+  // A webhook's HTTP status.
+  uint32 http_status = 13;
+  repeated string grants = 14;
+  bool test = 15;
+}
+message TestHookRequest { string hook_id = 1; }
+message UiRequest {
+  string id = 1;
+  // open, shot or action.
+  string kind = 2;
+  // open and action: a workspace, a conversation, or a workspace file and line.
+  string collection_id = 3;
+  string session_id = 4;
+  string file = 5;
+  uint32 line = 6;
+  // shot: empty for the window, or a panel kind; open: a panel to show.
+  string panel = 7;
+  // action: the user action's id.
+  string action_id = 8;
+  // pending, done or failed.
+  string state = 9;
+  string error = 10;
+  // shot: the PNG.
+  bytes png = 11;
+  // What the window did, in one line ("Showed Alpha feature · fix the tests").
+  string detail = 12;
+  int64 created_at_unix_millis = 13;
+}
+message WaitUiRequestRequest {
+  string id = 1;
+  // Bounded by the Runner to two minutes; zero selects 30 seconds.
+  uint32 timeout_ms = 2;
+}
+message WatchUiRequestsRequest {
+  // "desktop" or "web": a desktop window is preferred when both are open.
+  string surface = 1;
+}
+message CompleteUiRequestRequest {
+  string id = 1;
+  string error = 2;
+  bytes png = 3;
+  string detail = 4;
 }

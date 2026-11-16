@@ -64,7 +64,10 @@ func output[T any](r *connect.Response[T], err error) error {
 func run() error {
 	global := flag.NewFlagSet("lazybox", flag.ContinueOnError)
 	endpointPath := global.String("endpoint", os.Getenv("LAZYBOX_V2_ENDPOINT"), "endpoint.json printed by the V2 runner")
+	runnerName := global.String("runner", "", "registered Runner to use for power verbs (lazybox runners); LAZYBOX_RUNNER also selects one")
 	global.Usage = func() {
+		powerUsage(os.Stderr)
+		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "In a Lazybox workspace terminal no flag is needed: `cmd 2>&1 | lazybox log [--title CMD] [--to CONVERSATION]` or `lazybox run [--to CONVERSATION] -- cmd`. Agents publish plans and reports with `lazybox artifact put FILE --title T`.")
 		fmt.Fprintln(os.Stderr, "Usage: lazybox --endpoint FILE <account-login|assistant|info|repositories|create-collection|collections|collection|archive-collection|reconcile-collection|open|send|interrupt|approve|answer|events|close|continue|exec|read|wait|cancel|output|log|run|process|artifact> [options]")
 		global.PrintDefaults()
@@ -76,6 +79,22 @@ func run() error {
 	if len(args) == 0 {
 		global.Usage()
 		return nil
+	}
+	// The power verbs (ls, send, open, watch, …) resolve their own Runner:
+	// --endpoint names one explicitly; otherwise see endpoint.go.
+	explicitEndpoint := ""
+	global.Visit(func(f *flag.Flag) {
+		if f.Name == "endpoint" {
+			explicitEndpoint = f.Value.String()
+		}
+	})
+	{
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		handled, err := powerVerb(newCLI(ctx, explicitEndpoint, *runnerName), args)
+		stop()
+		if handled {
+			return err
+		}
 	}
 	if args[0] == "account-login" {
 		flags := flag.NewFlagSet("account-login", flag.ContinueOnError)
@@ -479,6 +498,14 @@ type processExit int32
 func (e processExit) Error() string { return "command exited " + strconv.Itoa(int(e)) }
 func main() {
 	if err := run(); err != nil {
+		var coded exitError
+		if errors.As(err, &coded) {
+			if coded.code == exitOK {
+				return
+			}
+			fmt.Fprintln(os.Stderr, "lazybox:", err)
+			os.Exit(coded.code)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		var status processExit
 		if errors.As(err, &status) {

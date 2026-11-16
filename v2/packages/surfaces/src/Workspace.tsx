@@ -43,6 +43,7 @@ import { openArtifact } from './artifact-events';
 import { useLinkPreferences, useWebViewer, type ViewerRequest } from './web-links';
 import { WebViewsContext } from './WebViewer';
 import { lastWebPanel, requestWebPage, WebWindowContext } from './WebPanel';
+import { PowerLayer } from './PowerLayer';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -413,6 +414,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     <Onboarding viewState={viewState} collections={collections} collectionsLoaded={catalogLoaded} automatic={!fixedWorkspaceId} onOpenSettings={tab => { if (fixedWorkspaceId) return; setSettingsTab(tab); setSettings(true); }}/>
     {quickOpen && workbench && <QuickOpen key={workbench.workspaceId} workbench={workbench} onClose={() => setQuickOpen(false)}/>}
     {quickLook && workspaceID && <FilePreview key={`${workspaceID}:${quickLook.path}`} workspaceId={workspaceID} reference={quickLook} viewState={viewState} onClose={() => setQuickLook(undefined)}/>}
+    <PowerLayer workspaceId={workspaceID} selection={{ collectionId: page.selection.collectionId || workspaceID, sessionId: page.selection.sessionId }} primary={!fixedWorkspaceId} host={host} viewState={viewState}
+      onSelect={target => select({ ...target, commandId: '' })} onShowSession={target => showSession({ ...target, commandId: '' })}
+      onShowPanel={(kind, target) => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : showPanelFor(kind, { ...target, commandId: '' })}
+      onOpenSettings={tab => { setSettingsTab(tab); setSettings(true); }} onQuickLook={(path, line) => setQuickLook({ path, line })}
+      describe={target => [collections.find(c => c.id === target.collectionId)?.name, info?.sessions.find(s => s.id === target.sessionId)?.title].filter(Boolean).join(' · ') || 'the workspace'}/>
     {navigatorOpen && <WorkspaceNavigator target={page.selection} onTarget={target => target.sessionId ? showSession(target) : select(target)} collections={collections} error={catalogError} loaded={catalogLoaded} refresh={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder} onNewConversation={beginConversation} onClose={() => setNavigatorOpen(false)}/>}
   </main></WorkbenchContext.Provider>;
 }

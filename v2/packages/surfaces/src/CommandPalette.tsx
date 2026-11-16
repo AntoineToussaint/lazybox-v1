@@ -10,6 +10,7 @@ import { Icon } from './Icons';
 import { AttentionIcon } from './Inbox';
 import { highlight } from './QuickOpen';
 import { settingsTabs } from './SettingsPage';
+import { userPaletteItems, useUserCommands } from './user-commands';
 import type { Keymap } from './keyboard';
 import { useArtifacts } from './useArtifacts';
 import { useInbox } from './useAttention';
@@ -59,6 +60,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
   const [query, setQuery] = useState(initialQuery), [selected, setSelected] = useState(0);
   const recent = useMemo(() => readRecent(viewState), [viewState]);
   useActionRevision();
+  const userActions = useUserCommands('palette');
   // However it closes (Esc, ⌘K again, a choice), focus returns where it was — unless the choice moves it.
   const restore = useRef(true);
   useEffect(() => {
@@ -118,8 +120,10 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
       key: `mission:${mission.id}`, kind: 'mission', title: mission.title || 'Untitled mission', detail: `Mission · ${mission.tasks.length} ${mission.tasks.length === 1 ? 'task' : 'tasks'}`, extra: mission.brief.slice(0, 200), icon: <Icon name="target" size={15}/>,
       run: () => { navigator.showPanel!('missions'); selectMission(mission.id); },
     })) : [];
+    // The person's own actions (POWER.md), after the built-in ones.
+    actions.push(...userPaletteItems().map(item => ({ ...item, icon: <Icon name={item.icon || 'play'} size={15}/> })));
     return { actions, conversations, workspaces, settings, panels, artifactItems, missionItems };
-  }, [keymap, navigator, inbox.rows, artifacts, missions.missions, workspaceId]);
+  }, [keymap, navigator, inbox.rows, artifacts, missions.missions, workspaceId, userActions]);
 
   const fileItem = (path: string): Item => {
     const slash = path.lastIndexOf('/');

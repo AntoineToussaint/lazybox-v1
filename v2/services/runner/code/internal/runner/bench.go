@@ -81,6 +81,10 @@ type Config struct {
 	// and the ceiling no repository process may exceed (internal/process).
 	// Empty selects <State>/process.yaml, so each environment has its own.
 	ProcessFile string `json:"processFile,omitempty"`
+	// ActionsFile is the user's actions and hooks file (POWER.md). Empty
+	// selects <State>/actions.yaml; the Dev and Working launchers pass the
+	// person's own (~/.config/lazybox/actions.yaml), shared by both.
+	ActionsFile string `json:"actionsFile,omitempty"`
 	// OutputBudget bounds both roots together; the oldest files go first.
 	// Zero selects 1 GiB.
 	OutputBudget    int64                    `json:"commandOutputBudget,omitempty"`
@@ -185,6 +189,8 @@ type Bench struct {
 	Prompts *work.Prompts
 	// snippetCatalog is the catalog last listed, to label snippet messages.
 	snippetCatalog atomic.Pointer[[]snippets.Entry]
+	// power is the actions file, its hooks and the CLI's window requests (power.go).
+	power powerState
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -400,6 +406,7 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	b.watchArtifacts()
+	b.openPower()
 	b.Telemetry, err = telemetry.Open(filepath.Join(cfg.State, "telemetry.db"))
 	if err == nil {
 		b.Meter, err = telemetry.StartGateway(b.Telemetry, b.Prices, cfg.MeterUpstreams)

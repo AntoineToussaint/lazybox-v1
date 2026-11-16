@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 
 const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-process.json', import.meta.url), 'utf8'));
 import { createMissionFake } from './missions-fake.mjs';
+import { createPowerFake } from './power-fake.mjs';
 import { artifactFixture } from './artifacts.mjs';
 
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
@@ -160,6 +161,7 @@ export async function startRunnerFixture() {
   // Runtime runs are kept apart from the conversation consoles' list, so the
   // other surface tests see the commands they always saw; their logs stream.
   const runtimeCommands = [];
+  const power = createPowerFake({ frame, commands, runtimeCommands, sessions, mutations });
   const runCommand = (collectionId, origin, title, output) => { const command = { id: `${origin}-${collectionId}-${runtimeCommands.length}`, sessionId: '', collectionId, origin, title, mode: 'managed', done: false, offset: String(Buffer.byteLength(output)), output, argv: ['/bin/sh', '-lc', title] }; runtimeCommands.push(command); return command; };
   const runState = (command, extra = {}) => ({ state: 'running', commandId: command.id, startedAtUnixMillis: now(), lastLine: command.output.trim().split('\n').at(-1), ...extra });
   const finished = (command, state, extra = {}) => { command.done = true; Object.assign(command, extra.exitCode !== undefined ? { exitCode: extra.exitCode } : {}, extra.signal ? { signal: extra.signal } : {}); return { state, commandId: command.id, startedAtUnixMillis: String(Date.now() - 60000), ...extra }; };
@@ -692,7 +694,7 @@ actions:
         runtimeSettings = { revision: String(Number(runtimeSettings.revision) + 1), portRangeStart: body.portRangeStart, portRangeEnd: body.portRangeEnd, repositories };
         return json(runtimeSettingsView());
       }
-      default: { const answer = missions.handle(method, body); if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
+      default: { const answer = missions.handle(method, body) || await power.handle(method, body, res); if (answer === true) return; if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
     }
   };
   const listen = async () => { const next = createServer(handle); await new Promise(resolve => next.listen(0, '127.0.0.1', resolve)); return next; };
@@ -703,7 +705,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { artifacts: artifactStore, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { power, artifacts: artifactStore, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

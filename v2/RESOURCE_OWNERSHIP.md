@@ -78,6 +78,16 @@ A paired phone gets neither: its credential is issued by the device gateway
 against a signature by the phone's own key, is accepted only on that gateway,
 and only for the RPCs its grants allow ([remote control](REMOTE.md)).
 
+A user hook ([power](POWER.md#hooks)) holds no credential at all unless the
+actions file grants it one (`grants: [read, respond, start]`). Then the
+Runner writes `<state>/hook-endpoints/<run>.json` for that run only: an HMAC
+of the run id and its grants, accepted while the run is live and for exactly
+the RPCs a paired phone with the same grants may call, less `Info`
+(`internal/transport/hook_auth.go`; walked exhaustively by
+`TestHookCredentialReachesOnlyItsGrantsWhileItRuns`). The run ending revokes
+it and removes the file. Every power RPC (the actions file, hook runs, the
+CLI's window requests) is the owner's alone.
+
 This separates authority at the RPC boundary only. An agent runs as the same
 OS user and can read the owner's file directly; that needs process isolation,
 which the Runner does not claim. An agent started before this change keeps the

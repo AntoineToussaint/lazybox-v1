@@ -110,6 +110,10 @@ type principal struct {
 	owner               bool
 	session             string
 	terminal, workspace string
+	// hook is a running hook's run id, and grants what its file granted it
+	// (hook_auth.go).
+	hook   string
+	grants []string
 }
 
 type principalKey struct{}
@@ -140,6 +144,9 @@ func authenticate(ctx context.Context, owner string, agents AgentCredentials) (p
 	if terminal, workspace, err := agents.TerminalScope(token); err == nil && terminal != "" && workspace != "" {
 		return principal{terminal: terminal, workspace: workspace}, nil
 	}
+	if who, ok := authenticateHook(agents, token); ok {
+		return who, nil
+	}
 	session, err := agents.AgentSession(ctx, token)
 	if err != nil || session == "" {
 		return principal{}, unauthenticated
@@ -161,6 +168,9 @@ func authorize(ctx context.Context, owner string, agents AgentCredentials, metho
 	}
 	if who.owner {
 		return who, nil
+	}
+	if who.hook != "" {
+		return authorizeHook(who, method, req)
 	}
 	if who.terminal != "" {
 		if allowed := terminalRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {

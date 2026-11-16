@@ -2161,6 +2161,12 @@ version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "glob",
+ "block2",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-core-foundation",
+ "objc2-foundation",
+ "objc2-web-kit",
  "serde",
  "serde_json",
  "sha2",

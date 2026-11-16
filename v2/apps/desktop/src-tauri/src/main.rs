@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fs, path::Path};
 mod attention;
+mod capture;
 mod host;
 mod layout;
 mod placement;
@@ -150,7 +151,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             host::expect_runner_restart,
             attention::notify_attention,
             attention::take_attention_destination,
-            attention::set_attention_badge
+            attention::set_attention_badge,
+            capture::capture_window,
+            capture::focus_window
         ])
         .setup(|app| {
             attention::setup(app.handle())?;

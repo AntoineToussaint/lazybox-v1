@@ -203,7 +203,9 @@ relative to `v2/packages/surfaces/src/` unless they say otherwise.
   with the user's permissions (herdr's own
   [security.md](https://github.com/herdrdev/herdr-app/blob/master/docs/security.md)).
   If Lazybox wants this, it should be declarative layout and menu files
-  plus the settings MCP, not arbitrary code.
+  plus the settings MCP, not arbitrary code. That is now
+  [POWER.md](../../POWER.md): actions and hooks in one declarative file,
+  with hooks holding no credential unless granted a phone-sized one.
 - **Joke layouts** (Herdr 98, Pasture). They are fun marketing and have no
   place on the roadmap.
 - **Replacing the chat with raw terminals.** Lazybox's thesis is
@@ -244,10 +246,10 @@ change, it is noted as an overlap, not a duplicate.
 | # | Change | Why | Effort | Owner / overlap |
 |---|---|---|---|---|
 | P2-1 | **Welcome and What's new:** a first-run sheet (connect a repo, start a conversation, pair a phone, pick a keyboard preset) and an in-app release-notes view after updates, with Settings → Updates. | herdr `frame/welcome` and `whatsnew` ([0.1.5, 0.1.6](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). | M | Settings polish / desktop shell |
-| P2-2 | **Several Runners in one window**, grouped by machine in the sidebar (Agents and Workspaces). | herdr machines ([README](https://github.com/herdrdev/herdr-app)). The audit lists remote Runners as missing. | L | Remote ([REMOTE.md](../../REMOTE.md)) |
+| P2-2 | **Several Runners in one window**, grouped by machine in the sidebar (Agents and Workspaces). | herdr machines ([README](https://github.com/herdrdev/herdr-app)). The audit lists remote Runners as missing. | L | Remote ([REMOTE.md](../../REMOTE.md)). **Designed** in [MULTI_RUNNER.md](../../MULTI_RUNNER.md); step 1 (`lazybox runners`, `ls --all`) done. |
 | P2-3 | **Phone richness:** swipe actions (pin / mark seen / interrupt), **dictation** in the composer, a live view of a command's output, and push notifications when the app is closed (herdr documents only in-app banners, so this would be a lead, not catch-up). | [mobile](https://herdr.dev/mobile) | M–L | Phone (`remote/RemoteApp.tsx`) |
 | P2-4 | **Layout presets** ("Focus", "Review", "Monitor: Agents + Missions + Processes") switchable with a key, stored as files the Ask Lazybox agent can edit through the settings MCP. | `layout.switch` and layout files. Declarative, no code mods. | M | Layout upgrade, after P1-2 |
-| P2-5 | **`lazybox shot`:** a CLI or MCP tool that returns a PNG of the current window, so UI agents (and Ask Lazybox) can check what they changed. | `herdr-app shot` ([0.1.5](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). | S–M | Desktop shell / Ask Lazybox |
+| P2-5 | **`lazybox shot`:** a CLI or MCP tool that returns a PNG of the current window, so UI agents (and Ask Lazybox) can check what they changed. | `herdr-app shot` ([0.1.5](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). | S–M | **Done** ([POWER.md](../../POWER.md#the-cli-and-the-open-window)): owner-only `lazybox shot [PANEL]`. |
 | P2-6 | **Side-by-side diff** toggle in Changes (Monaco diff editor is already a dependency). | Neither has one. This is about staying ahead of Conductor, not herdr. | M | Changes |
 | P2-7 | ~~More harnesses via terminals~~ (dropped: no terminal emulator) **More harnesses visible in the sidebar:** adopt OSC 7501 so any CLI in a Lazybox terminal reports `working/blocked/done` and appears in the Agents list as a "terminal agent" (no chat, but attention works). | It is an open protocol; herdr's coverage comes from it. | M | Terminal + attention; complements the audit's "more harnesses" item |
 

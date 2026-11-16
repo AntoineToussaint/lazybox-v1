@@ -178,6 +178,37 @@ export function saveMenu(entries: MenuEntry[], store?: ViewStateStore) {
   writePreference(store, menuKey, JSON.stringify(entries));
   window.dispatchEvent(new Event("lazybox-keymap"));
 }
+/**
+ * Extra entries under the leader that run code of their own: the user's
+ * actions (POWER.md) and "Run an action…". A provider is read on every key, so
+ * a reloaded actions file shows at once. Keys the built-in actions or the
+ * person's own ]] entries already use win; leaderConflicts names the losers.
+ */
+export type LeaderExtension = { id: string; key: string; label: string; run(): void };
+let leaderExtensions: () => LeaderExtension[] = () => [];
+export function setLeaderExtensions(provider: () => LeaderExtension[]): () => void {
+  leaderExtensions = provider;
+  return () => { if (leaderExtensions === provider) leaderExtensions = () => []; };
+}
+/** The keys under the leader already taken, by what. */
+export function takenLeaderKeys(map: Keymap, menu: MenuEntry[]): Map<string, string> {
+  const taken = new Map<string, string>();
+  const leader = bindings(map["navigation.exit"])[0] || "] ]";
+  // Every alternative binding of an action ("a or b") takes its key.
+  for (const a of keyboardActions) for (const keys of bindings(map[a.id])) if (keys.startsWith(leader + " ")) taken.set(keys.slice(leader.length + 1), a.label);
+  for (const e of menu) taken.set(e.key, e.label || e.snippet);
+  return taken;
+}
+/** Extensions whose key is taken, with what took it. */
+export function leaderConflicts(extensions: LeaderExtension[], map: Keymap, menu: MenuEntry[]): { extension: LeaderExtension; takenBy: string }[] {
+  const taken = takenLeaderKeys(map, menu);
+  return extensions.flatMap(extension => taken.has(extension.key) ? [{ extension, takenBy: taken.get(extension.key)! }] : []);
+}
+function usableExtensions(map: Keymap, menu: MenuEntry[]): LeaderExtension[] {
+  const taken = takenLeaderKeys(map, menu), seen = new Set<string>();
+  return leaderExtensions().filter(e => { if (taken.has(e.key) || seen.has(e.key)) return false; seen.add(e.key); return true; });
+}
+
 /** Asks the focused chat to send or insert a snippet chosen from the ]] menu. */
 export function useMenuSnippet(callback: (entry: MenuEntry) => void) {
   const ref = useRef(callback);
@@ -248,11 +279,12 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
       const chords = chordBindings(map);
       // User entries live under the leader, next to the built-in actions.
       // Single chords (Mod+K) belong to the chord listener (useActionKeys).
-      const candidates: { id: string; label: string; keys: string; entry?: MenuEntry }[] = [
+      const candidates: { id: string; label: string; keys: string; entry?: MenuEntry; run?: () => void }[] = [
         ...keyboardActions
           .filter((a) => a.scope === "global" || (a.scope === "agent" && agent) || (a.scope === "navigation" && navigation))
           .flatMap((a) => bindings(map[a.id]).filter((keys) => !chords.has(keys) && !(typing && keys.length === 1 && keys !== "]")).map((keys) => ({ id: a.id as string, label: a.label as string, keys }))),
         ...menu.map((entry) => ({ id: "menu:" + entry.key, label: entry.label || entry.snippet, keys: `${leader} ${entry.key}`, entry })),
+        ...usableExtensions(map, menu).map((extension) => ({ id: "extension:" + extension.id, label: extension.label, keys: `${leader} ${extension.key}`, run: extension.run })),
       ];
       const key = eventKey(e);
       let next = [...sequence, key];
@@ -293,6 +325,7 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
       sequence = next;
       const exact = matches.find((a) => a.keys === next.join(" "));
       if (exact?.entry) window.dispatchEvent(new CustomEvent("lazybox-menu", { detail: exact.entry }));
+      else if (exact?.run) exact.run();
       else if (exact) runAction(exact.id, undefined, "keys");
       const descendants = matches.filter((a) => a.keys.split(/\s+/).length > next.length);
       if (descendants.length)

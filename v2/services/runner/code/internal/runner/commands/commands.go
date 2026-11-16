@@ -31,7 +31,8 @@ type Spec struct {
 	// compact view once it finishes (`lazybox log --to`).
 	ShareWith string `json:"shareWith,omitempty"`
 	// Kind, with a CollectionID, makes a managed workspace command the
-	// workspace runtime started: "setup", "archive" or "action".
+	// workspace runtime started: "setup", "archive" or "action"; or a hook
+	// run (KindHook), which no conversation's console lists.
 	Kind string `json:"kind,omitempty"`
 	// Action is the runtime entry it runs ("<member>/<name>" for an action,
 	// the member for setup and archive); Repository is that member's
@@ -268,10 +269,12 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if spec.SessionID != "" && (spec.TerminalID != "" || spec.ShareWith != "") {
 		return nil, errors.New("only a workspace run comes from a terminal or is shared")
 	}
-	if spec.CollectionID != "" && (len(spec.Argv) > 0) != (spec.Kind != "") {
+	// A hook run (POWER.md) is a program or, for a webhook, a pipe the Runner
+	// writes the request's log to.
+	if spec.CollectionID != "" && spec.Kind != KindHook && (len(spec.Argv) > 0) != (spec.Kind != "") {
 		return nil, errors.New("a workspace run is a pipe, a workspace command has a kind")
 	}
-	if spec.Kind != "" && (spec.Kind != "setup" && spec.Kind != "archive" && spec.Kind != "action" || spec.TerminalID != "" || spec.ShareWith != "") {
+	if spec.Kind != "" && (spec.Kind != "setup" && spec.Kind != "archive" && spec.Kind != "action" && spec.Kind != KindHook || spec.TerminalID != "" || spec.ShareWith != "") {
 		return nil, errors.New("invalid workspace command")
 	}
 	if spec.StopGraceMs < 0 || spec.StopGraceMs > 60_000 {
@@ -337,7 +340,7 @@ func (m *Manager) ListWorkspace(collectionID string) []Status {
 	defer m.mu.Unlock()
 	out := []Status{}
 	for _, c := range m.items {
-		if s := c.Status(); collectionID != "" && s.Spec.SessionID == "" && s.Spec.CollectionID == collectionID {
+		if s := c.Status(); collectionID != "" && s.Spec.SessionID == "" && s.Spec.CollectionID == collectionID && s.Spec.Kind != KindHook {
 			out = append(out, s)
 		}
 	}

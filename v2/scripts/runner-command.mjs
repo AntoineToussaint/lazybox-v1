@@ -2,7 +2,7 @@ import { join } from 'node:path';
 
 // Both terminal and native-service launch paths use the same Codefly contract.
 // Values are resolved filesystem locators, never credentials or allocated ports.
-export function runnerArguments({ paths, source, snippetAdapter, snippetDirectory, subscriptionState, cliDir, restartRequest }) {
+export function runnerArguments({ paths, source, snippetAdapter, snippetDirectory, subscriptionState, cliDir, restartRequest, actionsFile }) {
   const args = ['run', 'service', 'runner', '--runtime-context', 'native', '--temporary-ports', '--headless'];
   const settings = {
     LAZYBOX_V2_STATE: paths.state,
@@ -20,6 +20,8 @@ export function runnerArguments({ paths, source, snippetAdapter, snippetDirector
     // Only a launcher that starts the Runner again after it exits names this
     // (internal/restart); the Runner then offers Restart Runner in the app.
     ...(restartRequest ? { LAZYBOX_V2_RESTART_REQUEST: restartRequest } : {}),
+    // The person's actions and hooks file (POWER.md), shared by Dev and Working.
+    ...(actionsFile ? { LAZYBOX_V2_ACTIONS_FILE: actionsFile } : {}),
   };
   for (const [key, value] of Object.entries(settings)) args.push('--set', `runner:${key}=${value}`);
   return args;

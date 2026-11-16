@@ -411,6 +411,29 @@ const (
 	// RunnerServiceCreateArtifactIssueProcedure is the fully-qualified name of the RunnerService's
 	// CreateArtifactIssue RPC.
 	RunnerServiceCreateArtifactIssueProcedure = "/lazybox.bench.v1.RunnerService/CreateArtifactIssue"
+	// RunnerServiceGetUserActionsProcedure is the fully-qualified name of the RunnerService's
+	// GetUserActions RPC.
+	RunnerServiceGetUserActionsProcedure = "/lazybox.bench.v1.RunnerService/GetUserActions"
+	// RunnerServiceInitUserActionsProcedure is the fully-qualified name of the RunnerService's
+	// InitUserActions RPC.
+	RunnerServiceInitUserActionsProcedure = "/lazybox.bench.v1.RunnerService/InitUserActions"
+	// RunnerServiceListHookRunsProcedure is the fully-qualified name of the RunnerService's
+	// ListHookRuns RPC.
+	RunnerServiceListHookRunsProcedure = "/lazybox.bench.v1.RunnerService/ListHookRuns"
+	// RunnerServiceTestHookProcedure is the fully-qualified name of the RunnerService's TestHook RPC.
+	RunnerServiceTestHookProcedure = "/lazybox.bench.v1.RunnerService/TestHook"
+	// RunnerServicePostUiRequestProcedure is the fully-qualified name of the RunnerService's
+	// PostUiRequest RPC.
+	RunnerServicePostUiRequestProcedure = "/lazybox.bench.v1.RunnerService/PostUiRequest"
+	// RunnerServiceWaitUiRequestProcedure is the fully-qualified name of the RunnerService's
+	// WaitUiRequest RPC.
+	RunnerServiceWaitUiRequestProcedure = "/lazybox.bench.v1.RunnerService/WaitUiRequest"
+	// RunnerServiceWatchUiRequestsProcedure is the fully-qualified name of the RunnerService's
+	// WatchUiRequests RPC.
+	RunnerServiceWatchUiRequestsProcedure = "/lazybox.bench.v1.RunnerService/WatchUiRequests"
+	// RunnerServiceCompleteUiRequestProcedure is the fully-qualified name of the RunnerService's
+	// CompleteUiRequest RPC.
+	RunnerServiceCompleteUiRequestProcedure = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -623,6 +646,30 @@ type RunnerServiceClient interface {
 	// Owner only. Opens a GitHub issue with the artifact as its body, in a
 	// workspace repository's GitHub project, through the GitHub connection.
 	CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error)
+	// Power-user extensibility (POWER.md), owner only. The user's actions and
+	// hooks file as the Runner last loaded it: actions the app offers in its
+	// menus and runs with the owner's own rules, hooks the Runner fires on
+	// events, and every problem with the file by line.
+	GetUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Creates the actions file with a commented starter and its
+	// JSON Schema beside it, when there is none; never replaces a file.
+	InitUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Recent hook runs, newest first; each run's output is its
+	// command's (ReadCommand).
+	ListHookRuns(context.Context, *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error)
+	// Owner only. Fires one hook now with a sample event, as Settings' Test does.
+	TestHook(context.Context, *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error)
+	// Owner only. Asks the person's open Lazybox window to do something the CLI
+	// cannot: show a workspace, conversation or file (`lazybox open`), take a
+	// screenshot (`lazybox shot`) or run a user action (`lazybox actions run`).
+	// Refused at once when no window is open to handle it.
+	PostUiRequest(context.Context, *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. Waits for a posted request's outcome (bounded).
+	WaitUiRequest(context.Context, *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. A window follows the requests addressed to it…
+	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest]) (*connect.ServerStreamForClient[gen.UiRequest], error)
+	// …and answers each one, with a screenshot's PNG when one was asked for.
+	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1398,6 +1445,54 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("CreateArtifactIssue")),
 			connect.WithClientOptions(opts...),
 		),
+		getUserActions: connect.NewClient[gen.GetUserActionsRequest, gen.UserActions](
+			httpClient,
+			baseURL+RunnerServiceGetUserActionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetUserActions")),
+			connect.WithClientOptions(opts...),
+		),
+		initUserActions: connect.NewClient[gen.GetUserActionsRequest, gen.UserActions](
+			httpClient,
+			baseURL+RunnerServiceInitUserActionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("InitUserActions")),
+			connect.WithClientOptions(opts...),
+		),
+		listHookRuns: connect.NewClient[gen.ListHookRunsRequest, gen.HookRuns](
+			httpClient,
+			baseURL+RunnerServiceListHookRunsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListHookRuns")),
+			connect.WithClientOptions(opts...),
+		),
+		testHook: connect.NewClient[gen.TestHookRequest, gen.HookRun](
+			httpClient,
+			baseURL+RunnerServiceTestHookProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("TestHook")),
+			connect.WithClientOptions(opts...),
+		),
+		postUiRequest: connect.NewClient[gen.UiRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServicePostUiRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PostUiRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		waitUiRequest: connect.NewClient[gen.WaitUiRequestRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServiceWaitUiRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitUiRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		watchUiRequests: connect.NewClient[gen.WatchUiRequestsRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServiceWatchUiRequestsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WatchUiRequests")),
+			connect.WithClientOptions(opts...),
+		),
+		completeUiRequest: connect.NewClient[gen.CompleteUiRequestRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServiceCompleteUiRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1530,6 +1625,14 @@ type runnerServiceClient struct {
 	deleteArtifact               *connect.Client[gen.DeleteArtifactRequest, gen.DeleteArtifactResponse]
 	saveArtifactToRepository     *connect.Client[gen.SaveArtifactToRepositoryRequest, gen.SaveArtifactToRepositoryResponse]
 	createArtifactIssue          *connect.Client[gen.CreateArtifactIssueRequest, gen.CreateArtifactIssueResponse]
+	getUserActions               *connect.Client[gen.GetUserActionsRequest, gen.UserActions]
+	initUserActions              *connect.Client[gen.GetUserActionsRequest, gen.UserActions]
+	listHookRuns                 *connect.Client[gen.ListHookRunsRequest, gen.HookRuns]
+	testHook                     *connect.Client[gen.TestHookRequest, gen.HookRun]
+	postUiRequest                *connect.Client[gen.UiRequest, gen.UiRequest]
+	waitUiRequest                *connect.Client[gen.WaitUiRequestRequest, gen.UiRequest]
+	watchUiRequests              *connect.Client[gen.WatchUiRequestsRequest, gen.UiRequest]
+	completeUiRequest            *connect.Client[gen.CompleteUiRequestRequest, gen.UiRequest]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -2167,6 +2270,46 @@ func (c *runnerServiceClient) CreateArtifactIssue(ctx context.Context, req *conn
 	return c.createArtifactIssue.CallUnary(ctx, req)
 }
 
+// GetUserActions calls lazybox.bench.v1.RunnerService.GetUserActions.
+func (c *runnerServiceClient) GetUserActions(ctx context.Context, req *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return c.getUserActions.CallUnary(ctx, req)
+}
+
+// InitUserActions calls lazybox.bench.v1.RunnerService.InitUserActions.
+func (c *runnerServiceClient) InitUserActions(ctx context.Context, req *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return c.initUserActions.CallUnary(ctx, req)
+}
+
+// ListHookRuns calls lazybox.bench.v1.RunnerService.ListHookRuns.
+func (c *runnerServiceClient) ListHookRuns(ctx context.Context, req *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error) {
+	return c.listHookRuns.CallUnary(ctx, req)
+}
+
+// TestHook calls lazybox.bench.v1.RunnerService.TestHook.
+func (c *runnerServiceClient) TestHook(ctx context.Context, req *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error) {
+	return c.testHook.CallUnary(ctx, req)
+}
+
+// PostUiRequest calls lazybox.bench.v1.RunnerService.PostUiRequest.
+func (c *runnerServiceClient) PostUiRequest(ctx context.Context, req *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error) {
+	return c.postUiRequest.CallUnary(ctx, req)
+}
+
+// WaitUiRequest calls lazybox.bench.v1.RunnerService.WaitUiRequest.
+func (c *runnerServiceClient) WaitUiRequest(ctx context.Context, req *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return c.waitUiRequest.CallUnary(ctx, req)
+}
+
+// WatchUiRequests calls lazybox.bench.v1.RunnerService.WatchUiRequests.
+func (c *runnerServiceClient) WatchUiRequests(ctx context.Context, req *connect.Request[gen.WatchUiRequestsRequest]) (*connect.ServerStreamForClient[gen.UiRequest], error) {
+	return c.watchUiRequests.CallServerStream(ctx, req)
+}
+
+// CompleteUiRequest calls lazybox.bench.v1.RunnerService.CompleteUiRequest.
+func (c *runnerServiceClient) CompleteUiRequest(ctx context.Context, req *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return c.completeUiRequest.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -2377,6 +2520,30 @@ type RunnerServiceHandler interface {
 	// Owner only. Opens a GitHub issue with the artifact as its body, in a
 	// workspace repository's GitHub project, through the GitHub connection.
 	CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error)
+	// Power-user extensibility (POWER.md), owner only. The user's actions and
+	// hooks file as the Runner last loaded it: actions the app offers in its
+	// menus and runs with the owner's own rules, hooks the Runner fires on
+	// events, and every problem with the file by line.
+	GetUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Creates the actions file with a commented starter and its
+	// JSON Schema beside it, when there is none; never replaces a file.
+	InitUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Recent hook runs, newest first; each run's output is its
+	// command's (ReadCommand).
+	ListHookRuns(context.Context, *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error)
+	// Owner only. Fires one hook now with a sample event, as Settings' Test does.
+	TestHook(context.Context, *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error)
+	// Owner only. Asks the person's open Lazybox window to do something the CLI
+	// cannot: show a workspace, conversation or file (`lazybox open`), take a
+	// screenshot (`lazybox shot`) or run a user action (`lazybox actions run`).
+	// Refused at once when no window is open to handle it.
+	PostUiRequest(context.Context, *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. Waits for a posted request's outcome (bounded).
+	WaitUiRequest(context.Context, *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. A window follows the requests addressed to it…
+	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest], *connect.ServerStream[gen.UiRequest]) error
+	// …and answers each one, with a screenshot's PNG when one was asked for.
+	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -3148,6 +3315,54 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("CreateArtifactIssue")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceGetUserActionsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetUserActionsProcedure,
+		svc.GetUserActions,
+		connect.WithSchema(runnerServiceMethods.ByName("GetUserActions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceInitUserActionsHandler := connect.NewUnaryHandler(
+		RunnerServiceInitUserActionsProcedure,
+		svc.InitUserActions,
+		connect.WithSchema(runnerServiceMethods.ByName("InitUserActions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListHookRunsHandler := connect.NewUnaryHandler(
+		RunnerServiceListHookRunsProcedure,
+		svc.ListHookRuns,
+		connect.WithSchema(runnerServiceMethods.ByName("ListHookRuns")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceTestHookHandler := connect.NewUnaryHandler(
+		RunnerServiceTestHookProcedure,
+		svc.TestHook,
+		connect.WithSchema(runnerServiceMethods.ByName("TestHook")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePostUiRequestHandler := connect.NewUnaryHandler(
+		RunnerServicePostUiRequestProcedure,
+		svc.PostUiRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("PostUiRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitUiRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitUiRequestProcedure,
+		svc.WaitUiRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitUiRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWatchUiRequestsHandler := connect.NewServerStreamHandler(
+		RunnerServiceWatchUiRequestsProcedure,
+		svc.WatchUiRequests,
+		connect.WithSchema(runnerServiceMethods.ByName("WatchUiRequests")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCompleteUiRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceCompleteUiRequestProcedure,
+		svc.CompleteUiRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -3404,6 +3619,22 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSaveArtifactToRepositoryHandler.ServeHTTP(w, r)
 		case RunnerServiceCreateArtifactIssueProcedure:
 			runnerServiceCreateArtifactIssueHandler.ServeHTTP(w, r)
+		case RunnerServiceGetUserActionsProcedure:
+			runnerServiceGetUserActionsHandler.ServeHTTP(w, r)
+		case RunnerServiceInitUserActionsProcedure:
+			runnerServiceInitUserActionsHandler.ServeHTTP(w, r)
+		case RunnerServiceListHookRunsProcedure:
+			runnerServiceListHookRunsHandler.ServeHTTP(w, r)
+		case RunnerServiceTestHookProcedure:
+			runnerServiceTestHookHandler.ServeHTTP(w, r)
+		case RunnerServicePostUiRequestProcedure:
+			runnerServicePostUiRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitUiRequestProcedure:
+			runnerServiceWaitUiRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceWatchUiRequestsProcedure:
+			runnerServiceWatchUiRequestsHandler.ServeHTTP(w, r)
+		case RunnerServiceCompleteUiRequestProcedure:
+			runnerServiceCompleteUiRequestHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -3919,4 +4150,36 @@ func (UnimplementedRunnerServiceHandler) SaveArtifactToRepository(context.Contex
 
 func (UnimplementedRunnerServiceHandler) CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreateArtifactIssue is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetUserActions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) InitUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.InitUserActions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListHookRuns(context.Context, *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListHookRuns is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) TestHook(context.Context, *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.TestHook is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PostUiRequest(context.Context, *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PostUiRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitUiRequest(context.Context, *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitUiRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest], *connect.ServerStream[gen.UiRequest]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchUiRequests is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CompleteUiRequest is not implemented"))
 }

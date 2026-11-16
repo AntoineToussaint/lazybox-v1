@@ -7,6 +7,7 @@ import { resolve, dirname, join, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { runnerArguments } from './runner-command.mjs';
+import { registerRunner, userActionsFile } from './user-config.mjs';
 import { loadGateCatalog, validateReleaseReceipt } from './release-gates.mjs';
 import { startDesktopDevServer, desktopDevConfig, stopProcessGroup, spawnProcessGroup } from './desktop-dev.mjs';
 
@@ -275,7 +276,7 @@ async function launch(environmentRoot, channel) {
     // Both roots are resolved from the selected environment. Codefly allocates
     // independent ports; neither channel borrows another channel's endpoint.
     const restartRequest = restartRequestPath(paths);
-    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState, cliDir, restartRequest });
+    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState, cliDir, restartRequest, actionsFile: userActionsFile() });
     process.on('SIGINT', stop); process.on('SIGTERM', stop);
     // One Runner process: spawn it and wait until its new endpoint answers Info.
     const start = async () => {
@@ -309,7 +310,9 @@ async function launch(environmentRoot, channel) {
     };
     // The desktop and watchers start once and outlive any requested restart.
     const onReady = () => {
-      desktop = channel === 'dev'
+      // `lazybox` in any terminal finds this Runner (lazybox runners / --runner).
+      registerRunner(channel, paths).catch(error => console.error(`The lazybox CLI will not find this Runner by name: ${error.message}`));
+      desktop =channel === 'dev'
         ? spawn(join(source, 'node_modules/.bin/tauri'), ['dev', '--config', JSON.stringify(desktopDevConfig(paths, ui.url)), '--', '--', '--endpoint', paths.endpoint], { cwd: join(source, 'apps/desktop'), env: { ...buildEnv, CARGO_TARGET_DIR: join(environmentRoot, 'build', 'dev') }, stdio: 'inherit', detached: true })
         : spawn(join(app, 'Contents/MacOS/lazybox-v2-desktop'), ['--endpoint', paths.endpoint], { env: buildEnv, stdio: 'inherit' });
       desktop.on('error', error => console.error(`Desktop launch failed: ${error.message}`));

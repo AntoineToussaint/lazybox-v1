@@ -90,6 +90,15 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     openLink,
     webViews: desktopWebViews,
     openWebWindow: target => invoke<void>('open_web_window', target),
+    // `lazybox open` and `lazybox shot` (POWER.md): only the main window
+    // follows the CLI's requests, so only it offers these.
+    ...(notifies ? {
+      focusWindow: () => invoke<void>('focus_window'),
+      // The page's own snapshot (no screen-recording permission), optionally
+      // one panel's rectangle in CSS pixels; the host scales it to the zoomed view.
+      captureWindow: async (rect?: { x: number; y: number; width: number; height: number }) =>
+        new Uint8Array(await invoke<ArrayBuffer>('capture_window', { region: rect ? { ...rect, viewportWidth: window.innerWidth } : null })),
+    } : {}),
   }), [followRestart, notifies]);
   const saveSelection = useCallback((target: { collectionId: string; sessionId: string; commandId: string }) => host.saveTarget({ ...target, commandsOpen: false }), [host]);
   const openViewer = useCallback((sessionId: string, commandId: string) => invoke<void>('open_console', { sessionId, commandId }), []);

@@ -147,6 +147,14 @@ const (
 	RunnerService_DeleteArtifact_FullMethodName               = "/lazybox.bench.v1.RunnerService/DeleteArtifact"
 	RunnerService_SaveArtifactToRepository_FullMethodName     = "/lazybox.bench.v1.RunnerService/SaveArtifactToRepository"
 	RunnerService_CreateArtifactIssue_FullMethodName          = "/lazybox.bench.v1.RunnerService/CreateArtifactIssue"
+	RunnerService_GetUserActions_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetUserActions"
+	RunnerService_InitUserActions_FullMethodName              = "/lazybox.bench.v1.RunnerService/InitUserActions"
+	RunnerService_ListHookRuns_FullMethodName                 = "/lazybox.bench.v1.RunnerService/ListHookRuns"
+	RunnerService_TestHook_FullMethodName                     = "/lazybox.bench.v1.RunnerService/TestHook"
+	RunnerService_PostUiRequest_FullMethodName                = "/lazybox.bench.v1.RunnerService/PostUiRequest"
+	RunnerService_WaitUiRequest_FullMethodName                = "/lazybox.bench.v1.RunnerService/WaitUiRequest"
+	RunnerService_WatchUiRequests_FullMethodName              = "/lazybox.bench.v1.RunnerService/WatchUiRequests"
+	RunnerService_CompleteUiRequest_FullMethodName            = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -361,6 +369,30 @@ type RunnerServiceClient interface {
 	// Owner only. Opens a GitHub issue with the artifact as its body, in a
 	// workspace repository's GitHub project, through the GitHub connection.
 	CreateArtifactIssue(ctx context.Context, in *CreateArtifactIssueRequest, opts ...grpc.CallOption) (*CreateArtifactIssueResponse, error)
+	// Power-user extensibility (POWER.md), owner only. The user's actions and
+	// hooks file as the Runner last loaded it: actions the app offers in its
+	// menus and runs with the owner's own rules, hooks the Runner fires on
+	// events, and every problem with the file by line.
+	GetUserActions(ctx context.Context, in *GetUserActionsRequest, opts ...grpc.CallOption) (*UserActions, error)
+	// Owner only. Creates the actions file with a commented starter and its
+	// JSON Schema beside it, when there is none; never replaces a file.
+	InitUserActions(ctx context.Context, in *GetUserActionsRequest, opts ...grpc.CallOption) (*UserActions, error)
+	// Owner only. Recent hook runs, newest first; each run's output is its
+	// command's (ReadCommand).
+	ListHookRuns(ctx context.Context, in *ListHookRunsRequest, opts ...grpc.CallOption) (*HookRuns, error)
+	// Owner only. Fires one hook now with a sample event, as Settings' Test does.
+	TestHook(ctx context.Context, in *TestHookRequest, opts ...grpc.CallOption) (*HookRun, error)
+	// Owner only. Asks the person's open Lazybox window to do something the CLI
+	// cannot: show a workspace, conversation or file (`lazybox open`), take a
+	// screenshot (`lazybox shot`) or run a user action (`lazybox actions run`).
+	// Refused at once when no window is open to handle it.
+	PostUiRequest(ctx context.Context, in *UiRequest, opts ...grpc.CallOption) (*UiRequest, error)
+	// Owner only. Waits for a posted request's outcome (bounded).
+	WaitUiRequest(ctx context.Context, in *WaitUiRequestRequest, opts ...grpc.CallOption) (*UiRequest, error)
+	// Owner only. A window follows the requests addressed to it…
+	WatchUiRequests(ctx context.Context, in *WatchUiRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[UiRequest], error)
+	// …and answers each one, with a screenshot's PNG when one was asked for.
+	CompleteUiRequest(ctx context.Context, in *CompleteUiRequestRequest, opts ...grpc.CallOption) (*UiRequest, error)
 }
 
 type runnerServiceClient struct {
@@ -1677,6 +1709,95 @@ func (c *runnerServiceClient) CreateArtifactIssue(ctx context.Context, in *Creat
 	return out, nil
 }
 
+func (c *runnerServiceClient) GetUserActions(ctx context.Context, in *GetUserActionsRequest, opts ...grpc.CallOption) (*UserActions, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserActions)
+	err := c.cc.Invoke(ctx, RunnerService_GetUserActions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) InitUserActions(ctx context.Context, in *GetUserActionsRequest, opts ...grpc.CallOption) (*UserActions, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserActions)
+	err := c.cc.Invoke(ctx, RunnerService_InitUserActions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListHookRuns(ctx context.Context, in *ListHookRunsRequest, opts ...grpc.CallOption) (*HookRuns, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HookRuns)
+	err := c.cc.Invoke(ctx, RunnerService_ListHookRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) TestHook(ctx context.Context, in *TestHookRequest, opts ...grpc.CallOption) (*HookRun, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HookRun)
+	err := c.cc.Invoke(ctx, RunnerService_TestHook_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) PostUiRequest(ctx context.Context, in *UiRequest, opts ...grpc.CallOption) (*UiRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UiRequest)
+	err := c.cc.Invoke(ctx, RunnerService_PostUiRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) WaitUiRequest(ctx context.Context, in *WaitUiRequestRequest, opts ...grpc.CallOption) (*UiRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UiRequest)
+	err := c.cc.Invoke(ctx, RunnerService_WaitUiRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) WatchUiRequests(ctx context.Context, in *WatchUiRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[UiRequest], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RunnerService_ServiceDesc.Streams[4], RunnerService_WatchUiRequests_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchUiRequestsRequest, UiRequest]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnerService_WatchUiRequestsClient = grpc.ServerStreamingClient[UiRequest]
+
+func (c *runnerServiceClient) CompleteUiRequest(ctx context.Context, in *CompleteUiRequestRequest, opts ...grpc.CallOption) (*UiRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UiRequest)
+	err := c.cc.Invoke(ctx, RunnerService_CompleteUiRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1889,6 +2010,30 @@ type RunnerServiceServer interface {
 	// Owner only. Opens a GitHub issue with the artifact as its body, in a
 	// workspace repository's GitHub project, through the GitHub connection.
 	CreateArtifactIssue(context.Context, *CreateArtifactIssueRequest) (*CreateArtifactIssueResponse, error)
+	// Power-user extensibility (POWER.md), owner only. The user's actions and
+	// hooks file as the Runner last loaded it: actions the app offers in its
+	// menus and runs with the owner's own rules, hooks the Runner fires on
+	// events, and every problem with the file by line.
+	GetUserActions(context.Context, *GetUserActionsRequest) (*UserActions, error)
+	// Owner only. Creates the actions file with a commented starter and its
+	// JSON Schema beside it, when there is none; never replaces a file.
+	InitUserActions(context.Context, *GetUserActionsRequest) (*UserActions, error)
+	// Owner only. Recent hook runs, newest first; each run's output is its
+	// command's (ReadCommand).
+	ListHookRuns(context.Context, *ListHookRunsRequest) (*HookRuns, error)
+	// Owner only. Fires one hook now with a sample event, as Settings' Test does.
+	TestHook(context.Context, *TestHookRequest) (*HookRun, error)
+	// Owner only. Asks the person's open Lazybox window to do something the CLI
+	// cannot: show a workspace, conversation or file (`lazybox open`), take a
+	// screenshot (`lazybox shot`) or run a user action (`lazybox actions run`).
+	// Refused at once when no window is open to handle it.
+	PostUiRequest(context.Context, *UiRequest) (*UiRequest, error)
+	// Owner only. Waits for a posted request's outcome (bounded).
+	WaitUiRequest(context.Context, *WaitUiRequestRequest) (*UiRequest, error)
+	// Owner only. A window follows the requests addressed to it…
+	WatchUiRequests(*WatchUiRequestsRequest, grpc.ServerStreamingServer[UiRequest]) error
+	// …and answers each one, with a screenshot's PNG when one was asked for.
+	CompleteUiRequest(context.Context, *CompleteUiRequestRequest) (*UiRequest, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -2279,6 +2424,30 @@ func (UnimplementedRunnerServiceServer) SaveArtifactToRepository(context.Context
 }
 func (UnimplementedRunnerServiceServer) CreateArtifactIssue(context.Context, *CreateArtifactIssueRequest) (*CreateArtifactIssueResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateArtifactIssue not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetUserActions(context.Context, *GetUserActionsRequest) (*UserActions, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserActions not implemented")
+}
+func (UnimplementedRunnerServiceServer) InitUserActions(context.Context, *GetUserActionsRequest) (*UserActions, error) {
+	return nil, status.Error(codes.Unimplemented, "method InitUserActions not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListHookRuns(context.Context, *ListHookRunsRequest) (*HookRuns, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListHookRuns not implemented")
+}
+func (UnimplementedRunnerServiceServer) TestHook(context.Context, *TestHookRequest) (*HookRun, error) {
+	return nil, status.Error(codes.Unimplemented, "method TestHook not implemented")
+}
+func (UnimplementedRunnerServiceServer) PostUiRequest(context.Context, *UiRequest) (*UiRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method PostUiRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) WaitUiRequest(context.Context, *WaitUiRequestRequest) (*UiRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method WaitUiRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) WatchUiRequests(*WatchUiRequestsRequest, grpc.ServerStreamingServer[UiRequest]) error {
+	return status.Error(codes.Unimplemented, "method WatchUiRequests not implemented")
+}
+func (UnimplementedRunnerServiceServer) CompleteUiRequest(context.Context, *CompleteUiRequestRequest) (*UiRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteUiRequest not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -4559,6 +4728,143 @@ func _RunnerService_CreateArtifactIssue_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_GetUserActions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserActionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetUserActions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetUserActions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetUserActions(ctx, req.(*GetUserActionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_InitUserActions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserActionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).InitUserActions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_InitUserActions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).InitUserActions(ctx, req.(*GetUserActionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListHookRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListHookRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListHookRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListHookRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListHookRuns(ctx, req.(*ListHookRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_TestHook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestHookRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).TestHook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_TestHook_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).TestHook(ctx, req.(*TestHookRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_PostUiRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UiRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).PostUiRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_PostUiRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).PostUiRequest(ctx, req.(*UiRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_WaitUiRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WaitUiRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).WaitUiRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_WaitUiRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).WaitUiRequest(ctx, req.(*WaitUiRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_WatchUiRequests_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchUiRequestsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RunnerServiceServer).WatchUiRequests(m, &grpc.GenericServerStream[WatchUiRequestsRequest, UiRequest]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RunnerService_WatchUiRequestsServer = grpc.ServerStreamingServer[UiRequest]
+
+func _RunnerService_CompleteUiRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteUiRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CompleteUiRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CompleteUiRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CompleteUiRequest(ctx, req.(*CompleteUiRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -5058,6 +5364,34 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "CreateArtifactIssue",
 			Handler:    _RunnerService_CreateArtifactIssue_Handler,
 		},
+		{
+			MethodName: "GetUserActions",
+			Handler:    _RunnerService_GetUserActions_Handler,
+		},
+		{
+			MethodName: "InitUserActions",
+			Handler:    _RunnerService_InitUserActions_Handler,
+		},
+		{
+			MethodName: "ListHookRuns",
+			Handler:    _RunnerService_ListHookRuns_Handler,
+		},
+		{
+			MethodName: "TestHook",
+			Handler:    _RunnerService_TestHook_Handler,
+		},
+		{
+			MethodName: "PostUiRequest",
+			Handler:    _RunnerService_PostUiRequest_Handler,
+		},
+		{
+			MethodName: "WaitUiRequest",
+			Handler:    _RunnerService_WaitUiRequest_Handler,
+		},
+		{
+			MethodName: "CompleteUiRequest",
+			Handler:    _RunnerService_CompleteUiRequest_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -5078,6 +5412,11 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "WatchTerminal",
 			Handler:       _RunnerService_WatchTerminal_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "WatchUiRequests",
+			Handler:       _RunnerService_WatchUiRequests_Handler,
 			ServerStreams: true,
 		},
 	},

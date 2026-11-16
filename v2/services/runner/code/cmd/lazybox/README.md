@@ -1,7 +1,120 @@
-# V2 test CLI
+# `lazybox` — the V2 CLI
 
-Build with `make build-go` from `v2/`. `bin/lazybox` calls the generated Runner API and publishes transparent log pipes. It requires the Runner endpoint file; it never resolves V1 daemon state. See `v2/RUNNING.md`.
+Build with `make build-go` from `v2/` (`bin/lazybox`); the Dev and Working
+launchers build it into the environment and put it first on every agent's
+`PATH`. It never resolves V1 daemon state. See `v2/RUNNING.md`.
 
-In a Lazybox workspace terminal it needs no flag: `cmd 2>&1 | lazybox log [--title CMD] [--to CONVERSATION]` and `lazybox run [--to CONVERSATION] -- cmd` publish to the workspace's console with the terminal's own credential. See `v2/TERMINALS.md`.
+Everything a person does in the app is scriptable from here: list and follow
+conversations, send, approve, stop, wait, open things in the window, take a
+screenshot, run your own actions, inspect hooks. Every power verb takes
+`--json` and exits with a documented code, so scripts and agents can rely on it.
 
-`lazybox process validate|show|explain EVENT|events|schema` checks the orchestration process file (`.lazybox/process.yaml`, see `v2/ORCHESTRATION.md` §4) from files alone; with `--workspace` it asks the Runner. It is implemented in `internal/process`.
+## Which Runner it talks to
+
+1. `--endpoint FILE` — an endpoint file, as written (`<state>/endpoint.json`
+   is the owner's).
+2. `LAZYBOX_V2_ENDPOINT` — set inside Lazybox: an agent's, a workspace
+   terminal's or a hook's own **scoped** endpoint.
+3. `--runner NAME` or `LAZYBOX_RUNNER=NAME` — a registered Runner.
+4. The registered Runners: the Dev and Working launchers register theirs in
+   `$XDG_CONFIG_HOME/lazybox/runners/<name>.json` (else
+   `~/.config/lazybox/runners/`). With one, it is used; with several,
+   `working` is; otherwise the CLI asks you to choose. `lazybox runners`
+   lists them and which is live.
+
+Inside an agent, a workspace terminal or a hook (any of
+`LAZYBOX_V2_SESSION_ID`, `LAZYBOX_V2_COLLECTION_ID`, `LAZYBOX_V2_ENDPOINT`
+set), the CLI **never** falls back to a registered owner endpoint on its own:
+it uses the scoped credential it was given, and owner verbs fail with exit 4
+and a sentence saying what that credential may do. An explicit `--runner` or
+`--endpoint` is the person's choice and is honoured. (Same-user processes can
+read the owner's file anyway; this is a guard against accidents, not a
+boundary — see `v2/RESOURCE_OWNERSHIP.md`.)
+
+The Runner refuses any HTTP `Host` other than the one it serves on
+(localhost), answering 404 — a DNS-rebinding guard. The CLI uses the endpoint
+URL exactly as written; if you see "the Runner refused the request's Host",
+you are reaching it under another name or address.
+
+## Power verbs
+
+| Verb | What it does |
+|---|---|
+| `ls [--all]` | Workspaces, their conversations and agents with live state (needs input, failed, working, review, idle, ended), sub-agents still running. `--all` lists every registered Runner, grouped by Runner. |
+| `inbox [--all]` | What needs you, in order: needs input › failed › working › ready for review, with the `approve`/`deny` line for each pending approval. |
+| `runners` | Registered Runners, live or not, and which one the CLI uses. |
+| `send <conversation> [text\|-]` | Send a message. Text from the arguments, or stdin with `-` or when piped. An ended conversation is resumed first. `--steer` steers the running turn. |
+| `open <workspace\|conversation\|file[:line]> [--panel KIND] [--workspace W]` | Show it in the Lazybox window in front (desktop preferred over a browser tab). A file opens in its workspace: `--workspace`, the terminal's, or the only one. |
+| `new <name> --repo R [--repo R…] [--branch B]` | Create a workspace from catalog repositories (`owner/name`, catalog name, identity or path). Progress on stderr, the new id on stdout. |
+| `approve\|deny <request\|conversation>` | Answer a pending approval, by request id (or its suffix after `:`), or by conversation when it has exactly one. Questions are answered in the app. |
+| `stop <conversation\|command> [--agent ID] [--end]` | Interrupt the running turn; `--agent` stops one sub-agent; `--end` ends the conversation (resumable). A command id cancels that command. |
+| `wait <conversation> --until idle\|needs-input [--timeout 30m]` | Block until reached (exit 0); exit 5 on timeout; exit 1 if the turn failed, or ended without asking when waiting for input. |
+| `watch <conversation\|workspace> [--since CURSOR\|DURATION] [--tail N]` | Follow events live as a timeline: time, agent or sub-agent, event, short text; streamed message deltas are folded into one line. Shows the last `--tail` (20) events first; `--since 0`/`--since 10m` replays from a cursor or a time. A workspace follows every live conversation and picks up new ones. `--json` prints NDJSON, one record per journal record (deltas included, `replay: true` for history). Colour only on a terminal, never with `NO_COLOR`. |
+| `debug <conversation> [--events N]` | Diagnosis from the journal and the Runner's state: busy/queued/fault/status, pending requests, sub-agents, the last N lifecycle events (turns, accepted operations, receipts, failures, re-attachments, agent status) and findings in plain words — "the last turn ended by an interrupt you sent at 16:59", "fault X blocks messages", "a message has been queued behind the running turn for 5m", "no event for 12m while a turn runs". |
+| `missions [ls\|show ID\|new TITLE --brief B\|accept ID TASK\|reject ID TASK --note N]` | Missions and their tasks; accept or reject work at a task's gate. |
+| `shot [window\|PANEL] [--out FILE]` | PNG of the window or one panel, taken by the desktop app (a browser tab cannot). Default `./lazybox-shot-<time>.png`; `--out -` writes to stdout. |
+| `actions [ls\|validate [FILE]\|schema\|path\|init\|run ID [--conversation C]]` | Your actions and hooks file (`v2/POWER.md`): list what loaded and its problems by line, check a file locally (exit 2 on errors), print the JSON Schema, create the file, or have the window run an action. |
+| `hooks [ls\|runs\|test ID\|log RUN]` | Your hooks, their recent runs, a test run with its output, a run's output. |
+| `completion zsh\|bash\|fish` | Shell completion, generated from the same table as the verbs, with conversation, workspace, action and hook names asked of the Runner. |
+
+The flag forms the test client always had keep working: `send --session S
+--text T`, `open --cwd D`, `approve --request R --decision accept`, `wait --id
+COMMAND`, and `events`, `exec`, `read`, `cancel`, `output`, `close`,
+`continue`, `answer`, `interrupt`, `info`, … (`lazybox` with no arguments
+lists them).
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | done |
+| 1 | failed (the Runner refused, the turn failed, the hook failed) |
+| 2 | usage or validation error (bad flags, an ambiguous name, an invalid actions file) |
+| 3 | not found (conversation, workspace, request, action, hook) |
+| 4 | not allowed: a scoped credential (agent, terminal, hook) or a refused token |
+| 5 | timed out (`wait`, a window that did not answer) |
+| 6 | unavailable: no Runner answers, none is registered, or no Lazybox window is open for `open`/`shot`/`actions run` |
+
+### Completions
+
+```sh
+lazybox completion zsh  > "${fpath[1]}/_lazybox"            # or: source <(lazybox completion zsh)
+lazybox completion bash > ~/.local/share/bash-completion/completions/lazybox
+lazybox completion fish > ~/.config/fish/completions/lazybox.fish
+```
+
+## Debugging an agent headlessly
+
+An agent (or you, from any terminal) can drive and observe Lazybox without the app:
+
+```sh
+lazybox ls --json | jq '.workspaces[].conversations[] | {title, state}'
+lazybox send "Alpha/fix the tests" "Run the suite again"
+lazybox watch "fix the tests" --json | jq -c 'select(.type=="turn_ended")'
+lazybox wait "fix the tests" --until idle --timeout 20m && lazybox debug "fix the tests"
+```
+
+## Security
+
+Owner verbs need the owner's endpoint (`<state>/endpoint.json`, 0600). An
+agent's credential reaches only its own console (`run`, `log`) and its own
+workspace's artifacts (`artifact`); a workspace terminal's only its own runs;
+a hook's only what its file grants (`read`, `respond`, `start` — what a paired
+phone with those grants may do, less `Info`). None of them gains a verb from
+this CLI: the Runner enforces the allowlists (`internal/transport/auth.go`,
+`hook_auth.go`), and every new RPC is owner-only.
+
+## Other verbs
+
+In a Lazybox workspace terminal no flag is needed: `cmd 2>&1 | lazybox log
+[--title CMD] [--to CONVERSATION]` and `lazybox run [--to CONVERSATION] --
+cmd` publish to the workspace's console with the terminal's own credential.
+See `v2/TERMINALS.md` and `v2/COMMAND_OUTPUT.md`.
+
+`lazybox artifact put|get|list` publishes and reads workspace artifacts
+(`v2/ARTIFACTS.md`).
+
+`lazybox process validate|show|explain EVENT|events|schema` checks the
+orchestration process file (`.lazybox/process.yaml`, see
+`v2/ORCHESTRATION.md` §4) from files alone; with `--workspace` it asks the
+Runner. It is implemented in `internal/process`.

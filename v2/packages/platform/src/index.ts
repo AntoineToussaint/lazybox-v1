@@ -15,6 +15,13 @@ export type AttentionHost = {
   notificationPermission?(): Promise<NotificationPermission>;
   requestNotificationPermission?(): Promise<NotificationPermission>;
 };
+/** A region of the window in CSS pixels, from its top-left corner. */
+export type WindowRect = { x: number; y: number; width: number; height: number };
+/** What the desktop does for the `lazybox` CLI (POWER.md): bring the window forward, and take a PNG of it or of one region. */
+export type PowerHost = {
+  focusWindow?(): Promise<void>;
+  captureWindow?(rect?: WindowRect): Promise<Uint8Array>;
+};
 /**
  * Where a native web view sits, in the window's CSS pixels, with the
  * viewport it was measured in (the host scales it by the window's zoom).
@@ -50,7 +57,7 @@ export type NativeWebViews = {
 };
 /** A web page in a window of its own (a detached Web panel). */
 export type WebWindowTarget = { webId: string; url: string; collectionId: string };
-export type WorkspaceHost = AttentionHost & {
+export type WorkspaceHost = AttentionHost & PowerHost & {
   /** Opens a link in the person's browser (http, https and mailto only). */
   openLink?(url: string): Promise<void>;
   /** Native web views for the Web panel and Preview; without them both use an iframe. */
