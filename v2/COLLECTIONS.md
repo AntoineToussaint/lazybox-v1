@@ -125,7 +125,9 @@ across Runners remain future integration work.
   most 128 retained Collection records per root.
 - All source commits are resolved before checkout. `HEAD` is the default local
   base; there is no implicit fetch. Each member gets a new branch, defaulting
-  to `feature/<workspace-folder>`. An explicit `branch` must also be
+  to `feature/<workspace-folder>`. The New workspace dialog sends the branch
+  its name suggests (`Login fix` → `feature/login-fix`, editable before
+  creating) as `PrepareWorkspaceRequest.branch`. An explicit `branch` must also be
   new. Existing branches are never force-checked out or reset.
 - Atomic, fsynced manifests live under
   `<worktreeRoot>/.lazybox-collections/records/`, independently of agent journals.

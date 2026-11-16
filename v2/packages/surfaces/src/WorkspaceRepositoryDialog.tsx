@@ -5,6 +5,8 @@ import { RepositoryBrowser } from "./RepositoryBrowser";
 import { useRepositoryCatalog } from "./repository-catalog";
 import { useRunner } from "./RunnerContext";
 import { useRunnerSettings } from "./RunnerSettings";
+import { branchForName, suggestWorkspaceName } from "./repository-model";
+import { Icon } from "./Icons";
 /** One selection workflow for creating a workspace and adding to an existing one. */
 export function WorkspaceRepositoryDialog({
   workspace,
@@ -34,22 +36,24 @@ export function WorkspaceRepositoryDialog({
     [error, setError] = useState("");
   useEffect(() => {
     dialog.current?.showModal();
-    dialog.current?.querySelector<HTMLInputElement>('[data-autofocus]')?.focus();
+    // Creating starts on the name, its suggestion selected: typing replaces it.
+    (dialog.current?.querySelector<HTMLInputElement>('[data-name-autofocus]') || dialog.current?.querySelector<HTMLInputElement>('[data-autofocus]'))?.focus();
   }, []);
   const suggested = (
       settings?.naming === "generated"
         ? generated.current || "New workspace"
-        : [...selected]
-            .map((id) =>
-              catalog?.entries
-                .find((r) => r.identity === id)
-                ?.name.split("/")
-                .at(-1),
-            )
-            .filter(Boolean)
-            .join(" + ") || "New workspace"
+        : suggestWorkspaceName(
+            [...selected]
+              .map((id) => catalog?.entries.find((r) => r.identity === id)?.name || "")
+              .filter(Boolean),
+          )
     ).slice(0, 128),
     name = customName ?? suggested;
+  // The branch follows the name ("Login fix" → feature/login-fix) until the
+  // person edits it, so a good name makes a good branch.
+  const [customBranch, setCustomBranch] = useState<string>(),
+    [editingBranch, setEditingBranch] = useState(false);
+  const branch = workspace ? "" : (customBranch ?? branchForName(name)).trim();
   const included = new Set(
     workspace?.members.map((m) => m.spec?.repositoryId || ""),
   );
@@ -72,6 +76,7 @@ export function WorkspaceRepositoryDialog({
       collectionId: workspace?.id || "",
       name: name.trim(),
       repositoryIdentities: [...selected].sort(),
+      branch: empty ? "" : branch,
     };
     const spec = JSON.stringify(request);
     if (spec !== attempt.current.spec)
@@ -148,19 +153,47 @@ export function WorkspaceRepositoryDialog({
       </div>
       {!workspace && (
         <div className="workspace-create-details">
-          <label>
+          <label className="workspace-name-field">
             Workspace name
             <input
               aria-label="Workspace name"
+              data-name-autofocus
               value={name}
               maxLength={128}
               disabled={busy}
+              placeholder="What is this work about?"
+              onFocus={(e) => e.target.select()}
               onChange={(e) => setCustomName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (selected.size || empty)) void save();
               }}
             />
           </label>
+          {!empty && (editingBranch ? (
+            <label className="workspace-branch-field">
+              <span className="sr-only">Branch</span>
+              <Icon name="branch" size={13} />
+              <input
+                aria-label="Branch"
+                value={branch}
+                maxLength={200}
+                disabled={busy}
+                spellCheck={false}
+                autoFocus
+                onChange={(e) => setCustomBranch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setCustomBranch(undefined); setEditingBranch(false); }
+                  if (e.key === "Enter") { e.preventDefault(); setEditingBranch(false); }
+                }}
+              />
+            </label>
+          ) : (
+            <p className="workspace-branch-preview" aria-live="polite">
+              <Icon name="branch" size={13} />
+              <span>Branch <code data-testid="branch-preview">{branch || "chosen by the Runner"}</code></span>
+              <button type="button" className="link-button" disabled={busy} onClick={() => setEditingBranch(true)}>Edit branch</button>
+            </p>
+          ))}
           <label className="empty-workspace-choice">
             <input
               type="checkbox"

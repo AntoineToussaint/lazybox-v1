@@ -105,11 +105,20 @@ Escape to cancel). The editor retains its original workspace identity if selecti
 changes, without changing its folder, member
 paths or branches. Existing workspace folders remain in place. Double-clicking a
 repository selects it while retaining other selections; checkboxes support
-multi-repository selection. The suggested display name follows selected repository
-names (for example `api + web`) until the user types a custom name. Deselecting
+multi-repository selection. The name field opens focused, its suggestion selected so
+typing replaces it. The suggested display name follows selected repository
+names (`api`, `api + web`, or `authority +4` for more, never a run-on list) until
+the user types a custom name. The branch follows the name (`Login fix` →
+`feature/login-fix`) and is shown under it; **Edit branch** overrides it. Deselecting
 and reselecting updates an automatic suggestion. **Settings → Agents & workspaces**
 sets whether suggestions use repository names or a memorable generated name.
-Display naming never renames the fixed disk slug or branches.
+Renaming later never renames the fixed disk slug or branches. A workspace still
+named by a generated petname shows a quiet **Name it** chip on its card: one
+click opens the inline rename with a suggestion from its repositories.
+
+Every workspace card has the same three lines: its name, one repository line
+(the owner once, the first names and `+N`; the full list is the tooltip and the
+repository dialog) and its conversation with the live status.
 
 Example workspace:
 
@@ -335,8 +344,25 @@ inert and message images do not fetch external URLs. Mermaid loads only when a
 diagram is present, renders in strict mode into an SVG image, and falls back to
 copyable source on invalid/incomplete input. Console logs retain exact raw text.
 
+The chat header is one row: the conversation title (click to rename in place;
+while it has none, the workspace branch leads, never the folder's generated
+name, with a quiet **Name it** that suggests a title from the first message),
+then agent, model, account and the live status, and on the right the context
+meter, cost, **Activity** (quiet at 0), pop-out and ⋯. A session that opened
+and never ran a turn reads **Ready** and takes the keyboard, not "Starting":
+the Claude SDK reports `session_ready` only after the first prompt. Runner
+restart dividers are left out of a conversation that is otherwise empty.
+
+The live status moves while the agent works, in the header, the line above the
+composer, sidebar rows and inbox rows alike: a turning ring and the step with
+its elapsed time (`Running · Bash · 12s`, `Thinking · 4s`); waiting for you
+breathes; nothing moves under reduced motion. Rows use the Runner's
+`AgentActivity.phase`, `tool` and `phase_since_unix_millis`; the open chat
+refines them from its journal.
+
 Activity appears beside the composer while a turn runs: Thinking, Running a tool,
-Writing response, or Compaction when the provider reports that phase. Unknown
+Writing, Waiting for the model, or Compacting context when the provider reports
+that phase. Unknown
 activity stays generic Working; no hidden reasoning is displayed. Root completion
 and background-agent activity remain distinct. Connection recovery has its own
 label. This transport is Connect streaming RPC, not SSE; text deltas are rendered
@@ -491,7 +517,14 @@ them to the exported paths, wired into both app configs and the editor UI tests.
 The composer snippet icon and the configurable snippet shortcut open the same
 searchable picker. Preview the exact delivered body, then **Insert** (Shift+Enter)
 or **Send snippet** (Enter). Existing draft text disables immediate snippet sending;
-insertion preserves it. Only confirmed sends enter the five-item recent list.
+insertion preserves it. Every confirmed send or insert counts as a use: the
+last-used snippet comes first, then favorites, and **Frequent** sorts by use
+count (shown as `3×`).
+
+In the message box, ↑ in an empty box (or with the caret at its very start)
+recalls sent messages like a shell: this conversation's first, then every
+other's, newest first; ↓ walks back and returns the draft it replaced. In Vim
+normal mode the arrows keep their Vim meaning.
 The existing message/receipt and resume paths own delivery and retry identity.
 
 The Runner's `snippets.Catalog` seam has a command adapter. The shipped
@@ -517,7 +550,7 @@ pane multiplexing is not yet implemented; keyboard presets do not imply one.
 
 ### Activity inspection and context evidence
 
-The chat keeps one live phase line. **Activity** in the context bar opens tool
+The chat keeps one live phase line. **Activity** in the chat header opens tool
 history; calls and results remain collapsed until requested. Claude tool results
 are correlated with their call IDs; Codex items retain their start/completion
 state. Sub-agent calls are attributed separately. Missing results say “Result

@@ -279,3 +279,11 @@
 
 .repository-selection-empty{color:#7d8494;font-size:12px;padding:4px 2px}
 .repository-selection{min-height:34px;align-items:center}
+.workspace-name-field input{font-size:14px!important;font-weight:550;min-height:36px}
+.workspace-branch-preview{display:flex;align-items:center;gap:6px;margin:-2px 0 0;font-size:11.5px;color:#8f8ea0}
+.workspace-branch-preview>svg{flex:none;color:#8a86a6}
+.workspace-branch-preview code{font-family:var(--font-mono);font-size:11px;color:#c8c4dc;background:#26252f;padding:1px 5px;border-radius:4px}
+.workspace-branch-preview .link-button{margin-left:auto;padding:2px 6px;border:0;background:transparent;color:#a99de0;font-size:11px}
+.workspace-branch-preview .link-button:hover{text-decoration:underline}
+.workspace-branch-field{display:flex!important;flex-direction:row!important;align-items:center;gap:6px;color:#8a86a6}
+.workspace-branch-field input{flex:1;font-family:var(--font-mono);font-size:12px!important}

@@ -48,6 +48,7 @@
 .inbox-line em{font-style:normal;color:#c6c7d0}
 .inbox-item[data-state=needs-input] .inbox-line em{color:var(--attention-input)}
 .inbox-item[data-state=failed] .inbox-line em{color:var(--attention-failed)}
+.inbox-item[data-state=working] .inbox-line em.inbox-live{color:var(--attention-working);font-variant-numeric:tabular-nums}
 .inbox-age{flex:none;margin-top:1px;font-size:11px;color:#8d8f9b;font-variant-numeric:tabular-nums}
 .inbox-seen{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:6px;background:#2c2d36;border-color:#3a3b45;color:#c9c6d8;opacity:0}
 .inbox-item:hover .inbox-seen,.inbox-item:focus-within .inbox-seen{opacity:1}

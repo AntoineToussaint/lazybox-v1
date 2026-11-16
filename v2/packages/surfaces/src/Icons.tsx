@@ -53,6 +53,9 @@ const paths: Record<string, string[]> = {
   repository: ['M5 4h11l3 3v13H5z', 'M9 4v6l2-1.5L13 10V4', 'M8 15h8'],
   'split-right': ['M3 4h18v16H3z', 'M12 4v16'],
   'split-down': ['M3 4h18v16H3z', 'M3 12h18'],
+  back: ['m14 6-6 6 6 6'],
+  pencil: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
+  activity: ['M3 12h4l3-8 4 16 3-8h4'],
   sparkle: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2 2', 'm16 16 2 2', 'm6 18 2-2', 'm16 8 2-2'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

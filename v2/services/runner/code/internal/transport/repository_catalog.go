@@ -21,7 +21,7 @@ func (s *Service) GetRepositoryCatalog(ctx context.Context, r *pb.GetRepositoryC
 	return out, nil
 }
 func (s *Service) PrepareWorkspace(r *pb.PrepareWorkspaceRequest, stream grpc.ServerStreamingServer[pb.WorkspacePreparation]) error {
-	workspace, err := s.Bench.PrepareWorkspace(stream.Context(), r.RequestKey, r.CollectionId, r.Name, r.RepositoryIdentities, func(id, message string) error {
+	workspace, err := s.Bench.PrepareWorkspace(stream.Context(), r.RequestKey, r.CollectionId, r.Name, r.Branch, r.RepositoryIdentities, func(id, message string) error {
 		return stream.Send(&pb.WorkspacePreparation{Identity: id, Message: message})
 	})
 	if err != nil {

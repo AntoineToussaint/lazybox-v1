@@ -6,18 +6,20 @@ import {useKeyboardNavigation,useKeyboardAction,useKeymap,useMenuSnippet,useVimP
 import {useComposerVim} from './useComposerVim';
 import {continueConversation} from './transcript-cache';
 import {useChatScroll} from './useChatScroll';
-import {sessionModelLabel,sessionAccountLabel} from './conversation-model';
+import {sessionModelLabel,sessionAccountLabel,conversationTitle,titleFromMessage,branchSummary} from './conversation-model';
 import { DeleteConversationDialog } from './DeleteConversationDialog';
 import { useFileOpener, type OpenModifiers } from './file-links';
 import type { FileLink } from './file-reference';
 import { useTranscript } from './useTranscript';
-import { activityLabel } from './activity';
+import { LiveIndicator, useLiveStatus } from './LiveIndicator';
+import { caretOnFirstLine, caretOnLastLine, readPromptHistory, recallOrder, savePrompt } from './prompt-history';
+import { saveSnippetUse } from './snippet-usage';
 import { ConversationLoading, MessageList } from './MessageList';
 import { PromptNavigator } from './PromptNavigator';
 import { useRunnerSettings } from './RunnerSettings';
 import { TelemetryPanel } from './TelemetryPanel';
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
-import { type CommandStatus, type Session } from '@lazybox/protocol';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { type Collection, type CommandStatus, type Session } from '@lazybox/protocol';
 import { Console, RequestCard } from './session-parts';
 import type { SurfaceTarget, ViewStateStore } from '@lazybox/platform';
 import { readDraft, writeDraft, readLaunchChoices, writeLaunchChoices, type FileReference } from './view-state';
@@ -27,7 +29,8 @@ import { AttentionScope, useMarkViewed } from './useAttention';
 import { useComposeRequests } from './compose';
 export type { RunnerConnection } from './RunnerContext';
 import './style.css';
-import { sessionStatus, statusLabel, accountLabel } from './agent-status';
+import './chat-header.css';
+import { sessionStatus, statusLabel, accountLabel, awaitingFirstMessage } from './agent-status';
 import { appendToDraft, composeRunMessage, useComposerOffers, useSharedRuns } from './command-runs';
 
 const PERMISSION_CHOICES: [string, string][] = [['ask', 'Ask for approval'], ['read-only', 'Read only'], ['yolo', 'YOLO']];
@@ -67,7 +70,7 @@ export function AgentWindow(props: AgentWindowProps) {
 }
 
 export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, keyboardHint = null }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: KeyHint | null }) {
-  const { api, info, connecting, error: connectionError, refresh } = useRunner();
+  const { api, info, connecting, error: connectionError, refresh, revision } = useRunner();
   const keymap=useKeymap(viewState);
   const composer=useRef<HTMLTextAreaElement>(null);
   const [snippetsOpen,setSnippetsOpen]=useState(false);
@@ -79,6 +82,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     void api.listSnippets({}).then(result=>{
       const snippet=result.snippets.find(row=>row.key===entry.snippet);
       if(!snippet){setError(`Snippet "${entry.snippet}" no longer exists. Update the ]] menu in Settings → Keyboard.`);return;}
+      saveSnippetUse(viewState,snippet.key);
       if(entry.mode==='send'&&!message.trim()&&!files.length&&!missingFiles.length&&!sending)void send(undefined,snippet.body);
       else{const next=message+(message&&!message.endsWith('\n')?'\n':'')+snippet.body;setMessage(next);persistDraft(next,files,missingFiles);requestAnimationFrame(()=>composer.current?.focus());}
     },error=>setError(String(error)));
@@ -102,6 +106,16 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const transcript = useTranscript(api, sessionID, !!info);
   const [session, setSession] = useState<Session | undefined>(transcript.reader.session);
   useMarkViewed(session, mode === 'agent');
+  // The workspace, for its branch: the header leads with it until the conversation has a title.
+  const workspaceId = session?.collectionId || collectionId;
+  const [workspace, setWorkspace] = useState<Collection>();
+  useEffect(() => {
+    setWorkspace(undefined);
+    if (!workspaceId || !info) return;
+    const control = new AbortController();
+    void api.getCollection({ collectionId: workspaceId }, { signal: control.signal }).then(result => { if (!control.signal.aborted) setWorkspace(result.collection); }, () => {});
+    return () => control.abort();
+  }, [api, workspaceId, !!info, revision]);
   const { recent: events, messages: conversation, status: stream } = transcript;
   const scroll=useChatScroll(transcript.reader,conversation,session?.pending.length);
   const {visibleMessages,followingLatest,jumpToLatest}=scroll;
@@ -255,6 +269,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         writeDraft(viewState, destination, { text, files: files.map(file => ({ name: file.name, size: file.size, lastModified: file.lastModified })), operationId: attempt.id });
       }
       await api.apply({ sessionId: destination, operationId: attempt.id, operation: { case: 'message', value: { text, attachments } } }, { signal });
+      savePrompt(viewState, text, session?.conversationId || sessionID); recall.current = null;
       if (!signal.aborted) { setMessage(''); setFiles([]); setUncertainSend(''); sendAttempt.current = null; persistDraft('', [], []); if (destination !== sessionID) { writeDraft(viewState, destination, { text: '', files: [], operationId: '' }); setSessionID(destination); onSessionChange?.(destination); refresh(); } }
       return !signal.aborted;
     } catch (e) { if (!signal.aborted) {setError(String(e));if(snippetText)setMessage(text);} return false; }
@@ -310,10 +325,44 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     try { const output = await api.startCommand({ sessionId: sessionID, title: shell.slice(0, 64), argv: ['/bin/sh', '-c', shell] }); setCommand(output.id); }
     catch (e) { setError(String(e)); }
   };
-  const activity=activityLabel(events,session);
+  const live=useLiveStatus(session,events);
+  const disconnected=stream.startsWith('Disconnected')||stream==='Reconnecting';
   const activeProfile = info?.profiles.find(p => p.id === session?.profileId);
   const agentName = (activeProfile?.provider || provider) === 'claude' ? 'Claude' : 'Codex';
   const currentCommand = command || commands.at(-1)?.id;
+  // ↑/↓ recall sent messages, like a shell: this conversation's first, then
+  // every other's. Browsing starts in an empty box (or with the caret at its
+  // very start); the draft it replaced comes back below the newest entry.
+  const recall=useRef<{list:string[];index:number;draft:string}|null>(null);
+  useEffect(()=>{recall.current=null;},[sessionID]);
+  const conversationKey=session?.conversationId||sessionID;
+  const recallKey=(event:KeyboardEvent<HTMLTextAreaElement>)=>{
+    if(event.key!=='ArrowUp'&&event.key!=='ArrowDown')return false;
+    const native=event.nativeEvent,el=event.currentTarget;
+    if(native.isComposing||event.altKey||event.metaKey||event.ctrlKey||event.shiftKey||(vim.mode&&vim.mode!=='insert'))return false;
+    const {selectionStart:start,selectionEnd:end,value}=el;
+    let state=recall.current;
+    if(event.key==='ArrowUp'){
+      if(!state){
+        if(value&&!(start===0&&end===0))return false;
+        const list=recallOrder(readPromptHistory(viewState),conversationKey,conversation.filter(m=>m.type==='operation_accepted').map(m=>m.text));
+        if(!list.length)return false;
+        state={list,index:-1,draft:value};
+      }else if(!caretOnFirstLine(value,start,end))return false;
+      if(state.index+1>=state.list.length){event.preventDefault();return true;}
+      state={...state,index:state.index+1};
+    }else{
+      if(!state||!caretOnLastLine(value,start,end))return false;
+      state={...state,index:state.index-1};
+    }
+    event.preventDefault();
+    const text=state.index<0?state.draft:state.list[state.index];
+    recall.current=state.index<0?null:state;
+    setMessage(text);setUncertainSend('');sendAttempt.current=null;persistDraft(text,files,missingFiles);
+    requestAnimationFrame(()=>{const node=composer.current;if(node){node.setSelectionRange(text.length,text.length);node.scrollTop=node.scrollHeight;}});
+    return true;
+  };
+  const composerKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{if(recallKey(event))return;vim.textareaProps.onKeyDown?.(event);};
   useEffect(() => {
     if (!onViewChange) return;
     void (async () => { try { await onViewChange({ sessionId: sessionID, commandId: currentCommand || '', commandsOpen }); } catch (e) { setError(`Could not save this window: ${String(e)}`); } })();
@@ -321,6 +370,47 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const newSession = () => {
     setSessionID(''); setSession(undefined); setCommands([]); setCommand(''); setMessage(''); setFiles([]); setMissingFiles([]); setUncertainSend(''); sendAttempt.current = null; setError(''); onSessionChange?.('');
   };
+  // The title renames in place: Enter saves, Escape puts it back.
+  // A title that is only the workspace folder's (generated) name is no title:
+  // the header leads with the branch until the conversation gets a real one.
+  const realTitle=conversationTitle(session);
+  const firstPrompt=conversation.find(m=>m.type==='operation_accepted')?.text||'';
+  const suggestedTitle=titleFromMessage(firstPrompt);
+  const branch=branchSummary(workspace);
+  const startRename=()=>{if(!session)return;setConversationName(realTitle||suggestedTitle);setRenaming(true);};
+  const saveName=async(event:FormEvent)=>{
+    event.preventDefault();const title=conversationName.trim();
+    if(savingName||!title)return;
+    if(title===session?.title){setRenaming(false);return;}
+    setSavingName(true);
+    try{const result=await api.renameConversation({sessionId:sessionID,title});setSession(result.session);setRenaming(false);refresh();}
+    catch(error){setError(String(error));}finally{setSavingName(false);}
+  };
+  const titleView=renaming
+    ? <form className="conversation-rename" onSubmit={saveName}><input autoFocus required maxLength={120} aria-label="Conversation name" value={conversationName} disabled={savingName} onFocus={event=>event.target.select()} onChange={event=>setConversationName(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'&&!savingName){event.preventDefault();event.stopPropagation();setRenaming(false);}}}/><button className="icon-button" aria-label="Save conversation name" title="Save (Enter)" disabled={savingName||!conversationName.trim()}><Icon name="check" size={14}/></button><button type="button" className="icon-button" aria-label="Cancel renaming" title="Cancel (Esc)" disabled={savingName} onClick={()=>setRenaming(false)}><Icon name="close" size={14}/></button></form>
+    : <div className="conversation-title" data-untitled={realTitle ? undefined : true}>{realTitle
+      ? <h2><button type="button" className="conversation-title-text" title="Rename conversation" disabled={!session} onClick={startRename}>{realTitle}</button></h2>
+      : <h2 className="chat-branch-title">{branch ? <span className="chat-branch" title={branch.title}><Icon name="branch" size={13}/><span className="chat-branch-name">{branch.name}</span>{branch.detail && <small>{branch.detail}</small>}</span> : <span className="chat-untitled">New conversation</span>}</h2>}
+      {realTitle
+        ? <button type="button" className="icon-button conversation-rename-button" aria-label="Rename conversation" title="Rename" disabled={!session} onClick={startRename}><Icon name="pencil" size={13}/></button>
+        : <button type="button" className="conversation-name-it" aria-label="Rename conversation" title={suggestedTitle ? `Name it “${suggestedTitle}”` : 'Give this conversation a name'} disabled={!session} onClick={startRename}><Icon name="pencil" size={12}/><span>Name it</span></button>}</div>;
+  const modelLabel=sessionModelLabel(session,transcript.reportedModel);
+  const accountName=sessionAccountLabel(session,activeProfile);
+  const shownAccount=accountName==='Account not reported'||accountName==='Loading account…'?'':accountName;
+  const statusView=<span className="chat-status" data-state={session?.closed?'saved':session?.status} data-tone={live.tone}><LiveIndicator tone={live.tone}/><span className="chat-status-text"><span role="status">{live.label}{session?.queued ? ` · ${session.queued} queued` : ''}</span>{live.text.length>live.label.length&&<span aria-hidden="true">{live.text.slice(live.label.length)}</span>}</span></span>;
+  const sessionMenu=<ActionMenu className="session-menu" label="Session actions"><strong>Session</strong><small>{accountName}</small><small>Gateway: {session?.gatewayId || 'direct'}</small><small className="mono">{sessionID}</small><small>{stream}</small>{session && !session.closed && !['help','planning','summary'].includes(session.purpose) && <div className="session-permission" role="group" aria-label="Permissions"><strong>Permissions{session.permission ? '' : ' · CLI settings'}{session.capabilities?.livePermission ? '' : ' · restart needed'}</strong>{PERMISSION_CHOICES.map(([mode, label]) => <button key={mode} aria-pressed={session.permission === mode} disabled={(mode === 'yolo' && session.workflow === 'plan') || session.permission === mode} title={mode === 'yolo' && session.workflow === 'plan' ? 'YOLO is unavailable in plan mode' : session.capabilities?.livePermission ? undefined : 'This agent started before live permission changes: it restarts in this mode and the conversation continues'} onClick={() => session.capabilities?.livePermission ? void changePermission(mode) : setRestartTo(mode)}>{label}</button>)}</div>}{session?.closed ? allowStart ? <button onClick={newSession}>New session</button> : <span>Saved conversation</span> : <button disabled={!session} onClick={() => void close()}>End session</button>}<button className="danger" disabled={!session} onClick={()=>setDeleting(true)}>Delete conversation…</button></ActionMenu>;
+  // A Runner restart while nothing was said yet is not news: an empty
+  // conversation stays empty instead of showing "Runner restarted".
+  const spoken=conversation.some(m=>m.type!=='reattached');
+  // A conversation that opened and waits for its first message takes the keyboard once.
+  const focusedFor=useRef('');
+  const firstMessage=!!session&&awaitingFirstMessage(session)&&!spoken;
+  useEffect(()=>{
+    if(!firstMessage||!canCompose||focusedFor.current===sessionID)return;
+    focusedFor.current=sessionID;
+    const active=document.activeElement;
+    if(!active||active===document.body||composer.current?.closest('main')?.contains(active))composer.current?.focus({preventScroll:true});
+  },[firstMessage,canCompose,sessionID]);
   const resumeSession=async()=>{
     if(resuming)return;setResuming(true);setError('');
     try{const result=await api.resumeSession({sessionId:sessionID,processesStopped},{signal:lifetime.current!.signal});if(result.session){continueConversation(api,sessionID,result.session);setSessionID(result.session.id);setProcessesStopped(false);onSessionChange?.(result.session.id);refresh();}}
@@ -369,32 +459,33 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         <button className="primary" disabled={opening || !info || !selectedProfile}>{opening ? `Starting ${agentName}…` : `Start ${agentName} ↗`}</button>
       </form><small>Uses the selected Runner account. Closing this window leaves your agent running.</small>
     </section> : <section className="single-session">
-      {session && <div className="conversation-title"><strong>{session.title || 'Conversation'}</strong><button className="icon-button" aria-label="Rename conversation" onClick={()=>{setConversationName(session.title);setRenaming(true);}}>Rename</button></div>}
-      {renaming && <form className="conversation-rename" onSubmit={async event=>{event.preventDefault();if(savingName)return;setSavingName(true);try{const result=await api.renameConversation({sessionId:sessionID,title:conversationName});setSession(result.session);setRenaming(false);refresh();}catch(error){setError(String(error));}finally{setSavingName(false);}}}><label>Conversation name<input autoFocus required maxLength={120} value={conversationName} disabled={savingName} onChange={event=>setConversationName(event.target.value)}/></label><button disabled={savingName||!conversationName.trim()}>Save conversation name</button><button type="button" disabled={savingName} onClick={()=>setRenaming(false)}>Cancel</button></form>}
-
-      {embedded ? <div className="chat-heading"><span className={'agent-avatar ' + agentName.toLowerCase()}>{agentName === 'Claude' ? '✳︎' : '›'}</span><div><h2>{agentName}<span className="chat-model">{sessionModelLabel(session,transcript.reportedModel)}</span></h2>{sessionAccountLabel(session,activeProfile)!=='Account not reported'&&<small className="chat-account">{sessionAccountLabel(session,activeProfile)}</small>}<span className="chat-status" data-state={session?.closed?'saved':session?.status} role="status"><i/>{sessionStatus(session)}{session?.queued ? ` · ${session.queued} queued` : ''}</span></div><div className="chat-heading-actions">{onOpenChat && <button className="icon-button" aria-label="Open chat window ↗" title="Open in a separate window" onClick={onOpenChat}><Icon name="external"/></button>}<ActionMenu className="session-menu" label="Session actions"><strong>Session</strong><small>{sessionAccountLabel(session,activeProfile)}</small><small>Gateway: {session?.gatewayId || 'direct'}</small><small className="mono">{sessionID}</small><small>{stream}</small>{session && !session.closed && !['help','planning','summary'].includes(session.purpose) && <div className="session-permission" role="group" aria-label="Permissions"><strong>Permissions{session.permission ? '' : ' · CLI settings'}{session.capabilities?.livePermission ? '' : ' · restart needed'}</strong>{PERMISSION_CHOICES.map(([mode, label]) => <button key={mode} aria-pressed={session.permission === mode} disabled={(mode === 'yolo' && session.workflow === 'plan') || session.permission === mode} title={mode === 'yolo' && session.workflow === 'plan' ? 'YOLO is unavailable in plan mode' : session.capabilities?.livePermission ? undefined : 'This agent started before live permission changes: it restarts in this mode and the conversation continues'} onClick={() => session.capabilities?.livePermission ? void changePermission(mode) : setRestartTo(mode)}>{label}</button>)}</div>}{session?.closed ? allowStart ? <button onClick={newSession}>New session</button> : <span>Saved conversation</span> : <button disabled={!session} onClick={() => void close()}>End session</button>}<button className="danger" disabled={!session} onClick={()=>setDeleting(true)}>Delete conversation…</button></ActionMenu></div></div> : <><div className="panel-title"><div><span className="eyebrow">Agent session</span><h2>{agentName}<span className="chat-model">{sessionModelLabel(session,transcript.reportedModel)}</span></h2></div>{session?.closed ? allowStart ? <button onClick={newSession}>New session</button> : <span>Saved conversation</span> : <button disabled={!session} onClick={() => void close()}>End session</button>}</div><div className="session-meta"><span role="status">{sessionStatus(session)}</span><span>{sessionAccountLabel(session,activeProfile)}</span><span>Gateway: {session?.gatewayId || 'direct'}</span><span>{session?.queued || 0} queued</span><span className="mono">{sessionID.slice(0, 12)}</span></div></>}
+      {embedded ? <header className="chat-heading">
+        <span className={'agent-avatar ' + agentName.toLowerCase()} aria-hidden="true">{agentName === 'Claude' ? '✳︎' : '›'}</span>
+        <div className="chat-heading-main">{titleView}<div className="chat-heading-meta">{realTitle && branch && <span className="chat-meta-branch" title={branch.title}><Icon name="branch" size={11}/>{branch.name}</span>}<span className="chat-agent">{agentName}</span>{modelLabel && <span className="chat-model" title={session?.model && !session.modelReported && !transcript.reportedModel ? 'Requested model; the provider has not confirmed it yet' : 'Model'}>{modelLabel}</span>}{shownAccount && <span className="chat-account" title="Account">{shownAccount}</span>}{statusView}</div></div>
+        <div className="chat-heading-actions">{sessionID && <><TelemetryPanel executionId={sessionID} conversationId={session?.conversationId} compact/><ToolActivity events={transcript.activity} truncated={transcript.activityTruncated}/></>}{onOpenChat && <button className="icon-button" aria-label="Open chat window ↗" title="Open in a separate window" onClick={onOpenChat}><Icon name="external"/></button>}{sessionMenu}</div>
+      </header> : <>{session && titleView}<div className="panel-title"><div><span className="eyebrow">Agent session</span><h2>{agentName}<span className="chat-model">{modelLabel}</span></h2></div>{session?.closed ? allowStart ? <button onClick={newSession}>New session</button> : <span>Saved conversation</span> : <button disabled={!session} onClick={() => void close()}>End session</button>}</div><div className="session-meta">{statusView}<span>{accountName}</span><span>Gateway: {session?.gatewayId || 'direct'}</span><span>{session?.queued || 0} queued</span><span className="mono">{sessionID.slice(0, 12)}</span></div>{sessionID && <div className="agent-inspection-bar"><TelemetryPanel executionId={sessionID} conversationId={session?.conversationId} compact/><ToolActivity events={transcript.activity} truncated={transcript.activityTruncated}/></div>}</>}
       {dragging && <div className="file-drop-hint" role="status">Drop files to attach</div>}
       {session?.closed&&<div className="resume-bar"><span>{'Saved conversation'}</span>{session.resumeBlocked?<p>{session.resumeBlocked}</p>:canResumeOnSend?<small>Send a message to continue with this conversation’s saved account and permissions.</small>:<>{session.recoveryRequired&&<label><input type="checkbox" checked={processesStopped} onChange={event=>setProcessesStopped(event.target.checked)}/>I have stopped or reconciled the previous agent and its commands.</label>}<button disabled={resuming||!session.providerReference||!session.capabilities?.resume||(session.recoveryRequired&&!processesStopped)} onClick={()=>void resumeSession()}>{resuming?'Resuming…':'Resume conversation'}</button></>}</div>}
       {deleting&&session&&<DeleteConversationDialog session={session} onClose={()=>setDeleting(false)} onDeleted={()=>{setDeleting(false);newSession();}}/>}
     {fileLinks.element}
-      {sessionID && <div className="agent-inspection-bar"><TelemetryPanel executionId={sessionID} conversationId={session?.conversationId} compact/><ToolActivity events={transcript.activity} truncated={transcript.activityTruncated}/></div>}
       {session?.account && ['auth_required', 'exhausted', 'throttled', 'billing_error', 'context_full', 'budget_exceeded'].includes(session.account.state) && <div className="account-notice" role="status">{accountLabel(session.account.state)}{session.account.resetAt > 0n ? ` · resets ${new Date(Number(session.account.resetAt) * 1000).toLocaleString()}` : ''}</div>}
     {session && session.agents.length > 1 && <details className="agent-activity"><summary>Agent activity ({session.agents.length - 1})</summary><ul>{session.agents.filter(a => a.id !== 'root').map(a => <li key={a.id} data-parent={a.parentId}><span>{a.name || 'Sub-agent'}</span><small>{statusLabel(a.status)}</small></li>)}</ul>{session.activityTruncated && <small>Additional activity was omitted.</small>}</details>}
       {transcript.error && <div className="transcript-notice error" role="alert"><span>Conversation could not be loaded. {transcript.error}</span><button onClick={transcript.retry}>Retry conversation</button></div>}
       <div className="messages-frame"><PromptNavigator messages={conversation} paneRef={scroll.paneRef} onReveal={scroll.revealMessage}/>
       <div className="messages" tabIndex={-1} ref={scroll.paneRef} onScroll={scroll.onScroll}><div className="messages-content" ref={scroll.contentRef}>
       {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
-      {!transcript.loading && !transcript.error && !conversation.length && <div className="empty"><span>READY TO WORK</span><h2>What are we building?</h2><p>Send {agentName} a message to get started.</p></div>}{session?.fault && <div className="error" role="alert">{session.fault}</div>}<MessageList messages={conversation} visible={visibleMessages} agentName={agentName} onOpenFile={session?.collectionId ? openFile : undefined} onShowEarlier={scroll.showEarlier}/>{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={setError}/>)}</div></div>
+      {!transcript.loading && !transcript.error && !spoken && <div className="empty"><span>READY TO WORK</span><h2>What are we building?</h2><p>Send {agentName} a message to get started.</p></div>}{session?.fault && <div className="error" role="alert">{session.fault}</div>}<MessageList messages={spoken ? conversation : []} visible={visibleMessages} agentName={agentName} onOpenFile={session?.collectionId ? openFile : undefined} onShowEarlier={scroll.showEarlier}/>{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={setError}/>)}</div></div>
       </div>
       {!followingLatest && conversation.length > 0 && <button className="jump-to-latest" onClick={jumpToLatest}>Jump to latest</button>}
-      {!transcript.error && (activity||stream.startsWith('Disconnected')||stream==='Reconnecting')&&<div className="live-activity" role="status"><i/>{stream.startsWith('Disconnected')||stream==='Reconnecting'?'Connection interrupted · reconnecting…':activity}</div>}
+      {!transcript.error && disconnected && <div className="live-activity" data-tone="busy" role="status"><LiveIndicator tone="busy"/>Connection interrupted · reconnecting…</div>}
+      {!transcript.error && !disconnected && live.tone === 'busy' && session && !session.closed && <div className="live-activity" data-tone="busy" aria-hidden="true"><LiveIndicator tone="busy"/>{live.text}</div>}
       <form className="composer" onSubmit={send}>
         {files.length > 0 && <ul className="attached-files" aria-label="Attached files">{files.map((file, i) => <li key={i}><span>{file.name} <small>{Math.ceil(file.size / 1024)} KiB</small></span><button type="button" aria-label={`Remove ${file.name}`} disabled={sending} onClick={() => { const next = files.filter((_, index) => index !== i); setFiles(next); setUncertainSend(''); persistDraft(message, next, missingFiles); }}>×</button></li>)}</ul>}
         {missingFiles.length > 0 && <div className="restore-files"><p>Reattach or remove these files before sending:</p>{missingFiles.map((file, i) => <button key={i} type="button" onClick={() => { const next = missingFiles.filter((_, index) => index !== i); setMissingFiles(next); setUncertainSend(''); persistDraft(message, files, next); }}>Remove {file.name}</button>)}</div>}
         {uncertainSend && !sending && <small className="composer-hint">The previous send was not confirmed. Retrying the unchanged message checks the same operation.</small>}
         {handedOver && <p className="composer-handover" role="status">{handedOver}<button type="button" aria-label="Dismiss" onClick={() => setHandedOver('')}>×</button></p>}
-        <textarea ref={composer} data-agent-composer aria-label="Message" placeholder={`Message ${agentName}…`} value={message} onChange={e => { setMessage(e.target.value); setUncertainSend(''); sendAttempt.current = null; persistDraft(e.target.value, files, missingFiles); }} disabled={!canCompose || sending}
-          {...vim.textareaProps}/>        {restartTo && <div className="restart-permission" role="alert"><span>Restart the agent in {PERMISSION_CHOICES.find(([mode]) => mode === restartTo)?.[1] || restartTo}? The conversation continues; this agent started before permissions could change live.</span><button className="primary" disabled={!!session?.busy} title={session?.busy ? 'Wait for the current turn to finish' : undefined} onClick={() => void restartWithPermission(restartTo)}>Restart</button><button onClick={() => setRestartTo('')}>Cancel</button></div>}
+        <textarea ref={composer} data-agent-composer aria-label="Message" placeholder={`Message ${agentName}…`} value={message} onChange={e => { recall.current = null; setMessage(e.target.value); setUncertainSend(''); sendAttempt.current = null; persistDraft(e.target.value, files, missingFiles); }} disabled={!canCompose || sending}
+          {...vim.textareaProps} onKeyDown={composerKeyDown}/>        {restartTo && <div className="restart-permission" role="alert"><span>Restart the agent in {PERMISSION_CHOICES.find(([mode]) => mode === restartTo)?.[1] || restartTo}? The conversation continues; this agent started before permissions could change live.</span><button className="primary" disabled={!!session?.busy} title={session?.busy ? 'Wait for the current turn to finish' : undefined} onClick={() => void restartWithPermission(restartTo)}>Restart</button><button onClick={() => setRestartTo('')}>Cancel</button></div>}
         <div className="row">{vim.mode && <span className="vim-mode-chip" data-mode={vim.mode} role="status" aria-label={`Vim ${vim.mode} mode`} title="Vim editing: Esc for normal mode, i to type, Enter in normal mode sends. Turn it off in Settings → Shortcuts.">{vim.status}</span>}{session?.instructionsPending && !session.closed && <span className="composer-chip" role="status" title="The shared Lazybox instructions changed since this conversation started. The update is sent with your next message.">Instructions updated</span>}<button type="button" className="icon-button" aria-label="Snippets" title={`Snippets · ${keymap['snippets.open']}`} disabled={!canCompose||sending} onClick={()=>setSnippetsOpen(true)}><Icon name="snippets"/></button><button type="button" className="attachment" aria-label={embedded ? 'Attach files' : undefined} disabled={!canAttach} onClick={() => fileInput.current?.click()}>{embedded ? <><Icon name="attach"/> Attach</> : '+ Attach files'}</button><input ref={fileInput} hidden aria-label="Attach files" type="file" multiple onChange={e => { selectFiles(e.target.files); e.target.value = ''; }}/><small className="composer-hint keyboard-hint">{vim.mode === 'insert' ? `${keymap['chat.send']} to send · Esc for normal mode` : vim.mode ? vim.hint : `${keymap['chat.send']} to send · Shift+Enter for a new line`}</small>{(!embedded || session?.busy) && <button type="button" onClick={() => void interrupt()} disabled={!session?.busy || session.closed}>Interrupt</button>}<button className="primary send-button" aria-label={sending ? 'Sending…' : session?.busy ? 'Queue follow-up' : 'Send message'} disabled={!canSend}>{embedded ? <Icon name="send" size={18}/> : sending ? 'Sending…' : session?.busy ? 'Queue follow-up' : 'Send message'}</button></div>
       </form>
       {showCommands && !assistant && <details className="session-commands" open={commandsOpen} onToggle={event => setCommandsOpen(event.currentTarget.open)}><summary>Commands & output {commands.length > 0 && `(${commands.length})`}</summary><form onSubmit={startCommand} className="command-form"><input aria-label="Shell command" value={shell} onChange={e => setShell(e.target.value)} disabled={!session || session.closed}/><button disabled={!session || session.closed}>Run</button></form><div className="command-tabs">{commands.map(c => <button key={c.id} className={currentCommand === c.id ? 'selected' : ''} onClick={() => setCommand(c.id)}>{c.done ? '◦' : '●'} {c.title.slice(0, 28)}</button>)}</div>{currentCommand && <><Console key={currentCommand} api={api} command={currentCommand} viewState={viewState} onError={setError} onSendToAgent={canCompose && !sending ? text => { addToDraft(text, 'Added the compact view of a terminal run. Review it, add what you want, and send.'); return ''; } : undefined} onOpenViewer={onOpenViewer ? async () => { try { await onOpenViewer(sessionID, currentCommand); } catch (e) { setError(String(e)); } } : undefined}/><button className="cancel" onClick={async () => { try { await api.cancelCommand({ commandId: currentCommand }); } catch (e) { setError(String(e)); } }}>Cancel owned command</button></>}</details>}

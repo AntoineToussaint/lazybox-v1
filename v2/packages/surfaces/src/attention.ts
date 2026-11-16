@@ -1,6 +1,6 @@
 import type { AgentEvent, Session } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
-import { accountLabel } from './agent-status';
+import { accountLabel, awaitingFirstMessage } from './agent-status';
 
 /**
  * What a conversation asks of the person, in the order it matters:
@@ -112,14 +112,14 @@ export function deriveAttention(session: Session, seenAt = 0): Attention {
     const restart = !fault && session.status !== 'failed';
     return { ...base, state: 'failed', unread: at > seenAt, reason: restart ? 'Interrupted' : 'Failed', line: restart ? 'The Runner stopped during this turn and could not re-attach' : faultSummary(session) };
   }
-  if (!session.closed && (session.busy || session.queued > 0 || ['running', 'starting', 'switching_profile'].includes(session.status))) {
+  if (!session.closed && !awaitingFirstMessage(session) && (session.busy || session.queued > 0 || ['running', 'starting', 'switching_profile'].includes(session.status))) {
     return { ...base, state: 'working', unread: false, reason: session.status === 'switching_profile' ? 'Switching subscription' : 'Working', line: message };
   }
   if (ended > seenAt && ended > 0) {
     const interrupted = session.agents.find(agent => agent.id === 'root')?.lastTurnStatus === 'interrupted';
     return { ...base, state: 'review', unread: true, reason: interrupted ? 'Turn interrupted' : 'Turn ended', line: message };
   }
-  return { ...base, state: 'idle', unread: false, reason: session.closed ? 'Ended' : session.status === 'unknown' ? 'Status unknown' : 'Done', line: message };
+  return { ...base, state: 'idle', unread: false, reason: session.closed ? 'Ended' : session.status === 'unknown' ? 'Status unknown' : awaitingFirstMessage(session) ? 'Ready' : 'Done', line: message };
 }
 
 /**

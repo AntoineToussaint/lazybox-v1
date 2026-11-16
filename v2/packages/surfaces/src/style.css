@@ -166,5 +166,3 @@ small{color:#87929f;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:600px){.file-preview-dialog>[data-dialog-drag-handle]{padding:10px}.file-preview-dialog .file-preview-content{padding:12px}.file-preview-dialog .file-preview-toolbar{padding:6px 10px}}
 .messages{overflow-anchor:none}
 .messages-content{display:flow-root;min-width:0}
-.chat-model{font-size:12px;font-weight:400;color:#b5b6c1;margin-left:10px;overflow-wrap:anywhere}
-.chat-heading>div:not(.chat-heading-actions){min-width:0}

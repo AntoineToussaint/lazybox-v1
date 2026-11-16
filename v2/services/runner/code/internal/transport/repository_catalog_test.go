@@ -69,28 +69,37 @@ func TestUnifiedCatalogToWorkspaceWithoutRegistrationStep(t *testing.T) {
 	}
 	updates := []string{}
 	progress := func(_, message string) error { updates = append(updates, message); return nil }
-	workspace, err := s.Bench.PrepareWorkspace(ctx, "catalog-create", "", "Feature", []string{"github:team/api"}, progress)
+	workspace, err := s.Bench.PrepareWorkspace(ctx, "catalog-create", "", "Feature", "", []string{"github:team/api"}, progress)
 	if err != nil || len(workspace.Members) != 1 {
 		t.Fatal(workspace, err)
 	}
-	again, err := s.Bench.PrepareWorkspace(ctx, "catalog-create", "", "Feature", []string{"github:team/api"}, progress)
+	again, err := s.Bench.PrepareWorkspace(ctx, "catalog-create", "", "Feature", "", []string{"github:team/api"}, progress)
 	if err != nil || again.ID != workspace.ID || len(s.Bench.Collections.Repositories()) != before+1 {
 		t.Fatal("retry duplicated resources", again, err)
 	}
 	localIdentity := s.Bench.Collections.RepositoryIdentity("api")
-	extended, err := s.Bench.PrepareWorkspace(ctx, "catalog-add", workspace.ID, "", []string{localIdentity}, progress)
+	extended, err := s.Bench.PrepareWorkspace(ctx, "catalog-add", workspace.ID, "", "", []string{localIdentity}, progress)
 	if err != nil || len(extended.Members) != 2 {
 		t.Fatal(extended, err)
 	}
 	if len(updates) < 4 {
 		t.Fatal("missing progress")
 	}
+	// A branch chosen at creation (named after the workspace) names its worktrees.
+	named, err := s.Bench.PrepareWorkspace(ctx, "catalog-named", "", "Login fix", "feature/login-fix", []string{"github:team/api"}, progress)
+	if err != nil || len(named.Members) != 1 || named.Members[0].Branch != "feature/login-fix" {
+		t.Fatal("chosen branch not used", named, err)
+	}
+	// It is a new branch: an existing one is never taken over.
+	if _, err = s.Bench.PrepareWorkspace(ctx, "catalog-named-again", "", "Login fix", "feature/login-fix", []string{"github:team/api"}, progress); err == nil {
+		t.Fatal("an existing branch was taken over")
+	}
 	provider.fail = true
 	failed, err := s.GetRepositoryCatalog(ctx, &pb.GetRepositoryCatalogRequest{Refresh: true})
 	if err != nil || len(failed.Entries) != 3 || failed.Sources[0].State != "error" {
 		t.Fatal("failed refresh lost results", failed, err)
 	}
-	if _, err = s.Bench.PrepareWorkspace(ctx, "invalid", "", "Bad", []string{"github:not/discovered"}, progress); err == nil {
+	if _, err = s.Bench.PrepareWorkspace(ctx, "invalid", "", "Bad", "", []string{"github:not/discovered"}, progress); err == nil {
 		t.Fatal("unknown identity accepted")
 	}
 }

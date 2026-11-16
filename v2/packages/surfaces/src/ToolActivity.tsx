@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {JournalEvent} from '@lazybox/protocol';
 import {DraggableDialog,DialogHeader} from './DraggableDialog';
+import {Icon} from './Icons';
 import {CodeBlock} from './RichContent';
 import {toolActivity,toolTitle,toolDuration,durationLabel,type ToolCall} from './tool-activity';
 import './tool-activity.css';
@@ -39,7 +40,7 @@ export function ToolActivity({events,truncated=false}:{events:JournalEvent[];tru
  useEffect(()=>{if(open){setNow(Date.now());dialog.current?.showModal();dialog.current?.querySelector<HTMLInputElement>('input')?.focus();}},[open]);
  useEffect(()=>{if(!open||!running)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[open,running]);
  const filtered=calls.filter(c=>(filter==='all'||(filter==='running'?c.status==='Running':c.status==='Failed'))&&`${toolTitle(c)} ${c.name} ${c.agent} ${c.status}`.toLowerCase().includes(query.toLowerCase())).reverse();
- return <div className="tool-activity-toolbar"><button type="button" onClick={()=>setOpen(true)} aria-label="View tools and activity">Activity <span>{calls.length}</span>{running>0&&<small> · {running} running</small>}</button>{open&&<DraggableDialog ref={dialog} className="tool-activity-dialog" aria-label="Tools and activity" onCancel={()=>setOpen(false)}>
+ return <div className="tool-activity-toolbar"><button type="button" onClick={()=>setOpen(true)} aria-label="View tools and activity" title={calls.length?`Activity · ${calls.length} tool ${calls.length===1?"call":"calls"}${running?`, ${running} running`:""}${failed?`, ${failed} failed`:""}`:"Activity · no tool calls yet"} data-empty={calls.length?undefined:true} data-running={running?true:undefined} data-failed={failed?true:undefined}><Icon name="activity" size={14}/>{calls.length>0&&<span className="tool-activity-count">{running>0?`${running}/${calls.length}`:calls.length}</span>}</button>{open&&<DraggableDialog ref={dialog} className="tool-activity-dialog" aria-label="Tools and activity" onCancel={()=>setOpen(false)}>
   <DialogHeader><div><h2>Activity</h2><p>Tool calls · newest first</p></div><button aria-label="Close tools" onClick={()=>setOpen(false)}>×</button></DialogHeader>
   <div className="activity-controls"><input type="search" aria-label="Filter tool activity" placeholder="Search actions or tools…" value={query} onChange={e=>{setQuery(e.target.value);setLimit(100);}}/><div className="activity-filters" role="group" aria-label="Activity status">{[['all',`All ${calls.length}`],['running',`Running ${running}`],['failed',`Failed ${failed}`]].map(([value,label])=><button key={value} aria-pressed={filter===value} onClick={()=>{setFilter(value);setLimit(100);}}>{label}</button>)}</div></div>
   {unknown>0&&<p className="activity-note">{unknown} {unknown===1?'call has':'calls have'} no saved result. Completion and duration are unknown.</p>}

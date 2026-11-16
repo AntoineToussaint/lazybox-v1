@@ -52,7 +52,8 @@ try {
     .getByRole("button", { name: "New workspace", exact: true })
     .click();
   let dialog = page.getByRole("dialog", { name: "New workspace", exact: true });
-  await expect(dialog.getByRole("searchbox")).toBeFocused();
+  // Creating starts on the name, its suggestion selected so typing replaces it.
+  await expect(dialog.getByLabel("Workspace name", { exact: true })).toBeFocused();
   await page.screenshot({ path: "/tmp/lazybox-navigation-workspace.png" });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   const message = page.getByRole("textbox", { name: "Message", exact: true });

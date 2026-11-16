@@ -1,0 +1,135 @@
+// Fixture only: the compact chat header, live status, prompt recall, snippet
+// usage, equal workspace cards, the workspace home and the naming flow.
+import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
+const f=await startRunnerFixture();
+const repos=['authority','cli','core','module-datasource','web-console'];
+for(const [i,name] of repos.entries())f.library.push({id:'r'+i,name,path:'/fixture/'+name,gitIdentity:'github:codefly-dev/'+name});
+const member=(i,collection,branch)=>({spec:{name:repos[i],repositoryId:'r'+i,baseRef:'main',branch},path:`/fixture/collections/${collection}/${repos[i]}`,ready:true});
+f.collections.push({id:'gamma',name:'authority +4',workId:'gamma',root:'/fixture/collections/gamma',state:'ready',members:[0,1,2,3,4].map(i=>member(i,'gamma','feature/authority'))});
+f.collections.push({id:'solo',name:'gentle-copper-otter',workId:'solo',root:'/fixture/collections/solo',state:'ready',members:[member(1,'solo','feature/gentle-copper-otter')]});
+const now=Date.now();
+Object.assign(f.sessions[0],{title:'Fix the flaky login test',provider:'claude',model:'claude-fable-5-1',modelReported:true,busy:true,status:'running',agents:[{id:'root',status:'running',phase:'tool',tool:'Bash',phaseSinceUnixMillis:String(now-12000),turnStartedAtUnixMillis:String(now-40000)}]});
+// A conversation that opened and never ran a turn, titled after its workspace folder.
+Object.assign(f.sessions[1],{title:'beta',provider:'claude',status:'starting',agents:[{id:'root',status:'starting'}]});
+const alpha=f.openEvents('alpha-session');alpha.push({type:'operation_accepted',text:'The login test is flaky, can you find out why?'});alpha.push({type:'message_delta',text:'Let me look at the test and the CI logs.'});alpha.push({type:'activity',status:'tool',name:'Bash'});
+const beta=f.openEvents('beta-session');beta.push({type:'runner_reattached'});beta.push({type:'runner_reattached'});
+const server=await createServer({configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+try{
+ await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
+ const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ const base=`http://127.0.0.1:${server.httpServer.address().port}`;
+ await page.goto(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
+
+ // One header: title, who and how, and the tools; no second or third bar.
+ const chat=page.locator('.embedded-chat').first(),header=chat.locator('.chat-heading');
+ await expect(header.locator('.conversation-title')).toContainText('Fix the flaky login test');
+ await expect(header).toContainText('claude-fable-5-1');
+ await expect(header.locator('.chat-status')).toContainText('Running · Bash');
+ await expect(chat.locator('.agent-inspection-bar')).toHaveCount(0);
+ await expect(header.getByRole('button',{name:'Context and token cost'})).toBeVisible();
+ await expect(header.locator('[aria-label="View tools and activity"]')).toHaveAttribute('data-empty','true');
+ await expect(header.locator('[aria-label="View tools and activity"]'),'Activity stays out of the way until there is some').toBeHidden();
+ {const h=(await header.boundingBox()).height;assert.ok(h<=64,`the header is one compact row: ${h}`);}
+ assert.equal(await chat.locator('.conversation-title').evaluate(n=>n.closest('.chat-heading')!==null),true,'the title lives in the header');
+ assert.equal(await header.locator('.chat-status .live-indicator').evaluate(n=>getComputedStyle(n).animationName),'live-spin','a working agent turns');
+
+ // The sidebar row moves with the agent: its step and a ticking time.
+ const alphaRow=page.locator('.workspace-row').filter({hasText:'Alpha feature'});
+ const rowStatus=alphaRow.locator('.workspace-agent-status');
+ await expect(rowStatus).toHaveText(/^Running · Bash · \d+s$/);
+ const first=await rowStatus.textContent();await expect.poll(()=>rowStatus.textContent(),{timeout:4000}).not.toBe(first);
+ await page.screenshot({path:'.cache/chat-polish-header.png'});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ assert.equal(await header.locator('.chat-status .live-indicator').evaluate(n=>getComputedStyle(n).animationName),'none','reduced motion stops the indicator');
+ await page.emulateMedia({reducedMotion:'no-preference'});
+
+ // The inbox says the same thing for a working conversation.
+ await page.getByRole('button',{name:/^Inbox/}).click();const inbox=page.getByRole('dialog',{name:'Inbox'});
+ await expect(inbox.locator('.inbox-item[data-state=working]').first()).toContainText(/Running · Bash/);
+ await inbox.getByRole('button',{name:'Close inbox'}).click();
+
+ // Rename in place: Enter saves.
+ await header.getByRole('button',{name:'Rename conversation',exact:true}).click();
+ const nameBox=header.getByRole('textbox',{name:'Conversation name',exact:true});await expect(nameBox).toBeFocused();
+ await nameBox.fill('Login flake');await nameBox.press('Enter');
+ await expect(header.locator('.conversation-title')).toContainText('Login flake');
+ assert.equal(f.mutations.findLast(m=>m.method==='RenameConversation').body.title,'Login flake');
+ await header.getByRole('button',{name:'Rename conversation',exact:true}).click();await header.getByRole('textbox',{name:'Conversation name'}).fill('Discarded');await page.keyboard.press('Escape');
+ await expect(header.locator('.conversation-title')).toContainText('Login flake');
+
+ // ↑/↓ recall what was sent, newest first, and give the draft back.
+ const message=chat.getByRole('textbox',{name:'Message',exact:true});
+ for(const text of ['first prompt','second prompt']){await message.fill(text);await message.press('Enter');await expect(message).toHaveValue('');}
+ await message.focus();await message.press('ArrowUp');await expect(message).toHaveValue('second prompt');
+ await message.press('ArrowUp');await expect(message).toHaveValue('first prompt');
+ await message.press('ArrowUp');await expect(message).toHaveValue('The login test is flaky, can you find out why?');
+ await message.press('ArrowDown');await expect(message).toHaveValue('first prompt');
+ await message.press('ArrowDown');await message.press('ArrowDown');await expect(message).toHaveValue('');
+ await message.fill('half a draft');await message.press('ArrowUp');await expect(message).toHaveValue('half a draft','a draft is never replaced from the middle');
+ await message.press('Home');await message.press('ArrowUp');await expect(message).toHaveValue('second prompt');
+ await message.press('ArrowDown');await expect(message).toHaveValue('half a draft');
+ await message.fill('');
+
+ // Snippets: the last used comes first; Frequent counts uses.
+ await chat.getByRole('button',{name:'Snippets',exact:true}).click();let picker=page.getByRole('dialog',{name:'Snippets',exact:true});
+ await picker.getByRole('searchbox').fill('Run the relevant');await picker.getByRole('searchbox').press('Enter');await expect(picker).toHaveCount(0);
+ await chat.getByRole('button',{name:'Snippets',exact:true}).click();picker=page.getByRole('dialog',{name:'Snippets',exact:true});
+ await expect(picker.getByRole('option').first()).toContainText('test');await expect(picker.getByRole('option').first()).toContainText('Last used');
+ await picker.getByRole('button',{name:'Frequent',exact:true}).click();
+ await expect(picker.getByRole('option')).toHaveCount(1);await expect(picker.getByRole('option').first()).toContainText('1×');
+ await picker.getByRole('button',{name:'Close snippets'}).click();
+
+ // Every workspace card has the same height, however many repositories.
+ const gammaRow=page.locator('.workspace-row').filter({hasText:'authority +4'}),soloRow=page.locator('.workspace-row').filter({hasText:'gentle-copper-otter'});
+ await expect(gammaRow.locator('.workspace-repo-names')).toContainText('codefly-dev · authority, cli, core +2');
+ await expect(gammaRow.locator('.workspace-repo-names')).toHaveAttribute('title',/codefly-dev\/web-console/);
+ const heights=await Promise.all([gammaRow,soloRow,alphaRow].map(row=>row.evaluate(n=>n.getBoundingClientRect().height)));
+ assert.ok(heights.every(h=>Math.abs(h-heights[0])<0.5),`cards differ in height: ${heights}`);
+ assert.ok(heights[0]<80,'cards stay compact');
+ await page.screenshot({path:'.cache/chat-polish-sidebar.png'});
+
+ // A generated name gets a one-click "Name it", never a prompt.
+ await soloRow.hover();await soloRow.getByRole('button',{name:'Name gentle-copper-otter'}).click();
+ const workspaceName=page.getByLabel('Workspace name',{exact:true});await expect(workspaceName).toHaveValue('cli');
+ await workspaceName.fill('CLI polish');await page.getByRole('button',{name:'Save name'}).click();
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='RenameCollection')?.body.name).toBe('CLI polish');
+
+ // A workspace with no conversation open: what is in it and how to start.
+ await gammaRow.locator('.workspace-link').click();
+ const home=page.locator('.workspace-home');await expect(home).toBeVisible();
+ await expect(home.getByRole('list',{name:'Repositories'}).getByRole('listitem')).toHaveCount(5);
+ await expect(home).toContainText('feature/authority');
+ await page.screenshot({path:'.cache/chat-polish-workspace-home.png'});
+ await home.getByRole('button',{name:'Start a conversation'}).click();
+ const dialog=page.getByRole('dialog',{name:'New conversation',exact:true});await expect(dialog).toBeVisible();
+ await dialog.getByRole('button',{name:'Close new conversation'}).click();
+ await home.getByRole('button',{name:'Open a terminal'}).click();
+ await expect.poll(()=>f.mutations.some(m=>m.method==='OpenTerminal'&&m.body.collectionId==='gamma')).toBe(true);
+
+ // A fresh conversation is Ready (not "Starting"), leads with its branch, and keeps quiet about restarts.
+ await page.goto(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
+ const betaChat=page.locator('.embedded-chat').first(),betaHeader=betaChat.locator('.chat-heading');
+ await expect(betaHeader.locator('.chat-status')).toHaveText('Ready');
+ await expect(betaHeader.locator('.chat-branch')).toContainText('lazybox/beta/api');
+ await expect(betaHeader.locator('.conversation-title-text'),'the folder name is not a title').toHaveCount(0);await expect(betaHeader.getByRole('button',{name:'Rename conversation'})).toContainText('Name it');
+ await expect(betaHeader).not.toContainText('Model not reported');
+ await expect(betaChat.locator('.runner-divider')).toHaveCount(0);
+ await expect(betaChat.getByRole('textbox',{name:'Message',exact:true})).toBeFocused();
+ await page.screenshot({path:'.cache/chat-polish-ready.png'});
+
+ // Naming a workspace names its branch.
+ await page.getByRole('button',{name:'New workspace',exact:true}).click();
+ const create=page.getByRole('dialog',{name:'New workspace',exact:true});const field=create.getByLabel('Workspace name',{exact:true});
+ await expect(field).toBeFocused();
+ await create.getByRole('checkbox',{name:'codefly-dev/authority',exact:true}).check();
+ await expect(field).toHaveValue('authority');await expect(create.getByTestId('branch-preview')).toHaveText('feature/authority');
+ await field.fill('Login fix');await expect(create.getByTestId('branch-preview')).toHaveText('feature/login-fix');
+ await page.screenshot({path:'.cache/chat-polish-new-workspace.png'});
+ await create.getByRole('button',{name:'Edit branch'}).click();await create.getByRole('textbox',{name:'Branch'}).fill('fix/login');await create.getByRole('textbox',{name:'Branch'}).press('Enter');
+ await expect(create.getByTestId('branch-preview')).toHaveText('fix/login');
+ await create.getByRole('button',{name:'Create workspace',exact:true}).click();
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='PrepareWorkspace')?.body.branch).toBe('fix/login');
+ assert.equal(f.mutations.findLast(m=>m.method==='PrepareWorkspace').body.name,'Login fix');
+ assert.deepEqual(errors,[]);
+ console.log('PASS compact header, live status (header, row, inbox; reduced motion), inline rename, prompt recall, snippet usage, equal workspace cards, Name it, workspace home, Ready fresh session, name→branch creation. Fixture only.');
+}finally{await browser?.close();await server.close();await f.close();}

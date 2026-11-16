@@ -75,7 +75,9 @@
   .workspace-shell .embedded-chat .composer{margin:0 10px max(10px,env(safe-area-inset-bottom));padding:10px;border-radius:10px}
   .workspace-shell .embedded-chat .composer textarea{font-size:16px;min-height:42px;resize:none;max-height:25dvh}
   .workspace-shell .embedded-chat .keyboard-hint{display:none}
-  .workspace-shell .embedded-chat .chat-heading{padding:12px 16px}
+  .workspace-shell .embedded-chat .chat-heading{padding:8px 8px 8px 14px;gap:10px}
+  .workspace-shell .embedded-chat .chat-heading .agent-avatar{display:none}
+  .workspace-shell .embedded-chat .chat-account{display:none}
   .workspace-shell .new-session-dialog{padding:20px;max-height:calc(100dvh - 24px)}
   .workspace-shell .new-session-dialog input,.workspace-shell .new-session-dialog select{font-size:16px}
   .workspace-shell.layout-editing .page-layout{overflow:auto}

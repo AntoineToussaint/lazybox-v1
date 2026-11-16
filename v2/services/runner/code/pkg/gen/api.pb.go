@@ -2334,8 +2334,17 @@ type AgentActivity struct {
 	UpdatedAtUnixMillis int64  `protobuf:"varint,8,opt,name=updated_at_unix_millis,json=updatedAtUnixMillis,proto3" json:"updated_at_unix_millis,omitempty"`
 	// When the agent's last turn ended; 0 before its first turn ends.
 	TurnEndedAtUnixMillis int64 `protobuf:"varint,9,opt,name=turn_ended_at_unix_millis,json=turnEndedAtUnixMillis,proto3" json:"turn_ended_at_unix_millis,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// When the current or last turn began; 0 before the first turn.
+	TurnStartedAtUnixMillis int64 `protobuf:"varint,10,opt,name=turn_started_at_unix_millis,json=turnStartedAtUnixMillis,proto3" json:"turn_started_at_unix_millis,omitempty"`
+	// What the agent reports doing inside a turn: working, requesting,
+	// thinking, responding, compacting or tool; empty between turns.
+	Phase string `protobuf:"bytes,11,opt,name=phase,proto3" json:"phase,omitempty"`
+	// The tool in use during the tool phase, when the provider names it.
+	Tool string `protobuf:"bytes,12,opt,name=tool,proto3" json:"tool,omitempty"`
+	// When phase or tool last changed.
+	PhaseSinceUnixMillis int64 `protobuf:"varint,13,opt,name=phase_since_unix_millis,json=phaseSinceUnixMillis,proto3" json:"phase_since_unix_millis,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *AgentActivity) Reset() {
@@ -2427,6 +2436,34 @@ func (x *AgentActivity) GetUpdatedAtUnixMillis() int64 {
 func (x *AgentActivity) GetTurnEndedAtUnixMillis() int64 {
 	if x != nil {
 		return x.TurnEndedAtUnixMillis
+	}
+	return 0
+}
+
+func (x *AgentActivity) GetTurnStartedAtUnixMillis() int64 {
+	if x != nil {
+		return x.TurnStartedAtUnixMillis
+	}
+	return 0
+}
+
+func (x *AgentActivity) GetPhase() string {
+	if x != nil {
+		return x.Phase
+	}
+	return ""
+}
+
+func (x *AgentActivity) GetTool() string {
+	if x != nil {
+		return x.Tool
+	}
+	return ""
+}
+
+func (x *AgentActivity) GetPhaseSinceUnixMillis() int64 {
+	if x != nil {
+		return x.PhaseSinceUnixMillis
 	}
 	return 0
 }
@@ -10629,8 +10666,10 @@ type PrepareWorkspaceRequest struct {
 	CollectionId         string                 `protobuf:"bytes,2,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
 	Name                 string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	RepositoryIdentities []string               `protobuf:"bytes,4,rep,name=repository_identities,json=repositoryIdentities,proto3" json:"repository_identities,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// The new workspace's branch, for every repository; empty keeps the Runner's default. Ignored when adding to a workspace.
+	Branch        string `protobuf:"bytes,5,opt,name=branch,proto3" json:"branch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PrepareWorkspaceRequest) Reset() {
@@ -10689,6 +10728,13 @@ func (x *PrepareWorkspaceRequest) GetRepositoryIdentities() []string {
 		return x.RepositoryIdentities
 	}
 	return nil
+}
+
+func (x *PrepareWorkspaceRequest) GetBranch() string {
+	if x != nil {
+		return x.Branch
+	}
+	return ""
 }
 
 type WorkspacePreparation struct {
@@ -11670,7 +11716,7 @@ const file_api_proto_rawDesc = "" +
 	"\awindows\x18\x05 \x03(\v2\x1d.lazybox.bench.v1.UsageWindowR\awindows\x12\x12\n" +
 	"\x04plan\x18\x06 \x01(\tR\x04plan\x125\n" +
 	"\x17observed_at_unix_millis\x18\a \x01(\x03R\x14observedAtUnixMillis\x12\x14\n" +
-	"\x05email\x18\b \x01(\tR\x05email\"\xb2\x02\n" +
+	"\x05email\x18\b \x01(\tR\x05email\"\xd1\x03\n" +
 	"\rAgentActivity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -11680,7 +11726,12 @@ const file_api_proto_rawDesc = "" +
 	"\x06status\x18\x06 \x01(\tR\x06status\x12(\n" +
 	"\x10last_turn_status\x18\a \x01(\tR\x0elastTurnStatus\x123\n" +
 	"\x16updated_at_unix_millis\x18\b \x01(\x03R\x13updatedAtUnixMillis\x128\n" +
-	"\x19turn_ended_at_unix_millis\x18\t \x01(\x03R\x15turnEndedAtUnixMillis\"\x96\x01\n" +
+	"\x19turn_ended_at_unix_millis\x18\t \x01(\x03R\x15turnEndedAtUnixMillis\x12<\n" +
+	"\x1bturn_started_at_unix_millis\x18\n" +
+	" \x01(\x03R\x17turnStartedAtUnixMillis\x12\x14\n" +
+	"\x05phase\x18\v \x01(\tR\x05phase\x12\x12\n" +
+	"\x04tool\x18\f \x01(\tR\x04tool\x125\n" +
+	"\x17phase_since_unix_millis\x18\r \x01(\x03R\x14phaseSinceUnixMillis\"\x96\x01\n" +
 	"\x12ListHistoryRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\rR\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\rR\x06offset\x12(\n" +
@@ -12351,13 +12402,14 @@ const file_api_proto_rawDesc = "" +
 	"\x11RepositoryCatalog\x12B\n" +
 	"\aentries\x18\x01 \x03(\v2(.lazybox.bench.v1.RepositoryCatalogEntryR\aentries\x12C\n" +
 	"\asources\x18\x02 \x03(\v2).lazybox.bench.v1.RepositoryCatalogSourceR\asources\x12'\n" +
-	"\x0frefresh_seconds\x18\x03 \x01(\rR\x0erefreshSeconds\"\xa8\x01\n" +
+	"\x0frefresh_seconds\x18\x03 \x01(\rR\x0erefreshSeconds\"\xc0\x01\n" +
 	"\x17PrepareWorkspaceRequest\x12\x1f\n" +
 	"\vrequest_key\x18\x01 \x01(\tR\n" +
 	"requestKey\x12#\n" +
 	"\rcollection_id\x18\x02 \x01(\tR\fcollectionId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x123\n" +
-	"\x15repository_identities\x18\x04 \x03(\tR\x14repositoryIdentities\"\x8a\x01\n" +
+	"\x15repository_identities\x18\x04 \x03(\tR\x14repositoryIdentities\x12\x16\n" +
+	"\x06branch\x18\x05 \x01(\tR\x06branch\"\x8a\x01\n" +
 	"\x14WorkspacePreparation\x12\x1a\n" +
 	"\bidentity\x18\x01 \x01(\tR\bidentity\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12<\n" +

@@ -44,20 +44,46 @@ func (e *Engine) observe(ev agent.Event) {
 	if ev.ParentAgentID != "" && id != "root" && ev.ParentAgentID != id {
 		a.ParentID = ev.ParentAgentID
 	}
+	now := time.Now().UTC()
+	// phase moves PhaseSince only on a change, so a client can say how long
+	// the agent has been on this step ("Running Bash · 12s").
+	phase := func(name, tool string) {
+		if a.Phase != name || a.Tool != tool {
+			a.Phase, a.Tool, a.PhaseSince = name, tool, now
+		}
+	}
 	switch ev.Type {
 	case "session_ready":
 		a.Status = agent.Ready
 	case "turn_started":
 		a.Status = agent.Running
+		a.TurnStartedAt = now
+		phase("working", "")
 	case "turn_ended":
 		a.Status, a.LastTurnStatus = agent.TurnStatus(ev.Status), ev.Status
-		a.TurnEndedAt = time.Now().UTC()
+		a.TurnEndedAt = now
+		phase("", "")
 	case "question":
 		a.Status = agent.WaitingInput
+		phase("", "")
 	case "approval":
 		a.Status = agent.WaitingApproval
+		phase("", "")
 	case "request_resolved":
 		a.Status = agent.Running
+		phase("working", "")
+	case "activity":
+		if a.Status != agent.Stopped {
+			tool := ""
+			if ev.Status == "tool" {
+				tool = ev.Name
+			}
+			phase(ev.Status, tool)
+		}
+	case "message_delta":
+		if a.Phase != "" {
+			phase("responding", "")
+		}
 	case "agent_status":
 		switch agent.Status(ev.Status) {
 		case agent.Starting, agent.Ready, agent.Running, agent.WaitingInput, agent.WaitingApproval, agent.Done, agent.Interrupted, agent.Failed, agent.Stopped, agent.Unknown:
@@ -85,23 +111,28 @@ func (e *Engine) observe(ev agent.Event) {
 		}
 	case "failure":
 		a.Status = agent.Failed
+		phase("", "")
 	case "process_exit":
 		for id, child := range e.state.Agents {
 			if child.Status == agent.Running || child.Status == agent.Starting || child.Status == agent.WaitingInput || child.Status == agent.WaitingApproval {
 				child.Status = agent.Unknown
+				child.Phase, child.Tool = "", ""
 				e.state.Agents[id] = child
 			}
 		}
 		a.Status = agent.Unknown
+		phase("", "")
 	case "session_closed":
 		for id, child := range e.state.Agents {
 			child.Status = agent.Stopped
-			child.UpdatedAt = time.Now().UTC()
+			child.UpdatedAt = now
+			child.Phase, child.Tool = "", ""
 			e.state.Agents[id] = child
 		}
 		a.Status = agent.Stopped
+		phase("", "")
 	}
-	a.UpdatedAt = time.Now().UTC()
+	a.UpdatedAt = now
 	e.state.Agents[id] = a
 	if ev.Account != nil && (ev.Account.State != "unknown" || e.state.Account == nil || e.state.Account.State == "unknown") {
 		observation := *ev.Account

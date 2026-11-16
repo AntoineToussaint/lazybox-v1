@@ -35,7 +35,7 @@ test('reader retains transcript and resumes from its cursor when remounted',asyn
 });
 test('conversation details identify provider, model provenance and subscription',()=>{
  const session=create(SessionSchema,{provider:'codex',profileId:'saved',model:'test-model',modelReported:true});const profile=create(ProfileSchema,{id:'saved',label:'Work account'});
- assert.equal(conversationDetails(session,[profile]),'Codex · test-model · Work account');session.modelReported=false;assert.match(conversationDetails(session,[profile]),/test-model \(requested\)/);session.model='';assert.match(conversationDetails(session,[]),/Model not reported yet · Saved account/);
+ assert.equal(conversationDetails(session,[profile]),'Codex · test-model · Work account');session.modelReported=false;assert.match(conversationDetails(session,[profile]),/test-model \(requested\)/);session.model='';assert.equal(conversationDetails(session,[]),'Codex · Saved account','an unknown model is left out, never a placeholder');
 });
 
 import {compareRepositories,repositoryOrganization} from '../packages/surfaces/src/repository-model.ts';
@@ -58,7 +58,7 @@ test('model and account labels distinguish reported models from internal default
  const session=create(SessionSchema,{profileId:'claude-default',model:'alias'});
  assert.equal(sessionModelLabel(session),'alias (requested)');
  assert.equal(sessionModelLabel(session,'provider-exact-model'),'provider-exact-model');
- assert.equal(sessionModelLabel(), 'Model not reported yet');
+ assert.equal(sessionModelLabel(), '', 'an unknown model is left out, never a placeholder');
  assert.equal(sessionAccountLabel(session),'Account not reported');
 });
 

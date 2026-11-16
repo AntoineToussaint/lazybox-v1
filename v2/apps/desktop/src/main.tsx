@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, Workspace, useRunnerLocator } from '@lazybox/surfaces';
+import { AgentWindow, WindowControls, Workspace, useRunnerLocator } from '@lazybox/surfaces';
 import type { AttentionDestination, AttentionHost, SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console'; notice: string; viewState: Record<string,string> };
@@ -74,12 +74,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
   }, []);
   const action = async (callback: () => Promise<void>) => { try { await callback(); setError(''); } catch (error) { setError(String(error)); } };
   return <div className="desktop-root">
-    {bootstrap.kind !== 'workspace' && <nav className="native-toolbar" aria-label="Window controls">
-      <span className="application-name">{bootstrap.applicationName}</span>
-      <button onClick={() => void action(host.reopenAgent)}>← Workspace</button>
-      <button onClick={() => void action(host.reopenClosed)}>Reopen closed window</button>
-      <button onClick={() => void action(host.reconnect)}>Reconnect this window</button>
-    </nav>}
+    {bootstrap.kind !== 'workspace' && <WindowControls applicationName={bootstrap.applicationName} onWorkspace={() => void action(host.reopenAgent)} onReopenClosed={() => void action(host.reopenClosed)} onReconnect={() => void action(host.reconnect)}/>}
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {bootstrap.kind === 'workspace' ? <Workspace
       fixedWorkspaceId={bootstrap.fixedWorkspaceId || undefined}

@@ -6,3 +6,4 @@ export { CommandPanel } from './CommandPanel';
 export { Workspace, builtinPanels, type PanelModule, type ModuleProps } from './Workspace';
 
 export { SettingsPage } from './SettingsPage';
+export { WindowControls } from './WindowControls';

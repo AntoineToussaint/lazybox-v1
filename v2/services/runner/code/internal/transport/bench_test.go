@@ -140,3 +140,14 @@ func TestWireActivityReportsTurnEndOnlyOnceATurnEnded(t *testing.T) {
 		t.Fatalf("turn end not wired: %+v", ended)
 	}
 }
+
+func TestWireActivityReportsPhaseOnlyWhileOneIsSet(t *testing.T) {
+	since := time.UnixMilli(3_000)
+	got := wireActivity(agent.Activity{ID: "root", Status: agent.Running, Phase: "tool", Tool: "Bash", PhaseSince: since, TurnStartedAt: time.UnixMilli(2_500)})
+	if got.Phase != "tool" || got.Tool != "Bash" || got.PhaseSinceUnixMillis != 3_000 || got.TurnStartedAtUnixMillis != 2_500 {
+		t.Fatalf("phase not wired: %+v", got)
+	}
+	if idle := wireActivity(agent.Activity{ID: "root", Status: agent.Done, PhaseSince: since}); idle.PhaseSinceUnixMillis != 0 || idle.Phase != "" {
+		t.Fatalf("an idle agent reported a phase start: %+v", idle)
+	}
+}

@@ -128,7 +128,7 @@ func (b *Bench) RepositoryCatalogSnapshot(ctx context.Context, refresh bool) ([]
 
 // PrepareWorkspace owns source materialization; clients submit stable identities,
 // never temporary UI paths. Successful sources are reused when the request retries.
-func (b *Bench) PrepareWorkspace(ctx context.Context, key, workspaceID, name string, identities []string, progress func(string, string) error) (collections.Collection, error) {
+func (b *Bench) PrepareWorkspace(ctx context.Context, key, workspaceID, name, branch string, identities []string, progress func(string, string) error) (collections.Collection, error) {
 	if b.Collections == nil {
 		return collections.Collection{}, errors.New("workspace storage unavailable")
 	}
@@ -202,6 +202,13 @@ func (b *Bench) PrepareWorkspace(ctx context.Context, key, workspaceID, name str
 	}
 	if workspaceID != "" {
 		return b.Collections.AddRepositories(ctx, workspaceID, key, members)
+	}
+	// A branch the person chose (by default named after the workspace) names
+	// every repository's worktree; the Runner's own default otherwise.
+	if branch = strings.TrimSpace(branch); branch != "" {
+		for i := range members {
+			members[i].Branch = branch
+		}
 	}
 	return b.Collections.Create(ctx, key, collections.Spec{Name: strings.TrimSpace(name), Members: members})
 }

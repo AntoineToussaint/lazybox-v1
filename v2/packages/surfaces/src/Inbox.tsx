@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { Icon } from './Icons';
+import { useLiveStatus } from './LiveIndicator';
 import { useRunner } from './RunnerContext';
-import { conversationDetails } from './conversation-model';
+import { conversationDetails, conversationTitle } from './conversation-model';
 import { useKeyboardAction, useKeymap } from './keyboard';
 import { ageLabel, attentionTitle, noticeFor, seenMark, type Attention, type AttentionState, type Inbox } from './attention';
 import { useAttentionHost, useInbox, useNotificationPreferences, useViewingReader } from './useAttention';
@@ -15,6 +16,11 @@ export function AttentionIcon({ state, size = 16 }: { state: AttentionState; siz
   return <span className={`attention-icon attention-${state}`} aria-hidden="true"><Icon name={stateIcon[state]} size={size}/></span>;
 }
 const doneLimit = 8;
+/** A working row says what the agent is doing, and for how long: "Running · Bash · 12s". */
+function LiveText({ session }: { session: Inbox['rows'][number]['session'] }) {
+  const status = useLiveStatus(session);
+  return <em className="inbox-live" data-tone={status.tone}>{status.text}</em>;
+}
 
 /**
  * The attention inbox: one header entry with a count, a list of every
@@ -87,9 +93,9 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
             <button className="inbox-row" aria-current={row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' })}>
               <AttentionIcon state={row.state}/><span className="sr-only">{attentionTitle[row.state]}{row.unread ? ', unread' : ''}: </span>
               <span className="inbox-main">
-                <span className="inbox-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{row.session.title || 'Untitled conversation'}</strong></span>
+                <span className="inbox-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationTitle(row.session) || 'New conversation'}</strong></span>
                 <span className="inbox-meta"><span>{workspace(row)}</span><span>{conversationDetails(row.session, info?.profiles || [], false)}</span></span>
-                {(row.line || row.state !== 'idle') && <span className="inbox-line"><em>{row.reason}</em>{row.line && <> · {row.line}</>}</span>}
+                {(row.line || row.state !== 'idle') && <span className="inbox-line">{row.state === 'working' ? <LiveText session={row.session}/> : <em>{row.reason}</em>}{row.line && <> · {row.line}</>}</span>}
               </span>
               <time className="inbox-age" dateTime={row.at ? new Date(row.at).toISOString() : undefined} title={row.at ? new Date(row.at).toLocaleString() : undefined}>{ageLabel(row.at, now)}</time>
             </button>

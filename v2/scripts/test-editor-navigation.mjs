@@ -13,7 +13,7 @@ try{
  await server.listen();browser=await webkit.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(20000);
  const errors=[];page.on('pageerror',error=>errors.push(String(error)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
- await expect(page.locator('.workspace-agent-label').first()).toHaveText('Claude · model-fixture');await expect(page.locator('.workspace-agent').first()).toHaveAttribute('title',/Work account/);await expect(page.locator('.workspace-agent-status').first()).toHaveText('Running');
+ await expect(page.locator('.workspace-agent-label').first()).toHaveText('Claude · model-fixture');await expect(page.locator('.workspace-agent').first()).toHaveAttribute('title',/Work account/);await expect(page.locator('.workspace-agent-status').first()).toHaveText(/^Running/);
  const message=page.getByRole('textbox',{name:'Message',exact:true});await message.fill('Retain this draft');
  const watches=fixture.calls.filter(call=>call.method==='WatchEvents'&&call.body.sessionId==='alpha-session').length;
  await page.getByLabel('Actions for Alpha feature',{exact:true}).click();await page.getByRole('button',{name:'Rename workspace',exact:true}).click();await page.getByLabel('Workspace name',{exact:true}).fill('Renamed');

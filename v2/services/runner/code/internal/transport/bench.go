@@ -119,6 +119,13 @@ func wireActivity(a agent.Activity) *pb.AgentActivity {
 	if !a.TurnEndedAt.IsZero() {
 		w.TurnEndedAtUnixMillis = a.TurnEndedAt.UnixMilli()
 	}
+	if !a.TurnStartedAt.IsZero() {
+		w.TurnStartedAtUnixMillis = a.TurnStartedAt.UnixMilli()
+	}
+	w.Phase, w.Tool = a.Phase, a.Tool
+	if !a.PhaseSince.IsZero() && a.Phase != "" {
+		w.PhaseSinceUnixMillis = a.PhaseSince.UnixMilli()
+	}
 	return w
 }
 func wireStatus(s commands.Status) *pb.CommandStatus {

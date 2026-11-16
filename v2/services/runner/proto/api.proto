@@ -252,6 +252,15 @@ message AgentActivity {
   int64 updated_at_unix_millis = 8;
   // When the agent's last turn ended; 0 before its first turn ends.
   int64 turn_ended_at_unix_millis = 9;
+  // When the current or last turn began; 0 before the first turn.
+  int64 turn_started_at_unix_millis = 10;
+  // What the agent reports doing inside a turn: working, requesting,
+  // thinking, responding, compacting or tool; empty between turns.
+  string phase = 11;
+  // The tool in use during the tool phase, when the provider names it.
+  string tool = 12;
+  // When phase or tool last changed.
+  int64 phase_since_unix_millis = 13;
 }
 message ListHistoryRequest { uint32 limit = 1; uint32 offset = 2; optional string collection_id = 3; string search = 4; }
 message RenameConversationRequest { string session_id = 1; string title = 2; }
@@ -804,7 +813,11 @@ message GetRepositoryCatalogRequest { bool refresh = 1; }
 message RepositoryCatalogEntry { string identity = 1; string name = 2; string repository_id = 3; }
 message RepositoryCatalogSource { string id = 1; string state = 2; string detail = 3; int64 updated_at = 4; }
 message RepositoryCatalog { repeated RepositoryCatalogEntry entries = 1; repeated RepositoryCatalogSource sources = 2; uint32 refresh_seconds = 3; }
-message PrepareWorkspaceRequest { string request_key = 1; string collection_id = 2; string name = 3; repeated string repository_identities = 4; }
+message PrepareWorkspaceRequest {
+  string request_key = 1; string collection_id = 2; string name = 3; repeated string repository_identities = 4;
+  // The new workspace's branch, for every repository; empty keeps the Runner's default. Ignored when adding to a workspace.
+  string branch = 5;
+}
 message WorkspacePreparation { string identity = 1; string message = 2; Collection collection = 3; }
 
 message Snippet { string key = 1; string category = 2; string description = 3; string body = 4; string origin = 5; repeated string next = 6; }

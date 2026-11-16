@@ -1,4 +1,5 @@
 import { readPreference, writePreference } from "./view-state";
+import { readSnippetUsage, saveSnippetUse, sortSnippets, type SnippetUsage } from "./snippet-usage";
 import { useEffect, useRef, useState } from "react";
 import type { Snippet } from "@lazybox/protocol";
 import type { ViewStateStore } from "@lazybox/platform";
@@ -28,15 +29,10 @@ export function SnippetPicker({
     [loading, setLoading] = useState(true);
   const favoritesKey = "favorite-snippets:v2";
   const [favorites,setFavorites]=useState<string[]>(()=>{try{const value=JSON.parse(readPreference(store, favoritesKey)||'[]');return Array.isArray(value)?value.filter(v=>typeof v==='string'):[];}catch{return [];}});
-  const [favoritesOnly,setFavoritesOnly]=useState(false);
-  const recentKey = "recent-snippets:v2";
-  const [recent] = useState<string[]>(() => {
-    try {
-      return JSON.parse(readPreference(store, recentKey) || "[]");
-    } catch {
-      return [];
-    }
-  });
+  // All, Favorites or Frequent: one view at a time, like tabs over the same list.
+  const [view,setView]=useState<'all'|'favorites'|'frequent'>('all');
+  const [usage,setUsage]=useState<SnippetUsage>(()=>readSnippetUsage(store));
+  const used=(key:string)=>setUsage(saveSnippetUse(store,key));
   useEffect(() => {
     dialog.current?.showModal();
     dialog.current
@@ -58,26 +54,21 @@ export function SnippetPicker({
       });
     return () => controller.abort();
   }, [api]);
-  const filtered = rows
-    .filter(s=>!favoritesOnly||favorites.includes(s.key))
+  const matching = rows
+    .filter(s=>view!=='favorites'||favorites.includes(s.key))
+    .filter(s=>view!=='frequent'||(usage[s.key]?.count||0)>0)
     .filter((s) =>
       `${s.key} ${s.category} ${s.description} ${s.body}`
         .toLowerCase()
         .includes(query.toLowerCase()),
-    )
-    .sort((a, b) => {
-      if (!query) {
-        const starred=Number(favorites.includes(b.key))-Number(favorites.includes(a.key));if(starred)return starred;
-        const ai = recent.indexOf(a.key),
-          bi = recent.indexOf(b.key);
-        if (ai >= 0 || bi >= 0)
-          return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
-      }
-      return a.category.localeCompare(b.category) || a.key.localeCompare(b.key);
-    });
+    );
+  // A search keeps the frequent order in that view; otherwise it reads by name.
+  const filtered = !query || view==='frequent' ? sortSnippets(matching, usage, favorites, view==='frequent'?'frequent':'suggested') : sortSnippets(matching, {}, [], 'suggested');
+  const lastUsed = !query && view==='all' ? filtered.find(s=>usage[s.key])?.key : undefined;
   const selected = filtered[Math.min(index, filtered.length - 1)];
   const insert = () => {
     if (selected && !busy) {
+      used(selected.key);
       onInsert(selected.body);
       onClose();
     }
@@ -87,16 +78,7 @@ export function SnippetPicker({
     setBusy(true);
     try {
       if (await onSend(selected.body)) {
-        writePreference(
-          store,
-          recentKey,
-          JSON.stringify(
-            [selected.key, ...recent.filter((k) => k !== selected.key)].slice(
-              0,
-              5,
-            ),
-          ),
-        );
+        used(selected.key);
         onClose();
       } else
         setError(
@@ -156,7 +138,7 @@ export function SnippetPicker({
           setIndex(0);
         }}
       />
-      <div className="snippet-filters"><button aria-pressed={favoritesOnly} onClick={()=>{setFavoritesOnly(v=>!v);setIndex(0);}}>Favorites{favorites.length?` · ${favorites.length}`:''}</button><small>{filtered.length} snippets</small></div>
+      <div className="snippet-filters" role="group" aria-label="Show snippets">{([['all','All'],['favorites',`Favorites${favorites.length?` · ${favorites.length}`:''}`],['frequent','Frequent']] as const).map(([value,label])=><button key={value} aria-pressed={view===value} onClick={()=>{setView(value);setIndex(0);}}>{label}</button>)}<small>{filtered.length} {filtered.length===1?'snippet':'snippets'}</small></div>
       {error && <p role="alert">{error}</p>}
       {loading && <p role="status">Loading snippets…</p>}
       <div className="snippet-browser">
@@ -169,11 +151,12 @@ export function SnippetPicker({
               key={s.key}
               onClick={() => setIndex(i)}
             >
-              <strong>{s.key}</strong>
+              <strong>{favorites.includes(s.key)&&<span className="snippet-star" aria-label="Favorite">★</span>}{s.key}</strong>
               <span>{s.description || s.category}</span>
               <small>
-                {favorites.includes(s.key)?"★ · ":!query && recent.includes(s.key) ? "Recent · " : ""}
+                {s.key===lastUsed?"Last used · ":""}
                 {s.category}
+                {usage[s.key]?.count ? <span className="snippet-uses" title={`Used ${usage[s.key].count} ${usage[s.key].count===1?'time':'times'}`}> · {usage[s.key].count}×</span> : null}
               </small>
             </button>
           ))}
@@ -190,7 +173,7 @@ export function SnippetPicker({
           )}
         </article>
       </div>
-      {!loading && !filtered.length && <p>No matching snippets.</p>}
+      {!loading && !filtered.length && <p className="snippet-empty">{query ? 'No matching snippets.' : view==='frequent' ? 'Snippets you send or insert show up here, most used first.' : view==='favorites' ? 'Star a snippet to keep it here.' : 'No snippets yet.'}</p>}
       <footer>
         <small>
           {canSend

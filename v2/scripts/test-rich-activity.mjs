@@ -10,7 +10,7 @@ try{
  const card=page.locator('.request');await expect(card).toContainText('List repository contents and recent commits');await expect(card.getByLabel('Command',{exact:true})).toContainText('ls && git log');
  await expect(card.locator('.request-metadata')).not.toHaveAttribute('open','');await card.getByRole('button',{name:'Allow once',exact:true}).click();
  session.pending=[];session.status='running';channel.push({type:'request_resolved',requestId:'approval-1'});channel.push({type:'activity',status:'tool',name:'Bash'});
- await expect(page.locator('.live-activity')).toHaveText('Running Bash…');
+ await expect(page.locator('.live-activity')).toHaveText('Running · Bash…');
  channel.push({type:'activity',status:'thinking'});await expect(page.locator('.live-activity')).toHaveText('Thinking…');
  channel.push({type:'message_delta',text:'First streamed chunk'});await expect(page.locator('.message.message_delta')).toContainText('First streamed chunk');
  assert.equal(channel.clients.size,1,'stream closed or resubscribed before completion');
