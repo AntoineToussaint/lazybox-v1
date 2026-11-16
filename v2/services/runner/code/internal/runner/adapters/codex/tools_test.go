@@ -54,3 +54,14 @@ func TestLargeToolOutputIsBoundedBeforeJournaling(t *testing.T) {
 		t.Fatal(len(output), err)
 	}
 }
+
+func TestPlanUpdatesAreOneChecklistPerTurn(t *testing.T) {
+	got := string(planToolCall(json.RawMessage(`{"threadId":"t","turnId":"turn-1","explanation":"Two steps","plan":[{"step":"Read","status":"completed"},{"step":"Fix","status":"inProgress"}]}`)))
+	want := `{"id":"plan:turn-1","input":{"explanation":"Two steps","plan":[{"step":"Read","status":"completed"},{"step":"Fix","status":"inProgress"}]},"name":"update_plan","status":"completed","type":"tool_call"}`
+	if got != want {
+		t.Fatal(got)
+	}
+	if planToolCall(json.RawMessage(`{"turnId":"turn-1","plan":null}`)) != nil {
+		t.Fatal("an empty plan is not a call")
+	}
+}

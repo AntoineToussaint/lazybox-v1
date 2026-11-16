@@ -16,6 +16,8 @@ export type ToolLineScope = {
   /** The workspace folder: paths inside it are shown relative to it. */
   root: string;
   onOpenFile?(reference: FileLink, how: OpenModifiers): void;
+  /** The conversation's latest plan: shown as a live checklist, earlier ones folded. */
+  latestPlan?: string;
 };
 export const ToolLineContext = createContext<ToolLineScope>({ root: '' });
 
@@ -23,7 +25,7 @@ export const ToolLineContext = createContext<ToolLineScope>({ root: '' });
 export const TOOL_DETAILS_EVENT = 'lazybox:tool-details';
 export function openToolDetails(id: string) { window.dispatchEvent(new CustomEvent(TOOL_DETAILS_EVENT, { detail: { id } })); }
 
-const ICONS: Record<ToolKind, string> = { read: 'file', search: 'search', list: 'folder', edit: 'pencil', command: 'terminal', web: 'external', agent: 'branch', plan: 'checklist', mcp: 'activity', other: 'activity' };
+const ICONS: Record<ToolKind, string> = { read: 'file', search: 'search', list: 'folder', edit: 'pencil', command: 'terminal', web: 'external', agent: 'branch', plan: 'checklist', thinking: 'sparkle', mcp: 'activity', other: 'activity' };
 const stateLabel = (entry: ToolEntry) => entry.status === 'running' ? 'Running' : entry.status === 'failed' ? 'Failed' : entry.status === 'unknown' ? 'No result reported' : 'Done';
 
 /** A run of tool calls: reads and edits grouped, the rest one line each. */
@@ -38,8 +40,10 @@ function ToolItemLine({ item }: { item: ToolItem }) {
   return <ToolGroup item={item}/>;
 }
 
+const OPEN_EDITS = 4;
 function ToolGroup({ item }: { item: Exclude<ToolItem, { kind: 'call' }> }) {
-  const [open, setOpen] = useState(false);
+  // A few edits stay open, each with its diff; reads fold away.
+  const [open, setOpen] = useState(item.kind === 'edits' && item.entries.length <= OPEN_EDITS);
   const { text, meta, running } = describeGroup(item);
   return <div className="tool-line tool-group" role="listitem" data-state={running ? 'running' : 'completed'}>
     <button type="button" className="tool-line-row" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -53,11 +57,15 @@ function ToolGroup({ item }: { item: Exclude<ToolItem, { kind: 'call' }> }) {
 
 /** One call: icon, what it did, short facts; click to see input and output. */
 export const ToolLine = memo(function ToolLine({ entry }: { entry: ToolEntry }) {
-  const { root, onOpenFile } = useContext(ToolLineContext);
+  const { root, onOpenFile, latestPlan } = useContext(ToolLineContext);
   const [open, setOpen] = useState(false);
   const title = describeTool(entry, root);
   const kind = kindOf(entry);
   const label = `${title.verb} ${title.target}`.trim();
+  // Thinking has nothing to open: what the agent thought stays private.
+  if (kind === 'thinking') return <div className="tool-line tool-thinking" role="listitem" data-state={entry.status} data-kind={kind} data-tool-id={entry.id}>
+    <span className="tool-line-row" role="status" aria-live="off"><span className="tool-chevron" aria-hidden="true"/><StateIcon kind={kind} state={entry.status === 'running' ? 'thinking' : entry.status}/><span className="tool-line-title"><span className="tool-verb">{title.verb}</span></span></span>
+  </div>;
   return <div className="tool-line" role="listitem" data-state={entry.status} data-kind={kind} data-tool-id={entry.id}>
     <button type="button" className="tool-line-row" aria-expanded={open} aria-label={`${label}${title.meta.length ? ' · ' + title.meta.join(' · ') : ''} · ${stateLabel(entry)}`} title={`${entry.name} · ${stateLabel(entry)}`} onClick={() => setOpen(!open)}>
       <Chevron open={open}/><StateIcon kind={kind} state={entry.status}/>
@@ -65,15 +73,29 @@ export const ToolLine = memo(function ToolLine({ entry }: { entry: ToolEntry }) 
       <Meta meta={title.meta} failed={entry.status === 'failed'}/>
     </button>
     {title.problem && !open && <p className="tool-line-problem" role="note">{title.problem}</p>}
+    {!open && kind === 'plan' && entry.id === latestPlan && <div className="tool-inline"><PlanList input={entry.input && typeof entry.input === 'object' ? entry.input as Record<string, any> : undefined}/></div>}
+    {!open && kind === 'edit' && entry.patch && entry.status !== 'failed' && <InlineDiff patch={entry.patch} onMore={() => setOpen(true)}/>}
     {open && <ToolDetails entry={entry} kind={kind} root={root} file={title.file} onOpenFile={onOpenFile}/>}
   </div>;
 });
+
+const INLINE_DIFF_LINES = 8;
+/** An edit's changed lines under its line, the start of them: the rest on open. */
+function InlineDiff({ patch, onMore }: { patch: string; onMore(): void }) {
+  const lines = useMemo(() => patch.split('\n').filter(l => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---')), [patch]);
+  if (!lines.length) return null;
+  const shown = lines.slice(0, INLINE_DIFF_LINES);
+  return <div className="tool-inline tool-inline-diff" aria-label="Changed lines">
+    <pre>{shown.map((l, i) => <span key={i} data-sign={l[0] === '+' ? 'add' : 'del'}>{l}{'\n'}</span>)}</pre>
+    {lines.length > shown.length && <button type="button" className="tool-output-more" onClick={onMore}>{lines.length - shown.length} more changed lines</button>}
+  </div>;
+}
 
 function Chevron({ open }: { open: boolean }) {
   return <span className="tool-chevron" data-open={open || undefined} aria-hidden="true"><Icon name="chevronRight" size={12}/></span>;
 }
 function StateIcon({ kind, state }: { kind: ToolKind; state: string }) {
-  return <span className="tool-icon" data-state={state} aria-hidden="true">{state === 'running' ? <span className="tool-spinner"/> : <Icon name={state === 'failed' ? 'alert' : ICONS[kind]} size={13}/>}</span>;
+  return <span className="tool-icon" data-state={state} aria-hidden="true">{state === 'running' ? <span className="tool-spinner"/> : state === 'thinking' ? <span className="tool-thinking-dot"><Icon name="sparkle" size={13}/></span> : <Icon name={state === 'failed' ? 'alert' : ICONS[kind]} size={13}/>}</span>;
 }
 function Meta({ meta, failed }: { meta: string[]; failed?: boolean }) {
   if (!meta.length) return null;
@@ -124,7 +146,7 @@ function ToolOutput({ text, lines, failed }: { text: string; lines: number; fail
 function PlanList({ input }: { input?: Record<string, any> }) {
   const todos: any[] = Array.isArray(input?.todos) ? input!.todos : Array.isArray(input?.plan) ? input!.plan : [];
   if (!todos.length) return null;
-  return <ul className="tool-plan">{todos.map((t, i) => {
+  return <ul className="tool-plan" aria-label="Plan">{todos.map((t, i) => {
     const status = t?.status === 'completed' ? 'completed' : t?.status === 'in_progress' || t?.status === 'inProgress' ? 'in_progress' : 'pending';
     return <li key={i} data-status={status}><span aria-hidden="true">{status === 'completed' ? '✓' : status === 'in_progress' ? '◐' : '○'}</span>{String(t?.content ?? t?.step ?? t?.text ?? '')}</li>;
   })}</ul>;

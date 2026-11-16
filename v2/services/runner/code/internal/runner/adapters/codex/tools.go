@@ -152,3 +152,22 @@ func normalizedToolCall(raw json.RawMessage, completed bool) (json.RawMessage, e
 	}
 	return json.Marshal(call)
 }
+
+// planToolCall is Codex's plan update in the normalized tool-call shape,
+// named like its update_plan tool, one call per turn.
+func planToolCall(raw json.RawMessage) json.RawMessage {
+	var p struct {
+		TurnID      string          `json:"turnId"`
+		Explanation *string         `json:"explanation"`
+		Plan        json.RawMessage `json:"plan"`
+	}
+	if json.Unmarshal(raw, &p) != nil || p.TurnID == "" || len(p.Plan) == 0 || string(p.Plan) == "null" {
+		return nil
+	}
+	input := map[string]any{"plan": p.Plan}
+	if p.Explanation != nil && *p.Explanation != "" {
+		input["explanation"] = *p.Explanation
+	}
+	out, _ := json.Marshal(map[string]any{"type": "tool_call", "id": "plan:" + p.TurnID, "name": "update_plan", "status": "completed", "input": input})
+	return out
+}

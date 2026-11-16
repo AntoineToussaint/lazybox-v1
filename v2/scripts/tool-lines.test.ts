@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema } from '@lazybox/protocol';
 import { emptyTranscript, foldTranscript } from '../packages/surfaces/src/transcript-model.ts';
-import { applyToolPayload, describeGroup, describeTool, groupTools, kindOf, lineChange, shortPath, type ToolEntry } from '../packages/surfaces/src/tool-lines.ts';
+import { applyToolPayload, describeGroup, describeTool, groupTools, kindOf, latestPlanId, lineChange, shortPath, type ToolEntry } from '../packages/surfaces/src/tool-lines.ts';
 import { answerNote, approvalOf, questionsOf, requestNote, risksOf } from '../packages/surfaces/src/request-model.ts';
 
 const ROOT = '/Users/me/ws/alpha';
@@ -130,4 +130,20 @@ test('how a request was answered becomes one line of the conversation', () => {
     { kind: 'declined', tool: 'Bash', target: 'rm -rf /', reason: 'no' },
   ], 'an approval allowed once needs no line: its tool line says it ran');
   assert.equal(answerNote(requestNote('question', { input: { questions: [{ question: 'Q?' }] } }, ''), { kind: 'answer', answers: { 'Q?': ['yes'] } })!.kind, 'answered');
+});
+
+test('thinking is one quiet line that ends when the agent speaks or acts; the latest plan is the live one', () => {
+  let n = 0; const r = (event: Record<string, unknown>, at: string) => record(++n, event, at);
+  const state = foldTranscript(emptyTranscript(), [
+    r({ type: 'operation_accepted', text: 'go', turnId: 't' }, '2026-11-16T10:00:00Z'),
+    r({ type: 'activity', status: 'thinking', turnId: 't' }, '2026-11-16T10:00:01Z'),
+    r({ type: 'activity', status: 'thinking', turnId: 't' }, '2026-11-16T10:00:02Z'),
+    r({ type: 'tool_activity', turnId: 't', data: { type: 'tool_call', id: 'p1', name: 'TodoWrite', status: 'completed', input: { todos: [{ content: 'a', status: 'completed' }, { content: 'b', status: 'pending' }] } } }, '2026-11-16T10:00:05Z'),
+    r({ type: 'activity', status: 'thinking', turnId: 't' }, '2026-11-16T10:00:06Z'),
+  ]);
+  const run = state.messages[1].tools!;
+  assert.deepEqual(run.map(t => [t.name, t.status]), [['Thinking', 'completed'], ['TodoWrite', 'completed'], ['Thinking', 'running']]);
+  assert.deepEqual([describeTool(run[0]).verb, describeTool(run[1]).meta, describeTool(run[2]).verb], ['Thought for 4s', ['1/2 done'], 'Thinking…']);
+  assert.equal(latestPlanId(state.messages), 'p1');
+  assert.equal(foldTranscript(state, [r({ type: 'turn_ended', turnId: 't' }, '2026-11-16T10:00:07Z')]).messages[1].tools!.at(-1)!.status, 'completed', 'the turn ending ends thinking');
 });

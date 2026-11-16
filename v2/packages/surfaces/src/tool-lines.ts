@@ -187,12 +187,14 @@ export function applyToolPayload(previous: ToolEntry | undefined, payload: Recor
 const HIDDEN = new Set(['AskUserQuestion', 'Task', 'Agent', 'Sub-agent']);
 export const hiddenTool = (name: string) => HIDDEN.has(name);
 
-export type ToolKind = 'read' | 'search' | 'list' | 'edit' | 'command' | 'web' | 'agent' | 'plan' | 'mcp' | 'other';
+export type ToolKind = 'read' | 'search' | 'list' | 'edit' | 'command' | 'web' | 'agent' | 'plan' | 'thinking' | 'mcp' | 'other';
+/** The name of the line that stands for the agent thinking (its reasoning stays private). */
+export const THINKING = 'Thinking';
 const KINDS: Record<string, ToolKind> = {
   Read: 'read', NotebookRead: 'read', 'View image': 'read', Grep: 'search', Glob: 'list', LS: 'list',
   Edit: 'edit', MultiEdit: 'edit', Write: 'edit', NotebookEdit: 'edit', 'File changes': 'edit', apply_patch: 'edit',
   Bash: 'command', 'Shell command': 'command', exec_command: 'command', local_shell: 'command', mcp__lazybox__command: 'command', lazybox_command: 'command',
-  WebFetch: 'web', WebSearch: 'web', 'Web search': 'web', Task: 'agent', Agent: 'agent', 'Sub-agent': 'agent', TodoWrite: 'plan', update_plan: 'plan',
+  WebFetch: 'web', WebSearch: 'web', 'Web search': 'web', Task: 'agent', Agent: 'agent', 'Sub-agent': 'agent', TodoWrite: 'plan', update_plan: 'plan', [THINKING]: 'thinking',
 };
 export function kindOf(entry: Pick<ToolEntry, 'name' | 'actions' | 'input'>): ToolKind {
   const kind = KINDS[entry.name];
@@ -313,6 +315,10 @@ export function describeTool(entry: ToolEntry, root = ''): ToolTitle {
       const what = typeof i.description === 'string' ? i.description : typeof i.prompt === 'string' ? firstLine(i.prompt) : '';
       return { verb: tense('Delegated', 'Delegating'), target: what || 'a task to a sub-agent', code: false, meta, problem };
     }
+    case 'thinking': {
+      const took = shortDuration(durationOf(entry));
+      return { verb: running ? 'Thinking…' : took ? `Thought for ${took}` : 'Thought', target: '', code: false, meta, problem: undefined };
+    }
     case 'plan': {
       const todos = Array.isArray(i.todos) ? i.todos : Array.isArray(i.plan) ? i.plan : [];
       const done = todos.filter((t: any) => t?.status === 'completed').length;
@@ -377,4 +383,14 @@ export function describeGroup(item: Exclude<ToolItem, { kind: 'call' }>): { text
   if (lists) parts.push(`${running ? 'listing' : 'listed'} ${plural(lists, 'folder')}`);
   const text = parts.join(', ');
   return { text: text.charAt(0).toUpperCase() + text.slice(1), meta: [], running };
+}
+
+/** The id of the conversation's latest plan update (TodoWrite, update_plan), or ''. */
+export function latestPlanId(messages: readonly { tools?: ToolEntry[] }[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const tools = messages[i].tools;
+    if (!tools) continue;
+    for (let j = tools.length - 1; j >= 0; j--) if (kindOf(tools[j]) === 'plan') return tools[j].id;
+  }
+  return '';
 }

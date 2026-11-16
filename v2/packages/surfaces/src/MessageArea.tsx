@@ -9,6 +9,7 @@ import { useRevealRequests } from './artifact-events';
 import { PromptNavigator } from './PromptNavigator';
 import { RequestCard } from './session-parts';
 import { ToolLineContext } from './ToolLine';
+import { latestPlanId } from './tool-lines';
 import { faultSentence } from './subscription-model';
 import type { useChatScroll } from './useChatScroll';
 import type { useTranscript } from './useTranscript';
@@ -46,7 +47,8 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   // Coding turns are checkpointed: each gets a marker to show or revert its changes.
   const coding = !!session && (!session.purpose || session.purpose === 'coding');
   // Tool lines show paths relative to the conversation's folder, and open files.
-  const toolScope = useMemo(() => ({ root: session?.workingDirectory || '', onOpenFile }), [session?.workingDirectory, onOpenFile]);
+  const latestPlan = useMemo(() => latestPlanId(conversation), [conversation]);
+  const toolScope = useMemo(() => ({ root: session?.workingDirectory || '', onOpenFile, latestPlan }), [session?.workingDirectory, onOpenFile, latestPlan]);
   const checkpoints = useMemo(() => coding ? { sessionId: sessionID, workspaceId: session!.collectionId, busy: !!session!.busy } : undefined, [coding, sessionID, session?.collectionId, session?.busy]);
   return <>
     <div className="messages-frame">

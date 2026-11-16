@@ -682,6 +682,13 @@ func (s *session) read() {
 				ev.Type, ev.Status = "agent_status", threadStatus(m.Params)
 			case "thread/started":
 				return true
+			case "turn/plan/updated":
+				// The agent's plan, as a tool call of its turn: each update
+				// replaces the one checklist the conversation shows.
+				ev.Type = "tool_activity"
+				if ev.Data = planToolCall(m.Params); len(ev.Data) == 0 {
+					return true
+				}
 			case "item/started", "item/completed":
 				for _, activity := range collaborationEvents(m.Params, root) {
 					emit(activity)

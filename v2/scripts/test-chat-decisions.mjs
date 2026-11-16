@@ -113,13 +113,14 @@ try{
  tool('edit-2',{name:'Write',status:'running',input:{file_path:`${root}/api/src/cache.test.ts`,content:'test("ttl")'}});
  for(const id of ['edit-1','edit-2'])tool(id,{status:'completed',output:'ok'});
  tool('sleep',{name:'Bash',status:'running',input:{command:'sleep 30'}});
+ // Thinking is a quiet line; the plan a live checklist (only the latest one).
  const lines=page.locator('.tool-lines').first();
  await expect(lines.locator(':scope > .tool-line > .tool-line-row')).toHaveText([/Read 3 files, searched 1 pattern/,/Ran pnpm run checkexit 0/,/Ran pnpm test:e2eexit 1/,/Edited 2 files\+3 −1/,/Running sleep 30/]);
  await expect(lines.locator('.tool-line-problem')).toHaveText('Error: browser not installed');
  await expect(lines.locator('[data-tool-id=sleep] .tool-spinner')).toHaveCount(1);
  // A group opens to its calls, each with a path relative to the workspace.
  await lines.getByRole('button',{name:/Read 3 files/}).click();
- await expect(lines.locator('.tool-group-calls .tool-line-row')).toHaveText([/Read api\/src\/cache\.ts/,/Read api\/src\/db\.ts/,/Read api\/README\.md/,/Searched for createCache in api/]);
+ await expect(lines.locator('.tool-group-calls').first().locator('.tool-line-row')).toHaveText([/Read api\/src\/cache\.ts/,/Read api\/src\/db\.ts/,/Read api\/README\.md/,/Searched for createCache in api/]);
  // A command opens to its command and coloured output.
  await lines.getByRole('button',{name:/Ran pnpm run check/}).click();
  const details=lines.locator('[data-tool-id=check] .tool-details');
@@ -127,14 +128,26 @@ try{
  await expect(details.getByLabel('Output')).toContainText('✓ 42 tests passed');
  assert.equal(await details.getByLabel('Output').getByText('✓ 42 tests passed',{exact:true}).evaluate(node=>getComputedStyle(node).color),'rgb(138, 212, 139)','ANSI green rendered');
  // Edits show their diff in place.
- await lines.getByRole('button',{name:/Edited 2 files/}).click();await lines.getByRole('button',{name:/Edited api\/src\/cache\.ts/}).click();
+ // A few edits stay open with their changed lines inline, no click needed.
+ await expect(lines.locator('[data-tool-id=edit-1]').getByLabel('Changed lines')).toHaveText('-const ttl = 60;\n+const ttl = 300;\n+const max = 1000;');
+ await lines.getByRole('button',{name:/Edited api\/src\/cache\.ts/}).click();
  await expect(lines.locator('[data-tool-id=edit-1] .code-block')).toContainText('+const max = 1000;');
  await page.screenshot({path:'.cache/chat-decisions-tools.png'});
+ const plan=(id,todos)=>tool(id,{name:'TodoWrite',status:'completed',input:{todos},output:'ok'});
+ channel.push({type:'message_delta',text:'Planning the cache.'});
+ channel.push({type:'activity',status:'thinking'});
+ const thinking=page.locator('.tool-thinking').last();await expect(thinking).toHaveText('Thinking…');
+ plan('plan-1',[{content:'Add the cache',status:'in_progress'},{content:'Test it',status:'pending'}]);
+ await expect(thinking).toHaveText('Thought');
+ plan('plan-2',[{content:'Add the cache',status:'completed'},{content:'Test it',status:'in_progress'}]);
+ await expect(page.getByRole('list',{name:'Plan'})).toHaveCount(1);
+ await expect(page.getByRole('list',{name:'Plan'}).getByRole('listitem')).toHaveText(['✓Add the cache','◐Test it']);
+ await expect(page.locator('[data-tool-id=plan-1] .tool-line-row')).toContainText('Updated the plan0/2 done');await page.screenshot({path:'.cache/chat-decisions-plan.png'});
  // The Activity dialog is kept for depth, opened on the call.
  await lines.locator('[data-tool-id=check]').getByRole('button',{name:'Open full details'}).click();
  const dialog=page.getByRole('dialog',{name:'Tools and activity'});await expect(dialog).toBeVisible();
  await expect(dialog.locator('details.tool-call[open]')).toContainText('pnpm run check');
  await dialog.getByRole('button',{name:'Close tools'}).click();
  assert.deepEqual(errors,[]);
- console.log('PASS: question cards (single, multi, Other…, preview, 1–9/arrows/Space/⌘↵, echo), approvals (command, cwd, risk hints, 1 of N and header count, Deny with reason via n, Always allow at the workspace scope, y from the chat) and inline tool lines (grouped reads/edits, exit/duration, failure line, running spinner, ANSI output, diff, full details). Fixture only.');
+ console.log('PASS: question cards (single, multi, Other…, preview, 1–9/arrows/Space/⌘↵, echo), approvals (command, cwd, risk hints, 1 of N and header count, Deny with reason via n, Always allow at the workspace scope, y from the chat) and inline tool lines (grouped reads/edits, exit/duration, failure line, running spinner, ANSI output, diff, full details), inline edit diffs, a quiet thinking line and the latest plan as a live checklist. Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}

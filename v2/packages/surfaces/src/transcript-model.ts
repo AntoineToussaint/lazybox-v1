@@ -2,7 +2,7 @@ import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 import { failureSentence, isLimitState, switchNote, type SwitchNote } from './subscription-model';
 import { emptySubagents, SubagentFold, subagentRelevant, type Subagents } from './subagent-model';
-import { applyToolPayload, hiddenTool, type ToolEntry } from './tool-lines';
+import { applyToolPayload, hiddenTool, THINKING, type ToolEntry } from './tool-lines';
 import { answerNote, requestNote, type AnswerNote, type RequestNote } from './request-model';
 
 /**
@@ -78,6 +78,15 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       next.appendToLast = false;
       continue;
     }
+    // Thinking is one quiet line ("Thinking…", then "Thought for 4s"); what
+    // the agent thought is private and never shown.
+    const at = Date.parse(record.capturedAt);
+    if (event.type === 'activity' && event.status === 'thinking') {
+      startThinking(messages ?? state.messages, replaceAt, add, owned, event.turnId, record.cursor.toString(), Number.isFinite(at) ? at : undefined);
+      next.appendToLast = false;
+      continue;
+    }
+    if (THINKING_ENDS.has(event.type)) endThinking(messages ?? state.messages, replaceAt, owned, Number.isFinite(at) ? at : undefined);
     if (event.type === 'tool_activity') {
       foldTool(messages ?? state.messages, record, list, replaceAt, add, owned);
       next.appendToLast = false;
@@ -154,6 +163,24 @@ function foldTool(messages: TranscriptMessage[], record: JournalEvent, list: () 
     if (owned.has(last)) last.tools!.push(entry);
     else replaceAt(current.length - 1, { ...last, tools: [...last.tools!, entry] });
   } else add({ id: record.cursor.toString(), type: 'tools', text: '', turnId: event.turnId, tools: [entry] });
+}
+/** Events after which the agent is no longer thinking. */
+const THINKING_ENDS = new Set(['activity', 'message_delta', 'tool_activity', 'turn_ended', 'session_closed', 'failure', 'approval', 'question']);
+function startThinking(current: TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, add: (message: TranscriptMessage) => void, owned: Set<TranscriptMessage>, turnId: string, cursor: string, at: number | undefined) {
+  const last = current.at(-1);
+  if (last?.tools?.at(-1)?.name === THINKING && last.tools.at(-1)!.status === 'running') return;
+  const entry: ToolEntry = { id: `thinking:${cursor}`, name: THINKING, status: 'running', startedAt: at };
+  if (last?.type === 'tools' && last.turnId === turnId) {
+    if (owned.has(last)) last.tools!.push(entry); else replaceAt(current.length - 1, { ...last, tools: [...last.tools!, entry] });
+  } else add({ id: cursor, type: 'tools', text: '', turnId, tools: [entry] });
+}
+function endThinking(current: TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, owned: Set<TranscriptMessage>, at: number | undefined) {
+  // Only the last line can be thinking: anything said or done after it ended it.
+  const last = current.at(-1), thinking = last?.tools?.at(-1);
+  if (!last || thinking?.name !== THINKING || thinking.status !== 'running') return;
+  const done: ToolEntry = { ...thinking, status: 'completed', endedAt: at };
+  const tools = [...last.tools!.slice(0, -1), done];
+  if (owned.has(last)) last.tools = tools; else replaceAt(current.length - 1, { ...last, tools });
 }
 /** At a turn's end a call still running never reported its result. */
 function settleTools(messages: TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, owned: Set<TranscriptMessage>) {
