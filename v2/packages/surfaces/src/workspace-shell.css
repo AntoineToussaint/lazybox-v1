@@ -55,6 +55,10 @@
   .workspace-shell .mobile-navigation-button{display:inline-flex!important;width:36px;height:36px}
   .workspace-shell .workspace-brand,.workspace-shell .workspace-header .runner-indicator{display:none}
   .workspace-shell .workspace-header>nav{flex:1;flex-shrink:1;min-width:0}
+  /* Page tabs that do not fit scroll sideways and fade at the edge: never a word cut in half with no way to reach it. */
+  .workspace-shell .workspace-header>nav{overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 18px),transparent);padding-right:14px}
+  .workspace-shell .workspace-header>nav::-webkit-scrollbar{display:none}
+  .workspace-shell .workspace-header>nav button{flex:none}
   .workspace-shell .workspace-header>nav button{padding:0 10px}
   .workspace-shell .workspace-header-actions{gap:2px}
   .workspace-shell .toolbar-action{width:36px;height:36px;padding:0}

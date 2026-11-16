@@ -29,7 +29,7 @@ export type PanelActions = {
 export type SharedModuleProps = Omit<ModuleProps, 'target' | 'onTarget' | 'viewState' | 'onOpenChat'>;
 
 /** One panel of a page: its header (title, dock menu, close) and its module. */
-export function WorkspacePanel({ panel, definition, target, store, module, actions, editing, pending, docking, mobileActive, only, docked, canDetach, canRemove }: {
+export function WorkspacePanel({ panel, definition, target, store, module, actions, editing, pending, docking, mobileActive, only, closesPage = false, docked, canDetach, canRemove }: {
   panel: Panel;
   definition?: PanelModule;
   target: ViewTarget;
@@ -44,6 +44,8 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
   mobileActive: boolean;
   /** The only panel on its page. */
   only: boolean;
+  /** Closing the only panel closes its page (the workspace has another page to go to). */
+  closesPage?: boolean;
   docked?: DockSide;
   /** The host can open chats in their own window. */
   canDetach: boolean;
@@ -55,9 +57,9 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
   const [live, setLive] = useState<PanelTitle>();
   return <section className={`workspace-panel panel-${panel.kind}${panel.collapsed && !editing ? ' is-collapsed' : ''}${editing ? ' is-editing' : ''}${docking ? ' is-docking' : ''}`} aria-label={definition?.title || panel.kind} data-panel-id={panel.id} data-mobile-active={mobileActive || undefined}>
     <header className="module-header" onPointerDown={editing ? undefined : event => actions.startDrag(event, panel)}
-      onContextMenu={editing ? undefined : contextMenu('panel', () => panelItems({ panel, actions, pending, only, docked, detach: detachable ? () => actions.detach(panel) : undefined }), { kind: panel.kind, id: panel.id })}>
+      onContextMenu={editing ? undefined : contextMenu('panel', () => panelItems({ panel, actions, pending, only, closesPage, docked, detach: detachable ? () => actions.detach(panel) : undefined }), { kind: panel.kind, id: panel.id })}>
       {!editing
-        ? <PanelHeader panel={panel} definition={definition} actions={actions} pending={pending} only={only} docked={docked} detach={detachable ? () => actions.detach(panel) : undefined} live={live}/>
+        ? <PanelHeader panel={panel} definition={definition} actions={actions} pending={pending} only={only} closesPage={closesPage} docked={docked} detach={detachable ? () => actions.detach(panel) : undefined} live={live}/>
         : panel.kind === 'console'
           ? <button className="module-title" aria-label={panel.collapsed ? 'Show command output' : 'Hide command output'} aria-expanded={!panel.collapsed} onClick={() => actions.toggleCollapsed(panel)}><Icon name="terminal"/><span>{definition?.title}</span><Icon name="chevron" size={13}/></button>
           : <strong>{definition?.title || panel.kind}</strong>}
@@ -82,23 +84,25 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
   </section>;
 }
 
-type PanelMenu = { panel: Panel; actions: PanelActions; pending: boolean; only: boolean; docked?: DockSide; detach?(): void };
+type PanelMenu = { panel: Panel; actions: PanelActions; pending: boolean; only: boolean; closesPage?: boolean; docked?: DockSide; detach?(): void };
+/** A page's only panel closes with its page, when there is another page to show. */
+const canClosePanel = ({ panel, only, closesPage }: Pick<PanelMenu, 'panel' | 'only' | 'closesPage'>) => closable(panel) && (!only || !!closesPage);
 /** What a panel's ⋯ menu and its header's context menu offer: one list for both. */
-function panelItems({ panel, actions, pending, only, docked, detach }: PanelMenu): MenuItem[] {
+function panelItems({ panel, actions, pending, only, closesPage, docked, detach }: PanelMenu): MenuItem[] {
   return [
     ...dockSides.map(side => ({ label: `Dock ${side}`, icon: `dock-${side}`, className: 'dock-option', disabled: only || docked === side || pending, checked: docked === side || undefined, note: docked === side ? 'Current' : undefined, run: () => actions.dockTo(panel, side) })),
     'separator' as const,
     { label: panel.collapsed ? 'Expand' : 'Collapse', icon: 'chevron', run: () => actions.toggleCollapsed(panel) },
     detach && { label: 'Open in its own window', icon: 'external', disabled: pending, run: detach },
-    closable(panel) && !only && { label: 'Close panel', icon: 'close', danger: true, run: () => actions.close(panel) },
+    canClosePanel({ panel, only, closesPage }) && { label: only ? 'Close page' : 'Close panel', icon: 'close', danger: true, run: () => actions.close(panel) },
   ];
 }
 
 /** A panel's own header: its title collapses it, ⋯ docks it at any edge, × closes it. */
-function PanelHeader({ panel, definition, actions, pending, only, docked, detach, live }: PanelMenu & { definition?: PanelModule; live?: PanelTitle }) {
+function PanelHeader({ panel, definition, actions, pending, only, closesPage, docked, detach, live }: PanelMenu & { definition?: PanelModule; live?: PanelTitle }) {
   const title = definition?.title || panel.kind, name = sentence(title);
   const shown = live?.text || title;
-  const canClose = closable(panel) && !only;
+  const canClose = canClosePanel({ panel, only, closesPage });
   return <>
     <button className="module-title" aria-label={`${panel.collapsed ? 'Show' : 'Hide'} ${live ? `${name}: ${live.text}` : name}`} aria-expanded={!panel.collapsed} title={`${live?.tooltip ? `${live.tooltip}\n` : ''}${panel.collapsed ? 'Show' : 'Collapse'} ${name} · drag to dock`} onClick={() => actions.toggleCollapsed(panel)}>
       {live?.icon ? <img className="panel-live-icon" src={live.icon} alt=""/> : <Icon name={definition?.icon || 'file'}/>}
@@ -106,9 +110,9 @@ function PanelHeader({ panel, definition, actions, pending, only, docked, detach
       <Icon name="chevron" size={13}/>
     </button>
     <ActionMenu className="panel-menu" label={`${title} panel actions`}>
-      <ActionMenuItems icons items={panelItems({ panel, actions, pending, only, docked, detach })}/>
+      <ActionMenuItems icons items={panelItems({ panel, actions, pending, only, closesPage, docked, detach })}/>
     </ActionMenu>
-    {canClose && <button className="icon-button panel-close" aria-label={`Close ${title} panel`} title={panel.kind === 'terminal' ? 'Close panel (shells keep running)' : 'Close panel'} onClick={() => actions.close(panel)}><Icon name="close" size={14}/></button>}
+    {canClose && <button className="icon-button panel-close" aria-label={`Close ${title} ${only ? 'page' : 'panel'}`} title={only ? 'Close this page' : panel.kind === 'terminal' ? 'Close panel (shells keep running)' : 'Close panel'} onClick={() => actions.close(panel)}><Icon name="close" size={14}/></button>}
   </>;
 }
 

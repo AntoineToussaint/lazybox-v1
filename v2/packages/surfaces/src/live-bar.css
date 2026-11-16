@@ -28,7 +28,10 @@
   .live-bar{margin:0 10px 6px;padding:6px 6px 6px 10px}
   .live-bar-row{flex-wrap:wrap;row-gap:4px}
   .live-bar-where{display:none}
-  .live-bar-actions{margin-left:0;flex-basis:100%;justify-content:flex-end}
+  /* The buttons share the step's row when they fit ("Writing… · Interrupt") and take their own only when they do not. */
+  .live-bar-actions{margin-left:auto;justify-content:flex-end}
+  .live-bar .live-activity{flex:1 1 auto}
+  .live-bar-code{flex:1 1 100%;order:1}
   .live-bar-button>span{display:none}
   .live-bar-stop>span{display:inline!important}
 }

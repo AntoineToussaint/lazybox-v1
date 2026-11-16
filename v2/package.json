@@ -79,6 +79,7 @@
     "test:missions": "node scripts/test-missions.mjs",
     "test:subagents": "node scripts/test-subagents.mjs",
     "test:live-bar": "node scripts/test-live-bar.mjs",
+    "test:polish-pass": "node scripts/test-polish-pass.mjs",
     "test:context-menus": "node scripts/test-context-menus.mjs && node scripts/test-context-menus-live.mjs",
     "test:chat-decisions": "node scripts/test-chat-decisions.mjs",
     "test:workspace-rows": "node scripts/test-workspace-rows.mjs",

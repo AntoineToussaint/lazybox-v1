@@ -3,6 +3,9 @@
 .chat-heading{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 14px 8px 22px;border-bottom:1px solid var(--line);box-sizing:border-box}
 .chat-heading .agent-avatar{width:28px;height:28px;flex:none;font-size:18px;border-radius:7px}
 .chat-heading-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+/* In a narrow panel or on a phone the tools take a second row, so the title is never squeezed away. */
+.chat-heading{flex-wrap:wrap;row-gap:2px}
+.chat-heading-main{flex:1 1 160px}
 
 .conversation-title{display:flex;align-items:center;gap:2px;min-width:0}
 .conversation-title h2{margin:0;min-width:0;font-size:inherit;font-weight:inherit}

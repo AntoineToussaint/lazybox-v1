@@ -287,7 +287,13 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   const closePanel = (panel: Panel) => {
     const live = livePage(), next = removePanel(live.layout, panel.id);
-    if (!next || !closable(panel)) return;
+    if (!closable(panel)) return;
+    if (!next) {
+      // The last panel of a page takes the page with it: a Changes page opened from the header closes like any panel.
+      const all = current.current, index = all.pages.findIndex(value => value.id === live.id), pages = all.pages.filter(value => value.id !== live.id);
+      if (pages.length) commit({ ...all, pages, selectedPage: pages[Math.max(0, index - 1)].id });
+      return;
+    }
     if (!changePage({ ...live, layout: next })) return;
     if (panel.kind === 'console') putConsoleAway(true);
     focusAfter.current = 'content';
@@ -383,7 +389,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   const renderPanel = (panel: Panel) => <WorkspacePanel panel={panel} definition={Object.hasOwn(registry, panel.kind) ? registry[panel.kind] : undefined} target={resolveTarget(panel, page.selection)} store={storeFor(panel)}
     module={moduleProps} actions={panelActions} editing={editing} pending={!!pending} docking={docking?.id === panel.id} mobileActive={panel.id === mobilePanel?.id}
-    only={panels(page.layout).length <= 1} docked={dockedSide(page.layout, panel.id)} canDetach={!!host} canRemove={panels(page.layout).length !== 1}/>;
+    only={panels(page.layout).length <= 1} closesPage={layout.pages.length > 1} docked={dockedSide(page.layout, panel.id)} canDetach={!!host} canRemove={panels(page.layout).length !== 1}/>;
 
   return <WorkbenchContext.Provider value={workbench}><main className={`workspace-shell${editing ? ' layout-editing' : ''}`}>
     <LeaderMenu hint={keyboardHint}/>
