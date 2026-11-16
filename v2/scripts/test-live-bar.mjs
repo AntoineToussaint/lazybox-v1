@@ -72,6 +72,9 @@ try{
  // The console says the command is running and can stop it itself.
  await expect(page.locator('.command-panel .console-state [role=status]')).toHaveText('Running');
  await expect(page.locator('.command-panel').getByRole('button',{name:'Stop',exact:true})).toBeVisible();await page.screenshot({path:'.cache/subagents-live-bar-console.png'});
+ // The console has the whole output: the bar stops repeating it, so the shorter chat keeps its messages.
+ await expect(bar.locator('.live-bar-output')).toHaveCount(0);
+ await expect(bar.getByRole('button',{name:'Show output'})).toBeVisible();
  {const box=await bar.boundingBox(),pane=await chat.locator('.messages').boundingBox();assert.ok(pane.y+pane.height<=box.y+1,'a short chat keeps the bar clear of the messages');}
 
  // Stop says what it stops: the command, not the turn.

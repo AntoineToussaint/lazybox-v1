@@ -87,8 +87,13 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   const tail = useCommandTail(api, managed?.id || '');
   const [expanded, setExpanded] = useState(false);
   const [hidden, setHidden] = useState(() => outputHidden(viewState));
+  // The command whose whole output is open in the console: its tail here would only repeat it, and take room
+  // from the messages in a chat the console has made short. Show output brings it back.
+  const [inConsole, setInConsole] = useState('');
+  const tailHidden = hidden || (!!managed && inConsole === managed.id);
+  const openInConsole = (id: string) => { setExpanded(false); setInConsole(id); onOpenCommand?.(id); };
   const showOutput = (show: boolean) => {
-    setHidden(!show); if (!show) setExpanded(false);
+    setHidden(!show); setInConsole(''); if (!show) setExpanded(false);
     try { writePreference(viewState, OUTPUT_PREFERENCE, show ? 'shown' : 'hidden'); } catch { /* the choice still holds for this window */ }
   };
   const [stopping, setStopping] = useState('');
@@ -146,9 +151,9 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   const menu = contextMenu('live-bar', () => [
     canMove && { label: 'Move to background', icon: 'collapse', disabled: moving === managed!.id && 'Moving…', run: () => moveToBackground() },
     { label: managed ? 'Stop command' : 'Interrupt', icon: 'stop', danger: true, disabled: !!managed && stopping === managed.id && 'Stopping…', run: () => stop() },
-    managed && onOpenCommand && { label: 'Open in console', icon: 'output', run: () => onOpenCommand(managed.id) },
-    managed && !hidden && { label: expanded ? 'Less output' : 'More output', icon: expanded ? 'collapse' : 'expand', run: () => setExpanded(value => !value) },
-    managed && { label: hidden ? 'Show output' : 'Hide output', icon: hidden ? 'eye' : 'close', run: () => showOutput(hidden) },
+    managed && onOpenCommand && { label: 'Open in console', icon: 'output', run: () => openInConsole(managed.id) },
+    managed && !tailHidden && { label: expanded ? 'Less output' : 'More output', icon: expanded ? 'collapse' : 'expand', run: () => setExpanded(value => !value) },
+    managed && { label: tailHidden ? 'Show output' : 'Hide output', icon: tailHidden ? 'eye' : 'close', run: () => showOutput(tailHidden) },
     'separator',
     // The command Stop and the console are about, else the step's own.
     !!(managed ? managed.argv.join(' ') || managed.title : detail.full) && { label: 'Copy command', icon: 'copy', run: () => copyText(managed ? managed.argv.join(' ') || managed.title : detail.full!, 'Copied command') },
@@ -162,9 +167,9 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
       {detail.code && <code className="live-bar-code" title={detail.full}>{detail.code}</code>}
       {detail.where && <span className="live-bar-where" title={detail.where}>in <code>{detail.where}</code></span>}
       <span className="live-bar-actions">
-        {managed && hidden && <button type="button" className="live-bar-button" aria-expanded={false} onClick={() => showOutput(true)} title="Show the command’s latest output here"><Icon name="eye" size={12}/><span>Show output</span></button>}
-        {managed && !hidden && <button type="button" className="live-bar-button" aria-expanded={expanded} aria-controls={outputId} onClick={() => setExpanded(value => !value)}><Icon name={expanded ? 'collapse' : 'expand'} size={12}/><span>{expanded ? 'Less output' : 'More output'}</span></button>}
-        {managed && onOpenCommand && <button type="button" className="live-bar-button" onClick={() => onOpenCommand(managed.id)} title="The whole output, with search, in the command console"><Icon name="output" size={12}/><span>Open in console</span></button>}
+        {managed && tailHidden && <button type="button" className="live-bar-button" aria-expanded={false} onClick={() => showOutput(true)} title={inConsole === managed.id && !hidden ? 'The output is open in the console. Show its latest lines here too' : 'Show the command’s latest output here'}><Icon name="eye" size={12}/><span>Show output</span></button>}
+        {managed && !tailHidden && <button type="button" className="live-bar-button" aria-expanded={expanded} aria-controls={outputId} onClick={() => setExpanded(value => !value)}><Icon name={expanded ? 'collapse' : 'expand'} size={12}/><span>{expanded ? 'Less output' : 'More output'}</span></button>}
+        {managed && onOpenCommand && <button type="button" className="live-bar-button" onClick={() => openInConsole(managed.id)} title="The whole output, with search, in the command console"><Icon name="output" size={12}/><span>Open in console</span></button>}
         {canMove && <button type="button" className="live-bar-button live-bar-move" disabled={moving === managed!.id} aria-label="Move to background"
           title={`This command keeps running${managed!.ports.length ? ` (listening on port ${managed!.ports[0]})` : ''}. Move it to the background: ${agentLabel(session)} gets its report now and continues, and the command keeps running, its output in the console.`}
           onClick={() => void moveToBackground()}><Icon name="collapse" size={12}/><span>{moving === managed!.id ? 'Moving…' : 'Move to background'}</span></button>}
@@ -175,7 +180,7 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
         </button>
       </span>
     </div>
-    {managed && !hidden && <div className="live-bar-output-frame">
+    {managed && !tailHidden && <div className="live-bar-output-frame">
       <pre id={outputId} className="live-bar-output" data-expanded={expanded || undefined} aria-label={`Latest output of ${managed.title || 'the command'}`} tabIndex={expanded ? 0 : -1} data-link-routing="own"
         onKeyDown={event => { if (event.key === 'Escape' && expanded) { event.stopPropagation(); setExpanded(false); } }}>{lines.length ? <LogTail text={tail} count={expanded ? 40 : 3} actions={tailActions}/> : <span className="live-bar-quiet">No output yet.</span>}</pre>
       <button type="button" className="icon-button live-bar-hide" aria-label="Hide output" title="Hide the output here. The command keeps running; Show output brings it back." onClick={() => showOutput(false)}><Icon name="close" size={12}/></button>
