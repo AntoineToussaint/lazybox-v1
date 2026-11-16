@@ -80,6 +80,10 @@ var deviceRPCs = map[string]deviceRule{
 	pb.RunnerService_GetPushSettings_FullMethodName: {grant: devices.GrantRead},
 	pb.RunnerService_SetPushSettings_FullMethodName: {grant: devices.GrantRead},
 	pb.RunnerService_SendTestPush_FullMethodName:    {grant: devices.GrantRead},
+	// Pinning a conversation is the person's arrangement of their own lists,
+	// shared with the computer (audit R1/R7p): a phone that may respond may pin.
+	// It changes no execution state. Archiving and deleting stay the owner's.
+	pb.RunnerService_PinConversation_FullMethodName: {grant: devices.GrantRespond},
 }
 
 // deviceStreams are the server streams a device may follow.

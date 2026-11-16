@@ -359,7 +359,7 @@ actions:
   // Remote control (REMOTE.md): a fake Tailscale route, pairing offers checked
   // with the phone's real WebCrypto signatures, paired devices, and short
   // device credentials. deviceRPCs mirrors the Runner's device allowlist.
-  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', OpenSession: 'start', ResumeSession: 'start', GetPushSettings: 'read', SetPushSettings: 'read', SendTestPush: 'read' };
+  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', PinConversation: 'respond', OpenSession: 'start', ResumeSession: 'start', GetPushSettings: 'read', SetPushSettings: 'read', SendTestPush: 'read' };
   // Web Push (REMOTE.md): the Runner's VAPID key (a real P-256 key, so a browser accepts it
   // as applicationServerKey), each device's subscription and preferences, and what was
   // pushed — payloads exactly as the Runner's notifier builds them.

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { deriveAttention } from '../packages/surfaces/src/attention.ts';
 import { pushSupport, quietNow, base64urlToBytes, type PushEnvironment } from '../packages/surfaces/src/remote/push.ts';
 import { chipAnswer, rowPlan } from '../packages/surfaces/src/remote/row-plan.ts';
-import { parsePins, togglePin, maxPins } from '../packages/surfaces/src/remote/pins.ts';
+import { parsePins, togglePin, maxPins, runnerPinStore } from '../packages/surfaces/src/remote/pins.ts';
 import { parseRoute, routeSearch } from '../packages/surfaces/src/remote/route.ts';
 import { phoneCommands } from '../packages/surfaces/src/remote/commands.ts';
 
@@ -100,4 +100,36 @@ test('the route round-trips through the URL, and a notification link opens its c
 test('the commands strip shows running first, then the newest finished', () => {
   const c = (id: string, done: boolean) => create(CommandStatusSchema, { id, done });
   assert.deepEqual(phoneCommands([c('a', true), c('b', false), c('c', true)]).map(x => x.id), ['b', 'c', 'a']);
+});
+
+test("the Runner's pins: the computer's order, shown at once, undone when refused, read-only without respond", async () => {
+  const calls: [string, boolean][] = [];
+  let refuse = false, refreshed = 0;
+  const runner = { pin: async (id: string, pinned: boolean) => { calls.push([id, pinned]); if (refuse) throw new Error('denied'); }, refresh: () => { refreshed++; } };
+  const store = runnerPinStore(runner, { writable: true });
+  let heard = 0; store.subscribe(() => { heard++; });
+  store.update([{ key: 'a', sessionId: 'a1', pinnedAt: 200 }, { key: 'b', sessionId: 'b1', pinnedAt: 100 }, { key: 'c', sessionId: 'c1', pinnedAt: 0 }]);
+  assert.deepEqual(store.list(), ['b', 'a'], 'oldest pin first, as on the computer');
+  assert.equal(store.list(), store.list(), 'a stable list for useSyncExternalStore');
+  store.set(togglePin(store.list(), 'c'));
+  assert.deepEqual(store.list(), ['b', 'a', 'c'], 'a new pin shows at once');
+  assert.deepEqual(calls, [['c1', true]]);
+  await new Promise(resolve => setTimeout(resolve));
+  assert.equal(refreshed, 1);
+  // The Runner's next answer keeps the pin; nothing is pending.
+  store.update([{ key: 'a', sessionId: 'a1', pinnedAt: 200 }, { key: 'b', sessionId: 'b1', pinnedAt: 100 }, { key: 'c', sessionId: 'c1', pinnedAt: 300 }]);
+  assert.deepEqual(store.list(), ['b', 'a', 'c']);
+  refuse = true;
+  store.set(togglePin(store.list(), 'a'));
+  assert.deepEqual(store.list(), ['b', 'c']);
+  await new Promise(resolve => setTimeout(resolve));
+  assert.deepEqual(store.list(), ['b', 'a', 'c'], 'a refused change is undone');
+  assert.ok(heard >= 3);
+  const reader = runnerPinStore(runner, { writable: false, legacy: ['c', 'x'] });
+  reader.update([{ key: 'a', sessionId: 'a1', pinnedAt: 200 }, { key: 'c', sessionId: 'c1', pinnedAt: 0 }]);
+  assert.equal(reader.shared, true); assert.equal(reader.writable, false);
+  assert.deepEqual(reader.list(), ['a', 'c', 'x'], "the computer's pins, then the phone's own from before");
+  reader.set([]);
+  assert.deepEqual(reader.list(), ['a', 'c', 'x'], 'a read-only phone changes nothing');
+  assert.equal(calls.length, 2);
 });

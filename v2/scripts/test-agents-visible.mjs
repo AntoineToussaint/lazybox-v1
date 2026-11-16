@@ -245,11 +245,24 @@ try {
   await phone.getByRole('textbox', {name: 'Name this phone'}).fill('iPhone');
   await phone.getByRole('button', {name: 'Pair this phone'}).click();
   await phone.getByRole('button', {name: 'Open inbox'}).click();
-  await expect(phone.locator('.group-pinned .remote-row')).toHaveCount(1);
-  await expect(phone.locator('.group-pinned .remote-row')).toContainText('Ship release notes');
-  await expect(phone.locator('.group-needs-input')).toHaveCount(0);
+  // It still waits for an answer, so it stays with what needs the person, marked pinned (a pin never hides a request).
+  const phoneRow = title => phone.locator('.remote-row').filter({hasText: title});
+  await expect(phone.locator('.group-needs-input .remote-row[data-pinned]')).toContainText('Ship release notes');
+  await expect(phoneRow('Ship release notes').locator('.remote-pin-mark')).toBeVisible();
+  // A phone that may respond pins too, and the computer shows it.
+  await phoneRow('Deploy preview').getByRole('button', {name: 'Actions for Deploy preview'}).click();
+  await phone.getByRole('dialog', {name: 'Actions'}).getByRole('button', {name: 'Pin', exact: true}).click();
+  await expect(phone.locator('.group-pinned .remote-row')).toContainText('Deploy preview');
+  await expect(agents.locator('[data-group="pinned"] .agent-row')).toHaveText([/Ship release notes/, /Deploy preview/], {timeout: 10_000});
   await phone.screenshot({path: '.cache/agents-visible-phone-pinned.png'});
-  await phoneContext.close();
+  // Pins this phone kept on itself before the Runner kept them move to the Runner, once.
+  const deviceId = [...f.remote.devices.keys()][0];
+  await phone.evaluate(id => localStorage.setItem(`remote:${id}:pins:v1`, JSON.stringify(['review-session'])), deviceId);
+  await phone.reload();
+  await expect.poll(() => Number(session('review-session').pinnedAtUnixMillis || 0), {timeout: 10_000}).toBeGreaterThan(0);
+  await expect.poll(() => phone.evaluate(id => localStorage.getItem(`remote:${id}:pins:v1`), deviceId)).toBe('[]');
+  await expect(phone.locator('.group-pinned .remote-row')).toHaveCount(2);
+  await expect(phoneRow('Old exploration')).toHaveCount(1);
 
   // Open beside: a second chat, pinned to that conversation, next to the first.
   await agents.locator('.agent-row', {hasText: 'Index the API'}).click({button: 'right'});
@@ -268,6 +281,9 @@ try {
   await expect(agents.locator('.agent-row', {hasText: 'Old exploration'})).toHaveCount(0);
   await expect(lines).toHaveCount(2);
   assert.deepEqual(f.pins.at(-1), {method: 'ArchiveConversation', body: {sessionId: 'old-session', archived: true}});
+  // The phone stops listing it too.
+  await expect(phoneRow('Old exploration')).toHaveCount(0, {timeout: 10_000});
+  await phoneContext.close();
   await agents.locator('.agent-row', {hasText: 'Deploy preview'}).click({button: 'right'});
   await menu.getByRole('menuitem', {name: /^Delete…/}).click();
   const deletion = page.getByRole('dialog', {name: 'Delete conversation', exact: true});

@@ -4,7 +4,7 @@ import { ConnectError, DeviceRequestError, DeviceRevoked, indexedDBDeviceStore, 
 import type { Collection, Session } from '@lazybox/protocol';
 import { RunnerProvider, useRunner } from '../RunnerContext';
 import { AttentionScope, useInbox, useMarkViewed } from '../useAttention';
-import { requestSummary } from '../attention';
+import { conversationKey, requestSummary } from '../attention';
 import { conversationName } from '../conversation-model';
 import type { Approval } from '../request-model';
 import { sessionStatus } from '../agent-status';
@@ -18,7 +18,7 @@ import { VoicePill } from '../voice/VoiceLayer';
 import { useVoiceState } from '../voice/voice-session';
 import { grantLabels } from '../DevicesSettings';
 import { parseRoute, useRoute, type Route } from './route';
-import { localPinStore } from './pins';
+import { localPinStore, runnerPinStore, type PinStore } from './pins';
 import { closeStaleNotifications, registerWorker, resyncPush } from './push';
 import { PhoneInbox } from './PhoneInbox';
 import { PhoneSettings } from './PhoneSettings';
@@ -162,11 +162,38 @@ function useOnline(): boolean {
   return online;
 }
 
+/**
+ * The computer's pins, which the Runner keeps on each conversation. The page
+ * is served by the Runner it talks to, so the Runner always has them. A phone
+ * that may respond pins too, and the pins it kept on itself before move to the
+ * Runner once; a read-only phone keeps showing those beside the computer's.
+ */
+function usePhonePins(device: DeviceSession['device']): PinStore {
+  const { api, info, refresh } = useRunner();
+  const writable = device.grants.includes('respond');
+  const local = useMemo(() => localPinStore(`remote:${device.id}`), [device.id]);
+  const store = useMemo(() => runnerPinStore({ pin: (sessionId, pinned) => api.pinConversation({ sessionId, pinned }, { timeoutMs: 15000 }), refresh },
+    { writable, legacy: writable ? [] : local.list() }), [api, refresh, writable, local]);
+  useEffect(() => { store.update((info?.sessions || []).map(session => ({ key: conversationKey(session), sessionId: session.id, pinnedAt: Number(session.pinnedAtUnixMillis || 0) }))); }, [store, info?.sessions]);
+  const migrated = useRef(false);
+  useEffect(() => {
+    if (!writable || migrated.current || !info) return;
+    migrated.current = true;
+    const legacy = local.list();
+    if (!legacy.length) return;
+    const known = new Set(info.sessions.map(conversationKey));
+    store.set([...new Set([...store.list(), ...legacy.filter(key => known.has(key))])]);
+    // What the Runner no longer lists cannot be pinned there; it is dropped with the rest.
+    local.set([]);
+  }, [writable, info, store, local]);
+  return store;
+}
+
 function PhoneShell({ device, onForget }: { device: DeviceSession['device']; onForget(): void }) {
   const { api, info, error, refresh } = useRunner();
   const [route, go] = useRoute();
   const [collections, setCollections] = useState<Collection[]>([]);
-  const pins = useMemo(() => localPinStore(`remote:${device.id}`), [device.id]);
+  const pins = usePhonePins(device);
   const loadCollections = useCallback((signal?: AbortSignal) => api.listCollections({}, { signal, timeoutMs: 10000 }).then(result => { if (!signal?.aborted) setCollections(result.collections); }, () => {}), [api]);
   useEffect(() => {
     const control = new AbortController();

@@ -24,8 +24,7 @@ Hub's device identity in [device experience](DEVICE_EXPERIENCE.md).
    creates the phone's key. Both screens then show the same key fingerprint.
 4. **The phone's inbox** groups every conversation by what it needs — needs
    input, failed, ready for review, working, done — across workspaces, with
-   the conversations pinned on the computer first (pins are the Runner's, on
-   the conversation; the phone reads them and cannot change them). A
+   the pins shared with the computer (a pin never hides a request). A
    conversation shows its transcript, its pending approval or question with
    Allow/Decline or an answer form, and a composer above the keyboard. Back
    (button or gesture) returns to the inbox. Interrupt is there while a turn runs.
@@ -168,10 +167,14 @@ Runner ─ every 3 s: conversations ─▶ Notifier ─ new request / failure / 
   (network first) so the phone opens Lazybox and says the computer is
   unreachable rather than showing the browser's error page. It never caches
   the API. The page closes banners whose conversation no longer waits.
-- **Pins** are the phone's own (`remote/pins.ts`, a `PinStore` interface) and
-  so are its read marks, until the desktop's pins move into the Runner's
-  preferences (audit brief R1); then a Runner-backed store replaces the local
-  one behind the same interface.
+- **Pins** are the computer's: the Runner keeps them on each conversation
+  (`Session.pinned_at`, `PinConversation`), and the phone reads them through
+  `runnerPinStore` (`remote/pins.ts`, behind the `PinStore` interface). A
+  phone with `respond` pins and unpins them; a read-only phone shows them.
+  Pins a phone kept on itself before move to the Runner once (a read-only
+  phone keeps showing them beside the computer's). Conversations archived on
+  the computer are not listed, unless one waits for the person. Read marks
+  are still the phone's own.
 
 ### What a device may call
 
@@ -181,7 +184,7 @@ holding every grant (`TestDeviceCredentialIsDeniedEveryRPCOffTheAllowlist`).
 | Grant | RPCs |
 | --- | --- |
 | `read` (always) | `Info` (redacted), `ListHistory`, `GetSession`, `ListCollections`, `GetCollection`, `ListWorkspaceChanges`, `ReadWorkspaceDiff`, `ListCommands`, `ReadCommand`, `ReadAttachment` (images a sent message carried); `GetPushSettings`, `SetPushSettings` (its own only; the owner is refused) and `SendTestPush` (itself only), so a read-only phone is notified too; streams `WatchEvents`, `WatchOutput` |
-| `respond` (default) | `Apply` with message, steer, interrupt, answer or approval — never permission |
+| `respond` (default) | `Apply` with message, steer, interrupt, answer or approval — never permission; `PinConversation` (the person's own arrangement, shared with the computer; never archive or delete) |
 | `start` (opt-in) | `OpenSession` only in an existing workspace with no directory, resume reference, permission, gateway or instructions override; `ResumeSession` |
 
 ## Verification
@@ -260,9 +263,7 @@ while some phone is subscribed).
 
 ## Deferred
 
-- **Shared pins and read marks** with the computer, once they live in the
-  Runner's preferences (R1); the phone already reads pins through a
-  `PinStore`. A notification sent while the computer shows that conversation
+- **Shared read marks** with the computer (pins are shared). A notification sent while the computer shows that conversation
   is not suppressed (the Runner does not know what a window shows).
 - A missed notification across a Runner restart: the first look after a
   start only records, so a request that arrived while the Runner was down is

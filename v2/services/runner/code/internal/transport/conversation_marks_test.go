@@ -9,15 +9,17 @@ import (
 )
 
 // A pin the person makes on the desktop is the Runner's: every client,
-// including a paired phone, reads it from the conversation. Only the owner
-// pins or archives; an agent and a phone cannot.
-func TestConversationPinsAndArchiveAreTheRunnersAndTheOwnersOnly(t *testing.T) {
+// including a paired phone, reads it from the conversation. The owner pins
+// and archives; a phone that may respond may pin too (never archive); a
+// read-only phone and the agent itself may do neither.
+func TestConversationPinsAndArchiveAreTheRunnersAndThePersons(t *testing.T) {
 	f := newDeviceFixture(t)
 	ctx := timeout(t)
 	e, _, agentCredential := f.open(t)
 	owner := bearer(ctx, ownerToken)
 	desk := f.authorityFixture.client
 	_, phone := f.pair(t, devices.GrantRespond, devices.GrantStart)
+	_, reader := f.pair(t)
 	find := func(info *pb.InfoResponse) *pb.Session {
 		for _, s := range info.Sessions {
 			if s.Id == e.ID {
@@ -55,9 +57,19 @@ func TestConversationPinsAndArchiveAreTheRunnersAndTheOwnersOnly(t *testing.T) {
 		t.Fatal("archiving closed the conversation")
 	}
 
-	// Neither a phone nor the agent itself pins or archives.
-	_, err = f.client.PinConversation(bearer(ctx, phone), &pb.PinConversationRequest{SessionId: e.ID})
-	expectCode(t, "a phone unpinned", err, codes.PermissionDenied)
+	// A phone that may respond unpins and pins again; the computer sees it.
+	if fromPhone, err := f.client.PinConversation(bearer(ctx, phone), &pb.PinConversationRequest{SessionId: e.ID}); err != nil || fromPhone.Session.PinnedAtUnixMillis != 0 {
+		t.Fatal("a responding phone could not unpin", err)
+	}
+	if fromPhone, err := f.client.PinConversation(bearer(ctx, phone), &pb.PinConversationRequest{SessionId: e.ID, Pinned: true}); err != nil || fromPhone.Session.PinnedAtUnixMillis == 0 {
+		t.Fatal("a responding phone could not pin", err)
+	}
+	if info, err = desk.Info(owner, &pb.InfoRequest{}); err != nil || find(info).PinnedAtUnixMillis == 0 {
+		t.Fatal("the computer does not see the phone's pin", err)
+	}
+	// A read-only phone does not pin; no phone archives; nor does the agent itself.
+	_, err = f.client.PinConversation(bearer(ctx, reader), &pb.PinConversationRequest{SessionId: e.ID})
+	expectCode(t, "a read-only phone unpinned", err, codes.PermissionDenied)
 	_, err = f.client.ArchiveConversation(bearer(ctx, phone), &pb.ArchiveConversationRequest{SessionId: e.ID})
 	expectCode(t, "a phone unarchived", err, codes.PermissionDenied)
 	_, err = desk.PinConversation(bearer(ctx, agentCredential), &pb.PinConversationRequest{SessionId: e.ID})

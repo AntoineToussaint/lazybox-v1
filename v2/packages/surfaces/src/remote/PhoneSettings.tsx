@@ -156,7 +156,7 @@ export function PhoneSettings({ device, pins, onBack, onForget }: { device: Devi
         <strong>{device.name}</strong>
         <span className="mono" title="Key fingerprint. Settings → Devices on your computer shows the same one.">{device.fingerprint}</span>
         <span>{device.grants.map(grant => grantLabels[grant] || grant).join(' · ')}</span>
-        <small>{pins.shared ? 'Pins are shared with your computer.' : 'Pins are kept on this phone.'} Read marks are this phone’s own.</small>
+        <small>{pins.shared ? (pins.writable ? 'Pins are shared with your computer.' : 'Your computer’s pins show here; this phone cannot change them.') : 'Pins are kept on this phone.'} Read marks are this phone’s own.</small>
       </div>
       <button type="button" className="remote-wide remote-danger" onClick={() => setForgetting(true)}>Forget pairing on this phone</button>
       <p className="remote-footnote">Also revoke it on your computer (Settings → Devices): that stops its access and its notifications.</p>

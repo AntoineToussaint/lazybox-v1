@@ -10,6 +10,7 @@ import { useLiveStatus } from '../LiveIndicator';
 import { Icon } from '../Icons';
 import { chipAnswer, rowPlan, type RowPlan } from './row-plan';
 import { usePins, type PinStore } from './pins';
+import { isArchivedAway } from '../agents-model';
 import { ActionSheet, ConfirmSheet, DenySheet, useRowActions, type ActionState, type SheetChoice } from './PhoneSheets';
 import { SwipeRow, type SwipeAction } from './SwipeRow';
 import { PushNudge } from './PhoneSettings';
@@ -100,12 +101,14 @@ export function PhoneInbox({ device, collections, pins: pinStore, go, onRefresh 
   };
 
   // Pinned conversations stay together below what needs the person: a pin
-  // never hides a request.
+  // never hides a request. Archived ones (on the computer) are not listed,
+  // unless one waits for the person.
   const sections = useMemo(() => {
-    const pinnedRows = inbox.rows.filter(row => row.state !== 'needs-input' && pins.pinned.includes(row.key)).sort((a, b) => pins.pinned.indexOf(a.key) - pins.pinned.indexOf(b.key));
+    const shown = (row: Attention) => !isArchivedAway(row.session);
+    const pinnedRows = inbox.rows.filter(row => shown(row) && row.state !== 'needs-input' && pins.pinned.includes(row.key)).sort((a, b) => pins.pinned.indexOf(a.key) - pins.pinned.indexOf(b.key));
     const out: { id: string; title: string; state?: Attention['state']; rows: Attention[] }[] = [];
     for (const group of inbox.groups) {
-      const rows = group.rows.filter(row => group.state === 'needs-input' || !pins.pinned.includes(row.key));
+      const rows = group.rows.filter(row => shown(row) && (group.state === 'needs-input' || !pins.pinned.includes(row.key)));
       if (rows.length) out.push({ id: group.state, title: attentionTitle[group.state], state: group.state, rows });
       if (group.state === 'needs-input' && pinnedRows.length) out.push({ id: 'pinned', title: 'Pinned', rows: pinnedRows });
     }
