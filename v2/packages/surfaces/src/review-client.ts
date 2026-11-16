@@ -84,7 +84,8 @@ export async function startReview(api: RunnerClient, request: Omit<StartReviewRe
  */
 export function useReviewLauncher(workspaceId: string, source?: Pick<Session, 'id' | 'profileId' | 'provider'>) {
   const { api, info } = useRunner();
-  const { settings } = useRunnerSettings();
+  // No conversation to review (a transcript on the phone, Peek): nothing to choose a reviewer for.
+  const { settings } = useRunnerSettings(!!source);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
   const authorProvider = source?.provider || info?.profiles.find(p => p.id === source?.profileId)?.provider || '';
   const choices = useMemo(() => reviewerChoices(info?.profiles || [], authorProvider, settings?.review?.reviewer || ''), [info?.profiles, authorProvider, settings?.review?.reviewer]);

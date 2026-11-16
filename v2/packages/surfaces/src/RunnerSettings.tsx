@@ -8,9 +8,14 @@ import './review-agents.css';
 import { loopModes } from './review-model';
 import './pricing.css';
 
-export function useRunnerSettings(){
+/**
+ * The Runner's settings, loaded on mount and reloaded after any save.
+ * `enabled: false` reads nothing: a surface that may never need them (a
+ * transcript on the phone, whose device credential cannot read them) stays off the wire.
+ */
+export function useRunnerSettings(enabled = true){
  const {api}=useRunner();const [settings,setSettings]=useState<RunnerSettings>(),[error,setError]=useState(''),[loading,setLoading]=useState(true);
- useEffect(()=>{const control=new AbortController();const load=()=>{void api.getRunnerSettings({}, {signal:control.signal,timeoutMs:5000}).then(value=>{if(!control.signal.aborted){setSettings(value);setError('');}},e=>{if(!control.signal.aborted)setError(settingsError(e,'load'));}).finally(()=>{if(!control.signal.aborted)setLoading(false);});};load();window.addEventListener('lazybox-settings-saved',load);return()=>{control.abort();window.removeEventListener('lazybox-settings-saved',load);};},[api]);
+ useEffect(()=>{if(!enabled)return;const control=new AbortController();const load=()=>{void api.getRunnerSettings({}, {signal:control.signal,timeoutMs:5000}).then(value=>{if(!control.signal.aborted){setSettings(value);setError('');}},e=>{if(!control.signal.aborted)setError(settingsError(e,'load'));}).finally(()=>{if(!control.signal.aborted)setLoading(false);});};load();window.addEventListener('lazybox-settings-saved',load);return()=>{control.abort();window.removeEventListener('lazybox-settings-saved',load);};},[api,enabled]);
  return {settings,setSettings,error,setError,loading};
 }
 const announce=()=>window.dispatchEvent(new Event('lazybox-settings-saved'));
