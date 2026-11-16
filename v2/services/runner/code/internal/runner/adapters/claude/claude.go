@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -19,12 +20,19 @@ type session struct {
 	ref   string
 	ctx   context.Context
 	tools func(context.Context, string, json.RawMessage) (string, error)
+	// features are the worker operations beyond the original protocol. A worker
+	// keeps running across Runner restarts, so this is what the worker that is
+	// actually running reported, not what this Runner's worker build supports.
+	features []string
 }
 
 // durable is the adapter state a later Runner needs to re-attach.
 type durable struct {
-	Host string `json:"host"`
+	Host     string   `json:"host"`
+	Features []string `json:"features,omitempty"`
 }
+
+func (s *session) has(feature string) bool { return slices.Contains(s.features, feature) }
 
 // toolOutcomeUnknown answers a managed-command call that was in flight when
 // the previous Runner stopped: it may or may not have run.
@@ -104,13 +112,14 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 		return nil, err
 	}
 	var response struct {
-		Reference string `json:"reference"`
+		Reference string   `json:"reference"`
+		Features  []string `json:"features"`
 	}
 	if err = json.Unmarshal(result, &response); err != nil {
 		p.Close()
 		return nil, err
 	}
-	return &session{p: p, ref: response.Reference, ctx: ctx, tools: o.Tools}, nil
+	return &session{p: p, ref: response.Reference, ctx: ctx, tools: o.Tools, features: response.Features}, nil
 }
 func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
 	var state durable
@@ -127,14 +136,14 @@ func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
 			return nil, err
 		}
 	}
-	return &session{p: p, ref: o.Host.Attach.Reference, ctx: ctx, tools: o.Tools}, nil
+	return &session{p: p, ref: o.Host.Attach.Reference, ctx: ctx, tools: o.Tools, features: state.Features}, nil
 }
 
 func (s *session) DurableState() json.RawMessage {
 	if s.p.HostID() == "" {
 		return nil
 	}
-	data, _ := json.Marshal(durable{Host: s.p.HostID()})
+	data, _ := json.Marshal(durable{Host: s.p.HostID(), Features: s.features})
 	return data
 }
 
@@ -147,7 +156,7 @@ func (s *session) Commit(ev agent.Event) {
 func (s *session) Detach() error     { return s.p.Detach() }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
 func (s *session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, LivePermission: true, ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
+	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, LivePermission: s.has("permission"), ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
 }
 func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, error) {
 	r := agent.Receipt{ID: op.ID}
@@ -157,6 +166,12 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 	wire := op
 	wire.Text = agent.Prompt(op)
 	wire.Files = nil
+	if op.Context != "" && !s.has("context") {
+		// A worker started before instruction updates existed ignores the
+		// field; put the update ahead of the text so it still reaches the agent.
+		wire.Text = op.Context + "\n\n" + wire.Text
+		wire.Context = ""
+	}
 	result, err := s.p.Call(ctx, string(op.Kind), wire)
 	if err != nil {
 		return r, err

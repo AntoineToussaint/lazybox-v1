@@ -35,6 +35,20 @@ func (s *Service) ListWorkspaceChanges(ctx context.Context, r *pb.WorkspaceChang
 		for _, f := range state.Files {
 			row.Files = append(row.Files, &pb.ChangedFile{Path: f.Path, OriginalPath: f.OriginalPath, IndexStatus: f.IndexStatus, WorktreeStatus: f.WorktreeStatus})
 		}
+		// What the agent committed matters as much as what it left uncommitted.
+		row.Base = member.BaseCommit
+		committed, err := s.gitInspector().Committed(ctx, path, member.BaseCommit)
+		if err != nil {
+			row.CommittedError = err.Error()
+			continue
+		}
+		row.CommittedTruncated = committed.Truncated
+		for _, f := range committed.Files {
+			row.Committed = append(row.Committed, &pb.ChangedFile{Path: f.Path, OriginalPath: f.OriginalPath, IndexStatus: f.IndexStatus})
+		}
+		for _, c := range committed.Commits {
+			row.Commits = append(row.Commits, &pb.Commit{Id: c.ID, Subject: c.Subject, CommittedAtUnix: c.Time})
+		}
 	}
 	return result, nil
 }
@@ -47,7 +61,25 @@ func (s *Service) ReadWorkspaceDiff(ctx context.Context, r *pb.WorkspaceDiffRequ
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	diff, err := s.gitInspector().Diff(ctx, path, r.Path, r.Staged)
+	var diff gitinspect.Diff
+	if r.Committed {
+		workspace, err := manager.Get(r.CollectionId)
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		base := ""
+		for _, member := range workspace.Members {
+			if member.Name == r.Member {
+				base = member.BaseCommit
+			}
+		}
+		diff, err = s.gitInspector().CommittedDiff(ctx, path, base, r.Path)
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &pb.WorkspaceDiff{Text: diff.Text, Truncated: diff.Truncated, Binary: diff.Binary}, nil
+	}
+	diff, err = s.gitInspector().Diff(ctx, path, r.Path, r.Staged)
 	if err != nil {
 		return nil, rpcError(err)
 	}

@@ -1,7 +1,7 @@
 import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number }[] };
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number }[]; count?: number };
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'' });
 
@@ -18,6 +18,15 @@ export function appendTranscript(state: Transcript, record: JournalEvent): Trans
   if(['session_ready','context','usage'].includes(event.type)) {
     const model=providerData(event.providerDataJson).model;
     if(typeof model==='string'&&model.trim())next.reportedModel=model;
+  }
+  // A restart that interrupted nothing is not worth a card: consecutive ones
+  // collapse into one quiet line, so hot reloads do not flood the conversation.
+  if (event.type === 'runner_reattached' && !record.receipt) {
+    const last = state.messages.at(-1);
+    next.messages = last?.type === 'reattached'
+      ? [...state.messages.slice(0, -1), { ...last, count: (last.count || 1) + 1 }]
+      : [...state.messages, { id: record.cursor.toString(), type: 'reattached', text: '', turnId: event.turnId, count: 1 }];
+    return next;
   }
   const notice = runnerNotice(record);
   if (notice) {

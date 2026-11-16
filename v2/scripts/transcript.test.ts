@@ -81,9 +81,20 @@ test('runner restarts surface what they leave uncertain, and only that',()=>{
  add({event:{type:'request_resolved',status:'response_written',requestId:'n:42'}});
  add({event:{type:'receipt'},receipt:{operationId:'second',delivery:'unknown_after_runner_restart'}});
  add({event:{type:'receipt'},receipt:{operationId:'third',delivery:'accepted'}});
- assert.deepEqual(state.messages.map(m=>m.type),['operation_accepted','message_delta','notice','message_delta','notice','notice']);
- assert.match(state.messages[2].text,/re-attached/);
+ assert.deepEqual(state.messages.map(m=>m.type),['operation_accepted','message_delta','reattached','message_delta','notice','notice']);
+ assert.equal(state.messages[2].count,1,'a restart that interrupted nothing is a quiet line, not a card');
  assert.match(state.messages[4].text,/outcome is unknown/);
  assert.match(state.messages[5].text,/not sent again/);
  assert.equal(state.messages[1].text,'Deploying','a restart notice must not merge into the reply around it');
+});
+
+test('consecutive harmless restarts collapse into one line',()=>{
+ let state=emptyTranscript();
+ const add=(fields:Record<string,unknown>)=>{state=appendTranscript(state,create(JournalEventSchema,{cursor:state.cursor+1n,...fields}));};
+ add({event:{type:'message_delta',text:'Done',turnId:'t'}});
+ for(let i=0;i<5;i++)add({event:{type:'runner_reattached',status:'native_process_adopted'}});
+ assert.deepEqual(state.messages.map(m=>[m.type,m.count]),[['message_delta',undefined],['reattached',5]]);
+ add({event:{type:'operation_accepted',text:'next'}});
+ add({event:{type:'runner_reattached',status:'native_process_adopted'}});
+ assert.deepEqual(state.messages.map(m=>m.type),['message_delta','reattached','operation_accepted','reattached'],'restarts separated by other messages stay separate');
 });

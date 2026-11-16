@@ -64,7 +64,9 @@ async function open(options: any) {
     },
   } });
   void receive(session);
-  return { reference: options.resume || '' };
+  // Operations added after the original protocol. A running worker outlives
+  // Runner upgrades, so the Runner asks this worker rather than assuming.
+  return { reference: options.resume || '', features: ['permission', 'context'] };
 }
 
 async function receive(q: Query) {

@@ -107,3 +107,54 @@ func TestInspectionDoesNotRunConfiguredDiffToolsAndHonorsCancellation(t *testing
 		t.Fatal("ignored cancellation")
 	}
 }
+
+func TestCommittedChangesSinceBaseIncludeRenamesCommitsAndDiffs(t *testing.T) {
+	root := t.TempDir()
+	git(t, root, "init")
+	for name, text := range map[string]string{"keep.txt": "same\n", "edit.txt": "one\n", "move.txt": "moved content\n"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "initial")
+	base := strings.TrimSpace(git(t, root, "rev-parse", "HEAD"))
+	if err := os.WriteFile(filepath.Join(root, "edit.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "new.txt"), []byte("added\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "agent edits")
+	git(t, root, "mv", "move.txt", "moved.txt")
+	git(t, root, "commit", "-m", "agent renames")
+
+	got, err := Git{}.Committed(context.Background(), root, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]File{}
+	for _, f := range got.Files {
+		files[f.Path] = f
+	}
+	if files["edit.txt"].IndexStatus != "M" || files["new.txt"].IndexStatus != "A" || files["moved.txt"].IndexStatus != "R" || files["moved.txt"].OriginalPath != "move.txt" || len(files) != 3 {
+		t.Fatalf("committed files: %+v", got.Files)
+	}
+	if len(got.Commits) != 2 || got.Commits[0].Subject != "agent renames" || got.Commits[1].Subject != "agent edits" || got.Commits[0].Time == 0 {
+		t.Fatalf("commits: %+v", got.Commits)
+	}
+	diff, err := Git{}.CommittedDiff(context.Background(), root, base, "edit.txt")
+	if err != nil || !strings.Contains(diff.Text, "-one") || !strings.Contains(diff.Text, "+two") {
+		t.Fatalf("%v %q", err, diff.Text)
+	}
+	if _, err = (Git{}).CommittedDiff(context.Background(), root, base, "keep.txt"); err == nil {
+		t.Fatal("an unchanged file has no branch diff")
+	}
+	if _, err = (Git{}).Committed(context.Background(), root, ""); err == nil {
+		t.Fatal("no recorded base must be reported, not guessed")
+	}
+	if _, err = (Git{}).Committed(context.Background(), root, "--output=/tmp/x"); err == nil {
+		t.Fatal("a base must never be read as an option")
+	}
+}

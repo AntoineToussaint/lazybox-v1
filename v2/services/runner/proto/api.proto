@@ -202,9 +202,13 @@ message ListHistoryRequest { uint32 limit = 1; uint32 offset = 2; optional strin
 message RenameConversationRequest { string session_id = 1; string title = 2; }
 message WorkspaceChangesRequest { string collection_id = 1; }
 message ChangedFile { string path = 1; string original_path = 2; string index_status = 3; string worktree_status = 4; }
-message RepositoryChanges { string member = 1; string branch = 2; string head = 3; repeated ChangedFile files = 4; string error = 5; bool truncated = 6; }
+message Commit { string id = 1; string subject = 2; int64 committed_at_unix = 3; }
+// files are uncommitted changes. committed are the changes the branch's commits
+// made since base, the commit the workspace started from; commits lists them.
+message RepositoryChanges { string member = 1; string branch = 2; string head = 3; repeated ChangedFile files = 4; string error = 5; bool truncated = 6; string base = 7; repeated ChangedFile committed = 8; repeated Commit commits = 9; bool committed_truncated = 10; string committed_error = 11; }
 message WorkspaceChanges { repeated RepositoryChanges repositories = 1; }
-message WorkspaceDiffRequest { string collection_id = 1; string member = 2; string path = 3; bool staged = 4; }
+message WorkspaceDiffRequest { string collection_id = 1; string member = 2; string path = 3; bool staged = 4; // Diff of the branch's commits since the workspace's base, not of uncommitted changes.
+  bool committed = 5; }
 message WorkspaceDiff { string text = 1; bool truncated = 2; bool binary = 3; }
 message ListHistoryResponse { repeated Session sessions = 1; bool has_more = 2; }
 message ResumeSessionRequest {

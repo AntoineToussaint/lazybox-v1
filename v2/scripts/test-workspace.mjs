@@ -78,7 +78,7 @@ try {
   await page.locator('.workspace-brand').click();
   // Later assertions count execution starts; this deliberate change is not one.
   fixture.mutations.splice(fixture.mutations.findIndex(m => m.method === 'Apply' && m.body.permission), 1);
-  await expect(chat.getByText('Lazybox instructions changed since this conversation started.', { exact: false })).toBeVisible();
+  await expect(chat.getByRole('status').filter({ hasText: 'Instructions updated' })).toBeVisible();
 
   await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Customize page', exact: true }).click();
   await chat.getByRole('button', { name: 'Pin view', exact: true }).click();
