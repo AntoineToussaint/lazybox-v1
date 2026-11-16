@@ -32,10 +32,11 @@ try {
  await expect(page.locator('.messages')).toContainText('FIRST_PROMPT');await expect(page.locator('.messages')).toContainText('ANSWER_BEGINNING');
  for(let i=0;i<110;i++){channel.push({type:'operation_accepted',text:`Prompt ${i}`});channel.push({type:'message_delta',text:`Reply ${i}\n\n${'long answer '.repeat(30)}`});}
  await expect(page.locator('.messages')).toContainText('Reply 109');
- const pane=page.locator('.messages');await pane.evaluate(node=>{node.scrollTop=0;node.dispatchEvent(new Event('scroll'));});
- await page.getByRole('button',{name:'Show earlier messages'}).click();
- await page.getByRole('button',{name:'Show earlier messages'}).click();
- await expect(pane).toContainText('FIRST_PROMPT');
+ const pane=page.locator('.messages');
+ // Earlier history: the button mounts the next step, and nearing the top mounts it on its own.
+ await expect(pane).not.toContainText('FIRST_PROMPT');await page.getByRole('button',{name:'Show earlier messages'}).click();
+ await expect.poll(async()=>{await pane.evaluate(node=>{node.scrollTop=0;node.dispatchEvent(new Event('scroll'));});return (await pane.textContent()).includes('FIRST_PROMPT');},{message:'scrolling to the top reaches the start of the conversation'}).toBe(true);
+ await expect(page.getByRole('button',{name:'Show earlier messages'})).toHaveCount(0);
  await pane.evaluate(node=>{node.scrollTop=100;node.dispatchEvent(new Event('scroll'));});
  const scroll=await pane.evaluate(node=>node.scrollTop);
  channel.push({type:'message_delta',text:'NEW_LIVE_CHUNK'});await expect(pane).toContainText('NEW_LIVE_CHUNK');

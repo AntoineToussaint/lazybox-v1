@@ -348,12 +348,23 @@ func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStream
 		return rpcError(err)
 	}
 	cursor := r.After
+	// Each record says how far the history went when it was read, so a reader
+	// can tell replay from live records: it renders a long conversation once,
+	// when it has caught up, instead of every step of the replay.
+	var retained uint64
 	for {
 		var record journal.Record
 		if r.IncludePrevious {
 			record, err = s.Bench.Timeline(ctx, e.ID, cursor)
 		} else {
 			record, err = e.Engine.Events(ctx, cursor)
+		}
+		if err == nil && record.Sequence >= retained {
+			if r.IncludePrevious {
+				retained, err = s.Bench.Retained(e.ID)
+			} else {
+				retained = e.Retained()
+			}
 		}
 		if err == io.EOF {
 			return nil
@@ -369,7 +380,7 @@ func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStream
 			return rpcError(err)
 		}
 		_ = json.Unmarshal(record.Value, &envelope)
-		w := &pb.JournalEvent{Cursor: record.Sequence, CapturedAt: record.Time.Format(time.RFC3339Nano), Event: wireEvent(ev)}
+		w := &pb.JournalEvent{Cursor: record.Sequence, CapturedAt: record.Time.Format(time.RFC3339Nano), Event: wireEvent(ev), Retained: max(retained, record.Sequence)}
 		if envelope.Receipt != nil {
 			v := envelope.Receipt
 			w.Receipt = &pb.Receipt{OperationId: v.ID, Delivery: v.Delivery, ProviderId: v.ProviderID, Error: v.Error}

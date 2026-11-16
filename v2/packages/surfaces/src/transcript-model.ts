@@ -5,50 +5,81 @@ export type TranscriptMessage = { id: string; type: string; text: string; turnId
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'' });
 
-/** Fold deltas into durable message-shaped state; diagnostic events are bounded separately. */
+/** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
 export function appendTranscript(state: Transcript, record: JournalEvent): Transcript {
-  if (record.cursor <= state.cursor) return state;
-  const next = { ...state, cursor: record.cursor, recent: [...state.recent, record].slice(-80) };
-  const event = record.event;
-  if(event&&['tool_catalog','tool_activity','turn_ended','failure','session_closed'].includes(event.type)){
-    next.activity=[...state.activity,boundedActivity(record)];
-    if(next.activity.length>1024){next.activity=next.activity.slice(-1024);next.activityTruncated=true;}
+  return foldTranscript(state, [record]);
+}
+
+const RECENT = 80, ACTIVITY = 1024;
+/**
+ * Fold a batch of records with one copy of each array, not one per record.
+ * Replaying a long conversation is tens of thousands of streamed deltas; a
+ * per-record copy of the message list made opening one quadratic. The input
+ * state is never mutated: objects created in this batch are the only ones
+ * extended in place.
+ */
+export function foldTranscript(state: Transcript, records: readonly JournalEvent[]): Transcript {
+  const fresh: JournalEvent[] = [];
+  let cursor = state.cursor;
+  for (const record of records) if (record.cursor > cursor) { fresh.push(record); cursor = record.cursor; }
+  if (!fresh.length) return state;
+  const next: Transcript = { ...state, messages: state.messages, recent: state.recent, activity: state.activity };
+  let messages: TranscriptMessage[] | undefined;
+  const activity: JournalEvent[] = [];
+  const owned = new Set<TranscriptMessage>();
+  const list = () => messages ??= [...state.messages];
+  const replaceLast = (message: TranscriptMessage) => { const m = list(); m[m.length - 1] = message; owned.add(message); };
+  const add = (message: TranscriptMessage) => { list().push(message); owned.add(message); };
+  for (const record of fresh) {
+    next.cursor = record.cursor;
+    const event = record.event;
+    if (event && ACTIVITY_TYPES.has(event.type)) activity.push(record);
+    if (!event || (event.agentId && event.agentId !== 'root')) continue;
+    if (event.type === 'session_ready' || event.type === 'context' || event.type === 'usage') {
+      const model = providerData(event.providerDataJson).model;
+      if (typeof model === 'string' && model.trim()) next.reportedModel = model;
+    }
+    const last = (messages ?? state.messages).at(-1);
+    // A restart that interrupted nothing is not worth a card: consecutive ones
+    // collapse into one quiet line, so hot reloads do not flood the conversation.
+    if (event.type === 'runner_reattached' && !record.receipt) {
+      if (last?.type === 'reattached') replaceLast({ ...last, count: (last.count || 1) + 1 });
+      else add({ id: record.cursor.toString(), type: 'reattached', text: '', turnId: event.turnId, count: 1 });
+      continue;
+    }
+    const notice = runnerNotice(record);
+    if (notice) {
+      add({ id: record.cursor.toString(), type: 'notice', text: notice, turnId: event.turnId });
+      next.appendToLast = false;
+      continue;
+    }
+    const files = event.type === 'operation_accepted' ? providerData(event.providerDataJson).files as TranscriptMessage['files'] : undefined;
+    if (event.type === 'message_delta' && event.text) {
+      if (next.appendToLast && last?.type === 'message_delta' && last.turnId === event.turnId) {
+        if (owned.has(last)) last.text += event.text;
+        else replaceLast({ ...last, text: last.text + event.text });
+      } else add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId });
+      next.appendToLast = true;
+    } else if ((event.type === 'operation_accepted' || event.type === 'failure') && (event.text || files?.length)) {
+      add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId, files });
+      next.appendToLast = false;
+    } else if (BOUNDARY_TYPES.has(event.type) || (event.type === 'activity' && event.status === 'tool')) {
+      next.appendToLast = false;
+    }
   }
-  if (!event || (event.agentId && event.agentId !== 'root')) return next;
-  if(['session_ready','context','usage'].includes(event.type)) {
-    const model=providerData(event.providerDataJson).model;
-    if(typeof model==='string'&&model.trim())next.reportedModel=model;
+  if (messages) next.messages = messages;
+  if (activity.length) {
+    // Bound only what is retained: a long replay drops most activity anyway.
+    const room = ACTIVITY - activity.length;
+    const kept = [...(room > 0 ? state.activity.slice(-room) : []), ...activity.slice(-ACTIVITY).map(boundedActivity)];
+    if (state.activity.length + activity.length > ACTIVITY) next.activityTruncated = true;
+    next.activity = kept;
   }
-  // A restart that interrupted nothing is not worth a card: consecutive ones
-  // collapse into one quiet line, so hot reloads do not flood the conversation.
-  if (event.type === 'runner_reattached' && !record.receipt) {
-    const last = state.messages.at(-1);
-    next.messages = last?.type === 'reattached'
-      ? [...state.messages.slice(0, -1), { ...last, count: (last.count || 1) + 1 }]
-      : [...state.messages, { id: record.cursor.toString(), type: 'reattached', text: '', turnId: event.turnId, count: 1 }];
-    return next;
-  }
-  const notice = runnerNotice(record);
-  if (notice) {
-    next.messages = [...state.messages, { id: record.cursor.toString(), type: 'notice', text: notice, turnId: event.turnId }];
-    next.appendToLast = false;
-    return next;
-  }
-  const files = event.type === 'operation_accepted' ? providerData(event.providerDataJson).files as TranscriptMessage['files'] : undefined;
-  const last = state.messages.at(-1);
-  if (event.type === 'message_delta' && event.text) {
-    if (state.appendToLast && last?.type === 'message_delta' && last.turnId === event.turnId) {
-      next.messages = [...state.messages.slice(0, -1), { ...last, text: last.text + event.text }];
-    } else next.messages = [...state.messages, { id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId }];
-    next.appendToLast = true;
-  } else if (['operation_accepted', 'failure'].includes(event.type) && (event.text || files?.length)) {
-    next.messages = [...state.messages, { id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId, files }];
-    next.appendToLast = false;
-  } else if (['turn_started', 'turn_ended', 'session_closed', 'approval', 'question', 'request_resolved'].includes(event.type) || (event.type === 'activity' && event.status === 'tool')) {
-    next.appendToLast = false;
-  }
+  next.recent = fresh.length >= RECENT ? fresh.slice(-RECENT) : [...state.recent, ...fresh].slice(-RECENT);
   return next;
 }
+const ACTIVITY_TYPES = new Set(['tool_catalog', 'tool_activity', 'turn_ended', 'failure', 'session_closed']);
+const BOUNDARY_TYPES = new Set(['turn_started', 'turn_ended', 'session_closed', 'approval', 'question', 'request_resolved']);
 
 /**
  * Runner restarts are not interruptions: agents and commands keep running and

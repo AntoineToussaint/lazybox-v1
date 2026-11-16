@@ -158,22 +158,48 @@ func (b *Bench) Resume(ctx context.Context, id string, processesStopped bool) (*
 	return b.open(profile.ID, saved.Cwd, state.Reference, saved.Options, saved.GatewayID, saved.WorkID, id, saved.CollectionID, saved.Purpose, saved.Context, false)
 }
 
-// Timeline replays immutable predecessors before the current attempt. Cursor
-// numbering remains contiguous for the whole chain; only the last can grow.
-func (b *Bench) Timeline(ctx context.Context, id string, cursor uint64) (journal.Record, error) {
+// lineage is the execution and its predecessors, newest first.
+func (b *Bench) lineage(id string) ([]*Execution, error) {
 	chain := []*Execution{}
 	seen := map[string]bool{}
 	for id != "" {
 		if seen[id] || len(chain) >= 10000 {
-			return journal.Record{}, errors.New("invalid execution lineage")
+			return nil, errors.New("invalid execution lineage")
 		}
 		seen[id] = true
 		e, err := b.Get(id)
 		if err != nil {
-			return journal.Record{}, err
+			return nil, err
 		}
 		chain = append(chain, e)
 		id = e.Previous
+	}
+	return chain, nil
+}
+
+// Retained is the last cursor of the timeline Timeline replays for id: the
+// records of every attempt in its lineage, numbered contiguously.
+func (b *Bench) Retained(id string) (uint64, error) {
+	chain, err := b.lineage(id)
+	if err != nil {
+		return 0, err
+	}
+	var total uint64
+	for _, e := range chain {
+		total += e.spool.Count()
+	}
+	return total, nil
+}
+
+// Retained is the last cursor of this attempt's own journal.
+func (e *Execution) Retained() uint64 { return e.spool.Count() }
+
+// Timeline replays immutable predecessors before the current attempt. Cursor
+// numbering remains contiguous for the whole chain; only the last can grow.
+func (b *Bench) Timeline(ctx context.Context, id string, cursor uint64) (journal.Record, error) {
+	chain, err := b.lineage(id)
+	if err != nil {
+		return journal.Record{}, err
 	}
 	var offset uint64
 	for i := len(chain) - 1; i >= 0; i-- {

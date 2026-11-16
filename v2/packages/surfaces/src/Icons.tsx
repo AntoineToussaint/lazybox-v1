@@ -43,6 +43,10 @@ const paths: Record<string, string[]> = {
   cross: ['m6 6 12 12', 'M18 6 6 18'],
   pending: ['M12 4a8 8 0 1 0 8 8', 'M12 8v4l3 2'],
   skip: ['M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16', 'M8 12h8'],
+  zoomIn: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14', 'm20 20-4-4', 'M11 8v6', 'M8 11h6'],
+  zoomOut: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14', 'm20 20-4-4', 'M8 11h6'],
+  fit: ['M4 9V4h5', 'M20 9V4h-5', 'M4 15v5h5', 'M20 15v5h-5', 'M9 9h6v6H9z'],
+  expand: ['M15 3h6v6', 'M9 21H3v-6', 'm21 3-7 7', 'm3 21 7-7'],
   sparkle: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2 2', 'm16 16 2 2', 'm6 18 2-2', 'm16 8 2-2'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

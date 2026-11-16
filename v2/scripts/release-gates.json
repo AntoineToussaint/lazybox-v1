@@ -37,7 +37,9 @@
     { "id": "responsive-shell", "scope": "ui", "script": "test:responsive-shell" },
     { "id": "inbox", "scope": "ui", "script": "test:inbox" },
     { "id": "pull-request", "scope": "ui", "script": "test:pull-request" },
-    { "id": "processes", "scope": "ui", "script": "test:processes" }
+    { "id": "processes", "scope": "ui", "script": "test:processes" },
+    { "id": "transcript-performance", "scope": "ui", "script": "test:transcript-performance" },
+    { "id": "mermaid-viewer", "scope": "ui", "script": "test:mermaid-viewer" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

@@ -14,7 +14,9 @@ export async function startRunnerFixture() {
   const calls = [], mutations = [];
   const workspaceFiles=new Map();
   const eventStreams=new Map();
-  const openEvents=id=>{const channel={events:[],clients:new Set(),push(event){const record={cursor:String(this.events.length+1),event};this.events.push(record);for(const res of this.clients)res.write(frame(record));}};eventStreams.set(id,channel);return channel;};
+  // A saved conversation's journal is finite: after `complete()` the stream ends
+  // like the Runner's does at EOF, instead of staying open for live events.
+  const openEvents=id=>{const channel={events:[],clients:new Set(),done:false,push(event){const record={cursor:String(this.events.length+1),event};this.events.push(record);for(const res of this.clients)res.write(frame({...record,retained:record.cursor}));},complete(){this.done=true;for(const res of this.clients)res.end(frame({},2));this.clients.clear();}};eventStreams.set(id,channel);return channel;};
   const collections = ['alpha', 'beta'].map((id, index) => ({ id, name: index ? 'Beta release' : 'Alpha feature', workId: id, root: `/fixture/collections/${id}`, state: 'ready', ownerExecutionId: `${id}-session`, members: ['api', 'web'].map((name, i) => ({ spec: { name, repositoryId: i ? 'frontend' : 'backend', baseRef: 'main', branch: `lazybox/${id}/${name}` }, path: `/fixture/collections/${id}/${name}`, baseCommit: (index ? 'b' : 'a').repeat(40), ready: true })) }));
   const sessions = collections.map(collection => ({ id: `${collection.id}-session`, collectionId: collection.id, workId: collection.id, profileId: 'claude-default', gatewayId: 'direct', workingDirectory: collection.root, capabilities: { files: true, images: true, resume: true, livePermission: true }, permission: 'ask', instructionsPending: collection.id === 'alpha', pending: [] }));
   sessions[0].status = 'running'; sessions[0].agents = [{ id: 'root', name: 'Main agent', status: 'done' }, { id: 'child-review', parentId: 'root', name: 'Review', status: 'running' }];
@@ -181,7 +183,14 @@ export async function startRunnerFixture() {
       case 'PreviewWorkspaceDeletion': return json({activeSessionIds:sessions.filter(s=>s.collectionId===body.collectionId&&!s.closed).map(s=>s.id),dirtyRepositories:['api'],filesOutsideRepositories:false});
       case 'DeleteWorkspace': {const index=collections.findIndex(c=>c.id===body.collectionId);if(index<0||body.confirmName!==collections[index].name)return error('failed_precondition','Confirm name');if(!body.stopSessions||!body.discardChanges)return error('failed_precondition','Explicit cleanup consent required');mutations.push({method,body});const collection=collections.splice(index,1)[0];for(const s of sessions.filter(s=>s.collectionId===collection.id)){s.closed=true;s.status='stopped';}return json({collection:{...collection,state:'deleted'}});}
       case 'WatchEvents': {
-        const channel=eventStreams.get(body.sessionId);if(channel){res.writeHead(200,{'Content-Type':'application/connect+json'});res.flushHeaders();channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));for(const event of channel.events)if(BigInt(event.cursor)>BigInt(body.after||0))res.write(frame(event));return;}
+        const channel=eventStreams.get(body.sessionId);if(channel){res.writeHead(200,{'Content-Type':'application/connect+json'});res.flushHeaders();
+          // Like the Runner, each replayed record says where the retained history ends.
+          const head=String(channel.events.length);
+          const backlog=channel.events.filter(event=>BigInt(event.cursor)>BigInt(body.after||0)).map(event=>({...event,retained:head}));
+          // `pace` paces a replay like the Runner's one-message-per-record stream: a
+          // flush every `pace` records instead of one write of the whole journal.
+          if(channel.pace){void (async()=>{for(let i=0;i<backlog.length;i+=channel.pace){if(res.destroyed)return;res.write(Buffer.concat(backlog.slice(i,i+channel.pace).map(event=>frame(event))));await new Promise(resolve=>setTimeout(resolve,channel.paceMs??1));}if(channel.done)res.end(frame({},2));})();return;}
+          channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));for(const event of backlog)res.write(frame(event));if(channel.done){channel.clients.delete(res);res.end(frame({},2));}return;}
         const lineage=[];let id=body.sessionId;while(id&&!lineage.includes(id)){lineage.unshift(id);id=sessions.find(s=>s.id===id)?.previousExecutionId;}const events=lineage.flatMap((id,index)=>[{cursor:String(index*2+1),event:{type:'message_delta',text:`Retained conversation for ${id}`,sessionReference:id}},{cursor:String(index*2+2),event:{type:'message_delta',text:'CHILD_PRIVATE_TRANSCRIPT',agentId:'child-review',parentAgentId:'root'}}]);
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
       }

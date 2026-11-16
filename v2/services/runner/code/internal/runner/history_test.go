@@ -115,6 +115,14 @@ func TestRestartRestoresHistoryAndResumesOnceWithoutReplayingOrChangingDefaults(
 	if !strings.Contains(transcript.String(), "Retained reply") || !strings.Contains(transcript.String(), "Original conversation") {
 		t.Fatal("conversation history lost on resume")
 	}
+	// Retained is the end of the whole timeline: past it, Timeline has nothing yet.
+	retained, err := b.Retained(first.ID)
+	if err != nil || retained != e.spool.Count()+first.spool.Count() || first.Retained() != first.spool.Count() {
+		t.Fatalf("retained %d, want %d+%d: %v", retained, e.spool.Count(), first.spool.Count(), err)
+	}
+	if last, err := b.Timeline(ctx, first.ID, retained-1); err != nil || last.Sequence != retained {
+		t.Fatalf("last retained record %d, want %d: %v", last.Sequence, retained, err)
+	}
 	records, err := b.History.List(ctx, 20, 0)
 	if err != nil || len(records) != 1 || records[0].ID != first.ID {
 		t.Fatal("history did not group attempts", err)

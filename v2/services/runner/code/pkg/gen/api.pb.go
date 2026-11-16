@@ -6253,12 +6253,16 @@ func (x *WatchEventsRequest) GetIncludePrevious() bool {
 }
 
 type JournalEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Cursor        uint64                 `protobuf:"varint,1,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	CapturedAt    string                 `protobuf:"bytes,2,opt,name=captured_at,json=capturedAt,proto3" json:"captured_at,omitempty"`
-	Event         *AgentEvent            `protobuf:"bytes,3,opt,name=event,proto3" json:"event,omitempty"`
-	Receipt       *Receipt               `protobuf:"bytes,4,opt,name=receipt,proto3" json:"receipt,omitempty"`
-	MetadataJson  []byte                 `protobuf:"bytes,5,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Cursor       uint64                 `protobuf:"varint,1,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	CapturedAt   string                 `protobuf:"bytes,2,opt,name=captured_at,json=capturedAt,proto3" json:"captured_at,omitempty"`
+	Event        *AgentEvent            `protobuf:"bytes,3,opt,name=event,proto3" json:"event,omitempty"`
+	Receipt      *Receipt               `protobuf:"bytes,4,opt,name=receipt,proto3" json:"receipt,omitempty"`
+	MetadataJson []byte                 `protobuf:"bytes,5,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	// The last cursor the timeline had retained when this record was sent. A
+	// reader whose cursor reaches it has replayed the history that existed when
+	// it asked; later records are live. Zero when the Runner does not say.
+	Retained      uint64 `protobuf:"varint,6,opt,name=retained,proto3" json:"retained,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6326,6 +6330,13 @@ func (x *JournalEvent) GetMetadataJson() []byte {
 		return x.MetadataJson
 	}
 	return nil
+}
+
+func (x *JournalEvent) GetRetained() uint64 {
+	if x != nil {
+		return x.Retained
+	}
+	return 0
 }
 
 type Checkpoint struct {
@@ -11635,14 +11646,15 @@ const file_api_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
 	"\x05after\x18\x02 \x01(\x04R\x05after\x12)\n" +
-	"\x10include_previous\x18\x03 \x01(\bR\x0fincludePrevious\"\xd5\x01\n" +
+	"\x10include_previous\x18\x03 \x01(\bR\x0fincludePrevious\"\xf1\x01\n" +
 	"\fJournalEvent\x12\x16\n" +
 	"\x06cursor\x18\x01 \x01(\x04R\x06cursor\x12\x1f\n" +
 	"\vcaptured_at\x18\x02 \x01(\tR\n" +
 	"capturedAt\x122\n" +
 	"\x05event\x18\x03 \x01(\v2\x1c.lazybox.bench.v1.AgentEventR\x05event\x123\n" +
 	"\areceipt\x18\x04 \x01(\v2\x19.lazybox.bench.v1.ReceiptR\areceipt\x12#\n" +
-	"\rmetadata_json\x18\x05 \x01(\fR\fmetadataJson\"\xf2\x02\n" +
+	"\rmetadata_json\x18\x05 \x01(\fR\fmetadataJson\x12\x1a\n" +
+	"\bretained\x18\x06 \x01(\x04R\bretained\"\xf2\x02\n" +
 	"\n" +
 	"Checkpoint\x12\x1c\n" +
 	"\tobjective\x18\x01 \x01(\tR\tobjective\x12\x1a\n" +

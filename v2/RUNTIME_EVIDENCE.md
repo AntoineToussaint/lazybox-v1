@@ -870,3 +870,56 @@ Screenshots were inspected. This update changed only frontend source, tests and
 documentation; Dev hot-reloaded with the same Runner launcher and endpoint. No
 Runner restart or provider request was performed. Native desktop interaction was
 not independently exercised for this presentation pass.
+
+### Long conversations and Mermaid diagrams — 2026-11-16
+
+Opening a long saved conversation froze the window. Measured with
+`npm run test:transcript-performance`: a deterministic 200-turn fixture
+(14,785 journal records, 11.7 MB: text streamed as 12-character deltas, three
+tool calls per turn with outputs up to the worker's 32 KB preview cap, code
+blocks, tables and four Mermaid diagrams), replayed by the fixture Runner in
+50-record network chunks, headless WebKit at 1440×900, median of runs on a
+shared, loaded machine.
+
+| | Latest answer on screen | Longest frame | Main thread blocked |
+|---|---|---|---|
+| Before, development bundle | 32.4 s | 32.2 s | 32.1 s |
+| Before, production bundle | 19.7 s | 19.6 s | 19.5 s |
+| After, development bundle | 0.68 s | 0.11 s | 0.06 s |
+| After, production bundle | 0.78 s | — | — |
+
+The cause was the reader publishing every record: each streamed delta was a
+synchronous React render of the whole chat (a `useSyncExternalStore` update
+flushes per record), so replay cost was records × render. The fix: the
+Runner now says, on each `JournalEvent`, the last cursor it had `retained`
+when the record was read; the reader holds a replay until it catches up,
+reports progress (`Loading conversation… 45%`), and publishes the
+conversation once, at its latest message. Live records are folded in batches
+at most every 32 ms. `foldTranscript` folds a batch with one copy of each
+array; tool payloads are bounded only for the 1,024 activity events kept, and
+each is parsed once for the Activity panel. Only the latest 40 messages are
+mounted; earlier ones mount 60 at a time as the reader nears the top (the
+button remains for keyboard use). The Go Runner was not the bottleneck: it
+reads and transcodes the same 14,785 records in about 180 ms on one core.
+
+Mermaid diagrams render only within 600 px of the conversation's viewport and
+are a zoomable viewer: buttons, `+`/`−`, Ctrl/⌘ + wheel and trackpad pinch
+(Safari gesture events), two-finger touch pinch, double-click, drag and
+arrow-key panning clamped at the diagram's edges, fit (`0`), actual size
+(`1`), full screen (Enter; there the wheel pans), and copy of the source or
+the SVG. A plain wheel over an inline diagram still scrolls the conversation.
+WebKit has no scroll anchoring, so while the reader is not following the
+latest message, the first row on screen keeps its place when content above it
+changes height, such as a diagram rendering.
+
+Checks: `test:client` (fold equivalence across batch sizes, input immutability,
+activity bounds, one publish per burst, held replay with progress, SVG
+sizing), `go test ./internal/runner ./internal/transport` (Retained across a
+resumed lineage; `WatchEvents` marks replayed and live records),
+`test:transcript-performance` (budgets 5 s to the latest answer and 7 s to
+interactive, only the tail mounted) and `test:mermaid-viewer` (zoom, pan,
+clamping, keyboard, Ctrl+wheel, double-click, copy, source, full screen,
+focus return, lazy rendering, reading position, narrow layout), with
+screenshots inspected. Fixture and headless browsers only: no real provider,
+Runner restart or native desktop window was exercised, and trackpad pinch
+and touch pinch were not driven by a test.

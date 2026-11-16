@@ -20,7 +20,7 @@
     "dev:web": "npm run dev -w @lazybox/web",
     "build:worker": "tsc -p workers/claude-sdk",
     "test:browser": "node --import tsx scripts/test-browser.mjs",
-    "test:client": "node --import tsx --test scripts/client-state.test.ts scripts/workspace-model.test.ts scripts/command-runs.test.ts scripts/transcript.test.ts scripts/repository-catalog.test.ts scripts/keyboard.test.ts scripts/composer-vim.test.ts scripts/activity-replay.test.ts scripts/diagnostic-recording.test.ts scripts/attention.test.ts scripts/pull-request-model.test.ts scripts/processes-model.test.ts scripts/runner-link.test.ts",
+    "test:client": "node --import tsx --test scripts/client-state.test.ts scripts/workspace-model.test.ts scripts/command-runs.test.ts scripts/transcript.test.ts scripts/repository-catalog.test.ts scripts/keyboard.test.ts scripts/composer-vim.test.ts scripts/activity-replay.test.ts scripts/diagnostic-recording.test.ts scripts/attention.test.ts scripts/pull-request-model.test.ts scripts/processes-model.test.ts scripts/runner-link.test.ts scripts/diagram.test.ts",
     "test:worker": "node --import tsx --test workers/claude-sdk/src/*.test.ts",
     "test:startup": "node scripts/test-startup.mjs",
     "test:workspace": "node scripts/test-workspace.mjs",
@@ -56,7 +56,9 @@
     "test:runner-follow": "node scripts/test-runner-follow.mjs",
     "test:inbox": "node scripts/test-inbox.mjs",
     "test:pull-request": "node scripts/test-pull-request.mjs",
-    "test:processes": "node scripts/test-processes.mjs"
+    "test:processes": "node scripts/test-processes.mjs",
+    "test:transcript-performance": "node scripts/test-transcript-performance.mjs",
+    "test:mermaid-viewer": "node scripts/test-mermaid-viewer.mjs"
   },
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",

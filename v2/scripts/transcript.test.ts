@@ -98,3 +98,62 @@ test('consecutive harmless restarts collapse into one line',()=>{
  add({event:{type:'runner_reattached',status:'native_process_adopted'}});
  assert.deepEqual(state.messages.map(m=>m.type),['message_delta','reattached','operation_accepted','reattached'],'restarts separated by other messages stay separate');
 });
+
+import {foldTranscript} from '../packages/surfaces/src/transcript-model.ts';
+import {longConversation} from './fixtures/long-conversation.mjs';
+const wireRecords=(events:any[],from=1)=>events.map((e,i)=>create(JournalEventSchema,{cursor:BigInt(from+i),capturedAt:'2026-11-16T10:00:00Z',event:{...e,providerDataJson:e.providerDataJson?Buffer.from(e.providerDataJson,'base64'):new Uint8Array()}}));
+test('folding a batch equals folding its records one by one',()=>{
+ const records=wireRecords(longConversation({turns:30}));
+ let one=emptyTranscript();for(const record of records)one=appendTranscript(one,record);
+ // Any split into batches, including one record and the whole replay, lands on the same state.
+ for(const size of [1,7,500,records.length]){
+  let batched=emptyTranscript();for(let i=0;i<records.length;i+=size)batched=foldTranscript(batched,records.slice(i,i+size));
+  assert.deepEqual(batched.messages,one.messages,`batches of ${size}`);
+  assert.deepEqual(batched.recent.map(r=>r.cursor),one.recent.map(r=>r.cursor));
+  assert.deepEqual(batched.activity.map(r=>r.cursor),one.activity.map(r=>r.cursor));
+  assert.equal(batched.activityTruncated,one.activityTruncated);assert.equal(batched.cursor,one.cursor);assert.equal(batched.reportedModel,one.reportedModel);assert.equal(batched.appendToLast,one.appendToLast);
+ }
+ assert.equal(one.messages.length,60);assert.match(one.messages.at(-1)!.text,/ANSWER_END_29$/);assert.equal(one.reportedModel,'claude-fixture-model');
+});
+test('a fold never changes the state it extends, and skips records it already has',()=>{
+ const records=wireRecords([{type:'operation_accepted',text:'q'},{type:'message_delta',text:'a',turnId:'t'},{type:'message_delta',text:'b',turnId:'t'}]);
+ const first=foldTranscript(emptyTranscript(),records.slice(0,2));const snapshot=structuredClone(first.messages);
+ const second=foldTranscript(first,records.slice(1));
+ assert.deepEqual(first.messages,snapshot,'the earlier snapshot a view rendered is unchanged');
+ assert.notEqual(second.messages.at(-1),first.messages.at(-1));assert.equal(second.messages.at(-1)!.text,'ab');
+ assert.equal(foldTranscript(second,records),second,'a replayed batch is a no-op');
+ assert.equal(foldTranscript(second,[]),second);
+});
+test('activity keeps the latest 1,024 events and says it dropped the rest',()=>{
+ const records=wireRecords(Array.from({length:1500},(_,i)=>({type:'tool_activity',providerDataJson:Buffer.from(JSON.stringify({type:'tool_call',id:`t${i}`,name:'Bash',status:'completed'})).toString('base64')})));
+ const batched=foldTranscript(emptyTranscript(),records);
+ assert.equal(batched.activity.length,1024);assert.equal(batched.activity[0].cursor,477n);assert.equal(batched.activityTruncated,true);
+ const small=foldTranscript(foldTranscript(emptyTranscript(),records.slice(0,1000)),records.slice(1000,1010));
+ assert.equal(small.activity.length,1010);assert.equal(small.activityTruncated,false);
+});
+test('a reader publishes a replay burst once, not once per record',async()=>{
+ const records=wireRecords(longConversation({turns:20,toolOutputBytes:200}));
+ const api={async *watchEvents(){yield* records;}} as unknown as RunnerClient;
+ const reader=new ConversationReader(api,'burst');let published=0;
+ const stop=reader.subscribe(()=>{published++;});
+ await new Promise(resolve=>setTimeout(resolve,100));stop();
+ const state=reader.getSnapshot();
+ assert.equal(state.cursor,BigInt(records.length));assert.equal(state.messages.length,40);assert.equal(state.status,'Complete');assert.equal(state.loading,false);
+ assert.ok(published<=4,`${records.length} records published ${published} times`);
+});
+test('a replay is held until it reaches the retained history, reporting progress meanwhile',async()=>{
+ const records=wireRecords(longConversation({turns:6,toolOutputBytes:200}));const total=BigInt(records.length);
+ for(const record of records)record.retained=total;
+ const live=create(JournalEventSchema,{cursor:total+1n,retained:total+1n,event:{type:'operation_accepted',text:'LIVE'}});
+ let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+ const api={async *watchEvents(){for(const [i,record] of records.slice(0,-1).entries()){yield record;if(i%50===0)await new Promise(resolve=>setTimeout(resolve,20));}await gate;yield records.at(-1)!;yield live;await new Promise(()=>{});}} as unknown as RunnerClient;
+ const reader=new ConversationReader(api,'held');const seen:{messages:number;replay?:{loaded:number;total:number}}[]=[];
+ const stop=reader.subscribe(()=>{const s=reader.getSnapshot();seen.push({messages:s.messages.length,replay:s.replay});});
+ await new Promise(resolve=>setTimeout(resolve,400));
+ assert.equal(reader.getSnapshot().messages.length,0,'nothing from the middle of the history is shown');
+ assert.ok(reader.getSnapshot().loading);const progress=reader.getSnapshot().replay!;assert.equal(progress.total,records.length);assert.ok(progress.loaded>0&&progress.loaded<records.length);
+ release();await new Promise(resolve=>setTimeout(resolve,100));
+ const state=reader.getSnapshot();stop();
+ assert.equal(state.replay,undefined);assert.equal(state.loading,false);assert.equal(state.messages.at(-1)!.text,'LIVE');
+ assert.equal(seen.filter(s=>s.messages>0)[0].messages,13,'the first published conversation is the whole history');
+});

@@ -1,6 +1,13 @@
 import type {JournalEvent} from '@lazybox/protocol';
 export type ToolCall={id:string;agent:string;name:string;status:string;input?:unknown;output?:unknown;startedAt?:number;endedAt?:number};
 const object=(value:unknown):Record<string,any>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,any>:{};
+// Activity is replayed on every change; each retained event's payload is parsed once.
+const parsed=new WeakMap<object,Record<string,any>|null>();
+function payload(e:NonNullable<JournalEvent['event']>):Record<string,any>|undefined{
+ let value=parsed.get(e);
+ if(value===undefined){try{value=object(JSON.parse(new TextDecoder().decode(e.providerDataJson)));}catch{value=null;}parsed.set(e,value);}
+ return value??undefined;
+}
 /** Replays durable events. A missing result is never inferred to be success. */
 export function toolActivity(events:JournalEvent[]) {
  const calls=new Map<string,ToolCall>(); let available:string[]=[];
@@ -11,7 +18,7 @@ export function toolActivity(events:JournalEvent[]) {
    for(const call of calls.values())if(call.status==='Running')call.status='Result not reported';
   }
   if(!['tool_activity','tool_catalog'].includes(e.type))continue;
-  let d:Record<string,any>;try{d=object(JSON.parse(new TextDecoder().decode(e.providerDataJson)));}catch{continue;}
+  const d=payload(e);if(!d)continue;
   if(e.type==='tool_catalog'){available=Array.isArray(d.tools)?d.tools.filter((t:unknown)=>typeof t==='string'):[];continue;}
   const agent=e.agentId||'root';
   const nativeId=d.type==='tool_result'?d.tool_use_id:d.item?.id??d.id;

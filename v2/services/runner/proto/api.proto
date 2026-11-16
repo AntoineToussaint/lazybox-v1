@@ -533,6 +533,10 @@ message JournalEvent {
   AgentEvent event = 3;
   Receipt receipt = 4;
   bytes metadata_json = 5;
+  // The last cursor the timeline had retained when this record was sent. A
+  // reader whose cursor reaches it has replayed the history that existed when
+  // it asked; later records are live. Zero when the Runner does not say.
+  uint64 retained = 6;
 }
 message Checkpoint {
   string objective = 1;

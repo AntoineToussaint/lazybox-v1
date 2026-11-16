@@ -12,7 +12,7 @@ import { FilePreview } from './FilePreview';
 import type { FileLink } from './file-reference';
 import { useTranscript } from './useTranscript';
 import { activityLabel } from './activity';
-import { RichContent } from './RichContent';
+import { ConversationLoading, MessageList } from './MessageList';
 import { useRunnerSettings } from './RunnerSettings';
 import { TelemetryPanel } from './TelemetryPanel';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
@@ -377,9 +377,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     {session && session.agents.length > 1 && <details className="agent-activity"><summary>Agent activity ({session.agents.length - 1})</summary><ul>{session.agents.filter(a => a.id !== 'root').map(a => <li key={a.id} data-parent={a.parentId}><span>{a.name || 'Sub-agent'}</span><small>{statusLabel(a.status)}</small></li>)}</ul>{session.activityTruncated && <small>Additional activity was omitted.</small>}</details>}
       {transcript.error && <div className="transcript-notice error" role="alert"><span>Conversation could not be loaded. {transcript.error}</span><button onClick={transcript.retry}>Retry conversation</button></div>}
       <div className="messages" ref={scroll.paneRef} onScroll={scroll.onScroll}><div className="messages-content" ref={scroll.contentRef}>
-      {conversation.length > visibleMessages && <button onClick={scroll.showEarlier}>Show earlier messages</button>}
-      {transcript.loading && !conversation.length && <p role="status">Loading conversation…</p>}
-      {!transcript.loading && !transcript.error && !conversation.length && <div className="empty"><span>READY TO WORK</span><h2>What are we building?</h2><p>Send {agentName} a message to get started.</p></div>}{session?.fault && <div className="error" role="alert">{session.fault}</div>}{conversation.slice(-visibleMessages).map(m => m.type === 'reattached' ? <div className="runner-divider" role="note" key={m.id} title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div> : <article className={'message ' + m.type} key={m.id}><span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Provider failure' : m.type === 'notice' ? 'Runner' : agentName}</span><RichContent text={m.text} onOpenFile={session?.collectionId ? setPreviewFile : undefined}/>{m.files?.length ? <ul className="sent-files" aria-label="Sent attachments">{m.files.map((file, i) => <li key={i}>↳ {file.name} · {Math.ceil(file.size / 1024)} KiB</li>)}</ul> : null}</article>)}{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={setError}/>)}</div></div>
+      {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
+      {!transcript.loading && !transcript.error && !conversation.length && <div className="empty"><span>READY TO WORK</span><h2>What are we building?</h2><p>Send {agentName} a message to get started.</p></div>}{session?.fault && <div className="error" role="alert">{session.fault}</div>}<MessageList messages={conversation} visible={visibleMessages} agentName={agentName} onOpenFile={session?.collectionId ? setPreviewFile : undefined} onShowEarlier={scroll.showEarlier}/>{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={setError}/>)}</div></div>
       {!followingLatest && conversation.length > 0 && <button className="jump-to-latest" onClick={jumpToLatest}>Jump to latest</button>}
       {!transcript.error && (activity||stream.startsWith('Disconnected')||stream==='Reconnecting')&&<div className="live-activity" role="status"><i/>{stream.startsWith('Disconnected')||stream==='Reconnecting'?'Connection interrupted · reconnecting…':activity}</div>}
       <form className="composer" onSubmit={send}>
