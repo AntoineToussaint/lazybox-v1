@@ -47,6 +47,15 @@ export function Workspace(props: Props) {
   </RunnerProvider>;
 }
 
+/** Copies split ratios from `from` onto `to` where the trees match: dividers stay where they were. */
+function adoptGeometry(to: WorkspaceLayout, from: WorkspaceLayout): WorkspaceLayout {
+  const same = (a: LayoutNode, b: LayoutNode): LayoutNode => {
+    if (a.type === 'split' && b.type === 'split' && a.direction === b.direction) return { ...a, ratio: b.ratio, children: [same(a.children[0], b.children[0]), same(a.children[1], b.children[1])] };
+    return a;
+  };
+  return { ...to, pages: to.pages.map(page => { const match = from.pages.find(value => value.id === page.id) || (page.id === to.selectedPage ? from.pages.find(value => value.id === from.selectedPage) : undefined); return match ? { ...page, layout: same(page.layout, match.layout) } : page; }) };
+}
+
 function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = emptyTarget(), host, onOpenViewer, onTargetChange }: Props) {
   const keyboardHint = useKeyboardNavigation(viewState);
   const { api, info, error: connectionError, refresh: refreshRunner, restart } = useRunner();
@@ -109,6 +118,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         const saved = viewState?.getItem(workspaceKey(target.collectionId));
         let next = saved ? retireMonitor(parseLayout(saved)) : defaultLayout(target);
         if (target.sessionId) next = { ...next, pages: next.pages.map(page => page.id === next.selectedPage ? { ...page, selection: target } : page) };
+        // Switching workspace never moves the dividers: the target keeps its own
+        // pages and panels, but takes the current split sizes wherever its
+        // arrangement matches (the sidebar has one fixed width everywhere).
+        if (workspaceID) next = adoptGeometry(next, current.current);
         next = repairLayout(next);
         viewState?.setItem(`${viewState.key}:active-workspace`, target.collectionId);
         setWorkspaceID(target.collectionId); current.current = next; setLayout(next); setLocked(false); setEditing(false); setConfiguring(false); setError('');

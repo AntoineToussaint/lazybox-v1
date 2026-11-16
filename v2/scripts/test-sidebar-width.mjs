@@ -23,11 +23,17 @@ try{
  await expect(nav).toBeVisible();
  const width=()=>page.locator('.sidebar-cell').first().evaluate(n=>Math.round(n.getBoundingClientRect().width));
  const initial=await width();
+ const cells=()=>page.locator('.layout-cell').evaluateAll(nodes=>nodes.map(n=>{const b=n.getBoundingClientRect();return `${Math.round(b.width)}x${Math.round(b.height)}`;}).join(' '));
+ // Resize the chat/console divider in this workspace first: the other workspace must take the same sizes.
+ const inner=page.locator('.split-handle').nth(1);
+ if(await inner.count()){const b=await inner.boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width/2-60,b.y+b.height/2-60,{steps:4});await page.mouse.up();}
+ const arranged=await cells();
  assert.equal(initial,280,'default sidebar width');
  // Switch workspace: same width.
  await page.locator('.workspace-row').filter({hasText:'Beta release'}).locator('button').first().click();
  await page.waitForTimeout(600);
  assert.equal(await width(),initial,'switching workspace kept the width');
+ assert.equal(await cells(),arranged,'switching workspace keeps every panel where it was, at the same size');
  // Resize the window: same width.
  await page.setViewportSize({width:1100,height:850});await page.waitForTimeout(200);
  assert.equal(await width(),initial,'resizing the window kept the width');
