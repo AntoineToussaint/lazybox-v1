@@ -15,6 +15,9 @@ const paths: Record<string, string[]> = {
   attach: ['m9 12 6-6a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2', 'm6 15 9-9'],
   send: ['M12 19V5', 'm6 11 6-6 6 6'],
   more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
+  file: ['M14 3H6v18h12V7z', 'M14 3v4h4'],
+  up: ['M12 19V7', 'm6 11 6-6 6 6', 'M5 4h14'],
+  chevronRight: ['m10 8 4 4-4 4'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;
