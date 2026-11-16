@@ -33,9 +33,9 @@ try {
   await expect(page.locator('.workspace-row').filter({hasText:'Alpha feature'})).not.toContainText(internalRepoID);
   await expect(chat.locator('.chat-status')).toContainText('Running');
   await expect(chat.locator('.messages')).not.toContainText('CHILD_PRIVATE_TRANSCRIPT');
-  await chat.getByText('Agent activity (1)', { exact: true }).click();
+  await chat.locator('.agent-activity summary').click();
   await expect(chat.locator('.agent-activity')).toContainText('Review');
-  await chat.getByText('Agent activity (1)', { exact: true }).click();
+  await chat.locator('.agent-activity summary').click();
   const initialBounds = await chat.boundingBox();
   assert.ok(initialBounds.height > 800, 'Collapsed output must give the remaining workspace height to chat');
   await mkdir('.cache', { recursive: true }); await page.screenshot({ path: '.cache/workspace-refined-default.png', fullPage: true });
