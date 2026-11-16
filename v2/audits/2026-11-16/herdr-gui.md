@@ -55,10 +55,10 @@ clear margin. These are the points that matter:
    six-entry `]]` menu, and file-only Mod+P.
 3. **Panes are fully direct-manipulated:** drag to swap, drag to an edge,
    zoom, keyboard swap and resize. Lazybox can dock and collapse panels, but
-   it has no zoom, no tabbed stacks and no terminal splits.
-4. **The terminal is first-class.** It is Ghostty-grade: find, Kitty
-   images, IME, ligatures, and dropping files or screenshots in. Lazybox's
-   xterm has only the fit addon.
+   it has no zoom and no tabbed stacks.
+4. **The terminal is first-class in herdr.** Not a gap for Lazybox: V2 is
+   deliberately **not a terminal emulator** (see "Decision: no terminal
+   emulator" below).
 5. **It ships weekly** with release notes in the app, a welcome screen,
    themes, zoom and fonts. Lazybox is dark-only, with no onboarding and no
    release notes in the app.
@@ -165,8 +165,6 @@ relative to `v2/packages/surfaces/src/` unless they say otherwise.
 - **Panes.** Drag-swap, edge docking with a highlight, zoom, keyboard
   swap/go/resize, tabs per task, and settle. Lazybox has docking but none of
   the rest.
-- **The terminal.** Lazybox's xterm is a bare widget. People who live in
-  Ghostty will notice in seconds.
 - **Polish cadence.** 13 releases in about 3.5 weeks. The changelogs are
   mostly small UX fixes: tab-bar scrolling one tab at a time so you don't
   type to the wrong agent; a selection that doesn't bleed; IME on every
@@ -233,7 +231,7 @@ change, it is noted as an overlap, not a duplicate.
 |---|---|---|---|---|
 | P1-1 | **Zoom a panel** (`Mod+Shift+Enter`, a header button, and double-click the header). Navigation keeps the zoom. | `pane.zoom` ([0.1.16](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). Lazybox has none. | S | Layout upgrade |
 | P1-2 | **Tabbed panel stacks:** drop a panel onto another panel's center to stack them as tabs (two chats, or Changes + Files). Also **drag-to-swap**, and keyboard focus-move and swap (`Mod+Alt+arrows` / `+Shift`). | herdr pane drag and swap ([0.1.5](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). Lazybox panels never stack (`workspace-model.ts`). | L | Layout upgrade (no commit found yet; this is its core) |
-| P1-3 | **Terminal upgrade:** `@xterm/addon-search` (Mod+F), `addon-web-links` plus file-path links into the Editor, `addon-webgl`, image paste and drop (path typed in), theme from tokens, font size; **split** right/down inside the Terminal panel. | Ghostty-grade terminal ([0.1.13](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). Lazybox: `TerminalPanel.tsx:3` loads the fit addon only. | M | Terminal |
+| P1-3 | ~~Terminal upgrade~~ | **Dropped by decision:** V2 is not a terminal emulator (below). | — | — |
 | P1-4 | **Sounds** for needs input / failed / ready, on by default but quiet, with choice and preview in Settings → Notifications; plus an **in-app toast** for an attention change in another workspace when the window is focused. | `sounds` setting, Settings → Alerts ([AGENTS.md](https://github.com/herdrdev/herdr-app/blob/master/defaults/AGENTS.md)). Lazybox has no audio. | S | Notifications (`NotificationSettings.tsx`) |
 | P1-5 | **Workspace rows carry git state:** branch (or "N repos"), ahead/behind, dirty count, PR/check state. Fix the agent line truncating to "C." by showing the task title, not provider · model. | The spaces mod shows "repo, branch, ahead/behind and uncommitted changes". Lazybox: `compare-workspace.png`. | S | Sidebar; data already in the PR loop's ship state |
 | P1-6 | **Peek:** Alt-click a conversation, sub-agent or process anywhere (inbox row, Background work, Processes, a mention in chat) to open it in an overlay over the current page, with "Open here" or "Open beside". This also gives an "open the raw terminal" escape hatch for a session-host agent. | herdr peek ([0.1.5](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). | M | **Sub-agent cards** branch (`8606528d`) owns sub-agent peek; generalize it, don't duplicate it. |
@@ -251,7 +249,7 @@ change, it is noted as an overlap, not a duplicate.
 | P2-4 | **Layout presets** ("Focus", "Review", "Monitor: Agents + Missions + Processes") switchable with a key, stored as files the Ask Lazybox agent can edit through the settings MCP. | `layout.switch` and layout files. Declarative, no code mods. | M | Layout upgrade, after P1-2 |
 | P2-5 | **`lazybox shot`:** a CLI or MCP tool that returns a PNG of the current window, so UI agents (and Ask Lazybox) can check what they changed. | `herdr-app shot` ([0.1.5](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)). | S–M | Desktop shell / Ask Lazybox |
 | P2-6 | **Side-by-side diff** toggle in Changes (Monaco diff editor is already a dependency). | Neither has one. This is about staying ahead of Conductor, not herdr. | M | Changes |
-| P2-7 | **More harnesses visible in the sidebar:** adopt OSC 7501 so any CLI in a Lazybox terminal reports `working/blocked/done` and appears in the Agents list as a "terminal agent" (no chat, but attention works). | It is an open protocol; herdr's coverage comes from it. | M | Terminal + attention; complements the audit's "more harnesses" item |
+| P2-7 | ~~More harnesses via terminals~~ (dropped: no terminal emulator) **More harnesses visible in the sidebar:** adopt OSC 7501 so any CLI in a Lazybox terminal reports `working/blocked/done` and appears in the Agents list as a "terminal agent" (no chat, but attention works). | It is an open protocol; herdr's coverage comes from it. | M | Terminal + attention; complements the audit's "more harnesses" item |
 
 ## Top 10, in one line each
 
@@ -260,11 +258,21 @@ change, it is noted as an overlap, not a duplicate.
 3. **P0-3 Clickable question options, "always allow", inline tool lines.** herdr users see the agent's own TUI; Lazybox's chat is below it (`session-parts.tsx:36`).
 4. **P0-4 Next/prev agent needing you, and `Ctrl+1..9` workspaces.** Two keys herdr ships by default ([keys.macos.json](https://github.com/herdrdev/herdr-app/blob/master/defaults/keys.macos.json)).
 5. **P1-1 / P1-2 Panel zoom, tab stacks, drag-to-swap.** herdr's pane handling ([0.1.5](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md), [0.1.16](https://github.com/herdrdev/herdr-app/blob/master/CHANGELOG.md)).
-6. **P1-3 Terminal: search, links, splits, image drop, WebGL.** Lazybox loads only xterm's fit addon.
+6. ~~P1-3 Terminal upgrade~~ — dropped: V2 is not a terminal emulator.
 7. **P1-4 Sounds and in-app toasts.** herdr's bundled done/request sounds; Lazybox is silent.
 8. **P1-5 Branch, ahead/behind and dirty state on workspace rows; no more "C." truncation.** herdr's spaces mod.
 9. **P1-7 Light theme, tokens, zoom and fonts.** Lazybox is hard-coded dark; herdr follows the system.
 10. **P1-6 Peek a conversation or sub-agent without navigating.** herdr peek; extend the sub-agent cards branch rather than duplicating it.
+
+## Decision: no terminal emulator
+
+Lazybox V2 does not compete as a terminal emulator (owner's decision,
+2026-11-16). herdr's Ghostty-grade terminal, terminal splits and terminal
+agents are out of scope. The existing workspace shell panel stays a minimal
+escape hatch and gets no further investment; people use their own terminal
+(Ghostty, iTerm…) and pipe output in with `lazybox log` / `lazybox run`.
+Recommendations that depended on terminals (P1-3, terminal splits in P1-1,
+OSC 7501 terminal agents in P2-7) are dropped.
 
 ## Sources
 
