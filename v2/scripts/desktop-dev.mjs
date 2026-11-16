@@ -58,7 +58,8 @@ export async function startDesktopDevServer(source) {
         watch: { ...watcher.options, ignored: [`${sourceGlob}/apps/desktop/src-tauri/**`, `${sourceGlob}/**/.cache/**`] },
         middlewareMode: { server: http }, hmr: { server: http },
         host: '127.0.0.1', port: address.port,
-        fs: { strict: true, allow: ['apps/desktop', 'packages', 'node_modules'].map(path => join(source, path)), deny: privatePaths },
+        // The app bundles its documentation (Help → Documentation): docs/ and INSTALL.md, nothing else.
+        fs: { strict: true, allow: ['apps/desktop', 'packages', 'node_modules', 'docs', 'INSTALL.md'].map(path => join(source, path)), deny: privatePaths },
       },
     });
     return { server: { httpServer: http, watcher: vite.watcher, close }, url: `http://127.0.0.1:${address.port}`, watchBackend: watcher.backend };
