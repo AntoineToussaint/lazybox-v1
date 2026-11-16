@@ -1,7 +1,7 @@
 import type { AgentEvent, Session } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 import { accountLabel, awaitingFirstMessage } from './agent-status';
-import { isLimitState, resetTime } from './subscription-model';
+import { backAt, isLimitState } from './subscription-model';
 
 /**
  * What a conversation asks of the person, in the order it matters:
@@ -88,8 +88,8 @@ const faults: Record<string, string> = {
 export function faultSummary(session: Session): string {
   const account = session.account?.state || '';
   if (['auth_required', 'exhausted', 'throttled', 'billing_error', 'context_full', 'budget_exceeded'].includes(account)) {
-    const reset = isLimitState(account) && !session.closed ? resetTime(session.account?.resetAt) : '';
-    return accountLabel(account) + (reset ? ` · resets ${reset}` : '');
+    const back = isLimitState(account) && !session.closed ? backAt(session.account?.resetAt) : '';
+    return accountLabel(account) + (back ? ` · ${back}` : '');
   }
   if (session.fault) return faults[session.fault] || lastLine(session.fault.replaceAll('_', ' '));
   return 'The agent reported a failure';

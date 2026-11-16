@@ -67,6 +67,8 @@
     "test:chat-polish": "node scripts/test-chat-polish.mjs",
     "test:artifacts": "node scripts/test-artifacts.mjs",
     "test:subscription-switch": "node scripts/test-subscription-switch.mjs",
+    "test:settings-polish": "node scripts/test-settings-polish.mjs",
+    "screenshots:polish": "node scripts/polish-screenshots.mjs",
     "test:sidebar-width": "node scripts/test-sidebar-width.mjs",
     "test:editor-wrap": "node scripts/test-editor-wrap.mjs",
     "test:turn-checkpoints": "node scripts/test-turn-checkpoints.mjs",

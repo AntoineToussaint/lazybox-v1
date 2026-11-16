@@ -3,11 +3,12 @@ import {KeyboardSettings} from './KeyboardSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { DevicesSettings } from './DevicesSettings';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import type { Profile, SubscriptionEnrollment, UsageWindow } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
-import { accountLabel } from './agent-status';
+import { backWhen, comeback, resetTime, untilText, type Comeback } from './subscription-model';
+import { SettingsHeader, useNow } from './settings-parts';
 import { Icon } from './Icons';
 import './settings.css';
 import { RepositoryBrowser } from './RepositoryBrowser';
@@ -31,15 +32,67 @@ function windowName(window: UsageWindow) {
  const bucket=window.name.includes(':') ? window.name.split(':')[0] : '';
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
-function resetLabel(epoch: bigint) {
-  if (epoch <= 0n) return '';
-  const remaining = Number(epoch) * 1000 - Date.now();
-  if (remaining <= 0) return 'Reported window has ended';
-  const minutes = Math.ceil(remaining / 60_000), hours = Math.floor(minutes / 60);
-  return hours >= 24 ? `Resets in ${Math.floor(hours / 24)}d ${hours % 24}h` : hours ? `Resets in ${hours}h ${minutes % 60}m` : `Resets in ${minutes}m`;
-}
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
 export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'devices' | 'keyboard' | 'runner' | 'process';
+/** The sections, in the order and groups the sidebar shows them. */
+const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
+  { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
+  { id: 'pricing', label: 'Pricing', icon: 'tag', group: 'Accounts' },
+  { id: 'repositories', label: 'Repositories', icon: 'repository', group: 'Work' },
+  { id: 'agents', label: 'Agents & workspaces', icon: 'sliders', group: 'Work' },
+  { id: 'workspaces', label: 'Workspaces', icon: 'folder', group: 'Work' },
+  { id: 'process', label: 'Process', icon: 'activity', group: 'Work' },
+  { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'Preferences' },
+  { id: 'keyboard', label: 'Shortcuts', icon: 'keyboard', group: 'Preferences' },
+  { id: 'devices', label: 'Devices', icon: 'phone', group: 'System' },
+  { id: 'runner', label: 'Runner', icon: 'processes', group: 'System' },
+];
+
+const usedText = (percent: number) => `${percent.toLocaleString(undefined, { maximumFractionDigits: 1 })}% used`;
+
+/** The one line a subscription that cannot take work leads with. */
+function comebackLine(back: Comeback, now: number, refreshing: boolean): { text: string; tone: 'warn' | 'bad' | 'muted' } | undefined {
+  switch (back.kind) {
+    case 'available': return undefined;
+    case 'back': { const when = backWhen(back.resetAt, now); return { text: `${when[0].toUpperCase()}${when.slice(1)}`, tone: 'warn' }; }
+    case 'due': return { text: refreshing ? 'Should be available again — checking…' : 'Should be available again. Refresh to confirm.', tone: 'muted' };
+    case 'unknown': return { text: 'Limit reached · reset time not reported. Refresh to check again.', tone: 'warn' };
+    case 'sign-in': return { text: 'Signed out by the provider. Add the subscription again to sign in.', tone: 'bad' };
+    case 'billing': return { text: 'The provider reports a billing problem with this account.', tone: 'bad' };
+  }
+}
+
+function SubscriptionCard({ profile, now, refreshing, error, onRefresh, footer }: { profile: Profile; now: number; refreshing: boolean; error?: string; onRefresh(): void; footer: ReactNode }) {
+  const usage = profile.availability, windows = usage?.windows || [], codex = profile.provider === 'codex';
+  const name = profile.label || (codex ? 'Current Codex account' : 'Current Claude account');
+  const back = comeback(profile, now), line = comebackLine(back, now, refreshing);
+  const state = back.kind === 'available' ? (usage?.state === 'available' || windows.length ? 'Available' : 'Not checked') : back.kind === 'sign-in' ? 'Sign-in required' : back.kind === 'billing' ? 'Billing issue' : back.kind === 'due' ? 'Resetting' : usage?.state === 'throttled' ? 'Rate limited' : 'Limit reached';
+  const tone = back.kind === 'available' ? (state === 'Available' ? 'ok' : 'muted') : back.kind === 'sign-in' || back.kind === 'billing' ? 'bad' : back.kind === 'due' ? 'muted' : 'warn';
+  const passed = (w: UsageWindow) => w.resetAt > 0n && Number(w.resetAt) * 1000 <= now;
+  // An available card names only its next reset: the one of its most-used window.
+  const busiest = back.kind === 'available' ? windows.filter(w => Number.isFinite(w.usedPercent) && !passed(w) && w.resetAt > 0n).sort((a, b) => b.usedPercent - a.usedPercent)[0] : undefined;
+  const observed = usage && usage.observedAtUnixMillis > 0n ? `Last reported ${new Date(Number(usage.observedAtUnixMillis)).toLocaleString()}` : 'Not reported yet';
+  return <article className={`subscription-card tone-${tone}`} aria-label={`${name} subscription`}>
+    <header>
+      <span className={`provider-mark ${profile.provider}`} aria-hidden="true">{codex ? '›' : '✳'}</span>
+      <div className="subscription-identity"><h3 title={name}>{name}</h3>{usage?.email && <small className="subscription-email">{usage.email}</small>}<span>{codex ? 'Codex' : 'Claude'}{usage?.plan ? ` · ${usage.plan[0].toUpperCase()}${usage.plan.slice(1)}` : ''}</span></div>
+      <span className={`account-state tone-${tone}`}>{state}</span>
+    </header>
+    {line && <p className={`subscription-back tone-${line.tone}`} role="status" title={back.kind === 'back' || back.kind === 'due' ? new Date(back.resetAt * 1000).toLocaleString() : undefined}>{line.text}</p>}
+    <div className="subscription-usage">{windows.length ? windows.map(window => {
+      const label = windowName(window), stale = passed(window), known = Number.isFinite(window.usedPercent);
+      return <div className={`usage-window${stale ? ' is-reset' : ''}${known && window.usedPercent >= 100 && !stale ? ' is-full' : ''}`} key={window.name} title={window.resetAt > 0n ? `${stale ? 'Reset' : 'Resets'} ${new Date(Number(window.resetAt) * 1000).toLocaleString()}` : 'Reset time not reported'}>
+        <div><span>{label}</span><strong>{stale ? 'Reset' : known ? usedText(window.usedPercent) : 'Unavailable'}</strong></div>
+        <progress max="100" value={stale || !known ? 0 : Math.max(0, Math.min(100, window.usedPercent))} aria-label={`${label} used`}/>
+        {stale && <small>Reset since the last report — refresh for current usage</small>}
+      </div>;
+    }) : <div className="usage-unavailable"><span>Usage not reported yet</span><small>Refresh to read this account’s current usage.</small></div>}
+    {busiest && <small className="subscription-next-reset">{windowName(busiest)} resets {resetTime(busiest.resetAt, now)} ({untilText(busiest.resetAt, now)})</small>}
+    </div>
+    {error && <p className="settings-error" role="alert">{error}</p>}
+    <footer>{footer}<button type="button" className="quiet" disabled={refreshing} aria-label={refreshing ? "Refreshing…" : "Refresh usage"} title={observed} onClick={onRefresh}><Icon name="refresh" size={13}/>{refreshing ? "Refreshing…" : "Refresh"}</button></footer>
+  </article>;
+}
 export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepositoryFolder, tab: shownTab, onTab, onShowProcesses }: { onShowProcesses?(): void; chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; tab?: SettingsTab; onTab?(tab: SettingsTab): void }) {
   const { api, info, refresh } = useRunner();
   const [ownTab, setOwnTab] = useState<SettingsTab>('subscriptions');
@@ -156,11 +209,12 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
     if (usageInFlight.current.has(profile.id)) return;
     usageInFlight.current.add(profile.id);
     setRefreshing(new Set(usageInFlight.current)); setRefreshErrors(value => ({ ...value, [profile.id]: '' }));
+    const signal = lifetime.current!.signal;
     try {
-      const next = await api.refreshSubscription({ profileId: profile.id }, { signal: lifetime.current!.signal, timeoutMs: 30000 });
-      if (!lifetime.current?.signal.aborted) setUpdated(value => ({ ...value, [next.id]: next }));
-    } catch { if (!lifetime.current?.signal.aborted) setRefreshErrors(value => ({ ...value, [profile.id]: 'Usage could not be refreshed. Previous observations are retained.' })); }
-    finally { usageInFlight.current.delete(profile.id); if (!lifetime.current?.signal.aborted) setRefreshing(new Set(usageInFlight.current)); }
+      const next = await api.refreshSubscription({ profileId: profile.id }, { signal, timeoutMs: 30000 });
+      if (!signal.aborted) setUpdated(value => ({ ...value, [next.id]: next }));
+    } catch { if (!signal.aborted) setRefreshErrors(value => ({ ...value, [profile.id]: 'Usage could not be refreshed. The last report is still shown.' })); }
+    finally { usageInFlight.current.delete(profile.id); if (!signal.aborted) setRefreshing(new Set(usageInFlight.current)); }
   };
   // Per-account opt-out of automatic switching; every saved subscription is in by default.
   const { settings: runnerSettings, setSettings: setRunnerSettings } = useRunnerSettings();
@@ -180,35 +234,64 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
   };
   const profiles = info?.profiles.filter(profile => profile.managed).map(profile => (updated[profile.id]?.availability?.observedAtUnixMillis || 0n) > (profile.availability?.observedAtUnixMillis || 0n) ? updated[profile.id] : profile) || [];
   const pending = !!flowID && !terminal(flow?.state);
+  const now = useNow(30_000);
+  // A limit whose reported reset has passed is checked once, by itself: the
+  // card says "checking" and then shows what the provider reports now.
+  const autoChecked = useRef(new Set<string>());
+  // Started from a timer, so an effect React runs twice in development starts it once.
+  useEffect(() => {
+    const timers = profiles.flatMap(profile => {
+      const back = comeback(profile, now);
+      const key = back.kind === 'due' ? `${profile.id}:${back.resetAt}` : '';
+      if (!key || autoChecked.current.has(key)) return [];
+      return [setTimeout(() => { if (autoChecked.current.has(key)) return; autoChecked.current.add(key); void updateUsage(profile); }, 0)];
+    });
+    return () => timers.forEach(clearTimeout);
+  });
+  const select = (next: SettingsTab, focus = false) => { setTab(next); if (focus) requestAnimationFrame(() => document.getElementById(`${next}-tab`)?.focus()); };
+  const onTabKey = (event: KeyboardEvent) => {
+    const index = settingsTabs.findIndex(t => t.id === tab), last = settingsTabs.length - 1;
+    const next = ({ ArrowDown: index + 1, ArrowRight: index + 1, ArrowUp: index - 1, ArrowLeft: index - 1, Home: 0, End: last } as Record<string, number>)[event.key];
+    if (next === undefined) return;
+    event.preventDefault(); select(settingsTabs[(next + settingsTabs.length) % settingsTabs.length].id, true);
+  };
+  // The chosen section stays in view in the narrow strip of sections.
+  useEffect(() => { document.getElementById(`${tab}-tab`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); }, [tab]);
+  const panel = (id: SettingsTab, body: ReactNode) => tab === id && <section role="tabpanel" className="settings-panel" id={`${id}-panel`} aria-labelledby={`${id}-tab`}>{body}</section>;
   return <section className="settings-page" aria-labelledby="settings-title">
-    <header className="settings-title"><div><span className="settings-eyebrow">YOUR WORKSPACE</span><h1 id="settings-title">Settings</h1></div></header>
-    <nav className="settings-tabs" role="tablist" aria-label="Settings sections"><button id="subscriptions-tab" role="tab" aria-selected={tab === 'subscriptions'} onClick={() => setTab('subscriptions')} aria-controls="subscriptions-panel">Subscriptions</button><button id="repositories-tab" role="tab" aria-selected={tab === 'repositories'} aria-controls="repositories-panel" onClick={() => setTab('repositories')}>Repositories</button><button role="tab" id="agents-tab" aria-selected={tab==='agents'} aria-controls="agents-panel" onClick={()=>setTab('agents')}>Agents & workspaces</button><button role="tab" id="workspaces-tab" aria-selected={tab==='workspaces'} aria-controls="workspaces-panel" onClick={()=>setTab('workspaces')}>Workspaces</button><button role="tab" id="pricing-tab" aria-selected={tab==='pricing'} aria-controls="pricing-panel" onClick={()=>setTab('pricing')}>Pricing</button><button role="tab" id="notifications-tab" aria-selected={tab==='notifications'} aria-controls="notifications-panel" onClick={()=>setTab('notifications')}>Notifications</button><button role="tab" id="devices-tab" aria-selected={tab==='devices'} aria-controls="devices-panel" onClick={()=>setTab('devices')}>Devices</button><button role="tab" aria-selected={tab==='keyboard'} onClick={()=>setTab('keyboard')}>Shortcuts</button><button role="tab" id="process-tab" aria-selected={tab==='process'} aria-controls="process-panel" onClick={()=>setTab('process')}>Process</button><button role="tab" id="runner-tab" aria-selected={tab==='runner'} aria-controls="runner-panel" onClick={()=>setTab('runner')}>Runner</button></nav>
-    {tab==='notifications'&&<section role="tabpanel" id="notifications-panel" aria-labelledby="notifications-tab"><NotificationSettings/></section>}
-    {tab==='devices'&&<section role="tabpanel" id="devices-panel" aria-labelledby="devices-tab"><DevicesSettings/></section>}
-    {tab==='keyboard'&&<KeyboardSettings store={viewState}/>}
-    {tab==='runner'&&<section role="tabpanel" id="runner-panel" aria-labelledby="runner-tab"><RunnerSection onShowProcesses={onShowProcesses}/></section>}
-    {tab==='process'&&<section role="tabpanel" id="process-panel" aria-labelledby="process-tab"><OrchestrationProcessSettings/></section>}
-    {tab==='agents'&&<section role="tabpanel" id="agents-panel" aria-labelledby="agents-tab"><AgentSettings/></section>}
-    {tab==='workspaces'&&<section role="tabpanel" id="workspaces-panel" aria-labelledby="workspaces-tab"><RuntimeSettings/></section>}
-    {tab==='pricing'&&<section role="tabpanel" id="pricing-panel" aria-labelledby="pricing-tab"><PricingSettings/></section>}
-    {tab === 'repositories' && <section role="tabpanel" id="repositories-panel" aria-labelledby="repositories-tab"><RepositoryBrowser chooseRepositoryFolder={chooseRepositoryFolder}/></section>}
-    <section hidden={tab !== 'subscriptions'} role="tabpanel" id="subscriptions-panel" aria-labelledby="subscriptions-tab">
-      <div className="subscriptions-heading"><div><h2>Subscriptions</h2><p>{info?.sharedSubscriptions ? 'Shared with your other Lazybox environments. Saved across restarts.' : 'Saved across restarts, separate from your local CLI sign-ins.'}</p></div><button className="primary" onClick={() => { setError(''); setAdding(true); }}><Icon name="plus"/> {pending ? 'Continue sign-in' : 'Add subscription'}</button></div>
+   <div className="settings-layout">
+    <aside className="settings-sidebar">
+      <h1 id="settings-title">Settings</h1>
+      <nav className="settings-tabs" role="tablist" aria-label="Settings sections" aria-orientation="vertical" onKeyDown={onTabKey}>
+        {settingsTabs.map((t, i) => <Fragment key={t.id}>
+          {t.group !== settingsTabs[i - 1]?.group && <span className="settings-nav-group" aria-hidden="true">{t.group}</span>}
+          <button type="button" id={`${t.id}-tab`} role="tab" aria-selected={tab === t.id} aria-controls={`${t.id}-panel`} tabIndex={tab === t.id ? 0 : -1} onClick={() => select(t.id)}><Icon name={t.icon} size={15}/><span>{t.label}</span></button>
+        </Fragment>)}
+      </nav>
+    </aside>
+    <div className="settings-content">
+    {panel('notifications', <NotificationSettings/>)}
+    {panel('keyboard', <KeyboardSettings store={viewState}/>)}
+    {panel('runner', <RunnerSection onShowProcesses={onShowProcesses}/>)}
+    {panel('process', <OrchestrationProcessSettings/>)}
+    {panel('agents', <AgentSettings/>)}
+    {panel('workspaces', <RuntimeSettings/>)}
+    {panel('devices', <DevicesSettings/>)}
+    {panel('pricing', <PricingSettings/>)}
+    {panel('repositories', <><SettingsHeader title="Repositories" description="Repositories you can add to a workspace: the ones on this machine, and those your GitHub connection can see."/><RepositoryBrowser chooseRepositoryFolder={chooseRepositoryFolder}/></>)}
+    <section hidden={tab !== 'subscriptions'} role="tabpanel" className="settings-panel" id="subscriptions-panel" aria-labelledby="subscriptions-tab">
+      <SettingsHeader title="Subscriptions" description={info?.sharedSubscriptions ? 'Claude and Codex accounts agents run on. Shared with your other Lazybox environments.' : 'Claude and Codex accounts agents run on, kept separate from your own CLI sign-ins.'}
+        actions={<button className="primary" onClick={() => { setError(''); setAdding(true); }}><Icon name="plus" size={14}/> {pending ? 'Continue sign-in' : 'Add subscription'}</button>}/>
       {error && <p className="settings-error" role="alert">{error}</p>}
       {pending && !adding && <div className="sign-in-banner"><span>{flow?.label || 'Subscription'} · sign-in pending</span><button onClick={() => setAdding(true)}>Continue sign-in</button></div>}
-      {!info && <p className="settings-empty">Loading account profiles…</p>}
-      {info && !profiles.length && <div className="settings-empty"><h3>No subscriptions yet</h3><p>Add a Claude or Codex account to get started.</p></div>}
-      <div className="subscription-grid">{profiles.map(profile => {
-        const usage = profile.availability, windows = usage?.windows || [], codex = profile.provider === 'codex';
-        return <article className="subscription-card" key={profile.id} aria-label={`${profile.label || (codex ? 'Current Codex account' : 'Current Claude account')} subscription`}>
-          <header><span className={`provider-mark ${profile.provider}`}>{codex ? '›' : '✳'}</span><div><h3>{profile.label || (codex ? 'Current Codex account' : 'Current Claude account')}</h3>{usage?.email && <small className="subscription-email">{usage.email}</small>}<span>{codex ? 'Codex' : 'Claude'}{usage?.plan ? ` · ${usage.plan}` : ''}</span></div><span className={`account-state state-${usage?.state || 'unknown'}`}>{(!usage?.state || usage.state === 'unknown') ? 'Saved' : accountLabel(usage.state)}</span></header>
-          <div className="subscription-usage">{windows.length ? windows.map(window => <div className="usage-window" key={window.name}><div><span>{windowName(window)}</span><strong>{Number.isFinite(window.usedPercent) ? `${window.usedPercent.toLocaleString(undefined, { maximumFractionDigits: 1 })}% used` : 'Unavailable'}</strong></div><progress max="100" value={Math.max(0, Math.min(100, window.usedPercent))} aria-label={`${windowName(window)} used`} /><small title={window.resetAt > 0n ? new Date(Number(window.resetAt) * 1000).toLocaleString() : undefined}>{resetLabel(window.resetAt) || 'Reset time not reported'}</small></div>) : <div className="usage-unavailable"><span>Usage not reported yet</span><small>Read current subscription usage from your account.</small></div>}</div>
-          {refreshErrors[profile.id] && <p className="settings-error" role="alert">{refreshErrors[profile.id]}</p>}
-          <footer>{profile.isolation === 'environment' ? <label className="rotation-toggle" title={`When another ${codex ? 'Codex' : 'Claude'} subscription hits a limit, its conversations can continue on this one. Applies to conversations started afterwards.`}><input type="checkbox" role="switch" checked={!excluded.includes(profile.id)} disabled={!runnerSettings || !!rotationSaving} onChange={event => void setRotation(profile, event.target.checked)}/><span>Automatic switching</span></label> : <small>{profile.isolation === 'inherited' ? 'Uses current CLI sign-in' : info?.sharedSubscriptions ? 'Shared subscription' : 'Saved on this Runner'}</small>}<button disabled={refreshing.has(profile.id)} title={usage && usage.observedAtUnixMillis > 0n ? `Last report ${new Date(Number(usage.observedAtUnixMillis)).toLocaleString()}` : undefined} onClick={() => void updateUsage(profile)}><Icon name="refresh"/>{refreshing.has(profile.id) ? 'Refreshing…' : 'Refresh usage'}</button></footer>
-        </article>;
-      })}</div>
-      <p className="usage-note">Usage is the provider’s reported subscription allowance. Missing data stays unavailable.</p>
+      {!info && <p className="settings-empty" role="status">Loading subscriptions…</p>}
+      {info && !profiles.length && <div className="settings-empty"><h3>No subscriptions yet</h3><p>Add a Claude or Codex account so agents can run on it. Your CLI sign-ins keep working either way.</p></div>}
+      <div className="subscription-grid">{profiles.map(profile => <SubscriptionCard key={profile.id} profile={profile} now={now} refreshing={refreshing.has(profile.id)} error={refreshErrors[profile.id]} onRefresh={() => void updateUsage(profile)}
+        footer={profile.isolation === 'environment' ? <label className="rotation-toggle" title={`When another ${profile.provider === 'codex' ? 'Codex' : 'Claude'} subscription hits a limit, its conversations can continue on this one. Applies to conversations started afterwards.`}><input type="checkbox" role="switch" checked={!excluded.includes(profile.id)} disabled={!runnerSettings || !!rotationSaving} onChange={event => void setRotation(profile, event.target.checked)}/><span>Automatic switching</span></label> : <small>{profile.isolation === 'inherited' ? 'Uses current CLI sign-in' : info?.sharedSubscriptions ? 'Shared subscription' : 'Saved on this Runner'}</small>}/>)}</div>
+      {profiles.length > 0 && <p className="usage-note">Usage is what each provider reports for the subscription. Lazybox never guesses a number it was not given.</p>}
     </section>
+    </div>
+   </div>
     <DraggableDialog ref={dialog} className="subscription-dialog" onCancel={() => close()} onClose={() => setAdding(false)} aria-labelledby="add-subscription-title">
       <DialogHeader><h2 id="add-subscription-title">{flowID ? 'Add subscription' : 'Connect a subscription'}</h2><button aria-label="Close subscription dialog" onClick={close}>×</button></DialogHeader>
       {error && <p className="settings-error" role="alert">{error}</p>}

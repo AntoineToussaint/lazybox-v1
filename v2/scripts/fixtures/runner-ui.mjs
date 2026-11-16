@@ -12,6 +12,20 @@ import { createMissionFake } from './missions-fake.mjs';
 import { artifactFixture } from './artifacts.mjs';
 
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
+// The Runner's built-in rate card (telemetry.DefaultRates), as GetRunnerSettings reports it.
+export function defaultModelPrices() {
+  const rate = (provider, model, version, input, output, cacheRead, cacheWrite5m = 0, cacheWrite1h = 0, maxInput = 0) => ({ provider, model, version, input: String(input), output: String(output), cacheRead: String(cacheRead), cacheWrite5m: String(cacheWrite5m), cacheWrite1h: String(cacheWrite1h), maxInput: String(maxInput), custom: false });
+  return [
+    rate('claude', 'claude-fable-5-1', 'anthropic-standard-2026-11-03', 10000, 50000, 250, 12500, 20000),
+    ...['claude-opus-4-6', 'claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5'].map(m => rate('claude', m, 'anthropic-standard-2026-11-02', 5000, 25000, 500, 6250, 10000)),
+    rate('claude', 'claude-opus-5-5', 'anthropic-standard-2026-11-02', 4000, 20000, 200, 5000, 8000),
+    rate('claude', 'claude-sonnet-4-6', 'anthropic-standard-2026-11-02', 3000, 15000, 300, 3750, 6000),
+    rate('claude', 'claude-sonnet-5', 'anthropic-standard-2026-11-02', 2000, 10000, 200, 2500, 4000),
+    rate('claude', 'claude-sonnet-5-5', 'anthropic-standard-2026-11-02', 2000, 10000, 100, 2500, 4000),
+    rate('codex', 'gpt-5.4', 'openai-standard-2026-11-02', 2500, 15000, 250, 0, 0, 272000),
+    rate('codex', 'gpt-5.3-codex', 'openai-standard-2026-11-02', 1750, 14000, 175),
+  ];
+}
 const stream = values => Buffer.concat([...values.map(value => frame(value)), frame({}, 2)]);
 export async function startRunnerFixture() {
   // A restarted Runner has a new bearer, and a launcher restart a new port: both change.
@@ -679,7 +693,7 @@ actions:
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
   return { artifacts: artifactStore, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
-    get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
+    get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */

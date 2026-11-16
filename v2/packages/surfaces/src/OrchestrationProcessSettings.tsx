@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Collection, OrchestrationProcess } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { processCards } from './orchestration-process-model';
+import { SettingsHeader, settingsError } from './settings-parts';
 import './orchestration-process.css';
 
 /**
@@ -25,29 +26,26 @@ export function OrchestrationProcessSettings() {
     const control = new AbortController();
     setError('');
     void api.getOrchestrationProcess({ collectionId: workspace, repository, tasks: 0 }, { signal: control.signal, timeoutMs: 8000 })
-      .then(next => { if (!control.signal.aborted) setShown(next); }, e => { if (!control.signal.aborted) { setShown(undefined); setError(String(e)); } });
+      .then(next => { if (!control.signal.aborted) setShown(next); }, e => { if (!control.signal.aborted) { setShown(undefined); setError(settingsError(e, 'load')); } });
     return () => control.abort();
   }, [api, workspace, repository]);
   const cards = shown?.json ? processCards(shown.json) : undefined;
   const errors = shown?.issues.filter(i => i.severity === 'error') || [];
   const warnings = shown?.issues.filter(i => i.severity !== 'error') || [];
   return <section className="orchestration-process" aria-labelledby="process-heading">
-    <div className="subscriptions-heading"><div>
-      <h2 id="process-heading">Process</h2>
-      <p>How a mission runs: its phases, the gates between them, and the roles that do the work. Read-only for now; edit <code>.lazybox/process.yaml</code> in a repository{shown?.userFile ? <>, or your own file at <code>{shown.userFile}</code></> : null}. Check either with <code>lazybox process validate</code>.</p>
-    </div></div>
+    <SettingsHeader id="process-heading" title="Process" description={<>How a mission runs: its phases, the gates between them, and the roles that do the work. Read-only for now; edit <code>.lazybox/process.yaml</code> in a repository{shown?.userFile ? <>, or your own file at <code>{shown.userFile}</code></> : null}. Check either with <code>lazybox process validate</code>.</>}/>
     <div className="process-scope">
-      <label>For workspace <select value={workspace} onChange={e => { setWorkspace(e.target.value); setRepository(''); }}>
+      <label><span>For workspace</span><select value={workspace} onChange={e => { setWorkspace(e.target.value); setRepository(''); }}>
         <option value="">None: presets and your file</option>
         {workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
       </select></label>
-      {(shown?.candidates.length || 0) > 1 && <label>Repository <select value={repository} onChange={e => setRepository(e.target.value)}>
+      {(shown?.candidates.length || 0) > 1 && <label><span>Repository</span><select value={repository} onChange={e => setRepository(e.target.value)}>
         <option value="">Choose…</option>
         {shown!.candidates.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
       </select></label>}
     </div>
     {error && <p className="settings-error" role="alert">{error}</p>}
-    {!shown && !error && <p className="settings-empty">Loading the process…</p>}
+    {!shown && !error && <p className="settings-empty" role="status">Loading the process…</p>}
     {shown && <>
       <p className="process-layers" aria-label="Layers">{shown.layers.map(l => <span key={l.kind} title={l.digest}>{l.kind === 'preset' ? `Preset ${l.source}` : l.kind === 'user' ? 'Your file' : l.source}</span>)}</p>
       {shown.notice && <p className="processes-notice tone-warn" role="status">{shown.notice}</p>}
@@ -60,7 +58,7 @@ export function OrchestrationProcessSettings() {
         <ol className="process-phases">{cards.phases.map(p => <li key={p.id}><strong>{p.id}</strong><span>exits through <em>{p.exit}</em> ({p.gate})</span>{p.detail && <small>{p.detail}</small>}</li>)}</ol>
         <h3>Roles</h3>
         <div className="subscription-grid">{cards.roles.map(r => <article className="subscription-card process-role" key={r.name} aria-label={`${r.name} role`}>
-          <header><div><h3>{r.name}</h3><span>{r.providers || 'no provider'}{r.model ? ` · ${r.model}` : ''}</span></div><span className="account-state">{r.permission}</span></header>
+          <header><div className="subscription-identity"><h3>{r.name}</h3><span>{r.providers || 'no provider'}{r.model ? ` · ${r.model}` : ''}</span></div><span className={`account-state${r.permission === 'YOLO' ? ' tone-warn' : ''}`}>{r.permission}</span></header>
           <div className="process-role-body">
             {r.scopes.length > 0 && <p className="process-scopes">{r.scopes.map(s => <code key={s}>{s}</code>)}</p>}
             {r.wakes.length > 0 ? <ul>{r.wakes.map(w => <li key={w}>{w}</li>)}</ul> : <small>No triggers: rules or another role start it</small>}

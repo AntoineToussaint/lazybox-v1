@@ -18,21 +18,77 @@ export function sessionLimit(session?: Session): LimitState | '' {
   return isLimitState(session.fault) ? session.fault : '';
 }
 
+/** A reset as its day ('' today, "tomorrow", "Mon", "Nov 20") and time of day; undefined for none or one passed. */
+function resetParts(resetAt: bigint | number | undefined, now: number, locale?: string): { day: string; time: string; date: boolean } | undefined {
+  const at = seconds(resetAt) * 1000;
+  if (!at || at <= now) return undefined;
+  const date = new Date(at), today = new Date(now);
+  const time = date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((day(date) - day(today)) / 86400000);
+  if (days === 0) return { day: '', time, date: false };
+  if (days === 1) return { day: 'tomorrow', time, date: false };
+  if (days < 7) return { day: date.toLocaleDateString(locale, { weekday: 'short' }), time, date: false };
+  return { day: date.toLocaleDateString(locale, { month: 'short', day: 'numeric' }), time, date: true };
+}
+
 /**
  * When a reset happens, as a person says it: "6:00 PM" today, "tomorrow 9:00 AM",
  * "Mon 6:00 PM" this week, else the date. '' for none, or one already passed.
  */
 export function resetTime(resetAt: bigint | number | undefined, now = Date.now(), locale?: string): string {
-  const at = seconds(resetAt) * 1000;
-  if (!at || at <= now) return '';
-  const date = new Date(at), today = new Date(now);
-  const time = date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
-  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((day(date) - day(today)) / 86400000);
-  if (days === 0) return time;
-  if (days === 1) return `tomorrow ${time}`;
-  if (days < 7) return `${date.toLocaleDateString(locale, { weekday: 'short' })} ${time}`;
-  return `${date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}, ${time}`;
+  const parts = resetParts(resetAt, now, locale);
+  if (!parts) return '';
+  return !parts.day ? parts.time : `${parts.day}${parts.date ? ',' : ''} ${parts.time}`;
+}
+
+/**
+ * When a limited subscription can be used again, said the one way every
+ * surface says it: "back at 6:00 PM", "back tomorrow at 9:00 AM", "back Mon at
+ * 6:00 PM", "back Nov 20 at 6:00 PM". '' for none, or one already passed.
+ */
+export function backAt(resetAt: bigint | number | undefined, now = Date.now(), locale?: string): string {
+  const parts = resetParts(resetAt, now, locale);
+  return parts ? `back ${parts.day ? `${parts.day} ` : ''}at ${parts.time}` : '';
+}
+
+/** How long until a moment, roughly: "in 2h 10m", "in 45m", "in 3d 4h". '' once passed. */
+export function untilText(resetAt: bigint | number | undefined, now = Date.now()): string {
+  const remaining = seconds(resetAt) * 1000 - now;
+  if (remaining <= 0) return '';
+  const minutes = Math.ceil(remaining / 60_000), hours = Math.floor(minutes / 60), days = Math.floor(hours / 24);
+  if (days >= 1) return `in ${days}d${hours % 24 ? ` ${hours % 24}h` : ''}`;
+  if (hours >= 1) return `in ${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`;
+  return `in ${minutes}m`;
+}
+
+/** "back at 6:00 PM (in 2h 10m)". '' for none, or one already passed. */
+export function backWhen(resetAt: bigint | number | undefined, now = Date.now()): string {
+  const back = backAt(resetAt, now);
+  return back && `${back} (${untilText(resetAt, now)})`;
+}
+
+/**
+ * When a saved subscription can take work again, by its own last report. A
+ * limit lasts until every window at 100% has reset, so the latest of those is
+ * when it is back; the account's reset time stands in when no window says.
+ * `due` means that moment has passed and the report is stale.
+ */
+export type Comeback =
+  | { kind: 'available' }
+  | { kind: 'back' | 'due'; resetAt: number }
+  | { kind: 'unknown' | 'sign-in' | 'billing' };
+
+export function comeback(profile: Profile | undefined, now = Date.now()): Comeback {
+  const usage = profile?.availability, state = usage?.state || 'unknown';
+  if (state === 'auth_required') return { kind: 'sign-in' };
+  if (state === 'billing_error') return { kind: 'billing' };
+  const full = (usage?.windows || []).filter(w => Number.isFinite(w.usedPercent) && w.usedPercent >= 100);
+  if (state !== 'exhausted' && state !== 'throttled' && !full.length) return { kind: 'available' };
+  const resets = full.map(w => seconds(w.resetAt)).filter(Boolean);
+  const resetAt = resets.length ? Math.max(...resets) : seconds(usage?.resetAt);
+  if (!resetAt) return { kind: 'unknown' };
+  return { kind: resetAt * 1000 > now ? 'back' : 'due', resetAt };
 }
 
 /** A subscription's name: its label, else the CLI sign-in the Runner inherited. */
@@ -45,10 +101,10 @@ export function subscriptionName(profile: Profile | undefined, id = ''): string 
 
 /** The one sentence a stopped conversation leads with. */
 export function limitHeadline(name: string, state: LimitState, resetAt: bigint | number | undefined, now = Date.now()): string {
-  const reset = resetTime(resetAt, now);
+  const back = backWhen(resetAt, now);
   switch (state) {
-    case 'exhausted': return `${name} reached its limit${reset ? ` (resets ${reset})` : ''}`;
-    case 'throttled': return `${name} is rate limited${reset ? ` (try again at ${reset})` : ''}`;
+    case 'exhausted': return `${name} reached its limit${back ? ` · ${back}` : ''}`;
+    case 'throttled': return `${name} is rate limited${back ? ` · ${back}` : ''}`;
     case 'auth_required': return `${name} needs you to sign in again`;
     case 'billing_error': return `${name} has a billing problem`;
   }
@@ -71,10 +127,10 @@ function detail(profile: Profile, now: number): string {
     const prefix = state === 'available' ? 'Available' : 'Ready';
     return used >= 0 ? `${prefix} · ${Math.round(used)}% used` : prefix;
   }
-  const reset = resetTime(usage?.resetAt, now);
+  const back = backAt(usage?.resetAt, now);
   switch (state) {
-    case 'exhausted': return reset ? `Limit reached · resets ${reset}` : 'Limit reached';
-    case 'throttled': return reset ? `Rate limited · try again at ${reset}` : 'Rate limited';
+    case 'exhausted': return back ? `Limit reached · ${back}` : 'Limit reached';
+    case 'throttled': return back ? `Rate limited · ${back}` : 'Rate limited';
     case 'auth_required': return 'Sign-in required';
     case 'billing_error': return 'Billing issue';
     default: return 'Unavailable';
@@ -110,8 +166,8 @@ export function switchedLine(note: SwitchNote, nameFor: (id: string) => string, 
   if (note.mode === 'retry_same_profile') return `Continued on ${nameFor(note.to)}`;
   const line = `Switched to ${nameFor(note.to)}`;
   if (!note.from || note.from === note.to || !isLimitState(note.fromState)) return line;
-  const reset = resetTime(note.resetAt, now), from = nameFor(note.from);
-  if (reset && (note.fromState === 'exhausted' || note.fromState === 'throttled')) return `${line} · ${from} resets at ${reset}`;
+  const back = backAt(note.resetAt, now), from = nameFor(note.from);
+  if (back && (note.fromState === 'exhausted' || note.fromState === 'throttled')) return `${line} · ${from} is ${back}`;
   return `${line} · ${from} ${note.fromState === 'auth_required' ? 'needs sign-in' : note.fromState === 'billing_error' ? 'has a billing problem' : 'reached its limit'}`;
 }
 
@@ -168,6 +224,6 @@ export function limitStatus(session: Session | undefined, now = Date.now()): str
   if (!limit) return undefined;
   if (limit === 'auth_required') return 'Sign-in required';
   if (limit === 'billing_error') return 'Billing issue';
-  const reset = resetTime(session.account?.resetAt, now);
-  return reset ? `Waiting for reset ${reset}` : 'Limit reached';
+  const back = backAt(session.account?.resetAt, now);
+  return back ? `Limit reached · ${back}` : 'Limit reached';
 }

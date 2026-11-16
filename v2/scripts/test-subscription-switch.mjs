@@ -7,7 +7,7 @@ import {createServer} from 'vite';import react from '@vitejs/plugin-react';impor
 const f=await startRunnerFixture();
 const now=Date.now(),reset=Math.floor(now/1000)+3*3600;
 const clock=seconds=>new Date(seconds*1000).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-const resetLabel=new RegExp(`(tomorrow )?${clock(reset).replace(/\s/g,'\\s')}`);
+const backLabel=new RegExp(`(tomorrow )?at ${clock(reset).replace(/\s/g,'\\s')}`);
 const saved=(id,label,availability)=>({id,label,provider:'claude',isolation:'environment',managed:true,availability});
 f.profiles.push(saved('obin-1','Obin Subscription 1',{state:'available',windows:[{name:'five_hour',usedPercent:37,durationMinutes:'300'}]}),saved('obin-2','Obin Subscription 2',{state:'exhausted',resetAt:String(reset)}),saved('obin-3','Obin Subscription 3',{state:'available'}));
 const data=value=>Buffer.from(JSON.stringify(value)).toString('base64');
@@ -43,7 +43,7 @@ try{
  let chat=page.locator('.embedded-chat').first();
  const line=chat.locator('.subscription-switched');
  await expect(line).toHaveCount(1);
- await expect(line).toHaveText(new RegExp(`^Switched to Obin Subscription 1 · Obin Subscription 2 resets at ${resetLabel.source}$`));
+ await expect(line).toHaveText(new RegExp(`^Switched to Obin Subscription 1 · Obin Subscription 2 is back ${backLabel.source}$`));
  await expect(chat).toContainText('Picking up where I stopped');
  await expect(chat.locator('.limit-card')).toHaveCount(0);
  await expect(chat.locator('.messages .error')).toHaveCount(0);
@@ -57,7 +57,7 @@ try{
  await expect(dialog).toBeVisible();
  await expect(dialog.getByRole('radio',{name:/Obin Subscription 1/})).toBeDisabled();
  await expect(dialog.getByRole('radio',{name:/Obin Subscription 1/})).toHaveAccessibleName(/current/);
- await expect(dialog.locator('.subscription-choice').filter({hasText:'Obin Subscription 2'})).toContainText(/Limit reached · resets/);
+ await expect(dialog.locator('.subscription-choice').filter({hasText:'Obin Subscription 2'})).toContainText(/Limit reached · back at/);
  await expect(dialog.locator('.subscription-choice').filter({hasText:'Obin Subscription 3'})).toContainText('Available');
  const auto=dialog.getByRole('checkbox',{name:'Switch automatically when a subscription reaches its limit'});
  await expect(auto).toBeChecked();
@@ -77,8 +77,8 @@ try{
  chat=page.locator('.embedded-chat').first();
  const card=chat.locator('.limit-card');
  await expect(card).toHaveCount(1);
- await expect(card.getByRole('heading')).toHaveText(new RegExp(`^Obin Subscription 2 reached its limit \\(resets ${resetLabel.source}\\)$`));
- await expect(chat.locator('.chat-heading .chat-status')).toContainText(new RegExp(`Waiting for reset ${resetLabel.source}`));
+ await expect(card.getByRole('heading')).toHaveText(new RegExp(`^Obin Subscription 2 reached its limit · back ${backLabel.source} \\(in .+\\)$`));
+ await expect(chat.locator('.chat-heading .chat-status')).toContainText(new RegExp(`Limit reached · back ${backLabel.source}`));
  await expect(chat.locator('.chat-heading .chat-status')).not.toContainText('Needs attention');
  await expect(chat.locator('.messages .error')).toHaveCount(0);
  await raw(chat);
@@ -98,8 +98,8 @@ try{
  await card.getByRole('button',{name:'Continue with Obin Subscription 1'}).click();
  await expect.poll(()=>f.mutations.findLast(m=>m.method==='SwitchSubscription')?.body).toEqual({sessionId:'beta-session',profileId:'obin-1',enableRotation:true});
  await expect(chat.locator('.limit-card[aria-label="Subscription limit"]')).toHaveCount(0);
- await expect(chat.locator('.subscription-switched')).toHaveText(new RegExp(`^Switched to Obin Subscription 1 · Obin Subscription 2 resets at ${resetLabel.source}$`));
- await expect(chat.locator('.chat-heading .chat-status')).not.toContainText('Waiting for reset');
+ await expect(chat.locator('.subscription-switched')).toHaveText(new RegExp(`^Switched to Obin Subscription 1 · Obin Subscription 2 is back ${backLabel.source}$`));
+ await expect(chat.locator('.chat-heading .chat-status')).not.toContainText('Limit reached');
  // The first time, one small question: everywhere, or just here.
  const everywhere=chat.getByRole('region',{name:'Automatic switching'});
  await expect(everywhere).toContainText('Do the same for every Claude conversation?');
@@ -120,7 +120,7 @@ try{
  await page.goto(`${base}/?view=workspace&collection=gamma&session=gamma-session#token=${f.token}`);
  chat=page.locator('.embedded-chat').first();
  await chat.locator('.limit-card').getByRole('button',{name:'Wait for reset'}).click();
- await expect(chat.locator('.limit-card.is-waiting')).toContainText(/Waiting for Obin Subscription 2 to reset at .*\. The conversation continues on its own then\./);
+ await expect(chat.locator('.limit-card.is-waiting')).toContainText(/Waiting for Obin Subscription 2: back .*at .* \(in .+\)\. The conversation continues on its own then\./);
  await expect(chat.locator('.limit-card.is-waiting').getByRole('button',{name:'Continue with Obin Subscription 1'})).toBeVisible();
  await page.screenshot({path:'.cache/subscription-waiting.png'});
  await expect.poll(()=>f.mutations.filter(m=>m.method==='SwitchSubscription'&&m.body.sessionId==='gamma-session').map(m=>m.body),{timeout:20000}).toEqual([{sessionId:'gamma-session',profileId:'obin-2'}]);

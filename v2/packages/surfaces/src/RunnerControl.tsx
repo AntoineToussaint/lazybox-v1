@@ -3,6 +3,8 @@ import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import type { ProcessInventory } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { useRunnerSettings } from './RunnerSettings';
+import { Icon } from './Icons';
+import { SettingsGroup, SettingsHeader, SettingsRow, settingsError } from './settings-parts';
 import './runner-control.css';
 import './processes.css';
 
@@ -46,16 +48,19 @@ export function RunnerSection({ onShowProcesses }: { onShowProcesses?(): void } 
   const available = !!info?.restartAvailable && !!info.instanceId;
   const restarting = restart.phase === 'restarting';
   return <section className="runner-preferences runner-control" aria-labelledby="runner-heading">
-    <h2 id="runner-heading">Runner</h2>
-    <p>The Runner is the local service behind this window. It runs your agents, managed commands and terminals.</p>
-    <p className="runner-status"><span className={`runner-indicator tone-${tone}${tone === 'bad' ? ' offline' : ''}`}><i/>{label}</span></p>
-    {!info && !restarting ? <p role="status">Waiting for the Runner…</p> : available || restarting ? <>
-      <p>Restarting loads the Runner again, with its current code and configuration. Agents, managed commands and terminals keep running; the new Runner re-attaches to them and this window reconnects by itself.</p>
-      <div><button className="primary" disabled={restarting} onClick={() => setConfirming(true)}>{restarting ? 'Restarting…' : restart.phase === 'failed' ? 'Try restarting again…' : 'Restart Runner…'}</button></div>
-    </> : <div className="runner-unavailable" role="note">
-      <p><strong>Restart is not available for this Runner.</strong> Nothing would start it again once it stops.</p>
-      <p>A Runner launched with <code>make -C v2 dev</code> or <code>make -C v2 working</code> can be restarted here. For the Codefly-managed Working service, run <code>make -C v2 runner-service-stop</code> and then <code>make -C v2 runner-service-start</code>. Agents keep running across either restart.</p>
-    </div>}
+    <SettingsHeader id="runner-heading" title="Runner" description="The local service behind this window. It runs your agents, managed commands and terminals."/>
+    <SettingsGroup>
+      <SettingsRow label="Status" description={!info && !restarting ? 'Waiting for the Runner…' : available || restarting ? 'Restarting loads its current code and configuration. Agents, managed commands and terminals keep running, and this window reconnects by itself.' : undefined}>
+        <div className="runner-status-control">
+          <span className={`runner-indicator tone-${tone}${tone === 'bad' ? ' offline' : ''}`}><i/>{label}</span>
+          {(available || restarting) && <button type="button" disabled={restarting} onClick={() => setConfirming(true)}><Icon name="refresh" size={14}/>{restarting ? 'Restarting…' : restart.phase === 'failed' ? 'Try restarting again…' : 'Restart Runner…'}</button>}
+        </div>
+      </SettingsRow>
+      {info && !available && !restarting && <div className="runner-unavailable" role="note">
+        <p><strong>Restart is not available for this Runner.</strong> Nothing would start it again once it stops.</p>
+        <p>A Runner launched with <code>make -C v2 dev</code> or <code>make -C v2 working</code> can be restarted here. For the Codefly-managed Working service, run <code>make -C v2 runner-service-stop</code> and then <code>make -C v2 runner-service-start</code>. Agents keep running across either restart.</p>
+      </div>}
+    </SettingsGroup>
     <ProcessHostingSettings onShowProcesses={onShowProcesses}/>
     {confirming && <RestartRunnerDialog onClose={() => setConfirming(false)} onConfirm={() => { setConfirming(false); void restartRunner(); }}/>}
   </section>;
@@ -103,12 +108,11 @@ function ProcessHostingSettings({ onShowProcesses }: { onShowProcesses?(): void 
       window.dispatchEvent(new Event('lazybox-settings-saved'));
       setSaved(backend === 'tmux' ? 'New processes will run in tmux. Running processes keep their hosts.' : 'New processes will run in session hosts. Running processes keep their hosts.');
       setInventory(await api.listProcesses({}));
-    } catch (e) { setError(String(e)); }
+    } catch (e) { setError(settingsError(e)); }
     finally { setSaving(''); }
   };
   return <section className="runner-hosting" aria-labelledby="hosting-heading">
-    <h3 id="hosting-heading">Process hosting</h3>
-    <p>Agents, managed commands and terminals each run in a host that outlives the Runner, so a restart never stops them.</p>
+    <SettingsGroup id="hosting-heading" title="Process hosting" description="Agents, managed commands and terminals each run in a host that outlives the Runner, so a restart never stops them. A change applies to processes started from now on.">
     <fieldset disabled={!!saving || !settings}>
       <legend>Host new processes in</legend>
       <label className="hosting-choice"><input type="radio" name="process-backend" value="sessionhost" checked={chosen === 'sessionhost'} onChange={() => void choose('sessionhost')}/>
@@ -116,12 +120,12 @@ function ProcessHostingSettings({ onShowProcesses }: { onShowProcesses?(): void 
         <span>Each process runs in a detached host of its own. Nothing to install.</span></label>
       <label className="hosting-choice"><input type="radio" name="process-backend" value="tmux" checked={chosen === 'tmux'} disabled={!tmuxReady && chosen !== 'tmux'} onChange={() => void choose('tmux')}/>
         <strong>tmux{configured === 'tmux' ? ' (default)' : ''}</strong>
-        <span>Each process also gets a window in a private tmux server: watch it from any terminal with the attach command the Processes panel copies. Closing a window stops its process, and stopping that tmux server stops them all.{' '}
+        <span>Each process also gets a window in a private tmux server, so you can watch it from any terminal with the attach command the Processes panel copies. Closing a window stops its process.{' '}
           {!hosting ? '' : tmuxReady ? `Found ${hosting.tmuxVersion}.` : `Unavailable: ${hosting.tmuxProblem}.`}</span></label>
     </fieldset>
-    <p>A change applies to processes started from now on. Running processes keep the host they started in, and a Runner set either way re-attaches both.</p>
     {chosen === 'tmux' && hosting?.fallback && <p className="processes-notice tone-warn" role="status">{hosting.fallback}</p>}
-    {error && <p role="alert">{error}</p>}{saved && <p role="status">{saved}</p>}
-    <div className="runner-processes-summary"><span>{inventory ? `${running} ${running === 1 ? 'process' : 'processes'} running.` : ''}</span>{onShowProcesses && <button type="button" onClick={onShowProcesses}>Show processes</button>}</div>
+    {error && <p className="settings-inline-error hosting-message" role="alert">{error}</p>}{saved && <p className="settings-saved hosting-message" role="status"><Icon name="check" size={14}/>{saved}</p>}
+    <div className="runner-processes-summary"><span>{inventory ? `${running} ${running === 1 ? 'process' : 'processes'} running` : 'Counting processes…'}</span>{onShowProcesses && <button type="button" className="quiet" onClick={onShowProcesses}><Icon name="processes" size={14}/>Show processes</button>}</div>
+    </SettingsGroup>
   </section>;
 }

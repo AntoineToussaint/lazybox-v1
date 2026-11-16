@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema, ProfileSchema, SessionSchema, type Profile, type Session } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bestChoice, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, subscriptionChoices, subscriptionName, switchedLine, switchNote } from '../packages/surfaces/src/subscription-model.ts';
+import { backAt, backWhen, bestChoice, comeback, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, subscriptionChoices, subscriptionName, switchedLine, switchNote, untilText } from '../packages/surfaces/src/subscription-model.ts';
 import { foldTranscript, emptyTranscript } from '../packages/surfaces/src/transcript-model.ts';
 import { liveStatus } from '../packages/surfaces/src/live-status.ts';
 import { deriveAttention } from '../packages/surfaces/src/attention.ts';
@@ -28,10 +28,29 @@ test('reset times read as a person says them', () => {
   assert.equal(resetTime(at(11), noon), '', 'a reset in the past is not news');
 });
 
+test('a limited subscription says when it is back, the same way everywhere', () => {
+  assert.equal(backAt(BigInt(at(18)), noon), `back at ${time(at(18))}`);
+  assert.equal(backAt(at(9) + 86400, noon), `back tomorrow at ${time(at(9))}`);
+  assert.equal(backAt(at(11), noon), '', 'a reset in the past is not a promise');
+  assert.equal(backWhen(at(14, 10), noon), `back at ${time(at(14, 10))} (in 2h 10m)`);
+  assert.equal(untilText(at(12, 45), noon), 'in 45m');
+  assert.equal(untilText(at(12) + 3 * 86400 + 4 * 3600, noon), 'in 3d 4h');
+  assert.equal(untilText(at(11), noon), '');
+  const windows = (five: number, week: number, fiveReset: number, weekReset: number) => [{ name: 'five_hour', usedPercent: five, resetAt: BigInt(fiveReset) }, { name: 'seven_day', usedPercent: week, resetAt: BigInt(weekReset) }];
+  // Back when every window at 100% has reset: the latest of them.
+  assert.deepEqual(comeback(profile('a', 'A', { state: 'exhausted', windows: windows(100, 100, at(14), at(18)) }), noon), { kind: 'back', resetAt: at(18) });
+  assert.deepEqual(comeback(profile('a', 'A', { state: 'exhausted', windows: windows(100, 64, at(14), at(18)) }), noon), { kind: 'back', resetAt: at(14) }, 'a window below its limit does not hold it');
+  assert.deepEqual(comeback(profile('a', 'A', { state: 'exhausted', resetAt: BigInt(at(15)) }), noon), { kind: 'back', resetAt: at(15) }, 'the account reset stands in for windows');
+  assert.deepEqual(comeback(profile('a', 'A', { state: 'exhausted', windows: windows(100, 10, at(11), at(18)) }), noon), { kind: 'due', resetAt: at(11) });
+  assert.deepEqual(comeback(profile('a', 'A', { state: 'exhausted' }), noon), { kind: 'unknown' });
+  assert.deepEqual(comeback(profile('a', 'A', { state: 'available', windows: windows(40, 10, at(14), at(18)) }), noon), { kind: 'available' });
+  assert.deepEqual(comeback(profile('a', 'A', { state: 'auth_required' }), noon), { kind: 'sign-in' });
+});
+
 test('a limit is one plain sentence, never a provider token', () => {
-  assert.equal(limitHeadline('Obin Subscription 2', 'exhausted', BigInt(at(18)), noon), `Obin Subscription 2 reached its limit (resets ${time(at(18))})`);
+  assert.equal(limitHeadline('Obin Subscription 2', 'exhausted', BigInt(at(18)), noon), `Obin Subscription 2 reached its limit · back at ${time(at(18))} (in 6h)`);
   assert.equal(limitHeadline('Obin Subscription 2', 'exhausted', 0n, noon), 'Obin Subscription 2 reached its limit');
-  assert.equal(limitHeadline('Work', 'throttled', BigInt(at(12, 2)), noon), `Work is rate limited (try again at ${time(at(12, 2))})`);
+  assert.equal(limitHeadline('Work', 'throttled', BigInt(at(12, 2)), noon), `Work is rate limited · back at ${time(at(12, 2))} (in 2m)`);
   assert.equal(limitHeadline('Work', 'auth_required', 0n, noon), 'Work needs you to sign in again');
   for (const [status, text] of [['throttled', 'rate_limit'], ['provider_error', ''], ['sdk_error', 'unknown_error'], ['context_full', 'context_length_exceeded']]) {
     const sentence = failureSentence(status, text);
@@ -52,8 +71,8 @@ test('only a running conversation stopped at an account limit gets the card', ()
 
 test('the header says what the conversation waits for, not "Needs attention"', () => {
   const limited = session({ fault: 'exhausted', account: { state: 'exhausted', resetAt: BigInt(at(18)) } as any });
-  assert.equal(limitStatus(limited, noon), `Waiting for reset ${time(at(18))}`);
-  assert.deepEqual(liveStatus(limited, noon), { tone: 'waiting', label: `Waiting for reset ${time(at(18))}`, text: `Waiting for reset ${time(at(18))}` });
+  assert.equal(limitStatus(limited, noon), `Limit reached · back at ${time(at(18))}`);
+  assert.deepEqual(liveStatus(limited, noon), { tone: 'waiting', label: `Limit reached · back at ${time(at(18))}`, text: `Limit reached · back at ${time(at(18))}` });
   assert.equal(limitStatus(session({ fault: 'exhausted', account: { state: 'exhausted' } as any }), noon), 'Limit reached');
   const switching = session({ fault: 'exhausted', status: 'switching_profile', account: { state: 'exhausted' } as any, agents: [{ id: 'root', status: 'switching_profile', phaseSinceUnixMillis: BigInt(noon - 3000) } as any] });
   assert.equal(liveStatus(switching, noon).text, 'Limit reached · switching · 3s');
@@ -68,7 +87,7 @@ test('the best other subscription is the ready one; a picker lists the rest by r
   assert.deepEqual(choices.map(c => c.id), ['obin-1', 'claude-default', 'obin-3', 'obin-2']);
   assert.equal(bestChoice(choices)?.id, 'obin-1', 'known to be available first');
   assert.equal(choices.find(c => c.id === 'obin-1')?.detail, 'Available · 37% used');
-  assert.equal(choices.find(c => c.id === 'obin-3')?.detail, `Limit reached · resets ${time(at(15))}`);
+  assert.equal(choices.find(c => c.id === 'obin-3')?.detail, `Limit reached · back at ${time(at(15))}`);
   assert.equal(choices.at(-1)?.current, true);
   assert.equal(subscriptionName(profiles[3], 'claude-default'), 'Claude CLI sign-in');
   const onlyLimited = subscriptionChoices(profiles.slice(1, 3), 'claude', 'obin-2', noon);
@@ -91,7 +110,7 @@ test('an automatic switch is one quiet line; the limit itself adds nothing to th
   const folded = foldTranscript(emptyTranscript(), records);
   assert.deepEqual(folded.messages.map(m => m.type), ['operation_accepted', 'switched', 'message_delta', 'failure']);
   const line = folded.messages[1];
-  assert.equal(switchedLine(line.switched!, names, noon), `Switched to Obin Subscription 1 · Obin Subscription 2 resets at ${time(at(18))}`);
+  assert.equal(switchedLine(line.switched!, names, noon), `Switched to Obin Subscription 1 · Obin Subscription 2 is back at ${time(at(18))}`);
   assert.doesNotMatch(folded.messages[3].text, /sdk_error/);
   // A switch the person asked for while nothing was limited, and a retry after the reset.
   assert.equal(switchedLine(switchNote('obin-3', 'checkpoint_next_message', { from: 'obin-1', fromState: 'available' }), names, noon), 'Switched to Obin Subscription 3');

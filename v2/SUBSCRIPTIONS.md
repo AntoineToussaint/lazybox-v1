@@ -76,14 +76,26 @@ did not opt out when it started, and turning it on takes the provider's
 subscriptions back into automatic switching in Settings.
 
 In the conversation, an automatic switch is one quiet line ("Switched to Work ·
-Personal resets at 6:00 PM"). Without one, a single card names the limit and its
-reset, offers the best other subscription first (a picker when there are
+Personal is back at 6:00 PM"). Without one, a single card names the limit and
+when the subscription is back ("back at 6:00 PM (in 2h 10m)"), offers the best other subscription first (a picker when there are
 several, with each one's state and reset), **Wait for reset**, and **Always
 switch automatically** (on by default; the first time, one question offers it
 for every conversation). Waiting continues the request on the same subscription
 at the reset while the conversation is open in a window, or the next time it is
 opened; this is the client's timer, not the Runner's. The session ⋯ menu has
 **Switch subscription…** at any time. Provider tokens are never shown.
+
+Every surface says when a limited subscription can be used again the same way
+(`backAt`/`comeback` in `subscription-model.ts`): the conversation card and
+header, the switch picker, the Inbox line, and **Settings → Subscriptions**. A
+limit lasts until every usage window at 100% has reset, so a card is back at the
+latest of those resets ("Back at 6:00 PM (in 2h 10m)"), updated each half
+minute. Once that time has passed the report is stale: the card says "Should be
+available again — checking…", refreshes that subscription's usage once by
+itself, and shows what the provider reports now. A window whose reset has passed
+shows "Reset" instead of a stale percentage. With no reported reset time the
+card says so. An available card names only its next reset, of its most-used
+window.
 
 Use **Settings → Subscriptions → Add subscription** in the main workspace,
 or enroll on the Runner host using `lazybox account-login` as described in

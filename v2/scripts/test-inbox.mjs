@@ -122,9 +122,9 @@ try {
   // Settings → Notifications: toggles persist for every window; a test notification is sent.
   await page.getByRole('button', {name: 'Settings', exact: true}).click();
   await page.getByRole('tab', {name: 'Notifications', exact: true}).click();
-  const reviewToggle = page.getByRole('checkbox', {name: /Ready for review/});
+  const reviewToggle = page.getByRole('switch', {name: /Ready for review/});
   await expect(reviewToggle).not.toBeChecked();
-  await expect(page.getByRole('checkbox', {name: /Needs input/})).toBeChecked();
+  await expect(page.getByRole('switch', {name: /Needs input/})).toBeChecked();
   await reviewToggle.check();
   await page.getByRole('button', {name: 'Send a test notification'}).click();
   await expect.poll(() => page.evaluate(() => window.__notices.at(-1).title)).toBe('Lazybox notifications are on');
@@ -132,7 +132,7 @@ try {
   await page.reload();
   await page.getByRole('button', {name: 'Settings', exact: true}).click();
   await page.getByRole('tab', {name: 'Notifications', exact: true}).click();
-  await expect(page.getByRole('checkbox', {name: /Ready for review/})).toBeChecked();
+  await expect(page.getByRole('switch', {name: /Ready for review/})).toBeChecked();
   await page.getByRole('button', {name: 'Settings', exact: true}).click();
 
   // With review notifications on, the next finished turn of a conversation not on screen notifies.

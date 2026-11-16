@@ -11,59 +11,74 @@ import {
   type Action,
   type VimPreferences,
 } from "./keyboard";
+import { Icon } from "./Icons";
+import { SettingsGroup, SettingsHeader, SettingsRow } from "./settings-parts";
+
 export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
   const [map, setMap] = useState(() => readKeymap(store)),
-    [status, setStatus] = useState("");
+    [status, setStatus] = useState(""),
+    [dirty, setDirty] = useState(false);
   return (
     <section className="keyboard-settings">
-      <h2>Keyboard navigation</h2>
-      <p>
-        Sequences are separated by spaces. Ctrl+b is a chord; ] ] s is a
-        hierarchy. Navigation keys only apply outside the composer.
-      </p>
-      <label>
-        Preset
-        <select
-          defaultValue="custom"
-          onChange={(e) => {
-            setMap(keyboardPreset(e.target.value));
-            setStatus("Save to apply this preset.");
-          }}
-        >
-          <option value="custom" disabled>
-            Custom / current
-          </option>
-          <option value="vim">Vim · ]] and h j k l</option>
-          <option value="tmux">Ctrl+b prefix · arrow keys</option>
-          <option value="arrows">Arrow keys · ]] leader</option>
-        </select>
-      </label>
+      <SettingsHeader
+        title="Keyboard"
+        description={<>Keys work outside the message box. Separate a sequence with spaces: <code>Ctrl+b</code> is a chord, <code>] ] s</code> a sequence.</>}
+      />
       <form
         onSubmit={(e) => {
           e.preventDefault();
           try {
             saveKeymap(map, store);
             setStatus("Shortcuts saved.");
+            setDirty(false);
           } catch (error) {
-            setStatus(String(error));
+            setStatus(String(error).replace(/^Error:\s*/, ""));
           }
         }}
       >
-        {keyboardActions.map((a) => (
-          <label key={a.id}>
-            {a.label}
-            <input
-              aria-label={a.label}
-              value={map[a.id]}
-              onChange={(e) =>
-                setMap({ ...map, [a.id as Action]: e.target.value })
-              }
-            />
-          </label>
-        ))}
-        <button className="primary">Save shortcuts</button>
+        <SettingsGroup title="Navigation shortcuts">
+          <SettingsRow label="Start from a preset" htmlFor="keyboard-preset" description="Fills in every shortcut below. Nothing changes until you save.">
+            <select
+              id="keyboard-preset"
+              defaultValue="custom"
+              onChange={(e) => {
+                setMap(keyboardPreset(e.target.value));
+                setDirty(true);
+                setStatus("");
+              }}
+            >
+              <option value="custom" disabled>Your shortcuts</option>
+              <option value="vim">Vim · ]] and h j k l</option>
+              <option value="tmux">Ctrl+b prefix · arrow keys</option>
+              <option value="arrows">Arrow keys · ]] leader</option>
+            </select>
+          </SettingsRow>
+          {keyboardActions.map((a) => (
+            <SettingsRow key={a.id} label={a.label} htmlFor={`shortcut-${a.id}`}>
+              <input
+                id={`shortcut-${a.id}`}
+                className="shortcut-input"
+                aria-label={a.label}
+                spellCheck={false}
+                autoComplete="off"
+                value={map[a.id]}
+                onChange={(e) => {
+                  setMap({ ...map, [a.id as Action]: e.target.value });
+                  setDirty(true);
+                  setStatus("");
+                }}
+              />
+            </SettingsRow>
+          ))}
+        </SettingsGroup>
+        <div className="settings-savebar">
+          <p role="status" className={status === "Shortcuts saved." ? "settings-saved" : status ? "settings-inline-error" : "settings-dirty"}>
+            {status === "Shortcuts saved." && <Icon name="check" size={14} />}
+            {status || (dirty ? "Unsaved changes" : "")}
+          </p>
+          <button className="primary">Save shortcuts</button>
+        </div>
       </form>
-      <p role="status">{status}</p>
       <VimSettings store={store} />
       <LeaderMenuSettings store={store} />
     </section>
@@ -82,38 +97,25 @@ function VimSettings({ store }: { store?: ViewStateStore }) {
       setStatus(String(error));
     }
   };
+  const row = (key: keyof VimPreferences, label: string, where: string, detail: string) => (
+    <label className="settings-row vim-toggle">
+      <span className="settings-row-text"><span className="settings-row-label">{label}</span><small>{detail}</small></span>
+      <span className="settings-row-control settings-switch">
+        <input type="checkbox" role="switch" checked={preferences[key]} onChange={(e) => toggle(key, e.target.checked, where)} />
+      </span>
+    </label>
+  );
   return (
     <section className="vim-settings" aria-labelledby="vim-settings-title">
-      <h3 id="vim-settings-title">Vim editing</h3>
-      <p>
-        Modal editing where you type. Esc switches to normal mode; the{" "}
-        {readKeymap(store)["navigation.exit"]} leader keeps working in every mode.
-      </p>
-      <label className="vim-toggle">
-        <input
-          type="checkbox"
-          role="switch"
-          checked={preferences.composer}
-          onChange={(e) => toggle("composer", e.target.checked, "message box")}
-        />
-        <span>Vim editing in the message box</span>
-        <small>
-          Starts in insert mode. In normal mode Enter sends; i a o, h j k l w b e, d c y with counts, p, u and Ctrl-r edit the draft.
-        </small>
-      </label>
-      <label className="vim-toggle">
-        <input
-          type="checkbox"
-          role="switch"
-          checked={preferences.editor}
-          onChange={(e) => toggle("editor", e.target.checked, "file editor")}
-        />
-        <span>Vim editing in the file editor</span>
-        <small>
-          Full Vim keys in the file window, with a status line. Esc stays in the editor; :w saves, :q closes (asking first about unsaved changes), :wq saves and closes.
-        </small>
-      </label>
-      <p role="status">{status}</p>
+      <SettingsGroup
+        title="Vim editing"
+        description={<>Modal editing where you type, applied at once. Esc switches to normal mode; the {readKeymap(store)["navigation.exit"]} leader keeps working in every mode.</>}
+      >
+        <span id="vim-settings-title" className="sr-only">Vim editing</span>
+        {row("composer", "Vim editing in the message box", "message box", "Starts in insert mode. In normal mode Enter sends; i a o, h j k l w b e, d c y with counts, p, u and Ctrl-r edit the draft.")}
+        {row("editor", "Vim editing in the file editor", "file editor", "Full Vim keys in the file window, with a status line. :w saves, :q closes (asking first about unsaved changes), :wq saves and closes.")}
+      </SettingsGroup>
+      <p role="status" className="settings-saved vim-status-line">{status}</p>
     </section>
   );
 }

@@ -25,4 +25,4 @@
 .workspace-home-recent button>svg{flex:none;color:#7f7d90}
 .workspace-home-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .workspace-home-recent .live-status{flex:none;font-size:11px}
-@media(max-width:600px){.workspace-home{padding:24px 16px}.workspace-home-actions button{flex:1 1 auto;justify-content:center}}
+@media(max-width:600px){.workspace-home{padding:24px 16px}.workspace-home-actions{display:grid;grid-template-columns:1fr 1fr}.workspace-home-actions button{justify-content:center}.workspace-home-actions button.primary{grid-column:1/-1;min-height:40px}.workspace-home-actions kbd{display:none}}

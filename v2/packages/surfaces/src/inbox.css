@@ -75,21 +75,3 @@
 .conversation-link .session-dot.unread{margin-top:6px}
 .conversation-link .session-dot.unread-failed,.workspace-agent .session-dot.unread-failed{background:var(--attention-failed)}
 .conversation-row[data-unread] .conversation-link strong,.workspace-row[data-unread] .workspace-label strong{color:#f1f0f7;font-weight:600}
-
-/* Settings → Notifications */
-.notification-settings{max-width:620px}
-.notification-settings h2{margin:0 0 8px;font-size:17px;font-weight:600}
-.notification-settings>p{margin:0 0 16px;font-size:13px;line-height:1.6;color:#999ba7}
-.notification-settings .notification-note{padding:10px 12px;border:1px solid #3a3b45;border-radius:8px;background:#202127;color:#c6c7d0;font-size:12px}
-.notification-settings .notification-note button{margin-left:8px;padding:4px 10px;font-size:12px}
-.notification-settings fieldset{display:grid;gap:2px;margin:0;padding:0;border:0}
-.notification-settings .notification-option{display:flex;flex-direction:row;align-items:flex-start;gap:12px;padding:12px;border-radius:8px;cursor:pointer}
-.notification-option:hover{background:#22232a}
-.notification-option input{width:16px;height:16px;margin:2px 0 0;flex:none;accent-color:#b6acd4}
-.notification-option span{display:flex;flex-direction:column;gap:3px}
-.notification-option strong{font-size:13px;font-weight:550;color:#e6e6ed}
-.notification-option small{font-size:12px;line-height:1.5;color:#999ba7}
-.notification-test{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
-.notification-settings .notification-test button{font-size:12px;padding:7px 12px;background:#2a2b33;border:1px solid #3d3e48;border-radius:6px;color:#e6e6ed}
-.notification-settings .notification-test button:hover:not(:disabled){background:#33343d}
-.notification-test small{font-size:12px;color:#999ba7}

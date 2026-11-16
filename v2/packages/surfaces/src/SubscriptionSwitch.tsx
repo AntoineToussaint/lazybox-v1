@@ -4,7 +4,7 @@ import type { ViewStateStore } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { readPreference, writePreference } from './view-state';
-import { bestChoice, limitHeadline, resetTime, sessionLimit, subscriptionChoices, subscriptionName, type SubscriptionChoice } from './subscription-model';
+import { backWhen, bestChoice, limitHeadline, resetTime, sessionLimit, subscriptionChoices, subscriptionName, type SubscriptionChoice } from './subscription-model';
 import './subscription-switch.css';
 
 const askedKey = 'auto-switch-asked';
@@ -101,7 +101,7 @@ function LimitCard({ session, profiles, provider, viewState, switchTo, onError }
   const continueWith = selected && <button type="button" className="primary" disabled={!!busy} onClick={() => void act('switch', async () => { forgetWait(); await switchTo(selected.id, always && !rotating); })}>{busy === 'switch' ? `Switching to ${selected.name}…` : `Continue with ${selected.name}`}</button>;
   const queued = session.queued > 0 && <p className="limit-card-note">Your {session.queued === 1 ? 'message is' : `${session.queued} messages are`} saved and will be sent once, when the conversation continues.</p>;
   if (waiting) return <section className="limit-card is-waiting" aria-label="Subscription limit" data-limit={limit}>
-    <p className="limit-card-line"><strong>Waiting for {current} to reset at {reset}.</strong> The conversation continues on its own then.</p>
+    <p className="limit-card-line"><strong>Waiting for {current}: {backWhen(session.account?.resetAt, now)}.</strong> The conversation continues on its own then.</p>
     {queued}
     <div className="limit-card-actions">{continueWith}<button type="button" disabled={!!busy} onClick={() => { forgetWait(); setWaiting(false); }}>Don’t wait</button></div>
   </section>;

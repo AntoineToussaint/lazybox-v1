@@ -274,7 +274,10 @@ nanodollars per token (`input`, `output`, `cacheRead`, `cacheWrite5m`,
 `cacheWrite1h`, optional `maxInput`). A USD-per-million-token price is multiplied
 by 1000 for these units. Prices are stamped into records at observation time;
 changing a card does not rewrite already-priced history. **Settings → Pricing**
-edits exact model overrides in USD per million tokens (three decimal places).
+lists the rate card as one searchable, sortable table per provider and edits
+exact model overrides in USD per million tokens (three decimal places) in a
+dialog: **Add model price**, or a row's edit button. Removing an override asks
+first.
 The Runner assigns each edit a version; removing an override restores the configured
 base/default rate. Captures use the latest rate, while reports can estimate retained
 observations previously missing a rate, without rewriting those observations.

@@ -26,13 +26,16 @@ function useProcesses() {
   const [error, setError] = useState('');
   const reading = useRef(false), alive = useRef<AbortController | null>(null);
   const refresh = async () => {
-    if (reading.current) return; reading.current = true;
-    try { const next = await api.listProcesses({}, { signal: alive.current?.signal, timeoutMs: 8000 }); if (!alive.current?.signal.aborted) { setInventory(next); setError(''); } }
-    catch (e) { if (!alive.current?.signal.aborted) setError(String(e)); }
+    // Each read answers to the mount that started it: a read a remount
+    // abandoned (React runs effects twice in development) is not a failure.
+    const signal = alive.current?.signal;
+    if (reading.current || signal?.aborted) return; reading.current = true;
+    try { const next = await api.listProcesses({}, { signal, timeoutMs: 8000 }); if (!signal?.aborted) { setInventory(next); setError(''); } }
+    catch (e) { if (!signal?.aborted) setError(String(e)); }
     finally { reading.current = false; }
   };
   useEffect(() => {
-    const control = new AbortController(); alive.current = control;
+    const control = new AbortController(); alive.current = control; reading.current = false;
     void refresh(); const timer = setInterval(() => void refresh(), 3000);
     return () => { control.abort(); clearInterval(timer); };
   }, [api]);
@@ -86,7 +89,7 @@ export function ProcessesPanel({ workspaceId = '', onShowSession, onShowPanel }:
     </header>
     <div className="processes-body">
       <HostingSummary hosting={inventory?.hosting}/>
-      {error && <p className="processes-notice tone-warn" role="status">Processes unavailable; retrying. {error}</p>}
+      {error && <p className="processes-notice tone-warn" role="status" title={error}><Icon name="alert" size={14}/> The Runner did not list its processes. Trying again every few seconds…</p>}
       {inventory?.problem && <p className="processes-notice tone-warn" role="status">Some processes could not be listed: {inventory.problem}</p>}
       {notice && <p className="processes-notice" role="status">{notice}<button type="button" className="link-button" onClick={() => setNotice('')}>Dismiss</button></p>}
       {!inventory && !error && <p className="processes-empty" role="status">Loading processes…</p>}
