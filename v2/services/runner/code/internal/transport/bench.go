@@ -134,6 +134,10 @@ func wireStatus(s commands.Status) *pb.CommandStatus {
 	if s.Spec.TerminalID != "" {
 		w.Origin = "terminal"
 	}
+	if s.Spec.Kind != "" {
+		// A workspace action, setup or archive (WORKSPACE_RUNTIME.md).
+		w.Origin = s.Spec.Kind
+	}
 	if s.ExitCode != nil {
 		code := int32(*s.ExitCode)
 		w.ExitCode = &code

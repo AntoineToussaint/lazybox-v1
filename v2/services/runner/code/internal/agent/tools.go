@@ -22,7 +22,8 @@ func SettingsTool(name string) bool {
 // ToolReplaySafe reports whether a tool call may simply run again when it is
 // redelivered after a Runner restart. Managed commands outlive the Runner, so
 // reading one or waiting for it has no effect a second run could repeat.
-// Starting or cancelling one does: those get an explicit unknown outcome.
+// Listing workspace actions has none either. Starting or cancelling a command
+// or starting an action does: those get an explicit unknown outcome.
 // Reading settings has no effect; an approved settings update names the
 // revision it was proposed against, so a second run applies nothing once the
 // first did — it is refused as a conflict.
@@ -39,5 +40,5 @@ func ToolReplaySafe(name string, args json.RawMessage) bool {
 	if json.Unmarshal(args, &call) != nil {
 		return false
 	}
-	return call.Action == "read" || call.Action == "wait"
+	return call.Action == "read" || call.Action == "wait" || call.Action == "actions"
 }

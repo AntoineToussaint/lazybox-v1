@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode } fr
 import { Icon } from './Icons';
 
 /** Keep actions in the browser top layer, outside scrolling panel clipping. */
-export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; className?: string; children: ReactNode }>(function ActionMenu({ label, className = '', children }, forwardedRef) {
+export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; className?: string; /** Replaces the ⋯ icon of the menu button. */ summary?: ReactNode; children: ReactNode }>(function ActionMenu({ label, className = '', summary, children }, forwardedRef) {
   const details = useRef<HTMLDetailsElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   useImperativeHandle(forwardedRef, () => details.current!, []);
@@ -50,7 +50,7 @@ export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; classN
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
     buttons[next]?.focus();
   }}>
-    <summary aria-label={label} title={label}><Icon name="more" /></summary>
+    <summary aria-label={label} title={label}>{summary ?? <Icon name="more" />}</summary>
     <div ref={popup} popover="auto" className="action-popover" role="group" aria-label={`${label} menu`} onToggle={event => {
       if (event.target === event.currentTarget && event.newState === 'closed' && !event.currentTarget.matches(':popover-open')) details.current!.open = false;
     }}>{children}</div>

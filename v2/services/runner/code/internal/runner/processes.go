@@ -128,6 +128,9 @@ func (b *Bench) Processes(ctx context.Context) (ProcessInventory, error) {
 				if e := executions[status.Spec.SessionID]; e != nil {
 					p.WorkspaceID, p.Provider = e.CollectionID, e.Profile.Provider
 					p.ConversationTitle = b.conversationTitle(ctx, e.ID)
+				} else if status.Spec.Kind != "" {
+					// A workspace action, setup or archive belongs to no conversation.
+					p.WorkspaceID = status.Spec.CollectionID
 				}
 			}
 		case "terminal":

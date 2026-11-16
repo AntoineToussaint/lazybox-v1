@@ -125,6 +125,95 @@ export async function startRunnerFixture() {
     processes: [...processes, ...[...terminals.values()].filter(t => !t.done).map(t => ({ id: 'host-' + t.id, kind: 'terminal', backend: 'sessionhost', state: 'running', attached: true, hostPid: 4400, programPid: 4401, uptimeSeconds: '30', label: t.title, workspaceId: t.collectionId, workspaceName: collections.find(c => c.id === t.collectionId)?.name || '', terminalId: t.id, usage: usage(0.1, 8, 2) }))],
     hosting: { selected: runnerSettings.processBackend || processHosting.configured, ...processHosting },
   });
+
+  // The workspace runtime (WORKSPACE_RUNTIME.md), explicitly fake: no script
+  // runs. A tiny local page stands in for the dev server an action would start,
+  // so a preview really loads; every other port is only a number.
+  const previewServer = createServer((req, res) => {
+    const page = req.url.startsWith('/about') ? 'About the fixture app' : 'Fixture app home';
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!doctype html><title>${page}</title><body style="font-family:sans-serif"><h1>${page}</h1><p>Served at ${req.url}</p><a href="/about">About</a></body>`);
+  });
+  await new Promise(resolve => previewServer.listen(0, '127.0.0.1', resolve));
+  const previewPort = previewServer.address().port;
+  const now = () => String(Date.now());
+  // Runtime runs are kept apart from the conversation consoles' list, so the
+  // other surface tests see the commands they always saw; their logs stream.
+  const runtimeCommands = [];
+  const runCommand = (collectionId, origin, title, output) => { const command = { id: `${origin}-${collectionId}-${runtimeCommands.length}`, sessionId: '', collectionId, origin, title, mode: 'managed', done: false, offset: String(Buffer.byteLength(output)), output, argv: ['/bin/sh', '-lc', title] }; runtimeCommands.push(command); return command; };
+  const runState = (command, extra = {}) => ({ state: 'running', commandId: command.id, startedAtUnixMillis: now(), lastLine: command.output.trim().split('\n').at(-1), ...extra });
+  const finished = (command, state, extra = {}) => { command.done = true; Object.assign(command, extra.exitCode !== undefined ? { exitCode: extra.exitCode } : {}, extra.signal ? { signal: extra.signal } : {}); return { state, commandId: command.id, startedAtUnixMillis: String(Date.now() - 60000), ...extra }; };
+  const apiConfig = base => `# yaml-language-server: $schema=https://lazybox.ai/schemas/workspace.v1.json
+setup: npm ci
+files:
+  - .env
+actions:
+  dev:
+    run: npm run dev -- --port $LAZYBOX_PORT
+    default: true
+    concurrent: false
+    url: http://127.0.0.1:$LAZYBOX_PORT
+  test:
+    run: npm test
+`;
+  const webConfig = `setup: |
+  pnpm install
+  pnpm build:icons
+actions:
+  storybook:
+    run: pnpm storybook -p $LAZYBOX_PORT_1
+    port: 1
+    url: http://127.0.0.1:$LAZYBOX_PORT_1
+`;
+  const runtimes = {};
+  const runtimeFor = collectionId => {
+    if (runtimes[collectionId]) return runtimes[collectionId];
+    const index = collections.findIndex(c => c.id === collectionId);
+    const base = index === 0 ? previewPort : index === 1 ? previewPort + 10 : 0;
+    const runtime = { collectionId, ports: base ? { base, count: 10 } : undefined, sources: [], actions: [], setups: [], defaultAction: '' };
+    if (collectionId === 'alpha' || collectionId === 'beta') {
+      const apiSetup = runCommand(collectionId, 'setup', 'npm ci', 'added 812 packages in 9s\n');
+      runtime.sources.push({ member: 'api', repositoryId: 'backend', path: '.lazybox/workspace.yaml', approval: 'approved', hash: `api-${collectionId}-1`, content: apiConfig(base), changed: [] });
+      runtime.setups.push({ member: 'api', run: 'npm ci', source: 'repository', runState: finished(apiSetup, 'succeeded', { exitCode: 0 }), copiedFiles: ['.env'], missingFiles: [] });
+      runtime.actions.push(
+        { key: 'api/dev', member: 'api', name: 'dev', run: 'npm run dev -- --port $LAZYBOX_PORT', cwd: '', default: true, concurrent: false, url: `http://127.0.0.1:${base}`, port: base, source: 'repository', blocked: '', runState: { state: 'idle' }, runningElsewhere: [] },
+        { key: 'api/test', member: 'api', name: 'test', run: 'npm test', cwd: '', default: false, concurrent: true, url: '', port: base, source: 'repository', blocked: '', runState: { state: 'idle' }, runningElsewhere: [] },
+      );
+      runtime.defaultAction = 'api/dev';
+    }
+    if (collectionId === 'alpha') {
+      runtime.sources.push({ member: 'web', repositoryId: 'frontend', path: '.lazybox/workspace.yaml', approval: 'changed', hash: 'web-alpha-2', content: webConfig, changed: ['setup', 'action:storybook'] });
+      runtime.setups.push({ member: 'web', run: 'pnpm install\npnpm build:icons', source: 'repository', pendingApproval: true, runState: { state: 'idle' }, copiedFiles: [], missingFiles: ['.env.local'] });
+      runtime.actions.push({ key: 'web/storybook', member: 'web', name: 'storybook', run: 'pnpm storybook -p $LAZYBOX_PORT_1', cwd: '', default: false, concurrent: true, url: `http://127.0.0.1:${base + 1}`, port: base + 1, source: 'repository', blocked: 'Approve web’s scripts first', runState: { state: 'idle' }, runningElsewhere: [] });
+    }
+    if (collectionId === 'beta') {
+      // Beta's dev server is already running: alpha's is non-concurrent with it.
+      const dev = runCommand('beta', 'action', 'npm run dev -- --port $LAZYBOX_PORT', `beta dev listening on ${base}\n`);
+      runtime.actions[0].runState = runState(dev);
+    }
+    runtimes[collectionId] = runtime;
+    return runtime;
+  };
+  const isLiveAction = action => action.runState?.state === 'running' || action.runState?.state === 'stopping';
+  const runtimeView = collectionId => {
+    const runtime = runtimeFor(collectionId);
+    for (const action of runtime.actions) action.runningElsewhere = action.concurrent ? [] : collections.filter(c => c.id !== collectionId && runtimes[c.id]?.actions.some(other => other.key === action.key && isLiveAction(other))).map(c => c.name);
+    return structuredClone(runtime);
+  };
+  const stopAction = (collectionId, action) => {
+    if (!isLiveAction(action)) return;
+    const command = runtimeCommands.find(c => c.id === action.runState.commandId);
+    action.runState = { ...action.runState, state: 'stopping' };
+    setTimeout(() => { if (action.runState.state !== 'stopping') return; action.runState = { ...finished(command, 'stopped', { signal: 'SIGTERM' }), startedAtUnixMillis: action.runState.startedAtUnixMillis }; }, runtimeTiming.stopMs);
+  };
+  const runtimeTiming = { stopMs: 600 };
+  // Ends a running setup, as its script would.
+  const finishSetup = (collectionId, member, exitCode = 0) => { const setup = runtimeFor(collectionId).setups.find(s => s.member === member); const command = runtimeCommands.find(c => c.id === setup.runState.commandId); setup.runState = { ...finished(command, exitCode ? 'failed' : 'succeeded', { exitCode }), startedAtUnixMillis: setup.runState.startedAtUnixMillis }; };
+  const startSetup = (collectionId, setup) => { const command = runCommand(collectionId, 'setup', setup.run.split('\n')[0], `$ ${setup.run.replaceAll('\n', '\n$ ')}\nresolving packages…\n`); setup.pendingApproval = false; setup.runState = runState(command); };
+  // Beta's dev server runs from the start, as it would have before this window opened.
+  runtimeFor('alpha'); runtimeFor('beta');
+  let runtimeSettings = { revision: '1', portRangeStart: 20000, portRangeEnd: 29999, repositories: [] };
+  const runtimeSettingsView = () => ({ ...runtimeSettings, repositories: library.map(repo => ({ repositoryId: repo.id, name: repo.name || repo.id, config: '', defaultAction: '', skipSetup: false, error: '', ...runtimeSettings.repositories.find(r => r.repositoryId === repo.id) })) });
   const handle = async (req, res) => {
     // A desktop window calls the Runner's own origin (no proxy), as the native app does.
     if (req.headers.origin) {
@@ -251,7 +340,7 @@ export async function startRunnerFixture() {
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
       }
       case 'WatchOutput': {
-        const command = commands.find(value => value.id === body.commandId);
+        const command = commands.find(value => value.id === body.commandId) || runtimeCommands.find(value => value.id === body.commandId);
         const events = [{ cursor: '1', offset: '0', channel: 'stdout', data: Buffer.from(command?.output || 'fixture retained output\n').toString('base64'), status: command && wireCommand(command) }];
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
       }
@@ -447,6 +536,57 @@ export async function startRunnerFixture() {
         issues: body.collectionId ? [{ severity: 'warning', path: 'roles.worker.instructions.file', message: '.lazybox/roles/worker.md does not exist in this repository; the role starts without these instructions', layer: 'preset:reviewed-team', source: 'preset reviewed-team', line: 39, column: 26 }] : [],
         candidates: body.collectionId ? [{ repositoryId: 'api', name: 'api', path: '/fixture/api/.lazybox/process.yaml', digest: 'sha256:repo' }] : [],
       });
+      case 'GetWorkspaceRuntime': return collections.some(c => c.id === body.collectionId) ? json(runtimeView(body.collectionId)) : error('not_found', 'Workspace missing');
+      case 'StartWorkspaceAction': {
+        mutations.push({ method, body });
+        const runtime = runtimeFor(body.collectionId), action = runtime.actions.find(a => a.key === body.action);
+        if (!action) return error('not_found', `No action ${body.action} in this workspace`);
+        if (action.blocked) return error('failed_precondition', action.blocked);
+        const stoppedElsewhere = [];
+        if (isLiveAction(action) && !body.restart) return json({ runtime: runtimeView(body.collectionId), stoppedElsewhere });
+        if (isLiveAction(action)) { const old = runtimeCommands.find(c => c.id === action.runState.commandId); finished(old, 'stopped', { signal: 'SIGTERM' }); }
+        if (!action.concurrent) for (const other of collections.filter(c => c.id !== body.collectionId)) {
+          const elsewhere = runtimes[other.id]?.actions.find(a => a.key === action.key && isLiveAction(a));
+          if (elsewhere) { stopAction(other.id, elsewhere); stoppedElsewhere.push({ collectionId: other.id, workspaceName: other.name, action: action.key }); }
+        }
+        const command = runCommand(body.collectionId, 'action', action.run, action.url ? `> ${action.name}\nready on ${action.url}\n` : `> ${action.name}\n✓ 42 tests passed\n`);
+        action.runState = runState(command);
+        return json({ runtime: runtimeView(body.collectionId), stoppedElsewhere });
+      }
+      case 'StopWorkspaceAction': {
+        mutations.push({ method, body });
+        const action = runtimeFor(body.collectionId).actions.find(a => a.key === body.action);
+        if (!action) return error('not_found', `No action ${body.action} in this workspace`);
+        stopAction(body.collectionId, action);
+        return json({ runtime: runtimeView(body.collectionId), stoppedElsewhere: [] });
+      }
+      case 'ApproveWorkspaceScripts': {
+        mutations.push({ method, body });
+        const runtime = runtimeFor(body.collectionId), source = runtime.sources.find(s => s.member === body.member);
+        if (!source) return error('not_found', 'No scripts for that repository');
+        if (source.hash !== body.hash) return error('failed_precondition', 'The scripts changed since you reviewed them; review the new version');
+        Object.assign(source, { approval: 'approved', changed: [] });
+        for (const action of runtime.actions.filter(a => a.member === body.member)) action.blocked = '';
+        const setup = runtime.setups.find(s => s.member === body.member);
+        if (setup) { setup.pendingApproval = false; if (body.runSetup && setup.runState?.state !== 'succeeded') startSetup(body.collectionId, setup); }
+        return json(runtimeView(body.collectionId));
+      }
+      case 'RunWorkspaceSetup': {
+        mutations.push({ method, body });
+        const setup = runtimeFor(body.collectionId).setups.find(s => s.member === body.member);
+        if (!setup) return error('not_found', 'No setup for that repository');
+        if (setup.pendingApproval) return error('failed_precondition', `Approve ${body.member}’s scripts first`);
+        startSetup(body.collectionId, setup);
+        return json(runtimeView(body.collectionId));
+      }
+      case 'GetWorkspaceRuntimeSettings': return json(runtimeSettingsView());
+      case 'SaveWorkspaceRuntimeSettings': {
+        mutations.push({ method, body });
+        if (body.revision !== runtimeSettings.revision) return error('aborted', 'Workspace settings changed elsewhere; reload them');
+        const repositories = (body.repositories || []).map(r => ({ repositoryId: r.repositoryId, config: r.config || '', defaultAction: r.defaultAction || '', skipSetup: !!r.skipSetup, error: /^\s*bogus\s*:/m.test(r.config || '') ? 'line 1: field bogus not found in type workspace.Config' : '' }));
+        runtimeSettings = { revision: String(Number(runtimeSettings.revision) + 1), portRangeStart: body.portRangeStart, portRangeEnd: body.portRangeEnd, repositories };
+        return json(runtimeSettingsView());
+      }
       default: return error('unimplemented', `Unsupported fixture RPC ${method}`);
     }
   };
@@ -458,11 +598,11 @@ export async function startRunnerFixture() {
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */
     async moveToNewPort() { const previous = server; server = await listen(); url = `http://127.0.0.1:${server.address().port}`; token = randomUUID(); runner.instanceId = randomUUID(); await stop(previous); await publish(); },
-    async close() { await stop(server); await rm(directory, { recursive: true, force: true }); } };
+    async close() { await stop(server); await stop(previewServer); await rm(directory, { recursive: true, force: true }); } };
 }

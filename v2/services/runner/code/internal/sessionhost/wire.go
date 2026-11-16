@@ -93,6 +93,11 @@ type Spec struct {
 	// It gets no stdin; every read from its stdout or stderr becomes one Chunk
 	// line, sequenced and acknowledged exactly like an agent line.
 	Stream bool `json:"stream,omitempty"`
+	// StopGraceMs gives a streamed command a graceful stop: terminate sends
+	// SIGTERM to its process group and kills it only after this many
+	// milliseconds. Zero kills at once. Additive: a host from an older binary
+	// ignores it and kills at once.
+	StopGraceMs int64 `json:"stopGraceMs,omitempty"`
 	// Terminal runs an interactive program on a pseudo-terminal of this size:
 	// a human's shell. Its input arrives raw (Client.Input), every read from
 	// the terminal becomes one Chunk on the "terminal" channel, and the host

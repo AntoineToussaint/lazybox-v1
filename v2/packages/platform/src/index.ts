@@ -14,7 +14,7 @@ export type AttentionHost = {
   notificationPermission?(): Promise<NotificationPermission>;
   requestNotificationPermission?(): Promise<NotificationPermission>;
 };
-export type WorkspaceHost = AttentionHost & { reconnect?(): Promise<void>; /** Before Restart Runner: follow the restarted Runner, even on a new port, without reloading. */ expectRunnerRestart?(): Promise<void>;  openWorkspace?(collectionId: string): Promise<void>; chooseRepositoryFolder?(): Promise<string | null>; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; openChat(target: ChatTarget): Promise<void>; dockChat(panelId: string): Promise<void> };
+export type WorkspaceHost = AttentionHost & { reconnect?(): Promise<void>; /** Before Restart Runner: follow the restarted Runner, even on a new port, without reloading. */ expectRunnerRestart?(): Promise<void>;  openWorkspace?(collectionId: string): Promise<void>; chooseRepositoryFolder?(): Promise<string | null>; openSignIn?(url: string): Promise<void>; /** Opens a workspace preview (a loopback http URL) in the system browser. */ openPreview?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; openChat(target: ChatTarget): Promise<void>; dockChat(panelId: string): Promise<void> };
 export type ViewStateStore = {
   key: string;
   /** Resolved authority scope shared by panels moved between native windows. */

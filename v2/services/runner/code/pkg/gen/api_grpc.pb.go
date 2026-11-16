@@ -119,6 +119,13 @@ const (
 	RunnerService_PreviewRevertCode_FullMethodName            = "/lazybox.bench.v1.RunnerService/PreviewRevertCode"
 	RunnerService_RevertCode_FullMethodName                   = "/lazybox.bench.v1.RunnerService/RevertCode"
 	RunnerService_UndoRevertCode_FullMethodName               = "/lazybox.bench.v1.RunnerService/UndoRevertCode"
+	RunnerService_GetWorkspaceRuntime_FullMethodName          = "/lazybox.bench.v1.RunnerService/GetWorkspaceRuntime"
+	RunnerService_ApproveWorkspaceScripts_FullMethodName      = "/lazybox.bench.v1.RunnerService/ApproveWorkspaceScripts"
+	RunnerService_StartWorkspaceAction_FullMethodName         = "/lazybox.bench.v1.RunnerService/StartWorkspaceAction"
+	RunnerService_StopWorkspaceAction_FullMethodName          = "/lazybox.bench.v1.RunnerService/StopWorkspaceAction"
+	RunnerService_RunWorkspaceSetup_FullMethodName            = "/lazybox.bench.v1.RunnerService/RunWorkspaceSetup"
+	RunnerService_GetWorkspaceRuntimeSettings_FullMethodName  = "/lazybox.bench.v1.RunnerService/GetWorkspaceRuntimeSettings"
+	RunnerService_SaveWorkspaceRuntimeSettings_FullMethodName = "/lazybox.bench.v1.RunnerService/SaveWorkspaceRuntimeSettings"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -267,6 +274,20 @@ type RunnerServiceClient interface {
 	RevertCode(ctx context.Context, in *RevertCodeRequest, opts ...grpc.CallOption) (*CodeRevert, error)
 	// Owner only. Undoes the latest revert (an undo can itself be undone).
 	UndoRevertCode(ctx context.Context, in *UndoRevertCodeRequest, opts ...grpc.CallOption) (*CodeRevert, error)
+	// The workspace runtime (WORKSPACE_RUNTIME.md): each repository's committed
+	// .lazybox/workspace.yaml (setup, archive, actions, files to copy) and the
+	// workspace's port block. Owner only: neither an agent's nor a terminal's
+	// credential may call these. An agent starts an action only through its
+	// lazybox_command tool, and only when its session's permission allows.
+	GetWorkspaceRuntime(ctx context.Context, in *WorkspaceRuntimeRequest, opts ...grpc.CallOption) (*WorkspaceRuntime, error)
+	// Approves exactly the repository scripts the person reviewed (by hash),
+	// optionally running setup right away.
+	ApproveWorkspaceScripts(ctx context.Context, in *ApproveWorkspaceScriptsRequest, opts ...grpc.CallOption) (*WorkspaceRuntime, error)
+	StartWorkspaceAction(ctx context.Context, in *WorkspaceActionRequest, opts ...grpc.CallOption) (*WorkspaceActionResult, error)
+	StopWorkspaceAction(ctx context.Context, in *WorkspaceActionRequest, opts ...grpc.CallOption) (*WorkspaceActionResult, error)
+	RunWorkspaceSetup(ctx context.Context, in *RunWorkspaceSetupRequest, opts ...grpc.CallOption) (*WorkspaceRuntime, error)
+	GetWorkspaceRuntimeSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*WorkspaceRuntimeSettings, error)
+	SaveWorkspaceRuntimeSettings(ctx context.Context, in *WorkspaceRuntimeSettings, opts ...grpc.CallOption) (*WorkspaceRuntimeSettings, error)
 }
 
 type runnerServiceClient struct {
@@ -1303,6 +1324,76 @@ func (c *runnerServiceClient) UndoRevertCode(ctx context.Context, in *UndoRevert
 	return out, nil
 }
 
+func (c *runnerServiceClient) GetWorkspaceRuntime(ctx context.Context, in *WorkspaceRuntimeRequest, opts ...grpc.CallOption) (*WorkspaceRuntime, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceRuntime)
+	err := c.cc.Invoke(ctx, RunnerService_GetWorkspaceRuntime_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ApproveWorkspaceScripts(ctx context.Context, in *ApproveWorkspaceScriptsRequest, opts ...grpc.CallOption) (*WorkspaceRuntime, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceRuntime)
+	err := c.cc.Invoke(ctx, RunnerService_ApproveWorkspaceScripts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) StartWorkspaceAction(ctx context.Context, in *WorkspaceActionRequest, opts ...grpc.CallOption) (*WorkspaceActionResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceActionResult)
+	err := c.cc.Invoke(ctx, RunnerService_StartWorkspaceAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) StopWorkspaceAction(ctx context.Context, in *WorkspaceActionRequest, opts ...grpc.CallOption) (*WorkspaceActionResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceActionResult)
+	err := c.cc.Invoke(ctx, RunnerService_StopWorkspaceAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RunWorkspaceSetup(ctx context.Context, in *RunWorkspaceSetupRequest, opts ...grpc.CallOption) (*WorkspaceRuntime, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceRuntime)
+	err := c.cc.Invoke(ctx, RunnerService_RunWorkspaceSetup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetWorkspaceRuntimeSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*WorkspaceRuntimeSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceRuntimeSettings)
+	err := c.cc.Invoke(ctx, RunnerService_GetWorkspaceRuntimeSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SaveWorkspaceRuntimeSettings(ctx context.Context, in *WorkspaceRuntimeSettings, opts ...grpc.CallOption) (*WorkspaceRuntimeSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceRuntimeSettings)
+	err := c.cc.Invoke(ctx, RunnerService_SaveWorkspaceRuntimeSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1449,6 +1540,20 @@ type RunnerServiceServer interface {
 	RevertCode(context.Context, *RevertCodeRequest) (*CodeRevert, error)
 	// Owner only. Undoes the latest revert (an undo can itself be undone).
 	UndoRevertCode(context.Context, *UndoRevertCodeRequest) (*CodeRevert, error)
+	// The workspace runtime (WORKSPACE_RUNTIME.md): each repository's committed
+	// .lazybox/workspace.yaml (setup, archive, actions, files to copy) and the
+	// workspace's port block. Owner only: neither an agent's nor a terminal's
+	// credential may call these. An agent starts an action only through its
+	// lazybox_command tool, and only when its session's permission allows.
+	GetWorkspaceRuntime(context.Context, *WorkspaceRuntimeRequest) (*WorkspaceRuntime, error)
+	// Approves exactly the repository scripts the person reviewed (by hash),
+	// optionally running setup right away.
+	ApproveWorkspaceScripts(context.Context, *ApproveWorkspaceScriptsRequest) (*WorkspaceRuntime, error)
+	StartWorkspaceAction(context.Context, *WorkspaceActionRequest) (*WorkspaceActionResult, error)
+	StopWorkspaceAction(context.Context, *WorkspaceActionRequest) (*WorkspaceActionResult, error)
+	RunWorkspaceSetup(context.Context, *RunWorkspaceSetupRequest) (*WorkspaceRuntime, error)
+	GetWorkspaceRuntimeSettings(context.Context, *InfoRequest) (*WorkspaceRuntimeSettings, error)
+	SaveWorkspaceRuntimeSettings(context.Context, *WorkspaceRuntimeSettings) (*WorkspaceRuntimeSettings, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1755,6 +1860,27 @@ func (UnimplementedRunnerServiceServer) RevertCode(context.Context, *RevertCodeR
 }
 func (UnimplementedRunnerServiceServer) UndoRevertCode(context.Context, *UndoRevertCodeRequest) (*CodeRevert, error) {
 	return nil, status.Error(codes.Unimplemented, "method UndoRevertCode not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetWorkspaceRuntime(context.Context, *WorkspaceRuntimeRequest) (*WorkspaceRuntime, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWorkspaceRuntime not implemented")
+}
+func (UnimplementedRunnerServiceServer) ApproveWorkspaceScripts(context.Context, *ApproveWorkspaceScriptsRequest) (*WorkspaceRuntime, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveWorkspaceScripts not implemented")
+}
+func (UnimplementedRunnerServiceServer) StartWorkspaceAction(context.Context, *WorkspaceActionRequest) (*WorkspaceActionResult, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartWorkspaceAction not implemented")
+}
+func (UnimplementedRunnerServiceServer) StopWorkspaceAction(context.Context, *WorkspaceActionRequest) (*WorkspaceActionResult, error) {
+	return nil, status.Error(codes.Unimplemented, "method StopWorkspaceAction not implemented")
+}
+func (UnimplementedRunnerServiceServer) RunWorkspaceSetup(context.Context, *RunWorkspaceSetupRequest) (*WorkspaceRuntime, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunWorkspaceSetup not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetWorkspaceRuntimeSettings(context.Context, *InfoRequest) (*WorkspaceRuntimeSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWorkspaceRuntimeSettings not implemented")
+}
+func (UnimplementedRunnerServiceServer) SaveWorkspaceRuntimeSettings(context.Context, *WorkspaceRuntimeSettings) (*WorkspaceRuntimeSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveWorkspaceRuntimeSettings not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -3531,6 +3657,132 @@ func _RunnerService_UndoRevertCode_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_GetWorkspaceRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkspaceRuntimeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetWorkspaceRuntime(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetWorkspaceRuntime_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetWorkspaceRuntime(ctx, req.(*WorkspaceRuntimeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ApproveWorkspaceScripts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveWorkspaceScriptsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ApproveWorkspaceScripts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ApproveWorkspaceScripts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ApproveWorkspaceScripts(ctx, req.(*ApproveWorkspaceScriptsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_StartWorkspaceAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkspaceActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).StartWorkspaceAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_StartWorkspaceAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).StartWorkspaceAction(ctx, req.(*WorkspaceActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_StopWorkspaceAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkspaceActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).StopWorkspaceAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_StopWorkspaceAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).StopWorkspaceAction(ctx, req.(*WorkspaceActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RunWorkspaceSetup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunWorkspaceSetupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RunWorkspaceSetup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RunWorkspaceSetup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RunWorkspaceSetup(ctx, req.(*RunWorkspaceSetupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetWorkspaceRuntimeSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetWorkspaceRuntimeSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetWorkspaceRuntimeSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetWorkspaceRuntimeSettings(ctx, req.(*InfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SaveWorkspaceRuntimeSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkspaceRuntimeSettings)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SaveWorkspaceRuntimeSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SaveWorkspaceRuntimeSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SaveWorkspaceRuntimeSettings(ctx, req.(*WorkspaceRuntimeSettings))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3917,6 +4169,34 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UndoRevertCode",
 			Handler:    _RunnerService_UndoRevertCode_Handler,
+		},
+		{
+			MethodName: "GetWorkspaceRuntime",
+			Handler:    _RunnerService_GetWorkspaceRuntime_Handler,
+		},
+		{
+			MethodName: "ApproveWorkspaceScripts",
+			Handler:    _RunnerService_ApproveWorkspaceScripts_Handler,
+		},
+		{
+			MethodName: "StartWorkspaceAction",
+			Handler:    _RunnerService_StartWorkspaceAction_Handler,
+		},
+		{
+			MethodName: "StopWorkspaceAction",
+			Handler:    _RunnerService_StopWorkspaceAction_Handler,
+		},
+		{
+			MethodName: "RunWorkspaceSetup",
+			Handler:    _RunnerService_RunWorkspaceSetup_Handler,
+		},
+		{
+			MethodName: "GetWorkspaceRuntimeSettings",
+			Handler:    _RunnerService_GetWorkspaceRuntimeSettings_Handler,
+		},
+		{
+			MethodName: "SaveWorkspaceRuntimeSettings",
+			Handler:    _RunnerService_SaveWorkspaceRuntimeSettings_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

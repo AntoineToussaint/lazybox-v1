@@ -57,6 +57,7 @@ const paths: Record<string, string[]> = {
   back: ['m14 6-6 6 6 6'],
   pencil: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
   activity: ['M3 12h4l3-8 4 16 3-8h4'],
+  play: ['M7 5v14l11-7z'],
   sparkle: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2 2', 'm16 16 2 2', 'm6 18 2-2', 'm16 8 2-2'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

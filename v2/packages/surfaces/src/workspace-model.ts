@@ -71,13 +71,16 @@ export const isDockSide = (value: unknown): value is DockSide => dockSides.inclu
 /** The workspace list and the conversation are what a page is for: they never close; other panels dock around them. */
 export const closable = (panel: Panel) => panel.kind !== 'collections' && panel.kind !== 'chat' && !panel.detached;
 /** Where a panel of this kind goes the first time it is shown. Files and the editor go right of the conversation, where the two pair up. */
-export const defaultDock = (kind: string): DockSide => kind === 'console' ? 'bottom' : kind === 'sessions' ? 'left' : 'right';
+export const defaultDock = (kind: string): DockSide => kind === 'console' || kind === 'actions' ? 'bottom' : kind === 'sessions' ? 'left' : 'right';
 /** The share of the content area a docked panel takes: a terminal wants columns, the rest stay secondary. */
 export const dockShare = (kind: string, side: DockSide) => {
   const across = side === 'left' || side === 'right';
   // An editor beside the conversation gets the larger half: code wants columns.
   if (kind === 'editor') return across ? 0.55 : 0.5;
   if (kind === 'files') return across ? 0.24 : 0.3;
+  // A page wants width; the action list wants room for a log.
+  if (kind === 'preview') return across ? 0.45 : 0.5;
+  if (kind === 'actions') return across ? 0.35 : 0.38;
   return kind === 'terminal' && across ? 0.4 : 0.3;
 };
 const round = (value: number) => Math.round(Math.min(0.85, Math.max(0.15, value)) * 100) / 100;

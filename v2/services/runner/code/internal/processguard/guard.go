@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"sync"
 	"syscall"
 	"time"
@@ -39,10 +40,12 @@ type Outcome struct {
 	Cancelled bool   `json:"cancelled,omitempty"`
 }
 type Guard struct {
-	cmd     *exec.Cmd
-	live    *os.File
-	result  *os.File
-	stop    sync.Once
+	cmd    *exec.Cmd
+	live   *os.File
+	result *os.File
+	// liveMu orders Interrupt's writes with Stop's close of live.
+	liveMu  sync.Mutex
+	stopped bool
 	stopErr error
 	wait    sync.Once
 	outcome Outcome
@@ -160,8 +163,32 @@ func (g *Guard) Wait() (Outcome, error) {
 // helper kills its own group; the caller never signals a possibly reused PID.
 // Wait must still confirm the helper exited and emitted cleanup evidence.
 func (g *Guard) Stop() error {
-	g.stop.Do(func() { g.stopErr = g.live.Close() })
+	g.liveMu.Lock()
+	defer g.liveMu.Unlock()
+	if !g.stopped {
+		g.stopped = true
+		g.stopErr = g.live.Close()
+	}
 	return g.stopErr
+}
+
+// interruptRequest is the one byte the owner writes on the lifetime pipe to
+// ask the helper for a graceful stop; closing the pipe still means "kill".
+const interruptRequest = 'T'
+
+// Interrupt asks the program to stop gracefully: the helper sends SIGTERM to
+// its whole process group (every descendant that did not leave it) and
+// survives that itself. The program may exit on its own; Stop is still the
+// only guarantee. As with Stop, the owner never signals a PID: the helper,
+// alive while it signals, pins the group's identity.
+func (g *Guard) Interrupt() error {
+	g.liveMu.Lock()
+	defer g.liveMu.Unlock()
+	if g.stopped {
+		return errors.New("owned process is already stopping")
+	}
+	_, err := g.live.Write([]byte{interruptRequest})
+	return err
 }
 
 func (g *Guard) waitResult() (Outcome, error) {
@@ -261,8 +288,29 @@ func run(argv []string) int {
 			sweep(group, owner)
 		})
 	}
+	// The helper shares its group with the program, so a graceful stop's
+	// SIGTERM reaches it too. It is caught, never ignored (an ignored signal
+	// would be inherited by the program), and the helper keeps guarding until
+	// the program exits or its owner closes the lifetime pipe.
+	terms := make(chan os.Signal, 1)
+	signal.Notify(terms, syscall.SIGTERM)
 	go func() {
-		_, _ = io.Copy(io.Discard, live)
+		for range terms {
+		}
+	}()
+	go func() {
+		buf := make([]byte, 64)
+		for {
+			n, err := live.Read(buf)
+			for _, b := range buf[:n] {
+				if b == interruptRequest {
+					_ = syscall.Kill(-group, syscall.SIGTERM)
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
 		terminate(Outcome{ExitCode: -1, Signal: syscall.SIGKILL.String(), Cancelled: true})
 	}()
 	child := exec.Command(argv[0], argv[1:]...)

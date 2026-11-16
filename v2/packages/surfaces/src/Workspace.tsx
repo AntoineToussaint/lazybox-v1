@@ -328,7 +328,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     <LeaderMenu hint={keyboardHint}/>
     <WorkspaceHeader pages={layout.pages} selectedPage={page.id} settings={settings} pending={!!pending} fixedWorkspace={!!fixedWorkspaceId} navigatorOpen={navigatorOpen}
       collections={collections} selection={page.selection} viewState={viewState} workspaceID={workspaceID} info={info} terminalReady={terminalReady} canShowNewSession={canShowNewSession}
-      editing={editing} hiddenModules={hiddenModules} canOpenWorkspaceWindow={!!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId}
+      editing={editing} hiddenModules={hiddenModules} openPreview={host?.openPreview} canOpenWorkspaceWindow={!!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId}
       onOpenNavigator={() => setNavigatorOpen(true)}
       onSelectPage={id => { setSettings(false); commit({ ...layout, selectedPage: id }); }}
       onOpenSettings={() => setSettings(true)}

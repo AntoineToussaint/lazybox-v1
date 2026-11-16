@@ -97,7 +97,9 @@ type host struct {
 	inputReady chan struct{}
 	guard      *processguard.Guard
 	agent      int
-	spawned    bool
+	// grace is how long a streamed command gets after SIGTERM (Spec.StopGraceMs).
+	grace   time.Duration
+	spawned bool
 	// readDone: the agent's stdout reached EOF and every line is buffered.
 	readDone bool
 	exited   bool
@@ -655,6 +657,9 @@ func (h *host) spawn(spec *Spec) error {
 		return err
 	}
 	h.stdin, h.guard, h.spawned = in, guard, true
+	if spec.Stream && spec.StopGraceMs > 0 {
+		h.grace = time.Duration(spec.StopGraceMs) * time.Millisecond
+	}
 	if in != nil {
 		go h.feed(in)
 	}
@@ -746,7 +751,7 @@ func (h *host) readChunks(channel string, out *os.File) {
 func (h *host) terminate() {
 	h.mu.Lock()
 	h.stopping = true
-	stdin, guard, spawned, terminal := h.stdin, h.guard, h.spawned, h.terminal != nil
+	stdin, guard, spawned, terminal, grace := h.stdin, h.guard, h.spawned, h.terminal != nil, h.grace
 	if !spawned {
 		h.released = true
 	}
@@ -760,22 +765,32 @@ func (h *host) terminate() {
 		return
 	}
 	if stdin == nil {
-		// A streamed command has no stdin to close: there is no graceful request.
+		// A streamed command has no stdin to close. With a grace period its
+		// group gets SIGTERM first; without one it is killed at once.
+		if grace > 0 && guard.Interrupt() == nil {
+			h.awaitExit(grace)
+		}
 		_ = guard.Stop()
 		return
 	}
 	_ = stdin.Close()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	if h.awaitExit(2 * time.Second) {
+		return
+	}
+	_ = guard.Stop()
+}
+
+// awaitExit reports whether the program exited within d.
+func (h *host) awaitExit(d time.Duration) bool {
+	for deadline := time.Now().Add(d); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		h.mu.Lock()
 		exited := h.exited
 		h.mu.Unlock()
 		if exited {
-			return
+			return true
 		}
-		time.Sleep(20 * time.Millisecond)
 	}
-	_ = guard.Stop()
+	return false
 }
 
 func (h *host) setUpstream(raw string) {

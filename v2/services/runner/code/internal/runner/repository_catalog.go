@@ -200,15 +200,38 @@ func (b *Bench) PrepareWorkspace(ctx context.Context, key, workspaceID, name, br
 	if err = progress("", "Creating worktrees"); err != nil {
 		return collections.Collection{}, err
 	}
+	var workspace collections.Collection
+	before := map[string]bool{}
 	if workspaceID != "" {
-		return b.Collections.AddRepositories(ctx, workspaceID, key, members)
+		if existing, err := b.Collections.Get(workspaceID); err == nil {
+			for _, m := range existing.Members {
+				before[m.Name] = true
+			}
+		}
+		workspace, err = b.Collections.AddRepositories(ctx, workspaceID, key, members)
+	} else {
+		// A branch the person chose (by default named after the workspace) names
+		// every repository's worktree; the Runner's own default otherwise.
+		if branch = strings.TrimSpace(branch); branch != "" {
+			for i := range members {
+				members[i].Branch = branch
+			}
+		}
+		workspace, err = b.Collections.Create(ctx, key, collections.Spec{Name: strings.TrimSpace(name), Members: members})
 	}
-	// A branch the person chose (by default named after the workspace) names
-	// every repository's worktree; the Runner's own default otherwise.
-	if branch = strings.TrimSpace(branch); branch != "" {
-		for i := range members {
-			members[i].Branch = branch
+	if err != nil {
+		return workspace, err
+	}
+	// The new worktrees exist: copy listed files and start setup (or say
+	// which scripts wait for approval). Setup runs on in the Actions panel.
+	added := []string{}
+	for _, m := range workspace.Members {
+		if !before[m.Name] {
+			added = append(added, m.Name)
 		}
 	}
-	return b.Collections.Create(ctx, key, collections.Spec{Name: strings.TrimSpace(name), Members: members})
+	if len(added) > 0 {
+		_ = b.WorkspaceCreated(ctx, workspace.ID, added, func(message string) error { return progress("", message) })
+	}
+	return workspace, nil
 }

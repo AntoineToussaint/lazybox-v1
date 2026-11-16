@@ -4,7 +4,7 @@ import { follow, providerData, type RunnerClient } from '@lazybox/client-core';
 import { Decision, type AgentEvent, type CommandStatus } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { readConsoleState, writeConsoleState } from './view-state';
-import { composeRunMessage, formatBytes, isWorkspaceRun, reportSummary } from './command-runs';
+import { composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSummary } from './command-runs';
 import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
 import { AnsiText, stripAnsi } from './ansi';
 import { Icon } from './Icons';
@@ -86,7 +86,8 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     : metadata.signal ? { tone: 'stopped', text: `Stopped (${metadata.signal})` }
     : metadata.exitCode === undefined ? (report && !report.piped ? (report.exitCode === 0 ? { tone: 'ok', text: 'Finished' } : { tone: 'failed', text: `Failed · exit ${report.exitCode}` }) : { tone: 'idle', text: 'Ended' })
     : metadata.exitCode === 0 ? { tone: 'ok', text: 'Finished' } : { tone: 'failed', text: `Failed · exit ${metadata.exitCode}` };
-  const fromTerminal = !!metadata && isWorkspaceRun(metadata);
+  const fromTerminal = !!metadata && isWorkspaceRun(metadata) && !isRuntimeRun(metadata);
+  const runtimeEyebrow = metadata && isRuntimeRun(metadata) ? ({ action: 'Workspace action', setup: 'Setup script', archive: 'Archive script' } as Record<string, string>)[metadata.origin] : '';
   const [handed, setHanded] = useState<{ ok: boolean; text: string }>();
   useEffect(() => setHanded(undefined), [command]);
   const view = report?.agentView || '';
@@ -96,7 +97,7 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     setHanded(problem ? { ok: false, text: problem } : { ok: true, text: `Added ${formatBytes(report!.agentBytes)} to your message. Review it and send when ready.` });
   };
   const shareTitle = !metadata?.done ? 'Available when the output ends.' : !view ? 'This run has no compact view: its output did not end cleanly.' : `Adds the compact view (${formatBytes(report!.agentBytes)}: outcome and failures first, plus the full-output path) to your message. You decide when to send it.`;
-  return <section className="console"><div className="panel-title"><div><span className="eyebrow">{fromTerminal ? 'From your terminal' : 'Shared console'}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="close" size={12}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status">{outcome.text}</span></span></div>
+  return <section className="console"><div className="panel-title"><div><span className="eyebrow">{runtimeEyebrow || (fromTerminal ? 'From your terminal' : 'Shared console')}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="close" size={12}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status">{outcome.text}</span></span></div>
     {/* Shown in every console, including the workspace's (which hides the title): what an agent gets, and the hand-over. */}
     {(report || (fromTerminal && onSendToAgent)) && <div className="command-meta">{fromTerminal && <span className="command-origin">From your terminal</span>}
       {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report, fromTerminal)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy log path</button>}</p>}

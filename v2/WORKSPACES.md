@@ -159,6 +159,13 @@ extension seam, not a downloadable plugin sandbox or an orchestration scheduler.
 Future orchestration modules must call Runner-owned execution APIs; window
 lifecycle and layout must never own agent lifecycle.
 
+**Run** in the header starts the workspace's default action (a dev server, say)
+from its repositories' committed `.lazybox/workspace.yaml`; **Actions** and
+**Preview** panels list, control and show them. Each workspace gets its own
+block of ports, setup runs after its worktrees are created and an archive
+script before it is deleted, all once you approved the scripts. See
+[WORKSPACE_RUNTIME.md](WORKSPACE_RUNTIME.md).
+
 **Terminal** in the header opens your login shell in the workspace, on the
 Runner, in a Terminal panel docked beside the work; the panel can also open one
 in a repository. The shell keeps running when the window closes or the Runner

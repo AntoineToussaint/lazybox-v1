@@ -146,6 +146,20 @@ service RunnerService {
   rpc RevertCode(RevertCodeRequest) returns (CodeRevert);
   // Owner only. Undoes the latest revert (an undo can itself be undone).
   rpc UndoRevertCode(UndoRevertCodeRequest) returns (CodeRevert);
+  // The workspace runtime (WORKSPACE_RUNTIME.md): each repository's committed
+  // .lazybox/workspace.yaml (setup, archive, actions, files to copy) and the
+  // workspace's port block. Owner only: neither an agent's nor a terminal's
+  // credential may call these. An agent starts an action only through its
+  // lazybox_command tool, and only when its session's permission allows.
+  rpc GetWorkspaceRuntime(WorkspaceRuntimeRequest) returns (WorkspaceRuntime);
+  // Approves exactly the repository scripts the person reviewed (by hash),
+  // optionally running setup right away.
+  rpc ApproveWorkspaceScripts(ApproveWorkspaceScriptsRequest) returns (WorkspaceRuntime);
+  rpc StartWorkspaceAction(WorkspaceActionRequest) returns (WorkspaceActionResult);
+  rpc StopWorkspaceAction(WorkspaceActionRequest) returns (WorkspaceActionResult);
+  rpc RunWorkspaceSetup(RunWorkspaceSetupRequest) returns (WorkspaceRuntime);
+  rpc GetWorkspaceRuntimeSettings(InfoRequest) returns (WorkspaceRuntimeSettings);
+  rpc SaveWorkspaceRuntimeSettings(WorkspaceRuntimeSettings) returns (WorkspaceRuntimeSettings);
 }
 
 message InfoRequest {}
@@ -705,7 +719,8 @@ message CommandStatus {
   CommandReport report = 11;
   // Set for a workspace run: it belongs to the workspace, not to one conversation.
   string collection_id = 12;
-  // "terminal" for a run published from a workspace terminal.
+  // "terminal" for a run published from a workspace terminal; "action",
+  // "setup" or "archive" for one the workspace runtime started.
   string origin = 13;
   // The conversation id a terminal run was shared with (`lazybox log --to`).
   string share_with = 14;
@@ -1214,3 +1229,131 @@ message RevertCodePreview {
   string blocked = 2;
 }
 message UndoRevertCodeRequest { string session_id = 1; string revert_id = 2; }
+// The workspace runtime (WORKSPACE_RUNTIME.md).
+message WorkspaceRuntimeRequest { string collection_id = 1; }
+// The workspace's port block: LAZYBOX_PORT_i is base + i, LAZYBOX_PORT is
+// LAZYBOX_PORT_0 unless an action picks another port of the block.
+message WorkspacePorts { uint32 base = 1; uint32 count = 2; }
+// One repository's runtime configuration, as committed.
+message WorkspaceScriptSource {
+  // The workspace member (its folder) and its repository.
+  string member = 1;
+  string repository_id = 2;
+  // ".lazybox/workspace.yaml" when the member has one, else "".
+  string path = 3;
+  // Why the file could not be used, with its line; nothing from it runs.
+  string error = 4;
+  // "none" (nothing committed), "approved", "required" (never approved) or
+  // "changed" (differs from every version approved before).
+  string approval = 5;
+  // What ApproveWorkspaceScripts must name: the hash of what is shown.
+  string hash = 6;
+  // The file itself, for review.
+  string content = 7;
+  // Entries that differ from the last approved version: "setup", "archive",
+  // "files", "env" or "action:<name>".
+  repeated string changed = 8;
+  // Settings > Workspaces adds or replaces entries for this repository.
+  bool overridden = 9;
+}
+message WorkspaceRunState {
+  // "idle", "running", "stopping", "succeeded", "failed" or "stopped".
+  string state = 1;
+  string command_id = 2;
+  optional int32 exit_code = 3;
+  string signal = 4;
+  string error = 5;
+  int64 started_at_unix_millis = 6;
+  // The output's last line, for a status at a glance.
+  string last_line = 7;
+}
+message WorkspaceAction {
+  // "<member>/<name>": what Start/StopWorkspaceAction take.
+  string key = 1;
+  string member = 2;
+  string name = 3;
+  string run = 4;
+  string cwd = 5;
+  bool default = 6;
+  // false: starting it stops the same action in every other workspace.
+  bool concurrent = 7;
+  // Where it serves, with LAZYBOX_PORT resolved; "" when it does not serve.
+  string url = 8;
+  // Its LAZYBOX_PORT; 0 when the workspace has no port block.
+  uint32 port = 9;
+  // "repository" (committed, needs approval) or "settings" (yours).
+  string source = 10;
+  // Why it cannot start now, e.g. its scripts await approval; "" when it can.
+  string blocked = 11;
+  WorkspaceRunState run_state = 12;
+  // Other workspaces where this repository's action of the same name runs.
+  repeated string running_elsewhere = 13;
+}
+message WorkspaceSetup {
+  string member = 1;
+  string run = 2;
+  string source = 3;
+  // The scripts await approval: setup has not run.
+  bool pending_approval = 4;
+  WorkspaceRunState run_state = 5;
+  // Files copied from the source checkout into the worktree, and listed
+  // files the source checkout does not have.
+  repeated string copied_files = 6;
+  repeated string missing_files = 7;
+}
+message WorkspaceRuntime {
+  string collection_id = 1;
+  WorkspacePorts ports = 2;
+  // Why no port block could be allocated; actions still run without one.
+  string ports_error = 3;
+  repeated WorkspaceScriptSource sources = 4;
+  repeated WorkspaceAction actions = 5;
+  repeated WorkspaceSetup setups = 6;
+  // The action Run starts: Settings first, then the first `default: true`,
+  // then the first action.
+  string default_action = 7;
+}
+message ApproveWorkspaceScriptsRequest {
+  string collection_id = 1;
+  string member = 2;
+  // The hash the person reviewed; a file changed since is refused.
+  string hash = 3;
+  // Run the member's setup once approved, if it has not succeeded yet.
+  bool run_setup = 4;
+}
+message WorkspaceActionRequest {
+  string collection_id = 1;
+  // WorkspaceAction.key.
+  string action = 2;
+  // Start: stop a running instance first. Ignored by Stop.
+  bool restart = 3;
+}
+message StoppedElsewhere { string collection_id = 1; string workspace_name = 2; string action = 3; }
+message WorkspaceActionResult {
+  WorkspaceRuntime runtime = 1;
+  // A non-concurrent action stopped in other workspaces to start here.
+  repeated StoppedElsewhere stopped_elsewhere = 2;
+}
+message RunWorkspaceSetupRequest { string collection_id = 1; string member = 2; }
+// Your own runtime settings, kept on this Runner and never committed.
+message RepositoryRuntimeOverride {
+  string repository_id = 1;
+  // Shown name; ignored on save.
+  string name = 2;
+  // YAML in the same schema as .lazybox/workspace.yaml. Its entries add to or
+  // replace the repository's, and run without approval: you wrote them.
+  string config = 3;
+  // The action Run starts in this repository's workspaces ("<name>").
+  string default_action = 4;
+  // Never run this repository's setup automatically.
+  bool skip_setup = 5;
+  // Why config was refused, on read.
+  string error = 6;
+}
+message WorkspaceRuntimeSettings {
+  uint64 revision = 1;
+  // Port blocks are allocated in [port_range_start, port_range_end].
+  uint32 port_range_start = 2;
+  uint32 port_range_end = 3;
+  repeated RepositoryRuntimeOverride repositories = 4;
+}

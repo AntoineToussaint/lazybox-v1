@@ -25,7 +25,8 @@ Run tests, builds, linters, installs and other noisy commands as ` + "`lazybox r
 - If you need a line that was dropped, read the full-output file it printed instead of running the command again.
 - Use ` + "`lazybox run --raw -- <command>`" + ` only when you must parse the exact output, such as a diff or JSON.
 - Commands get no input. Pass non-interactive flags (--yes, CI=1) rather than waiting for a prompt.
-- Start long-running servers and watchers with the Lazybox command tool, which runs them in the background, not with lazybox run.`
+- Start long-running servers and watchers with the Lazybox command tool, which runs them in the background, not with lazybox run.
+- If the workspace defines actions (the command tool's action "actions" lists them, with their URL), start its dev server with "start_action" instead: it gets the workspace's own port, and the user sees it in Run and Preview.`
 
 // withCLI puts the lazybox CLI first on PATH so agents, and the commands they
 // start, run this Runner's CLI rather than another lazybox on the system.

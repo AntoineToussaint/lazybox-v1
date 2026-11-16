@@ -327,6 +327,27 @@ const (
 	// RunnerServiceUndoRevertCodeProcedure is the fully-qualified name of the RunnerService's
 	// UndoRevertCode RPC.
 	RunnerServiceUndoRevertCodeProcedure = "/lazybox.bench.v1.RunnerService/UndoRevertCode"
+	// RunnerServiceGetWorkspaceRuntimeProcedure is the fully-qualified name of the RunnerService's
+	// GetWorkspaceRuntime RPC.
+	RunnerServiceGetWorkspaceRuntimeProcedure = "/lazybox.bench.v1.RunnerService/GetWorkspaceRuntime"
+	// RunnerServiceApproveWorkspaceScriptsProcedure is the fully-qualified name of the RunnerService's
+	// ApproveWorkspaceScripts RPC.
+	RunnerServiceApproveWorkspaceScriptsProcedure = "/lazybox.bench.v1.RunnerService/ApproveWorkspaceScripts"
+	// RunnerServiceStartWorkspaceActionProcedure is the fully-qualified name of the RunnerService's
+	// StartWorkspaceAction RPC.
+	RunnerServiceStartWorkspaceActionProcedure = "/lazybox.bench.v1.RunnerService/StartWorkspaceAction"
+	// RunnerServiceStopWorkspaceActionProcedure is the fully-qualified name of the RunnerService's
+	// StopWorkspaceAction RPC.
+	RunnerServiceStopWorkspaceActionProcedure = "/lazybox.bench.v1.RunnerService/StopWorkspaceAction"
+	// RunnerServiceRunWorkspaceSetupProcedure is the fully-qualified name of the RunnerService's
+	// RunWorkspaceSetup RPC.
+	RunnerServiceRunWorkspaceSetupProcedure = "/lazybox.bench.v1.RunnerService/RunWorkspaceSetup"
+	// RunnerServiceGetWorkspaceRuntimeSettingsProcedure is the fully-qualified name of the
+	// RunnerService's GetWorkspaceRuntimeSettings RPC.
+	RunnerServiceGetWorkspaceRuntimeSettingsProcedure = "/lazybox.bench.v1.RunnerService/GetWorkspaceRuntimeSettings"
+	// RunnerServiceSaveWorkspaceRuntimeSettingsProcedure is the fully-qualified name of the
+	// RunnerService's SaveWorkspaceRuntimeSettings RPC.
+	RunnerServiceSaveWorkspaceRuntimeSettingsProcedure = "/lazybox.bench.v1.RunnerService/SaveWorkspaceRuntimeSettings"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -473,6 +494,20 @@ type RunnerServiceClient interface {
 	RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
 	// Owner only. Undoes the latest revert (an undo can itself be undone).
 	UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// The workspace runtime (WORKSPACE_RUNTIME.md): each repository's committed
+	// .lazybox/workspace.yaml (setup, archive, actions, files to copy) and the
+	// workspace's port block. Owner only: neither an agent's nor a terminal's
+	// credential may call these. An agent starts an action only through its
+	// lazybox_command tool, and only when its session's permission allows.
+	GetWorkspaceRuntime(context.Context, *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	// Approves exactly the repository scripts the person reviewed (by hash),
+	// optionally running setup right away.
+	ApproveWorkspaceScripts(context.Context, *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	StartWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	StopWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1080,6 +1115,48 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("UndoRevertCode")),
 			connect.WithClientOptions(opts...),
 		),
+		getWorkspaceRuntime: connect.NewClient[gen.WorkspaceRuntimeRequest, gen.WorkspaceRuntime](
+			httpClient,
+			baseURL+RunnerServiceGetWorkspaceRuntimeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		approveWorkspaceScripts: connect.NewClient[gen.ApproveWorkspaceScriptsRequest, gen.WorkspaceRuntime](
+			httpClient,
+			baseURL+RunnerServiceApproveWorkspaceScriptsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ApproveWorkspaceScripts")),
+			connect.WithClientOptions(opts...),
+		),
+		startWorkspaceAction: connect.NewClient[gen.WorkspaceActionRequest, gen.WorkspaceActionResult](
+			httpClient,
+			baseURL+RunnerServiceStartWorkspaceActionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StartWorkspaceAction")),
+			connect.WithClientOptions(opts...),
+		),
+		stopWorkspaceAction: connect.NewClient[gen.WorkspaceActionRequest, gen.WorkspaceActionResult](
+			httpClient,
+			baseURL+RunnerServiceStopWorkspaceActionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StopWorkspaceAction")),
+			connect.WithClientOptions(opts...),
+		),
+		runWorkspaceSetup: connect.NewClient[gen.RunWorkspaceSetupRequest, gen.WorkspaceRuntime](
+			httpClient,
+			baseURL+RunnerServiceRunWorkspaceSetupProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RunWorkspaceSetup")),
+			connect.WithClientOptions(opts...),
+		),
+		getWorkspaceRuntimeSettings: connect.NewClient[gen.InfoRequest, gen.WorkspaceRuntimeSettings](
+			httpClient,
+			baseURL+RunnerServiceGetWorkspaceRuntimeSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntimeSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		saveWorkspaceRuntimeSettings: connect.NewClient[gen.WorkspaceRuntimeSettings, gen.WorkspaceRuntimeSettings](
+			httpClient,
+			baseURL+RunnerServiceSaveWorkspaceRuntimeSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceRuntimeSettings")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1184,6 +1261,13 @@ type runnerServiceClient struct {
 	previewRevertCode            *connect.Client[gen.RevertCodeRequest, gen.RevertCodePreview]
 	revertCode                   *connect.Client[gen.RevertCodeRequest, gen.CodeRevert]
 	undoRevertCode               *connect.Client[gen.UndoRevertCodeRequest, gen.CodeRevert]
+	getWorkspaceRuntime          *connect.Client[gen.WorkspaceRuntimeRequest, gen.WorkspaceRuntime]
+	approveWorkspaceScripts      *connect.Client[gen.ApproveWorkspaceScriptsRequest, gen.WorkspaceRuntime]
+	startWorkspaceAction         *connect.Client[gen.WorkspaceActionRequest, gen.WorkspaceActionResult]
+	stopWorkspaceAction          *connect.Client[gen.WorkspaceActionRequest, gen.WorkspaceActionResult]
+	runWorkspaceSetup            *connect.Client[gen.RunWorkspaceSetupRequest, gen.WorkspaceRuntime]
+	getWorkspaceRuntimeSettings  *connect.Client[gen.InfoRequest, gen.WorkspaceRuntimeSettings]
+	saveWorkspaceRuntimeSettings *connect.Client[gen.WorkspaceRuntimeSettings, gen.WorkspaceRuntimeSettings]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1681,6 +1765,41 @@ func (c *runnerServiceClient) UndoRevertCode(ctx context.Context, req *connect.R
 	return c.undoRevertCode.CallUnary(ctx, req)
 }
 
+// GetWorkspaceRuntime calls lazybox.bench.v1.RunnerService.GetWorkspaceRuntime.
+func (c *runnerServiceClient) GetWorkspaceRuntime(ctx context.Context, req *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return c.getWorkspaceRuntime.CallUnary(ctx, req)
+}
+
+// ApproveWorkspaceScripts calls lazybox.bench.v1.RunnerService.ApproveWorkspaceScripts.
+func (c *runnerServiceClient) ApproveWorkspaceScripts(ctx context.Context, req *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return c.approveWorkspaceScripts.CallUnary(ctx, req)
+}
+
+// StartWorkspaceAction calls lazybox.bench.v1.RunnerService.StartWorkspaceAction.
+func (c *runnerServiceClient) StartWorkspaceAction(ctx context.Context, req *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return c.startWorkspaceAction.CallUnary(ctx, req)
+}
+
+// StopWorkspaceAction calls lazybox.bench.v1.RunnerService.StopWorkspaceAction.
+func (c *runnerServiceClient) StopWorkspaceAction(ctx context.Context, req *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return c.stopWorkspaceAction.CallUnary(ctx, req)
+}
+
+// RunWorkspaceSetup calls lazybox.bench.v1.RunnerService.RunWorkspaceSetup.
+func (c *runnerServiceClient) RunWorkspaceSetup(ctx context.Context, req *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return c.runWorkspaceSetup.CallUnary(ctx, req)
+}
+
+// GetWorkspaceRuntimeSettings calls lazybox.bench.v1.RunnerService.GetWorkspaceRuntimeSettings.
+func (c *runnerServiceClient) GetWorkspaceRuntimeSettings(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return c.getWorkspaceRuntimeSettings.CallUnary(ctx, req)
+}
+
+// SaveWorkspaceRuntimeSettings calls lazybox.bench.v1.RunnerService.SaveWorkspaceRuntimeSettings.
+func (c *runnerServiceClient) SaveWorkspaceRuntimeSettings(ctx context.Context, req *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return c.saveWorkspaceRuntimeSettings.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -1825,6 +1944,20 @@ type RunnerServiceHandler interface {
 	RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
 	// Owner only. Undoes the latest revert (an undo can itself be undone).
 	UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// The workspace runtime (WORKSPACE_RUNTIME.md): each repository's committed
+	// .lazybox/workspace.yaml (setup, archive, actions, files to copy) and the
+	// workspace's port block. Owner only: neither an agent's nor a terminal's
+	// credential may call these. An agent starts an action only through its
+	// lazybox_command tool, and only when its session's permission allows.
+	GetWorkspaceRuntime(context.Context, *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	// Approves exactly the repository scripts the person reviewed (by hash),
+	// optionally running setup right away.
+	ApproveWorkspaceScripts(context.Context, *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	StartWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	StopWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2428,6 +2561,48 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("UndoRevertCode")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceGetWorkspaceRuntimeHandler := connect.NewUnaryHandler(
+		RunnerServiceGetWorkspaceRuntimeProcedure,
+		svc.GetWorkspaceRuntime,
+		connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceApproveWorkspaceScriptsHandler := connect.NewUnaryHandler(
+		RunnerServiceApproveWorkspaceScriptsProcedure,
+		svc.ApproveWorkspaceScripts,
+		connect.WithSchema(runnerServiceMethods.ByName("ApproveWorkspaceScripts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStartWorkspaceActionHandler := connect.NewUnaryHandler(
+		RunnerServiceStartWorkspaceActionProcedure,
+		svc.StartWorkspaceAction,
+		connect.WithSchema(runnerServiceMethods.ByName("StartWorkspaceAction")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStopWorkspaceActionHandler := connect.NewUnaryHandler(
+		RunnerServiceStopWorkspaceActionProcedure,
+		svc.StopWorkspaceAction,
+		connect.WithSchema(runnerServiceMethods.ByName("StopWorkspaceAction")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRunWorkspaceSetupHandler := connect.NewUnaryHandler(
+		RunnerServiceRunWorkspaceSetupProcedure,
+		svc.RunWorkspaceSetup,
+		connect.WithSchema(runnerServiceMethods.ByName("RunWorkspaceSetup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetWorkspaceRuntimeSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetWorkspaceRuntimeSettingsProcedure,
+		svc.GetWorkspaceRuntimeSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntimeSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSaveWorkspaceRuntimeSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceSaveWorkspaceRuntimeSettingsProcedure,
+		svc.SaveWorkspaceRuntimeSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceRuntimeSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -2628,6 +2803,20 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceRevertCodeHandler.ServeHTTP(w, r)
 		case RunnerServiceUndoRevertCodeProcedure:
 			runnerServiceUndoRevertCodeHandler.ServeHTTP(w, r)
+		case RunnerServiceGetWorkspaceRuntimeProcedure:
+			runnerServiceGetWorkspaceRuntimeHandler.ServeHTTP(w, r)
+		case RunnerServiceApproveWorkspaceScriptsProcedure:
+			runnerServiceApproveWorkspaceScriptsHandler.ServeHTTP(w, r)
+		case RunnerServiceStartWorkspaceActionProcedure:
+			runnerServiceStartWorkspaceActionHandler.ServeHTTP(w, r)
+		case RunnerServiceStopWorkspaceActionProcedure:
+			runnerServiceStopWorkspaceActionHandler.ServeHTTP(w, r)
+		case RunnerServiceRunWorkspaceSetupProcedure:
+			runnerServiceRunWorkspaceSetupHandler.ServeHTTP(w, r)
+		case RunnerServiceGetWorkspaceRuntimeSettingsProcedure:
+			runnerServiceGetWorkspaceRuntimeSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSaveWorkspaceRuntimeSettingsProcedure:
+			runnerServiceSaveWorkspaceRuntimeSettingsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -3031,4 +3220,32 @@ func (UnimplementedRunnerServiceHandler) RevertCode(context.Context, *connect.Re
 
 func (UnimplementedRunnerServiceHandler) UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UndoRevertCode is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetWorkspaceRuntime(context.Context, *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetWorkspaceRuntime is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ApproveWorkspaceScripts(context.Context, *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ApproveWorkspaceScripts is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StartWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StartWorkspaceAction is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StopWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StopWorkspaceAction is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RunWorkspaceSetup is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetWorkspaceRuntimeSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveWorkspaceRuntimeSettings is not implemented"))
 }

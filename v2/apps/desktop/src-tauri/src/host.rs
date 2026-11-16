@@ -812,6 +812,27 @@ mod tests {
         }
     }
     #[test]
+    fn previews_open_only_loopback_web_pages() {
+        for value in [
+            "http://localhost:20000/",
+            "http://127.0.0.1:20001/app?x=1",
+            "https://[::1]:20002/",
+            "http://web.localhost:20003/",
+        ] {
+            assert!(preview_url(value).is_ok(), "{value}");
+        }
+        for value in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "http://example.com:20000/",
+            "http://localhost.evil.test/",
+            "http://user:secret@localhost:20000/",
+            "ftp://localhost/",
+        ] {
+            assert!(preview_url(value).is_err(), "{value}");
+        }
+    }
+    #[test]
     fn saved_window_scope_changes_with_runner_authority_without_persisting_credentials() {
         let mut connection = Bootstrap {
             url: "http://localhost:43210".into(),
@@ -875,6 +896,36 @@ pub fn open_sign_in(
     app.opener()
         .open_url(url.as_str(), None::<&str>)
         .map_err(|_| "Could not open the sign-in page".into())
+}
+
+/// A workspace preview is a page an action serves on this machine: http(s) on
+/// a loopback host, never a credential or another host.
+fn preview_url(raw: &str) -> Result<url::Url, String> {
+    let url = url::Url::parse(raw).map_err(|_| "Invalid preview URL".to_string())?;
+    let loopback = match url.host() {
+        Some(url::Host::Domain(name)) => name == "localhost" || name.ends_with(".localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    };
+    if !matches!(url.scheme(), "http" | "https")
+        || !loopback
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err("Expected a preview on localhost".into());
+    }
+    Ok(url)
+}
+
+/// Opens a workspace action's preview in the system browser.
+#[tauri::command]
+pub fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = preview_url(&url)?;
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
+        .map_err(|_| "Could not open the preview in your browser".into())
 }
 
 #[tauri::command]

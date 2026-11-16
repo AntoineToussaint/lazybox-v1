@@ -52,6 +52,8 @@ func (s *Service) CreateCollection(ctx context.Context, r *pb.CreateCollectionRe
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	// The worktrees exist: the workspace runtime copies files and starts setup.
+	_ = s.Bench.WorkspaceCreated(ctx, c.ID, nil, nil)
 	return &pb.CollectionResponse{Collection: wireCollection(c)}, nil
 }
 func (s *Service) GetCollection(ctx context.Context, r *pb.CollectionRequest) (*pb.CollectionResponse, error) {
@@ -128,9 +130,24 @@ func (s *Service) AddCollectionRepositories(ctx context.Context, r *pb.AddCollec
 		}
 		members = append(members, collections.MemberSpec{Name: member.Name, RepositoryID: member.RepositoryId, BaseRef: member.BaseRef, Branch: member.Branch})
 	}
+	before := map[string]bool{}
+	if existing, err := m.Get(r.CollectionId); err == nil {
+		for _, member := range existing.Members {
+			before[member.Name] = true
+		}
+	}
 	c, err := m.AddRepositories(ctx, r.CollectionId, r.RequestKey, members)
 	if err != nil {
 		return nil, rpcError(err)
+	}
+	added := []string{}
+	for _, member := range c.Members {
+		if !before[member.Name] {
+			added = append(added, member.Name)
+		}
+	}
+	if len(added) > 0 {
+		_ = s.Bench.WorkspaceCreated(ctx, c.ID, added, nil)
 	}
 	return &pb.CollectionResponse{Collection: wireCollection(c)}, nil
 }

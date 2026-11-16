@@ -61,6 +61,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     openWorkspace: collectionId => invoke<void>('open_workspace', { collectionId }),
     chooseRepositoryFolder: () => invoke<string | null>('choose_repository_folder'),
     openSignIn: url => invoke<void>('open_sign_in', { url }),
+    openPreview: url => invoke<void>('open_preview', { url }),
     copySignInCode: code => invoke<void>('copy_sign_in_code', { code }),
     openChat: target => invoke<void>('open_chat', target),
     dockChat: panelId => invoke<void>('dock_chat', { panelId }),

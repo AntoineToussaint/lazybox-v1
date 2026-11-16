@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { CommandReportSchema } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RunTracker, appendToDraft, composeRunMessage, formatBytes, isWorkspaceRun, reportSummary } from '../packages/surfaces/src/command-runs.ts';
+import { RunTracker, appendToDraft, composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSummary, runOrigin } from '../packages/surfaces/src/command-runs.ts';
 
 test('a run is labelled with what its agent received, in the sizes the agent was shown', () => {
   assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 1, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' })), 'Exit 1 · the agent got a 2.1 KiB summary of 1.4 MiB (go-test filter)');
@@ -36,4 +36,12 @@ test('Send to agent adds the compact view as fenced output after the draft', () 
   assert.equal(appendToDraft('', 'run'), 'run');
   assert.equal(appendToDraft('  \n', 'run'), 'run');
   assert.equal(appendToDraft('Please fix:\n', 'run'), 'Please fix:\n\nrun');
+});
+
+test('actions and setup scripts are labelled as such, never as terminal runs', () => {
+  assert.equal(runOrigin({ sessionId: '', collectionId: 'alpha', origin: 'terminal' }), 'from your terminal · ');
+  assert.equal(runOrigin({ sessionId: '', collectionId: 'alpha', origin: 'action' }), 'action · ');
+  assert.equal(runOrigin({ sessionId: '', collectionId: 'alpha', origin: 'setup' }), 'setup · ');
+  assert.equal(runOrigin({ sessionId: 'alpha-session', collectionId: '', origin: '' }), '');
+  assert.ok(isRuntimeRun({ origin: 'archive' }) && !isRuntimeRun({ origin: 'terminal' }));
 });

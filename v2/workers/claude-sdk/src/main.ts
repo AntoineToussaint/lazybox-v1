@@ -41,8 +41,9 @@ const callRunner = (name: string, args: unknown) => new Promise<string>((resolve
 function mcpServers(purpose: string): Record<string, McpServerConfig> {
   if (purpose === 'help') return { [settingsServerName]: settingsServer(callRunner, settingsApprovals) };
   if (['planning', 'summary'].includes(purpose)) return {};
-  const commandTool = tool('command', 'Start/read/wait/cancel runner-owned commands with shared console output. Start returns an id; reuse it for read/wait/cancel, never restart a command to read output.', {
-    action: z.enum(['start', 'read', 'wait', 'cancel']), argv: z.array(z.string()).optional(), id: z.string().optional(), offset: z.number().int().nonnegative().optional(),
+  const commandTool = tool('command', 'Start/read/wait/cancel runner-owned commands with shared console output. Start returns an id; reuse it for read/wait/cancel, never restart a command to read output. actions lists the workspace actions (dev servers and the like, with state and URL); start_action starts one by name (restart: true restarts it); read its output with its commandId.', {
+    action: z.enum(['start', 'read', 'wait', 'cancel', 'actions', 'start_action']), argv: z.array(z.string()).optional(), id: z.string().optional(), offset: z.number().int().nonnegative().optional(),
+    name: z.string().optional().describe('start_action: the action to start, as actions lists it; omit for the default action.'), restart: z.boolean().optional().describe('start_action: restart it if it is running.'),
   }, async args => ({ content: [{ type: 'text', text: await callRunner('lazybox_command', args) }] }));
   return { lazybox: createSdkMcpServer({ name: 'lazybox', version: '0.1.0', tools: [commandTool] }) };
 }

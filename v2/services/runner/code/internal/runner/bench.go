@@ -166,6 +166,9 @@ type Bench struct {
 	// (code_checkpoints.go); checkpointing counts the ones in progress.
 	Checkpoints   *codecheckpoints.Manager
 	checkpointing sync.WaitGroup
+	// runtime is the workspace runtime: approvals, port blocks, runs
+	// (workspace_runtime.go).
+	runtime *workspaceRuntime
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -338,6 +341,10 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	if b.Checkpoints, err = codecheckpoints.Open(filepath.Join(cfg.State, "code-checkpoints"), cfg.CodeCheckpoints); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.runtime, err = openWorkspaceRuntime(filepath.Join(cfg.State, "workspace-runtime")); err != nil {
 		_ = b.Detach()
 		return nil, err
 	}
@@ -773,16 +780,24 @@ func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args
 		return "", agent.ErrUnsupported
 	}
 	var p struct {
-		Action string   `json:"action"`
-		Argv   []string `json:"argv"`
-		ID     string   `json:"id"`
-		Offset uint64   `json:"offset"`
+		Action  string   `json:"action"`
+		Argv    []string `json:"argv"`
+		ID      string   `json:"id"`
+		Offset  uint64   `json:"offset"`
+		Name    string   `json:"name"`
+		Restart bool     `json:"restart"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", err
 	}
 	var value any
-	if p.Action == "start" {
+	if p.Action == "actions" || p.Action == "start_action" {
+		v, err := b.agentAction(ctx, e, p.Action, p.Name, p.Restart)
+		if err != nil {
+			return "", err
+		}
+		value = v
+	} else if p.Action == "start" {
 		c, err := b.start(e, "agent command", p.Argv, pinnedEnv)
 		if err != nil {
 			return "", err

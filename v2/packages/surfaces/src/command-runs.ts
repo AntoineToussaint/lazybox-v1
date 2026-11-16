@@ -27,6 +27,17 @@ export function isWorkspaceRun(command: Pick<CommandStatus, 'sessionId' | 'colle
   return !command.sessionId && !!command.collectionId;
 }
 
+/** A run of the workspace runtime: an action, or a setup or archive script (WORKSPACE_RUNTIME.md). */
+export function isRuntimeRun(command: Pick<CommandStatus, 'origin'>): boolean {
+  return command.origin === 'action' || command.origin === 'setup' || command.origin === 'archive';
+}
+
+/** Where a workspace run came from, as a console list prefix: "from your terminal · ", "action · ". */
+export function runOrigin(command: Pick<CommandStatus, 'sessionId' | 'collectionId' | 'origin'>): string {
+  if (isRuntimeRun(command)) return `${command.origin} · `;
+  return isWorkspaceRun(command) ? 'from your terminal · ' : '';
+}
+
 // composeRunMessage is what "Send to agent" adds to a message: the run's
 // compact view (outcome first, failures kept, the full-output path), never the
 // full output. It is fenced so the agent reads it as output, not as the
@@ -125,7 +136,9 @@ export function useCommandRuns(api: RunnerClient, sessionId: string, onRun: (com
       try {
         const { commands } = await api.listCommands({ sessionId }, { signal: control.signal });
         if (control.signal.aborted) return;
-        const fresh = tracker.next(commands.map(command => command.id));
+        // Actions and setup scripts have their own panel: a dev server restarting
+        // must not open the conversation's console.
+        const fresh = tracker.next(commands.filter(command => !isRuntimeRun(command)).map(command => command.id));
         if (fresh.length) handler.current(fresh[fresh.length - 1]);
       }
       catch { /* The console panel reports listing errors when it is open. */ }

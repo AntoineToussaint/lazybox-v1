@@ -45,6 +45,7 @@ full MVP remain separate roadmap milestones.
 | [Session hosts](SESSION_HOSTS.md) | Agents and their commands outlive the Runner: re-attachment across restarts, delivery contract, upgrades, evidence. |
 | [Workspaces](WORKSPACES.md) | Runner-owned groups of worktrees across repositories, provisioning, attachment, and ownership. |
 | [Terminals](TERMINALS.md) | Your login shell in a workspace, on the Runner: opening, environment, restart survival, limits. |
+| [Workspace runtime](WORKSPACE_RUNTIME.md) | A repository's committed setup, actions and archive scripts, their approval, port blocks per workspace, Run and Preview. |
 | [Running the bench](RUNNING.md) | Launch, runner options, gateway routing, credentials, continuation, CLI, and retention. |
 | [Runtime evidence](RUNTIME_EVIDENCE.md) | Actual test results, pinned versions, and unverified acceptance paths. |
 | [First deliverable](FIRST_DELIVERABLE.md) | Runnable agent-and-console test bench and its completion evidence. |

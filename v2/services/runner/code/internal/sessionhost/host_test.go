@@ -722,6 +722,60 @@ func TestTerminatingAStreamedCommandKillsItWithoutGrace(t *testing.T) {
 	eventually(t, "background child survived cancellation", func() bool { return !alive(child) })
 }
 
+// A command started with a grace period (a workspace action) gets SIGTERM on
+// its whole group first and may shut down; one that ignores it is killed once
+// the grace runs out, and so is every descendant.
+func TestTerminatingWithGraceSendsSIGTERMThenKills(t *testing.T) {
+	dir := root(t)
+	ctx := deadline(t)
+	graceful, err := Launch(ctx, dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := streamSpec(`trap 'echo bye; exit 0' TERM; echo up; while :; do sleep 0.05; done`)
+	spec.StopGraceMs = 5000
+	if err = graceful.Spawn(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+	collect(t, graceful, 1)
+	began := time.Now()
+	if err = graceful.Terminate(); err != nil {
+		t.Fatal(err)
+	}
+	out, _, exit := collect(t, graceful, 0)
+	if exit == nil || exit.Outcome.Cancelled || exit.Outcome.ExitCode != 0 || out["stdout"] != "bye\n" {
+		t.Fatalf("a graceful stop did not let the command shut down: %+v %q", exit, out)
+	}
+	if took := time.Since(began); took > 3*time.Second {
+		t.Fatalf("a command that stopped on SIGTERM was held %v", took)
+	}
+
+	stubborn, err := Launch(ctx, dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec = streamSpec(`trap '' TERM; /bin/sleep 300 & echo $!; while :; do sleep 1; done`)
+	spec.StopGraceMs = 600
+	if err = stubborn.Spawn(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+	first, _, _ := collect(t, stubborn, 1)
+	child, _ := strconv.Atoi(strings.TrimSpace(first["stdout"]))
+	began = time.Now()
+	if err = stubborn.Terminate(); err != nil {
+		t.Fatal(err)
+	}
+	_, _, exit = collect(t, stubborn, 0)
+	took := time.Since(began)
+	if exit == nil || !exit.Outcome.Cancelled {
+		t.Fatalf("a command ignoring SIGTERM was not killed: %+v", exit)
+	}
+	if took < 500*time.Millisecond {
+		t.Fatalf("killed after %v, before its grace period", took)
+	}
+	eventually(t, "a descendant survived the kill after the grace period", func() bool { return child == 0 || !alive(child) })
+}
+
 // A Runner adopts hosts launched by any version inside its window, speaking the
 // host's version; outside the window it refuses but can still stop the host.
 func TestClientSpeaksTheHostVersionInsideItsWindow(t *testing.T) {

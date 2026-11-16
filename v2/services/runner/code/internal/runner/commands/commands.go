@@ -29,11 +29,22 @@ type Spec struct {
 	TerminalID string `json:"terminalId,omitempty"`
 	// ShareWith is the conversation whose message box receives the run's
 	// compact view once it finishes (`lazybox log --to`).
-	ShareWith string   `json:"shareWith,omitempty"`
-	Title     string   `json:"title"`
-	Cwd       string   `json:"cwd"`
-	Argv      []string `json:"argv,omitempty"`
-	Env       []string `json:"-"`
+	ShareWith string `json:"shareWith,omitempty"`
+	// Kind, with a CollectionID, makes a managed workspace command the
+	// workspace runtime started: "setup", "archive" or "action".
+	Kind string `json:"kind,omitempty"`
+	// Action is the runtime entry it runs ("<member>/<name>" for an action,
+	// the member for setup and archive); Repository is that member's
+	// repository, which identifies "the same action" across workspaces.
+	Action     string `json:"action,omitempty"`
+	Repository string `json:"repository,omitempty"`
+	// StopGraceMs gives the command a graceful stop: Cancel sends SIGTERM to
+	// its process group and kills it only after this many milliseconds.
+	StopGraceMs int64    `json:"stopGraceMs,omitempty"`
+	Title       string   `json:"title"`
+	Cwd         string   `json:"cwd"`
+	Argv        []string `json:"argv,omitempty"`
+	Env         []string `json:"-"`
 }
 
 type Status struct {
@@ -257,8 +268,14 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if spec.SessionID != "" && (spec.TerminalID != "" || spec.ShareWith != "") {
 		return nil, errors.New("only a workspace run comes from a terminal or is shared")
 	}
-	if spec.CollectionID != "" && len(spec.Argv) > 0 {
-		return nil, errors.New("a workspace run is a pipe")
+	if spec.CollectionID != "" && (len(spec.Argv) > 0) != (spec.Kind != "") {
+		return nil, errors.New("a workspace run is a pipe, a workspace command has a kind")
+	}
+	if spec.Kind != "" && (spec.Kind != "setup" && spec.Kind != "archive" && spec.Kind != "action" || spec.TerminalID != "" || spec.ShareWith != "") {
+		return nil, errors.New("invalid workspace command")
+	}
+	if spec.StopGraceMs < 0 || spec.StopGraceMs > 60_000 {
+		return nil, errors.New("stop grace must be within a minute")
 	}
 	id := ID()
 	spool, err := journal.Open(filepath.Join(m.dir, id+".jsonl"), m.limit)
@@ -530,7 +547,7 @@ func (m *Manager) startHosted(spec Spec) (*Command, error) {
 		return c, nil
 	}
 	beforeSpawn()
-	err = host.Spawn(ctx, sessionhost.Spec{Path: spec.Argv[0], Args: spec.Argv[1:], Env: spec.Env, Cwd: spec.Cwd, Stream: true})
+	err = host.Spawn(ctx, sessionhost.Spec{Path: spec.Argv[0], Args: spec.Argv[1:], Env: spec.Env, Cwd: spec.Cwd, Stream: true, StopGraceMs: spec.StopGraceMs})
 	if err != nil {
 		_ = m.backend.Stop(ctx, m.hostRoot, host.ID())
 		c.finish(nil, "", fmt.Errorf("start failed: %w", err))
@@ -708,9 +725,21 @@ func (c *Command) Cancel() error {
 	case detaching:
 		return errors.New("command is owned by another Runner")
 	case host != nil:
+		// The host applies the command's grace period itself, so a stop
+		// in progress completes even if this Runner goes away.
 		return host.Terminate()
 	case process == nil:
 		return errors.New("pipe capture has no owned process")
+	}
+	if grace := c.Status().Spec.StopGraceMs; grace > 0 && process.Interrupt() == nil {
+		go func() {
+			select {
+			case <-c.finished:
+			case <-time.After(time.Duration(grace) * time.Millisecond):
+				_ = process.Stop()
+			}
+		}()
+		return nil
 	}
 	return process.Stop()
 }
@@ -768,6 +797,33 @@ func (c *Command) Read(ctx context.Context, offset uint64, limit int) ([]byte, S
 		out = append(out, data...)
 	}
 	return out, s, nil
+}
+
+// Tail returns up to limit bytes of the command's latest output, reading the
+// journal backwards from its end so a long-running server costs nothing extra.
+func (c *Command) Tail(ctx context.Context, limit int) []byte {
+	var chunks [][]byte
+	total := 0
+	for cursor := c.spool.Count(); cursor > 0 && total < limit; cursor-- {
+		r, err := c.spool.Next(ctx, cursor-1)
+		if err != nil {
+			break
+		}
+		var chunk Output
+		if json.Unmarshal(r.Value, &chunk) != nil || chunk.Type != "output" {
+			continue
+		}
+		chunks = append(chunks, chunk.Data)
+		total += len(chunk.Data)
+	}
+	out := make([]byte, 0, total)
+	for i := len(chunks) - 1; i >= 0; i-- {
+		out = append(out, chunks[i]...)
+	}
+	if len(out) > limit {
+		out = out[len(out)-limit:]
+	}
+	return out
 }
 
 // Close stops every managed command, hosted or not.

@@ -37,7 +37,7 @@ against code, not docs.
 | Collaborate with people | Not started (one owner token, no identities) |
 | Collaborate with agents | Not started (agents' only tool is managed commands) |
 | Watch real execution | Done locally (consoles, `lazybox run`) |
-| Develop visually | Not started (no app preview) |
+| Develop visually | Partial (Run and Preview of workspace actions) |
 | Continue elsewhere | Partial (survives Runner restart; no remote, no phone) |
 | Trust reported status | Partial (agent status; no evidence or acceptance model) |
 
@@ -52,8 +52,8 @@ and branch changes against any base, edit files, watch command consoles, read
 cost and context telemetry, use snippets and a configurable `]]` menu, and
 keep agents running across Runner restarts.
 
-Missing for daily use: committing, pushing, opening or merging a PR; running
-or previewing the app; notifications; tasks, delegation, reviews; search
+Missing for daily use: committing, pushing, opening or merging a PR;
+notifications; tasks, delegation, reviews; search
 across conversations; phone; remote Runner; an interactive shell (in flight).
 
 ## How V2 compares
@@ -72,8 +72,8 @@ docs, Cursor/Copilot/Devin changelogs, herdr.dev).
 | In-app diff review | ✓ | ✓ | ✗ | ◐ | ✓ | ✓ | ✓ | ✓ |
 | Inline review comments → agent | ✗ | ✓ | ✗ | ? | ? | ? | ? | ✓ |
 | PR creation / checks / CI autofix | ✗ | ✓ | ✗ | ✓ | ◐ | ✓ | ✓ | ✓ |
-| Setup / run scripts, ports | ✗ | ✓ | ✗ | ◐ | ✓ | ✓ | ◐ | ✓ |
-| Run / preview the app | ✗ | ✓ | ◐ | ? | ✓ | ✓ | ✓ | ✓ |
+| Setup / run scripts, ports | ✓ | ✓ | ✗ | ◐ | ✓ | ✓ | ◐ | ✓ |
+| Run / preview the app | ✓ | ✓ | ◐ | ? | ✓ | ✓ | ✓ | ✓ |
 | Per-turn checkpoints / revert | ✓ | ✓ | ✗ | ✓ | ? | ✓ | ? | ? |
 | Agent → agent delegation, lineage | ✗ | ◐ | ✓ | ✓ | ✓ | ◐ | ◐ | ✓ |
 | Shared memory across sessions | ✗ | ◐ | ✗ | ✓ | ? | ? | ? | ✓ |
@@ -142,6 +142,13 @@ names what to reuse from V1 and which tool sets the bar.
    actions with a live preview and stop/restart; non-concurrent mode for apps
    that can't share ports. The bar: Conductor actions. Database isolation is
    unsolved everywhere — offer a hook, not a promise.
+   *Landed:* `.lazybox/workspace.yaml` (setup, archive, actions, files to
+   copy) with approval per exact version, a stable 10-port block per
+   workspace, actions as restart-surviving managed commands with SIGTERM-then-
+   SIGKILL stop and non-concurrent mode, Run/Actions/Preview, Settings
+   overrides, and `start_action` for agents
+   ([workspace runtime](../../WORKSPACE_RUNTIME.md)). *Still open:* the
+   Preview frame in a built desktop app, previews of a remote Runner.
 6. **Per-turn checkpoints.** A private git ref before each agent turn, revert
    to any turn. The bar: Conductor, Cursor.
    *Landed:* checkpoints before and after every turn across all workspace

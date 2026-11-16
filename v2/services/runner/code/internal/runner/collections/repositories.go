@@ -135,6 +135,15 @@ func (m *Manager) AddLocalRepository(ctx context.Context, path, name string) (Re
 
 // RepositoryIdentity exposes the checkout-independent identity of any library
 // entry, including configured aliases and GitHub imports.
+// Repository returns one registered repository by ID, hidden historical
+// registrations included: the source checkout behind a workspace member.
+func (m *Manager) Repository(id string) (Repository, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r, ok := m.repos[id]
+	return r, ok
+}
+
 func (m *Manager) RepositoryIdentity(id string) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
