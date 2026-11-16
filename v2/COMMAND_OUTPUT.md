@@ -82,9 +82,16 @@ person sends them.
 
 **The console follows runs.** When a command starts in the session being
 viewed, a collapsed "Command output" panel opens on it, without taking focus
-from the composer. It opens once per command: closed again, it stays closed
-until the next run, and commands that existed before the session was opened
-never open it. Each run's header reads, for example, `exit 1 · agent saw
+from the composer. Commands that existed before the session was opened never
+open it. **Putting it away is a choice that holds:** hidden (its title),
+closed (×) or toggled from the keyboard (`] ] o`, "Show or hide command
+output" in the command palette), it stays away through later runs, per
+workspace and across reloads, until the person opens it again. It then shows
+the newest run and follows runs as before. A closed panel comes back from
+**Page actions → Show panel → Command output**, the same key, or **Open in
+console** in the chat's live bar. The live bar's own output lines can be
+hidden too (the × in their corner, **Show output** to bring them back); that
+choice is shared by every conversation. Each run's header reads, for example, `exit 1 · agent saw
 2.1 KiB of 1.4 MiB (go-test filter)`, with the full-output path to copy. The
 Runner records the same numbers in telemetry (`commands` table, one row per
 run) to measure savings (step 6).

@@ -65,6 +65,7 @@ const tail = [
   { id: 'terminal.open', title: 'Open a terminal', group: 'Workspace', icon: 'terminal', keys: '', scope: 'global', keywords: 'shell console' },
   { id: 'artifacts.open', title: 'Show artifacts', group: 'Workspace', icon: 'artifact', keys: '] ] a', scope: 'global', keywords: 'documents reports' },
   { id: 'web.open', title: 'Open a web page', group: 'Workspace', icon: 'globe', keys: '] ] b', scope: 'global', keywords: 'browser web viewer url link site preview', menu: { section: 'File', title: 'New Web Panel' } },
+  { id: 'console.toggle', title: 'Show or hide command output', group: 'Workspace', icon: 'output', keys: '] ] o', scope: 'global', keywords: 'console close open log run tests' },
   { id: 'workspace.window', title: 'Open this workspace in a new window', group: 'Workspace', icon: 'external', keys: '', scope: 'global', keywords: 'detach' },
   { id: 'page.customize', title: 'Customize this page', group: 'Workspace', icon: 'pencil', keys: '', scope: 'global', keywords: 'layout panels edit arrange' },
   { id: 'layout.configure', title: 'Layout configuration', group: 'Workspace', icon: 'sliders', keys: '', scope: 'global', keywords: 'json import export' },

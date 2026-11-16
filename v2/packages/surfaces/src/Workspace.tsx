@@ -158,14 +158,28 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   useEffect(() => {
     if (onTargetChange) void Promise.resolve(onTargetChange(page.selection)).catch(error => setError(String(error)));
   }, [onTargetChange, page.selection.collectionId, page.selection.sessionId, page.selection.commandId]);
-  // A run starting in the viewed session opens the console on it, once per run:
-  // closing the console keeps it closed until the next run. Focus stays put.
+  // Putting the console away is a choice that holds: hidden or closed by the
+  // person, it stays that way through later runs, until they open it again.
+  // Remembered per workspace, so a reload does not undo it.
+  const consolePutAway = useRef(new Map<string, boolean>());
+  const consoleKey = `${viewState?.scope || viewState?.key}:workspace:${workspaceID || 'home'}:console-put-away`;
+  const isConsolePutAway = () => {
+    if (!consolePutAway.current.has(consoleKey)) { let saved = false; try { saved = viewState?.getItem(consoleKey) === '1'; } catch { /* a convenience */ } consolePutAway.current.set(consoleKey, saved); }
+    return consolePutAway.current.get(consoleKey)!;
+  };
+  const putConsoleAway = (away: boolean) => {
+    if (isConsolePutAway() === away) return;
+    consolePutAway.current.set(consoleKey, away);
+    try { viewState?.setItem(consoleKey, away ? '1' : '0'); } catch { /* holds for this window */ }
+  };
+  // A run starting in the viewed session opens the console on it, unless the
+  // person put the console away. Focus stays put.
   useCommandRuns(api, page.selection.sessionId, commandId => {
     const live = current.current.pages.find(value => value.id === page.id);
     if (!live || locked || editing || live.selection.sessionId !== page.selection.sessionId) return;
     const follows = (panel: Panel) => panel.kind === 'console' && panel.binding.mode === 'follow' && !panel.detached;
-    if (!panels(live.layout).some(follows)) return;
-    changePage({ ...live, selection: { ...live.selection, commandId }, layout: mapPanels(live.layout, panel => follows(panel) ? { ...panel, collapsed: false } : panel) });
+    // Put away, the console still points at the newest run: opening it shows that one.
+    changePage({ ...live, selection: { ...live.selection, commandId }, layout: isConsolePutAway() ? live.layout : mapPanels(live.layout, panel => follows(panel) ? { ...panel, collapsed: false } : panel) });
   });
   const canShowNewSession = panels(page.layout).some(p => p.kind === 'chat' && p.binding.mode === 'follow' && !p.detached) || panels(page.layout).length < 12;
   const showSession = (selection: ViewTarget) => {
@@ -210,6 +224,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (!panels(live.layout).some(panel => panel.kind === kind && !panel.detached) && panels(live.layout).length >= 12) { setError(`This page already has 12 panels; close one to add ${sentence(registry[kind]?.title || kind)}.`); return ''; }
     const shown = kind === 'files' || kind === 'editor' ? showCodePanel(live.layout, kind, rememberedDock(kind), () => crypto.randomUUID()) : showPanel(live.layout, kind, rememberedDock(kind), () => crypto.randomUUID());
     if (!changePage({ ...live, layout: shown.layout })) return '';
+    if (kind === 'console') putConsoleAway(false);
     setSettings(false); setMobilePanelId(shown.id);
     return shown.id;
   };
@@ -266,15 +281,24 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const dockTo = (panel: Panel, side: DockSide) => {
     const live = livePage();
     if (!changePage({ ...live, layout: dockPanel(live.layout, panel.id, side) })) return;
+    if (panel.kind === 'console') putConsoleAway(false);
     try { viewState?.setItem(dockKey(panel.kind), side); } catch { /* the side is a convenience */ }
     focusAfter.current = { panel: panel.id };
   };
   const closePanel = (panel: Panel) => {
     const live = livePage(), next = removePanel(live.layout, panel.id);
     if (!next || !closable(panel)) return;
-    if (changePage({ ...live, layout: next })) focusAfter.current = 'content';
+    if (!changePage({ ...live, layout: next })) return;
+    if (panel.kind === 'console') putConsoleAway(true);
+    focusAfter.current = 'content';
   };
-  const toggleCollapsed = (panel: Panel) => changePanel(panel.id, value => ({ ...value, collapsed: !value.collapsed }));
+  // Command output from the keyboard: put it away when it is open, bring it back when it is not.
+  useKeyboardAction('console.toggle', () => {
+    if (!workspaceID || settings) return;
+    const open = panels(livePage().layout).find(panel => panel.kind === 'console' && !panel.detached && !panel.collapsed);
+    if (open) toggleCollapsed(open); else showModule('console');
+  }, () => !!workspaceID && !settings);
+  const toggleCollapsed = (panel: Panel) => { if (changePanel(panel.id, value => ({ ...value, collapsed: !panel.collapsed })) && panel.kind === 'console') putConsoleAway(!panel.collapsed); };
   const beginConversation = (collectionId = workspaceID) => {
     if (collectionId !== workspaceID) select({ collectionId, sessionId: '', commandId: '' });
     setNavigatorOpen(false); setQuickStart(false); setNewSession(true);
@@ -402,7 +426,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
           onSelect={select} onShowRepositories={setRepositoryWorkspace}/>
         {editing && <PageConfig page={page} layout={layout} registry={registry} module={module} hasDetached={hasDetached} pending={!!pending} onModule={setModule} commit={commit} changePage={changePage}/>}
         {mobilePanels.length > 1 && <MobilePanelSwitcher panels={mobilePanels} active={mobilePanel} title={panel => registry[panel.kind]?.title || panel.kind}
-          onChoose={panel => { setMobilePanelId(panel.id); if (panel.collapsed) changePanel(panel.id, value => ({ ...value, collapsed: false })); }}/>}
+          onChoose={panel => { setMobilePanelId(panel.id); if (panel.collapsed) changePanel(panel.id, value => ({ ...value, collapsed: false })); if (panel.kind === 'console') putConsoleAway(false); }}/>}
         <div className="page-layout" data-page-id={page.id}>
           {displayedLayout ? <LayoutTree node={displayedLayout} editing={editing} hostFor={panelHosts.hostFor} onResize={resize} sidebar={{ width: sidebarWidth, onWidth: saveSidebarWidth }}/> : <p className="module-empty">Your conversations are open in separate windows.</p>}
           {docking && <DockOverlay docking={docking}/>}

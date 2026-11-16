@@ -1,5 +1,7 @@
-// The console opens when a `lazybox run` starts in the viewed session, labels the
-// run with what its agent received, and stays closed once the user closes it.
+// The console opens when a `lazybox run` starts in the viewed session and labels
+// the run with what its agent received. Put away by the user (hidden, closed
+// with ×, or from the keyboard), it stays away through later runs until they
+// open it again, and every way of closing it has a way back.
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -42,19 +44,52 @@ try {
   await expect(composer).toBeFocused();
   await expect(composer).toHaveValue('typing while the agent runs tests');
 
-  // Closed by the user, it stays closed for that run.
+  // Hidden by the user, it stays hidden: the next run does not reopen it.
   await hide.click();
   await expect(show).toBeVisible();
+  const next = fixture.startRun('alpha-session', 'npm test', { exitCode: 0, outputBytes: '120', agentBytes: '180', filter: 'passthrough', outputPath: '' });
   const closed = lists();
-  await expect.poll(lists, { timeout: 5000 }).toBeGreaterThan(closed + 1);
+  await expect.poll(lists, { timeout: 5000 }).toBeGreaterThan(closed + 2);
   await expect(show).toBeVisible();
 
-  // The next run opens it again, on the new run.
-  const next = fixture.startRun('alpha-session', 'npm test', { exitCode: 0, outputBytes: '120', agentBytes: '180', filter: 'passthrough', outputPath: '' });
-  await expect(hide).toBeVisible({ timeout: 5000 });
+  // Opened again by the user, it shows the newest run and follows runs again.
+  await show.click();
   await expect(page.locator('.command-panel select')).toHaveValue(next.id);
   await expect(report).toContainText('Exit 0 · the agent got all of it (120 B)');
   await expect(report.getByRole('button', { name: 'Copy log path' })).toHaveCount(0);
+  await hide.click();
+  await show.click();
+  const third = fixture.startRun('alpha-session', 'make lint', { exitCode: 0, outputBytes: '90', agentBytes: '90', filter: 'passthrough', outputPath: '' });
+  await expect(page.locator('.command-panel select')).toHaveValue(third.id, { timeout: 5000 });
+  await expect(hide).toBeVisible();
+
+  // × closes the panel: its control is plainly visible at rest, and a later run does not bring the panel back.
+  const consolePanel = page.locator('.panel-console');
+  const close = page.getByRole('button', { name: 'Close Command output panel', exact: true });
+  assert.ok(Number(await close.evaluate(node => getComputedStyle(node).opacity)) >= 0.8, 'the close control is not faint at rest');
+  await close.click();
+  await expect(consolePanel).toHaveCount(0);
+  const fourth = fixture.startRun('alpha-session', 'make build', { exitCode: 0, outputBytes: '70', agentBytes: '70', filter: 'passthrough', outputPath: '' });
+  const removed = lists();
+  await expect.poll(lists, { timeout: 5000 }).toBeGreaterThan(removed + 2);
+  await expect(consolePanel).toHaveCount(0);
+  // Closing does not survive only until a reload either.
+  await page.reload();
+  await expect(composer).toBeEnabled();
+  await expect(consolePanel).toHaveCount(0);
+
+  // The way back: the page menu lists it, and it opens on the newest run.
+  await page.locator('.workspace-header-actions summary[aria-label="Page actions"]').click();
+  await page.locator('.workspace-header-actions .show-panel', { hasText: 'Command output' }).click();
+  await expect(consolePanel).toHaveCount(1);
+  await expect(page.locator('.command-panel select')).toHaveValue(fourth.id);
+
+  // From the keyboard: ]] o puts it away and brings it back.
+  await page.locator('.workspace-brand').click();
+  await page.keyboard.type(']]o');
+  await expect(show).toBeVisible();
+  await page.keyboard.type(']]o');
+  await expect(hide).toBeVisible();
 
   // A run in another session leaves this console alone.
   await hide.click();
@@ -65,7 +100,7 @@ try {
 
   assert.equal(fixture.mutations.length, 0, 'opening the console must not mutate execution');
   assert.equal(errors.length, 0, errors.join('\n'));
-  console.log('PASS: the console opens once per run in the viewed session without taking focus, and labels the run with what its agent received. Explicitly fake RPC fixture.');
+  console.log('PASS: the console opens for a run without taking focus, labels the run with what its agent received, and stays put away (hidden, closed with ×, or from the keyboard) until the user opens it again. Explicitly fake RPC fixture.');
 } finally {
   await browser?.close(); await server.close(); await fixture.close();
 }

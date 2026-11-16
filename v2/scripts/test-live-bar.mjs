@@ -41,6 +41,25 @@ try{
  await bar.getByRole('button',{name:'More output'}).click();
  await expect(out).toContainText('check step 1');
  await expect(bar.getByRole('button',{name:'Less output'})).toHaveAttribute('aria-expanded','true');
+ // Esc in the expanded output folds it back to its last lines.
+ await out.focus();await page.keyboard.press('Escape');
+ await expect(bar.getByRole('button',{name:'More output'})).toHaveAttribute('aria-expanded','false');
+ // The output can be put away: its own ×, clear of the text, and it stays away for the next command and a reload.
+ {const hide=bar.getByRole('button',{name:'Hide output'}),h=await hide.boundingBox(),o=await out.boundingBox();
+  assert.ok(h.x>=o.x&&h.x+h.width<=o.x+o.width+1&&h.y>=o.y&&h.y+h.height<=o.y+o.height+1,'the hide control sits inside the output');
+  await hide.click();}
+ await expect(out).toHaveCount(0);
+ await expect(bar.getByRole('button',{name:'More output'})).toHaveCount(0);
+ await expect(bar.getByRole('button',{name:'Stop command'})).toBeVisible();
+ await page.reload();
+ await expect(bar.locator('.live-bar-code')).toHaveText('lazybox run pnpm run check');
+ await expect(out).toHaveCount(0);
+ await page.screenshot({path:'.cache/subagents-live-bar-hidden.png'});
+ // And brought back, from the bar.
+ await bar.getByRole('button',{name:'Show output'}).click();
+ await expect(out).toContainText('CHECK_TAIL_LINE');
+ await bar.getByRole('button',{name:'More output'}).click();
+ await expect(out).toContainText('check step 1');
  // The sub-agents at work are in the same bar; the old separate lines are gone.
  await expect(bar.locator('.subagent-chip')).toContainText('Review the API');
  await expect(chat.locator('.live-bar')).toHaveCount(1);

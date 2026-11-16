@@ -382,7 +382,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
           <MessageArea api={api} session={session} sessionID={sessionID} transcript={transcript} scroll={scroll} spoken={spoken} agentName={agentName} limited={limited} nameFor={nameFor}
             onOpenFile={session?.collectionId ? openFile : undefined} onError={setError} detail={activity.detail}
             subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/>
-          {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} onInterrupt={() => void interrupt()}
+          {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} viewState={viewState} onInterrupt={() => void interrupt()}
             onOpenCommand={onOpenCommand || (showCommands ? commandId => { setCommand(commandId); setCommandsOpen(true); } : onOpenViewer ? commandId => void onOpenViewer(sessionID, commandId) : undefined)}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}

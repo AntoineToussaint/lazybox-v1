@@ -56,7 +56,8 @@
 .workspace-panel:not(.is-editing)>.module-header .module-title span{flex:0 1 auto}
 .module-header>.panel-menu>summary{display:flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border-radius:5px;color:#8f909c}
 .workspace-shell .module-header>.panel-close{width:26px;height:26px;color:#8f909c;border-radius:5px}
-.module-header>.panel-menu>summary,.module-header>.panel-close{opacity:.55;transition:opacity .12s}
+/* Quiet, but never so faint that a panel looks like it cannot be closed. */
+.module-header>.panel-menu>summary,.module-header>.panel-close{opacity:.85;transition:opacity .12s}
 .module-header:hover>.panel-menu>summary,.module-header:focus-within>.panel-menu>summary,.module-header>.panel-menu[open]>summary,.module-header:hover>.panel-close,.module-header:focus-within>.panel-close{opacity:1}
 .workspace-shell .panel-menu>.action-popover>button,.workspace-shell .show-panel{display:flex;align-items:center;gap:9px}
 .panel-menu>.action-popover>button>span,.show-panel>span{flex:1}
