@@ -48,6 +48,8 @@ type Session struct {
 	Detached  bool
 	Committed []uint64
 	detached  chan struct{}
+	// committed is closed and replaced on every commit (see AwaitCommits).
+	committed chan struct{}
 }
 
 func (s *Session) DurableState() json.RawMessage { s.mu.Lock(); defer s.mu.Unlock(); return s.State }
@@ -58,6 +60,10 @@ func (s *Session) Commit(ev agent.Event) {
 	defer s.mu.Unlock()
 	if !ev.Partial {
 		s.Committed = append(s.Committed, ev.Cursor)
+	}
+	if s.committed != nil {
+		close(s.committed)
+		s.committed = nil
 	}
 }
 func (s *Session) Detach() error {
@@ -76,6 +82,31 @@ func (s *Session) Commits() []uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]uint64(nil), s.Committed...)
+}
+
+// AwaitCommits returns the acknowledged cursors once there are at least n. A
+// caller that saw an event in the journal cannot read Commits at once: the
+// engine acknowledges a line only after recording it, outside its lock, so the
+// record is observable before the acknowledgement reaches the transport.
+func (s *Session) AwaitCommits(ctx context.Context, n int) ([]uint64, error) {
+	for {
+		s.mu.Lock()
+		if len(s.Committed) >= n {
+			got := append([]uint64(nil), s.Committed...)
+			s.mu.Unlock()
+			return got, nil
+		}
+		if s.committed == nil {
+			s.committed = make(chan struct{})
+		}
+		changed := s.committed
+		s.mu.Unlock()
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return s.Commits(), ctx.Err()
+		}
+	}
 }
 
 func (s *Session) Reference() string { return s.Ref }

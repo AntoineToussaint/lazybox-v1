@@ -100,7 +100,7 @@ func TestDetachedExecutionIsAdoptedWithItsLiveState(t *testing.T) {
 	native.Events <- agent.Event{Type: "turn_started", SessionID: "native-ref", Cursor: 4}
 	native.Events <- agent.Event{Type: "approval", RequestID: "r1", Cursor: 5}
 	await(t, e, "approval")
-	if commits := native.Commits(); len(commits) != 2 || commits[1] != 5 {
+	if commits, _ := native.AwaitCommits(ctx, 2); len(commits) != 2 || commits[1] != 5 {
 		t.Fatalf("recorded events not committed to the transport: %v", commits)
 	}
 	if _, err := e.Apply(ctx, agent.Operation{ID: "second", Kind: agent.Message, Text: "then this"}); err != nil {
@@ -244,7 +244,7 @@ func TestLineRecordedInPartIsCompletedOnceAfterAdoption(t *testing.T) {
 	if counts["failure"] != 1 || counts["turn_ended"] != 1 || counts["activity"] != 1 {
 		t.Fatalf("replayed line recorded %v", counts)
 	}
-	if commits := a.Session.Commits(); len(commits) == 0 || commits[len(commits)-1] != 7 {
+	if commits, _ := a.Session.AwaitCommits(contextFor(t), 1); len(commits) == 0 || commits[len(commits)-1] != 7 {
 		t.Fatalf("completed line not acknowledged: %v", commits)
 	}
 }
