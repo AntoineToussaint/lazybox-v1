@@ -7,9 +7,13 @@ import { FilePreview } from './FilePreview';
 import { useRunner } from './RunnerContext';
 import type { FileLink } from './file-reference';
 import { modKey, useWorkbench } from './workbench';
+import { copyText } from './ContextMenu';
+import { absolutePath } from './context-menu-model';
 import './files.css';
 
-export type OpenModifiers = { altKey?: boolean; metaKey?: boolean; ctrlKey?: boolean };
+export type OpenModifiers = { altKey?: boolean; metaKey?: boolean; ctrlKey?: boolean;
+ /** From a context menu: show it in the Files panel instead of opening it. */ reveal?: boolean;
+ /** From a context menu: copy its path, absolute or relative to the workspace, instead of opening it. */ copy?: 'absolute' | 'relative' };
 type Choice = { reference: FileLink; matches: { path: string; directory: boolean }[]; truncated: boolean; how: OpenModifiers };
 
 /** Opens file references the way a person means them. The Runner resolves
@@ -31,6 +35,12 @@ export function useFileOpener(collectionId: string | undefined, viewState?: View
  useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 8000); return () => clearTimeout(timer); }, [notice]);
  const show = (match: { path: string; directory: boolean }, reference: FileLink, how: OpenModifiers) => {
   setChoice(undefined);
+  if (how.copy === 'relative') { void copyText(match.path, 'Copied relative path'); return; }
+  if (how.copy === 'absolute') {
+   void api.getCollection({ collectionId: collectionId! }, { timeoutMs: 8000 }).then(result => copyText(absolutePath(result.collection?.root || '', match.path), 'Copied path'), () => copyText(match.path, 'Copied relative path'));
+   return;
+  }
+  if (how.reveal && integrated) { workbench.reveal(match.path); return; }
   if (!integrated || how.altKey) { if (integrated) workbench.host.quickLook(match.path, reference.line); else setQuick({ path: match.path, line: reference.line }); return; }
   const beside = modKey({ metaKey: !!how.metaKey, ctrlKey: !!how.ctrlKey });
   if (match.directory) workbench.reveal(match.path);

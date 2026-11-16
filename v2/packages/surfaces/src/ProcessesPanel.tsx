@@ -7,6 +7,7 @@ import { requestTerminal } from './TerminalPanel';
 import { backendLabel, formatMemory, formatUptime, groupProcesses, processState, stopConsequence } from './processes-model';
 import type { ViewTarget } from './workspace-model';
 import './processes.css';
+import { contextMenu, copyText } from './ContextMenu';
 
 type Props = {
   workspaceId?: string;
@@ -126,7 +127,13 @@ function ProcessRow({ process: p, showWorkspace, canOpen, onOpen, onCopy, onStop
     p.usage && p.usage.processCount > 2 && plural(p.usage.processCount, 'process', 'processes'),
     backendLabel(p.backend),
   ].filter(Boolean);
-  return <li className={`process-row tone-${state.tone}`} aria-label={`${p.label}, ${state.label}`}>
+  return <li className={`process-row tone-${state.tone}`} aria-label={`${p.label}, ${state.label}`} onContextMenu={contextMenu('process', () => [
+    canOpen && { label: 'Open', icon: p.kind === 'agent' ? 'chat' : p.kind === 'command' ? 'output' : 'terminal', run: onOpen },
+    p.attachCommand && { label: 'Copy attach command', icon: 'terminal', run: onCopy },
+    { label: 'Copy PID', icon: 'copy', run: () => copyText(String(p.programPid || p.hostPid), 'Copied PID') },
+    'separator',
+    { label: p.kind === 'terminal' && p.attached ? 'Close terminal…' : p.kind === 'agent' && p.attached ? 'Stop agent…' : 'Stop…', icon: 'stop', danger: true, run: onStop },
+  ], { process: p })}>
     <span className={`process-dot tone-${state.tone}`} aria-hidden="true"/>
     <div className="process-text">
       <div className="process-title"><strong title={p.label}>{p.label}</strong>{state.label !== 'Running' && <span className={`process-state tone-${state.tone}`}>{state.label}</span>}</div>

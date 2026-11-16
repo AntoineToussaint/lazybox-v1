@@ -1,6 +1,6 @@
-import { useState, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
-import { ContextMenu, menuPoint, type ContextMenuState } from './ContextMenu';
+import { useContextMenuContribution } from './ContextMenu';
 import { artifactsChanged, errorText } from './artifact-client';
 import { openArtifact } from './artifact-events';
 import type { Workbench } from './workbench';
@@ -22,36 +22,17 @@ export async function trackFile(api: RunnerClient, collectionId: string, path: s
 }
 
 /**
- * The Files tree's right-click menu: open, open beside, quick look, copy the
- * path, and track a Markdown file as an artifact. Shift+right-click keeps the
- * browser's own menu.
+ * Tracking from the Files tree: "Track as artifact" in a file row's context
+ * menu (the `file` scope of the app's context menus, which also opens, quick
+ * looks and copies paths), and the notice saying where the artifact went.
  */
 export function useFileContextMenu(workbench: Workbench | undefined) {
-  const [menu, setMenu] = useState<ContextMenuState>(), [notice, onNotice] = useState('');
-  const show = (row: HTMLElement, point: { x: number; y: number }) => {
-    const path = row.dataset.path;
-    if (!workbench || !path || row.getAttribute('aria-expanded') !== null) return false;
-    const markdown = trackableFile(path);
-    setMenu({ ...point, label: `${path} actions`, returnFocus: row, items: [
-      { label: 'Open', icon: 'file', run: () => workbench.open(path, { focus: true }) },
-      { label: 'Open to the side', icon: 'split-right', run: () => workbench.open(path, { focus: true, side: 'row' }) },
-      { label: 'Quick look', icon: 'eye', run: () => workbench.host.quickLook(path) },
-      { label: 'Copy path', icon: 'copy', run: () => void navigator.clipboard.writeText(path) },
-      { label: 'Track as artifact', icon: 'artifact', separatorBefore: true, disabled: !markdown, hint: markdown ? undefined : 'Markdown only', run: () => void trackFile(workbench.api, workbench.workspaceId, path).then(text => { if (text) onNotice(text); }) },
-    ] });
-    return true;
-  };
-  const onContextMenu = (event: ReactMouseEvent) => {
-    if (event.shiftKey) return;
-    const row = (event.target as Element).closest<HTMLElement>('[role="treeitem"][data-path]');
-    if (row && show(row, menuPoint(event))) event.preventDefault();
-  };
-  const onKeyDown = (event: ReactKeyboardEvent) => {
-    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
-    const row = (event.target as Element).closest<HTMLElement>('[role="treeitem"][data-path]');
-    if (!row) return;
-    const bounds = row.getBoundingClientRect();
-    if (show(row, { x: bounds.left + 24, y: bounds.bottom - 2 })) { event.preventDefault(); event.stopPropagation(); }
-  };
-  return { onContextMenu, onKeyDown, element: <>{menu && <ContextMenu menu={menu} onClose={() => setMenu(undefined)}/>}{notice && <p className="tree-status file-artifact-notice" role="status">{notice}<button type="button" className="link-button" onClick={() => onNotice('')}>Dismiss</button></p>}</> };
+  const [notice, onNotice] = useState('');
+  useContextMenuContribution<{ path: string; directory: boolean }>('file', ({ detail }) => {
+    if (!workbench || detail.directory) return [];
+    const markdown = trackableFile(detail.path);
+    return ['separator', { label: 'Track as artifact', icon: 'artifact', disabled: !markdown && 'Markdown files only', note: markdown ? undefined : 'Markdown only',
+      run: () => void trackFile(workbench.api, workbench.workspaceId, detail.path).then(text => { if (text) onNotice(text); }) }];
+  });
+  return { element: <>{notice && <p className="tree-status file-artifact-notice" role="status">{notice}<button type="button" className="link-button" onClick={() => onNotice('')}>Dismiss</button></p>}</> };
 }

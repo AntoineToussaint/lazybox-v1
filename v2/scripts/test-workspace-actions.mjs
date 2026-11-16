@@ -33,11 +33,12 @@ try{
  await page.getByLabel('Actions for Alpha feature',{exact:true}).click();await page.getByRole('button',{name:'Delete workspace…',exact:true}).click();await expect(dialog).toBeVisible();await expect(dialog.getByRole('textbox')).toHaveCount(0);await expect(dialog.getByRole('button',{name:'Delete workspace',exact:true})).toBeEnabled();await page.screenshot({path:'/tmp/lazybox-workspace-delete-clean.png'});await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(dialog).toHaveCount(0);assert.equal(fixture.mutations.filter(m=>m.method==='DeleteWorkspace').length,1);
 // Right-click, keyboard dismissal, outside click, and narrow viewport placement.
 const alpha=rows.first();
+// A right-click opens the row's actions (the ⋯ menu's list) at the pointer, as a Lazybox menu.
 await alpha.click({button:'right'});
-await expect(alpha.locator('.action-popover')).toBeVisible();
-await page.keyboard.press('End');await expect(deleteAction).toBeFocused();
-await page.keyboard.press('Escape');await expect(alpha.locator('summary')).toBeFocused();
-await expect(alpha.locator('.action-popover')).not.toBeVisible();
+const contextMenu=page.locator('.context-menu[data-depth="0"]'),contextDelete=contextMenu.getByRole('menuitem',{name:'Delete workspace…',exact:true});
+await expect(contextMenu).toBeVisible();await expect(alpha.locator('.action-popover')).not.toBeVisible();
+await page.keyboard.press('End');await expect(contextDelete).toBeFocused();
+await page.keyboard.press('Escape');await expect(contextMenu).toHaveCount(0);
 await alpha.locator('summary').click();await page.locator('.explorer-heading').first().click();
 await expect(alpha.locator('.action-popover')).not.toBeVisible();
 for(const viewport of [{width:900,height:420},{width:390,height:640}]){

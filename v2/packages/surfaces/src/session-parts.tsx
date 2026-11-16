@@ -8,6 +8,7 @@ import { composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSum
 import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
 import { AnsiText, stripAnsi } from './ansi';
 import { Icon } from './Icons';
+import { contextMenu, copyText, showMenuNotice } from './ContextMenu';
 
 export function RequestCard({ request, api, session, onError }: { request: AgentEvent; api: RunnerClient; session: string; onError: (s: string) => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -97,7 +98,20 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     setHanded(problem ? { ok: false, text: problem } : { ok: true, text: `Added ${formatBytes(report!.agentBytes)} to your message. Review it and send when ready.` });
   };
   const shareTitle = !metadata?.done ? 'Available when the output ends.' : !view ? 'This run has no compact view: its output did not end cleanly.' : `Adds the compact view (${formatBytes(report!.agentBytes)}: outcome and failures first, plus the full-output path) to your message. You decide when to send it.`;
-  return <section className="console"><div className="panel-title"><div><span className="eyebrow">{runtimeEyebrow || (fromTerminal ? 'From your terminal' : 'Shared console')}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="close" size={12}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status">{outcome.text}</span></span></div>
+  // The command as typed: a shell line is its script, anything else its words.
+  const commandLine = metadata ? (metadata.argv.length === 3 && /(^|\/)(ba|z)?sh$/.test(metadata.argv[0]) && metadata.argv[1] === '-c' ? metadata.argv[2] : metadata.argv.join(' ')) : '';
+  const menu = contextMenu('command', () => [
+    running && { label: 'Stop', icon: 'stop', danger: true, run: () => api.cancelCommand({ commandId: command }).then(() => showMenuNotice('Stopping…')) },
+    metadata?.done && !fromTerminal && metadata.sessionId && metadata.argv.length > 0 && { label: 'Run again', icon: 'play', run: () => api.startCommand({ sessionId: metadata.sessionId, title: metadata.title, argv: metadata.argv }).then(() => showMenuNotice(`Started “${metadata.title}” again`)) },
+    'separator',
+    { label: 'Copy output', icon: 'copy', disabled: !text && 'No output yet', run: () => copyText(stripAnsi(text), 'Copied output') },
+    commandLine && { label: 'Copy command', icon: 'copy', run: () => copyText(commandLine, 'Copied command') },
+    report?.outputPath && { label: 'Copy log path', icon: 'copy', run: () => copyText(report.outputPath, 'Copied log path') },
+    'separator',
+    onOpenViewer && { label: 'Open output in a window', icon: 'external', run: onOpenViewer },
+    fromTerminal && onSendToAgent && { label: 'Send to agent', icon: 'send', disabled: !metadata?.done ? 'Available when the output ends' : !view && 'This run has no compact view', run: sendToAgent },
+  ], { commandId: command });
+  return <section className="console" onContextMenu={menu}><div className="panel-title"><div><span className="eyebrow">{runtimeEyebrow || (fromTerminal ? 'From your terminal' : 'Shared console')}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="close" size={12}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status">{outcome.text}</span></span></div>
     {/* Shown in every console, including the workspace's (which hides the title): what an agent gets, and the hand-over. */}
     {(report || (fromTerminal && onSendToAgent)) && <div className="command-meta">{fromTerminal && <span className="command-origin">From your terminal</span>}
       {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report, fromTerminal)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy log path</button>}</p>}

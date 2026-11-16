@@ -2,6 +2,9 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import { ActionMenu } from './ActionMenu';
 import { Icon } from './Icons';
+import { ActionMenuItems } from './ActionMenuItems';
+import { contextMenu } from './ContextMenu';
+import type { MenuItem } from './context-menu-model';
 import { sentence, type ModuleProps, type PanelModule } from './PanelRegistry';
 import { closable, dockSides, type DockSide, type Panel, type ViewTarget } from './workspace-model';
 
@@ -47,10 +50,12 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
   canRemove: boolean;
 }) {
   const onTarget = (next: ViewTarget) => actions.retarget(panel, next);
+  const detachable = panel.kind === 'chat' && canDetach && !!target.sessionId && !panel.detached;
   return <section className={`workspace-panel panel-${panel.kind}${panel.collapsed && !editing ? ' is-collapsed' : ''}${editing ? ' is-editing' : ''}${docking ? ' is-docking' : ''}`} aria-label={definition?.title || panel.kind} data-panel-id={panel.id} data-mobile-active={mobileActive || undefined}>
-    <header className="module-header" onPointerDown={editing ? undefined : event => actions.startDrag(event, panel)}>
+    <header className="module-header" onPointerDown={editing ? undefined : event => actions.startDrag(event, panel)}
+      onContextMenu={editing ? undefined : contextMenu('panel', () => panelItems({ panel, actions, pending, only, docked, detach: detachable ? () => actions.detach(panel) : undefined }), { kind: panel.kind, id: panel.id })}>
       {!editing
-        ? <PanelHeader panel={panel} definition={definition} actions={actions} pending={pending} only={only} docked={docked}/>
+        ? <PanelHeader panel={panel} definition={definition} actions={actions} pending={pending} only={only} docked={docked} detach={detachable ? () => actions.detach(panel) : undefined}/>
         : panel.kind === 'console'
           ? <button className="module-title" aria-label={panel.collapsed ? 'Show command output' : 'Hide command output'} aria-expanded={!panel.collapsed} onClick={() => actions.toggleCollapsed(panel)}><Icon name="terminal"/><span>{definition?.title}</span><Icon name="chevron" size={13}/></button>
           : <strong>{definition?.title || panel.kind}</strong>}
@@ -75,8 +80,20 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
   </section>;
 }
 
+type PanelMenu = { panel: Panel; actions: PanelActions; pending: boolean; only: boolean; docked?: DockSide; detach?(): void };
+/** What a panel's ⋯ menu and its header's context menu offer: one list for both. */
+function panelItems({ panel, actions, pending, only, docked, detach }: PanelMenu): MenuItem[] {
+  return [
+    ...dockSides.map(side => ({ label: `Dock ${side}`, icon: `dock-${side}`, className: 'dock-option', disabled: only || docked === side || pending, checked: docked === side || undefined, note: docked === side ? 'Current' : undefined, run: () => actions.dockTo(panel, side) })),
+    'separator' as const,
+    { label: panel.collapsed ? 'Expand' : 'Collapse', icon: 'chevron', run: () => actions.toggleCollapsed(panel) },
+    detach && { label: 'Open in its own window', icon: 'external', disabled: pending, run: detach },
+    closable(panel) && !only && { label: 'Close panel', icon: 'close', danger: true, run: () => actions.close(panel) },
+  ];
+}
+
 /** A panel's own header: its title collapses it, ⋯ docks it at any edge, × closes it. */
-function PanelHeader({ panel, definition, actions, pending, only, docked }: { panel: Panel; definition?: PanelModule; actions: PanelActions; pending: boolean; only: boolean; docked?: DockSide }) {
+function PanelHeader({ panel, definition, actions, pending, only, docked, detach }: PanelMenu & { definition?: PanelModule }) {
   const title = definition?.title || panel.kind, name = sentence(title);
   const canClose = closable(panel) && !only;
   return <>
@@ -86,13 +103,7 @@ function PanelHeader({ panel, definition, actions, pending, only, docked }: { pa
       <Icon name="chevron" size={13}/>
     </button>
     <ActionMenu className="panel-menu" label={`${title} panel actions`}>
-      {dockSides.map(side => <button key={side} className="dock-option" disabled={only || docked === side || pending} aria-current={docked === side || undefined} onClick={() => actions.dockTo(panel, side)}>
-        <Icon name={`dock-${side}`}/>
-        <span>Dock {side}</span>
-        {docked === side && <small>Current</small>}
-      </button>)}
-      <button onClick={() => actions.toggleCollapsed(panel)}><Icon name="chevron"/><span>{panel.collapsed ? 'Expand' : 'Collapse'}</span></button>
-      {canClose && <button className="danger" onClick={() => actions.close(panel)}><Icon name="close"/><span>Close panel</span></button>}
+      <ActionMenuItems icons items={panelItems({ panel, actions, pending, only, docked, detach })}/>
     </ActionMenu>
     {canClose && <button className="icon-button panel-close" aria-label={`Close ${title} panel`} title={panel.kind === 'terminal' ? 'Close panel (shells keep running)' : 'Close panel'} onClick={() => actions.close(panel)}><Icon name="close" size={14}/></button>}
   </>;

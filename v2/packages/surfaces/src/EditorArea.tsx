@@ -10,6 +10,8 @@ import { useVimPreferences } from './keyboard';
 import { isDirty, modKey, parentFolder, shortcut, useWorkbench, useWorkbenchState, type Workbench, type WorkbenchState } from './workbench';
 import { trackFile, trackableFile } from './FileArtifactActions';
 import './files.css';
+import { contextMenu } from './ContextMenu';
+import { editorTabItems } from './workbench-context-menu';
 
 const TAB = 'application/x-lazybox-tab', PATH = 'application/x-lazybox-path';
 const name = (path: string) => path.split('/').pop() || path;
@@ -143,7 +145,8 @@ function Group({ workbench, state, group, vim, index, numbered }: { workbench: W
      return <div key={path} role="tab" data-tab={path} aria-selected={selected} tabIndex={selected ? 0 : -1} title={path}
       className={'editor-tab' + (selected ? ' is-active' : '') + (group.preview === path ? ' is-preview' : '') + (dirty ? ' is-dirty' : '') + (dropAt === i ? ' drop-before' : '') + (dropAt === group.tabs.length && i === group.tabs.length - 1 ? ' drop-after' : '')}
       draggable onDragStart={event => { event.dataTransfer.setData(TAB, JSON.stringify({ group: group.id, path })); event.dataTransfer.setData('text/plain', path); event.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => setDropAt(null)}
-      onClick={() => workbench.activate(group.id, path)} onDoubleClick={() => workbench.pin(group.id, path)} onAuxClick={event => { if (event.button === 1) { event.preventDefault(); workbench.close(group.id, path); } }} onKeyDown={event => tabKey(event, path)}>
+      onClick={() => workbench.activate(group.id, path)} onDoubleClick={() => workbench.pin(group.id, path)} onAuxClick={event => { if (event.button === 1) { event.preventDefault(); workbench.close(group.id, path); } }} onKeyDown={event => tabKey(event, path)}
+      onContextMenu={contextMenu('editor-tab', () => editorTabItems(workbench, group.id, path), { path, group: group.id, workspaceId: workbench.workspaceId }, `${name(path)} tab actions`)}>
       <FileIcon name={name(path)} size={14}/>
       <span className="editor-tab-name">{name(path)}</span>
       {hints[path] && <span className="editor-tab-hint">{hints[path]}</span>}

@@ -11,6 +11,7 @@ import { useAttentionHost, useInbox, useNotificationPreferences, useViewingReade
 import { MissionInboxSection, useAwaitingTasks } from './MissionInbox';
 import type { ViewTarget } from './workspace-model';
 import './inbox.css';
+import { contextMenu } from './ContextMenu';
 
 const stateIcon: Record<AttentionState, string> = { 'needs-input': 'ask', failed: 'alert', review: 'eye', working: 'working', idle: 'done' };
 export function AttentionIcon({ state, size = 16 }: { state: AttentionState; size?: number }) {
@@ -93,7 +94,13 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
         const visible = group.state === 'idle' && !allDone ? group.rows.slice(0, doneLimit) : group.rows;
         return <section key={group.state} className={`inbox-group group-${group.state}`} aria-labelledby={`inbox-group-${group.state}`}>
           <h3 id={`inbox-group-${group.state}`}><AttentionIcon state={group.state} size={13}/>{attentionTitle[group.state]}<span>{group.rows.length}</span></h3>
-          <ul>{visible.map(row => <li key={row.key} className="inbox-item" data-key={row.key} data-state={row.state} data-unread={row.unread || undefined}>
+          <ul>{visible.map(row => <li key={row.key} className="inbox-item" data-key={row.key} data-state={row.state} data-unread={row.unread || undefined}
+            onContextMenu={contextMenu('inbox-item', () => [
+              { label: 'Open', icon: 'chat', shortcut: 'Enter', run: () => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' }) },
+              { label: 'Mark as seen', icon: 'check', shortcut: 'M', disabled: !row.unread ? 'Already seen' : row.state === 'needs-input' && 'It waits for your answer', run: () => markSeen([row]) },
+              'separator',
+              { label: 'Mark all seen', icon: 'checkAll', disabled: !unseen.length, run: () => markSeen(unseen) },
+            ], { sessionId: row.session.id, workspaceId: row.session.collectionId })}>
             <button className="inbox-row" aria-current={row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' })}>
               <AttentionIcon state={row.state}/><span className="sr-only">{attentionTitle[row.state]}{row.unread ? ', unread' : ''}: </span>
               <span className="inbox-main">

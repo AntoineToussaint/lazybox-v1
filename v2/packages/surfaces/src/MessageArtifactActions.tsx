@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Artifact } from '@lazybox/protocol';
-import { ContextMenu, menuPoint, type ContextMenuItem, type ContextMenuState } from './ContextMenu';
+import { useContextMenuContribution } from './ContextMenu';
+import type { MessageMenuDetail } from './chat-context-menu';
 import { TrackArtifactDialog, UpdateArtifactDialog } from './ArtifactDialogs';
-import { errorText } from './artifact-client';
 import { openArtifact } from './artifact-events';
 import { Icon } from './Icons';
 import { useRunner } from './RunnerContext';
@@ -32,16 +32,15 @@ const newerThanLatest = (artifact: Artifact, scope: MessageScope, message: Trans
 type Open = { kind: 'track'; existing: Artifact[] } | { kind: 'update'; artifact: Artifact };
 
 /**
- * The artifact actions of one agent message: a hover button, and the
- * message's right-click menu (Shift+right-click keeps the browser's own).
- * It is a self-contained piece of the message row, so the app-wide context
- * menu can take its items with one registration when that lands.
+ * The artifact actions of one agent message: a hover button, and "Track as
+ * artifact…" in the message's context menu (the `message` scope of the app's
+ * context menus). The track dialog offers updating an existing artifact.
  */
 export function MessageArtifactActions({ message }: { message: TranscriptMessage }) {
   const scope = useContext(MessageScopeContext);
   const { api } = useRunner();
   const anchor = useRef<HTMLSpanElement>(null);
-  const [open, setOpen] = useState<Open>(), [menu, setMenu] = useState<ContextMenuState>(), [note, setNote] = useState('');
+  const [open, setOpen] = useState<Open>(), [note, setNote] = useState('');
   const enabled = !!scope?.collectionId && trackable(message);
   const fresh = useRef(true);
   useEffect(() => { fresh.current = true; return () => { fresh.current = false; }; }, []);
@@ -57,37 +56,19 @@ export function MessageArtifactActions({ message }: { message: TranscriptMessage
   };
   const flash = (text: string) => { setNote(text); setTimeout(() => { if (fresh.current) setNote(''); }, 6000); };
   const startTrack = async () => { const found = await existing(); if (fresh.current) setOpen({ kind: 'track', existing: found }); };
-  // The message row's own right-click and menu key.
-  useEffect(() => {
-    const article = anchor.current?.closest('article');
-    if (!article || !enabled || !scope) return;
-    const show = async (point: { x: number; y: number }) => {
-      const selection = window.getSelection()?.toString() || '';
-      const items: ContextMenuItem[] = [{ label: 'Track as artifact…', icon: 'artifact', run: () => void startTrack() }];
-      for (const artifact of (await existing()).filter(a => newerThanLatest(a, scope, message)).slice(0, 4))
-        items.push({ label: `Update “${artifact.title}” from this message…`, icon: 'history', run: () => setOpen({ kind: 'update', artifact }) });
-      items.push({ label: 'Copy message as Markdown', icon: 'copy', separatorBefore: true, run: () => void navigator.clipboard.writeText(message.text).then(() => flash('Copied.'), e => flash(`Copy failed: ${errorText(e)}`)) });
-      if (selection && article.contains(window.getSelection()?.anchorNode || null)) items.push({ label: 'Copy selection', icon: 'copy', run: () => void navigator.clipboard.writeText(selection) });
-      if (fresh.current) setMenu({ ...point, items, label: 'Message actions', returnFocus: document.activeElement as HTMLElement | null });
-    };
-    const contextmenu = (event: MouseEvent) => {
-      if (event.shiftKey || event.defaultPrevented) return;
-      // Links and file references keep their own menu.
-      if (event.target instanceof Element && event.target.closest('a[href]')) return;
-      event.preventDefault();
-      void show(menuPoint({ clientX: event.clientX, clientY: event.clientY, currentTarget: article, target: event.target! }));
-    };
-    article.addEventListener('contextmenu', contextmenu);
-    return () => article.removeEventListener('contextmenu', contextmenu);
-  }, [enabled, scope?.collectionId, scope?.sessionId, scope?.conversationId, message.id, message.text]);
+  useContextMenuContribution<MessageMenuDetail>('message', async ({ detail }) => {
+    if (!enabled || !scope || detail.message.id !== message.id) return [];
+    const updates = (await existing()).filter(a => newerThanLatest(a, scope, message)).slice(0, 4);
+    return ['separator', { label: 'Track as artifact…', icon: 'artifact', run: () => void startTrack() },
+      ...updates.map(artifact => ({ label: `Update “${artifact.title}” from this message…`, icon: 'history', run: () => setOpen({ kind: 'update', artifact }) }))];
+  });
   if (!enabled || !scope) return null;
   return <span ref={anchor} className="message-artifact-actions">
     <button type="button" className="message-artifact-button" aria-label="Track as artifact…" title="Track as artifact… (or right-click the message)" onClick={() => void startTrack()}
-      onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); event.currentTarget.closest('article')?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); } }}>
+>
       <Icon name="artifact" size={14}/><span>Track</span>
     </button>
     {note && <span className="message-artifact-note" role="status">{note}</span>}
-    {menu && <ContextMenu menu={menu} onClose={() => setMenu(undefined)}/>}
     {open?.kind === 'track' && <TrackArtifactDialog collectionId={scope.collectionId} content={message.text} source={source} existing={open.existing.filter(a => newerThanLatest(a, scope, message))}
       onClose={() => setOpen(undefined)} onTracked={artifact => done(artifact, 'Tracked')} onUpdateInstead={artifact => setOpen({ kind: 'update', artifact })}/>}
     {open?.kind === 'update' && <UpdateArtifactDialog collectionId={scope.collectionId} artifactId={open.artifact.id} content={message.text} source={source}

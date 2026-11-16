@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, ArtifactWindow, WindowControls, WindowErrorBoundary, Workspace, useRunnerLocator } from '@lazybox/surfaces';
+import { AgentWindow, ArtifactWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, useRunnerLocator } from '@lazybox/surfaces';
 import type { AttentionDestination, AttentionHost, SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact'; notice: string; viewState: Record<string,string> };
@@ -121,4 +121,10 @@ document.addEventListener('click', event => {
   void invoke('open_link', { url: anchor.href }).catch(error => console.error('Could not open link', error));
 }, true);
 window.open = ((url?: string | URL) => { const href = String(url || ''); if (/^(https?:|mailto:)/i.test(href)) void invoke('open_link', { url: href }).catch(error => console.error('Could not open link', error)); return null; }) as typeof window.open;
+// Context menus reveal workspace files in Finder; a development build opens
+// the inspector from them (Alt+right-click also shows WebKit's own menu).
+configureContextMenus({
+  revealInFinder: path => invoke<void>('plugin:opener|reveal_item_in_dir', { paths: [path] }),
+  ...(import.meta.env.DEV ? { inspect: () => invoke<void>('plugin:webview|internal_toggle_devtools') } : {}),
+});
 createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}><DesktopApp/></WindowErrorBoundary></React.StrictMode>);

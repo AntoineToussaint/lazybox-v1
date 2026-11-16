@@ -7,6 +7,8 @@ import { activePath } from './editor-model';
 import { isDirty, modKey, parentFolder, shortcut, useWorkbench, useWorkbenchState, type Workbench } from './workbench';
 import { useFileContextMenu } from './FileArtifactActions';
 import './files.css';
+import { contextMenu } from './ContextMenu';
+import { fileItems } from './workbench-context-menu';
 
 type Row = { kind: 'entry'; path: string; name: string; directory: boolean; depth: number; repository: boolean } | { kind: 'status'; path: string; depth: number; text: string; error?: boolean };
 
@@ -14,10 +16,10 @@ type Row = { kind: 'entry'; path: string; name: string; directory: boolean; dept
 export function FileExplorer({ workspaceId, collections }: { workspaceId: string; collections: Collection[] }) {
  const workbench = useWorkbench();
  if (!workspaceId || !workbench || workbench.workspaceId !== workspaceId) return <p className="module-empty">Choose a workspace to browse its files.</p>;
- return <Explorer workbench={workbench} members={collections.find(value => value.id === workspaceId)?.members.map(member => member.spec?.name || '').filter(Boolean).join('\n') || ''}/>;
+ return <Explorer workbench={workbench} root={collections.find(value => value.id === workspaceId)?.root || ''} members={collections.find(value => value.id === workspaceId)?.members.map(member => member.spec?.name || '').filter(Boolean).join('\n') || ''}/>;
 }
 
-function Explorer({ workbench, members: names }: { workbench: Workbench; members: string }) {
+function Explorer({ workbench, members: names, root }: { workbench: Workbench; members: string; root: string }) {
  const state = useWorkbenchState(workbench);
  // Joined by the caller so the catalog's 3-second refresh does not rebuild the tree.
  const members = useMemo(() => names ? names.split('\n') : [], [names]);
@@ -134,12 +136,13 @@ function Explorer({ workbench, members: names }: { workbench: Workbench; members
    <button className="icon-button" aria-label="Collapse folders" title="Collapse all folders" disabled={!state.expanded.length} onClick={() => workbench.collapseAll()}><Icon name="collapse" size={15}/></button>
    <button className="icon-button" aria-label="Refresh files" title="Refresh files" onClick={() => workbench.refreshFolders()}><Icon name="refresh" size={15}/></button>
   </div>
-  <div ref={tree} className="file-tree" role="tree" aria-label="Workspace files" onKeyDown={event => { fileMenu.onKeyDown(event); if (!event.defaultPrevented) keydown(event); }} onContextMenu={fileMenu.onContextMenu}>
+  <div ref={tree} className="file-tree" role="tree" aria-label="Workspace files" onKeyDown={keydown}>
    {rows.map(row => row.kind === 'status'
     ? <div key={`status:${row.path}:${row.text}`} className={'tree-status' + (row.error ? ' is-error' : '')} style={{ paddingLeft: 30 + row.depth * 14 }} role={row.error ? 'alert' : undefined}>{row.text}{row.error && <button onClick={() => void workbench.loadFolder(row.path)}>Retry</button>}</div>
     : <div key={row.path} data-path={row.path} role="treeitem" aria-level={row.depth + 1} aria-expanded={row.directory ? expanded.has(row.path) : undefined} aria-selected={row.path === state.selected} aria-current={!row.directory && row.path === active ? 'true' : undefined} tabIndex={row.path === cursor ? 0 : -1}
       className={'tree-row' + (row.directory ? ' is-folder' : '') + (row.repository ? ' is-repository' : '') + (row.path === active ? ' is-active' : '')} style={{ paddingLeft: 6 + row.depth * 14 }} title={row.path}
       draggable={!row.directory} onDragStart={event => { event.dataTransfer.setData('application/x-lazybox-path', row.path); event.dataTransfer.setData('text/plain', row.path); event.dataTransfer.effectAllowed = 'copy'; }}
+      onContextMenu={event => { workbench.select(row.path); contextMenu('file', () => fileItems(workbench, row, root), { path: row.path, directory: row.directory, workspaceId: workbench.workspaceId }, `${row.path} actions`)(event); }}
       onClick={event => click(event, row)} onDoubleClick={() => { if (!row.directory) workbench.open(row.path, { focus: true }); }} onPointerEnter={row.directory ? undefined : preloadEditor}>
       <span className="tree-twisty" aria-hidden="true">{row.directory && <Icon name="chevronRight" size={13}/>}</span>
       {row.repository ? <span className="entry-icon file-icon is-repository" aria-hidden="true"><Icon name="repository" size={15}/></span> : <FileIcon name={row.name} directory={row.directory}/>}

@@ -30,7 +30,8 @@ import { useFileDrop } from './useFileDrop';
 import { NewSessionForm, useSessionLauncher } from './NewSessionForm';
 import { ChatHeader, ChatStatus, SessionHeader, SessionInspection, WindowTopbar } from './ChatHeader';
 import { ConversationTitle } from './ConversationTitle';
-import { PermissionRestartPrompt, SessionLifecycleButton, SessionMenu } from './SessionMenu';
+import { PermissionRestartPrompt, SessionLifecycleButton, SessionMenu, sessionMenuItems } from './SessionMenu';
+import { contextMenu } from './ContextMenu';
 import { ResumeBar, TranscriptNotice } from './SessionNotices';
 import { useSubagentHost } from './SubagentHost';
 import { LiveBar } from './LiveBar';
@@ -357,6 +358,9 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} modelLabel={modelLabel} inspection={inspection}
               realTitle={realTitle} branch={branch} shownAccount={shownAccount} onOpenChat={onOpenChat}
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
+              onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...sessionMenuItems({ session, allowStart,
+                onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),
+                onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true) })], { sessionId: sessionID })}
               menu={<SessionMenu session={session} sessionID={sessionID} accountName={accountName} stream={stream} allowStart={allowStart}
                 onChangePermission={mode => void changePermission(mode)} onRestartWithPermission={setRestartTo}
                 onSwitchSubscription={() => setSwitchingSubscription(true)}

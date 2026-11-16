@@ -9,7 +9,9 @@ import CssWorker from 'monaco-editor/language/css/css.worker.js?worker';
 import HtmlWorker from 'monaco-editor/language/html/html.worker.js?worker';
 
 globalThis.MonacoEnvironment = { getWorker: (_id, label) => label === 'json' ? new JsonWorker() : ['typescript','javascript'].includes(label) ? new TsWorker() : ['css','scss','less'].includes(label) ? new CssWorker() : ['html','handlebars','razor'].includes(label) ? new HtmlWorker() : new EditorWorker() };
-monaco.editor.defineTheme('lazybox', { base: 'vs-dark', inherit: true, rules: [], colors: { 'editor.background':'#1b1c22', 'editorLineNumber.foreground':'#666976', 'editor.lineHighlightBackground':'#252630', 'editor.selectionBackground':'#50496a' } });
+monaco.editor.defineTheme('lazybox', { base: 'vs-dark', inherit: true, rules: [], colors: { 'editor.background':'#1b1c22', 'editorLineNumber.foreground':'#666976', 'editor.lineHighlightBackground':'#252630', 'editor.selectionBackground':'#50496a',
+ // Monaco keeps its own context menu: it reads like Lazybox's.
+ 'menu.background':'#24252c', 'menu.foreground':'#dbe1e8', 'menu.border':'#3b3c46', 'menu.selectionBackground':'#363846', 'menu.selectionForeground':'#ffffff', 'menu.separatorBackground':'#383943' } });
 
 /** Replace a model's text as one undoable edit, keeping the cursor where it can
  * be: a file reloaded from disk is not a new document. */

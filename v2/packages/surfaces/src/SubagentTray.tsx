@@ -6,6 +6,10 @@ import { activeSubagent, agentElapsed, backgroundCommands, currentAction, merged
 import { usePresentation, useSubagentIndex, useSubagentView, type SubagentView } from './subagent-view';
 import { SubagentMark, subagentTitle } from './SubagentCard';
 import './subagents.css';
+import { contextMenu } from './ContextMenu';
+import { subagentItems, type SubagentMenuDetail } from './subagent-context-menu';
+
+const menuFor = (view: SubagentView, agent: Subagent, title: string) => contextMenu<SubagentMenuDetail>('subagent', () => subagentItems(view, agent, title), { agentId: agent.id, kind: agent.kind }, `${title} actions`);
 
 const statusOf = (view: SubagentView, agent: Subagent): SubagentStatus => mergedStatus(agent, view.runner);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -54,7 +58,7 @@ function WorkList({ view, index, now, placement, onClose }: { view: SubagentView
   }, []);
   const row = (agent: Subagent, depth: number) => {
     const status = statusOf(view, agent), elapsed = agentElapsed({ ...agent, status }, now), title = subagentTitle(agent, view);
-    return <li key={agent.id} data-depth={depth} data-kind={agent.kind} style={{ ['--depth' as string]: depth }}>
+    return <li key={agent.id} data-depth={depth} data-kind={agent.kind} style={{ ['--depth' as string]: depth }} onContextMenu={menuFor(view, agent, title)}>
       <button type="button" className="subagent-tree-row" title={agent.kind === 'command' ? agent.command : title} onClick={() => { onClose(false); show(view, agent); }}>
         <SubagentMark status={status} size={12}/>
         <span className="subagent-tree-name">{agent.kind === 'command' ? <code>{title}</code> : <>{agent.type && <b>{agent.type}</b>}{title}</>}</span>
@@ -102,7 +106,7 @@ export function SubagentTray({ live, rootBusy, fallback = null }: { live: LiveSt
         const status = statusOf(view, agent), elapsed = agentElapsed(agent, now), action = currentAction({ ...agent, status }), nested = nestedRunning(agent), title = subagentTitle(agent, view);
         return <button key={agent.id} type="button" className="subagent-chip" data-status={status}
           title={`${title}${action ? ` — ${action.text}` : ''}`} aria-label={`${title}, ${statusWord[status]}${elapsed !== undefined ? `, ${elapsedLabel(elapsed)}` : ''}. Show its card.`}
-          onClick={() => view.reveal(agent.id)}>
+          onClick={() => view.reveal(agent.id)} onContextMenu={menuFor(view, agent, title)}>
           <LiveIndicator tone={status === 'waiting' ? 'waiting' : 'busy'}/>
           <span className="subagent-chip-name">{agent.type ? <><b>{agent.type}</b> {title}</> : title}</span>
           {nested > 0 && <span className="subagent-chip-nested" title={`${plural(nested, 'nested sub-agent', 'nested sub-agents')} running`}>+{nested}</span>}
@@ -112,7 +116,7 @@ export function SubagentTray({ live, rootBusy, fallback = null }: { live: LiveSt
       {commandsRunning.map(agent => {
         const elapsed = agentElapsed(agent, now), title = subagentTitle(agent, view);
         return <button key={agent.id} type="button" className="subagent-chip command" data-status={statusOf(view, agent)} title={agent.command || title}
-          aria-label={`Background command ${title}, running${elapsed !== undefined ? `, ${elapsedLabel(elapsed)}` : ''}. Show its output.`} onClick={() => view.open(agent.id)}>
+          aria-label={`Background command ${title}, running${elapsed !== undefined ? `, ${elapsedLabel(elapsed)}` : ''}. Show its output.`} onClick={() => view.open(agent.id)} onContextMenu={menuFor(view, agent, title)}>
           <Icon name="terminal" size={12}/>
           <code className="subagent-chip-name">{title}</code>
           {elapsed !== undefined && <time>{elapsedLabel(elapsed)}</time>}

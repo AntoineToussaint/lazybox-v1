@@ -52,7 +52,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
         <div className="messages-content" ref={scroll.contentRef}>
           {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
           {!transcript.loading && !transcript.error && !spoken && <EmptyConversation agentName={agentName}/>}
-          <MessageScopeProvider scope={artifactScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints}/></MessageScopeProvider>
+          <MessageScopeProvider scope={artifactScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints} sessionId={sessionID} onReveal={scroll.revealMessage}/></MessageScopeProvider>
           {session?.fault && !limited && <div className="error" role="alert">{faultSentence(session.fault)}</div>}
           <PendingRequests api={api} session={session} sessionID={sessionID} onError={onError}/>
           {subscription}

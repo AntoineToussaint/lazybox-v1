@@ -43,7 +43,8 @@ try{
  // Right-click → Track as artifact…: title from the first heading, kind suggested.
  await message.click({button:'right'});
  const menu=page.getByRole('menu',{name:'Message actions'});
- await expect(menu.getByRole('menuitem')).toHaveText(['Track as artifact…','Copy message as Markdown']);
+ // The app's message menu, with the artifact items the feature contributes to it.
+ await expect(menu.getByRole('menuitem',{name:'Track as artifact…'})).toBeVisible();await expect(menu.getByRole('menuitem',{name:'Copy as Markdown'})).toBeVisible();
  await menu.getByRole('menuitem',{name:'Track as artifact…'}).click();
  const track=page.getByRole('dialog',{name:'Track as artifact'});
  await expect(track.getByLabel('Title')).toHaveValue('Datasource migration plan');
@@ -84,7 +85,8 @@ try{
  if(await artifactPage.getByRole('button',{name:'Close history'}).isVisible())await artifactPage.getByRole('button',{name:'Close history'}).click();
  // The original message has nothing newer to offer for this artifact.
  await message.click({button:'right'});
- await expect(page.getByRole('menu',{name:'Message actions'}).getByRole('menuitem')).toHaveText(['Track as artifact…','Copy message as Markdown']);
+ await expect(page.getByRole('menu',{name:'Message actions'}).getByRole('menuitem',{name:'Track as artifact…'})).toBeVisible();
+ await expect(page.getByRole('menu',{name:'Message actions'}).getByRole('menuitem',{name:/^Update “/})).toHaveCount(0);
  await page.keyboard.press('Escape');await expect(page.getByRole('menu',{name:'Message actions'})).toHaveCount(0);
 
  // Changes between versions, and an older version with a way back.

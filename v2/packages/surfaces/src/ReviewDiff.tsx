@@ -6,6 +6,7 @@ import { ReviewComposer, ReviewThread } from './ReviewThread';
 import { isLine, languageOf, linesLabel, parseDiff, placeComment, selectionTarget, type DiffRow, type ReviewView } from './review-model';
 import { useWorkspaceReview } from './useWorkspaceReview';
 import './review.css';
+import { contextMenu, copyText } from './ContextMenu';
 
 type Range = { anchor: number; end: number };
 const HIGHLIGHT_LIMIT = 6000;
@@ -86,7 +87,13 @@ export function ReviewDiff({ workspaceId, member, path, text, view, base, focus 
         const threads = placed.get(index);
         const composerHere = composing && target && target.lastRow === index;
         return <Fragment key={index}>
-          <div role="row" aria-selected={selected.has(index)} className={`review-row is-${row.type}${selected.has(index) ? ' is-selected' : ''}${marked.has(index) ? ' is-commented' : ''}`} onPointerEnter={() => extend(index)}>
+          <div role="row" aria-selected={selected.has(index)} className={`review-row is-${row.type}${selected.has(index) ? ' is-selected' : ''}${marked.has(index) ? ' is-commented' : ''}`} onPointerEnter={() => extend(index)}
+            onContextMenu={contextMenu('diff-line', () => [
+              selected.size > 1 && selected.has(index)
+                ? { label: `Comment on ${linesLabel(target!.side, target!.startLine, target!.endLine).toLowerCase()}`, icon: 'chat', run: () => setComposing(true) }
+                : { label: 'Add review comment', icon: 'chat', run: () => keyboard(index, false) },
+              { label: 'Copy line', icon: 'copy', run: () => copyText(row.text, 'Copied line') },
+            ], { member, path, line: number, side: row.type === 'del' ? 'old' : 'new' })}>
             <span role="gridcell" className="review-number">{row.oldLine ?? ''}</span>
             <span role="gridcell" className="review-number">{row.newLine ?? ''}</span>
             <span role="gridcell" className="review-gutter">

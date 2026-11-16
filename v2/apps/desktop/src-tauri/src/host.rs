@@ -210,6 +210,8 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .permission("core:default")
             // The zoom hotkeys (Cmd+= / Cmd+- / Cmd+0) set the webview zoom.
             .permission("core:webview:allow-set-webview-zoom")
+            // Context menus: Reveal in Finder for a workspace file.
+            .permission("opener:allow-reveal-item-in-dir")
             .permission_scoped(
                 "http:default",
                 vec![allowed],

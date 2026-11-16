@@ -57,7 +57,8 @@
     { "id": "workspace-runtime", "scope": "ui", "script": "test:workspace-runtime" },
     { "id": "remote-pairing", "scope": "ui", "script": "test:remote-pairing" },
     { "id": "remote-inbox", "scope": "ui", "script": "test:remote-inbox" },
-    { "id": "missions", "scope": "ui", "script": "test:missions" }
+    { "id": "missions", "scope": "ui", "script": "test:missions" },
+    { "id": "context-menus", "scope": "ui", "script": "test:context-menus" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

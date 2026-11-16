@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { MouseEventHandler, ReactNode } from 'react';
 import type { InfoResponse, JournalEvent, Session } from '@lazybox/protocol';
 import { sessionStatus } from './agent-status';
 import type { branchSummary } from './conversation-model';
@@ -41,7 +41,9 @@ type HeaderProps = {
 };
 
 /** The header of a chat embedded in a workspace panel or a detached window. */
-export function ChatHeader({ agentName, session, sessionID, title, status, modelLabel, inspection, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu }: HeaderProps & {
+export function ChatHeader({ agentName, session, sessionID, title, status, modelLabel, inspection, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu, onContextMenu }: HeaderProps & {
+  /** The conversation's actions on a right-click, the same as its ⋯ menu. */
+  onContextMenu?: MouseEventHandler<HTMLElement>;
   realTitle: string;
   branch: Branch;
   /** The model was asked for but the provider has not confirmed it yet. */
@@ -50,7 +52,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, model
   onOpenChat?(): void;
   menu: ReactNode;
 }) {
-  return <header className="chat-heading">
+  return <header className="chat-heading" onContextMenu={onContextMenu}>
     <span className={'agent-avatar ' + agentName.toLowerCase()} aria-hidden="true">{agentName === 'Claude' ? '✳︎' : '›'}</span>
     <div className="chat-heading-main">
       {title}

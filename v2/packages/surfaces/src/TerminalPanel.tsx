@@ -8,6 +8,11 @@ import type { ViewStateStore } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
 import { Icon } from './Icons';
 import './terminal.css';
+import { contextMenu, copyText, showMenuNotice } from './ContextMenu';
+import { fencedCode, type MenuItem } from './context-menu-model';
+import { composeInConversation } from './compose';
+import { useWorkConversation } from './PullRequestFlow';
+import type { ViewTarget } from './workspace-model';
 
 /** Workspaces whose terminal panel was just asked for (from the header, or for one shell). */
 const requested = new Map<string, string>();
@@ -23,7 +28,15 @@ const inputLimit = 32 << 10;
 
 const exitText = (status: TerminalStatus) => status.error || (status.signal ? `Shell ended by ${status.signal}` : status.exitCode === undefined ? 'Shell ended' : `Shell exited with code ${status.exitCode}`);
 
-export function TerminalPanel({ workspaceId, collections, viewState, onClosePanel }: { workspaceId: string; collections: Collection[]; viewState?: ViewStateStore; onClosePanel?(): void }) {
+export function TerminalPanel({ workspaceId, collections, viewState, onClosePanel, sessionId = '', onShowSession }: { workspaceId: string; collections: Collection[]; viewState?: ViewStateStore; onClosePanel?(): void; /** The page's conversation: where Send selection to agent goes. */ sessionId?: string; onShowSession?(target: ViewTarget): void }) {
+  const conversation = useWorkConversation(workspaceId, sessionId);
+  // A terminal's selection goes to the work conversation's message box, as a block to review and send.
+  const sendToAgent = (text: string) => {
+    if (!conversation) { showMenuNotice('No conversation in this workspace yet'); return; }
+    composeInConversation({ sessionId: conversation.id, text: fencedCode(text) });
+    showMenuNotice(`Added to the message box of “${conversation.title || 'the conversation'}”`);
+    onShowSession?.({ collectionId: workspaceId, sessionId: conversation.id, commandId: '' });
+  };
   const { api } = useRunner();
   const collection = collections.find(value => value.id === workspaceId);
   const key = viewState ? `${viewState.key}:terminal` : '';
@@ -100,7 +113,8 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
   return <section className="terminal-panel">{(error || listError) && <div className="error" role="alert">{error || listError}</div>}
     {!workspaceId ? <p className="module-empty">Choose a workspace to open a terminal in it.</p> : <>
       <div className="terminal-tabs" role="tablist" aria-label="Terminals">
-        {terminals.map(terminal => <span key={terminal.id} className={'terminal-tab' + (terminal.id === selected ? ' selected' : '') + (terminal.done ? ' exited' : '')}>
+        {terminals.map(terminal => <span key={terminal.id} className={'terminal-tab' + (terminal.id === selected ? ' selected' : '') + (terminal.done ? ' exited' : '')}
+          onContextMenu={contextMenu('terminal-tab', () => [{ label: 'New terminal', icon: 'plus', disabled: !ready || opening, run: () => void open() }, 'separator', { label: terminal.done ? 'Remove terminal' : 'Close terminal', icon: 'close', danger: !terminal.done, run: () => void close(terminal.id) }], { terminalId: terminal.id, workspaceId })}>
           <button role="tab" aria-selected={terminal.id === selected} title={terminal.title} onClick={() => choose(terminal.id)}>{terminal.directory || 'Workspace root'}{terminal.done ? ' · exited' : ''}</button>
           <button className="terminal-close" aria-label={`Close terminal ${terminal.directory || 'Workspace root'}`} title={terminal.done ? 'Remove' : 'Close (hangs up the shell)'} onClick={() => void close(terminal.id)}>×</button>
         </span>)}
@@ -111,13 +125,14 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
           <button aria-label="New terminal" title="New terminal" disabled={!ready || opening} onClick={() => void open()}><Icon name="plus" size={14}/><span>New terminal</span></button>
         </span>
       </div>
-      {current ? <TerminalView key={current.id} api={api} terminal={current} focusRef={focusView} onCleanExit={() => void exitedCleanly(current.id)} onSize={value => { size.current = value; }} onError={setError}/>
+      {current ? <TerminalView key={current.id} api={api} terminal={current} focusRef={focusView} workspaceId={workspaceId} canSend={!!conversation} onSendToAgent={sendToAgent} onNewTerminal={ready ? () => void open() : undefined} onCloseTerminal={() => void close(current.id)} onCleanExit={() => void exitedCleanly(current.id)} onSize={value => { size.current = value; }} onError={setError}/>
         : <p className="module-empty">{ready ? 'No terminal is open in this workspace. A terminal runs your login shell on the Runner, in the directory you choose, and keeps running when the Runner restarts.' : 'The workspace is not ready for a terminal.'}{ready && <><br/><button className="primary" disabled={opening} onClick={() => void open()}>Start terminal</button></>}</p>}
     </>}
   </section>;
 }
 
-function TerminalView({ api, terminal, focusRef, onSize, onError, onCleanExit }: { api: RunnerClient; terminal: TerminalStatus; focusRef: { current: (() => void) | null }; onSize(size: { cols: number; rows: number }): void; onError(error: string): void; onCleanExit?(): void }) {
+function TerminalView({ api, terminal, focusRef, onSize, onError, onCleanExit, workspaceId, canSend, onSendToAgent, onNewTerminal, onCloseTerminal }: { api: RunnerClient; terminal: TerminalStatus; focusRef: { current: (() => void) | null }; onSize(size: { cols: number; rows: number }): void; onError(error: string): void; onCleanExit?(): void; workspaceId: string; canSend: boolean; onSendToAgent(text: string): void; onNewTerminal?(): void; onCloseTerminal(): void }) {
+  const xterm = useRef<Terminal | null>(null);
   const cleanExit = useRef(onCleanExit); cleanExit.current = onCleanExit;
   const startedLive = useRef(!terminal.done);
   const host = useRef<HTMLDivElement>(null);
@@ -126,7 +141,9 @@ function TerminalView({ api, terminal, focusRef, onSize, onError, onCleanExit }:
   const id = terminal.id;
   useEffect(() => {
     const element = host.current; if (!element) return;
-    const view = new Terminal({ theme, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, allowProposedApi: false });
+    // A right-click keeps the selection for the Lazybox menu instead of selecting a word.
+    const view = new Terminal({ theme, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, allowProposedApi: false, rightClickSelectsWord: false });
+    xterm.current = view;
     const fit = new FitAddon(); view.loadAddon(fit); view.open(element);
     const focus = () => view.focus(); focusRef.current = focus;
     const control = new AbortController(), signal = control.signal;
@@ -187,7 +204,25 @@ function TerminalView({ api, terminal, focusRef, onSize, onError, onCleanExit }:
     return () => { if (focusRef.current === focus) focusRef.current = null; control.abort(); observer.disconnect(); input.dispose(); binary.dispose(); view.dispose(); };
   }, [api, id]);
   return <div className="terminal-view">
-    <div ref={host} className="terminal-host" data-testid="terminal" data-terminal-id={id}/>
+    <div ref={host} className="terminal-host" data-testid="terminal" data-terminal-id={id} onContextMenu={contextMenu('terminal', (): MenuItem[] => {
+      const view = xterm.current, selection = view?.getSelection() || '';
+      const live = !status.done;
+      return [
+        { label: 'Copy', icon: 'copy', shortcut: 'Mod+C', disabled: !selection && 'Select text in the terminal first', run: () => copyText(selection) },
+        { label: 'Paste', icon: 'paste', shortcut: 'Mod+V', disabled: !live && 'The shell has ended', run: async () => {
+          let text = '';
+          try { text = await navigator.clipboard.readText(); } catch { showMenuNotice(`Paste with ${navigator.platform.includes('Mac') ? '⌘V' : 'Ctrl+V'}: the clipboard is not readable here`); return; }
+          view?.paste(text); view?.focus();
+        } },
+        { label: 'Select all', icon: 'selectAll', run: () => { view?.selectAll(); view?.focus(); } },
+        { label: 'Clear', icon: 'clear', run: () => { view?.clear(); view?.focus(); } },
+        'separator',
+        { label: 'Send selection to agent', icon: 'send', disabled: !selection ? 'Select text in the terminal first' : !canSend && 'No conversation in this workspace yet', run: () => onSendToAgent(selection) },
+        'separator',
+        onNewTerminal && { label: 'New terminal', icon: 'plus', run: onNewTerminal },
+        { label: live ? 'Close terminal' : 'Remove terminal', icon: 'close', danger: live, run: onCloseTerminal },
+      ];
+    }, { terminalId: id, workspaceId })}/>
     <footer><span className="mono" title={status.shell}>{status.title}</span><span>{status.done ? exitText(status) : connection}</span></footer>
   </div>;
 }

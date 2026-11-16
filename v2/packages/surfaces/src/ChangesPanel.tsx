@@ -11,6 +11,9 @@ import { ReviewTray } from './ReviewTray';
 import { useWorkspaceReview } from './useWorkspaceReview';
 import { isPending, type ReviewView } from './review-model';
 import { Icon } from './Icons';
+import { contextMenu } from './ContextMenu';
+import type { MenuItem } from './context-menu-model';
+import { isMac } from './workbench';
 import { TurnChangesView } from './TurnChangesView';
 import { parseTurnCompare, turnCompare, useRequestedTurn, useTurnCheckpoints } from './turn-checkpoints';
 
@@ -116,6 +119,26 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   const turnPrompt = turnView && turnView.sessionId === sessionId ? turns.byNumber.get(turnView.turn)?.prompt || '' : '';
   const summary = turnView ? `Agent turn ${turnView.turn}${turnPrompt ? ` · “${turnPrompt}”` : ''}` : loading ? 'Reading changes…' : !committed && !uncommitted ? 'No changes yet' : [committed && `${plural(committed, 'file')} changed ${compare === START ? 'on the branch' : 'vs ' + compare}`, uncommitted && `${uncommitted} uncommitted`].filter(Boolean).join(' · ');
   const refresh = () => setRevision(value => value + 1);
+  // A changed file, from its row or its diff: open it every way, or copy where it is.
+  const fileItems = (member: string, path: string): MenuItem[] => {
+    const reference = { path: `${member}/${path}` }, open = (how: Parameters<typeof fileLinks.open>[1]) => void fileLinks.open(reference, how, { exact: true });
+    return [
+      { label: 'Open file', icon: 'file', run: () => open({}) },
+      { label: 'Open file to the side', icon: 'split-right', run: () => open({ metaKey: isMac, ctrlKey: !isMac }) },
+      { label: 'Quick look', icon: 'eye', run: () => open({ altKey: true }) },
+      { label: 'Reveal in Files', icon: 'target', run: () => open({ reveal: true }) },
+      'separator',
+      { label: 'Copy path', icon: 'copy', run: () => open({ copy: 'absolute' }) },
+      { label: 'Copy relative path', icon: 'copy', run: () => open({ copy: 'relative' }) },
+    ];
+  };
+  const rowItems = (member: string, file: ChangedFile, isCommitted: boolean): MenuItem[] => [
+    { label: 'Show diff', icon: 'branch', run: () => choose(member, file, isCommitted) },
+    'separator',
+    ...fileItems(member, file.path),
+    'separator',
+    { label: 'Refresh changes', icon: 'refresh', run: refresh },
+  ];
   return <section className="changes-panel" aria-label="Workspace changes">
     <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)}/>
     {turnView ? <TurnChangesView key={compare} sessionId={turnView.sessionId} turn={turnView.turn}/> : <>
@@ -123,9 +146,9 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
     {notice && <p className="changes-notice" role="status"><span>{notice}</span><button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></p>}
     <div className={`changes-columns${trayOpen ? ' with-review' : ''}`}>
       <nav aria-label="Changed files">
-        {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent}/>)}
+        {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent} menu={rowItems}/>)}
       </nav>
-      <div className="diff-view">
+      <div className="diff-view" onContextMenu={selection ? contextMenu('diff', () => fileItems(selection.member, selection.path), { member: selection.member, path: selection.path }) : undefined}>
         {selection
           ? <>
             <header>
@@ -176,7 +199,8 @@ function ChangesHeader({ summary, compare, repos, sessionId, turns, onCompare, o
 }
 
 /** One repository: its PR loop, then its committed and uncommitted files. */
-function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, onChoose, onChanged, onSendToAgent }: {
+function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, onChoose, onChanged, onSendToAgent, menu }: {
+  menu?(member: string, file: ChangedFile, committed: boolean): MenuItem[];
   workspaceId: string;
   repo: RepositoryChanges;
   compare: string;
@@ -187,7 +211,8 @@ function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, 
   onSendToAgent(text: string): void;
 }) {
   const showCommitted = compare !== UNCOMMITTED;
-  const fileButton = (file: ChangedFile, isCommitted: boolean) => <button key={(isCommitted ? 'c:' : 'u:') + file.path} className={selection?.member === repo.member && selection.path === file.path && selection.committed === isCommitted ? 'selected' : ''} onClick={() => onChoose(repo.member, file, isCommitted)}>
+  const fileButton = (file: ChangedFile, isCommitted: boolean) => <button key={(isCommitted ? 'c:' : 'u:') + file.path} className={selection?.member === repo.member && selection.path === file.path && selection.committed === isCommitted ? 'selected' : ''} onClick={() => onChoose(repo.member, file, isCommitted)}
+    onContextMenu={menu && contextMenu('changed-file', () => menu(repo.member, file, isCommitted), { member: repo.member, path: file.path, committed: isCommitted })}>
     <code title={isCommitted ? 'Change since the workspace started' : 'Index / working tree status'}>{isCommitted ? file.indexStatus : file.indexStatus + file.worktreeStatus}</code>
     <span>{file.path}{file.originalPath && <small>from {file.originalPath}</small>}</span>
   </button>;

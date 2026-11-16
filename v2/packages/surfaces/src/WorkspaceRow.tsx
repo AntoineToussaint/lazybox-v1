@@ -1,4 +1,7 @@
 import { ActionMenu } from './ActionMenu';
+import { ActionMenuItems } from './ActionMenuItems';
+import { contextMenu } from './ContextMenu';
+import type { MenuItem } from './context-menu-model';
 import { useRef, useState } from "react";
 import type { Collection, Session } from "@lazybox/protocol";
 import { conversationDetails } from "./conversation-model";
@@ -64,18 +67,20 @@ export function WorkspaceRow({
   const action = useRef<HTMLDetailsElement>(null);
   const unread = useUnread();
   const marker = conversation ? unread(conversation) : "";
+  const rename = () => { setName(workspace.name); setError(""); setEditing(true); };
+  // The ⋯ menu and the row's context menu: one list.
+  const items: MenuItem[] = [
+    { label: "New conversation", icon: "plus", disabled: (workspace.state !== "ready" || workspace.ownershipUncertain) && "The workspace is not ready", run: onNewConversation },
+    "separator",
+    { label: "Add repositories…", icon: "repository", run: onAdd },
+    { label: "Manage repositories…", icon: "sliders", run: onManage },
+    { label: "Rename workspace", icon: "pencil", shortcut: "F2", run: rename },
+    "separator",
+    conversation && { label: "Delete conversation…", danger: true, run: onDeleteConversation },
+    { label: "Delete workspace…", danger: true, run: onDelete },
+  ];
   return (
-    <div className="workspace-row" data-unread={marker || undefined} onContextMenu={event => {
-      if (editing || !action.current) return;
-      event.preventDefault();
-      for (const menu of document.querySelectorAll<HTMLDetailsElement>('.workspace-actions[open]')) menu.open = false;
-      const menu = action.current;
-      const open = () => { menu.open = true; menu.querySelector<HTMLButtonElement>('button')?.focus(); };
-      // Where contextmenu fires on button press (macOS), the release that
-      // follows would light-dismiss a menu opened now: open after it.
-      if (event.buttons) document.addEventListener('pointerup', () => requestAnimationFrame(open), { once: true, capture: true });
-      else open();
-    }} onKeyDown={event => {
+    <div className="workspace-row" data-unread={marker || undefined} onContextMenu={editing ? undefined : contextMenu("workspace", () => items, { workspaceId: workspace.id })} onKeyDown={event => {
       if (event.key === 'F2' && !editing) { event.preventDefault(); setName(workspace.name); setError(''); setEditing(true); }
     }}>
       {editing ? (
@@ -203,52 +208,7 @@ export function WorkspaceRow({
       )}
       {!editing && (
         <ActionMenu ref={action} label={`Actions for ${workspace.name}`}>
-            <button
-              onClick={() => {
-                action.current!.open = false;
-                onAdd();
-              }}
-            >
-              Add repositories…
-            </button>
-            <button
-              onClick={() => {
-                action.current!.open = false;
-                onManage();
-              }}
-            >
-              Manage repositories…
-            </button>
-            <button
-              onClick={() => {
-                action.current!.open = false;
-                setName(workspace.name);
-                setError("");
-                setEditing(true);
-              }}
-            >
-              Rename workspace
-            </button>
-            {conversation && (
-              <button
-                className="danger"
-                onClick={() => {
-                  action.current!.open = false;
-                  onDeleteConversation();
-                }}
-              >
-                Delete conversation…
-              </button>
-            )}
-            <button
-              className="danger"
-              onClick={() => {
-                action.current!.open = false;
-                onDelete();
-              }}
-            >
-              Delete workspace…
-            </button>
+          <ActionMenuItems items={items}/>
         </ActionMenu>
       )}
     </div>

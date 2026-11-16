@@ -8,6 +8,8 @@ import type { ToolCall } from './tool-activity';
 import { activeSubagent, agentElapsed, currentAction, mergedStatus, resultPreview, statusWord, tokenLabel, toolTotal, type Subagent, type SubagentStatus } from './subagent-model';
 import { usePresentation, useSubagent, useSubagentView, type SubagentView } from './subagent-view';
 import './subagents.css';
+import { contextMenu } from './ContextMenu';
+import { subagentItems, type SubagentMenuDetail } from './subagent-context-menu';
 
 const TIMELINE_STEP = 40;
 
@@ -139,7 +141,8 @@ export const SubagentCard = memo(function SubagentCard({ id }: { id: string }) {
   const title = subagentTitle(agent, view);
   const toggle = () => view.toggle(id);
   const keys = (event: KeyboardEvent) => { if (event.key === 'Escape' && expanded) { event.stopPropagation(); view.toggle(id, false); } };
-  return <section ref={card} className="subagent-card" data-status={status} data-nested={agent.depth > 0 || undefined} data-agent-id={id} aria-label={`Sub-agent: ${title}`} onKeyDown={keys}>
+  return <section ref={card} className="subagent-card" data-status={status} data-nested={agent.depth > 0 || undefined} data-agent-id={id} aria-label={`Sub-agent: ${title}`} onKeyDown={keys}
+    onContextMenu={contextMenu<SubagentMenuDetail>('subagent', () => subagentItems(view, agent, title), { agentId: id, kind: agent.kind }, `${title} actions`)}>
     <div className="subagent-head">
       <button type="button" className="subagent-toggle" aria-expanded={expanded} aria-controls={bodyId} title={expanded ? 'Hide its steps' : 'Show its steps'} onClick={toggle}>
         <SubagentMark status={status}/>

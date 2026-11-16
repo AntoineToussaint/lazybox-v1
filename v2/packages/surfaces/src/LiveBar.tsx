@@ -8,6 +8,8 @@ import { isManagedCommandTool, outputLines, rootStep, runningCommand, stepDetail
 import { LiveActivity } from './SessionNotices';
 import { SubagentTray, useBackgroundRunning } from './SubagentTray';
 import './live-bar.css';
+import { contextMenu, copyText } from './ContextMenu';
+import { stripAnsi } from './ansi';
 
 const TAIL_BYTES = 32768;
 
@@ -92,7 +94,17 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
     try { await api.cancelCommand({ commandId: managed.id }); }
     catch (e) { setError(`Could not stop the command: ${String(e)}`); setStopping(''); }
   };
-  return <section className="live-bar" aria-label="What the agent is doing">
+  // The bar's buttons, and copying what runs, on a right-click.
+  const menu = contextMenu('live-bar', () => [
+    { label: managed ? 'Stop command' : 'Interrupt', icon: 'stop', danger: true, disabled: !!managed && stopping === managed.id && 'Stopping…', run: () => stop() },
+    managed && onOpenCommand && { label: 'Open in console', icon: 'output', run: () => onOpenCommand(managed.id) },
+    managed && { label: expanded ? 'Less output' : 'More output', icon: expanded ? 'collapse' : 'expand', run: () => setExpanded(value => !value) },
+    'separator',
+    // The command Stop and the console are about, else the step's own.
+    !!(managed ? managed.argv.join(' ') || managed.title : detail.full) && { label: 'Copy command', icon: 'copy', run: () => copyText(managed ? managed.argv.join(' ') || managed.title : detail.full!, 'Copied command') },
+    managed && !!tail && { label: 'Copy output', icon: 'copy', run: () => copyText(stripAnsi(tail), 'Copied output') },
+  ], { sessionId: sessionID, commandId: managed?.id || '' }, 'Running turn actions');
+  return <section className="live-bar" aria-label="What the agent is doing" onContextMenu={menu}>
     <div className="live-bar-row">
       <LiveIndicator tone="busy"/>
       {/* The step and its time, as the status line says them. */}

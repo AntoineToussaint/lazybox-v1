@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CodeRevert, TurnCheckpoint } from '@lazybox/protocol';
 import { ActionMenu } from './ActionMenu';
+import { ActionMenuItems } from './ActionMenuItems';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
-import { Icon } from './Icons';
 import { RevertCodeDialog } from './RevertCodeDialog';
 import { useRunner } from './RunnerContext';
 import { TurnChangesView } from './TurnChangesView';
 import type { TranscriptMessage } from './transcript-model';
+import type { MenuItem } from './context-menu-model';
+import { contextMenu } from './ContextMenu';
 import { plural, showTurnChanges, turnEnds, turnSummary, undoable, useTurnCheckpoints } from './turn-checkpoints';
 import './turn-checkpoints.css';
 
@@ -19,18 +21,27 @@ type Toast = { text: string; problems: string[]; undo?: CodeRevert };
  * A turn's quiet marker at its end: one thin divider saying what it changed,
  * with what a person can do about it (show, revert) in its ⋯ menu.
  */
+/** What a turn offers: its ⋯ menu, its divider's context menu and its messages' context menus, one list. */
+function turnMenuItems(turn: TurnCheckpoint, busy: boolean, onShow: () => void, onRevert: () => void): MenuItem[] {
+  const failed = turn.before.filter(repo => repo.error).length;
+  return [
+    turn.files > 0 && { label: 'Show changes in this turn', icon: 'eye', run: onShow },
+    failed < turn.before.length && { label: 'Revert to before this turn…', icon: 'history', disabled: busy && 'Wait for the agent’s turn to end, or interrupt it, before reverting files', run: onRevert },
+  ];
+}
+
 function TurnMarker({ turn, busy, reverted, onShow, onRevert, onUndo, undoing }: { turn: TurnCheckpoint; busy: boolean; reverted?: CodeRevert; onShow(): void; onRevert(): void; onUndo(): void; undoing: boolean }) {
   const failed = turn.before.filter(repo => repo.error);
-  return <div className="turn-checkpoint" role="group" aria-label={`Turn ${turn.turn} checkpoint`} data-turn={turn.turn} data-reverted={reverted ? '' : undefined}>
+  const items = turnMenuItems(turn, busy, onShow, onRevert);
+  return <div className="turn-checkpoint" role="group" aria-label={`Turn ${turn.turn} checkpoint`} data-turn={turn.turn} data-reverted={reverted ? '' : undefined} onContextMenu={contextMenu('turn', () => items, { turn: turn.turn }, `Turn ${turn.turn} actions`)}>
     <span className="turn-checkpoint-line" aria-hidden="true"/>
     <span className="turn-checkpoint-summary" title={`Checkpoint saved before turn ${turn.turn}${turn.endedAtUnixMillis ? ' and after it' : ''}, uncommitted and untracked files included`}>
       Turn {turn.turn} · {turnSummary(turn)}
     </span>
     {failed.length > 0 && <span className="turn-checkpoint-warning" title={failed.map(repo => `${repo.member}: ${repo.error}`).join('\n')}>{failed.length === turn.before.length ? 'Not checkpointed' : `${plural(failed.length, 'repository')} not checkpointed`}</span>}
     {reverted && <span className="turn-checkpoint-reverted" role="status">Files reverted to before this turn<button type="button" disabled={undoing || busy} onClick={onUndo}>{undoing ? 'Undoing…' : 'Undo revert'}</button></span>}
-    {(turn.files > 0 || failed.length < turn.before.length) && <ActionMenu className="turn-checkpoint-menu" label={`Turn ${turn.turn} actions`}>
-      {turn.files > 0 && <button type="button" onClick={onShow}><Icon name="eye" size={13}/> Show changes in this turn</button>}
-      {failed.length < turn.before.length && <button type="button" disabled={busy} title={busy ? 'Wait for the agent’s turn to end, or interrupt it, before reverting files' : 'Put every file in this workspace back as it was before this turn. You can undo it.'} onClick={onRevert}><Icon name="history" size={13}/> Revert to before this turn…</button>}
+    {items.some(Boolean) && <ActionMenu className="turn-checkpoint-menu" label={`Turn ${turn.turn} actions`}>
+      <ActionMenuItems icons items={items}/>
     </ActionMenu>}
     <span className="turn-checkpoint-line end" aria-hidden="true"/>
   </div>;
@@ -76,6 +87,16 @@ export function useCheckpointUI(messages: readonly TranscriptMessage[], scope?: 
     return <TurnMarker turn={turn} busy={busy} reverted={revertedTurn === turn.turn ? last : undefined} undoing={undoing}
       onShow={() => show(turn)} onRevert={() => setConfirming(turn)} onUndo={() => last && void undo(last)}/>;
   };
+  /** The marker's two actions, for the context menu of any message in that turn. */
+  const items = (messageId: string): MenuItem[] => {
+    if (!scope) return [];
+    const index = messages.findIndex(message => message.id === messageId);
+    let operation = '';
+    for (let i = index; i >= 0; i--) if (messages[i].type === 'operation_accepted') { operation = messages[i].operationId || ''; break; }
+    const turn = operation ? checkpoints.turns.get(operation) : undefined;
+    if (!turn || (!turn.endedAtUnixMillis && busy)) return [];
+    return turnMenuItems(turn, busy, () => show(turn), () => setConfirming(turn));
+  };
   const overlay = scope ? <>
     {confirming && <RevertCodeDialog sessionId={sessionId} turn={confirming} later={[...checkpoints.byNumber.keys()].filter(n => n > confirming.turn).length} onClose={() => setConfirming(undefined)} onReverted={revert => {
       setConfirming(undefined); checkpoints.reload();
@@ -88,7 +109,7 @@ export function useCheckpointUI(messages: readonly TranscriptMessage[], scope?: 
       <button type="button" className="checkpoint-toast-close" aria-label="Dismiss" onClick={() => setToast(undefined)}>×</button>
     </div>}
   </> : null;
-  return { marker, overlay };
+  return { marker, overlay, items };
 }
 
 /** A turn's changes where no Changes page is open to show them (a chat in its own window). */

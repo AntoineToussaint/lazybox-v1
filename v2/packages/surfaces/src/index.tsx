@@ -11,3 +11,4 @@ export { WindowErrorBoundary } from './WindowErrorBoundary';
 export { RemoteApp } from './remote/RemoteApp';
 export { DevicesSettings } from './DevicesSettings';
 export { ArtifactWindow } from './ArtifactWindow';
+export { ContextMenuHost, configureContextMenus, contextMenu, useContextMenu, registerContextMenu, useContextMenuContribution, openContextMenu, closeContextMenu, copyText, showMenuNotice, type ContextMenuContext, type ContextMenuContributor, type ContextMenuPlatform, type MenuAction, type MenuItem } from './ContextMenu';

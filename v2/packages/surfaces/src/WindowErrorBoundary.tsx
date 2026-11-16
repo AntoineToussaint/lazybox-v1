@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { ContextMenuHost } from './ContextMenu';
 
 const reloadKey = 'lazybox:window-error-reload';
 
@@ -24,8 +25,9 @@ export class WindowErrorBoundary extends Component<{ children: ReactNode; develo
  }
  render() {
   const { error } = this.state;
-  if (!error) return this.props.children;
-  return <div className="window-error" role="alert">
+  // Every window shows Lazybox context menus, its error screen included.
+  if (!error) return <>{this.props.children}<ContextMenuHost/></>;
+  return <><ContextMenuHost/><div className="window-error" role="alert">
    <h2>This window hit an error</h2>
    <p>Your agents and commands keep running on the Runner. Reloading the window reconnects to them.</p>
    <div className="window-error-actions">
@@ -33,6 +35,6 @@ export class WindowErrorBoundary extends Component<{ children: ReactNode; develo
     <button onClick={() => this.setState({ error: undefined })}>Try to continue</button>
    </div>
    <details><summary>Details</summary><pre>{String(error.stack || error.message)}</pre></details>
-  </div>;
+  </div></>;
  }
 }
