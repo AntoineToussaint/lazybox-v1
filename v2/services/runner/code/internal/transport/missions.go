@@ -239,6 +239,7 @@ var prRefreshed sync.Map
 // observePullRequest records a pull request the PR loop read as evidence on
 // the attempts in its workspace.
 func (s *Service) observePullRequest(collection, member string, out *pb.PullRequestStatus) {
+	s.pulls.remember(collection, member, out)
 	if out == nil || !out.Found {
 		return
 	}

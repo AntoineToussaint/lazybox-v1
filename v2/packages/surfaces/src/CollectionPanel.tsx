@@ -13,6 +13,8 @@ import type { Collection, Repository, Session } from "@lazybox/protocol";
 import { useRunner } from "./RunnerContext";
 import type { ViewTarget } from "./workspace-model";
 import { Icon } from "./Icons";
+import { useGitSummaries } from "./useGitSummaries";
+import { featuredConversation, rowGit } from "./workspace-row-model";
 
 export function CollectionPanel({
   target,
@@ -36,6 +38,8 @@ export function CollectionPanel({
 }) {
   const { info, api, error: connectionError } = useRunner();
   const index = useConversationIndex();
+  // An agent finishing (or starting) a turn changes its worktree: refresh the rows' git state soon after.
+  const git = useGitSummaries(index.sessions.map(s => `${s.id}:${s.busy ? 1 : 0}:${s.status}`).join(","));
   const [deletingConversation, setDeletingConversation] = useState<Session>();
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -177,6 +181,8 @@ export function CollectionPanel({
             <div key={collection.id} className="collection-group">
               <WorkspaceRow
                 conversation={single}
+                featured={single || (index.complete ? featuredConversation(rows) : undefined)}
+                git={rowGit(git.byWorkspace.get(collection.id))}
                 conversationCount={rows.length}
                 onNewConversation={() => onNewConversation ? onNewConversation(collection.id) :
                   onTarget({

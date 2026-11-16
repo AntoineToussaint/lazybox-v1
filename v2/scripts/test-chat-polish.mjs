@@ -101,7 +101,7 @@ try{
  await expect(gammaRow.locator('.workspace-repo-names')).toHaveAttribute('title',/codefly-dev\/web-console/);
  const heights=await Promise.all([gammaRow,soloRow,alphaRow].map(row=>row.evaluate(n=>n.getBoundingClientRect().height)));
  assert.ok(heights.every(h=>Math.abs(h-heights[0])<0.5),`cards differ in height: ${heights}`);
- assert.ok(heights[0]<80,'cards stay compact');
+ assert.ok(heights[0]<100,'cards stay compact: four one-line rows (name, repositories, git, agent)');
  await page.screenshot({path:'.cache/chat-polish-sidebar.png'});
 
  // A generated name gets a one-click "Name it", never a prompt.

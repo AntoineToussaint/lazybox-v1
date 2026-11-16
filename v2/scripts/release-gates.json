@@ -60,7 +60,8 @@
     { "id": "remote-inbox", "scope": "ui", "script": "test:remote-inbox" },
     { "id": "missions", "scope": "ui", "script": "test:missions" },
     { "id": "context-menus", "scope": "ui", "script": "test:context-menus" },
-    { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" }
+    { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
+    { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

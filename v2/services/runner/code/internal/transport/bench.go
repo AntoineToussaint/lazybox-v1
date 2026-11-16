@@ -39,6 +39,9 @@ type Service struct {
 	// reach it (REMOTE.md); nil where the Runner pairs none.
 	Devices *devices.Manager
 	Remote  RemoteAccess
+	// pulls is the last pull request read per workspace repository, for the
+	// sidebar's git summaries (git_summaries.go).
+	pulls pullRequestCache
 }
 
 // Restarter records a restart request and begins the Runner's ordinary

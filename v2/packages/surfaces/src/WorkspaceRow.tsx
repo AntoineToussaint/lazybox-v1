@@ -4,12 +4,13 @@ import { contextMenu } from './ContextMenu';
 import type { MenuItem } from './context-menu-model';
 import { useRef, useState } from "react";
 import type { Collection, Session } from "@lazybox/protocol";
-import { conversationDetails } from "./conversation-model";
-import { sessionStatus } from "./agent-status";
+import { branchSummary } from "./conversation-model";
+import { agentLine, type RowGit } from "./workspace-row-model";
+import { GitLine } from "./WorkspaceGitLine";
 import { Icon } from "./Icons";
 import { useRunner } from "./RunnerContext";
 import { useUnread } from "./useAttention";
-import { LiveStatusLabel, SessionMark } from "./LiveIndicator";
+import { SessionMark, useLiveStatus } from "./LiveIndicator";
 import { generatedName, repositoryGroups, suggestWorkspaceName } from "./repository-model";
 import "./inbox.css";
 
@@ -20,7 +21,8 @@ import "./inbox.css";
  * dialog. Screen readers (and copy) get every "owner/name".
  */
 export function RepositorySummary({ names, limit = 3 }: { names: readonly string[]; limit?: number }) {
-  if (!names.length) return <small className="workspace-repo-names empty">No repositories</small>;
+  // Not "empty": the app-wide .empty style (a centred, padded placeholder) would make this one row tall.
+  if (!names.length) return <small className="workspace-repo-names is-empty">No repositories</small>;
   const { owner, repositories } = repositoryGroups(names);
   const shown = repositories.length <= limit + 1 ? repositories : repositories.slice(0, limit);
   const hidden = repositories.length - shown.length;
@@ -41,11 +43,18 @@ export function WorkspaceRow({
   onAdd,
   onSaved,
   conversation,
+  featured = conversation,
+  git,
   conversationCount,
   onNewConversation,
   onDeleteConversation,
 }: {
+  /** The workspace's only conversation, which the row's menu can delete. */
   conversation?: Session;
+  /** The conversation the agent line speaks for (WorkspaceRow model: attention, then work, then newest). */
+  featured?: Session;
+  /** The git line; undefined until the Runner answered. */
+  git?: RowGit;
   conversationCount: number;
   onNewConversation(): void;
   onDeleteConversation(): void;
@@ -66,7 +75,8 @@ export function WorkspaceRow({
   const pending = useRef(false);
   const action = useRef<HTMLDetailsElement>(null);
   const unread = useUnread();
-  const marker = conversation ? unread(conversation) : "";
+  const marker = featured ? unread(featured) : "";
+  const line = featured ? agentLine(featured, info?.profiles || [], Math.max(0, conversationCount - 1)) : undefined;
   const rename = () => { setName(workspace.name); setError(""); setEditing(true); };
   // The ⋯ menu and the row's context menu: one list.
   const items: MenuItem[] = [
@@ -155,23 +165,17 @@ export function WorkspaceRow({
           <span className="workspace-label">
             <strong>{workspace.name}</strong>
             <RepositorySummary names={repositoryNames} />
-            {conversation ? (
-              <small
-                className="workspace-agent"
-                title={
-                  conversationDetails(conversation, info?.profiles || []) +
-                  " · " +
-                  sessionStatus(conversation)
-                }
-              >
-                <SessionMark session={conversation} unread={marker} />
+            <GitLine git={git} fallback={branchSummary(workspace)} empty={!workspace.members.length} />
+            {featured && line ? (
+              <small className="workspace-agent" title={line.tooltip}>
+                <SessionMark session={featured} unread={marker} />
                 {marker && <span className="sr-only">{marker === "failed" ? "Failed, unread" : "Ready for review, unread"}</span>}
-                <span className="workspace-agent-label">{conversation.provider === "codex" ? "Codex" : "Claude"}
-                {conversation.model ? ` · ${conversation.model}` : ""}</span>
-                <LiveStatusLabel session={conversation} className="workspace-agent-status" />
+                <span className="workspace-agent-label">{line.title}</span>
+                {line.more && <span className="workspace-agent-more" title={`${conversationCount} conversations`}>{line.more}</span>}
+                <AgentStatus session={featured} />
               </small>
             ) : (
-              // Every card has the same three lines, so the list reads as a grid.
+              // Every card has the same four lines, so the list reads as a grid.
               <small className="workspace-agent workspace-conversation-count">
                 <span className="session-mark" aria-hidden="true"><Icon name="chat" size={11} /></span>
                 <span className="workspace-agent-label">{conversationCount ? `${conversationCount} ${conversationCount === 1 ? "conversation" : "conversations"}` : "No conversation yet"}</span>
@@ -182,6 +186,10 @@ export function WorkspaceRow({
             <span title="Owner uncertain">!</span>
           )}
         </button>
+      )}
+      {!editing && !repositoryNames.length && (
+        // In the repository line's slot, so an empty workspace is the same card as any other.
+        <button className="workspace-add-repositories" aria-label={`Add repositories to ${workspace.name}`} onClick={onAdd}>Add…</button>
       )}
       {!editing && generatedName(workspace.name) && (
         // A generated name says nothing about the work: one click names it, never a prompt.
@@ -213,4 +221,19 @@ export function WorkspaceRow({
       )}
     </div>
   );
+}
+
+/**
+ * The agent line's status: its words, then the time the step has taken. One
+ * indicator per row (the leading mark); the elapsed time is never cut, the
+ * words give way before it, and the title before both.
+ */
+function AgentStatus({ session }: { session: Session }) {
+  const status = useLiveStatus(session);
+  const elapsed = status.since !== undefined && status.text.startsWith(status.label + " · ") ? status.text.slice(status.label.length + 3) : "";
+  const words = elapsed ? status.label : status.text;
+  return <span className="workspace-agent-status" data-tone={status.tone} title={status.text}>
+    <span className="workspace-agent-words">{words}</span>
+    {elapsed && <span className="workspace-agent-elapsed"> · {elapsed}</span>}
+  </span>;
 }

@@ -276,6 +276,9 @@ const (
 	// RunnerServiceMergePullRequestProcedure is the fully-qualified name of the RunnerService's
 	// MergePullRequest RPC.
 	RunnerServiceMergePullRequestProcedure = "/lazybox.bench.v1.RunnerService/MergePullRequest"
+	// RunnerServiceListWorkspaceGitSummariesProcedure is the fully-qualified name of the
+	// RunnerService's ListWorkspaceGitSummaries RPC.
+	RunnerServiceListWorkspaceGitSummariesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceGitSummaries"
 	// RunnerServiceListReviewCommentsProcedure is the fully-qualified name of the RunnerService's
 	// ListReviewComments RPC.
 	RunnerServiceListReviewCommentsProcedure = "/lazybox.bench.v1.RunnerService/ListReviewComments"
@@ -515,6 +518,12 @@ type RunnerServiceClient interface {
 	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// The sidebar's git state, per workspace and repository: branch, ahead and
+	// behind its pushed branch and the default branch, uncommitted files, and the
+	// last pull request seen for the branch. Local Git only (no fetch); the pull
+	// request comes from a cache GetPullRequest fills, refreshed in the
+	// background for pushed branches. Owner only.
+	ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error)
 	// Inline review comments on a workspace's changes, kept per workspace on the
 	// Runner so every window shows them. Owner only. Every reply is the whole
 	// review, each comment anchored against the working tree as it is now.
@@ -1119,6 +1128,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
 			connect.WithClientOptions(opts...),
 		),
+		listWorkspaceGitSummaries: connect.NewClient[gen.WorkspaceGitSummariesRequest, gen.WorkspaceGitSummaries](
+			httpClient,
+			baseURL+RunnerServiceListWorkspaceGitSummariesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceGitSummaries")),
+			connect.WithClientOptions(opts...),
+		),
 		listReviewComments: connect.NewClient[gen.ListReviewCommentsRequest, gen.WorkspaceReview](
 			httpClient,
 			baseURL+RunnerServiceListReviewCommentsProcedure,
@@ -1470,6 +1485,7 @@ type runnerServiceClient struct {
 	createPullRequest            *connect.Client[gen.CreatePullRequestRequest, gen.PullRequestStatus]
 	getPullRequest               *connect.Client[gen.GetPullRequestRequest, gen.PullRequestStatus]
 	mergePullRequest             *connect.Client[gen.MergePullRequestRequest, gen.PullRequestStatus]
+	listWorkspaceGitSummaries    *connect.Client[gen.WorkspaceGitSummariesRequest, gen.WorkspaceGitSummaries]
 	listReviewComments           *connect.Client[gen.ListReviewCommentsRequest, gen.WorkspaceReview]
 	addReviewComment             *connect.Client[gen.AddReviewCommentRequest, gen.WorkspaceReview]
 	editReviewComment            *connect.Client[gen.EditReviewCommentRequest, gen.WorkspaceReview]
@@ -1926,6 +1942,11 @@ func (c *runnerServiceClient) MergePullRequest(ctx context.Context, req *connect
 	return c.mergePullRequest.CallUnary(ctx, req)
 }
 
+// ListWorkspaceGitSummaries calls lazybox.bench.v1.RunnerService.ListWorkspaceGitSummaries.
+func (c *runnerServiceClient) ListWorkspaceGitSummaries(ctx context.Context, req *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error) {
+	return c.listWorkspaceGitSummaries.CallUnary(ctx, req)
+}
+
 // ListReviewComments calls lazybox.bench.v1.RunnerService.ListReviewComments.
 func (c *runnerServiceClient) ListReviewComments(ctx context.Context, req *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error) {
 	return c.listReviewComments.CallUnary(ctx, req)
@@ -2251,6 +2272,12 @@ type RunnerServiceHandler interface {
 	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// The sidebar's git state, per workspace and repository: branch, ahead and
+	// behind its pushed branch and the default branch, uncommitted files, and the
+	// last pull request seen for the branch. Local Git only (no fetch); the pull
+	// request comes from a cache GetPullRequest fills, refreshed in the
+	// background for pushed branches. Owner only.
+	ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error)
 	// Inline review comments on a workspace's changes, kept per workspace on the
 	// Runner so every window shows them. Owner only. Every reply is the whole
 	// review, each comment anchored against the working tree as it is now.
@@ -2851,6 +2878,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListWorkspaceGitSummariesHandler := connect.NewUnaryHandler(
+		RunnerServiceListWorkspaceGitSummariesProcedure,
+		svc.ListWorkspaceGitSummaries,
+		connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceGitSummaries")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListReviewCommentsHandler := connect.NewUnaryHandler(
 		RunnerServiceListReviewCommentsProcedure,
 		svc.ListReviewComments,
@@ -3281,6 +3314,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetPullRequestHandler.ServeHTTP(w, r)
 		case RunnerServiceMergePullRequestProcedure:
 			runnerServiceMergePullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceListWorkspaceGitSummariesProcedure:
+			runnerServiceListWorkspaceGitSummariesHandler.ServeHTTP(w, r)
 		case RunnerServiceListReviewCommentsProcedure:
 			runnerServiceListReviewCommentsHandler.ServeHTTP(w, r)
 		case RunnerServiceAddReviewCommentProcedure:
@@ -3704,6 +3739,10 @@ func (UnimplementedRunnerServiceHandler) GetPullRequest(context.Context, *connec
 
 func (UnimplementedRunnerServiceHandler) MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.MergePullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListWorkspaceGitSummaries is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error) {

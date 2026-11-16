@@ -107,6 +107,12 @@ service RunnerService {
   rpc CreatePullRequest(CreatePullRequestRequest) returns (PullRequestStatus);
   rpc GetPullRequest(GetPullRequestRequest) returns (PullRequestStatus);
   rpc MergePullRequest(MergePullRequestRequest) returns (PullRequestStatus);
+  // The sidebar's git state, per workspace and repository: branch, ahead and
+  // behind its pushed branch and the default branch, uncommitted files, and the
+  // last pull request seen for the branch. Local Git only (no fetch); the pull
+  // request comes from a cache GetPullRequest fills, refreshed in the
+  // background for pushed branches. Owner only.
+  rpc ListWorkspaceGitSummaries(WorkspaceGitSummariesRequest) returns (WorkspaceGitSummaries);
   // Inline review comments on a workspace's changes, kept per workspace on the
   // Runner so every window shows them. Owner only. Every reply is the whole
   // review, each comment anchored against the working tree as it is now.
@@ -436,6 +442,41 @@ message PullRequestStatus {
   string checks_state = 17;
   string merge_commit = 18; string author = 19;
 }
+message WorkspaceGitSummariesRequest {
+  // Empty is every workspace.
+  repeated string collection_ids = 1;
+}
+// A pull request as last read from GitHub for a repository's branch.
+message PullRequestSummary {
+  int64 number = 1; string title = 2; string url = 3;
+  // open, closed or merged.
+  string state = 4; bool draft = 5;
+  // success, failure, pending, or none.
+  string checks_state = 6;
+  // approved, changes_requested, review_required, or empty.
+  string review_decision = 7;
+  int64 observed_at_unix_millis = 8;
+}
+message RepositoryGitSummary {
+  string member = 1;
+  // Empty on a detached HEAD.
+  string branch = 2; string head = 3;
+  // origin/<branch> when the branch was pushed, else empty. ahead and behind
+  // count commits against it; a never-pushed branch counts its commits since
+  // the workspace started as ahead.
+  string upstream = 4; uint32 ahead = 5; uint32 behind = 6;
+  // origin/HEAD (else main or master), and commits ahead of and behind it.
+  string default_branch = 7; uint32 ahead_of_default = 8; uint32 behind_default = 9;
+  // Uncommitted files: staged, unstaged and untracked.
+  uint32 dirty = 10; bool dirty_truncated = 11;
+  // owner/name when origin is a GitHub repository.
+  string github_repository = 12;
+  // Absent when no pull request is known for the branch (yet).
+  PullRequestSummary pull_request = 13;
+  string error = 14;
+}
+message WorkspaceGitSummary { string collection_id = 1; repeated RepositoryGitSummary repositories = 2; }
+message WorkspaceGitSummaries { repeated WorkspaceGitSummary workspaces = 1; }
 message WorkspaceDiffRequest { string collection_id = 1; string member = 2; string path = 3; bool staged = 4; // Diff of the branch's commits since the workspace's base, not of uncommitted changes.
   bool committed = 5;
   // With committed: the ref compared with; empty is the workspace start.

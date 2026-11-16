@@ -1,3 +1,4 @@
+import { nudgeGitSummaries } from './useGitSummaries';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Code, ConnectError } from '@lazybox/client-core';
 import type { PullRequestCheck, PullRequestStatus, RepositoryChanges, Session } from '@lazybox/protocol';
@@ -209,8 +210,10 @@ function PullRequestCard({ workspaceId, member, pr, fix, onSendChecks, onMerged,
 }
 
 /** The action bar and pull request card above one repository's file list. */
-export function RepositoryShip({ workspaceId, repo, conversation, onChanged, onSendToAgent }: { workspaceId: string; repo: RepositoryChanges; conversation?: Session; onChanged(): void; onSendToAgent(text: string): void }) {
+export function RepositoryShip({ workspaceId, repo, conversation, onChanged: changed, onSendToAgent }: { workspaceId: string; repo: RepositoryChanges; conversation?: Session; onChanged(): void; onSendToAgent(text: string): void }) {
   const { api } = useRunner();
+  // A commit, push or merge also changes the sidebar's git line.
+  const onChanged = () => { changed(); nudgeGitSummaries(api); };
   const [pr, setPr] = useState<PullRequestStatus>(), [prError, setPrError] = useState(''), [unsupported, setUnsupported] = useState(false), [prRevision, setPrRevision] = useState(0);
   const [dialog, setDialog] = useState<'commit' | 'create' | ''>(''), [pushing, setPushing] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('');
   useEffect(() => {

@@ -116,9 +116,24 @@ Renaming later never renames the fixed disk slug or branches. A workspace still
 named by a generated petname shows a quiet **Name it** chip on its card: one
 click opens the inline rename with a suggestion from its repositories.
 
-Every workspace card has the same three lines: its name, one repository line
-(the owner once, the first names and `+N`; the full list is the tooltip and the
-repository dialog) and its conversation with the live status.
+Every workspace card has the same four lines, and so the same height, selected
+or not, whatever it holds:
+
+1. its name;
+2. one repository line (the owner once, the first names and `+N`; the full list
+   is the tooltip and the repository dialog), or "No repositories" with **Add…**;
+3. its git line: the branch (`+N` when repositories differ), then uncommitted
+   files (●), commits not pushed (↑), pushed commits not pulled (↓), commits
+   behind the default branch (⇣), and the pull request with a dot for its
+   checks. The tooltip spells it out per repository. The Runner's
+   `ListWorkspaceGitSummaries` reads local Git only (no fetch) for every
+   workspace in one request; pull requests come from what GetPullRequest last
+   read, refreshed in the background for pushed branches. Windows poll it every
+   20 seconds while visible, on focus, and shortly after a turn or a commit;
+4. the conversation it speaks for (one needing you, else one at work, else the
+   newest; `+N` counts the others): one mark, its title, then the live status
+   and elapsed time. The title gives way first, then the status's words; the
+   time is never cut. Provider, model and account are the tooltip.
 
 Example workspace:
 
