@@ -258,8 +258,10 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 			return errors.New("message required")
 		}
 		state := e.Engine.Snapshot()
-		// At a subscription limit a message waits in the queue (see engine.Apply).
-		if state.Closed || (state.Fault != "" && !agent.LimitFault(state.Fault)) {
+		// At a subscription limit a message waits in the queue, and after a
+		// provider error ended a turn the next message continues the
+		// conversation (see engine.Apply, which makes the same decision).
+		if state.Closed || (state.Fault != "" && !agent.LimitFault(state.Fault) && !agent.TurnFault(state.Fault)) {
 			return errors.New("session is closed or faulted")
 		}
 		if len(m.Attachments) > 0 && !state.Capabilities.Files {
