@@ -60,7 +60,7 @@ func OpenSQLite(path string) (*SQLite, error) {
 		db.Close()
 		return fail(err)
 	}
-	if version > 4 {
+	if version > 5 {
 		db.Close()
 		return fail(errors.New("session database requires a newer Runner"))
 	}
@@ -88,6 +88,15 @@ func OpenSQLite(path string) (*SQLite, error) {
 	if version < 4 {
 		// A generated title is kept apart from the person's: a rename always wins.
 		_, err = db.Exec(`BEGIN; ALTER TABLE conversation_metadata ADD COLUMN generated TEXT NOT NULL DEFAULT ''; PRAGMA user_version=4; COMMIT;`)
+		if err != nil {
+			db.Close()
+			return fail(err)
+		}
+	}
+	if version < 5 {
+		// Pins and archive marks belong to the conversation, like its title,
+		// so every window and a paired phone see the same ones.
+		_, err = db.Exec(`BEGIN; ALTER TABLE conversation_metadata ADD COLUMN pinned_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE conversation_metadata ADD COLUMN archived_at INTEGER NOT NULL DEFAULT 0; PRAGMA user_version=5; COMMIT;`)
 		if err != nil {
 			db.Close()
 			return fail(err)
@@ -206,7 +215,7 @@ func (s *SQLite) SaveState(ctx context.Context, id string, state engine.Snapshot
 // for it, else its generated title, else its first message's first line.
 const shownTitle = `COALESCE(NULLIF(m.title,''),NULLIF(m.generated,''),NULLIF(json_extract(root.body,'$.Snapshot.title'),''),json_extract(root.body,'$.Title'),'')`
 
-const selectedRecord = `SELECT json_set(a.body, '$.UserTitle', COALESCE(m.title,''), '$.GeneratedTitle', COALESCE(m.generated,''), '$.Opening', COALESCE(NULLIF(json_extract(root.body,'$.Snapshot.opening'),''),json_extract(root.body,'$.Snapshot.title'),''), '$.DisplayTitle', ` + shownTitle + `) FROM attempts a LEFT JOIN conversation_metadata m ON m.id=a.conversation_id LEFT JOIN attempts root ON root.id=a.conversation_id`
+const selectedRecord = `SELECT json_set(a.body, '$.PinnedAt', COALESCE(m.pinned_at,0), '$.ArchivedAt', COALESCE(m.archived_at,0), '$.UserTitle', COALESCE(m.title,''), '$.GeneratedTitle', COALESCE(m.generated,''), '$.Opening', COALESCE(NULLIF(json_extract(root.body,'$.Snapshot.opening'),''),json_extract(root.body,'$.Snapshot.title'),''), '$.DisplayTitle', ` + shownTitle + `) FROM attempts a LEFT JOIN conversation_metadata m ON m.id=a.conversation_id LEFT JOIN attempts root ON root.id=a.conversation_id`
 
 // resolveTitle finishes DisplayTitle: a conversation titled only by its first
 // message shows titles.Fallback of it (a sentence or a cut at a word), never
@@ -259,6 +268,40 @@ func (s *SQLite) SetGeneratedTitle(ctx context.Context, id, title string) error 
 	}
 	return err
 }
+
+// Pin keeps a conversation on top of the person's lists, or takes the pin
+// away. Like a title, it belongs to the conversation rather than one attempt,
+// and never touches execution state. Pinning a pinned conversation keeps its
+// first pin, so the order of pins is stable.
+func (s *SQLite) Pin(ctx context.Context, id string, pinned bool) error {
+	return s.mark(ctx, id, "pinned_at", pinned)
+}
+
+// Archive takes a conversation out of the person's working lists, or brings
+// it back. Its attempts and transcript stay, and History still lists it.
+func (s *SQLite) Archive(ctx context.Context, id string, archived bool) error {
+	return s.mark(ctx, id, "archived_at", archived)
+}
+
+// mark sets one of the conversation's metadata timestamps (a fixed column
+// name, never input) to now, keeping an earlier one, or clears it.
+func (s *SQLite) mark(ctx context.Context, id, column string, on bool) error {
+	at, update := int64(0), column+"=0"
+	if on {
+		at = time.Now().UTC().UnixMilli()
+		update = column + "=CASE WHEN conversation_metadata." + column + ">0 THEN conversation_metadata." + column + " ELSE excluded." + column + " END"
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO conversation_metadata(id,title,`+column+`) SELECT conversation_id,'',? FROM attempts WHERE id=? ON CONFLICT(id) DO UPDATE SET `+update, at, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return os.ErrNotExist
+	}
+	return err
+}
+
 func (s *SQLite) List(ctx context.Context, limit, offset int) ([]Record, error) {
 	return s.Query(ctx, Query{Limit: limit, Offset: offset})
 }

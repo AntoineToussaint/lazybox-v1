@@ -15,6 +15,8 @@ import { MissionInboxSection, useAwaitingTasks } from './MissionInbox';
 import type { ViewTarget } from './workspace-model';
 import './inbox.css';
 import { contextMenu } from './ContextMenu';
+import { conversationOpeners, requestAgentsFocus } from './conversation-requests';
+import { useConversationActions } from './ConversationActions';
 
 const stateIcon: Record<AttentionState, string> = { 'needs-input': 'ask', failed: 'alert', review: 'eye', working: 'working', idle: 'done' };
 export function AttentionIcon({ state, size = 16 }: { state: AttentionState; size?: number }) {
@@ -28,21 +30,24 @@ export function LiveText({ session }: { session: Inbox['rows'][number]['session'
 }
 
 /**
- * The attention inbox: one header entry with a count, a list of every
+ * The attention inbox: one header entry with a count, the list of every
  * conversation across workspaces grouped by what it needs, and — in the window
- * whose host can notify — desktop notifications and the dock badge.
+ * whose host can notify — desktop notifications and the dock badge. The list
+ * is the page's Agents panel, brought forward with its first row focused; a
+ * popover over the page stands in only where the page has no Agents panel.
  */
 export function AttentionCenter({ collections, selection, onOpen, viewState }: { collections: Collection[]; selection: ViewTarget; onOpen(target: ViewTarget): void; viewState?: ViewStateStore }) {
   const inbox = useInbox();
   const [open, setOpen] = useState(false);
   const keymap = useKeymap(viewState);
-  useKeyboardAction('inbox.open', () => setOpen(true));
+  const show = () => { if (conversationOpeners()?.showAgents()) requestAgentsFocus(); else setOpen(true); };
+  useKeyboardAction('inbox.open', show);
   useAttentionNotifier(inbox, collections, selection, onOpen, keymap);
   const awaiting = useAwaitingTasks();
   const needsInput = inbox.counts['needs-input'] + awaiting, count = inbox.unread + awaiting;
   const label = [inbox.unread ? `Inbox, ${inbox.unread} ${inbox.unread === 1 ? 'conversation needs' : 'conversations need'} attention` : 'Inbox', awaiting ? `${awaiting} ${awaiting === 1 ? 'task awaits' : 'tasks await'} acceptance` : ''].filter(Boolean).join(', ');
   return <>
-    <button className="toolbar-action inbox-action" aria-label={label} title={`Inbox (${keymap['inbox.open']})`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+    <button className="toolbar-action inbox-action" aria-label={label} title={`Inbox (${keymap['inbox.open']})`} aria-expanded={open} onClick={show}>
       <Icon name="inbox"/><span>Inbox</span>
       {count > 0 && <b className={`inbox-count${needsInput ? ' urgent' : ''}`} aria-hidden="true">{count > 99 ? '99+' : count}</b>}
     </button>
@@ -53,6 +58,7 @@ export function AttentionCenter({ collections, selection, onOpen, viewState }: {
 function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox: ReturnType<typeof useInbox>; collections: Collection[]; selection: ViewTarget; onClose(): void; onOpen(target: ViewTarget): void }) {
   const { info } = useRunner();
   const dialog = useRef<HTMLDialogElement>(null);
+  const actions = useConversationActions({ onOpen });
   const [allDone, setAllDone] = useState(false);
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
@@ -99,8 +105,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
           <h3 id={`inbox-group-${group.state}`}><AttentionIcon state={group.state} size={13}/>{attentionTitle[group.state]}<span>{group.rows.length}</span></h3>
           <ul>{visible.map(row => <li key={row.key} className="inbox-item" data-key={row.key} data-state={row.state} data-unread={row.unread || undefined}
             onContextMenu={contextMenu('inbox-item', () => [
-              { label: 'Open', icon: 'chat', shortcut: 'Enter', run: () => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' }) },
-              { label: 'Mark as seen', icon: 'check', shortcut: 'M', disabled: !row.unread ? 'Already seen' : row.state === 'needs-input' && 'It waits for your answer', run: () => markSeen([row]) },
+              ...actions.items(row.session),
               'separator',
               { label: 'Mark all seen', icon: 'checkAll', disabled: !unseen.length, run: () => markSeen(unseen) },
             ], { sessionId: row.session.id, workspaceId: row.session.collectionId })}>
@@ -120,6 +125,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
       })}
     </div>
     <footer><kbd>j</kbd><kbd>k</kbd> move <kbd>Enter</kbd> open <kbd>m</kbd> mark seen <kbd>Esc</kbd> close</footer>
+    {actions.dialogs}
   </dialog>;
 }
 

@@ -912,6 +912,8 @@ func (s *Service) sessionView(ctx context.Context, e *runner.Execution) (*pb.Ses
 	if record.DisplayTitle != "" {
 		view.Title = record.DisplayTitle
 	}
+	view.PinnedAtUnixMillis = record.PinnedAt
+	view.ArchivedAtUnixMillis = record.ArchivedAt
 	// Creation order belongs to the conversation, not its latest continuation.
 	if record.ConversationID != record.ID {
 		root, err := s.Bench.History.Get(ctx, record.ConversationID)
@@ -944,6 +946,32 @@ func (s *Service) RenameConversation(ctx context.Context, r *pb.RenameConversati
 	}
 	e, err := s.Bench.Get(r.SessionId)
 	if err != nil {
+		return nil, rpcError(err)
+	}
+	return s.sessionResponse(ctx, e)
+}
+
+// PinConversation keeps a conversation on top of the person's lists, in every
+// window and on a paired phone.
+func (s *Service) PinConversation(ctx context.Context, r *pb.PinConversationRequest) (*pb.SessionResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	if err = s.Bench.History.Pin(ctx, r.SessionId, r.Pinned); err != nil {
+		return nil, rpcError(err)
+	}
+	return s.sessionResponse(ctx, e)
+}
+
+// ArchiveConversation takes a conversation out of the working lists, or brings
+// it back. It stops nothing and deletes nothing.
+func (s *Service) ArchiveConversation(ctx context.Context, r *pb.ArchiveConversationRequest) (*pb.SessionResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	if err = s.Bench.History.Archive(ctx, r.SessionId, r.Archived); err != nil {
 		return nil, rpcError(err)
 	}
 	return s.sessionResponse(ctx, e)

@@ -150,12 +150,16 @@ try {
     title: "Second conversation",
   });
   await page.getByRole("button", { name: "Refresh workspaces" }).click();
-  // The row names the conversation it shows and counts the rest ("+1"); the full count is its tooltip.
-  await expect(alpha.locator(".workspace-agent-more")).toHaveText("+1");
-  await expect(alpha.locator(".workspace-agent-more")).toHaveAttribute("title", "2 conversations");
+  // Several conversations are listed under the card, one line each; folded,
+  // the row names the one it shows and counts the rest ("+1"), the full count its tooltip.
   await expect(
     page.locator(".workspace-conversations .conversation-row"),
   ).toHaveCount(2);
+  await expect(alpha.locator(".workspace-agent")).toHaveCount(0);
+  await alpha.getByRole("button", { name: /^Fold the 2 conversations/ }).click();
+  await expect(alpha.locator(".workspace-agent-more")).toHaveText("+1");
+  await expect(alpha.locator(".workspace-agent-more")).toHaveAttribute("title", "2 conversations");
+  await expect(page.locator(".workspace-conversations")).toHaveCount(0);
   await page.screenshot({ path: "/tmp/lazybox-navigation-multiple.png" });
   assert.deepEqual(errors, []);
   console.log(

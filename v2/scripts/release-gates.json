@@ -88,6 +88,7 @@
     { "id": "docking", "scope": "ui", "script": "test:docking" },
     { "id": "reattach", "scope": "ui", "script": "test:reattach" },
     { "id": "layout-keyboard", "scope": "ui", "script": "test:layout-keyboard" },
+    { "id": "agents-visible", "scope": "ui", "script": "test:agents-visible" },
     { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" }
   ],
   "external": [

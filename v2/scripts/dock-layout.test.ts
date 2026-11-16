@@ -45,6 +45,13 @@ test('a page whose docked panels are the sidebar alone keeps the sidebar at its 
   const back = fromDockview(json, overlayOf(page));
   assert.equal(structureKey(back), structureKey(page), 'the empty area is not part of the page');
   assert.equal(JSON.stringify(back).includes(EMPTY_CONTENT), false);
+  // Workspaces stacked over Agents, alone: the column at the sidebar's width, both groups in it.
+  const stacked = { ...page, layout: (work().layout as Extract<LayoutNode, { type: 'split' }>).children[0] };
+  assert.equal(needsEmptyContent(stacked), true);
+  const column = toDockview(stacked, geometry).grid.root as { data: { type: string; size: number; data: unknown }[] };
+  assert.deepEqual(column.data.map(node => [node.type, node.size]), [['branch', 280], ['leaf', 1120]]);
+  const both = fromDockview(toDockview(stacked, geometry), overlayOf(stacked));
+  assert.equal(structureKey(both), structureKey(stacked));
 });
 
 test('the sidebar takes its fixed width and a minimized group its tab bar, whatever their share', () => {
@@ -77,8 +84,8 @@ test('what dockview changes reads back: a moved tab, a resize, a floating group,
   json.panels.po = { id: 'po', params: { kind: 'editor', binding: { mode: 'follow' } } };
   json.panels.ghost = { id: 'ghost' };
   const back = fromDockview(json);
-  assert.deepEqual(groups(back.layout).map(group => group.panels.map(panel => panel.kind)), [['collections', 'agents'], ['chat', 'console']]);
-  assert.equal((groups(back.layout)[1] as Group).active, 'w-work-console');
+  assert.deepEqual(groups(back.layout).map(group => group.panels.map(panel => panel.kind)), [['collections'], ['agents'], ['chat', 'console']]);
+  assert.equal((groups(back.layout)[2] as Group).active, 'w-work-console');
   assert.deepEqual(back.floating, [{ group: { type: 'group', id: 'gf', panels: [{ id: 'fl', kind: 'files', binding: { mode: 'follow' }, detached: false }], active: 'fl' }, box: { left: 40, top: 50, width: 400, height: 300 } }]);
   assert.deepEqual(back.popouts.map(group => group.panels.map(panel => panel.id)), [['po']], 'a panel dockview cannot describe is dropped, not invented');
   assert.ok(Math.abs((back.layout as Extract<LayoutNode, { type: 'split' }>).sizes[0] - 360 / 1400) < 0.001);
@@ -154,7 +161,7 @@ test('panels are never crushed: too narrow, the rightmost side-by-side panels be
   assert.deepEqual(merged.panels.map(panel => panel.id), ['editor', 'terminal'], 'the editor and terminal share a group');
   assert.equal(merged.active, 'terminal', 'the one that was on the right stays in front');
   assert.deepEqual(panels(fitted).map(panel => panel.id).sort(), panels(layout).map(panel => panel.id).sort(), 'no panel is lost');
-  assert.ok(groups(fitted).some(group => group.panels[0].kind === 'collections' && group.panels.length === 2), 'the sidebar is never merged');
+  assert.ok(groups(fitted).some(group => group.panels.length === 1 && group.panels[0].kind === 'collections') && groups(fitted).some(group => group.panels.length === 1 && group.panels[0].kind === 'agents'), 'the sidebar is never merged');
   // Narrower still: more tabs, down to the sidebar beside the conversation's column.
   const narrow = fitWidth(layout, 700, 280);
   assert.ok(minimumWidth(narrow, 280) <= 700);

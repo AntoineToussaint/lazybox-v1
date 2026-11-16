@@ -156,10 +156,45 @@ export function groupID(panelID: string, taken: Iterable<string> = []): string {
 }
 const groupFor = (panel: Panel, taken: Iterable<string> = []): Group => ({ type: 'group', id: groupID(panel.id, taken), panels: [panel], active: panel.id });
 
-/** Panels that make up the page's sidebar: the workspace list and the agents list, as tabs of one group. */
+/** Panels that make up the page's sidebar: the workspace list above the agents list, both always in view. */
 export const sidebarKinds: ReadonlySet<string> = new Set(['collections', 'agents']);
-/** A group of sidebar panels at the left or right edge of the page is its sidebar, with one fixed width. */
-export const isSidebar = (node: LayoutNode) => node.type === 'group' && node.panels.every(panel => sidebarKinds.has(panel.kind));
+/**
+ * Sidebar panels at the left or right edge of the page are its sidebar, with
+ * one fixed width: a group of them, or a column of such groups stacked
+ * (Workspaces above Agents).
+ */
+export const isSidebar = (node: LayoutNode): boolean => node.type === 'group'
+  ? node.panels.every(panel => sidebarKinds.has(panel.kind))
+  : node.direction === 'column' && node.children.every(isSidebar);
+/** The ids of the groups that make up the page's sidebar, top to bottom; none when it has no sidebar. */
+export function sidebarGroupIDs(node: LayoutNode | null): string[] {
+  const at = sidebarAt(node);
+  if (!at || node?.type !== 'split') return [];
+  return groups(node.children[at === 'first' ? 0 : node.children.length - 1]).map(group => group.id);
+}
+/** The Agents list's share of the sidebar's height, under Workspaces. */
+export const AGENTS_SHARE = 0.45;
+/**
+ * Workspaces and Agents kept as tabs of one group (as every page had them
+ * before) become a column: Workspaces on top, Agents below, both in view.
+ * Everything else about the page stays as it was.
+ */
+export function stackSidebar(node: LayoutNode | null): LayoutNode | null {
+  if (!node) return node;
+  const taken = groups(node).map(group => group.id);
+  const visit = (current: LayoutNode): LayoutNode => {
+    if (current.type === 'split') return { ...current, children: current.children.map(visit) };
+    const list = current.panels.filter(panel => panel.kind === 'collections'), agents = current.panels.filter(panel => panel.kind === 'agents');
+    if (!list.length || !agents.length || !current.panels.every(panel => sidebarKinds.has(panel.kind))) return current;
+    const { minimized: _, ...rest } = current;
+    const top: Group = { ...rest, panels: list, active: list[0].id };
+    const below: Group = { type: 'group', id: groupID(agents[0].id, taken), panels: agents, active: agents[0].id };
+    taken.push(below.id);
+    return { type: 'split', direction: 'column', sizes: [1 - AGENTS_SHARE, AGENTS_SHARE], children: [top, below] };
+  };
+  const next = visit(node);
+  return JSON.stringify(next) === JSON.stringify(node) ? node : normalize(next);
+}
 /** Where the sidebar is in a page's root row: 'first', 'last', or not there. */
 export function sidebarAt(node: LayoutNode | null): 'first' | 'last' | undefined {
   if (!node || node.type !== 'split' || node.direction !== 'row') return undefined;
@@ -479,12 +514,11 @@ export function detachedFor(page: WorkspacePage, selection: ViewTarget): Panel |
 const leaf = (panel: Panel, minimized = false): Group => ({ type: 'group', id: groupID(panel.id), panels: [panel], active: panel.id, ...(minimized ? { minimized } : {}) });
 const followPanel = (panelID: string, kind: string): Panel => ({ id: panelID, kind, binding: { mode: 'follow' }, detached: false });
 export const emptyPage = (pageID: string, name: string, selection: ViewTarget, layout: LayoutNode | null): WorkspacePage => ({ id: pageID, name, selection: { ...selection }, layout, floating: [], popouts: [], detached: [] });
-/** The Work page: the workspace list (with the agents list as a tab beside it), the conversation, and command output below it, minimized until a run starts. */
+/** The Work page: the workspace list above the agents list, the conversation, and command output below it, minimized until a run starts. */
 export function defaultLayout(selection = emptyTarget()): WorkspaceLayout {
   const panel = (panelID: string, kind: string) => followPanel(selection.collectionId ? `${selection.collectionId}-${panelID}` : panelID, kind);
-  const workspaces = panel('work-collections', 'collections');
   const layout: LayoutNode = { type: 'split', direction: 'row', sizes: [0.2, 0.8], children: [
-    { ...leaf(workspaces), panels: [workspaces, panel('work-agents', 'agents')] },
+    { type: 'split', direction: 'column', sizes: [1 - AGENTS_SHARE, AGENTS_SHARE], children: [leaf(panel('work-collections', 'collections')), leaf(panel('work-agents', 'agents'))] },
     { type: 'split', direction: 'column', sizes: [0.62, 0.38], children: [leaf(panel('work-chat', 'chat')), leaf(panel('work-console', 'console'), true)] },
   ] };
   return { version: 2, selectedPage: 'work', pages: [emptyPage('work', 'Work', selection, layout)] };
@@ -512,9 +546,13 @@ export function redockPopouts(page: WorkspacePage): WorkspacePage {
   for (const group of page.popouts) layout = dockAt(layout, group, 'right', 0.3, group.panels[0]?.kind);
   return { ...page, layout, popouts: [] };
 }
-/** What loading a saved page fixes: windows that are gone, duplicate chats. */
+/** What loading a saved page fixes: windows that are gone, duplicate chats, Agents hidden behind Workspaces. */
 export function repairLayout(layout: WorkspaceLayout): WorkspaceLayout {
-  const pages = layout.pages.map(page => { const next = dedupeChats(redockPopouts(page), page.selection); return next.layout === page.layout && next.floating === page.floating && next.popouts === page.popouts && next.detached === page.detached ? page : next; });
+  const pages = layout.pages.map(page => {
+    const docked = redockPopouts(page), stacked = stackSidebar(docked.layout);
+    const next = dedupeChats(stacked === docked.layout ? docked : { ...docked, layout: stacked }, page.selection);
+    return next.layout === page.layout && next.floating === page.floating && next.popouts === page.popouts && next.detached === page.detached ? page : next;
+  });
   return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
 }
 
@@ -525,6 +563,8 @@ export function repairLayout(layout: WorkspaceLayout): WorkspaceLayout {
  */
 export function adoptGeometry(to: WorkspaceLayout, from: WorkspaceLayout): WorkspaceLayout {
   const same = (a: LayoutNode | null, b: LayoutNode | null): LayoutNode | null => {
+    // A stacked sidebar has the shape of a content column: never one for the other.
+    if (a && b && isSidebar(a) !== isSidebar(b)) return a;
     if (a?.type === 'split' && b?.type === 'split' && a.direction === b.direction && a.children.length === b.children.length) return { ...a, sizes: [...b.sizes], children: a.children.map((child, index) => same(child, b.children[index])!) };
     if (a?.type === 'group' && b?.type === 'group' && !!a.minimized !== !!b.minimized) return { ...a, minimized: b.minimized };
     return a;
@@ -647,10 +687,10 @@ export function migrateV1(value: Record<string, unknown>): WorkspaceLayout {
     };
     // Normalizing drops the gaps and merges splits that go the same way.
     let layout = normalize(convert(page.layout));
-    // The workspace list gains the agents list as a tab, as new pages have it.
+    // The workspace list gains the agents list under it, as new pages have it.
     const list = groups(layout).find(group => group.panels.length === 1 && group.panels[0].kind === 'collections');
     const agentsID = list ? `${list.panels[0].id}-agents`.slice(0, 128) : '';
-    if (list && !all.some(panel => panel.id === agentsID || panel.kind === 'agents')) layout = mapGroups(layout, group => group === list ? { ...group, panels: [...group.panels, followPanel(agentsID, 'agents')] } : group);
+    if (list && !all.some(panel => panel.id === agentsID || panel.kind === 'agents')) layout = stackSidebar(mapGroups(layout, group => group === list ? { ...group, panels: [...group.panels, followPanel(agentsID, 'agents')] } : group));
     return { ...emptyPage(page.id, page.name, page.selection, layout), detached: away.map(({ collapsed: _, ...panel }) => panel) };
   }) };
 }

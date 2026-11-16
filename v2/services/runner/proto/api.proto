@@ -63,6 +63,11 @@ service RunnerService {
   rpc OpenSession(OpenSessionRequest) returns (SessionResponse);
   rpc OpenAssistant(OpenAssistantRequest) returns (SessionResponse);
   rpc RenameConversation(RenameConversationRequest) returns (SessionResponse);
+  // Pin or unpin a conversation (any of its attempts' IDs). The owner's only.
+  rpc PinConversation(PinConversationRequest) returns (SessionResponse);
+  // Archive a conversation, or bring it back. Nothing is stopped or deleted:
+  // its agent keeps any turn in progress, and History still lists it.
+  rpc ArchiveConversation(ArchiveConversationRequest) returns (SessionResponse);
   rpc ListWorkspaceChanges(WorkspaceChangesRequest) returns (WorkspaceChanges);
   rpc ReadWorkspaceDiff(WorkspaceDiffRequest) returns (WorkspaceDiff);
   rpc ReadWorkspaceFile(WorkspaceFileRequest) returns (WorkspaceFile);
@@ -656,6 +661,8 @@ message AgentActivity {
 }
 message ListHistoryRequest { uint32 limit = 1; uint32 offset = 2; optional string collection_id = 3; string search = 4; }
 message RenameConversationRequest { string session_id = 1; string title = 2; }
+message PinConversationRequest { string session_id = 1; bool pinned = 2; }
+message ArchiveConversationRequest { string session_id = 1; bool archived = 2; }
 message WorkspaceChangesRequest {
   string collection_id = 1;
   // Ref to compare the branch's commits with (e.g. main, origin/main); empty is the commit the workspace started from.
@@ -876,6 +883,12 @@ message Session {
   BrowserState browser = 35;
   // The messages waiting for the turn in progress, oldest first (queued counts them).
   repeated QueuedMessage queued_messages = 36;
+  // When the person pinned the conversation to the top of their lists; 0 when
+  // not pinned. Kept by the Runner, so every window and a paired phone agree.
+  int64 pinned_at_unix_millis = 37;
+  // When the person archived the conversation; 0 when not archived. Archived
+  // conversations leave the working lists but stay in History.
+  int64 archived_at_unix_millis = 38;
 }
 // QueuedMessage is a message accepted while the agent was busy, waiting to be
 // delivered as the next turn.

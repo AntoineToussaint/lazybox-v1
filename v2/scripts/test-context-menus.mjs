@@ -249,7 +249,8 @@ try{
  await page.getByRole('button',{name:/^Inbox/}).click();
  const inbox=page.getByRole('dialog',{name:'Inbox'});
  await open(inbox.locator('.inbox-row').first());
- assert.deepEqual((await labels()).slice(0,2),['Open','Mark as seen']);
+ // The same conversation menu as every list's, then Mark all seen.
+ assert.deepEqual((await labels()).slice(0,4),['Open','Open beside','Open in new window','Peek']);assert.ok((await labels()).includes('Mark as read'));assert.ok((await labels()).includes('Mark all seen'));
  const inMenu=await menu.evaluate(node=>!!node.closest('dialog'));assert.ok(inMenu,'the menu is above the modal inbox, not behind it');
  await item('Open').click();await expect(inbox).toHaveCount(0);
 

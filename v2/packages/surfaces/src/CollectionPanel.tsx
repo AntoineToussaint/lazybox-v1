@@ -16,6 +16,9 @@ import type { ViewTarget } from "./workspace-model";
 import { Icon } from "./Icons";
 import { useGitSummaries } from "./useGitSummaries";
 import { featuredConversation, rowGit } from "./workspace-row-model";
+import { isArchivedAway } from "./agents-model";
+import { readPreference, writePreference } from "./view-state";
+import type { ViewStateStore } from "@lazybox/platform";
 
 export function CollectionPanel({
   target,
@@ -26,6 +29,7 @@ export function CollectionPanel({
   refresh,
   chooseRepositoryFolder,
   onNewConversation,
+  viewState,
 }: {
   target: ViewTarget;
   onTarget(target: ViewTarget): void;
@@ -36,12 +40,21 @@ export function CollectionPanel({
   refresh(): void;
   chooseRepositoryFolder?(): Promise<string | null>;
   onNewConversation?(workspaceId: string): void;
+  /** Where folded workspaces are remembered. */
+  viewState?: ViewStateStore;
 }) {
   const { info, api, error: connectionError } = useRunner();
   const index = useConversationIndex();
   // An agent finishing (or starting) a turn changes its worktree: refresh the rows' git state soon after.
   const git = useGitSummaries(index.sessions.map(s => `${s.id}:${s.busy ? 1 : 0}:${s.status}`).join(","));
   const [deletingConversation, setDeletingConversation] = useState<Session>();
+  // Each workspace lists every conversation under it; a fold keeps one quiet.
+  const [folded, setFolded] = useState<string[]>(() => { try { const value: unknown = JSON.parse(readPreference(viewState, "workspaces.folded") || "[]"); return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string").slice(0, 256) : []; } catch { return []; } });
+  const toggleFold = (id: string) => {
+    const next = folded.includes(id) ? folded.filter((value) => value !== id) : [...folded, id];
+    setFolded(next);
+    try { writePreference(viewState, "workspaces.folded", JSON.stringify(next)); } catch { /* a convenience */ }
+  };
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
@@ -89,7 +102,7 @@ export function CollectionPanel({
     (value) => value.id === target.collectionId,
   );
   const choose = (collection: Collection) => {
-    const rows = index.sessions.filter((s) => s.collectionId === collection.id && isWorkConversation(s));
+    const rows = index.sessions.filter((s) => s.collectionId === collection.id && isWorkConversation(s) && !isArchivedAway(s));
     const sessionId =
       index.complete && rows.length === 1
         ? rows[0].id
@@ -174,7 +187,7 @@ export function CollectionPanel({
       <nav className="collection-list" aria-label="Workspaces">
         {collections.map((collection) => {
           const rows = index.sessions.filter(
-            (s) => s.collectionId === collection.id && isWorkConversation(s),
+            (s) => s.collectionId === collection.id && isWorkConversation(s) && !isArchivedAway(s),
           );
           const single =
             index.complete && rows.length === 1 ? rows[0] : undefined;
@@ -208,8 +221,9 @@ export function CollectionPanel({
                 onAdd={() => setAddingTo(collection)}
                 onManage={() => setManaging(collection)}
                 onSaved={refresh}
+                fold={rows.length > 1 ? { folded: folded.includes(collection.id), count: rows.length, toggle: () => toggleFold(collection.id) } : undefined}
               />
-              {target.collectionId === collection.id && rows.length > 1 && (
+              {rows.length > 1 && !folded.includes(collection.id) && (
                 <div className="workspace-conversations">
                   <ConversationList
                     sessions={rows}

@@ -70,7 +70,10 @@ conversation rather than a message. A message that merely starts with a slash
 
 ![An agent's question as numbered option cards, with Other… and Send answer](../images/chat-decisions.webp)
 
-When the agent needs you, the conversation shows a card and the inbox counts it.
+When the agent needs you, the conversation shows a card, the inbox counts it,
+and it moves to the top of the **Agents** list under Workspaces. Right-click
+any conversation, in any list, for Open beside, Peek, Rename, Pin, Mark as
+read, Stop, Archive and Delete.
 
 **Questions** show their options as cards: click, or press `1`–`9`; `↑` `↓`,
 `Space` and `Enter` work too. *Other…* lets you answer in your own words.

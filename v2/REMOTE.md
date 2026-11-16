@@ -23,7 +23,9 @@ Hub's device identity in [device experience](DEVICE_EXPERIENCE.md).
    will be able to do, proposes a name ("iPhone"), and **Pair this phone**
    creates the phone's key. Both screens then show the same key fingerprint.
 4. **The phone's inbox** groups every conversation by what it needs — needs
-   input, failed, ready for review, working, done — across workspaces. A
+   input, failed, ready for review, working, done — across workspaces, with
+   the conversations pinned on the computer first (pins are the Runner's, on
+   the conversation; the phone reads them and cannot change them). A
    conversation shows its transcript, its pending approval or question with
    Allow/Decline or an answer form, and a composer above the keyboard. Back
    (button or gesture) returns to the inbox. Interrupt is there while a turn runs.

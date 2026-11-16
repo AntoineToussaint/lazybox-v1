@@ -127,9 +127,13 @@ try{
  await expect(git.locator('.workspace-git-more')).toHaveText('+1');
  await expect(git.locator('[data-git-pull=draft]')).toHaveText('#13');
 
- // A second conversation: the row speaks for the one at work and counts the rest.
+ // A second conversation: both are listed under the card, one line each. Folded,
+ // the row speaks for the one at work and counts the rest, at the same height as every row.
  fixture.sessions.push({...structuredClone({...alphaSession,agents:undefined}),id:'alpha-second',title:'Write the release notes',status:'',busy:false,closed:true,createdAtUnixMillis:'1'});
  await page.reload();
+ await expect(alpha.locator('xpath=..').locator('.workspace-conversations .conversation-row')).toHaveCount(2);
+ await expect(agent).toHaveCount(0);
+ await alpha.getByRole('button',{name:/^Fold the 2 conversations/}).click();
  await expect(agent.locator('.workspace-agent-label')).toHaveText('Harden the request handler against slow clients');
  await expect(agent.locator('.workspace-agent-more')).toHaveText('+1');
  measured=await heights();

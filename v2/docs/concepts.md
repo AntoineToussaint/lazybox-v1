@@ -61,8 +61,10 @@ settings.
   and can be changed while it runs.
 - **States** you will see everywhere — sidebar, inbox, phone, CLI: *needs
   input*, *failed*, *working*, *ready for review*, *done*.
-- **The inbox** (`]] i`, or **Inbox** in the header) lists every conversation
-  that needs you across workspaces; `⌘J` jumps to the next one.
+- **The inbox** (`]] i`, or **Inbox** in the header) is the **Agents** list
+  under Workspaces: every conversation across workspaces, the ones that need
+  you first, always on screen. `⌘J` jumps to the next one. Pins are kept by
+  the Runner, so your phone shows them too.
 
   ![The inbox: approvals and questions first, then failures and finished work](images/inbox.webp)
 - Each turn is **checkpointed**: you can see what a turn changed and revert it.

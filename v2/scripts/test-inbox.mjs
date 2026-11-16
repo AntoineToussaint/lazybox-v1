@@ -69,6 +69,16 @@ try {
   await expect(reviewRow).toHaveAttribute('data-unread', 'review');
   await expect(reviewRow.locator('.session-dot.unread')).toBeVisible();
 
+  // The Inbox is the Agents panel under Workspaces: the entry brings it forward, its first row focused.
+  const agentsList = page.locator('.panel-agents');
+  await inboxButton.click();
+  await expect(agentsList.locator('.agent-row').first()).toBeFocused();
+  await expect(agentsList.locator('.agent-row').first()).toContainText('Bump dependencies');
+  await expect(page.getByRole('dialog', {name: 'Inbox'})).toHaveCount(0);
+  // With the Agents panel closed, the Inbox is a list over the page.
+  await page.locator('.dv-tab').filter({has: page.locator('[data-kind="agents"]')}).locator('.dock-tab-close').click();
+  await expect(agentsList).toHaveCount(0);
+
   // The inbox, grouped by need, newest first, with workspace, agent and last line.
   await inboxButton.click();
   const inbox = page.getByRole('dialog', {name: 'Inbox'});
@@ -106,6 +116,13 @@ try {
   await expect(page.getByRole('combobox', {name: 'Workspace', exact: true})).toHaveValue('beta');
   await expect(page.getByRole('combobox', {name: 'Session', exact: true})).toHaveValue('failing-session');
   await expect(inboxButton).toHaveAccessibleName('Inbox, 2 conversations need attention', {timeout: 10_000});
+  // Beta's page has its own Agents panel: the Inbox brings it forward; it marks the open conversation.
+  await page.locator('.inbox-action').click();
+  await expect(inbox).toHaveCount(0);
+  await expect(agentsList.locator('li[data-state="failed"]')).not.toHaveAttribute('data-unread', /.+/);
+  await expect(agentsList.locator('li[data-state="failed"] .agent-row[aria-current]')).toHaveCount(1);
+  await page.locator('.dv-tab').filter({has: page.locator('[data-kind="agents"]')}).locator('.dock-tab-close').click();
+  await expect(agentsList).toHaveCount(0);
   await page.locator('.inbox-action').click();
   await expect(inbox.locator('.group-failed .inbox-item')).not.toHaveAttribute('data-unread', /.+/);
   await expect(inbox.locator('.group-failed .inbox-row[aria-current]')).toHaveCount(1);

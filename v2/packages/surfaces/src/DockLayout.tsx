@@ -111,11 +111,16 @@ const parents = (node: LayoutNode | null, into = new Map<string, 'row' | 'column
   return into;
 };
 
-/** The page's sidebar group and its side: at an edge of the root row, or alone (beside the empty content area). */
-const sidebarOf = (layout: LayoutNode | null): { group: Group; at: 'first' | 'last' } | undefined => {
-  if (layout && isSidebar(layout)) return { group: layout as Group, at: 'first' };
+/**
+ * The page's sidebar and its side: at an edge of the root row, or alone
+ * (beside the empty content area). It is one group, or Workspaces stacked
+ * over Agents: `group` is its first (its width is the sidebar's), `ids` all.
+ */
+const sidebarOf = (layout: LayoutNode | null): { group: Group; ids: string[]; at: 'first' | 'last' } | undefined => {
+  const of = (node: LayoutNode, at: 'first' | 'last') => { const all = groups(node); return { group: all[0], ids: all.map(group => group.id), at }; };
+  if (layout && isSidebar(layout)) return of(layout, 'first');
   const at = sidebarAt(layout);
-  return at && layout?.type === 'split' ? { group: layout.children[at === 'first' ? 0 : layout.children.length - 1] as Group, at } : undefined;
+  return at && layout?.type === 'split' ? of(layout.children[at === 'first' ? 0 : layout.children.length - 1], at) : undefined;
 };
 
 /**
@@ -178,12 +183,16 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const applyConstraints = () => {
     const dock = api.current, page = latest.current.page;
     if (!dock) return;
-    const sidebar = sidebarOf(page.layout)?.group;
+    const found = sidebarOf(page.layout), sidebar = found?.group;
     const direction = parents(page.layout), states = groupStates(page);
     silently(() => {
       for (const group of dock.groups) {
         const saved = states.get(group.id), minimized = !!saved?.minimized && direction.get(group.id) === 'column';
-        if (sidebar && group.id === sidebar.id) group.api.setConstraints({ minimumWidth: SIDEBAR_MIN, maximumWidth: SIDEBAR_MAX, minimumHeight: 120, maximumHeight: BIG });
+        // A stacked sidebar (Workspaces over Agents) gets no maximum width: with one, dockview capped the
+        // whole grid at it after some rebuilds (a sidebar-right page, then a sidebar-left one;
+        // test-sidebar-stability). Its width still stays within SIDEBAR_MAX: a drag past it is clamped
+        // (clampSidebar) and set back by this function.
+        if (found?.ids.includes(group.id)) group.api.setConstraints({ minimumWidth: SIDEBAR_MIN, maximumWidth: found.ids.length > 1 ? BIG : SIDEBAR_MAX, minimumHeight: 120, maximumHeight: BIG });
         else {
           // No narrower than its widest panel needs (a conversation 360px, Files 200px…).
           const minimumWidth = Math.max(160, ...(saved?.panels || []).map(panel => minWidthOf(panel.kind)));
@@ -298,7 +307,8 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     const placeholder = dock.getPanel(EMPTY_CONTENT), need = needsEmptyContent(target);
     silently(() => {
       if (need && !placeholder) {
-        const sidebar = sidebarOf(target.layout)?.group.id;
+        // Right of a sidebar group; a stacked sidebar takes the whole left, so right of everything.
+        const found = sidebarOf(target.layout), sidebar = found?.ids.length === 1 ? found.group.id : undefined;
         dock.addPanel({ id: EMPTY_CONTENT, component: PANEL_COMPONENT, tabComponent: TAB_COMPONENT, title: '', position: sidebar && dock.getGroup(sidebar) ? { referenceGroup: sidebar, direction: 'right' } : { direction: 'right' } });
       }
       if (!need && placeholder) dock.removePanel(placeholder);
@@ -328,7 +338,9 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const decorateSashes = () => {
     const dock = api.current, root = container.current;
     if (!dock || !root) return;
-    const page = latest.current.page, sidebarID = sidebarOf(page.layout)?.group.id || '';
+    const page = latest.current.page, sidebarIDs = sidebarOf(page.layout)?.ids || [];
+    // A view is the sidebar when it holds exactly the sidebar's groups (all of a stacked one).
+    const isSidebarView = (found: { id: string }[]) => found.length === sidebarIDs.length && found.length > 0 && found.every(group => sidebarIDs.includes(group.id));
     for (const sash of root.querySelectorAll<HTMLElement>('.dv-sash')) {
       const split = sash.closest('.dv-split-view-container'), views = split ? [...split.querySelectorAll<HTMLElement>(':scope > .dv-view-container > .dv-view')] : [];
       const index = [...(sash.parentElement?.children || [])].indexOf(sash);
@@ -337,7 +349,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
       const vertical = split!.classList.contains('dv-horizontal');
       const groupIn = (view: HTMLElement) => dock.groups.filter(group => view.contains(group.element));
       const label = (view: HTMLElement) => groupIn(view).map(group => group.activePanel?.title).filter(Boolean).join(', ') || 'panel';
-      const sidebar = groupIn(first).length === 1 && groupIn(first)[0].id === sidebarID ? 'first' : groupIn(second).length === 1 && groupIn(second)[0].id === sidebarID ? 'second' : '';
+      const sidebar = isSidebarView(groupIn(first)) ? 'first' : isSidebarView(groupIn(second)) ? 'second' : '';
       const extent = (view: HTMLElement) => vertical ? view.getBoundingClientRect().width : view.getBoundingClientRect().height;
       sash.tabIndex = 0;
       sash.setAttribute('role', 'separator');

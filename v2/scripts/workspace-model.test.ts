@@ -3,8 +3,10 @@ import { SessionSchema } from '@lazybox/protocol';
 import { mergeConversations } from '../packages/surfaces/src/conversation-model.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activatePanel, adoptGeometry, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedChats, detachedFor, largestGroup, returnDetached, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapGroups, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
+import { activatePanel, adoptGeometry, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedChats, detachedFor, largestGroup, returnDetached, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapGroups, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, sidebarGroupIDs, minimumWidth, fitWidth, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
+import { applyTemplate, builtinPresets, parseSavedLayouts } from '../packages/surfaces/src/layout-presets.ts';
 
+const sidebar = ['column', ['collections', 'agents']];
 const kinds = (node: LayoutNode | null): unknown => !node ? null : node.type === 'group' ? node.panels.map(panel => panel.kind).join('+') : [node.direction, node.children.map(kinds)];
 const sizes = (node: LayoutNode | null): unknown => !node || node.type === 'group' ? null : [node.sizes, node.children.map(sizes)];
 const work = (selection = emptyTarget()) => defaultLayout(selection).pages[0];
@@ -14,9 +16,9 @@ const follow = (id: string, kind: string): Panel => ({ id, kind, binding: { mode
 let counter = 0; const id = () => `new-${++counter}`;
 const reparse = (page: WorkspacePage) => parseLayout(JSON.stringify({ version: 2, selectedPage: page.id, pages: [page] })).pages[0];
 
-test('the default page: workspaces with agents beside them, the conversation, output minimized below', () => {
+test('the default page: workspaces above agents, both in view, the conversation, output minimized below', () => {
   const page = work({ collectionId: 'alpha', sessionId: 'session', commandId: '' });
-  assert.deepEqual(kinds(page.layout), ['row', ['collections+agents', ['column', ['chat', 'console']]]]);
+  assert.deepEqual(kinds(page.layout), ['row', [sidebar, ['column', ['chat', 'console']]]]);
   assert.equal(sidebarAt(page.layout), 'first');
   assert.equal(groups(page.layout).find(group => group.panels[0].kind === 'console')!.minimized, true);
   const restored = parseLayout(JSON.stringify(defaultLayout({ collectionId: 'alpha', sessionId: 'session', commandId: '' })));
@@ -40,9 +42,9 @@ test('normalizing drops empty groups, unwraps lone children, merges same-directi
 test('docking moves a panel to an edge of the content area; the sidebar stays at the page edge', () => {
   const layout = work().layout, output = panels(layout).find(panel => panel.kind === 'console')!;
   assert.equal(dockedSide(layout, output.id), 'bottom');
-  assert.deepEqual(kinds(dockPanel(layout, output.id, 'right')), ['row', ['collections+agents', 'chat', 'console']]);
-  assert.deepEqual(kinds(dockPanel(layout, output.id, 'left')), ['row', ['collections+agents', 'console', 'chat']]);
-  assert.deepEqual(kinds(dockPanel(layout, output.id, 'top')), ['row', ['collections+agents', ['column', ['console', 'chat']]]]);
+  assert.deepEqual(kinds(dockPanel(layout, output.id, 'right')), ['row', [sidebar, 'chat', 'console']]);
+  assert.deepEqual(kinds(dockPanel(layout, output.id, 'left')), ['row', [sidebar, 'console', 'chat']]);
+  assert.deepEqual(kinds(dockPanel(layout, output.id, 'top')), ['row', [sidebar, ['column', ['console', 'chat']]]]);
   for (const side of ['left', 'right', 'top', 'bottom'] as const) {
     const docked = dockPanel(layout, output.id, side);
     assert.equal(dockedSide(docked, output.id), side);
@@ -51,7 +53,7 @@ test('docking moves a panel to an edge of the content area; the sidebar stays at
   }
   // Content beside a sidebar: a bottom dock spans the content, not the sidebar.
   const wide = insertDocked(layout, follow('t', 'terminal'), 'right');
-  assert.deepEqual(kinds(insertDocked(wide, follow('o', 'usage'), 'bottom')), ['row', ['collections+agents', ['column', [['row', [['column', ['chat', 'console']], 'terminal']], 'usage']]]]);
+  assert.deepEqual(kinds(insertDocked(wide, follow('o', 'usage'), 'bottom')), ['row', [sidebar, ['column', [['row', [['column', ['chat', 'console']], 'terminal']], 'usage']]]]);
   // The workspace list itself docks against the whole page.
   const list = panels(layout).find(panel => panel.kind === 'collections')!;
   assert.deepEqual(kinds(dockPanel(layout, list.id, 'right')), ['row', ['agents', ['column', ['chat', 'console']], 'collections']]);
@@ -64,7 +66,7 @@ test('showing a panel docks it once where its kind goes, and brings it forward w
   assert.equal(defaultDock('terminal'), 'right'); assert.equal(defaultDock('console'), 'bottom');
   const opened = showPanel(page, 'terminal', 'right', id);
   assert.equal(opened.added, true);
-  assert.deepEqual(kinds(opened.page.layout), ['row', ['collections+agents', ['column', ['chat', 'console']], 'terminal']]);
+  assert.deepEqual(kinds(opened.page.layout), ['row', [sidebar, ['column', ['chat', 'console']], 'terminal']]);
   // As a background tab of another group, then shown again: it comes to the front, no duplicate.
   const tabbed = { ...opened.page, layout: splitBeside(removePanel(opened.page.layout, opened.id), groups(opened.page.layout)[1].id, follow(opened.id, 'terminal'), 'right') };
   const again = showPanel(tabbed, 'terminal', 'left', id);
@@ -79,7 +81,7 @@ test('showing a panel docks it once where its kind goes, and brings it forward w
 test('Files and the editor pair up: one opens beside the other', () => {
   const page = work(), editor = showPanel(page, 'editor', 'right', id).page;
   const files = showCodePanel(editor, 'files', 'right', id);
-  assert.deepEqual(kinds(files.page.layout), ['row', ['collections+agents', ['column', ['chat', 'console']], 'files', 'editor']]);
+  assert.deepEqual(kinds(files.page.layout), ['row', [sidebar, ['column', ['chat', 'console']], 'files', 'editor']]);
   assert.equal(showCodePanel(files.page, 'editor', 'right', id).added, false);
 });
 
@@ -195,6 +197,11 @@ test('switching workspace adopts the current shares where the arrangement matche
   assert.deepEqual(panels(adopted.pages[0].layout).map(panel => panel.id), panels(to.pages[0].layout).map(panel => panel.id), 'the target keeps its own panels');
   const different = { ...to, pages: [{ ...to.pages[0], layout: insertDocked(to.pages[0].layout, follow('x', 'terminal'), 'right') }] };
   assert.deepEqual(sizes(adoptGeometry(different, resized).pages[0].layout), sizes(different.pages[0].layout), 'a different arrangement keeps its own shares');
+  // The sidebar on the other side has the shape of the content column: neither takes the other's shares or minimized output.
+  const mirrored = { ...from, pages: [{ ...from.pages[0], layout: { ...(from.pages[0].layout as Extract<LayoutNode, { type: 'split' }>), sizes: [0.6, 0.4], children: [...(from.pages[0].layout as Extract<LayoutNode, { type: 'split' }>).children].reverse() } }] };
+  const kept = adoptGeometry(to, mirrored).pages[0].layout as Extract<LayoutNode, { type: 'split' }>;
+  assert.deepEqual(sizes(kept.children[1]), sizes((to.pages[0].layout as Extract<LayoutNode, { type: 'split' }>).children[1]));
+  assert.equal(groups(kept).find(group => group.panels[0].kind === 'console')!.minimized, true);
 });
 
 test('invalid versions, oversized data, duplicate ids, unsupported properties, and detached launchers are rejected', () => {
@@ -205,10 +212,10 @@ test('invalid versions, oversized data, duplicate ids, unsupported properties, a
     (layout: any) => { layout.pages.push(structuredClone(layout.pages[0])); },
     (layout: any) => { layout.pages[0].layout.sizes = [2, 1]; },
     (layout: any) => { layout.pages[0].layout.sizes = [0.5]; },
-    (layout: any) => { layout.pages[0].layout.children[0].active = 'missing'; },
-    (layout: any) => { layout.pages[0].layout.children[0].panels[0].detached = true; },
-    (layout: any) => { layout.pages[0].layout.children[0].panels.push(structuredClone(layout.pages[0].layout.children[0].panels[0])); },
-    (layout: any) => { layout.pages[0].floating = [{ group: layout.pages[0].layout.children[0], box: { width: 10, height: 10, left: 0, top: 0 } }]; },
+    (layout: any) => { layout.pages[0].layout.children[0].children[0].active = 'missing'; },
+    (layout: any) => { layout.pages[0].layout.children[0].children[0].panels[0].detached = true; },
+    (layout: any) => { layout.pages[0].layout.children[0].children[0].panels.push(structuredClone(layout.pages[0].layout.children[0].children[0].panels[0])); },
+    (layout: any) => { layout.pages[0].floating = [{ group: layout.pages[0].layout.children[0].children[0], box: { width: 10, height: 10, left: 0, top: 0 } }]; },
     (layout: any) => { layout.pages[0].detached = [{ id: 'x', kind: 'chat', binding: { mode: 'follow' }, detached: true }]; },
   ]) { const layout = defaultLayout(); mutate(layout); assert.throws(() => parseLayout(JSON.stringify(layout)), String(mutate)); }
   assert.throws(() => parseLayout('x'.repeat(193 << 10)));
@@ -246,11 +253,11 @@ const v1 = '{"version":1,"selectedPage":"work","pages":[{"id":"work","name":"Wor
 test('version 1 layouts migrate: same panels, places and sizes; collapsed output minimized; chats in windows kept', () => {
   const layout = parseLayout(v1), page = layout.pages[0];
   assert.equal(layout.version, 2); assert.equal(layout.selectedPage, 'work'); assert.equal(layout.pages.length, 2);
-  assert.deepEqual(JSON.stringify(kinds(page.layout)), JSON.stringify(['column', [['row', ['collections+agents', ['column', ['chat', 'console']]]], 'terminal']]));
-  assert.deepEqual(sizes(page.layout), [[0.6, 0.4], [[[0.22, 0.78], [null, [[0.72, 0.28], [null, null]]]], null]]);
+  assert.deepEqual(JSON.stringify(kinds(page.layout)), JSON.stringify(['column', [['row', [sidebar, ['column', ['chat', 'console']]]], 'terminal']]));
+  assert.deepEqual(sizes(page.layout), [[0.6, 0.4], [[[0.22, 0.78], [[[0.55, 0.45], [null, null]], [[0.72, 0.28], [null, null]]]], null]]);
   assert.equal(groups(page.layout).find(group => group.panels[0].kind === 'console')!.minimized, true);
   assert.deepEqual(page.detached.map(panel => [panel.id, panel.detached]), [['away', true]], 'the chat in its own window is kept, out of the page');
-  assert.ok(panels(page.layout).some(panel => panel.id === 'alpha-work-collections-agents'), 'the sidebar gains the agents tab');
+  assert.ok(panels(page.layout).some(panel => panel.id === 'alpha-work-collections-agents'), 'the sidebar gains the agents list, under the workspaces');
   assert.deepEqual(kinds(layout.pages[1].layout), 'changes');
   // Migrated pages are ordinary version 2 pages from then on.
   assert.deepEqual(parseLayout(JSON.stringify(layout)), layout);
@@ -261,6 +268,37 @@ test('version 1 layouts migrate: same panels, places and sizes; collapsed output
   // A version 1 layout that was invalid is still refused, never half-read.
   assert.throws(() => parseLayout(v1.replace('"ratio":0.6', '"ratio":1')));
   assert.throws(() => parseLayout(v1.replace('"version":1', '"version":1,"extra":true')));
+});
+
+test('a saved page with Agents tabbed behind Workspaces gains the stack; nothing else moves', () => {
+  const list = follow('list', 'collections'), agents = follow('agents', 'agents'), chat = follow('chat', 'chat'), terminal = follow('t', 'terminal');
+  const tabbed: WorkspacePage = { ...work(), layout: { type: 'split', direction: 'row', sizes: [0.25, 0.5, 0.25], children: [
+    { type: 'group', id: 'g-list', panels: [list, agents], active: 'agents' }, { type: 'group', id: 'g-chat', panels: [chat], active: 'chat' }, { type: 'group', id: 'g-t', panels: [terminal], active: 't' }] } };
+  const repaired = repairLayout({ version: 2, selectedPage: tabbed.id, pages: [tabbed] }).pages[0];
+  assert.deepEqual(kinds(repaired.layout), ['row', [sidebar, 'chat', 'terminal']]);
+  assert.deepEqual(sizes(repaired.layout), [[0.25, 0.5, 0.25], [[[0.55, 0.45], [null, null]], null, null]]);
+  assert.equal(sidebarAt(repaired.layout), 'first');
+  assert.deepEqual(sidebarGroupIDs(repaired.layout), ['g-list', 'g-agents'], 'the list keeps its group; agents gets its own');
+  assert.doesNotThrow(() => reparse(repaired));
+  // Already stacked, or Agents elsewhere: unchanged.
+  const page = work();
+  assert.equal(repairLayout({ version: 2, selectedPage: page.id, pages: [page] }).pages[0], page);
+  const apart: WorkspacePage = { ...tabbed, layout: { ...tabbed.layout as Extract<LayoutNode, { type: 'split' }>, children: [{ type: 'group', id: 'g-list', panels: [list], active: 'list' }, { type: 'group', id: 'g-chat', panels: [chat, agents], active: 'chat' }, { type: 'group', id: 'g-t', panels: [terminal], active: 't' }] } };
+  assert.deepEqual(kinds(repairLayout({ version: 2, selectedPage: apart.id, pages: [apart] }).pages[0].layout), ['row', ['collections', 'chat+agents', 'terminal']]);
+  // The stack is the sidebar: one fixed width, never merged into tabs when the window narrows.
+  assert.equal(minimumWidth(page.layout, 280), 280 + 360);
+  assert.ok(groups(fitWidth(insertDocked(page.layout, follow('e', 'editor'), 'right'), 700, 280)).some(group => group.panels[0].kind === 'agents' && group.panels.length === 1));
+});
+
+test('every built-in layout stacks Workspaces above Agents; a saved one gains the stack', () => {
+  for (const preset of builtinPresets) {
+    const left = preset.layout.type === 'split' ? preset.layout.children[0] : preset.layout;
+    assert.deepEqual(left, { type: 'split', direction: 'column', sizes: [0.55, 0.45], children: [{ type: 'group', kinds: ['collections'] }, { type: 'group', kinds: ['agents'] }] }, preset.name);
+    const applied = applyTemplate(work(), preset.layout, id);
+    assert.equal(sidebarAt(applied.layout), 'first', preset.name);
+  }
+  const saved = parseSavedLayouts(JSON.stringify([{ id: 'mine', name: 'Mine', description: '', layout: { type: 'split', direction: 'row', sizes: [0.3, 0.7], children: [{ type: 'group', kinds: ['agents', 'collections'] }, { type: 'group', kinds: ['chat', 'changes'] }] } }]));
+  assert.deepEqual(saved[0].layout, { type: 'split', direction: 'row', sizes: [0.3, 0.7], children: [{ type: 'split', direction: 'column', sizes: [0.55, 0.45], children: [{ type: 'group', kinds: ['collections'] }, { type: 'group', kinds: ['agents'] }] }, { type: 'group', kinds: ['chat', 'changes'] }] });
 });
 
 test('activating a panel restores its group and brings it to the front', () => {

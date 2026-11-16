@@ -4,7 +4,7 @@
  * applies to any workspace). Applying one keeps every panel the page already
  * has of a kind it uses, so conversations, drafts and shells carry over.
  */
-import { groupID, normalize, shownPanels, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
+import { AGENTS_SHARE, groupID, normalize, shownPanels, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
 
 export type TemplateNode = { type: 'group'; kinds: string[]; minimized?: boolean } | { type: 'split'; direction: 'row' | 'column'; sizes: number[]; children: TemplateNode[] };
 export type LayoutPreset = { id: string; name: string; description: string; layout: TemplateNode };
@@ -13,13 +13,16 @@ const g = (...kinds: string[]): TemplateNode => ({ type: 'group', kinds });
 const row = (sizes: number[], ...children: TemplateNode[]): TemplateNode => ({ type: 'split', direction: 'row', sizes, children });
 const column = (sizes: number[], ...children: TemplateNode[]): TemplateNode => ({ type: 'split', direction: 'column', sizes, children });
 
+/** Every preset's left column: Workspaces above Agents, both always in view. */
+const sidebar = column([1 - AGENTS_SHARE, AGENTS_SHARE], g('collections'), g('agents'));
+
 export const DEFAULT_PRESET = 'chat-focus';
 export const builtinPresets: readonly LayoutPreset[] = [
-  { id: 'chat-focus', name: 'Chat focus', description: 'The conversation, with command output below when a command runs', layout: row([0.2, 0.8], g('collections', 'agents'), column([0.62, 0.38], g('chat'), { type: 'group', kinds: ['console'], minimized: true })) },
-  { id: 'chat-changes', name: 'Chat + Changes', description: 'Talk on the left, review what changed on the right', layout: row([0.2, 0.44, 0.36], g('collections', 'agents'), g('chat'), g('changes')) },
-  { id: 'chat-editor-terminal', name: 'Chat + Editor + Terminal', description: 'Code beside the conversation, a shell under it', layout: row([0.18, 0.34, 0.48], g('collections', 'agents'), g('chat'), column([0.64, 0.36], g('editor'), g('terminal'))) },
-  { id: 'review', name: 'Review', description: 'Changes, the file, and the conversation side by side', layout: row([0.16, 0.32, 0.3, 0.22], g('collections', 'agents'), g('changes'), g('editor'), g('chat')) },
-  { id: 'everything', name: 'Everything', description: 'Every working panel at once', layout: row([0.16, 0.34, 0.5], g('collections', 'agents'), column([0.7, 0.3], g('chat'), g('console')), column([0.62, 0.38], row([0.3, 0.7], g('files'), g('editor')), g('terminal', 'changes'))) },
+  { id: 'chat-focus', name: 'Chat focus', description: 'The conversation, with command output below when a command runs', layout: row([0.2, 0.8], sidebar, column([0.62, 0.38], g('chat'), { type: 'group', kinds: ['console'], minimized: true })) },
+  { id: 'chat-changes', name: 'Chat + Changes', description: 'Talk on the left, review what changed on the right', layout: row([0.2, 0.44, 0.36], sidebar, g('chat'), g('changes')) },
+  { id: 'chat-editor-terminal', name: 'Chat + Editor + Terminal', description: 'Code beside the conversation, a shell under it', layout: row([0.18, 0.34, 0.48], sidebar, g('chat'), column([0.64, 0.36], g('editor'), g('terminal'))) },
+  { id: 'review', name: 'Review', description: 'Changes, the file, and the conversation side by side', layout: row([0.16, 0.32, 0.3, 0.22], sidebar, g('changes'), g('editor'), g('chat')) },
+  { id: 'everything', name: 'Everything', description: 'Every working panel at once', layout: row([0.16, 0.34, 0.5], sidebar, column([0.7, 0.3], g('chat'), g('console')), column([0.62, 0.38], row([0.3, 0.7], g('files'), g('editor')), g('terminal', 'changes'))) },
 ];
 
 /** The kinds a template places, in reading order. */
@@ -77,6 +80,12 @@ export function parseSavedLayouts(text: string | null): LayoutPreset[] {
     const value: unknown = JSON.parse(text || '[]');
     if (!Array.isArray(value)) return [];
     return value.filter((item): item is LayoutPreset => !!item && typeof item === 'object' && typeof item.id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(item.id) && typeof item.name === 'string' && !!item.name.trim() && item.name.length <= 48 && validTemplate(item.layout))
-      .slice(0, 24).map(item => ({ id: item.id, name: item.name, description: typeof item.description === 'string' ? item.description.slice(0, 120) : '', layout: item.layout }));
+      .slice(0, 24).map(item => ({ id: item.id, name: item.name, description: typeof item.description === 'string' ? item.description.slice(0, 120) : '', layout: stackTemplateSidebar(item.layout) }));
   } catch { return []; }
+}
+/** A saved layout keeps its arrangement, except that Agents tabbed with Workspaces now sits under them. */
+export function stackTemplateSidebar(node: TemplateNode): TemplateNode {
+  if (node.type === 'split') return { ...node, children: node.children.map(stackTemplateSidebar) };
+  const both = node.kinds.includes('collections') && node.kinds.includes('agents') && node.kinds.every(kind => kind === 'collections' || kind === 'agents');
+  return both ? sidebar : node;
 }

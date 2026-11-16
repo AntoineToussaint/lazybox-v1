@@ -67,8 +67,8 @@ try{
   // Every frame for a moment: not only where it settles, but never a flicker on the way.
   const seen=await p.evaluate(async()=>{const out=new Set();const group=()=>document.querySelector('.dv-groupview:has(.dv-tab [data-kind="collections"])');for(let i=0;i<24;i++){await new Promise(r=>requestAnimationFrame(r));const g=group();if(g&&g.getBoundingClientRect().width)out.add(g.getBoundingClientRect().width);}return [...out];});
   assert.deepEqual(seen,[expected],`${where}: the sidebar stays ${expected}px (saw ${seen.join(', ')})`);
-  // And it runs to the bottom of the window: the page is not left short.
-  const bottom=await sidebarGroup.evaluate(n=>[Math.round(n.getBoundingClientRect().bottom),innerHeight]);
+  // And it runs to the bottom of the window: the page is not left short. (Agents stacks under Workspaces: the column is the sidebar.)
+  const bottom=await p.evaluate(()=>[Math.round(Math.max(...[...document.querySelectorAll('.dv-groupview:has(.dv-tab [data-kind="collections"]),.dv-groupview:has(.dv-tab [data-kind="agents"])')].map(n=>n.getBoundingClientRect().bottom))),innerHeight]);
   assert.ok(Math.abs(bottom[0]-bottom[1])<=1,`${where}: the sidebar reaches the bottom of the window (${bottom.join(' vs ')})`);
  };
  const visits=['beta','gamma','delta','epsilon','zeta','eta','alpha','gamma','eta','delta','beta','zeta','alpha'];

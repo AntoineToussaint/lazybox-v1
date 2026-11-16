@@ -15,7 +15,7 @@ import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { useCommandRuns } from './command-runs';
 import { requestTerminal } from './TerminalPanel';
-import { retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, PANEL_LIMIT, type DockSide, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, PANEL_LIMIT, type DockSide, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
@@ -55,6 +55,7 @@ import { showToast } from './toasts';
 import { provideLayoutCommands, type LayoutCommand } from './layout-commands';
 import { applyTemplate, builtinPresets, DEFAULT_PRESET, parseSavedLayouts, templateOf, type LayoutPreset } from './layout-presets';
 import { requestAsk } from './help-requests';
+import { useProvideConversationOpeners } from './conversation-requests';
 import { ReviewActions } from './ReviewActions';
 import { useConversationRequests, useReviewHost } from './review-client';
 
@@ -418,6 +419,38 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     catch (error) { changePage(before); setError(String(error)); }
     finally { setPending(''); }
   };
+  // A conversation row (Workspaces, Agents, the Inbox) opens its conversation
+  // beside the one on screen or in its own window, and the Inbox shows the
+  // Agents panel: ConversationActions and Inbox ask through these.
+  useProvideConversationOpeners({
+    beside: target => {
+      const live = livePage(), chats = shownPanels(live).filter(panel => panel.kind === 'chat' && !panel.detached);
+      const already = chats.find(panel => resolveTarget(panel, live.selection).sessionId === target.sessionId);
+      if (already) { if (changePage(activatePanel(live, already.id))) { setSettings(false); setMobilePanelId(already.id); focusAfter.current = { panel: already.id }; } return; }
+      if (allPanels(live).length >= PANEL_LIMIT) { setError(`This page already has ${PANEL_LIMIT} panels; close one to open a conversation beside.`); return; }
+      const panel: Panel = { id: crypto.randomUUID(), kind: 'chat', binding: { mode: 'pinned', target: { ...target, commandId: '' } }, detached: false };
+      const anchor = chats.find(value => value.binding.mode === 'follow') || chats[0], group = anchor && groupOf(live, anchor.id);
+      const docked = !!group && groups(live.layout).some(value => value.id === group.id);
+      if (!changePage({ ...live, layout: docked ? splitBeside(live.layout, group!.id, panel, 'right') : insertDocked(live.layout, panel, 'right', 0.5) })) return;
+      setSettings(false); setMobilePanelId(panel.id); focusAfter.current = { panel: panel.id };
+    },
+    window: host ? target => {
+      const live = livePage(), open = detachedFor(live, target);
+      if (open) { void host.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
+      const shown = shownPanels(live).find(panel => panel.kind === 'chat' && !panel.detached && resolveTarget(panel, live.selection).sessionId === target.sessionId);
+      if (shown) { void detach(shown); return; }
+      if (allPanels(live).length >= PANEL_LIMIT) { setError(`This page already has ${PANEL_LIMIT} panels; close one to open a conversation in its own window.`); return; }
+      const panel: Panel = { id: crypto.randomUUID(), kind: 'chat', binding: { mode: 'pinned', target: { ...target, commandId: '' } }, detached: true };
+      if (!changePage({ ...live, detached: [...live.detached, panel] })) return;
+      void host.openChat({ panelId: panel.id, collectionId: target.collectionId, sessionId: target.sessionId }).catch(error => { changePage(live); setError(String(error)); });
+    } : undefined,
+    showAgents: () => {
+      const live = livePage(), agents = shownPanels(live).find(panel => panel.kind === 'agents');
+      if (!agents || !changePage(activatePanel(live, agents.id))) return false;
+      setSettings(false); setMobilePanelId(agents.id);
+      return true;
+    },
+  });
   /** A chat back from its own window: where it was, on its page, in front; its window closes and this one comes forward. */
   const bringBack = async (panel: Panel) => {
     if (!host || pending) return;

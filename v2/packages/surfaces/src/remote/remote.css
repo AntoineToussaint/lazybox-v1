@@ -37,6 +37,7 @@
 .remote-group h2{display:flex;align-items:center;gap:7px;margin:18px 16px 6px;font-size:calc(11.5px * var(--text-scale));font-weight:650;letter-spacing:.7px;text-transform:uppercase;color:var(--remote-muted)}
 .remote-group h2>span:last-child{margin-left:auto;font-variant-numeric:tabular-nums;letter-spacing:0}
 .remote-group>ul{list-style:none;margin:0 8px;padding:0;border-radius:14px;background:var(--remote-surface);overflow:hidden}
+.remote-pin{display:inline-flex;color:var(--accent)}
 .remote-row+.remote-row{border-top:1px solid var(--remote-line)}
 .remote-row-open{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0;min-height:68px;padding:12px 4px 12px 14px;text-align:left;background:transparent;border:0;border-radius:0!important;white-space:normal;color:inherit}
 .remote-row-open:hover,.remote-row-more:hover{background:transparent}

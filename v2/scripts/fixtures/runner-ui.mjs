@@ -35,7 +35,7 @@ const stream = values => Buffer.concat([...values.map(value => frame(value)), fr
 export async function startRunnerFixture() {
   // A restarted Runner has a new bearer, and a launcher restart a new port: both change.
   let token = randomUUID(), url = '';
-  const calls = [], mutations = [];
+  const calls = [], mutations = [], pins = [];
   const workspaceFiles=new Map();
   // Message attachments the fake Runner retained, by the path its journal lists.
   const attachments=new Map();let attachmentReadDelayMs=0;
@@ -565,6 +565,13 @@ actions:
       case 'GetSubscriptionEnrollment': { const id=body.enrollmentId || `enrollment-${body.requestKey}`; return enrollments.has(id) ? json(enrollments.get(id)) : json({id, state:'expired',error:'Fixture enrollment no longer tracked'}); }
       case 'CancelSubscriptionEnrollment': { const flow = enrollments.get(body.enrollmentId); if (!flow) return error('not_found', 'Unknown enrollment'); flow.state = 'cancelled'; flow.userCode = ''; flow.signInUrl = ''; return json(flow); }
       case 'RenameConversation': {const session=sessions.find(s=>s.id===body.sessionId);if(!session)return error('not_found','Missing conversation');session.title=body.title;mutations.push({method,body});return json({session});}
+      // Pins and archive marks are the conversation's, kept by the Runner (a pin keeps its first time).
+      case 'PinConversation': case 'ArchiveConversation': {
+        const session=sessions.find(s=>s.id===body.sessionId);if(!session)return error('not_found','Missing conversation');
+        const field=method==='PinConversation'?'pinnedAtUnixMillis':'archivedAtUnixMillis', on=method==='PinConversation'?body.pinned:body.archived;
+        if(!on)delete session[field];else if(!Number(session[field]))session[field]=String(Date.now());
+        pins.push({method,body});return json({session});
+      }
       case 'ListHistory': return json({sessions:sessions.filter(s=>(body.collectionId===undefined||s.collectionId===body.collectionId)&&(!body.search||(s.title||`Conversation ${s.id}`).toLowerCase().includes(body.search.toLowerCase()))).map(s=>({...s,title:s.title||`Conversation ${s.id}`,conversationId:s.workId||s.id})),hasMore:false});
       case 'RefreshSubscription': { const profile = profiles.find(p => p.id === body.profileId); if (!profile) return error('not_found', 'Unknown profile'); if (profile.provider === 'claude') profile.availability = {state:'available',plan:'max',windows:[{name:'five_hour',usedPercent:37,durationMinutes:'300',resetAt:String(Math.floor(Date.now()/1000)+3600)}]}; profile.availability.observedAtUnixMillis = String(Date.now()); profile.availability.windows[0].usedPercent += 5; return json(profile); }
       case 'ListCollections': { if (runner.listDelayMs) await new Promise(resolve => setTimeout(resolve, runner.listDelayMs)); return json({ collections }); }
@@ -985,7 +992,7 @@ actions:
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
   return { versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
-    availability, acp, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
+    availability, acp, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */

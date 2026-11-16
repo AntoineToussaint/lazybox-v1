@@ -164,6 +164,12 @@ const (
 	// RunnerServiceRenameConversationProcedure is the fully-qualified name of the RunnerService's
 	// RenameConversation RPC.
 	RunnerServiceRenameConversationProcedure = "/lazybox.bench.v1.RunnerService/RenameConversation"
+	// RunnerServicePinConversationProcedure is the fully-qualified name of the RunnerService's
+	// PinConversation RPC.
+	RunnerServicePinConversationProcedure = "/lazybox.bench.v1.RunnerService/PinConversation"
+	// RunnerServiceArchiveConversationProcedure is the fully-qualified name of the RunnerService's
+	// ArchiveConversation RPC.
+	RunnerServiceArchiveConversationProcedure = "/lazybox.bench.v1.RunnerService/ArchiveConversation"
 	// RunnerServiceListWorkspaceChangesProcedure is the fully-qualified name of the RunnerService's
 	// ListWorkspaceChanges RPC.
 	RunnerServiceListWorkspaceChangesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceChanges"
@@ -583,6 +589,11 @@ type RunnerServiceClient interface {
 	OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	OpenAssistant(context.Context, *connect.Request[gen.OpenAssistantRequest]) (*connect.Response[gen.SessionResponse], error)
 	RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Pin or unpin a conversation (any of its attempts' IDs). The owner's only.
+	PinConversation(context.Context, *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Archive a conversation, or bring it back. Nothing is stopped or deleted:
+	// its agent keeps any turn in progress, and History still lists it.
+	ArchiveConversation(context.Context, *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error)
 	ListWorkspaceChanges(context.Context, *connect.Request[gen.WorkspaceChangesRequest]) (*connect.Response[gen.WorkspaceChanges], error)
 	ReadWorkspaceDiff(context.Context, *connect.Request[gen.WorkspaceDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
 	ReadWorkspaceFile(context.Context, *connect.Request[gen.WorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
@@ -1138,6 +1149,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRenameConversationProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RenameConversation")),
+			connect.WithClientOptions(opts...),
+		),
+		pinConversation: connect.NewClient[gen.PinConversationRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServicePinConversationProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PinConversation")),
+			connect.WithClientOptions(opts...),
+		),
+		archiveConversation: connect.NewClient[gen.ArchiveConversationRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceArchiveConversationProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ArchiveConversation")),
 			connect.WithClientOptions(opts...),
 		),
 		listWorkspaceChanges: connect.NewClient[gen.WorkspaceChangesRequest, gen.WorkspaceChanges](
@@ -1909,6 +1932,8 @@ type runnerServiceClient struct {
 	openSession                  *connect.Client[gen.OpenSessionRequest, gen.SessionResponse]
 	openAssistant                *connect.Client[gen.OpenAssistantRequest, gen.SessionResponse]
 	renameConversation           *connect.Client[gen.RenameConversationRequest, gen.SessionResponse]
+	pinConversation              *connect.Client[gen.PinConversationRequest, gen.SessionResponse]
+	archiveConversation          *connect.Client[gen.ArchiveConversationRequest, gen.SessionResponse]
 	listWorkspaceChanges         *connect.Client[gen.WorkspaceChangesRequest, gen.WorkspaceChanges]
 	readWorkspaceDiff            *connect.Client[gen.WorkspaceDiffRequest, gen.WorkspaceDiff]
 	readWorkspaceFile            *connect.Client[gen.WorkspaceFileRequest, gen.WorkspaceFile]
@@ -2249,6 +2274,16 @@ func (c *runnerServiceClient) OpenAssistant(ctx context.Context, req *connect.Re
 // RenameConversation calls lazybox.bench.v1.RunnerService.RenameConversation.
 func (c *runnerServiceClient) RenameConversation(ctx context.Context, req *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.renameConversation.CallUnary(ctx, req)
+}
+
+// PinConversation calls lazybox.bench.v1.RunnerService.PinConversation.
+func (c *runnerServiceClient) PinConversation(ctx context.Context, req *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.pinConversation.CallUnary(ctx, req)
+}
+
+// ArchiveConversation calls lazybox.bench.v1.RunnerService.ArchiveConversation.
+func (c *runnerServiceClient) ArchiveConversation(ctx context.Context, req *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.archiveConversation.CallUnary(ctx, req)
 }
 
 // ListWorkspaceChanges calls lazybox.bench.v1.RunnerService.ListWorkspaceChanges.
@@ -2912,6 +2947,11 @@ type RunnerServiceHandler interface {
 	OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	OpenAssistant(context.Context, *connect.Request[gen.OpenAssistantRequest]) (*connect.Response[gen.SessionResponse], error)
 	RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Pin or unpin a conversation (any of its attempts' IDs). The owner's only.
+	PinConversation(context.Context, *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Archive a conversation, or bring it back. Nothing is stopped or deleted:
+	// its agent keeps any turn in progress, and History still lists it.
+	ArchiveConversation(context.Context, *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error)
 	ListWorkspaceChanges(context.Context, *connect.Request[gen.WorkspaceChangesRequest]) (*connect.Response[gen.WorkspaceChanges], error)
 	ReadWorkspaceDiff(context.Context, *connect.Request[gen.WorkspaceDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
 	ReadWorkspaceFile(context.Context, *connect.Request[gen.WorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
@@ -3463,6 +3503,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRenameConversationProcedure,
 		svc.RenameConversation,
 		connect.WithSchema(runnerServiceMethods.ByName("RenameConversation")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePinConversationHandler := connect.NewUnaryHandler(
+		RunnerServicePinConversationProcedure,
+		svc.PinConversation,
+		connect.WithSchema(runnerServiceMethods.ByName("PinConversation")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceArchiveConversationHandler := connect.NewUnaryHandler(
+		RunnerServiceArchiveConversationProcedure,
+		svc.ArchiveConversation,
+		connect.WithSchema(runnerServiceMethods.ByName("ArchiveConversation")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceListWorkspaceChangesHandler := connect.NewUnaryHandler(
@@ -4275,6 +4327,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceOpenAssistantHandler.ServeHTTP(w, r)
 		case RunnerServiceRenameConversationProcedure:
 			runnerServiceRenameConversationHandler.ServeHTTP(w, r)
+		case RunnerServicePinConversationProcedure:
+			runnerServicePinConversationHandler.ServeHTTP(w, r)
+		case RunnerServiceArchiveConversationProcedure:
+			runnerServiceArchiveConversationHandler.ServeHTTP(w, r)
 		case RunnerServiceListWorkspaceChangesProcedure:
 			runnerServiceListWorkspaceChangesHandler.ServeHTTP(w, r)
 		case RunnerServiceReadWorkspaceDiffProcedure:
@@ -4698,6 +4754,14 @@ func (UnimplementedRunnerServiceHandler) OpenAssistant(context.Context, *connect
 
 func (UnimplementedRunnerServiceHandler) RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RenameConversation is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PinConversation(context.Context, *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PinConversation is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ArchiveConversation(context.Context, *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ArchiveConversation is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListWorkspaceChanges(context.Context, *connect.Request[gen.WorkspaceChangesRequest]) (*connect.Response[gen.WorkspaceChanges], error) {

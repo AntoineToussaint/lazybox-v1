@@ -52,8 +52,11 @@
 .dock-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .dock-empty>*{pointer-events:auto}
 
-/* Tabs: icon, title, a quiet close button. */
+/* Tabs: icon, title, a quiet close button. Tabs that do not fit go into the
+   group's overflow menu (the chevron), never behind a horizontal scroll bar. */
 .dockview-theme-lazybox .dv-tabs-and-actions-container{border-bottom:1px solid var(--line-subtle)}
+.dockview-theme-lazybox .dv-tabs-container{scrollbar-width:none}
+.dockview-theme-lazybox .dv-tabs-container::-webkit-scrollbar{display:none;height:0}
 .dockview-theme-lazybox .dv-tab{padding:0 4px 0 10px;transition:color .12s,background .12s}
 .dockview-theme-lazybox .dv-tab:focus-visible{outline:1px solid var(--focus);outline-offset:-2px}
 .dockview-theme-lazybox .dv-groupview.dv-active-group .dv-tab.dv-active-tab{box-shadow:inset 0 2px 0 var(--accent-solid-hover)}

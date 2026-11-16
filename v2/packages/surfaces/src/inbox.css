@@ -75,3 +75,25 @@
 .conversation-link .session-dot.unread{margin-top:6px}
 .conversation-link .session-dot.unread-failed,.workspace-agent .session-dot.unread-failed{background:var(--attention-failed)}
 .conversation-row[data-unread] .conversation-link strong,.workspace-row[data-unread] .workspace-label strong{color:var(--text);font-weight:600}
+
+/* A workspace's conversations: one line each — status mark, title, age. The
+   ⋯ menu takes the age's place on hover or focus; never both at once. */
+.conversation-navigation .conversation-row>.conversation-link.conversation-link{align-items:center;gap:8px;padding:4px 8px!important}
+.conversation-navigation .conversation-row>.conversation-link .conversation-label{gap:1px}
+.conversation-navigation .conversation-row>.conversation-link:has(.conversation-agent){align-items:flex-start;padding:6px 8px!important}
+.conversation-navigation .conversation-row>.conversation-link:has(.conversation-agent)>.conversation-age{margin-top:2px}
+.conversation-row .conversation-link .session-dot.unread{margin-top:0}
+.conversation-age{flex:none;min-width:22px;text-align:right;font-size:calc(10px * var(--text-scale));line-height:calc(18px * var(--text-scale));color:var(--text-faint);font-variant-numeric:tabular-nums}
+.conversation-pinned{flex:none;display:inline-flex;color:var(--accent)}
+.conversation-archived{flex:none;padding:0 5px;border:1px solid var(--line);border-radius:4px;font-size:calc(9.5px * var(--text-scale));line-height:calc(15px * var(--text-scale));color:var(--text-muted)}
+.conversation-row>.conversation-actions{top:50%!important;transform:translateY(-50%);opacity:0}
+.conversation-row:hover>.conversation-actions,.conversation-row:focus-within>.conversation-actions,.conversation-row>.conversation-actions[open]{opacity:1}
+.conversation-row:hover>.conversation-link .conversation-age,.conversation-row:focus-within>.conversation-link .conversation-age,.conversation-row:has(>.conversation-actions[open])>.conversation-link .conversation-age{visibility:hidden}
+.collection-group .conversation-row>.conversation-actions>summary{width:24px;height:22px}
+.conversation-renaming{display:flex;align-items:center;gap:8px;padding:3px 8px}
+.workspace-conversations{margin:0 0 6px 18px}
+
+/* The fold control sits where the folder icon was. */
+.workspace-row>.workspace-fold{position:absolute;left:7px;top:9px;width:22px;height:22px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:var(--text-muted);z-index:1}
+.workspace-row>.workspace-fold:hover,.workspace-row>.workspace-fold:focus-visible{background:var(--surface-selected);color:var(--text)}
+.workspace-row:has(>.workspace-fold)>.workspace-link>svg:first-child{visibility:hidden}

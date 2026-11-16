@@ -335,11 +335,34 @@ divider: the other workspace keeps its own panels but takes the current sizes
 wherever its arrangement has the same shape. On a phone, panels show one at a
 time from the panel switcher, with a reachable ×; the dock is not used there.
 
-**Agents**, a tab beside Workspaces by default, lists every conversation in
-every workspace by urgency (needs you, failed, ready for review, working, done)
-or by workspace, with live status, age and an unread dot. Pin one to keep it
-on top (hover, or `p`), fold a group from its heading; j/k move, Enter opens.
-It reads the same attention data as the Inbox.
+The left column is **Workspaces above Agents**, both in view, in every
+built-in layout (Agents takes 45 % of the column; both resize, close and move
+like any panel). Each workspace lists all its conversations under it, one line
+each — status mark, title, age, pinned ones first; provider and model are the
+tooltip. A workspace with several folds from the chevron in its icon's place,
+and folded, its fourth line speaks for the most urgent one ("+2" for the
+rest). Archived conversations leave both lists (History keeps them) unless
+one waits for you.
+
+**Agents** lists every conversation in every workspace by urgency (needs you,
+failed, ready for review, working, done) or by workspace, with live status,
+age and an unread dot; Done starts folded, and every section folds with its
+count. A conversation's running sub-agents nest under it, folded (→ shows
+them, ← hides them). Type to filter (`/`; Escape clears): the title,
+workspace, what it needs, the model, a sub-agent's task. j/k move, Enter
+opens, Space peeks, `p` pins, `m` marks read, F2 renames. Pin and mark read
+appear on hover or focus in the age's place. Pins are kept by the Runner
+(`PinConversation`), so every window and a paired phone show the same ones;
+pins kept in a window before that move to the Runner once. **Inbox** (`]] i`)
+brings the Agents panel forward with its first row focused; only when the
+page has no Agents panel does the Inbox open as a list over the page.
+
+Every conversation row — Workspaces, Agents, the Inbox, History — has one
+menu (`ConversationActions.tsx`): Open · Open beside · Open in new window ·
+Peek, then Rename · Pin · Mark as read, then Copy ID · Stop, then Archive… ·
+Delete…, each of the last two behind a confirmation. Archive
+(`ArchiveConversation`) stops and deletes nothing; Unarchive brings it back.
+Open beside adds a chat pinned to that conversation next to the page's own.
 
 #### How it is built, and why dockview
 
@@ -379,7 +402,9 @@ group's tab bar are applied on top (`dock-bridge.ts`). Version 1 layouts (a
 binary tree of single panels) migrate when read: every panel becomes a group
 of its own in the same place and size, a collapsed panel in a column becomes
 a minimized group, a chat in its own window stays there, and the Workspaces
-list gains the Agents tab. The original text is kept beside the migrated one
+list gains the Agents list under it. A version 2 page (or a saved layout)
+that still has Agents as a tab beside Workspaces gets the same column when it
+is loaded; nothing else in it moves. The original text is kept beside the migrated one
 (the same key with `:v1` appended), once, so a migration never loses a
 layout; a layout that cannot be read is left untouched, with a notice and
 **Reset retained layout**.

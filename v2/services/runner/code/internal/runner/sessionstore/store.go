@@ -36,6 +36,11 @@ type Record struct {
 	// Instructions is the last shared-instructions update delivered to this
 	// conversation after it started; Context holds what it started with.
 	Instructions string `json:",omitempty"`
+	// PinnedAt and ArchivedAt are the conversation's marks in Unix
+	// milliseconds, 0 when unset. Like DisplayTitle they are projected from
+	// the conversation on read, never stored in an attempt.
+	PinnedAt   int64 `json:",omitempty"`
+	ArchivedAt int64 `json:",omitempty"`
 }
 
 // Store commits the identity before provider startup and the observed state
@@ -52,6 +57,9 @@ type Store interface {
 	Rename(context.Context, string, string) error
 	// SetGeneratedTitle records a generated title; a rename still wins.
 	SetGeneratedTitle(context.Context, string, string) error
+	// Pin and Archive set or clear a conversation's mark, by any attempt's ID.
+	Pin(context.Context, string, bool) error
+	Archive(context.Context, string, bool) error
 	Create(context.Context, Record) error
 	SaveState(context.Context, string, engine.Snapshot, json.RawMessage) error
 	// Amend changes one attempt's record atomically.

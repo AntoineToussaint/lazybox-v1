@@ -64,6 +64,8 @@ const (
 	RunnerService_OpenSession_FullMethodName                  = "/lazybox.bench.v1.RunnerService/OpenSession"
 	RunnerService_OpenAssistant_FullMethodName                = "/lazybox.bench.v1.RunnerService/OpenAssistant"
 	RunnerService_RenameConversation_FullMethodName           = "/lazybox.bench.v1.RunnerService/RenameConversation"
+	RunnerService_PinConversation_FullMethodName              = "/lazybox.bench.v1.RunnerService/PinConversation"
+	RunnerService_ArchiveConversation_FullMethodName          = "/lazybox.bench.v1.RunnerService/ArchiveConversation"
 	RunnerService_ListWorkspaceChanges_FullMethodName         = "/lazybox.bench.v1.RunnerService/ListWorkspaceChanges"
 	RunnerService_ReadWorkspaceDiff_FullMethodName            = "/lazybox.bench.v1.RunnerService/ReadWorkspaceDiff"
 	RunnerService_ReadWorkspaceFile_FullMethodName            = "/lazybox.bench.v1.RunnerService/ReadWorkspaceFile"
@@ -249,6 +251,11 @@ type RunnerServiceClient interface {
 	OpenSession(ctx context.Context, in *OpenSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	OpenAssistant(ctx context.Context, in *OpenAssistantRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	RenameConversation(ctx context.Context, in *RenameConversationRequest, opts ...grpc.CallOption) (*SessionResponse, error)
+	// Pin or unpin a conversation (any of its attempts' IDs). The owner's only.
+	PinConversation(ctx context.Context, in *PinConversationRequest, opts ...grpc.CallOption) (*SessionResponse, error)
+	// Archive a conversation, or bring it back. Nothing is stopped or deleted:
+	// its agent keeps any turn in progress, and History still lists it.
+	ArchiveConversation(ctx context.Context, in *ArchiveConversationRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	ListWorkspaceChanges(ctx context.Context, in *WorkspaceChangesRequest, opts ...grpc.CallOption) (*WorkspaceChanges, error)
 	ReadWorkspaceDiff(ctx context.Context, in *WorkspaceDiffRequest, opts ...grpc.CallOption) (*WorkspaceDiff, error)
 	ReadWorkspaceFile(ctx context.Context, in *WorkspaceFileRequest, opts ...grpc.CallOption) (*WorkspaceFile, error)
@@ -982,6 +989,26 @@ func (c *runnerServiceClient) RenameConversation(ctx context.Context, in *Rename
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionResponse)
 	err := c.cc.Invoke(ctx, RunnerService_RenameConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) PinConversation(ctx context.Context, in *PinConversationRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionResponse)
+	err := c.cc.Invoke(ctx, RunnerService_PinConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ArchiveConversation(ctx context.Context, in *ArchiveConversationRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionResponse)
+	err := c.cc.Invoke(ctx, RunnerService_ArchiveConversation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2296,6 +2323,11 @@ type RunnerServiceServer interface {
 	OpenSession(context.Context, *OpenSessionRequest) (*SessionResponse, error)
 	OpenAssistant(context.Context, *OpenAssistantRequest) (*SessionResponse, error)
 	RenameConversation(context.Context, *RenameConversationRequest) (*SessionResponse, error)
+	// Pin or unpin a conversation (any of its attempts' IDs). The owner's only.
+	PinConversation(context.Context, *PinConversationRequest) (*SessionResponse, error)
+	// Archive a conversation, or bring it back. Nothing is stopped or deleted:
+	// its agent keeps any turn in progress, and History still lists it.
+	ArchiveConversation(context.Context, *ArchiveConversationRequest) (*SessionResponse, error)
 	ListWorkspaceChanges(context.Context, *WorkspaceChangesRequest) (*WorkspaceChanges, error)
 	ReadWorkspaceDiff(context.Context, *WorkspaceDiffRequest) (*WorkspaceDiff, error)
 	ReadWorkspaceFile(context.Context, *WorkspaceFileRequest) (*WorkspaceFile, error)
@@ -2717,6 +2749,12 @@ func (UnimplementedRunnerServiceServer) OpenAssistant(context.Context, *OpenAssi
 }
 func (UnimplementedRunnerServiceServer) RenameConversation(context.Context, *RenameConversationRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RenameConversation not implemented")
+}
+func (UnimplementedRunnerServiceServer) PinConversation(context.Context, *PinConversationRequest) (*SessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PinConversation not implemented")
+}
+func (UnimplementedRunnerServiceServer) ArchiveConversation(context.Context, *ArchiveConversationRequest) (*SessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ArchiveConversation not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListWorkspaceChanges(context.Context, *WorkspaceChangesRequest) (*WorkspaceChanges, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceChanges not implemented")
@@ -3880,6 +3918,42 @@ func _RunnerService_RenameConversation_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).RenameConversation(ctx, req.(*RenameConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_PinConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PinConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).PinConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_PinConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).PinConversation(ctx, req.(*PinConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ArchiveConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ArchiveConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ArchiveConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ArchiveConversation(ctx, req.(*ArchiveConversationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -6187,6 +6261,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RenameConversation",
 			Handler:    _RunnerService_RenameConversation_Handler,
+		},
+		{
+			MethodName: "PinConversation",
+			Handler:    _RunnerService_PinConversation_Handler,
+		},
+		{
+			MethodName: "ArchiveConversation",
+			Handler:    _RunnerService_ArchiveConversation_Handler,
 		},
 		{
 			MethodName: "ListWorkspaceChanges",

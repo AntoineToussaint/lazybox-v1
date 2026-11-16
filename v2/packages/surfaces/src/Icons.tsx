@@ -87,6 +87,10 @@ const paths: Record<string, string[]> = {
   phone: ['M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z', 'M11 18h2'],
   shield: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z', 'm9 12 2 2 4-4'],
   copy: ['M8 8h12v12H8z', 'M16 8V4H4v12h4'],
+  // A conversation kept on top, put away, or shown beside another.
+  pin: ['M12 17v5', 'M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V17h14v-1.8a2 2 0 0 0-1.1-1.8l-1.8-.9a2 2 0 0 1-1.1-1.8V6.5a1.5 1.5 0 0 0 0-3.5H9a1.5 1.5 0 0 0 0 3.5z'],
+  archive: ['M2 3h20v5H2z', 'M4 8v12h16V8', 'M10 12h4'],
+  columns: ['M3 4h18v16H3z', 'M12 4v16'],
   // The Web panel: a globe, a padlock for a secure page, a page that is not.
   globe: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3'],
   // The agent browser: a window with a pointer in it.

@@ -49,7 +49,10 @@ export function WorkspaceRow({
   conversationCount,
   onNewConversation,
   onDeleteConversation,
+  fold,
 }: {
+  /** Its conversations listed under it, and whether they are folded away. */
+  fold?: { folded: boolean; count: number; toggle(): void };
   /** The workspace's only conversation, which the row's menu can delete. */
   conversation?: Session;
   /** The conversation the agent line speaks for (WorkspaceRow model: attention, then work, then newest). */
@@ -91,7 +94,7 @@ export function WorkspaceRow({
     { label: "Delete workspace…", danger: true, run: onDelete },
   ];
   return (
-    <div className="workspace-row" data-unread={marker || undefined} onContextMenu={editing ? undefined : contextMenu("workspace", () => items, { workspaceId: workspace.id })} onKeyDown={event => {
+    <div className="workspace-row" data-unread={marker || undefined} data-folded={fold?.folded || undefined} onContextMenu={editing ? undefined : contextMenu("workspace", () => items, { workspaceId: workspace.id })} onKeyDown={event => {
       if (event.key === 'F2' && !editing) { event.preventDefault(); setName(workspace.name); setError(''); setEditing(true); }
     }}>
       {editing ? (
@@ -168,7 +171,8 @@ export function WorkspaceRow({
             <strong>{workspace.name}</strong>
             <RepositorySummary names={repositoryNames} />
             <GitLine git={git} fallback={branchSummary(workspace)} empty={!workspace.members.length} />
-            {featured && line ? (
+            {fold && !fold.folded ? null : featured && line ? (
+              // Its conversations listed under the card say this line already; folded, it speaks for them.
               <small className="workspace-agent" title={line.tooltip}>
                 <SessionMark session={featured} unread={marker} />
                 {marker && <span className="sr-only">{marker === "failed" ? "Failed, unread" : "Ready for review, unread"}</span>}
@@ -187,6 +191,18 @@ export function WorkspaceRow({
           {workspace.ownershipUncertain && (
             <span title="Owner uncertain">!</span>
           )}
+        </button>
+      )}
+      {!editing && fold && (
+        // In the folder icon's place: the workspace's conversations, shown or folded.
+        <button
+          className="workspace-fold"
+          aria-expanded={!fold.folded}
+          aria-label={`${fold.folded ? "Show" : "Fold"} the ${fold.count} conversations of ${workspace.name}`}
+          title={fold.folded ? `Show ${fold.count} conversations` : "Fold conversations"}
+          onClick={fold.toggle}
+        >
+          <Icon name={fold.folded ? "chevronRight" : "chevron"} size={13} />
         </button>
       )}
       {!editing && !repositoryNames.length && (

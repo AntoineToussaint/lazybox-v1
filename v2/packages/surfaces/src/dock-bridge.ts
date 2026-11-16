@@ -81,7 +81,9 @@ export function toDockview(page: Arranged, geometry: Geometry): SerializedDockvi
     // The sidebar at its width, and the empty content area taking the rest.
     const sidebar = Math.min(geometry.sidebarWidth, Math.max(MIN_PX, width - MIN_PX));
     states[EMPTY_CONTENT] = { id: EMPTY_CONTENT, contentComponent: PANEL_COMPONENT, tabComponent: TAB_COMPONENT, title: '' };
-    grid = { root: { type: 'branch', size: height, data: [{ type: 'leaf', data: groupState(page.layout as Group), size: sidebar }, { type: 'leaf', data: { id: `g-${EMPTY_CONTENT}`, views: [EMPTY_CONTENT], activeView: EMPTY_CONTENT }, size: width - sidebar }] }, width, height, orientation: 'HORIZONTAL' as never };
+    // The sidebar is a group, or Workspaces stacked over Agents.
+    const side = page.layout.type === 'group' ? { type: 'leaf' as const, data: groupState(page.layout), size: sidebar } : visit(page.layout, height, sidebar, sidebar, false);
+    grid = { root: { type: 'branch', size: height, data: [side, { type: 'leaf', data: { id: `g-${EMPTY_CONTENT}`, views: [EMPTY_CONTENT], activeView: EMPTY_CONTENT }, size: width - sidebar }] }, width, height, orientation: 'HORIZONTAL' as never };
   }
   else if (page.layout.type === 'group') grid = { root: { type: 'branch', size: height, data: [{ type: 'leaf', data: groupState(page.layout), size: width }] }, width, height, orientation: 'HORIZONTAL' as never };
   else {
