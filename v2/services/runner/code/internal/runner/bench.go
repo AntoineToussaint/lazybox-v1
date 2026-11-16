@@ -91,6 +91,8 @@ type Config struct {
 	TerminalHostRoot string `json:"-"`
 	// MaxLiveTerminals bounds running terminals; zero selects 16.
 	MaxLiveTerminals int `json:"maxLiveTerminals,omitempty"`
+	// Processes selects how agents, commands and terminals are hosted.
+	Processes ProcessHosting `json:"processes,omitempty"`
 }
 
 type Execution struct {
@@ -148,6 +150,8 @@ type Bench struct {
 	Adapters map[string]agent.Adapter
 	// agentKey derives each execution's scoped credential (agent_credentials.go).
 	agentKey []byte
+	// hosting starts every agent, command and terminal host (hosting.go).
+	hosting *hosting
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -186,6 +190,9 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if cfg.TerminalHostRoot == "" {
 		cfg.TerminalHostRoot = filepath.Join(cfg.State, "terminal-hosts")
+	}
+	if err := cfg.Processes.Validate(); err != nil {
+		return nil, err
 	}
 	if cfg.MaxLiveTerminals < 0 {
 		return nil, errors.New("live terminal limit must not be negative; zero selects the bounded default")
@@ -242,7 +249,8 @@ func New(cfg Config) (*Bench, error) {
 	}
 	// Commands a previous Runner left running are re-attached here, before any
 	// execution can start or inspect one.
-	manager, err := commands.NewHosted(filepath.Join(cfg.State, "commands"), cfg.CommandBudget, cfg.MaxLiveCommands, cfg.CommandHostRoot)
+	hosts := newHosting(cfg.Processes)
+	manager, err := commands.NewHostedOn(filepath.Join(cfg.State, "commands"), cfg.CommandBudget, cfg.MaxLiveCommands, cfg.CommandHostRoot, hosts)
 	if err != nil {
 		return nil, err
 	}
@@ -281,9 +289,9 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary}}}
+	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, hosting: hosts, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary}}}
 	// Shells a previous Runner left running are re-attached here, like commands.
-	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals}); err != nil {
+	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals, Backend: hosts}); err != nil {
 		_ = b.Detach()
 		return nil, err
 	}
@@ -330,6 +338,9 @@ func New(cfg Config) (*Bench, error) {
 		_ = b.Detach()
 		return nil, err
 	}
+	// The person's choice of backend applies to the next process started.
+	preferred := func() string { return b.Preferences.Snapshot().ProcessBackend }
+	b.hosting.preferred.Store(&preferred)
 	b.Prices = b.Preferences
 	b.Telemetry, err = telemetry.Open(filepath.Join(cfg.State, "telemetry.db"))
 	if err == nil {

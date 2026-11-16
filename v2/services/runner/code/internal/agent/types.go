@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
+
+	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
 )
 
 var ErrUnsupported = errors.New("operation unsupported by adapter")
@@ -44,6 +47,31 @@ type Open struct {
 type Hosting struct {
 	Root   string
 	Attach *Attachment
+	// Backend starts new hosts; nil selects the default session host. A host
+	// is re-attached the same way whichever backend started it.
+	Backend sessionhost.Backend
+}
+
+// HostOptions names a new agent host for the Runner's process inventory and
+// its tmux window: the execution it belongs to, and provider · directory.
+func (o Open) HostOptions(provider string) sessionhost.Options {
+	label := provider
+	if o.Cwd != "" {
+		label += " · " + filepath.Base(o.Cwd)
+	}
+	return sessionhost.Options{Kind: "agent", Owner: o.ID, Label: label}
+}
+
+// Hosted is a session whose native process runs in a session host. Wrapping
+// sessions forward it, so the Runner can say which host runs a conversation.
+type Hosted interface{ HostID() string }
+
+// HostOf returns the session host running s's native process, or "".
+func HostOf(s Session) string {
+	if h, ok := s.(Hosted); ok {
+		return h.HostID()
+	}
+	return ""
 }
 
 // Attachment is everything a session layer needs to resume supervising a live

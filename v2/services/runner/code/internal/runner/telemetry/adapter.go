@@ -173,3 +173,6 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	}
 	return ev, err
 }
+
+// HostID forwards the native session's host (agent.Hosted).
+func (s *session) HostID() string { return agent.HostOf(s.Session) }

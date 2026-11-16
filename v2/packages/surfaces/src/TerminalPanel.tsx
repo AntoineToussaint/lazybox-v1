@@ -9,12 +9,13 @@ import { useRunner } from './RunnerContext';
 import { Icon } from './Icons';
 import './terminal.css';
 
-/** Workspaces whose terminal panel was just asked for from the header. */
-const requested = new Set<string>();
+/** Workspaces whose terminal panel was just asked for (from the header, or for one shell). */
+const requested = new Map<string, string>();
 const listeners = new Set<() => void>();
 /** Ask the workspace's terminal panel (now or once it mounts and has listed its shells) to
- * take focus: on a running shell when there is one, otherwise on a new one it starts. */
-export function requestTerminal(collectionId: string) { requested.add(collectionId); for (const listener of listeners) listener(); }
+ * take focus: on terminalId when given and running, else on a running shell when there is
+ * one, otherwise (only when no particular shell was asked for) on a new one it starts. */
+export function requestTerminal(collectionId: string, terminalId = '') { requested.set(collectionId, terminalId); for (const listener of listeners) listener(); }
 
 const theme = { background: '#17181e', foreground: '#d4d5de', cursor: '#bdb1ed', cursorAccent: '#17181e', selectionBackground: '#3d3852', black: '#1d1e24', red: '#e08a8a', green: '#9fc79a', yellow: '#dcc58e', blue: '#8eaee0', magenta: '#bdb1ed', cyan: '#8fcbcf', white: '#d4d5de', brightBlack: '#6b6d7a', brightRed: '#efa3a3', brightGreen: '#b5dcb0', brightYellow: '#ead7a4', brightBlue: '#a9c3ef', brightMagenta: '#d2c8f5', brightCyan: '#a7dde0', brightWhite: '#f1f1f6' };
 const encoder = new TextEncoder();
@@ -74,10 +75,12 @@ export function TerminalPanel({ workspaceId, collections, viewState }: { workspa
   }, [api, workspaceId]);
   // A request waits until this workspace's shells are listed, so asking twice never starts a second one.
   const consume = () => {
-    if (!workspaceId || known.current === null || !requested.delete(workspaceId)) return;
+    if (!workspaceId || known.current === null || !requested.has(workspaceId)) return;
+    const wanted = requested.get(workspaceId) || ''; requested.delete(workspaceId);
     const live = listed.current.filter(terminal => !terminal.done);
-    if (!live.length) { void open(); return; }
-    if (!live.some(terminal => terminal.id === selectedRef.current)) choose(live.at(-1)!.id);
+    if (wanted && live.some(terminal => terminal.id === wanted)) choose(wanted);
+    else if (!live.length) { if (!wanted) void open(); return; }
+    else if (!live.some(terminal => terminal.id === selectedRef.current)) choose(live.at(-1)!.id);
     requestAnimationFrame(() => focusView.current?.());
   };
   const consumeRef = useRef(consume); consumeRef.current = consume;

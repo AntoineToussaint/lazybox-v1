@@ -70,14 +70,7 @@ func hold(dir string) {
 }
 
 func (c *Client) unhold() {
-	c.held.Do(func() {
-		dir := filepath.Clean(c.dir)
-		holders.Lock()
-		if holders.n[dir]--; holders.n[dir] <= 0 {
-			delete(holders.n, dir)
-		}
-		holders.Unlock()
-	})
+	c.held.Do(func() { unholdDir(c.dir) })
 }
 
 // Held reports whether a client in this process is attached to the host: one
@@ -99,6 +92,26 @@ type Options struct {
 	// Scrollback bounds the output a terminal host keeps for a re-attaching
 	// Runner; DefaultScrollback if zero.
 	Scrollback int
+	// Kind, Owner and Label are recorded for an inventory (see Record).
+	Kind, Owner, Label string
+}
+
+// launching marks a host this process is starting as held, from before the
+// host exists until its client holds it: a sweep that runs in between must not
+// take a host on its way up for an orphan.
+func launching(dir string) func() {
+	hold(dir)
+	var once sync.Once
+	return func() { once.Do(func() { unholdDir(dir) }) }
+}
+
+func unholdDir(dir string) {
+	dir = filepath.Clean(dir)
+	holders.Lock()
+	if holders.n[dir]--; holders.n[dir] <= 0 {
+		delete(holders.n, dir)
+	}
+	holders.Unlock()
 }
 
 // Launch starts a new detached host under root and attaches to it. The host
@@ -115,6 +128,7 @@ func Launch(ctx context.Context, root string, opts Options) (*Client, error) {
 	if err := os.Mkdir(dir, 0700); err != nil {
 		return nil, err
 	}
+	defer launching(dir)()
 	// Until the host runs, nothing else will remove its directory.
 	started := false
 	defer func() {
@@ -151,7 +165,7 @@ func Launch(ctx context.Context, root string, opts Options) (*Client, error) {
 	// The Runner never waits on its hosts; reap only if this one fails to start.
 	cleanup := func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }
 	token := rand.Text() + rand.Text()
-	if err = json.NewEncoder(stdin).Encode(launch{ID: id, Dir: dir, Token: token, BufferLimit: opts.BufferLimit, OrphanAfter: opts.OrphanAfter, Scrollback: opts.Scrollback}); err != nil {
+	if err = json.NewEncoder(stdin).Encode(newLaunch(id, dir, token, opts)); err != nil {
 		cleanup()
 		return nil, err
 	}

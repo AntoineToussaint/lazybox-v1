@@ -78,7 +78,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	var host *jsonl.Host
 	if o.Host != nil {
 		var err error
-		if host, err = jsonl.Launch(life, o.Host.Root); err != nil {
+		if host, err = jsonl.LaunchOn(life, o.Host.Backend, o.Host.Root, o.HostOptions("codex")); err != nil {
 			cancel()
 			return nil, err
 		}
@@ -237,7 +237,7 @@ func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
 		return nil, errors.New("Codex session has no re-attachable host")
 	}
 	life, cancel := context.WithCancel(ctx)
-	p, err := jsonl.Attach(life, o.Host.Root, state.Host, o.Host.Attach.Cursor)
+	p, err := jsonl.AttachOn(life, o.Host.Backend, o.Host.Root, state.Host, o.Host.Attach.Cursor)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -722,3 +722,6 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	}
 }
 func (s *session) Close() error { err := s.p.Close(); s.cancel(); return err }
+
+// HostID is the session host running the app-server, or "" for a local pipe.
+func (s *session) HostID() string { return s.p.HostID() }

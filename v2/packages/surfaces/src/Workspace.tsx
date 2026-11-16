@@ -7,6 +7,7 @@ import {conversationReader} from './transcript-cache';
 import { WorkspaceRepositories } from './WorkspaceRepositories';
 import { ChangesPanel } from './ChangesPanel';
 import { TelemetryPanel } from './TelemetryPanel';
+import { ProcessesPanel } from './ProcessesPanel';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -30,7 +31,7 @@ import { RestartNotice, RunnerIndicator } from './RunnerControl';
 import { AttentionCenter } from './Inbox';
 import { AttentionScope } from './useAttention';
 
-export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; loaded?: boolean; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void; onShowSession?(target: ViewTarget): void };
+export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; loaded?: boolean; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void; onShowSession?(target: ViewTarget): void; onShowPanel?(kind: string, target?: ViewTarget): void };
 export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
 function ChatModule({ target, onTarget, viewState, collections, onOpenChat }: ModuleProps) {
   const {api}=useRunner();
@@ -53,6 +54,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   changes: { title: 'Changes', icon: 'branch', Component: ({workspaceId,viewState,target,onShowSession}) => <ChangesPanel key={workspaceId} workspaceId={workspaceId} sessionId={target.collectionId===workspaceId?target.sessionId:''} onShowSession={onShowSession} viewState={viewState}/> },
   usage: { title: 'Usage & cost', icon: 'sliders', Component: ({workspaceId}) => <TelemetryPanel workspaceId={workspaceId}/> },
   sessions: { title: 'Sessions', icon: 'history', Component: ({workspaceId,target,onTarget}) => <ConversationList collectionId={workspaceId} target={target} onTarget={onTarget}/> },
+  processes: { title: 'Processes', icon: 'processes', Component: ({workspaceId,onShowSession,onShowPanel}) => <ProcessesPanel workspaceId={workspaceId} onShowSession={onShowSession} onShowPanel={onShowPanel}/> },
 };
 /** Panels the page itself is made of: they are rearranged, not shown from the page menu. */
 const pagePanels = new Set(['collections', 'chat', 'changes']);
@@ -217,6 +219,20 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   /** Show this workspace's terminal: the open panel, or one docked beside the work. It starts a shell only when none is running. */
   const showTerminal = () => { if (workspaceID && showModule('terminal')) requestTerminal(workspaceID); };
+  // A panel asked for in another workspace is shown once that workspace's page is.
+  const pendingModule = useRef('');
+  useEffect(() => { const kind = pendingModule.current; if (!kind) return; pendingModule.current = ''; showModule(kind); }, [workspaceID]);
+  /** Show the panel of this kind for target: its workspace and conversation first, then the panel. */
+  const showPanelFor = (kind: string, target?: ViewTarget) => {
+    if (target && target.collectionId !== workspaceID && !fixedWorkspaceId) {
+      pendingModule.current = kind;
+      if (target.sessionId) showSession(target); else select(target);
+      setSettings(false);
+      return;
+    }
+    if (target?.sessionId) showSession(target);
+    showModule(kind);
+  };
   const dockTo = (panel: Panel, side: DockSide) => {
     const live = livePage();
     if (!changePage({ ...live, layout: dockPanel(live.layout, panel.id, side) })) return;
@@ -377,7 +393,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       <header className="module-header" onPointerDown={editing ? undefined : event => startDrag(event, panel)}>{!editing ? panelHeader(panel, definition) : panel.kind === 'console' ?<button className="module-title" aria-label={panel.collapsed ? 'Show command output' : 'Hide command output'} aria-expanded={!panel.collapsed} onClick={() => changePanel(panel.id, value => ({ ...value, collapsed: !value.collapsed }))}><Icon name="terminal"/><span>{definition?.title}</span><Icon name="chevron" size={13}/></button> : <strong>{definition?.title || panel.kind}</strong>}{editing && <span>{panel.binding.mode === 'pinned' ? 'Pinned' : 'Follows page'}</span>}
         {editing && <div className="panel-config"><button disabled={panel.detached || !!pending} onClick={() => changePanel(panel.id, value => ({ ...value, binding: value.binding.mode === 'pinned' ? { mode: 'follow' } : { mode: 'pinned', target: { ...target } } }))}>{panel.binding.mode === 'pinned' ? 'Follow page' : 'Pin view'}</button><button aria-label={`Move ${panel.kind} earlier`} onClick={() => changePage({ ...page, layout: movePanel(page.layout, panel.id, -1) })}>←</button><button aria-label={`Move ${panel.kind} later`} onClick={() => changePage({ ...page, layout: movePanel(page.layout, panel.id, 1) })}>→</button><button aria-label={`Remove ${panel.kind} panel`} disabled={panels(page.layout).length === 1 || panel.detached || !!pending} onClick={() => { const next = removePanel(page.layout, panel.id); if (next) changePage({ ...page, layout: next }); }}>Remove</button></div>}
       </header>
-      {(!panel.collapsed || editing) && <div className="module-body">{panel.detached ? <div className="module-empty detached-message"><Icon name="external" size={24}/><h3>Chat is in its own window</h3><p>Your conversation continues there.</p><button disabled={!host || !!pending} onClick={() => void detach(panel)}>Open chat window ↗</button><button disabled={!host || !!pending} onClick={() => void dock(panel)}>Bring chat back here</button></div> : definition ? <definition.Component workspaceId={workspaceID} chooseRepositoryFolder={host?.chooseRepositoryFolder} target={target} onTarget={panel.kind==='collections' ? target => target.sessionId ? showSession(target) : onTarget(target) : onTarget} collections={collections} error={catalogError} loaded={catalogLoaded} refresh={refreshCatalog} onNewConversation={beginConversation} onShowSession={showSession} viewState={store} onOpenViewer={onOpenViewer} onOpenChat={panel.kind === 'chat' && host && target.sessionId ? () => void detach(panel) : undefined}/> : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}</div>}
+      {(!panel.collapsed || editing) && <div className="module-body">{panel.detached ? <div className="module-empty detached-message"><Icon name="external" size={24}/><h3>Chat is in its own window</h3><p>Your conversation continues there.</p><button disabled={!host || !!pending} onClick={() => void detach(panel)}>Open chat window ↗</button><button disabled={!host || !!pending} onClick={() => void dock(panel)}>Bring chat back here</button></div> : definition ? <definition.Component workspaceId={workspaceID} chooseRepositoryFolder={host?.chooseRepositoryFolder} target={target} onTarget={panel.kind==='collections' ? target => target.sessionId ? showSession(target) : onTarget(target) : onTarget} collections={collections} error={catalogError} loaded={catalogLoaded} refresh={refreshCatalog} onNewConversation={beginConversation} onShowSession={showSession} onShowPanel={showPanelFor} viewState={store} onOpenViewer={onOpenViewer} onOpenChat={panel.kind === 'chat' && host && target.sessionId ? () => void detach(panel) : undefined}/> : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}</div>}
     </section>;
   };
   const displayedLayout = editing ? page.layout : mainLayout(page.layout);
@@ -424,7 +440,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     <RestartNotice/>
     {/* A restart the person asked for explains the dropped connection; RestartNotice says so instead. */}
     {(error || (connectionError && restart.phase !== 'restarting')) && <div className="error" role="alert">{connectionError && restart.phase !== 'restarting' ? <><strong>Runner disconnected.</strong> Reconnecting automatically… <details><summary>Connection details</summary>{connectionError}</details></> : error}<button onClick={()=>{if(host?.reconnect)void host.reconnect().catch(e=>setError(String(e)));else refresh();}}>Retry now</button></div>}
-    {settings ? <SettingsPage tab={settingsTab} onTab={setSettingsTab} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/> : <>
+    {settings ? <SettingsPage tab={settingsTab} onTab={setSettingsTab} onShowProcesses={() => showModule('processes')} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/> : <>
     {locked && <button onClick={() => commit(defaultLayout({...initialTarget,collectionId:workspaceID}), true)}>Reset retained layout</button>}
     {configuring && <section className="layout-json"><div className="inspector-heading"><strong>Page configuration</strong><button className="icon-button" aria-label="Close layout configuration" onClick={() => setConfiguring(false)}>×</button></div><label className="sr-only" htmlFor="page-config-json">Page configuration</label><textarea id="page-config-json" value={json} onChange={event => setJSON(event.target.value)} spellCheck={false}/><button disabled={hasDetached || !!pending} onClick={() => { try { if (commit(parseLayout(json), true)) setConfiguring(false); } catch (error) { setError(String(error)); } }}>Import layout</button><small>Panel references and arrangement only. Your account and permissions stay unchanged.</small></section>}
     <div className="workspace-context">

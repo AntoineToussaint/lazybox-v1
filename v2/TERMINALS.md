@@ -124,6 +124,15 @@ Login shell       session leader, the terminal as its controlling terminal
 - Deleting a workspace hangs up its terminals (revoking their credentials) and
   deletes their full-output files before its files are removed.
 
+### Attach from another terminal (tmux)
+
+With **Settings → Runner → Process hosting → tmux**, a new terminal's host also
+runs in a tmux window: **Copy attach** in the Processes panel gives
+`tmux -S <socket> attach -t <host>`. That window is the same shell: what you
+type in either place reaches it, and both show its output. The shell keeps the
+size the panel sets. Closing the tmux window closes the terminal. See
+[hosting backends](SESSION_HOSTS.md#hosting-backends-session-hosts-default-or-tmux).
+
 ### Surviving a Runner restart
 
 A terminal runs in its own [session host](SESSION_HOSTS.md), exactly like agents

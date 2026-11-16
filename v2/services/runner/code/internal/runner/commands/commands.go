@@ -92,12 +92,13 @@ type Command struct {
 	once     sync.Once
 
 	// A hosted command runs in a session host and outlives the Runner.
-	host      *sessionhost.Client
-	hostID    string
-	hostRoot  string
-	seq       uint64
-	detaching bool
-	following chan struct{}
+	host        *sessionhost.Client
+	hostID      string
+	hostRoot    string
+	hostBackend sessionhost.Backend
+	seq         uint64
+	detaching   bool
+	following   chan struct{}
 }
 
 type Manager struct {
@@ -106,6 +107,7 @@ type Manager struct {
 	limit    int64
 	maxLive  int
 	hostRoot string
+	backend  sessionhost.Backend
 	items    map[string]*Command
 	closed   bool
 	// starting counts hosted starts between registration and their first
@@ -135,6 +137,12 @@ func NewWithLimit(dir string, perCommandBudget int64, maxLive int) (*Manager, er
 // already re-attached are detached again, never stopped: a Runner that cannot
 // start does not take running work down with it.
 func NewHosted(dir string, perCommandBudget int64, maxLive int, hostRoot string) (*Manager, error) {
+	return NewHostedOn(dir, perCommandBudget, maxLive, hostRoot, nil)
+}
+
+// NewHostedOn is NewHosted with the backend that starts new command hosts (the
+// default session host when nil). Hosts any backend started are re-attached.
+func NewHostedOn(dir string, perCommandBudget int64, maxLive int, hostRoot string, backend sessionhost.Backend) (*Manager, error) {
 	if hostRoot != "" && !filepath.IsAbs(hostRoot) {
 		return nil, errors.New("command host root must be absolute")
 	}
@@ -150,7 +158,7 @@ func NewHosted(dir string, perCommandBudget int64, maxLive int, hostRoot string)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	m := &Manager{dir: dir, limit: perCommandBudget, maxLive: maxLive, hostRoot: hostRoot, items: map[string]*Command{}}
+	m := &Manager{dir: dir, limit: perCommandBudget, maxLive: maxLive, hostRoot: hostRoot, backend: sessionhost.Use(backend), items: map[string]*Command{}}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -201,7 +209,7 @@ func NewHosted(dir string, perCommandBudget int64, maxLive int, hostRoot string)
 				m.Detach()
 				return nil, err
 			}
-			c := &Command{spool: spool, status: state, finished: make(chan struct{}), hostID: host, hostRoot: hostRoot, seq: seq}
+			c := &Command{spool: spool, status: state, finished: make(chan struct{}), hostID: host, hostRoot: hostRoot, hostBackend: m.backend, seq: seq}
 			m.items[state.ID] = c
 			c.adopt()
 			continue
@@ -257,7 +265,7 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if err != nil {
 		return nil, err
 	}
-	c := &Command{spool: spool, finished: make(chan struct{}), status: Status{ID: id, Spec: spec, Mode: "pipe"}, hostRoot: m.hostRoot}
+	c := &Command{spool: spool, finished: make(chan struct{}), status: Status{ID: id, Spec: spec, Mode: "pipe"}, hostRoot: m.hostRoot, hostBackend: m.backend}
 	if len(spec.Argv) > 0 {
 		c.status.Mode = "managed"
 	}
@@ -489,11 +497,11 @@ func (m *Manager) startHosted(spec Spec) (*Command, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	host, launchErr := sessionhost.Launch(ctx, m.hostRoot, sessionhost.Options{})
+	host, launchErr := m.backend.Launch(ctx, m.hostRoot, sessionhost.Options{Kind: "command", Owner: spec.SessionID, Label: Label(spec)})
 	c, err := m.register(spec, host)
 	if err != nil {
 		if host != nil {
-			_ = sessionhost.Stop(ctx, m.hostRoot, host.ID())
+			_ = m.backend.Stop(ctx, m.hostRoot, host.ID())
 		}
 		return nil, err
 	}
@@ -508,14 +516,14 @@ func (m *Manager) startHosted(spec Spec) (*Command, error) {
 	closed := m.closed
 	m.mu.Unlock()
 	if closed {
-		_ = sessionhost.Stop(ctx, m.hostRoot, host.ID())
+		_ = m.backend.Stop(ctx, m.hostRoot, host.ID())
 		c.finish(nil, "", errors.New("runner closed before command start"))
 		return c, nil
 	}
 	beforeSpawn()
 	err = host.Spawn(ctx, sessionhost.Spec{Path: spec.Argv[0], Args: spec.Argv[1:], Env: spec.Env, Cwd: spec.Cwd, Stream: true})
 	if err != nil {
-		_ = sessionhost.Stop(ctx, m.hostRoot, host.ID())
+		_ = m.backend.Stop(ctx, m.hostRoot, host.ID())
 		c.finish(nil, "", fmt.Errorf("start failed: %w", err))
 		return c, nil
 	}
@@ -532,7 +540,7 @@ func (c *Command) adopt() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	host, err := sessionhost.Attach(ctx, c.hostRoot, c.hostID, c.seq)
+	host, err := c.hostBackend.Attach(ctx, c.hostRoot, c.hostID, c.seq)
 	var cause string
 	switch {
 	case err == nil && host.Spawned():
@@ -544,13 +552,13 @@ func (c *Command) adopt() {
 	case sessionhost.Gone(err):
 		// A host's exit kills the command's group (processguard): the command
 		// is gone, and its exit status with it.
-		_ = sessionhost.Forget(c.hostRoot, c.hostID)
+		_ = c.hostBackend.Forget(c.hostRoot, c.hostID)
 		c.finish(nil, "", errors.New("command outcome unknown: its session host exited while no Runner was attached"))
 		return
 	default:
 		cause = "command stopped: its session host could not be adopted after a Runner restart"
 	}
-	if sessionhost.Stop(ctx, c.hostRoot, c.hostID) != nil {
+	if c.hostBackend.Stop(ctx, c.hostRoot, c.hostID) != nil {
 		cause = processguard.ErrCleanupUnconfirmed.Error()
 	}
 	c.finish(nil, "", errors.New(cause))

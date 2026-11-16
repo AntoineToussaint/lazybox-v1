@@ -49,6 +49,17 @@ type launch struct {
 	BufferLimit int64         `json:"bufferLimit"`
 	OrphanAfter time.Duration `json:"orphanAfter"`
 	Scrollback  int           `json:"scrollback,omitempty"`
+	Kind        string        `json:"kind,omitempty"`
+	Owner       string        `json:"owner,omitempty"`
+	Label       string        `json:"label,omitempty"`
+	// A tmux-hosted host's window, and the environment it runs with: tmux
+	// starts it with its server's, not the Runner's.
+	Tmux *TmuxWindow `json:"tmux,omitempty"`
+	Env  []string    `json:"env,omitempty"`
+}
+
+func newLaunch(id, dir, token string, opts Options) launch {
+	return launch{ID: id, Dir: dir, Token: token, BufferLimit: opts.BufferLimit, OrphanAfter: opts.OrphanAfter, Scrollback: opts.Scrollback, Kind: opts.Kind, Owner: opts.Owner, Label: opts.Label}
 }
 
 type entry struct {
@@ -108,6 +119,9 @@ type host struct {
 	// never signalled again. hungUp: output after the shell's exit is dropped.
 	reaped bool
 	hungUp bool
+
+	// console is a tmux-hosted host's window; nil otherwise.
+	console *console
 }
 
 type conn struct {
@@ -130,11 +144,10 @@ func (c *conn) close() { c.once.Do(func() { close(c.done); _ = c.c.Close() }) }
 
 func serve() int {
 	signal.Ignore(syscall.SIGHUP, syscall.SIGINT, syscall.SIGPIPE)
-	var cfg launch
-	if err := json.NewDecoder(io.LimitReader(os.Stdin, 1<<16)).Decode(&cfg); err != nil || !validID.MatchString(cfg.ID) || cfg.Dir == "" || len(cfg.Token) < 32 {
+	cfg, ok := readLaunch()
+	if !ok || !validID.MatchString(cfg.ID) || cfg.Dir == "" || len(cfg.Token) < 32 {
 		return 125
 	}
-	_ = os.Stdin.Close()
 	if cfg.BufferLimit <= 0 {
 		cfg.BufferLimit = DefaultBufferLimit
 	}
@@ -157,13 +170,23 @@ func serve() int {
 	h.proxyKey = rand.Text()
 	h.proxy = "http://" + web.Addr().String() + "/" + h.proxyKey
 	go func() { _ = (&http.Server{Handler: h, ReadHeaderTimeout: 30 * time.Second}).Serve(web) }()
-	record := Record{Protocol: Protocol, ID: cfg.ID, PID: os.Getpid(), Port: control.Addr().(*net.TCPAddr).Port, Token: cfg.Token, Proxy: h.proxy}
+	record := Record{Protocol: Protocol, ID: cfg.ID, PID: os.Getpid(), Port: control.Addr().(*net.TCPAddr).Port, Token: cfg.Token, Proxy: h.proxy, Backend: BackendSessionHost, Kind: cfg.Kind, Owner: cfg.Owner, Label: cfg.Label, Tmux: cfg.Tmux}
+	if cfg.Tmux != nil {
+		record.Backend = BackendTmux
+		// The window shows the program; its closing stops it.
+		h.console = openConsole(h, cfg)
+	}
 	if err = writeRecord(cfg.Dir, record); err != nil {
 		return 125
 	}
-	// Readiness: the launcher reads one line, then the host owns nothing of it.
-	_ = json.NewEncoder(os.Stdout).Encode(record)
-	_ = os.Stdout.Close()
+	if h.console == nil {
+		// Readiness: the launcher reads one line, then the host owns nothing of it.
+		_ = json.NewEncoder(os.Stdout).Encode(record)
+		_ = os.Stdout.Close()
+	} else {
+		// The tmux launcher waits for the record instead.
+		h.console.start()
+	}
 	terminated := make(chan os.Signal, 1)
 	signal.Notify(terminated, syscall.SIGTERM)
 	go func() { <-terminated; h.terminate() }()
@@ -302,6 +325,7 @@ func (h *host) handle(raw net.Conn) {
 		}()
 	}
 	h.client = c
+	h.console.status("Runner attached")
 	if h.terminal != nil {
 		// A terminal's output is not evidence to be recorded exactly once: an
 		// attaching Runner gets the scrollback in its welcome instead of a
@@ -380,6 +404,7 @@ func (h *host) drop(c *conn) {
 		h.client = nil
 		h.unattached = time.Now()
 		h.upstream = nil // The gateway belonged to the departed Runner.
+		h.console.status("Runner detached; the process keeps running")
 	}
 	h.cond.Broadcast()
 	h.mu.Unlock()
@@ -517,6 +542,7 @@ func (h *host) recordOutput(line, data []byte) {
 }
 
 func (h *host) write(line json.RawMessage) {
+	h.console.line(">", line)
 	if id, _, response := classify(line); response {
 		h.mu.Lock()
 		if _, ok := h.open[id]; ok {
@@ -635,6 +661,7 @@ func (h *host) spawn(spec *Spec) error {
 	if cmd.Process != nil {
 		h.agent = cmd.Process.Pid
 	}
+	h.console.started(spec, h.agent)
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
@@ -671,6 +698,7 @@ func (h *host) spawn(spec *Spec) error {
 		}
 		h.cond.Broadcast()
 		h.mu.Unlock()
+		h.console.exited(h.outcome)
 	}()
 	return nil
 }
@@ -681,6 +709,7 @@ func (h *host) readLines(out *os.File) {
 	s := bufio.NewScanner(out)
 	s.Buffer(make([]byte, 4096), 16<<20)
 	for s.Scan() {
+		h.console.line("<", s.Bytes())
 		h.record(s.Bytes())
 	}
 	if err := s.Err(); err != nil && !errors.Is(err, os.ErrClosed) {
@@ -703,6 +732,7 @@ func (h *host) readChunks(channel string, out *os.File) {
 		n, err := out.Read(buf)
 		if n > 0 {
 			line, _ := json.Marshal(Chunk{Channel: channel, Data: buf[:n]})
+			h.console.chunk(channel, buf[:n])
 			h.record(line)
 		}
 		if err != nil {

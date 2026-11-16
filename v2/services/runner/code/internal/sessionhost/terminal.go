@@ -61,6 +61,8 @@ func (h *host) spawnTerminalLocked(spec *Spec) error {
 	}
 	h.terminal, h.stdin, h.spawned = master, master, true
 	h.agent = cmd.Process.Pid
+	h.console.started(spec, h.agent)
+	h.console.resize(*spec.Terminal)
 	go h.feed(master)
 	readDone := make(chan struct{})
 	go func() {
@@ -97,6 +99,7 @@ func (h *host) spawnTerminalLocked(spec *Spec) error {
 		h.outcome = outcome
 		h.cond.Broadcast()
 		h.mu.Unlock()
+		h.console.exited(outcome)
 	}()
 	return nil
 }
@@ -109,6 +112,7 @@ func (h *host) readTerminal(master *os.File) {
 		if n > 0 {
 			data := append([]byte(nil), buf[:n]...)
 			line, _ := json.Marshal(Chunk{Channel: TerminalChannel, Data: data})
+			h.console.raw(data)
 			h.recordOutput(line, data)
 		}
 		if err != nil {
@@ -168,6 +172,7 @@ func (h *host) resize(size *Size) {
 		return
 	}
 	_ = pty.Setsize(terminal, &pty.Winsize{Cols: size.Cols, Rows: size.Rows})
+	h.console.resize(*size)
 }
 
 // hangUp ends the terminal as closing a terminal window does: SIGHUP to the

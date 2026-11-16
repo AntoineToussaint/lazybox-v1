@@ -24,6 +24,9 @@ type Data struct {
 	ClaudeContext string             `json:"claudeContext"`
 	CodexContext  string             `json:"codexContext"`
 	Prices        telemetry.RateCard `json:"prices"`
+	// ProcessBackend hosts new agents, commands and terminals: "sessionhost" or
+	// "tmux"; "" keeps the Runner configuration's.
+	ProcessBackend string `json:"processBackend,omitempty"`
 }
 type Store struct {
 	mu   sync.RWMutex
@@ -58,6 +61,9 @@ func validate(d Data) error {
 	}
 	if d.Permission != "" && d.Permission != "ask" && d.Permission != "read-only" && d.Permission != "yolo" {
 		return errors.New("invalid default permissions")
+	}
+	if d.ProcessBackend != "" && d.ProcessBackend != "sessionhost" && d.ProcessBackend != "tmux" {
+		return errors.New("invalid process backend")
 	}
 	if len(d.Context)+len(d.ClaudeContext)+len(d.CodexContext) > 64<<10 {
 		return errors.New("agent context exceeds 64 KiB")

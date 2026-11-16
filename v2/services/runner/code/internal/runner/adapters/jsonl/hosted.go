@@ -20,17 +20,25 @@ var ErrDetached = sessionhost.ErrDetached
 // route provider traffic through a Runner-local gateway point the agent at
 // ProxyURL, which stays valid for the life of the session.
 type Host struct {
-	root   string
-	client *sessionhost.Client
+	root    string
+	backend sessionhost.Backend
+	client  *sessionhost.Client
 }
 
 // Launch starts a detached session host under root.
 func Launch(ctx context.Context, root string) (*Host, error) {
-	c, err := sessionhost.Launch(ctx, root, sessionhost.Options{})
+	return LaunchOn(ctx, nil, root, sessionhost.Options{})
+}
+
+// LaunchOn starts a session host under root with backend (the default when
+// nil), recording opts for the Runner's process inventory.
+func LaunchOn(ctx context.Context, backend sessionhost.Backend, root string, opts sessionhost.Options) (*Host, error) {
+	backend = sessionhost.Use(backend)
+	c, err := backend.Launch(ctx, root, opts)
 	if err != nil {
 		return nil, err
 	}
-	return &Host{root: root, client: c}, nil
+	return &Host{root: root, backend: backend, client: c}, nil
 }
 
 func (h *Host) ProxyURL() string { return h.client.ProxyURL() }
@@ -39,7 +47,7 @@ func (h *Host) ProxyURL() string { return h.client.ProxyURL() }
 func (h *Host) Abandon() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = sessionhost.Stop(ctx, h.root, h.client.ID())
+	_ = h.backend.Stop(ctx, h.root, h.client.ID())
 	_ = h.client.Detach()
 }
 
@@ -51,13 +59,20 @@ func (h *Host) Start(ctx context.Context, binary string, args, env []string, cwd
 		h.Abandon()
 		return nil, err
 	}
-	return hosted(ctx, h.root, h.client, 0), nil
+	return hosted(ctx, h.backend, h.root, h.client, 0), nil
 }
 
 // Attach re-connects to a host started by an earlier Runner. ack is the highest
 // transport cursor this Runner has durably recorded.
 func Attach(ctx context.Context, root, id string, ack uint64) (*Process, error) {
-	c, err := sessionhost.Attach(ctx, root, id, ack)
+	return AttachOn(ctx, nil, root, id, ack)
+}
+
+// AttachOn is Attach through backend (the default when nil). Any backend
+// re-attaches a host any other one started.
+func AttachOn(ctx context.Context, backend sessionhost.Backend, root, id string, ack uint64) (*Process, error) {
+	backend = sessionhost.Use(backend)
+	c, err := backend.Attach(ctx, root, id, ack)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +80,7 @@ func Attach(ctx context.Context, root, id string, ack uint64) (*Process, error) 
 		_ = c.Detach()
 		return nil, errors.New("session host never started its agent")
 	}
-	p := hosted(ctx, root, c, ack)
+	p := hosted(ctx, backend, root, c, ack)
 	// The previous Runner's calls may still be answered on this host. Start
 	// this Runner's request IDs elsewhere, so a late reply to one of them is
 	// never taken for the answer to a new call.
@@ -77,8 +92,8 @@ func Attach(ctx context.Context, root, id string, ack uint64) (*Process, error) 
 
 // hosted wraps a host connection. ack is the cursor already recorded, set
 // before the reader starts.
-func hosted(ctx context.Context, root string, c *sessionhost.Client, ack uint64) *Process {
-	p := &Process{host: c, hostRoot: root, commit: ack, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: &redact.Tail{}}
+func hosted(ctx context.Context, backend sessionhost.Backend, root string, c *sessionhost.Client, ack uint64) *Process {
+	p := &Process{host: c, hostBackend: backend, hostRoot: root, commit: ack, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: &redact.Tail{}}
 	go p.readHosted()
 	go func() {
 		select {
@@ -263,7 +278,7 @@ func (p *Process) terminateHosted() error {
 	defer cancel()
 	// A fresh control connection supersedes this one, terminates the agent,
 	// waits for its exit and releases the host.
-	err := sessionhost.Stop(ctx, p.hostRoot, p.host.ID())
+	err := p.hostBackend.Stop(ctx, p.hostRoot, p.host.ID())
 	p.stop(errors.New("native process closed"))
 	_ = p.host.Detach()
 	select {

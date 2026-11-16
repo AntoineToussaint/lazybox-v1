@@ -58,12 +58,26 @@ export async function startRunnerFixture() {
   const shipState=(collectionId,member)=>{const key=collectionId+'/'+member;if(!ship.has(key)){const spec=collections.find(c=>c.id===collectionId)?.members.find(m=>m.spec.name===member)?.spec;ship.set(key,{branch:spec?.branch||'feature/'+member,head:hex(),files:[],commits:[],committed:[],upstream:'',ahead:0,githubRepository:'',pr:undefined,mergeRefusal:''});}return ship.get(key);};
   const pullRequest=state=>state.pr?{...state.pr,githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:true}:{githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:false,...(state.githubRepository?{}:{unavailable:'origin is not a GitHub repository; push works, pull requests need GitHub'})};
 
-  let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[]};
+  let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:''};
   // The fake Runner process. RestartRunner answers, then the "process" is down
   // for restartMs (every RPC fails as unavailable) before a new instance serves.
   // listDelayMs holds ListCollections answers (a slow first response);
   // refusedBearers records every bearer the fake Runner did not accept.
   const runner = { instanceId: randomUUID(), restartAvailable: true, restartError: '', restartMs: 1500, down: false, restarts: 0, listDelayMs: 0, refusedBearers: [] };
+  // Hosted processes as ListProcesses reports them, for the Processes view.
+  // Explicitly fake: no session host, tmux or process table behind them. Open
+  // terminals are listed too, as the Runner lists their hosts.
+  const processHosting = { configured: 'sessionhost', tmuxVersion: 'tmux 3.4', tmuxProblem: '', fallback: '' };
+  const usage = (cpuPercent, megabytes, processCount) => ({ cpuPercent, memoryBytes: String(megabytes * 1048576), processCount });
+  const processes = [
+    { id: 'host-agent-alpha', kind: 'agent', backend: 'sessionhost', state: 'running', attached: true, hostPid: 4101, programPid: 4102, uptimeSeconds: '8100', label: 'Fix the parser', workspaceId: 'alpha', workspaceName: 'Alpha feature', sessionId: 'alpha-session', conversationTitle: 'Fix the parser', provider: 'claude', usage: usage(3.2, 412, 5) },
+    { id: 'host-command-beta', kind: 'command', backend: 'tmux', state: 'running', attached: true, hostPid: 4201, programPid: 4202, uptimeSeconds: '95', label: 'go test ./...', workspaceId: 'beta', workspaceName: 'Beta release', sessionId: 'beta-session', conversationTitle: 'Ship the release', provider: 'claude', commandId: 'beta-command', attachCommand: 'tmux -S /private/tmp/tmux-501/lazybox-fixture attach -t host-command-beta', usage: usage(97.5, 220, 3) },
+    { id: 'host-orphan', kind: 'agent', backend: 'sessionhost', state: 'running', attached: false, hostPid: 4301, programPid: 4302, uptimeSeconds: '90061', label: 'codex · old-checkout', usage: usage(0, 96, 2) },
+  ];
+  const processInventory = () => ({
+    processes: [...processes, ...[...terminals.values()].filter(t => !t.done).map(t => ({ id: 'host-' + t.id, kind: 'terminal', backend: 'sessionhost', state: 'running', attached: true, hostPid: 4400, programPid: 4401, uptimeSeconds: '30', label: t.title, workspaceId: t.collectionId, workspaceName: collections.find(c => c.id === t.collectionId)?.name || '', terminalId: t.id, usage: usage(0.1, 8, 2) }))],
+    hosting: { selected: runnerSettings.processBackend || processHosting.configured, ...processHosting },
+  });
   const handle = async (req, res) => {
     // A desktop window calls the Runner's own origin (no proxy), as the native app does.
     if (req.headers.origin) {
@@ -261,6 +275,21 @@ export async function startRunnerFixture() {
         if(body.expectedHead!==s.pr.headSha)return error('failed_precondition','GitHub: Head branch was modified. Review and try the merge again.');
         Object.assign(s.pr,{state:'merged',mergeCommit:hex(),mergeMethod:body.method});return json(pullRequest(s));
       }
+      case 'ListProcesses': return json(processInventory());
+      case 'StopProcess': {
+        mutations.push({ method, body });
+        const terminal = [...terminals.values()].find(t => 'host-' + t.id === body.id && !t.done);
+        if (terminal) { terminal.done = true; for (const client of terminal.clients) client.end(frame({}, 2)); return json(processInventory()); }
+        const index = processes.findIndex(p => p.id === body.id);
+        if (index < 0) return error('not_found', 'hosted process not found');
+        processes.splice(index, 1); return json(processInventory());
+      }
+      case 'CleanUpOrphanProcesses': {
+        mutations.push({ method, body });
+        const orphans = processes.filter(p => !p.attached);
+        for (const p of orphans) processes.splice(processes.indexOf(p), 1);
+        return json({ stopped: orphans.length, inventory: processInventory() });
+      }
       case 'Apply': mutations.push({ method, body }); return json({ operationId: body.operationId, delivery: 'accepted' });
       case 'CloseSession': mutations.push({ method, body }); return error('failed_precondition', 'Closing a surface must not close a session');
       default: return error('unimplemented', `Unsupported fixture RPC ${method}`);
@@ -274,7 +303,7 @@ export async function startRunnerFixture() {
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { runner, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents,
+  return { runner, processes, processHosting, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents,
     get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

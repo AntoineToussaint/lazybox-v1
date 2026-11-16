@@ -261,6 +261,15 @@ const (
 	// RunnerServiceMergePullRequestProcedure is the fully-qualified name of the RunnerService's
 	// MergePullRequest RPC.
 	RunnerServiceMergePullRequestProcedure = "/lazybox.bench.v1.RunnerService/MergePullRequest"
+	// RunnerServiceListProcessesProcedure is the fully-qualified name of the RunnerService's
+	// ListProcesses RPC.
+	RunnerServiceListProcessesProcedure = "/lazybox.bench.v1.RunnerService/ListProcesses"
+	// RunnerServiceStopProcessProcedure is the fully-qualified name of the RunnerService's StopProcess
+	// RPC.
+	RunnerServiceStopProcessProcedure = "/lazybox.bench.v1.RunnerService/StopProcess"
+	// RunnerServiceCleanUpOrphanProcessesProcedure is the fully-qualified name of the RunnerService's
+	// CleanUpOrphanProcesses RPC.
+	RunnerServiceCleanUpOrphanProcessesProcedure = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -352,6 +361,15 @@ type RunnerServiceClient interface {
 	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// Owner only. Every process the Runner hosts so it outlives the Runner
+	// (agents, managed commands, terminals), held by this Runner or orphaned.
+	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. Stops one hosted process the way its owner would: closes the
+	// agent's session, cancels the command, closes the terminal; an orphan is
+	// stopped directly.
+	StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. The safe sweep: stops every host this Runner does not hold.
+	CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -827,6 +845,24 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
 			connect.WithClientOptions(opts...),
 		),
+		listProcesses: connect.NewClient[gen.ListProcessesRequest, gen.ProcessInventory](
+			httpClient,
+			baseURL+RunnerServiceListProcessesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListProcesses")),
+			connect.WithClientOptions(opts...),
+		),
+		stopProcess: connect.NewClient[gen.StopProcessRequest, gen.ProcessInventory](
+			httpClient,
+			baseURL+RunnerServiceStopProcessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StopProcess")),
+			connect.WithClientOptions(opts...),
+		),
+		cleanUpOrphanProcesses: connect.NewClient[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse](
+			httpClient,
+			baseURL+RunnerServiceCleanUpOrphanProcessesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CleanUpOrphanProcesses")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -909,6 +945,9 @@ type runnerServiceClient struct {
 	createPullRequest            *connect.Client[gen.CreatePullRequestRequest, gen.PullRequestStatus]
 	getPullRequest               *connect.Client[gen.GetPullRequestRequest, gen.PullRequestStatus]
 	mergePullRequest             *connect.Client[gen.MergePullRequestRequest, gen.PullRequestStatus]
+	listProcesses                *connect.Client[gen.ListProcessesRequest, gen.ProcessInventory]
+	stopProcess                  *connect.Client[gen.StopProcessRequest, gen.ProcessInventory]
+	cleanUpOrphanProcesses       *connect.Client[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -1296,6 +1335,21 @@ func (c *runnerServiceClient) MergePullRequest(ctx context.Context, req *connect
 	return c.mergePullRequest.CallUnary(ctx, req)
 }
 
+// ListProcesses calls lazybox.bench.v1.RunnerService.ListProcesses.
+func (c *runnerServiceClient) ListProcesses(ctx context.Context, req *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return c.listProcesses.CallUnary(ctx, req)
+}
+
+// StopProcess calls lazybox.bench.v1.RunnerService.StopProcess.
+func (c *runnerServiceClient) StopProcess(ctx context.Context, req *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return c.stopProcess.CallUnary(ctx, req)
+}
+
+// CleanUpOrphanProcesses calls lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses.
+func (c *runnerServiceClient) CleanUpOrphanProcesses(ctx context.Context, req *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error) {
+	return c.cleanUpOrphanProcesses.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -1385,6 +1439,15 @@ type RunnerServiceHandler interface {
 	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
 	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// Owner only. Every process the Runner hosts so it outlives the Runner
+	// (agents, managed commands, terminals), held by this Runner or orphaned.
+	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. Stops one hosted process the way its owner would: closes the
+	// agent's session, cancels the command, closes the terminal; an orphan is
+	// stopped directly.
+	StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. The safe sweep: stops every host this Runner does not hold.
+	CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1856,6 +1919,24 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListProcessesHandler := connect.NewUnaryHandler(
+		RunnerServiceListProcessesProcedure,
+		svc.ListProcesses,
+		connect.WithSchema(runnerServiceMethods.ByName("ListProcesses")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStopProcessHandler := connect.NewUnaryHandler(
+		RunnerServiceStopProcessProcedure,
+		svc.StopProcess,
+		connect.WithSchema(runnerServiceMethods.ByName("StopProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCleanUpOrphanProcessesHandler := connect.NewUnaryHandler(
+		RunnerServiceCleanUpOrphanProcessesProcedure,
+		svc.CleanUpOrphanProcesses,
+		connect.WithSchema(runnerServiceMethods.ByName("CleanUpOrphanProcesses")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -2012,6 +2093,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetPullRequestHandler.ServeHTTP(w, r)
 		case RunnerServiceMergePullRequestProcedure:
 			runnerServiceMergePullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceListProcessesProcedure:
+			runnerServiceListProcessesHandler.ServeHTTP(w, r)
+		case RunnerServiceStopProcessProcedure:
+			runnerServiceStopProcessHandler.ServeHTTP(w, r)
+		case RunnerServiceCleanUpOrphanProcessesProcedure:
+			runnerServiceCleanUpOrphanProcessesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2327,4 +2414,16 @@ func (UnimplementedRunnerServiceHandler) GetPullRequest(context.Context, *connec
 
 func (UnimplementedRunnerServiceHandler) MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.MergePullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListProcesses is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StopProcess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses is not implemented"))
 }

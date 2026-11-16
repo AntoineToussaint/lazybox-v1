@@ -515,3 +515,6 @@ func (e *Engine) persistLocked() error {
 	}
 	return e.persistDurableLocked()
 }
+
+// HostID is the session host running the provider's native process, or "".
+func (e *Engine) HostID() string { return agent.HostOf(e.provider) }

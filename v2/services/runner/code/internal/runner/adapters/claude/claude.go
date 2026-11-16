@@ -83,7 +83,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 		// The agent talks to the host's session-stable proxy; the Runner points
 		// the proxy at whichever gateway it currently runs.
 		var h *jsonl.Host
-		if h, err = jsonl.Launch(ctx, o.Host.Root); err != nil {
+		if h, err = jsonl.LaunchOn(ctx, o.Host.Backend, o.Host.Root, o.HostOptions("claude")); err != nil {
 			return nil, err
 		}
 		env := GatewayEnv(o.Gateway, o.Env)
@@ -126,7 +126,7 @@ func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
 	if err := json.Unmarshal(o.Host.Attach.State, &state); err != nil || state.Host == "" {
 		return nil, errors.New("Claude session has no re-attachable host")
 	}
-	p, err := jsonl.Attach(ctx, o.Host.Root, state.Host, o.Host.Attach.Cursor)
+	p, err := jsonl.AttachOn(ctx, o.Host.Backend, o.Host.Root, state.Host, o.Host.Attach.Cursor)
 	if err != nil {
 		return nil, err
 	}
@@ -233,3 +233,6 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	}
 }
 func (s *session) Close() error { return s.p.Close() }
+
+// HostID is the session host running the worker, or "" for a local pipe.
+func (s *session) HostID() string { return s.p.HostID() }

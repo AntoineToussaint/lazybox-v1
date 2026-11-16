@@ -97,6 +97,9 @@ const (
 	RunnerService_CreatePullRequest_FullMethodName            = "/lazybox.bench.v1.RunnerService/CreatePullRequest"
 	RunnerService_GetPullRequest_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetPullRequest"
 	RunnerService_MergePullRequest_FullMethodName             = "/lazybox.bench.v1.RunnerService/MergePullRequest"
+	RunnerService_ListProcesses_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListProcesses"
+	RunnerService_StopProcess_FullMethodName                  = "/lazybox.bench.v1.RunnerService/StopProcess"
+	RunnerService_CleanUpOrphanProcesses_FullMethodName       = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -190,6 +193,15 @@ type RunnerServiceClient interface {
 	CreatePullRequest(ctx context.Context, in *CreatePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
 	GetPullRequest(ctx context.Context, in *GetPullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
 	MergePullRequest(ctx context.Context, in *MergePullRequestRequest, opts ...grpc.CallOption) (*PullRequestStatus, error)
+	// Owner only. Every process the Runner hosts so it outlives the Runner
+	// (agents, managed commands, terminals), held by this Runner or orphaned.
+	ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error)
+	// Owner only. Stops one hosted process the way its owner would: closes the
+	// agent's session, cancels the command, closes the terminal; an orphan is
+	// stopped directly.
+	StopProcess(ctx context.Context, in *StopProcessRequest, opts ...grpc.CallOption) (*ProcessInventory, error)
+	// Owner only. The safe sweep: stops every host this Runner does not hold.
+	CleanUpOrphanProcesses(ctx context.Context, in *CleanUpOrphanProcessesRequest, opts ...grpc.CallOption) (*CleanUpOrphanProcessesResponse, error)
 }
 
 type runnerServiceClient struct {
@@ -1006,6 +1018,36 @@ func (c *runnerServiceClient) MergePullRequest(ctx context.Context, in *MergePul
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProcessInventory)
+	err := c.cc.Invoke(ctx, RunnerService_ListProcesses_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) StopProcess(ctx context.Context, in *StopProcessRequest, opts ...grpc.CallOption) (*ProcessInventory, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProcessInventory)
+	err := c.cc.Invoke(ctx, RunnerService_StopProcess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) CleanUpOrphanProcesses(ctx context.Context, in *CleanUpOrphanProcessesRequest, opts ...grpc.CallOption) (*CleanUpOrphanProcessesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CleanUpOrphanProcessesResponse)
+	err := c.cc.Invoke(ctx, RunnerService_CleanUpOrphanProcesses_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1097,6 +1139,15 @@ type RunnerServiceServer interface {
 	CreatePullRequest(context.Context, *CreatePullRequestRequest) (*PullRequestStatus, error)
 	GetPullRequest(context.Context, *GetPullRequestRequest) (*PullRequestStatus, error)
 	MergePullRequest(context.Context, *MergePullRequestRequest) (*PullRequestStatus, error)
+	// Owner only. Every process the Runner hosts so it outlives the Runner
+	// (agents, managed commands, terminals), held by this Runner or orphaned.
+	ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error)
+	// Owner only. Stops one hosted process the way its owner would: closes the
+	// agent's session, cancels the command, closes the terminal; an orphan is
+	// stopped directly.
+	StopProcess(context.Context, *StopProcessRequest) (*ProcessInventory, error)
+	// Owner only. The safe sweep: stops every host this Runner does not hold.
+	CleanUpOrphanProcesses(context.Context, *CleanUpOrphanProcessesRequest) (*CleanUpOrphanProcessesResponse, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -1337,6 +1388,15 @@ func (UnimplementedRunnerServiceServer) GetPullRequest(context.Context, *GetPull
 }
 func (UnimplementedRunnerServiceServer) MergePullRequest(context.Context, *MergePullRequestRequest) (*PullRequestStatus, error) {
 	return nil, status.Error(codes.Unimplemented, "method MergePullRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListProcesses not implemented")
+}
+func (UnimplementedRunnerServiceServer) StopProcess(context.Context, *StopProcessRequest) (*ProcessInventory, error) {
+	return nil, status.Error(codes.Unimplemented, "method StopProcess not implemented")
+}
+func (UnimplementedRunnerServiceServer) CleanUpOrphanProcesses(context.Context, *CleanUpOrphanProcessesRequest) (*CleanUpOrphanProcessesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CleanUpOrphanProcesses not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -2717,6 +2777,60 @@ func _RunnerService_MergePullRequest_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListProcesses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProcessesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListProcesses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListProcesses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListProcesses(ctx, req.(*ListProcessesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_StopProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopProcessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).StopProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_StopProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).StopProcess(ctx, req.(*StopProcessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_CleanUpOrphanProcesses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CleanUpOrphanProcessesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CleanUpOrphanProcesses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CleanUpOrphanProcesses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CleanUpOrphanProcesses(ctx, req.(*CleanUpOrphanProcessesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3015,6 +3129,18 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MergePullRequest",
 			Handler:    _RunnerService_MergePullRequest_Handler,
+		},
+		{
+			MethodName: "ListProcesses",
+			Handler:    _RunnerService_ListProcesses_Handler,
+		},
+		{
+			MethodName: "StopProcess",
+			Handler:    _RunnerService_StopProcess_Handler,
+		},
+		{
+			MethodName: "CleanUpOrphanProcesses",
+			Handler:    _RunnerService_CleanUpOrphanProcesses_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

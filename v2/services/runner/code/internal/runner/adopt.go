@@ -58,7 +58,7 @@ func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options 
 // sessionOpen resolves the native open request. Every execution runs under a
 // session host so a Runner restart never stops its agent.
 func (b *Bench) sessionOpen(e *Execution, contextText, resume string) agent.Open {
-	open := agent.Open{ID: e.ID, Cwd: e.Cwd, Purpose: e.Purpose, Isolated: e.Profile.Isolation == "environment", Context: contextText, Model: e.Options.Model, Permission: e.Options.Permission, Workflow: e.Options.Workflow, Gateway: e.Options.Gateway, Profile: e.Profile.ID, Env: e.Env, Resume: resume, Host: &agent.Hosting{Root: b.Config.HostRoot}}
+	open := agent.Open{ID: e.ID, Cwd: e.Cwd, Purpose: e.Purpose, Isolated: e.Profile.Isolation == "environment", Context: contextText, Model: e.Options.Model, Permission: e.Options.Permission, Workflow: e.Options.Workflow, Gateway: e.Options.Gateway, Profile: e.Profile.ID, Env: e.Env, Resume: resume, Host: &agent.Hosting{Root: b.Config.HostRoot, Backend: b.hosting}}
 	open.Tools = b.executionTools(e, e.Env)
 	return open
 }
@@ -244,18 +244,25 @@ func (b *Bench) StopUnclaimedHosts(ctx context.Context) error { return b.stopOrp
 // attached until it has read that connection's close, and trusting it left
 // such a host's agent running, supervised by no one, until the orphan limit.
 func (b *Bench) stopOrphanHosts(ctx context.Context) error {
+	_, err := b.sweepOrphanHosts(ctx)
+	return err
+}
+
+// sweepOrphanHosts is stopOrphanHosts, counting the live hosts it stopped.
+func (b *Bench) sweepOrphanHosts(ctx context.Context) (int, error) {
 	var errs []error
+	stopped := 0
 	for _, root := range []string{b.Config.HostRoot, b.Config.CommandHostRoot, b.Config.TerminalHostRoot} {
-		ids, err := sessionhost.Hosts(root)
+		ids, err := b.hosting.Hosts(root)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		for _, id := range ids {
-			_, err := sessionhost.Probe(ctx, root, id)
+			_, err := b.hosting.Probe(ctx, root, id)
 			if sessionhost.Gone(err) {
 				// A stale record of a host that died, for example with its machine.
-				_ = sessionhost.Forget(root, id)
+				_ = b.hosting.Forget(root, id)
 				continue
 			}
 			if err != nil {
@@ -264,13 +271,15 @@ func (b *Bench) stopOrphanHosts(ctx context.Context) error {
 				errs = append(errs, fmt.Errorf("probe session host %s: %w", id, err))
 				continue
 			}
-			if sessionhost.Held(root, id) {
+			if b.hosting.Held(root, id) {
 				continue
 			}
-			if err = sessionhost.Stop(ctx, root, id); err != nil {
+			if err = b.hosting.Stop(ctx, root, id); err != nil {
 				errs = append(errs, fmt.Errorf("orphan session host %s: %w", id, err))
+			} else {
+				stopped++
 			}
 		}
 	}
-	return errors.Join(errs...)
+	return stopped, errors.Join(errs...)
 }

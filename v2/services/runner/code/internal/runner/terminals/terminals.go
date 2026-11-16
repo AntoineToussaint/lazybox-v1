@@ -61,6 +61,9 @@ type Options struct {
 	// Scrollback bounds the output kept per terminal, by the Runner and by
 	// its host; sessionhost.DefaultScrollback if zero.
 	Scrollback int
+	// Backend starts new terminal hosts; the default session host if nil.
+	// Hosts any backend started are re-attached.
+	Backend sessionhost.Backend
 }
 
 // record is a running terminal's private file: what a later Runner needs to
@@ -84,6 +87,7 @@ type Manager struct {
 	dir      string
 	hostRoot string
 	opts     Options
+	backend  sessionhost.Backend
 	items    map[string]*Terminal
 	keys     map[string]string
 	closed   bool
@@ -92,7 +96,9 @@ type Manager struct {
 }
 
 type Terminal struct {
-	m        *Manager
+	m *Manager
+	// hostID is the session host running the shell, fixed at start.
+	hostID   string
 	mu       sync.Mutex
 	status   Status
 	buf      []byte
@@ -124,7 +130,7 @@ func Open(dir, hostRoot string, opts Options) (*Manager, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	m := &Manager{dir: dir, hostRoot: hostRoot, opts: opts, items: map[string]*Terminal{}, keys: map[string]string{}}
+	m := &Manager{dir: dir, hostRoot: hostRoot, opts: opts, backend: sessionhost.Use(opts.Backend), items: map[string]*Terminal{}, keys: map[string]string{}}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -147,7 +153,7 @@ func Open(dir, hostRoot string, opts Options) (*Manager, error) {
 func (m *Manager) adopt(r record) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	host, err := sessionhost.Attach(ctx, m.hostRoot, r.Host, 0)
+	host, err := m.backend.Attach(ctx, m.hostRoot, r.Host, 0)
 	switch {
 	case err == nil && host.Spawned():
 		t := m.newTerminal(r)
@@ -158,17 +164,17 @@ func (m *Manager) adopt(r record) {
 		return
 	case err == nil:
 		_ = host.Detach()
-		_ = sessionhost.Stop(ctx, m.hostRoot, r.Host)
+		_ = m.backend.Stop(ctx, m.hostRoot, r.Host)
 	case sessionhost.Gone(err):
-		_ = sessionhost.Forget(m.hostRoot, r.Host)
+		_ = m.backend.Forget(m.hostRoot, r.Host)
 	default:
-		_ = sessionhost.Stop(ctx, m.hostRoot, r.Host)
+		_ = m.backend.Stop(ctx, m.hostRoot, r.Host)
 	}
 	_ = os.Remove(m.recordPath(r.ID))
 }
 
 func (m *Manager) newTerminal(r record) *Terminal {
-	return &Terminal{m: m, status: Status{ID: r.ID, Spec: r.Spec, CreatedAt: r.CreatedAt}, changed: make(chan struct{}), finished: make(chan struct{})}
+	return &Terminal{m: m, hostID: r.Host, status: Status{ID: r.ID, Spec: r.Spec, CreatedAt: r.CreatedAt}, changed: make(chan struct{}), finished: make(chan struct{})}
 }
 
 func (m *Manager) recordPath(id string) string { return filepath.Join(m.dir, id+".json") }
@@ -243,7 +249,7 @@ func (m *Manager) Start(spec Spec, requestKey string) (*Terminal, error) {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	host, err := sessionhost.Launch(ctx, m.hostRoot, sessionhost.Options{BufferLimit: hostBuffer, Scrollback: m.opts.Scrollback})
+	host, err := m.backend.Launch(ctx, m.hostRoot, sessionhost.Options{BufferLimit: hostBuffer, Scrollback: m.opts.Scrollback, Kind: "terminal", Owner: spec.CollectionID, Label: Label(spec)})
 	if err != nil {
 		return nil, fmt.Errorf("terminal host failed to start: %w", err)
 	}
@@ -252,11 +258,11 @@ func (m *Manager) Start(spec Spec, requestKey string) (*Terminal, error) {
 	// Recorded before the shell runs: a Runner that dies at any point leaves a
 	// record its successor adopts or cleans up.
 	if err = m.save(r); err != nil {
-		_ = sessionhost.Stop(ctx, m.hostRoot, host.ID())
+		_ = m.backend.Stop(ctx, m.hostRoot, host.ID())
 		return nil, err
 	}
 	fail := func(err error) (*Terminal, error) {
-		_ = sessionhost.Stop(ctx, m.hostRoot, host.ID())
+		_ = m.backend.Stop(ctx, m.hostRoot, host.ID())
 		_ = os.Remove(m.recordPath(r.ID))
 		return nil, err
 	}

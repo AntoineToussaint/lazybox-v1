@@ -180,6 +180,129 @@ install and upgrade:
 A daemon becomes worth its cost if hosts must be reachable without any Runner
 (for example a client attaching directly), which nothing needs today.
 
+## See every hosted process: the Processes panel
+
+**Page actions (⋯) → Show panel → Processes** (or **Settings → Runner → Show
+processes**) lists every process the Runner hosts, whether this Runner holds it
+or not:
+
+- **Agents** (named by their conversation, with provider and workspace),
+  **Commands** (with the conversation that started them) and **Terminals**.
+- **Not supervised by this Runner**: hosts no Runner holds, for example after a
+  Runner crashed before it could hand them over. Each stops by itself after a
+  day without a Runner (`DefaultOrphanAfter`).
+- For each: state (running, starting, exited, not answering), the program's
+  PID (the host's on hover), uptime, CPU and memory summed over the host and
+  everything under it (one `ps` sample per refresh, every 3 seconds), and the
+  backend that started it.
+- **Open** goes to the agent's conversation, the command's console or the
+  shell's terminal tab, switching workspace if needed. **Copy attach** (tmux
+  only) copies `tmux -S <socket> attach -t <host>`. **Stop…** asks first and says
+  what happens; it stops a process the way its owner would: the agent's session
+  is closed (the conversation stays and can continue), the command is cancelled,
+  the terminal is closed; an orphan is stopped directly. **Clean up orphans…**
+  runs the same safe sweep as Runner startup (`stopOrphanHosts`): it stops only
+  hosts this Runner does not hold, leaves a host it cannot probe alone, and
+  forgets records of hosts that are gone.
+
+`ListProcesses`, `StopProcess` and `CleanUpOrphanProcesses` are the owner's
+alone: neither an agent's nor a terminal's credential may call them
+(`TestProcessRPCsAreTheOwnersAlone`, and the exhaustive allowlist tests in
+`internal/transport`). A host being launched counts as held from before it
+exists until its client holds it, so a sweep never takes a process on its way up
+for an orphan (`TestAHostBeingLaunchedIsHeld`).
+
+## Hosting backends: session hosts (default) or tmux
+
+How a host is *started* is pluggable (`sessionhost.Backend`): Launch, attach,
+stop, probe, list, forget and held. Two backends exist:
+
+- **Session hosts** (`sessionhost`, the default): the host is a detached process
+  in its own session, as described above.
+- **tmux** (`tmux`, optional): the same host runs in a window of a private tmux
+  server, so you can watch any agent, command or shell from any terminal.
+
+Only launching differs. The host in a tmux window is the same session host: it
+owns the program's pipes or pseudo-terminal, sequences and buffers its output,
+answers on the same authenticated wire and keeps the gateway proxy. So **every
+guarantee in the delivery contract above holds in tmux mode unchanged**:
+acknowledged cursors, replay and redelivery, backpressure, exactly-once
+journaling, terminal scrollback handed to a re-attaching Runner. The Runner never
+reads anything back from tmux; the window is a view. Records carry the backend,
+and attach, stop, probe and the sweep work on any host whichever backend started
+it, so switching backends never strands a running process.
+
+### Choose it
+
+**Settings → Runner → Process hosting**, or in the private Runner configuration:
+
+```json
+{ "processes": { "backend": "tmux", "tmux": "/opt/homebrew/bin/tmux", "tmuxConfig": "" } }
+```
+
+- `backend`: `sessionhost` (default) or `tmux`. A choice in Settings wins over
+  the configuration; choosing the configured one there follows the
+  configuration again.
+- `tmux`: the executable; `tmux` on the Runner's PATH when empty. tmux 3.0 or
+  newer.
+- `tmuxConfig`: a file the private server loads; none by default, so a personal
+  `tmux.conf` cannot change how hosts behave. The options hosts depend on
+  (`exit-unattached off`, `destroy-unattached off`, `remain-on-exit off`) are set
+  after it either way.
+
+A change applies to the next process started, without a restart; running
+processes keep the backend they started with. If tmux is chosen but cannot
+start a host (not installed, too old, the server refuses), the process starts in
+a session host anyway and the Processes panel and Settings say why: an optional
+backend never stops an agent from starting.
+
+### What you get
+
+- One tmux server per Runner state directory, on its own socket
+  (`tmux -L lazybox-<hash of the state directory>`), so Dev and Working never
+  share one and your own tmux is untouched. One session per host, named after
+  the host; the window is named after the conversation, command or terminal.
+- `tmux -S <socket> ls` lists every hosted process; **Copy attach** gives the
+  command for one. Detach with your prefix, then `d`.
+- An **agent's** window shows each JSONL line to (`>`) and from (`<`) the agent,
+  cut to 400 bytes, with Runner attach and detach events. A **command's** window
+  shows its output, stderr in red. A **terminal's** window *is* the shell: its
+  output, and keys you type there go to the shell. The window takes the size the
+  app's panel sets.
+
+### What tmux does worse
+
+- **One server hosts them all.** `tmux kill-server` on that socket, or the
+  server crashing, hangs up every host: each stops its program (the next Runner
+  still collects the output and exits). Session hosts have no shared process.
+- **Closing a window stops its process** (kill-window, kill-session), as
+  closing a terminal window would. Detaching does not.
+- **The window is a lossy view.** Writes to it are queued and dropped (with a
+  marker) when tmux falls behind, so a stopped or slow tmux never holds the
+  program up. Agent lines are truncated. The app, the console and the journals
+  are complete; the window may not be.
+- **Window scrollback is tmux's** `history-limit` (2,000 lines with no
+  `tmuxConfig`), separate from the app's 1 MiB terminal scrollback and the
+  journals.
+- **Terminal size belongs to the app.** A tmux client of another size sees the
+  panel's size (padded or cut); resizing tmux does not resize the shell.
+- The tmux server's environment is the Runner's without `LAZYBOX_V2_*`,
+  `TMUX` and `TMUX_PANE`; a window you open yourself in that server (prefix `c`)
+  gets it. Hosted programs get exactly the environment they would in a session
+  host.
+- tmux leaves its socket file after the server exits (the last host ended); the
+  next host reuses it.
+
+### Not verified
+
+- Linux (macOS with tmux 3.8 only).
+- `kill-server` and a crashing tmux server are not tested separately: they take
+  the same hang-up path as `kill-window`, which `TestClosingATmuxWindowStopsItsProgram`
+  covers.
+- A Runner restart in Dev with tmux selected, live (the restart path is covered
+  by `TestBackendChosenInSettingsHostsTheNextProcess`, which detaches and
+  re-opens the Runner with one host of each backend).
+
 ## Testing
 
 | Command (from the repository root) | What it runs | Accounts |
@@ -187,6 +310,10 @@ A daemon becomes worth its cost if hosts must be reachable without any Runner
 | `make -C v2 test-outlive` | Every deterministic test below, with the race detector | none |
 | `make -C v2 test` | The whole Go suite, which includes them | none |
 | `make -C v2 test-real-outlive` | The live restart check with real agents | `claude` and `codex` logins; billable |
+| `cd v2/services/runner/code && go test ./internal/sessionhost -run 'Tmux\|Launched\|LocalBackend'` | The backends: tmux keeps the delivery contract (replay, redelivery), shows the traffic in its window, takes a terminal's keys and follows its size; closing a window stops its program; a missing tmux fails clearly. Skipped without tmux | none |
+| `cd v2/services/runner/code && go test ./internal/runner -run 'Processes\|Tmux\|ProcessBackend\|BackendChosen'` | The inventory names every agent, command, terminal and orphan; the sweep stops only the orphan; Stop goes through each owner; tmux chosen but missing still starts and says why; a Settings choice applies to the next process and both backends are re-attached | none |
+| `cd v2/services/runner/code && go test ./internal/transport -run TestProcessRPCs` | Process RPCs refuse agent and terminal credentials | none |
+| `npm run test:processes` (from `v2/`) | The Processes panel and Settings → Runner → Process hosting against the fake Runner (Chromium; `TEST_WEBKIT=1` for WebKit) | none |
 
 The deterministic tests start real processes: a session host, a fake agent or
 a shell command, and a Runner that is itself a re-executed test binary, so it

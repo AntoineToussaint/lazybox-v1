@@ -91,6 +91,15 @@ service RunnerService {
   rpc CreatePullRequest(CreatePullRequestRequest) returns (PullRequestStatus);
   rpc GetPullRequest(GetPullRequestRequest) returns (PullRequestStatus);
   rpc MergePullRequest(MergePullRequestRequest) returns (PullRequestStatus);
+  // Owner only. Every process the Runner hosts so it outlives the Runner
+  // (agents, managed commands, terminals), held by this Runner or orphaned.
+  rpc ListProcesses(ListProcessesRequest) returns (ProcessInventory);
+  // Owner only. Stops one hosted process the way its owner would: closes the
+  // agent's session, cancels the command, closes the terminal; an orphan is
+  // stopped directly.
+  rpc StopProcess(StopProcessRequest) returns (ProcessInventory);
+  // Owner only. The safe sweep: stops every host this Runner does not hold.
+  rpc CleanUpOrphanProcesses(CleanUpOrphanProcessesRequest) returns (CleanUpOrphanProcessesResponse);
 }
 
 message InfoRequest {}
@@ -98,7 +107,11 @@ message ModelPrice {
  string provider = 1; string model = 2; int64 input = 3; int64 output = 4; int64 cache_read = 5;
  int64 cache_write5m = 6; int64 cache_write1h = 7; int64 max_input = 8; string version = 9; bool custom = 10;
 }
-message RunnerSettings { uint64 revision = 1; string naming = 2; string permission = 3; string context = 4; string claude_context = 5; string codex_context = 6; repeated ModelPrice prices = 7; string suggested_name = 8; }
+message RunnerSettings { uint64 revision = 1; string naming = 2; string permission = 3; string context = 4; string claude_context = 5; string codex_context = 6; repeated ModelPrice prices = 7; string suggested_name = 8;
+  // Hosts new agents, commands and terminals: "sessionhost" or "tmux"; "" keeps
+  // the Runner configuration's choice. Running processes keep theirs.
+  string process_backend = 9;
+}
 message SetModelPriceRequest { uint64 revision = 1; ModelPrice price = 2; bool remove = 3; }
 message RenameCollectionRequest { string collection_id = 1; string name = 2; }
 message TelemetryRequest { string workspace = 1; string execution = 2; string conversation = 3; }
@@ -771,3 +784,64 @@ message WorkspacePreparation { string identity = 1; string message = 2; Collecti
 
 message Snippet { string key = 1; string category = 2; string description = 3; string body = 4; string origin = 5; repeated string next = 6; }
 message SnippetCatalog { repeated Snippet snippets = 1; }
+
+// Processes the Runner hosts so they outlive it (see SESSION_HOSTS.md).
+message ListProcessesRequest {}
+message StopProcessRequest { string id = 1; }
+message CleanUpOrphanProcessesRequest {}
+message ProcessUsage {
+  // Percent of one core, summed over the host and every process under it.
+  double cpu_percent = 1;
+  uint64 memory_bytes = 2;
+  uint32 process_count = 3;
+}
+message HostedProcess {
+  // The session host's id.
+  string id = 1;
+  // "agent", "command" or "terminal".
+  string kind = 2;
+  // "sessionhost" or "tmux": what started this process's host.
+  string backend = 3;
+  // "running", "starting", "exited" or "unreachable".
+  string state = 4;
+  // This Runner holds the host. A host no Runner holds is an orphan.
+  bool attached = 5;
+  int32 host_pid = 6;
+  int32 program_pid = 7;
+  int64 uptime_seconds = 8;
+  string label = 9;
+  string workspace_id = 10;
+  string workspace_name = 11;
+  // The conversation attempt (session) an agent or command belongs to.
+  string session_id = 12;
+  string conversation_title = 13;
+  string provider = 14;
+  string command_id = 15;
+  string terminal_id = 16;
+  // Attaches a terminal to a tmux-hosted process's window; empty otherwise.
+  string attach_command = 17;
+  // Absent when the process table could not be read.
+  ProcessUsage usage = 18;
+}
+message ProcessHosting {
+  // The backend new processes use, and the Runner configuration's default.
+  string selected = 1;
+  string configured = 2;
+  // tmux -V when tmux can host processes; otherwise why not.
+  string tmux_version = 3;
+  string tmux_problem = 4;
+  // Why the last process meant for tmux runs in a session host instead.
+  string fallback = 5;
+}
+message ProcessInventory {
+  repeated HostedProcess processes = 1;
+  ProcessHosting hosting = 2;
+  // Hosts that could not be listed, for example an unreadable directory.
+  string problem = 3;
+}
+message CleanUpOrphanProcessesResponse {
+  uint32 stopped = 1;
+  // Hosts the sweep left alone because it could not confirm their state.
+  string problem = 2;
+  ProcessInventory inventory = 3;
+}

@@ -20,6 +20,8 @@ const paths: Record<string, string[]> = {
   chevronRight: ['m10 8 4 4-4 4'],
   close: ['M6 6l12 12', 'M18 6 6 18'],
   output: ['M4 5h16v14H4z', 'M8 10h8', 'M8 14h5'],
+  // Two stacked hosts, each with its light on.
+  processes: ['M4 4h16v6H4z', 'M4 14h16v6H4z', 'M8 7h.01', 'M8 17h.01', 'M12 7h4', 'M12 17h4'],
   // A frame with a solid bar on the edge the panel goes to.
   'dock-left': ['M3 4h18v16H3z', 'M6 7h2v10H6z'],
   'dock-right': ['M3 4h18v16H3z', 'M16 7h2v10h-2z'],

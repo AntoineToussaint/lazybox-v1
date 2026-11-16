@@ -47,10 +47,11 @@ type Process struct {
 	once    sync.Once
 	stderr  *redact.Tail
 	// host is set when a detached session host owns the native process.
-	host     *sessionhost.Client
-	hostRoot string
-	detached bool
-	closing  bool
+	host        *sessionhost.Client
+	hostBackend sessionhost.Backend
+	hostRoot    string
+	detached    bool
+	closing     bool
 	// Close may race the context watcher; terminate exactly once.
 	closeHostOnce sync.Once
 	closeHostErr  error

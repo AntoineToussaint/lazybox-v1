@@ -16,6 +16,9 @@ terminates remaining background descendants and records the target's exit
 status. The helper pins the group identity while signalling it; cancellation
 does not read a historical PID and signal whatever now occupies that number.
 No global tmux server, process-name scan or global container cleanup is used.
+(The optional tmux hosting backend runs a private server per Runner state
+directory, on its own socket, and only for session hosts; see
+[hosting backends](SESSION_HOSTS.md#hosting-backends-session-hosts-default-or-tmux).)
 
 Waiting reaps the helper and consumes its outcome. Concurrent Stop/Wait calls
 are idempotent. Missing cleanup evidence is an error, not a successful stop.

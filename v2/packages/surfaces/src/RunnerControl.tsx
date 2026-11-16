@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
+import type { ProcessInventory } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
+import { useRunnerSettings } from './RunnerSettings';
 import './runner-control.css';
+import './processes.css';
 
 /** The Runner's state in a word, restart first: it explains a dropped connection. */
 function runnerState(runner: ReturnType<typeof useRunner>): { label: string; tone: 'ok' | 'busy' | 'bad' } {
@@ -35,7 +38,7 @@ export function RestartNotice() {
 }
 
 /** Settings → Runner: status, and Restart Runner when a launcher will start it again. */
-export function RunnerSection() {
+export function RunnerSection({ onShowProcesses }: { onShowProcesses?(): void } = {}) {
   const runner = useRunner();
   const { info, restart, restartRunner } = runner;
   const [confirming, setConfirming] = useState(false);
@@ -53,6 +56,7 @@ export function RunnerSection() {
       <p><strong>Restart is not available for this Runner.</strong> Nothing would start it again once it stops.</p>
       <p>A Runner launched with <code>make -C v2 dev</code> or <code>make -C v2 working</code> can be restarted here. For the Codefly-managed Working service, run <code>make -C v2 runner-service-stop</code> and then <code>make -C v2 runner-service-start</code>. Agents keep running across either restart.</p>
     </div>}
+    <ProcessHostingSettings onShowProcesses={onShowProcesses}/>
     {confirming && <RestartRunnerDialog onClose={() => setConfirming(false)} onConfirm={() => { setConfirming(false); void restartRunner(); }}/>}
   </section>;
 }
@@ -70,4 +74,54 @@ function RestartRunnerDialog({ onClose, onConfirm }: { onClose(): void; onConfir
       <button ref={confirm} type="button" className="primary" autoFocus data-autofocus onClick={onConfirm}>Restart Runner</button>
     </footer>
   </DraggableDialog>;
+}
+
+/** Settings → Runner: how new agents, commands and terminals are hosted. Applies to the
+ * next process, without a restart; running processes keep the backend they started with. */
+function ProcessHostingSettings({ onShowProcesses }: { onShowProcesses?(): void }) {
+  const { api } = useRunner();
+  const { settings, setSettings, error, setError } = useRunnerSettings();
+  const [inventory, setInventory] = useState<ProcessInventory>();
+  const [saving, setSaving] = useState(''), [saved, setSaved] = useState('');
+  useEffect(() => {
+    const control = new AbortController();
+    const load = () => void api.listProcesses({}, { signal: control.signal, timeoutMs: 8000 }).then(value => { if (!control.signal.aborted) setInventory(value); }, () => { /* the section still works without it */ });
+    load(); const timer = setInterval(load, 5000);
+    return () => { control.abort(); clearInterval(timer); };
+  }, [api]);
+  const hosting = inventory?.hosting, configured = hosting?.configured || 'sessionhost';
+  // The choice shows at once; the radio settles on what the Runner saved.
+  const chosen = saving || settings?.processBackend || configured;
+  const running = inventory?.processes.filter(p => p.attached).length ?? 0;
+  const tmuxReady = !!hosting?.tmuxVersion;
+  const choose = async (backend: string) => {
+    if (!settings || backend === chosen) return;
+    setSaving(backend); setSaved(''); setError('');
+    try {
+      // Choosing the configured backend follows the Runner configuration again.
+      setSettings(await api.saveRunnerSettings({ ...settings, processBackend: backend === configured ? '' : backend }));
+      window.dispatchEvent(new Event('lazybox-settings-saved'));
+      setSaved(backend === 'tmux' ? 'New processes will run in tmux. Running processes keep their hosts.' : 'New processes will run in session hosts. Running processes keep their hosts.');
+      setInventory(await api.listProcesses({}));
+    } catch (e) { setError(String(e)); }
+    finally { setSaving(''); }
+  };
+  return <section className="runner-hosting" aria-labelledby="hosting-heading">
+    <h3 id="hosting-heading">Process hosting</h3>
+    <p>Agents, managed commands and terminals each run in a host that outlives the Runner, so a restart never stops them.</p>
+    <fieldset disabled={!!saving || !settings}>
+      <legend>Host new processes in</legend>
+      <label className="hosting-choice"><input type="radio" name="process-backend" value="sessionhost" checked={chosen === 'sessionhost'} onChange={() => void choose('sessionhost')}/>
+        <strong>Session hosts{configured === 'sessionhost' ? ' (default)' : ''}</strong>
+        <span>Each process runs in a detached host of its own. Nothing to install.</span></label>
+      <label className="hosting-choice"><input type="radio" name="process-backend" value="tmux" checked={chosen === 'tmux'} disabled={!tmuxReady && chosen !== 'tmux'} onChange={() => void choose('tmux')}/>
+        <strong>tmux{configured === 'tmux' ? ' (default)' : ''}</strong>
+        <span>Each process also gets a window in a private tmux server: watch it from any terminal with the attach command the Processes panel copies. Closing a window stops its process, and stopping that tmux server stops them all.{' '}
+          {!hosting ? '' : tmuxReady ? `Found ${hosting.tmuxVersion}.` : `Unavailable: ${hosting.tmuxProblem}.`}</span></label>
+    </fieldset>
+    <p>A change applies to processes started from now on. Running processes keep the host they started in, and a Runner set either way re-attaches both.</p>
+    {chosen === 'tmux' && hosting?.fallback && <p className="processes-notice tone-warn" role="status">{hosting.fallback}</p>}
+    {error && <p role="alert">{error}</p>}{saved && <p role="status">{saved}</p>}
+    <div className="runner-processes-summary"><span>{inventory ? `${running} ${running === 1 ? 'process' : 'processes'} running.` : ''}</span>{onShowProcesses && <button type="button" onClick={onShowProcesses}>Show processes</button>}</div>
+  </section>;
 }

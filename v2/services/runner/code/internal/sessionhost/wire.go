@@ -56,6 +56,30 @@ type Record struct {
 	Port     int    `json:"port"`
 	Token    string `json:"token"`
 	Proxy    string `json:"proxy"`
+	// Backend is how the host was started: BackendSessionHost (also what an
+	// empty value, from a host started before backends existed, means) or
+	// BackendTmux. It changes nothing on the wire.
+	Backend string `json:"backend,omitempty"`
+	// Kind, Owner and Label say what the host runs, so an inventory can name
+	// a host no Runner holds: "agent", "command" or "terminal"; the execution,
+	// command or terminal it was started for; a short label for people.
+	Kind  string `json:"kind,omitempty"`
+	Owner string `json:"owner,omitempty"`
+	Label string `json:"label,omitempty"`
+	// Tmux is the window of a host started in tmux.
+	Tmux *TmuxWindow `json:"tmux,omitempty"`
+}
+
+// TmuxWindow is where a tmux-hosted host runs: its private server's socket and
+// the session named after the host.
+type TmuxWindow struct {
+	// Path is the tmux executable that started the server.
+	Path string `json:"path"`
+	// Server is the -L name of the private server; Socket its path, which the
+	// host reads from $TMUX once it runs.
+	Server  string `json:"server"`
+	Socket  string `json:"socket,omitempty"`
+	Session string `json:"session"`
 }
 
 // Spec is the program the host runs. It travels over the control connection,
@@ -158,6 +182,9 @@ func ReadRecord(dir string) (Record, error) {
 	}
 	if !validID.MatchString(r.ID) || r.Port <= 0 || r.Token == "" {
 		return Record{}, errors.New("invalid session host record")
+	}
+	if r.Backend == "" {
+		r.Backend = BackendSessionHost
 	}
 	return r, nil
 }

@@ -165,7 +165,10 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	go s.run()
 	return s, nil
 }
-func (s *session) Reference() string                { s.mu.Lock(); defer s.mu.Unlock(); return s.current.Reference() }
+func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.current.Reference() }
+
+// HostID is the current profile's native host (agent.Hosted).
+func (s *session) HostID() string                   { s.mu.Lock(); defer s.mu.Unlock(); return agent.HostOf(s.current) }
 func (s *session) Capabilities() agent.Capabilities { return s.caps }
 
 // replayedEvent reports, and consumes, an event the journal recorded before

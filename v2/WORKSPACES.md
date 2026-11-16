@@ -196,6 +196,12 @@ any workspace page; chat has a compact context/usage disclosure. Select
 **Metered · track workspace cost** in a new session's gateway options. Direct
 sessions retain provider-reported observations where supported.
 
+The **Processes** panel (also from **Page actions (⋯) → Show panel**) lists
+every agent, managed command and terminal the Runner hosts, across workspaces,
+with PID, uptime, CPU and memory: open, attach to (tmux) or stop any of them, and
+clean up processes no Runner supervises. See
+[the Processes panel](SESSION_HOSTS.md#see-every-hosted-process-the-processes-panel).
+
 Records retain workspace, conversation, execution, native-process attempt and
 account attribution across continuations and rotation. Workspace application
 assistants retain the workspace ID too, with their existing read-only restrictions.
@@ -325,7 +331,8 @@ sessions release the concurrent execution cap; retained history does not consume
 an active-session slot. The existing low-level `CloseSession` RPC still ends only
 the provider, for callers deliberately keeping managed commands alive.
 
-Each agent runs in its own [session host](SESSION_HOSTS.md), not tmux. Window
+Each agent runs in its own [session host](SESSION_HOSTS.md) (optionally in a tmux
+window you can attach to; see [hosting backends](SESSION_HOSTS.md#hosting-backends-session-hosts-default-or-tmux)). Window
 reloads reattach readers to the same execution. A Runner restart re-attaches to
 the same native process and to the commands it started. Only a machine reboot, or a host the Runner cannot
 adopt, falls back to native conversation resume.
