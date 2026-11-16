@@ -63,3 +63,9 @@ code.tool-target{font-family:var(--font-mono);font-size:11.5px;background:none;p
 .tool-inline-diff [data-sign=add]{color:#9fd8a8;background:#14261a}
 .tool-inline-diff [data-sign=del]{color:#f0aaa4;background:#2a1717}
 .tool-inline .tool-plan{padding:6px 10px;background:#15171c;border:1px solid #262a31;border-radius:6px}
+/* Activity detail: Smart's run summaries and Quiet's turn line (ToolLine.tsx). */
+code.tool-target.tool-aside{color:#7f8696;margin-left:2px}
+.tool-summary>.tool-line-row .tool-verb{color:#b3b9c6}
+.tool-summary[data-state=running]>.tool-line-row .tool-verb{color:#c2b3e9}
+.tool-summary[data-state=failed]>.tool-line-row .tool-icon{color:#e2a39f}
+.tool-summary-live{margin-left:18px;padding-left:6px;border-left:1px solid #2a2e36}

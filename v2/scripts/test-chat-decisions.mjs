@@ -25,6 +25,8 @@ const applied=kind=>fixture.mutations.filter(m=>m.method==='Apply'&&m.body[kind]
 const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});let browser;
 try{
  await server.listen();browser=await (process.env.TEST_WEBKIT?webkit:chromium).launch({headless:true});const page=await browser.newPage({viewport:{width:1450,height:1050}});page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ // Every tool call on its own line: the Verbose activity detail (test:activity-detail covers Smart and Quiet).
+ await page.addInitScript(()=>localStorage.setItem('lazybox:chat.activity-detail','verbose'));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
  await mkdir('.cache',{recursive:true});
 

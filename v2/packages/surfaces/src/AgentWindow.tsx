@@ -44,6 +44,7 @@ import { SubscriptionControls } from './SubscriptionSwitch';
 import { Composer } from './Composer';
 import { ConsoleWindow, EventLog, SessionCommands } from './SessionCommands';
 import { faultSentence, sessionLimit, subscriptionName, turnFault } from './subscription-model';
+import { useConversationActivity } from './activity-detail';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -288,6 +289,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const activeProfile = info?.profiles.find(p => p.id === session?.profileId);
   const agentName = (activeProfile?.provider || launcher.provider) === 'claude' ? 'Claude' : 'Codex';
   const currentCommand = command || commands.at(-1)?.id;
+  // How much tool activity this conversation shows: the default, or its own.
+  const activity = useConversationActivity(viewState, session?.conversationId || sessionID, mode === 'agent' && !!sessionID);
   const recall = usePromptRecall({
     viewState, sessionID, conversationKey: session?.conversationId || sessionID, conversation,
     onRecall: text => {
@@ -344,7 +347,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const inspection = <><BackgroundWorkButton/><SessionInspection sessionID={sessionID} session={session} activity={transcript.activity} activityTruncated={transcript.activityTruncated}/></>;
   const lifecycle = <SessionLifecycleButton session={session} allowStart={allowStart} onNewSession={newSession} onClose={() => void close()}/>;
 
-  return <main className={'agent-window' + (embedded ? ' embedded-chat' : '') + (drop.dragging ? ' file-drag-active' : '')} {...drop.handlers}>
+  return <main className={'agent-window' + (embedded ? ' embedded-chat' : '') + (drop.dragging ? ' file-drag-active' : '')} {...drop.handlers} onFocusCapture={activity.mark} onPointerDownCapture={activity.mark}>
     {!embedded && <LeaderMenu hint={keyboardHint}/>}
     {snippetsOpen && <SnippetPicker store={viewState} canSend={canCompose && !sending && !message.trim() && !files.length && !missingFiles.length}
       onClose={() => { setSnippetsOpen(false); composer.current?.focus(); }}
@@ -364,11 +367,11 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
               onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...sessionMenuItems({ session, allowStart,
                 onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),
-                onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true) })], { sessionId: sessionID })}
+                onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true), activity })], { sessionId: sessionID })}
               menu={<SessionMenu session={session} sessionID={sessionID} accountName={accountName} stream={stream} allowStart={allowStart}
                 onChangePermission={mode => void changePermission(mode)} onRestartWithPermission={setRestartTo}
                 onSwitchSubscription={() => setSwitchingSubscription(true)}
-                onNewSession={newSession} onClose={() => void close()} onDelete={() => setDeleting(true)}/>}/>
+                onNewSession={newSession} onClose={() => void close()} onDelete={() => setDeleting(true)} activity={activity}/>}/>
             : <SessionHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} modelLabel={modelLabel} inspection={inspection}
               accountName={accountName} lifecycle={lifecycle}/>}
           {drop.dragging && <div className="file-drop-hint" role="status">Drop files to attach</div>}
@@ -377,7 +380,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
           {fileLinks.element}
           {transcript.error && <TranscriptNotice error={transcript.error} onRetry={transcript.retry}/>}
           <MessageArea api={api} session={session} sessionID={sessionID} transcript={transcript} scroll={scroll} spoken={spoken} agentName={agentName} limited={limited} nameFor={nameFor}
-            onOpenFile={session?.collectionId ? openFile : undefined} onError={setError}
+            onOpenFile={session?.collectionId ? openFile : undefined} onError={setError} detail={activity.detail}
             subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/>
           {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} onInterrupt={() => void interrupt()}
             onOpenCommand={onOpenCommand || (showCommands ? commandId => { setCommand(commandId); setCommandsOpen(true); } : onOpenViewer ? commandId => void onOpenViewer(sessionID, commandId) : undefined)}/>}

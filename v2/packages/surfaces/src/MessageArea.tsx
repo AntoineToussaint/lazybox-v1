@@ -9,7 +9,7 @@ import { useRevealRequests } from './artifact-events';
 import { PromptNavigator } from './PromptNavigator';
 import { RequestCard } from './session-parts';
 import { ToolLineContext } from './ToolLine';
-import { latestPlanId } from './tool-lines';
+import { latestPlanId, type ActivityDetail } from './tool-lines';
 import { faultSentence } from './subscription-model';
 import type { useChatScroll } from './useChatScroll';
 import type { useTranscript } from './useTranscript';
@@ -22,7 +22,7 @@ type Transcript = ReturnType<typeof useTranscript>;
  * the agent's pending requests (and a subscription limit) in the scrolling pane, and a way back to the
  * latest message once the reader scrolled away from it.
  */
-export function MessageArea({ api, session, sessionID, transcript, scroll, spoken, agentName, limited, nameFor, onOpenFile, onError, subscription }: {
+export function MessageArea({ api, session, sessionID, transcript, scroll, spoken, agentName, limited, nameFor, onOpenFile, onError, subscription, detail = 'smart' }: {
   api: RunnerClient;
   session?: Session;
   sessionID: string;
@@ -39,6 +39,8 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   onError(message: string): void;
   /** The subscription limit card and switch dialog, after the requests. */
   subscription?: ReactNode;
+  /** How much of the agent's tool activity to show. */
+  detail?: ActivityDetail;
 }) {
   const conversation = transcript.messages;
   // Artifact actions on agent messages, and "Open source message" from an artifact.
@@ -48,7 +50,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   const coding = !!session && (!session.purpose || session.purpose === 'coding');
   // Tool lines show paths relative to the conversation's folder, and open files.
   const latestPlan = useMemo(() => latestPlanId(conversation), [conversation]);
-  const toolScope = useMemo(() => ({ root: session?.workingDirectory || '', onOpenFile, latestPlan }), [session?.workingDirectory, onOpenFile, latestPlan]);
+  const toolScope = useMemo(() => ({ root: session?.workingDirectory || '', onOpenFile, latestPlan, detail }), [session?.workingDirectory, onOpenFile, latestPlan, detail]);
   const checkpoints = useMemo(() => coding ? { sessionId: sessionID, workspaceId: session!.collectionId, busy: !!session!.busy } : undefined, [coding, sessionID, session?.collectionId, session?.busy]);
   return <>
     <div className="messages-frame">
@@ -57,7 +59,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
         <div className="messages-content" ref={scroll.contentRef}>
           {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
           {!transcript.loading && !transcript.error && !spoken && <EmptyConversation agentName={agentName}/>}
-          <MessageScopeProvider scope={artifactScope}><ToolLineContext.Provider value={toolScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints} sessionId={sessionID} onReveal={scroll.revealMessage}/></ToolLineContext.Provider></MessageScopeProvider>
+          <MessageScopeProvider scope={artifactScope}><ToolLineContext.Provider value={toolScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints} sessionId={sessionID} onReveal={scroll.revealMessage} detail={detail}/></ToolLineContext.Provider></MessageScopeProvider>
           {session?.fault && !limited && <div className="error" role="alert">{faultSentence(session.fault)}</div>}
           <PendingRequests api={api} session={session} sessionID={sessionID} agentName={agentName} onError={onError}/>
           {subscription}

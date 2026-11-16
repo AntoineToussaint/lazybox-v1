@@ -21,6 +21,11 @@ test('a keymap saved before the registry keeps its keys and gains the new action
  const tmux=migrateKeymap(Object.fromEntries(Object.entries(keyboardPreset('tmux',false)).filter(([id])=>id in saved)),[],false);
  assert.equal(tmux['shortcuts.open'],'? or Ctrl+/ or Ctrl+b ?');assert.equal(validateKeymap(tmux),'');
  // A current save is taken as is: an action deliberately left without keys stays so.
- assert.equal(migrateKeymap({...keyboardPreset('vim',true),'attention.next':'',__version:2},[],true)['attention.next'],'');
+ assert.equal(migrateKeymap({...keyboardPreset('vim',true),'attention.next':'',__version:3},[],true)['attention.next'],'');
+ // A version 2 save gains the activity detail keys, unless the person's ]] menu uses them; its own keys stay.
+ const v2=Object.fromEntries(Object.entries(keyboardPreset('vim',true)).filter(([id])=>!id.startsWith('activity.')));
+ assert.equal(migrateKeymap({...v2,'files.find':'] ] f',__version:2},[],true)['activity.cycle'],'] ] v');
+ assert.equal(migrateKeymap({...v2,'files.find':'] ] f',__version:2},[],true)['files.find'],'] ] f','a key removed on purpose does not come back');
+ assert.equal(migrateKeymap({...v2,__version:2},[{key:'v',label:'Verify',snippet:'verify',mode:'send'}],true)['activity.cycle'],'');
  // Nothing saved: the defaults.
  assert.deepEqual(migrateKeymap(null,[],true),keyboardPreset('vim',true));});

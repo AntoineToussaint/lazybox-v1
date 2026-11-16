@@ -4,7 +4,7 @@ import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import { Icon } from './Icons';
 import { CodeBlock } from './RichContent';
-import { commandText, describeGroup, describeTool, groupTools, kindOf, shortPath, type ToolEntry, type ToolItem, type ToolKind } from './tool-lines';
+import { briefItems, commandText, describeGroup, describeTool, describeToolBrief, groupTools, keptInQuiet, kindOf, shortPath, stepsOf, summarizeRun, summarizeTurn, unfolded, type ActivityCategory, type ActivityDetail, type BriefItem, type ToolEntry, type ToolItem, type ToolKind } from './tool-lines';
 import { titleWhenTruncated } from './truncated-title';
 import './tool-lines.css';
 
@@ -19,6 +19,8 @@ export type ToolLineScope = {
   onOpenFile?(reference: FileLink, how: OpenModifiers): void;
   /** The conversation's latest plan: shown as a live checklist, earlier ones folded. */
   latestPlan?: string;
+  /** How much activity to show (tool-lines.ts); every line when not given. */
+  detail?: ActivityDetail;
 };
 export const ToolLineContext = createContext<ToolLineScope>({ root: '' });
 
@@ -27,26 +29,40 @@ export const TOOL_DETAILS_EVENT = 'lazybox:tool-details';
 export function openToolDetails(id: string) { window.dispatchEvent(new CustomEvent(TOOL_DETAILS_EVENT, { detail: { id } })); }
 
 const ICONS: Record<ToolKind, string> = { read: 'file', search: 'search', list: 'folder', edit: 'pencil', command: 'terminal', web: 'external', agent: 'branch', plan: 'checklist', thinking: 'sparkle', mcp: 'activity', other: 'activity' };
+const CATEGORY_ICONS: Record<ActivityCategory, string> = { explore: 'search', test: 'play', check: 'shield', build: 'processes', install: 'download', git: 'branch', web: 'external', command: 'terminal', tool: 'activity', plan: 'checklist', edit: 'pencil', thinking: 'sparkle' };
 const stateLabel = (entry: ToolEntry) => entry.status === 'running' ? 'Running' : entry.status === 'failed' ? 'Failed' : entry.status === 'unknown' ? 'No result reported' : 'Done';
+const itemKey = (item: ToolItem | BriefItem) => item.kind === 'call' ? item.entry.id : `${item.kind}:${item.entries[0].id}`;
+const lastRunning = (entries: readonly ToolEntry[]) => { for (let i = entries.length - 1; i >= 0; i--) if (entries[i].status === 'running') return entries[i]; return undefined; };
 
-/** A run of tool calls: reads and edits grouped, the rest one line each. */
-export const ToolLines = memo(function ToolLines({ entries }: { entries: readonly ToolEntry[] }) {
-  const items = useMemo(() => groupTools(entries), [entries]);
-  if (!items.length) return null;
-  return <div className="tool-lines" role="list" aria-label="Tool calls">{items.map(item => <ToolItemLine key={item.kind === 'call' ? item.entry.id : item.entries[0].id} item={item}/>)}</div>;
+/**
+ * A run of tool calls, as the activity detail says: every call (reads and
+ * edits grouped) in Verbose; in Smart one summary for what needs no attention;
+ * in Quiet only edits, and `turn` (the whole turn's calls, given on its first
+ * run) as the turn's one line.
+ */
+export const ToolLines = memo(function ToolLines({ entries, turn }: { entries: readonly ToolEntry[]; turn?: readonly ToolEntry[] }) {
+  const { detail = 'verbose', latestPlan = '' } = useContext(ToolLineContext);
+  const items = useMemo<(ToolItem | BriefItem)[]>(() => detail === 'verbose' ? groupTools(entries) : briefItems(entries, latestPlan, detail === 'quiet'), [entries, detail, latestPlan]);
+  const showTurn = detail === 'quiet' && !!turn && (stepsOf(turn).length > 0 || turn.some(e => e.status === 'running'));
+  if (!items.length && !showTurn) return null;
+  return <div className="tool-lines" role="list" aria-label="Tool calls" data-detail={detail}>
+    {showTurn && <TurnLine entries={turn!} latestPlan={latestPlan}/>}
+    {items.map(item => <ToolItemLine key={itemKey(item)} item={item}/>)}
+  </div>;
 });
 
-/** One line of a run: a call, or a group of reads or edits. */
-export function ToolItemLine({ item }: { item: ToolItem }) {
+/** One line of a run: a call, a group of reads or edits, or (Smart) a run's summary. */
+export function ToolItemLine({ item }: { item: ToolItem | BriefItem }) {
   if (item.kind === 'call') return <ToolLine entry={item.entry}/>;
+  if (item.kind === 'run') return <ToolRun entries={item.entries}/>;
   return <ToolGroup item={item}/>;
 }
 
 const OPEN_EDITS = 4;
 function ToolGroup({ item }: { item: Exclude<ToolItem, { kind: 'call' }> }) {
-  // A few edits stay open, each with its diff; reads fold away.
-  const [open, setOpen] = useState(item.kind === 'edits' && item.entries.length <= OPEN_EDITS);
-  const { root } = useContext(ToolLineContext);
+  // In Verbose a few edits stay open, each with its diff; reads fold away.
+  const { root, detail = 'verbose' } = useContext(ToolLineContext);
+  const [open, setOpen] = useState(detail === 'verbose' && item.kind === 'edits' && item.entries.length <= OPEN_EDITS);
   const { text, meta, running } = describeGroup(item, root);
   return <div className="tool-line tool-group" role="listitem" data-state={running ? 'running' : 'completed'}>
     <button type="button" className="tool-line-row" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -58,11 +74,47 @@ function ToolGroup({ item }: { item: Exclude<ToolItem, { kind: 'call' }> }) {
   </div>;
 }
 
+/**
+ * Smart: a run of calls as one line ("Explored the codebase · 8 commands,
+ * 3 files read · 58s"), opened in place to its calls. While the agent works
+ * the call running now shows under it.
+ */
+function ToolRun({ entries }: { entries: ToolEntry[] }) {
+  const [open, setOpen] = useState(false);
+  const summary = summarizeRun(entries);
+  const live = !open && summary.running ? lastRunning(entries) : undefined;
+  return <Summary className="tool-run" open={open} onToggle={() => setOpen(!open)} running={summary.running} icon={CATEGORY_ICONS[summary.category]} text={summary.text} meta={summary.meta}
+    calls={open ? unfolded(entries) : undefined} live={live}/>;
+}
+
+/** Quiet: a turn's work as one line ("Worked for 2m 10s · 14 steps · 1 failed"), opened in place to its calls. */
+function TurnLine({ entries, latestPlan }: { entries: readonly ToolEntry[]; latestPlan: string }) {
+  const [open, setOpen] = useState(false);
+  const summary = summarizeTurn(entries);
+  // Edits and the plan show beside it already; the step running now shows where the agent is.
+  const calls = useMemo(() => open ? unfolded(entries.filter(e => !keptInQuiet(e, latestPlan))) : undefined, [open, entries, latestPlan]);
+  return <Summary className="tool-turn" open={open} onToggle={() => setOpen(!open)} running={summary.running} icon={summary.failed ? 'alert' : 'activity'} failed={summary.failed > 0} text={summary.text} meta={summary.meta}
+    calls={calls}/>;
+}
+
+function Summary({ className, open, onToggle, running, icon, failed, text, meta, calls, live }: { className: string; open: boolean; onToggle(): void; running: boolean; icon: string; failed?: boolean; text: string; meta: string[]; calls?: ToolEntry[]; live?: ToolEntry }) {
+  return <div className={`tool-line tool-summary ${className}`} role="listitem" data-state={running ? 'running' : failed ? 'failed' : 'completed'}>
+    <button type="button" className="tool-line-row" aria-expanded={open} aria-label={`${text}${running ? '…' : ''}${meta.length ? ' · ' + meta.join(' · ') : ''}`} onClick={onToggle}>
+      <Chevron open={open}/><span className="tool-icon" data-state={failed ? 'failed' : undefined} aria-hidden="true"><Icon name={icon} size={13}/></span>
+      <span className="tool-line-title" onPointerEnter={titleWhenTruncated(text)}><span className="tool-verb">{text}{running ? '…' : ''}</span></span>
+      <Meta meta={meta}/>
+    </button>
+    {calls && <div className="tool-group-calls" role="list" aria-label="Steps">{calls.map(entry => <ToolLine key={entry.id} entry={entry}/>)}</div>}
+    {live && <div className="tool-summary-live" role="list" aria-label="Now">{<ToolLine entry={live}/>}</div>}
+  </div>;
+}
+
 /** One call: icon, what it did, short facts; click to see input and output. */
 export const ToolLine = memo(function ToolLine({ entry }: { entry: ToolEntry }) {
-  const { root, onOpenFile, latestPlan } = useContext(ToolLineContext);
+  const { root, onOpenFile, latestPlan, detail = 'verbose' } = useContext(ToolLineContext);
   const [open, setOpen] = useState(false);
-  const title = describeTool(entry, root);
+  const brief = detail !== 'verbose';
+  const title: ReturnType<typeof describeToolBrief> = brief ? describeToolBrief(entry, root) : describeTool(entry, root);
   const kind = kindOf(entry);
   const label = `${title.verb} ${title.target}`.trim();
   // Thinking has nothing to open: what the agent thought stays private.
@@ -73,12 +125,12 @@ export const ToolLine = memo(function ToolLine({ entry }: { entry: ToolEntry }) 
     {/* No tooltip repeating the line: it would cover the next one. The whole line on hover only when it is cut. */}
     <button type="button" className="tool-line-row" aria-expanded={open} aria-label={`${label}${title.meta.length ? ' · ' + title.meta.join(' · ') : ''} · ${stateLabel(entry)}`} onClick={() => setOpen(!open)}>
       <Chevron open={open}/><StateIcon kind={kind} state={entry.status}/>
-      <span className="tool-line-title" onPointerEnter={titleWhenTruncated(label)}><span className="tool-verb">{title.verb}</span>{title.target && <> {title.code ? <code className="tool-target">{title.target}</code> : <span className="tool-target">{title.target}</span>}</>}</span>
+      <span className="tool-line-title" onPointerEnter={titleWhenTruncated(label)}><span className="tool-verb">{title.verb}</span>{title.target && <> {title.code ? <code className={title.aside ? 'tool-target tool-aside' : 'tool-target'}>{title.target}</code> : <span className="tool-target">{title.target}</span>}</>}</span>
       <Meta meta={title.meta} failed={entry.status === 'failed'}/>
     </button>
     {title.problem && !open && <p className="tool-line-problem" role="note">{title.problem}</p>}
     {!open && kind === 'plan' && entry.id === latestPlan && <div className="tool-inline"><PlanList input={entry.input && typeof entry.input === 'object' ? entry.input as Record<string, any> : undefined}/></div>}
-    {!open && kind === 'edit' && entry.patch && entry.status !== 'failed' && <InlineDiff patch={entry.patch} onMore={() => setOpen(true)}/>}
+    {!open && !brief && kind === 'edit' && entry.patch && entry.status !== 'failed' && <InlineDiff patch={entry.patch} onMore={() => setOpen(true)}/>}
     {open && <ToolDetails entry={entry} kind={kind} root={root} file={title.file} onOpenFile={onOpenFile}/>}
   </div>;
 });
@@ -103,7 +155,7 @@ function StateIcon({ kind, state }: { kind: ToolKind; state: string }) {
 }
 function Meta({ meta, failed }: { meta: string[]; failed?: boolean }) {
   if (!meta.length) return null;
-  return <span className="tool-meta">{meta.map(m => <span key={m} data-tone={/^exit [1-9]/.test(m) || (failed && m.startsWith('exit')) ? 'failed' : /^\+\d/.test(m) ? 'diff' : undefined}>{diffMeta(m)}</span>)}</span>;
+  return <span className="tool-meta">{meta.map(m => <span key={m} data-tone={/^exit [1-9]/.test(m) || /^\d+ failed$/.test(m) || (failed && m.startsWith('exit')) ? 'failed' : /^\+\d/.test(m) ? 'diff' : undefined}>{diffMeta(m)}</span>)}</span>;
 }
 /** "+12 −4" with each side coloured. */
 function diffMeta(m: string): ReactNode {

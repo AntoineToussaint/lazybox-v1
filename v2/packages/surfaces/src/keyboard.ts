@@ -47,8 +47,11 @@ export function validateKeymap(map: Keymap): string {
   return "";
 }
 const storageKey = "keyboard:v2";
-/** Keymaps saved before the action registry (no version) hold only the first thirteen actions. */
-const keymapVersion = 2;
+/**
+ * Keymaps saved before the action registry (no version) hold only the first
+ * thirteen actions; version 2 predates `] ] v` (activity detail) and `] ] b` (web panel).
+ */
+const keymapVersion = 3;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
@@ -69,7 +72,7 @@ export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac
   if (!kept.size || version >= keymapVersion) return map;
   const leader = map["navigation.exit"];
   const menuKeys = new Set(menu.map((entry) => canonicalBinding(`${leader} ${entry.key}`)));
-  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" ? [resolveMod("Mod+p", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
+  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
   for (const { action } of added) if (!kept.has(action.id)) map[action.id] = "";
   for (const { action, candidates } of added)
     for (const binding of candidates) {

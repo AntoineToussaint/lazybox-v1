@@ -225,3 +225,13 @@ p.settings-empty[role=status]{border-style:solid;border-color:transparent;text-a
 .settings-page .runtime-settings>fieldset{margin:0;padding:0;border:0}
 .settings-page .runtime-settings>fieldset>legend{padding:0;font-size:13px;font-weight:600;margin-bottom:4px}
 .settings-page .runtime-settings>fieldset>p{font-size:12px;line-height:1.55;color:var(--s-muted);margin:0 0 12px;max-width:640px}
+/* Settings → Chat (ChatSettings.tsx). */
+.chat-settings-choice{cursor:pointer;grid-template-columns:minmax(0,1fr) auto}
+.chat-settings-choice:hover{background:var(--s-surface-hover)}
+.chat-settings-choice input[type=radio]{width:16px;height:16px;margin:0;accent-color:var(--s-accent)}
+.chat-settings-choice:has(input:checked) .settings-row-label{color:var(--s-accent)}
+.chat-settings-choice:has(input:focus-visible){outline:1px solid var(--s-accent);outline-offset:-1px}
+.chat-settings kbd{font:11px var(--font-mono);padding:1px 5px;border:1px solid var(--s-line-strong);border-radius:4px;background:var(--s-raised);color:var(--s-text)}
+.chat-settings-preview{padding:14px 16px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--s-text)}
+.chat-settings-preview>p{margin:0;line-height:1.55}
+.chat-settings-preview .tool-lines{margin:0}

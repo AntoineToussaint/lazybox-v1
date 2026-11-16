@@ -66,7 +66,8 @@
     { "id": "onboarding", "scope": "ui", "script": "test:onboarding" },
     { "id": "split-diff", "scope": "ui", "script": "test:split-diff" },
     { "id": "web-viewer", "scope": "ui", "script": "test:web-viewer" },
-    { "id": "power-actions", "scope": "ui", "script": "test:power-actions" }
+    { "id": "power-actions", "scope": "ui", "script": "test:power-actions" },
+    { "id": "activity-detail", "scope": "ui", "script": "test:activity-detail" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

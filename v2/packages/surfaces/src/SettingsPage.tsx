@@ -3,6 +3,7 @@ import { RuntimeSettings } from './RuntimeSettings';
 import {KeyboardSettings} from './KeyboardSettings';
 import { PowerSettings } from './PowerSettings';
 import { NotificationSettings } from './NotificationSettings';
+import { ChatSettings } from './ChatSettings';
 import { DevicesSettings } from './DevicesSettings';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Fragment, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
@@ -35,7 +36,7 @@ function windowName(window: UsageWindow) {
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export type SettingsTab = 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power';
+export type SettingsTab = 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power';
 /** The sections, in the order and groups the sidebar shows them. */
 export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
   { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
@@ -44,6 +45,7 @@ export const settingsTabs: { id: SettingsTab; label: string; icon: string; group
   { id: 'agents', label: 'Agents & workspaces', icon: 'sliders', group: 'Work' },
   { id: 'workspaces', label: 'Workspaces', icon: 'folder', group: 'Work' },
   { id: 'process', label: 'Process', icon: 'activity', group: 'Work' },
+  { id: 'chat', label: 'Chat', icon: 'chat', group: 'Preferences' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'Preferences' },
   { id: 'web', label: 'Web & links', icon: 'globe', group: 'Preferences' },
   { id: 'keyboard', label: 'Shortcuts', icon: 'keyboard', group: 'Preferences' },
@@ -274,6 +276,7 @@ export function SettingsPage({ viewState, openSignIn, copySignInCode, chooseRepo
       </nav>
     </aside>
     <div className="settings-content">
+    {panel('chat', <ChatSettings store={viewState}/>)}
     {panel('notifications', <NotificationSettings/>)}
     {panel('web', <WebSettings store={viewState}/>)}
     {panel('keyboard', <KeyboardSettings store={viewState}/>)}
