@@ -21,6 +21,8 @@ try {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ profiles: [{ id: 'claude-default', provider: 'claude', isolation: 'inherited' }, { id: 'codex-default', provider: 'codex', isolation: 'inherited' }, { id: 'codex-work', provider: 'codex', isolation: 'environment' }] }) });
     }
     if (method === 'GetRunnerSettings') return route.fulfill({ json: {} });
+    // The window's command palette and attention read the workspace list: a read, never a provider start.
+    if (method === 'ListCollections') return route.fulfill({ json: { collections: [] } });
     assert.equal(method, 'OpenSession', `unexpected provider RPC: ${method}`);
     opens.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'unavailable', message: 'Fixture stops before provider startup' }) });
