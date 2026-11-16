@@ -52,12 +52,17 @@ Each execution instead gets `<state>/agent-endpoints/<execution id>.json`
 dropped from agent and command environments, so an owner endpoint exported in
 the Runner's shell does not leak through either.
 
-The transport (`internal/transport/auth.go`) accepts that credential for three
-RPCs only, the ones `lazybox run` and `lazybox log` publish a console with:
-`RegisterPipe` for its own execution, and `Publish` and `FinishPipe` for pipes
-that execution owns. Every other RPC, including any added later, answers
-`PermissionDenied`; a test walks the generated service description to keep
-that exhaustive. Comparisons are constant-time, and the credential never
+The transport (`internal/transport/auth.go`, `agentRPCs`) accepts that
+credential for nine RPCs only: the ones `lazybox run` and `lazybox log`
+publish a console with (`RegisterPipe` for its own execution, and `Publish`
+and `FinishPipe` for pipes that execution owns); the ones `lazybox artifact`
+uses on its own execution's workspace (`ListArtifacts`, `GetArtifact`,
+`PutArtifact`); and the ones `lazybox workspace` asks for a repository with
+(`ListWorkspaceRepositories` for its own workspace, `RequestRepository` for
+its own execution, `WaitRepositoryRequest` for its own requests — asking,
+never adding; see [workspaces](WORKSPACES.md#when-an-agent-needs-another-repository)).
+Every other RPC, including any added later, answers `PermissionDenied`; a test
+walks the generated service description to keep that exhaustive. Comparisons are constant-time, and the credential never
 appears in an error, journal or response.
 
 The credential is an HMAC-SHA256 of the execution id under

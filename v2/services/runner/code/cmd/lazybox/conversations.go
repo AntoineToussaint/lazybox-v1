@@ -102,6 +102,9 @@ func requestLine(e *pb.AgentEvent) string {
 	if strings.Contains(e.Type, "question") {
 		kind = "Question"
 	}
+	if e.Type == "repository_request" {
+		kind = "Repository"
+	}
 	if text := oneLine(e.Text, 120); text != "" {
 		return kind + ": " + text
 	}

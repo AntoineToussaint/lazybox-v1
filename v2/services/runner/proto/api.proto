@@ -243,6 +243,20 @@ service RunnerService {
   rpc WatchUiRequests(WatchUiRequestsRequest) returns (stream UiRequest);
   // …and answers each one, with a screenshot's PNG when one was asked for.
   rpc CompleteUiRequest(CompleteUiRequestRequest) returns (UiRequest);
+  // Agents ask for a repository instead of reaching outside their workspace
+  // (WORKSPACES.md, "When an agent needs another repository"). An agent
+  // credential may list its own execution's workspace repositories, ask to
+  // add one to that workspace and wait for the person's answer: it can never
+  // add one. Adding is the owner's PrepareWorkspace, with
+  // repository_request_id; declining is DeclineRepositoryRequest.
+  rpc ListWorkspaceRepositories(ListWorkspaceRepositoriesRequest) returns (WorkspaceRepositories);
+  // Matches the query against the repository catalog and records a pending
+  // request on the asking conversation; adds nothing.
+  rpc RequestRepository(RequestRepositoryRequest) returns (RepositoryRequest);
+  // Waits, at most timeout_seconds (bounded), for the person's answer.
+  rpc WaitRepositoryRequest(WaitRepositoryRequestRequest) returns (RepositoryRequest);
+  // Owner only. Declines a request; the agent is told the reason.
+  rpc DeclineRepositoryRequest(DeclineRepositoryRequestRequest) returns (RepositoryRequest);
 }
 
 message InfoRequest {}
@@ -1081,6 +1095,9 @@ message PrepareWorkspaceRequest {
   string request_key = 1; string collection_id = 2; string name = 3; repeated string repository_identities = 4;
   // The new workspace's branch, for every repository; empty keeps the Runner's default. Ignored when adding to a workspace.
   string branch = 5;
+  // Adding to a workspace: the agent's request this answers. Once the
+  // repositories are added, the request is resolved as added and the agent told.
+  string repository_request_id = 6;
 }
 message WorkspacePreparation { string identity = 1; string message = 2; Collection collection = 3; }
 
@@ -2035,4 +2052,73 @@ message CompleteUiRequestRequest {
   string error = 2;
   bytes png = 3;
   string detail = 4;
+}
+
+// One repository of a workspace, as an agent sees it.
+message WorkspaceRepository {
+  // The worktree's folder name in the workspace.
+  string name = 1;
+  string path = 2;
+  string branch = 3;
+  // The catalog identity (github:owner/repo, or a local one).
+  string identity = 4;
+  bool ready = 5;
+}
+message ListWorkspaceRepositoriesRequest { string collection_id = 1; }
+message WorkspaceRepositories {
+  string collection_id = 1;
+  string name = 2;
+  // The branch a repository added to this workspace gets.
+  string branch = 3;
+  repeated WorkspaceRepository repositories = 4;
+  // Requests agents made in this workspace that are still waiting.
+  repeated RepositoryRequest requests = 5;
+}
+// A catalog repository that matches what an agent asked for, best first.
+message RepositoryCandidate {
+  // Empty for a local git folder not in the catalog yet (local_path names it).
+  string identity = 1;
+  string name = 2;
+  // workspace, registered, local, github or folder.
+  string source = 3;
+  string local_path = 4;
+  int32 score = 5;
+}
+message RequestRepositoryRequest {
+  // The asking execution; an agent may only name its own.
+  string session_id = 1;
+  // A name, owner/repo, GitHub URL or absolute local path.
+  string query = 2;
+  string reason = 3;
+}
+message RepositoryRequest {
+  string id = 1;
+  string session_id = 2;
+  string conversation_id = 3;
+  string collection_id = 4;
+  string query = 5;
+  string reason = 6;
+  repeated RepositoryCandidate candidates = 7;
+  // pending, added, declined or expired.
+  string state = 8;
+  // The branch the repository gets in this workspace.
+  string branch = 9;
+  // declined: the person's reason, if they gave one.
+  string decline_reason = 10;
+  // added: the new worktrees.
+  repeated WorkspaceRepository added = 11;
+  int64 created_at_unix_millis = 12;
+  int64 expires_at_unix_millis = 13;
+  int64 resolved_at_unix_millis = 14;
+  // The repository was already in the workspace: nothing was asked.
+  bool already = 15;
+}
+message WaitRepositoryRequestRequest {
+  string request_id = 1;
+  // At most 60; 0 returns at once.
+  uint32 timeout_seconds = 2;
+}
+message DeclineRepositoryRequestRequest {
+  string request_id = 1;
+  string reason = 2;
 }

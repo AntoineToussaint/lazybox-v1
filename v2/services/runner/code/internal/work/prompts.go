@@ -15,6 +15,9 @@ const (
 	SourceInbox   = "inbox"   // a quick reply
 	SourceMission = "mission" // a task brief sent when a task was assigned
 	SourceHandoff = "handoff"
+	// SourceRepository: the Runner told an agent the answer to its request
+	// for a repository (runner/repository_requests.go).
+	SourceRepository = "repository_request"
 )
 
 type PromptSource struct {

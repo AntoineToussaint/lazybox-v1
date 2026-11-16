@@ -578,6 +578,20 @@ func (c *cli) decide(args []string, accept bool) error {
 	if p.request.Type == "question" {
 		return fail(exitUsage, "request %s is a question; answer it in the app (lazybox open %s)", ref, p.conversation.Head.Id)
 	}
+	if p.request.Type == "repository_request" {
+		// Adding prepares worktrees with progress: the app's card does it.
+		if accept {
+			return fail(exitUsage, "request %s asks to add a repository; add it from its card in the app, which shows the progress (lazybox open %s)", ref, p.conversation.Head.Id)
+		}
+		if _, err = got(cl.DeclineRepositoryRequest(c.ctx, connect.NewRequest(&pb.DeclineRepositoryRequestRequest{RequestId: p.request.RequestId}))); err != nil {
+			return err
+		}
+		if c.json {
+			return c.printJSON(map[string]any{"conversation": p.conversation.Key(), "session": p.conversation.Head.Id, "request": p.request.RequestId, "decision": "declined"})
+		}
+		c.out("Declined in “%s”: %s\n", p.conversation.Title(), requestLine(p.request))
+		return nil
+	}
 	decision := pb.Decision_DECISION_DECLINE
 	if accept {
 		decision = pb.Decision_DECISION_ACCEPT

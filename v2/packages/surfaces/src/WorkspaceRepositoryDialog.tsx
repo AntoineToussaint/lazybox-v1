@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Collection } from "@lazybox/protocol";
 import { DraggableDialog, DialogHeader } from "./DraggableDialog";
 import { RepositoryBrowser } from "./RepositoryBrowser";
@@ -13,11 +13,23 @@ export function WorkspaceRepositoryDialog({
   onClose,
   onSaved,
   chooseRepositoryFolder,
+  preselected = [],
+  initialQuery,
+  repositoryRequestId,
+  intro,
 }: {
   workspace?: Collection;
   onClose(): void;
   onSaved(workspace: Collection): void;
   chooseRepositoryFolder?(): Promise<string | null>;
+  /** Repositories chosen when the dialog opens. */
+  preselected?: string[];
+  /** The repository search the dialog opens with. */
+  initialQuery?: string;
+  /** Adding answers this agent's request for a repository: the agent is told. */
+  repositoryRequestId?: string;
+  /** Replaces the subtitle: why the dialog opened. */
+  intro?: ReactNode;
 }) {
   const { api } = useRunner(),
     dialog = useRef<HTMLDialogElement>(null),
@@ -28,7 +40,7 @@ export function WorkspaceRepositoryDialog({
     generated = useRef("");
   if (!generated.current && settings?.suggestedName)
     generated.current = settings.suggestedName;
-  const [selected, setSelected] = useState(new Set<string>()),
+  const [selected, setSelected] = useState(() => new Set<string>(preselected)),
     [customName, setCustomName] = useState<string>(),
     [empty, setEmpty] = useState(false),
     [busy, setBusy] = useState(false),
@@ -77,6 +89,7 @@ export function WorkspaceRepositoryDialog({
       name: name.trim(),
       repositoryIdentities: [...selected].sort(),
       branch: empty ? "" : branch,
+      ...(repositoryRequestId ? { repositoryRequestId } : {}),
     };
     const spec = JSON.stringify(request);
     if (spec !== attempt.current.spec)
@@ -121,9 +134,10 @@ export function WorkspaceRepositoryDialog({
               : "New workspace"}
           </h2>
           <p>
-            {workspace
-              ? "Choose the repositories to include in this workspace."
-              : "Choose repositories for this workspace."}
+            {intro ??
+              (workspace
+                ? "Choose the repositories to include in this workspace."
+                : "Choose repositories for this workspace.")}
           </p>
         </div>
         <button
@@ -139,6 +153,7 @@ export function WorkspaceRepositoryDialog({
         selected={selected}
         included={included}
         disabled={busy}
+        initialQuery={initialQuery}
         onSelected={(value) => {
           setSelected(value);
           setEmpty(false);

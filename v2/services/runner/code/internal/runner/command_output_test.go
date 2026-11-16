@@ -45,6 +45,9 @@ func TestAgentsGetTheCLIFirstOnPathAndTheCommandBriefing(t *testing.T) {
 		if briefed != strings.Contains(open.Context, "lazybox artifact put <file|-> --title") {
 			t.Fatal("the briefing does not tell agents how to publish artifacts")
 		}
+		if briefed != (strings.Contains(open.Context, "lazybox workspace repos") && strings.Contains(open.Context, `lazybox workspace request-repo <name|owner/repo|path> --reason "why you need it"`)) {
+			t.Fatal("the briefing does not tell agents how to ask for a repository instead of reaching outside the workspace")
+		}
 		if withCLI && (paths != 1 || !strings.HasPrefix(path, "/opt/lazybox/bin"+string(os.PathListSeparator)) || !briefed) {
 			t.Fatalf("CLI not offered: paths=%d path=%q briefed=%v", paths, path, briefed)
 		}

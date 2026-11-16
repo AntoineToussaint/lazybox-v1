@@ -440,6 +440,18 @@ const (
 	// RunnerServiceCompleteUiRequestProcedure is the fully-qualified name of the RunnerService's
 	// CompleteUiRequest RPC.
 	RunnerServiceCompleteUiRequestProcedure = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
+	// RunnerServiceListWorkspaceRepositoriesProcedure is the fully-qualified name of the
+	// RunnerService's ListWorkspaceRepositories RPC.
+	RunnerServiceListWorkspaceRepositoriesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceRepositories"
+	// RunnerServiceRequestRepositoryProcedure is the fully-qualified name of the RunnerService's
+	// RequestRepository RPC.
+	RunnerServiceRequestRepositoryProcedure = "/lazybox.bench.v1.RunnerService/RequestRepository"
+	// RunnerServiceWaitRepositoryRequestProcedure is the fully-qualified name of the RunnerService's
+	// WaitRepositoryRequest RPC.
+	RunnerServiceWaitRepositoryRequestProcedure = "/lazybox.bench.v1.RunnerService/WaitRepositoryRequest"
+	// RunnerServiceDeclineRepositoryRequestProcedure is the fully-qualified name of the RunnerService's
+	// DeclineRepositoryRequest RPC.
+	RunnerServiceDeclineRepositoryRequestProcedure = "/lazybox.bench.v1.RunnerService/DeclineRepositoryRequest"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -683,6 +695,20 @@ type RunnerServiceClient interface {
 	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest]) (*connect.ServerStreamForClient[gen.UiRequest], error)
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Agents ask for a repository instead of reaching outside their workspace
+	// (WORKSPACES.md, "When an agent needs another repository"). An agent
+	// credential may list its own execution's workspace repositories, ask to
+	// add one to that workspace and wait for the person's answer: it can never
+	// add one. Adding is the owner's PrepareWorkspace, with
+	// repository_request_id; declining is DeclineRepositoryRequest.
+	ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error)
+	// Matches the query against the repository catalog and records a pending
+	// request on the asking conversation; adds nothing.
+	RequestRepository(context.Context, *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Owner only. Declines a request; the agent is told the reason.
+	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1518,6 +1544,30 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
 			connect.WithClientOptions(opts...),
 		),
+		listWorkspaceRepositories: connect.NewClient[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories](
+			httpClient,
+			baseURL+RunnerServiceListWorkspaceRepositoriesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceRepositories")),
+			connect.WithClientOptions(opts...),
+		),
+		requestRepository: connect.NewClient[gen.RequestRepositoryRequest, gen.RepositoryRequest](
+			httpClient,
+			baseURL+RunnerServiceRequestRepositoryProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RequestRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		waitRepositoryRequest: connect.NewClient[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest](
+			httpClient,
+			baseURL+RunnerServiceWaitRepositoryRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitRepositoryRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		declineRepositoryRequest: connect.NewClient[gen.DeclineRepositoryRequestRequest, gen.RepositoryRequest](
+			httpClient,
+			baseURL+RunnerServiceDeclineRepositoryRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1660,6 +1710,10 @@ type runnerServiceClient struct {
 	waitUiRequest                *connect.Client[gen.WaitUiRequestRequest, gen.UiRequest]
 	watchUiRequests              *connect.Client[gen.WatchUiRequestsRequest, gen.UiRequest]
 	completeUiRequest            *connect.Client[gen.CompleteUiRequestRequest, gen.UiRequest]
+	listWorkspaceRepositories    *connect.Client[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories]
+	requestRepository            *connect.Client[gen.RequestRepositoryRequest, gen.RepositoryRequest]
+	waitRepositoryRequest        *connect.Client[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest]
+	declineRepositoryRequest     *connect.Client[gen.DeclineRepositoryRequestRequest, gen.RepositoryRequest]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -2347,6 +2401,26 @@ func (c *runnerServiceClient) CompleteUiRequest(ctx context.Context, req *connec
 	return c.completeUiRequest.CallUnary(ctx, req)
 }
 
+// ListWorkspaceRepositories calls lazybox.bench.v1.RunnerService.ListWorkspaceRepositories.
+func (c *runnerServiceClient) ListWorkspaceRepositories(ctx context.Context, req *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {
+	return c.listWorkspaceRepositories.CallUnary(ctx, req)
+}
+
+// RequestRepository calls lazybox.bench.v1.RunnerService.RequestRepository.
+func (c *runnerServiceClient) RequestRepository(ctx context.Context, req *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return c.requestRepository.CallUnary(ctx, req)
+}
+
+// WaitRepositoryRequest calls lazybox.bench.v1.RunnerService.WaitRepositoryRequest.
+func (c *runnerServiceClient) WaitRepositoryRequest(ctx context.Context, req *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return c.waitRepositoryRequest.CallUnary(ctx, req)
+}
+
+// DeclineRepositoryRequest calls lazybox.bench.v1.RunnerService.DeclineRepositoryRequest.
+func (c *runnerServiceClient) DeclineRepositoryRequest(ctx context.Context, req *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return c.declineRepositoryRequest.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -2588,6 +2662,20 @@ type RunnerServiceHandler interface {
 	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest], *connect.ServerStream[gen.UiRequest]) error
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Agents ask for a repository instead of reaching outside their workspace
+	// (WORKSPACES.md, "When an agent needs another repository"). An agent
+	// credential may list its own execution's workspace repositories, ask to
+	// add one to that workspace and wait for the person's answer: it can never
+	// add one. Adding is the owner's PrepareWorkspace, with
+	// repository_request_id; declining is DeclineRepositoryRequest.
+	ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error)
+	// Matches the query against the repository catalog and records a pending
+	// request on the asking conversation; adds nothing.
+	RequestRepository(context.Context, *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Owner only. Declines a request; the agent is told the reason.
+	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -3419,6 +3507,30 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListWorkspaceRepositoriesHandler := connect.NewUnaryHandler(
+		RunnerServiceListWorkspaceRepositoriesProcedure,
+		svc.ListWorkspaceRepositories,
+		connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceRepositories")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRequestRepositoryHandler := connect.NewUnaryHandler(
+		RunnerServiceRequestRepositoryProcedure,
+		svc.RequestRepository,
+		connect.WithSchema(runnerServiceMethods.ByName("RequestRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitRepositoryRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitRepositoryRequestProcedure,
+		svc.WaitRepositoryRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitRepositoryRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDeclineRepositoryRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceDeclineRepositoryRequestProcedure,
+		svc.DeclineRepositoryRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -3695,6 +3807,14 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceWatchUiRequestsHandler.ServeHTTP(w, r)
 		case RunnerServiceCompleteUiRequestProcedure:
 			runnerServiceCompleteUiRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceListWorkspaceRepositoriesProcedure:
+			runnerServiceListWorkspaceRepositoriesHandler.ServeHTTP(w, r)
+		case RunnerServiceRequestRepositoryProcedure:
+			runnerServiceRequestRepositoryHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitRepositoryRequestProcedure:
+			runnerServiceWaitRepositoryRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceDeclineRepositoryRequestProcedure:
+			runnerServiceDeclineRepositoryRequestHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -4250,4 +4370,20 @@ func (UnimplementedRunnerServiceHandler) WatchUiRequests(context.Context, *conne
 
 func (UnimplementedRunnerServiceHandler) CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CompleteUiRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListWorkspaceRepositories is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RequestRepository(context.Context, *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RequestRepository is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitRepositoryRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeclineRepositoryRequest is not implemented"))
 }

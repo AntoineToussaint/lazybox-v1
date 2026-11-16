@@ -47,6 +47,58 @@ Explicit folder names still require uniqueness. Successful source preparations
 remain reusable after a later failure; retrying the same request does not clone
 again or create another workspace.
 
+## When an agent needs another repository
+
+An agent works only in its workspace's worktrees. When its task needs a
+repository the workspace does not hold (another module, a library it must
+change, a sibling service), its briefing tells it to ask instead of reading or
+editing the repository elsewhere on disk:
+
+```bash
+lazybox workspace repos                      # this workspace's repositories, paths, branch
+lazybox workspace request-repo acme/module-directory --reason "the parser imports its tokenizer"
+```
+
+`request-repo` takes a name, `owner/repo`, a GitHub URL or a path (made
+absolute). The Runner matches it against the [catalog](#create-or-extend-a-workspace)
+— case, separators and small typos do not matter; a path inside a catalog
+checkout finds that repository; a git folder the catalog does not know yet is
+offered as itself — and records a **pending request on the asking
+conversation**. It adds nothing. If the best match is already in the
+workspace it says where, and records nothing; asking again for a repository
+that is still waiting returns the same request.
+
+The person sees the request where approvals wait: as a card in the
+conversation ("Claude asks to add **acme/module-directory** to this
+workspace", the reason, the match and where it comes from, the workspace
+branch it will use, other matches to switch to) and as **Repository request**
+in the Inbox. The card offers:
+
+- **Add** (`y`): the workspace's own add path (`PrepareWorkspace` with the
+  request's id), with its progress in the card. A retried click is the same
+  addition. A folder outside the catalog is registered first, as **Choose
+  folder…** does.
+- **Choose another…** (`c`): the **Add repositories** picker, searching for
+  the likely repositories with the match preselected.
+- **Decline…** (`n`): with an optional reason the agent is told.
+
+Adding the repository any other way (the workspace's **Add repositories…**)
+also answers a request for it.
+
+The command waits up to 90 seconds (`--timeout`; `--no-wait` returns at once)
+and prints the outcome: the new worktree's path and branch (exit 0), the
+person's refusal and reason (exit 4), or that there is no answer yet (exit 5).
+The request stays open for 24 hours; an answer the agent is no longer waiting
+for is sent into its conversation as a short message, queued behind a running
+turn. A request outlives a Runner restart, and so does an agent waiting on one.
+
+Agents can only ask, and only for their own workspace (`RequestRepository`
+names the asking execution, from which the Runner takes the conversation and
+workspace; `WaitRepositoryRequest` reaches only the execution's own requests;
+`ListWorkspaceRepositories` only its workspace). Adding and declining stay the
+owner's; a workspace terminal can do none of it. A conversation may have three
+requests waiting at once and make ten an hour.
+
 ## Catalog boundaries and configuration
 
 `repositorycatalog.Source` discovers metadata; `repositorycatalog.Store` persists

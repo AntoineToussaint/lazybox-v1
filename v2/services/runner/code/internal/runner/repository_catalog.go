@@ -129,6 +129,20 @@ func (b *Bench) RepositoryCatalogSnapshot(ctx context.Context, refresh bool) ([]
 // PrepareWorkspace owns source materialization; clients submit stable identities,
 // never temporary UI paths. Successful sources are reused when the request retries.
 func (b *Bench) PrepareWorkspace(ctx context.Context, key, workspaceID, name, branch string, identities []string, progress func(string, string) error) (collections.Collection, error) {
+	return b.prepareWorkspace(ctx, key, workspaceID, name, branch, identities, "", progress)
+}
+
+// AddRequestedRepositories is PrepareWorkspace adding to a workspace in
+// answer to an agent's request (repository_requests.go): once the
+// repositories are added, the request is answered with them and the agent told.
+func (b *Bench) AddRequestedRepositories(ctx context.Context, key, workspaceID, requestID string, identities []string, progress func(string, string) error) (collections.Collection, error) {
+	if err := b.checkRepositoryRequest(requestID, workspaceID); err != nil {
+		return collections.Collection{}, err
+	}
+	return b.prepareWorkspace(ctx, key, workspaceID, "", "", identities, requestID, progress)
+}
+
+func (b *Bench) prepareWorkspace(ctx context.Context, key, workspaceID, name, branch string, identities []string, requestID string, progress func(string, string) error) (collections.Collection, error) {
 	if b.Collections == nil {
 		return collections.Collection{}, errors.New("workspace storage unavailable")
 	}
@@ -232,6 +246,10 @@ func (b *Bench) PrepareWorkspace(ctx context.Context, key, workspaceID, name, br
 	}
 	if len(added) > 0 {
 		_ = b.WorkspaceCreated(ctx, workspace.ID, added, func(message string) error { return progress("", message) })
+	}
+	if workspaceID != "" {
+		// An agent waiting for one of these repositories is told it is here.
+		b.repositoriesAdded(workspace, requestID, added)
 	}
 	return workspace, nil
 }

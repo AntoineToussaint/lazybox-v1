@@ -64,6 +64,7 @@
     { "id": "missions", "scope": "ui", "script": "test:missions" },
     { "id": "context-menus", "scope": "ui", "script": "test:context-menus" },
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
+    { "id": "repository-requests", "scope": "ui", "script": "test:repository-requests" },
     { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },
     { "id": "peek", "scope": "ui", "script": "test:peek" },
     { "id": "onboarding", "scope": "ui", "script": "test:onboarding" },

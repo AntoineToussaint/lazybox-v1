@@ -79,6 +79,8 @@ export async function startRunnerFixture() {
     { id: '102', name: 'web', fullName: 'fixture-team/web', private: false, defaultBranch: 'main', htmlUrl: 'https://github.com/fixture-team/web' },
   ];
   let catalogRemote=[], catalogUpdated='0';const preparationFailures=new Set();const prepared=[];
+  // How agents' requests for a repository were answered, by request id.
+  const repositoryRequests=new Map();
   const catalogEntries=()=>{const rows=new Map();for(const r of catalogRemote)rows.set('github:'+r.fullName.toLowerCase(),{identity:'github:'+r.fullName.toLowerCase(),name:r.fullName});for(const r of discovery.roots.flatMap(root=>root.repositories||[]))rows.set(r.gitIdentity||r.path,{identity:r.gitIdentity||r.path,name:r.gitIdentity?.startsWith('github:')?r.gitIdentity.slice(7):r.name,path:r.path});for(const r of library){const identity=r.gitIdentity||'local:'+r.id;rows.set(identity,{...rows.get(identity),identity,name:r.gitIdentity?.startsWith('github:')?r.gitIdentity.slice(7):r.name||r.id,repositoryId:r.id});}return [...rows.values()];};
   const completeGitHub = () => { github.state = 'connected'; github.authMethod = 'github_app'; github.login = 'fixture-user'; github.userId = '42'; if (github.pendingSignIn) { github.pendingSignIn.state = 'connected'; github.pendingSignIn.userCode = ''; github.pendingSignIn.signInUrl = ''; } github.pendingSignIn = undefined; };
 
@@ -135,7 +137,7 @@ export async function startRunnerFixture() {
   // for restartMs (every RPC fails as unavailable) before a new instance serves.
   // listDelayMs holds ListCollections answers (a slow first response);
   // refusedBearers records every bearer the fake Runner did not accept.
-  const runner = { instanceId: randomUUID(), restartAvailable: true, restartError: '', restartMs: 1500, down: false, restarts: 0, listDelayMs: 0, refusedBearers: [] };
+  const runner = { instanceId: randomUUID(), restartAvailable: true, restartError: '', restartMs: 1500, down: false, restarts: 0, listDelayMs: 0, preparationDelayMs: 0, refusedBearers: [] };
   // Hosted processes as ListProcesses reports them, for the Processes view.
   // Explicitly fake: no session host, tmux or process table behind them. Open
   // terminals are listed too, as the Runner lists their hosts.
@@ -400,7 +402,18 @@ actions:
       case 'PrepareWorkspace': {
        mutations.push({method,body});const values=[];const members=[];
        for(const identity of body.repositoryIdentities||[]){const choice=catalogEntries().find(r=>r.identity===identity);if(!choice)return error('not_found','Unknown repository identity');let repo=library.find(r=>r.id===choice.repositoryId);if(!repo){if(preparationFailures.delete(identity)){res.writeHead(200,{'Content-Type':'application/connect+json'});res.end(Buffer.concat([...values.map(v=>frame(v)),frame({error:{code:'failed_precondition',message:'Fixture preparation failure'}},2)]));return;}const remote=githubRepositories.find(r=>'github:'+r.fullName.toLowerCase()===identity);repo={id:remote?'github-'+remote.id:'local-'+(library.length+1),name:choice.name.split('/').at(-1),path:choice.path||'/fixture/repos/'+remote.id,gitIdentity:identity};library.push(repo);prepared.push(identity);}values.push({identity,message:'Preparing '+choice.name});members.push({repositoryId:repo.id,name:repo.name||repo.id,...(body.branch&&!body.collectionId?{branch:body.branch}:{})});}
-       let collection=requests.get(body.requestKey);if(!collection){if(body.collectionId){collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Missing workspace');collection.members.push(...members.map(spec=>({spec,path:collection.root+'/'+spec.name,ready:true})));}else{const id='created-'+collections.length;collection={id,name:body.name,root:'/fixture/collections/'+id,state:'ready',members:members.map(spec=>({spec,path:'/fixture/collections/'+id+'/'+spec.name,ready:true}))};collections.push(collection);}requests.set(body.requestKey,collection);}values.push({message:'Ready',collection});res.writeHead(200,{'Content-Type':'application/connect+json'});res.end(stream(values));return;
+       let collection=requests.get(body.requestKey);if(!collection){if(body.collectionId){collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Missing workspace');collection.members.push(...members.map(spec=>({spec,path:collection.root+'/'+spec.name,ready:true})));}else{const id='created-'+collections.length;collection={id,name:body.name,root:'/fixture/collections/'+id,state:'ready',members:members.map(spec=>({spec,path:'/fixture/collections/'+id+'/'+spec.name,ready:true}))};collections.push(collection);}requests.set(body.requestKey,collection);}values.push({message:'Ready',collection});
+       // Answering an agent's request for a repository: the request is resolved (the agent told).
+       if(body.repositoryRequestId){for(const s of sessions)s.pending=(s.pending||[]).filter(p=>p.requestId!==body.repositoryRequestId);repositoryRequests.set(body.repositoryRequestId,{state:'added',collection:collection.id,identities:body.repositoryIdentities});}
+       res.writeHead(200,{'Content-Type':'application/connect+json'});
+       // preparationDelayMs streams each step apart, as a clone does.
+       if(runner.preparationDelayMs){for(const value of values){res.write(frame(value));await new Promise(resolve=>setTimeout(resolve,runner.preparationDelayMs));}res.end(frame({},2));return;}
+       res.end(stream(values));return;
+      }
+      case 'DeclineRepositoryRequest': {
+       mutations.push({method,body});const pending=sessions.flatMap(s=>s.pending||[]).find(p=>p.requestId===body.requestId);if(!pending)return error('failed_precondition','This request was already answered');
+       for(const s of sessions)s.pending=(s.pending||[]).filter(p=>p.requestId!==body.requestId);repositoryRequests.set(body.requestId,{state:'declined',reason:body.reason||''});
+       return json({id:body.requestId,state:'declined',declineReason:body.reason||''});
       }
       case 'ListRepositories': return json({ repositories: library });
       case 'ResolveWorkspacePath': {const files=treeFiles(body.collectionId),folders=treeFolders(body.collectionId),path=String(body.path||'').replace(/^\.\//,'');const members=collections.find(c=>c.id===body.collectionId)?.members.map(m=>m.spec.name)||[];
@@ -718,7 +731,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { power, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { power, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

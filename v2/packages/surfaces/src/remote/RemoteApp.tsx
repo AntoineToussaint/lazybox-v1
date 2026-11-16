@@ -3,7 +3,7 @@ import { ConnectError, DeviceRequestError, DeviceRevoked, indexedDBDeviceStore, 
 import type { Collection, Session } from '@lazybox/protocol';
 import { RunnerProvider, useRunner } from '../RunnerContext';
 import { AttentionScope, useInbox, useMarkViewed } from '../useAttention';
-import { ageLabel, attentionTitle, type Attention } from '../attention';
+import { ageLabel, attentionTitle, requestSummary, type Attention } from '../attention';
 import { AttentionIcon } from '../Inbox';
 import { conversationDetails, conversationTitle } from '../conversation-model';
 import { sessionStatus } from '../agent-status';
@@ -254,7 +254,9 @@ function PhoneConversation({ sessionId, device, collections, onBack }: { session
       {transcript.loading && !transcript.messages.length && <ConversationLoading replay={transcript.replay}/>}
       <MessageList messages={transcript.messages} visible={visible} agentName={agentName} onShowEarlier={() => setVisible(value => value + 60)}/>
       {session?.fault && <p className="remote-error" role="alert">{session.fault}</p>}
-      {session?.pending.map(request => respond
+      {session?.pending.map(request => request.type === 'repository_request'
+        ? <p key={request.requestId} className="remote-hint">{requestSummary(request)}? The agent waits for this repository. Add it or decline on your computer.</p>
+        : respond
         ? <RequestCard key={request.requestId} request={request} api={api} session={session.id} onError={setError}/>
         : <p key={request.requestId} className="remote-hint">The agent is waiting for an answer. This phone can only read; answer on your computer.</p>)}
       {session && !session.closed && status.tone === 'busy' && <div className="remote-activity" aria-hidden="true"><LiveIndicator tone="busy"/>{status.text}</div>}

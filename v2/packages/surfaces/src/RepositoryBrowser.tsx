@@ -22,6 +22,8 @@ type Props = {
   included?: ReadonlySet<string>;
   disabled?: boolean;
   chooseRepositoryFolder?(): Promise<string | null>;
+  /** The search it opens with. */
+  initialQuery?: string;
 };
 /** Shared identity browser: selecting is presentation state, never a clone/import. */
 export function RepositoryBrowser({
@@ -31,12 +33,13 @@ export function RepositoryBrowser({
   included = new Set(),
   disabled = false,
   chooseRepositoryFolder,
+  initialQuery = "",
 }: Props) {
   const { api } = useRunner(),
     host = useContext(RepositoryHostContext);
   const { catalog, loading, refreshing, error, reload } =
     useRepositoryCatalog(api);
-  const [query, setQuery] = useState(""),
+  const [query, setQuery] = useState(initialQuery),
     [sources, setSources] = useState(false),
     [localPath, setLocalPath] = useState(""),
     [busy, setBusy] = useState(false),

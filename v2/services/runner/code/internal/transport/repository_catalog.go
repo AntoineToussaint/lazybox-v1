@@ -2,6 +2,8 @@ package transport
 
 import (
 	"context"
+
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/collections"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"google.golang.org/grpc"
 )
@@ -21,9 +23,17 @@ func (s *Service) GetRepositoryCatalog(ctx context.Context, r *pb.GetRepositoryC
 	return out, nil
 }
 func (s *Service) PrepareWorkspace(r *pb.PrepareWorkspaceRequest, stream grpc.ServerStreamingServer[pb.WorkspacePreparation]) error {
-	workspace, err := s.Bench.PrepareWorkspace(stream.Context(), r.RequestKey, r.CollectionId, r.Name, r.Branch, r.RepositoryIdentities, func(id, message string) error {
+	progress := func(id, message string) error {
 		return stream.Send(&pb.WorkspacePreparation{Identity: id, Message: message})
-	})
+	}
+	var workspace collections.Collection
+	var err error
+	if r.RepositoryRequestId != "" {
+		// The person answers an agent's request: the same addition, then the agent is told.
+		workspace, err = s.Bench.AddRequestedRepositories(stream.Context(), r.RequestKey, r.CollectionId, r.RepositoryRequestId, r.RepositoryIdentities, progress)
+	} else {
+		workspace, err = s.Bench.PrepareWorkspace(stream.Context(), r.RequestKey, r.CollectionId, r.Name, r.Branch, r.RepositoryIdentities, progress)
+	}
 	if err != nil {
 		return rpcError(err)
 	}

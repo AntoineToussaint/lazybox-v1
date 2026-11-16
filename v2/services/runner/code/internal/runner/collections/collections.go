@@ -262,6 +262,26 @@ func (m *Manager) repositories() []Repository {
 	}
 	return unique
 }
+
+// Branch is the workspace's branch, the one a repository added to it gets
+// (unless another worktree of that repository already holds it): the branch
+// every member shares, as when the person named it at creation, else the one
+// named after the workspace's folder.
+func (c Collection) Branch() string {
+	shared := ""
+	for i, m := range c.Members {
+		if i > 0 && m.Branch != shared {
+			shared = ""
+			break
+		}
+		shared = m.Branch
+	}
+	if shared != "" {
+		return shared
+	}
+	return "feature/" + filepath.Base(c.Root)
+}
+
 func clone(c Collection) Collection {
 	c.Members = append([]Member(nil), c.Members...)
 	c.OwnerExecutionIDs = append([]string(nil), c.OwnerExecutionIDs...)
@@ -467,7 +487,7 @@ func (m *Manager) planMembers(ctx context.Context, c Collection, specs []MemberS
 		}
 		names[strings.ToLower(s.Name)] = true
 		if s.Branch == "" {
-			s.Branch = "feature/" + filepath.Base(c.Root)
+			s.Branch = c.Branch()
 			if branches[m.common[r.ID]+"\x00"+s.Branch] {
 				s.Branch += "-" + s.Name
 			}

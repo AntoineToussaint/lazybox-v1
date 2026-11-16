@@ -195,6 +195,8 @@ type Bench struct {
 	snippetCatalog atomic.Pointer[[]snippets.Entry]
 	// power is the actions file, its hooks and the CLI's window requests (power.go).
 	power powerState
+	// repositoryRequests are agents' requests for repositories (repository_requests.go).
+	repositoryRequests *repositoryRequests
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -397,6 +399,10 @@ func New(cfg Config) (*Bench, error) {
 	}
 	b.Reviews, err = reviews.New(filepath.Join(cfg.State, "reviews"))
 	if err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.repositoryRequests, err = openRepositoryRequests(filepath.Join(cfg.State, "repository-requests.json")); err != nil {
 		_ = b.Detach()
 		return nil, err
 	}

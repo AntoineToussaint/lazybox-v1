@@ -81,8 +81,11 @@ func rpcError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = codes.DeadlineExceeded
 	}
-	if errors.Is(err, journal.ErrFull) {
+	if errors.Is(err, journal.ErrFull) || errors.Is(err, runner.ErrRepositoryRequestLimit) {
 		code = codes.ResourceExhausted
+	}
+	if errors.Is(err, runner.ErrInvalidRepositoryRequest) {
+		code = codes.InvalidArgument
 	}
 	return grpcError(code, err)
 }
@@ -781,6 +784,13 @@ func (s *Service) sessionView(ctx context.Context, e *runner.Execution) (*pb.Ses
 			return nil, rpcError(err)
 		}
 		view.CreatedAtUnixMillis = root.CreatedAt.UnixMilli()
+	}
+	// An agent's request for a repository waits for the person like an
+	// approval does: in the conversation and in the inbox.
+	if !view.Closed {
+		for _, r := range s.Bench.PendingRepositoryRequests(e) {
+			view.Pending = append(view.Pending, repositoryRequestEvent(r))
+		}
 	}
 	return view, nil
 }

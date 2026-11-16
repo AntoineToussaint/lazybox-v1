@@ -19,8 +19,8 @@ import (
 // part of the Runner, not the editable settings, so it changes with the
 // binary instead of needing a settings migration.
 const commandBriefing = `## Your Lazybox workspace
-You work inside a Lazybox workspace: your working directory holds one or more repositories, each a git worktree on this workspace's branch. Read and change code there.
-- If the task needs a repository or directory that is not in this workspace (another module, a library you must change, a sibling service), do not read or edit it in place elsewhere on disk. Ask the person to add it to the workspace (Workspace → Add repositories), naming the repository and why you need it, and wait for it to appear before changing it. Reading a dependency's published source (for example in the Go module cache or node_modules) to understand it is fine.
+You work inside a Lazybox workspace: your working directory holds one or more repositories, each a git worktree on this workspace's branch. Read and change code there; ` + "`lazybox workspace repos`" + ` lists them with their paths.
+- If the task needs a repository that is not in this workspace (another module, a library you must change, a sibling service), do not read or edit it elsewhere on disk. Ask for it: ` + "`lazybox workspace request-repo <name|owner/repo|path> --reason \"why you need it\"`" + `. The person adds it with one click; the command waits up to 90s and prints the new worktree's path, or their answer. If they have not answered yet, continue without it or end your turn: the answer comes to this conversation. Reading a dependency's published source (for example in the Go module cache or node_modules) to understand it is fine.
 
 ## Running commands in Lazybox
 Run tests, builds, linters, installs and other noisy commands as ` + "`lazybox run -- <command>`" + ` instead of calling them directly. The user sees the full output live in the Lazybox console. You receive a compact view: the exit status first, failures and errors kept, passing and progress lines dropped, and the path of a file with the full output whenever something was dropped or the command failed. The exit status is the command's own.

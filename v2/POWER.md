@@ -179,6 +179,19 @@ agent or a Lazybox terminal it never falls back to them: those keep their
 scoped credentials and allowlisted verbs. That is defense in depth, not a
 boundary: an agent runs as your OS user ([resource ownership](RESOURCE_OWNERSHIP.md#agent-credentials)).
 
+## What an agent may do with the CLI
+
+An agent's `lazybox` holds its execution's scoped credential, not yours. It
+may publish its own console (`lazybox run`, `lazybox log`), its workspace's
+artifacts (`lazybox artifact`), and work with its workspace's repositories:
+`lazybox workspace repos` lists them, and `lazybox workspace request-repo
+<name|owner/repo|path> --reason "…"` asks you to add one it needs instead of
+reaching outside the workspace. The request is a card in its conversation and
+an Inbox row; you add it with one click, pick another or decline
+([workspaces](WORKSPACES.md#when-an-agent-needs-another-repository)). The
+agent can ask, never add. `lazybox deny <request>` declines one from your own
+terminal; adding happens in the app, where its progress shows.
+
 ## Several Runners
 
 See [several Runners in one window](MULTI_RUNNER.md): the design, and the first

@@ -242,7 +242,7 @@ func (c *client) explain(err error) error {
 		return exitError{exitUsage, errors.New(message)}
 	case connect.CodePermissionDenied:
 		if c.target.Scoped {
-			return fail(exitDenied, "%s\nThis process holds a scoped credential (LAZYBOX_V2_ENDPOINT): an agent may publish its own console and artifacts, a workspace terminal its own runs, a hook what its grants allow. Owner verbs run from your own terminal.", message)
+			return fail(exitDenied, "%s\nThis process holds a scoped credential (LAZYBOX_V2_ENDPOINT): an agent may publish its own console and artifacts and ask for a repository in its own workspace, a workspace terminal its own runs, a hook what its grants allow. Owner verbs run from your own terminal.", message)
 		}
 		return exitError{exitDenied, errors.New(message)}
 	case connect.CodeUnauthenticated:

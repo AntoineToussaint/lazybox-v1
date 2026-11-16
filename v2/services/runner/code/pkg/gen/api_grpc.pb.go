@@ -157,6 +157,10 @@ const (
 	RunnerService_WaitUiRequest_FullMethodName                = "/lazybox.bench.v1.RunnerService/WaitUiRequest"
 	RunnerService_WatchUiRequests_FullMethodName              = "/lazybox.bench.v1.RunnerService/WatchUiRequests"
 	RunnerService_CompleteUiRequest_FullMethodName            = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
+	RunnerService_ListWorkspaceRepositories_FullMethodName    = "/lazybox.bench.v1.RunnerService/ListWorkspaceRepositories"
+	RunnerService_RequestRepository_FullMethodName            = "/lazybox.bench.v1.RunnerService/RequestRepository"
+	RunnerService_WaitRepositoryRequest_FullMethodName        = "/lazybox.bench.v1.RunnerService/WaitRepositoryRequest"
+	RunnerService_DeclineRepositoryRequest_FullMethodName     = "/lazybox.bench.v1.RunnerService/DeclineRepositoryRequest"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -402,6 +406,20 @@ type RunnerServiceClient interface {
 	WatchUiRequests(ctx context.Context, in *WatchUiRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[UiRequest], error)
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(ctx context.Context, in *CompleteUiRequestRequest, opts ...grpc.CallOption) (*UiRequest, error)
+	// Agents ask for a repository instead of reaching outside their workspace
+	// (WORKSPACES.md, "When an agent needs another repository"). An agent
+	// credential may list its own execution's workspace repositories, ask to
+	// add one to that workspace and wait for the person's answer: it can never
+	// add one. Adding is the owner's PrepareWorkspace, with
+	// repository_request_id; declining is DeclineRepositoryRequest.
+	ListWorkspaceRepositories(ctx context.Context, in *ListWorkspaceRepositoriesRequest, opts ...grpc.CallOption) (*WorkspaceRepositories, error)
+	// Matches the query against the repository catalog and records a pending
+	// request on the asking conversation; adds nothing.
+	RequestRepository(ctx context.Context, in *RequestRepositoryRequest, opts ...grpc.CallOption) (*RepositoryRequest, error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitRepositoryRequest(ctx context.Context, in *WaitRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error)
+	// Owner only. Declines a request; the agent is told the reason.
+	DeclineRepositoryRequest(ctx context.Context, in *DeclineRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error)
 }
 
 type runnerServiceClient struct {
@@ -1827,6 +1845,46 @@ func (c *runnerServiceClient) CompleteUiRequest(ctx context.Context, in *Complet
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListWorkspaceRepositories(ctx context.Context, in *ListWorkspaceRepositoriesRequest, opts ...grpc.CallOption) (*WorkspaceRepositories, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceRepositories)
+	err := c.cc.Invoke(ctx, RunnerService_ListWorkspaceRepositories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RequestRepository(ctx context.Context, in *RequestRepositoryRequest, opts ...grpc.CallOption) (*RepositoryRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryRequest)
+	err := c.cc.Invoke(ctx, RunnerService_RequestRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) WaitRepositoryRequest(ctx context.Context, in *WaitRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryRequest)
+	err := c.cc.Invoke(ctx, RunnerService_WaitRepositoryRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) DeclineRepositoryRequest(ctx context.Context, in *DeclineRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryRequest)
+	err := c.cc.Invoke(ctx, RunnerService_DeclineRepositoryRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -2070,6 +2128,20 @@ type RunnerServiceServer interface {
 	WatchUiRequests(*WatchUiRequestsRequest, grpc.ServerStreamingServer[UiRequest]) error
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(context.Context, *CompleteUiRequestRequest) (*UiRequest, error)
+	// Agents ask for a repository instead of reaching outside their workspace
+	// (WORKSPACES.md, "When an agent needs another repository"). An agent
+	// credential may list its own execution's workspace repositories, ask to
+	// add one to that workspace and wait for the person's answer: it can never
+	// add one. Adding is the owner's PrepareWorkspace, with
+	// repository_request_id; declining is DeclineRepositoryRequest.
+	ListWorkspaceRepositories(context.Context, *ListWorkspaceRepositoriesRequest) (*WorkspaceRepositories, error)
+	// Matches the query against the repository catalog and records a pending
+	// request on the asking conversation; adds nothing.
+	RequestRepository(context.Context, *RequestRepositoryRequest) (*RepositoryRequest, error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitRepositoryRequest(context.Context, *WaitRepositoryRequestRequest) (*RepositoryRequest, error)
+	// Owner only. Declines a request; the agent is told the reason.
+	DeclineRepositoryRequest(context.Context, *DeclineRepositoryRequestRequest) (*RepositoryRequest, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -2490,6 +2562,18 @@ func (UnimplementedRunnerServiceServer) WatchUiRequests(*WatchUiRequestsRequest,
 }
 func (UnimplementedRunnerServiceServer) CompleteUiRequest(context.Context, *CompleteUiRequestRequest) (*UiRequest, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteUiRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListWorkspaceRepositories(context.Context, *ListWorkspaceRepositoriesRequest) (*WorkspaceRepositories, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceRepositories not implemented")
+}
+func (UnimplementedRunnerServiceServer) RequestRepository(context.Context, *RequestRepositoryRequest) (*RepositoryRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestRepository not implemented")
+}
+func (UnimplementedRunnerServiceServer) WaitRepositoryRequest(context.Context, *WaitRepositoryRequestRequest) (*RepositoryRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method WaitRepositoryRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) DeclineRepositoryRequest(context.Context, *DeclineRepositoryRequestRequest) (*RepositoryRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeclineRepositoryRequest not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -4943,6 +5027,78 @@ func _RunnerService_CompleteUiRequest_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListWorkspaceRepositories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkspaceRepositoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListWorkspaceRepositories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListWorkspaceRepositories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListWorkspaceRepositories(ctx, req.(*ListWorkspaceRepositoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RequestRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestRepositoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RequestRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RequestRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RequestRepository(ctx, req.(*RequestRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_WaitRepositoryRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WaitRepositoryRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).WaitRepositoryRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_WaitRepositoryRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).WaitRepositoryRequest(ctx, req.(*WaitRepositoryRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_DeclineRepositoryRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeclineRepositoryRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).DeclineRepositoryRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_DeclineRepositoryRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).DeclineRepositoryRequest(ctx, req.(*DeclineRepositoryRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -5477,6 +5633,22 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompleteUiRequest",
 			Handler:    _RunnerService_CompleteUiRequest_Handler,
+		},
+		{
+			MethodName: "ListWorkspaceRepositories",
+			Handler:    _RunnerService_ListWorkspaceRepositories_Handler,
+		},
+		{
+			MethodName: "RequestRepository",
+			Handler:    _RunnerService_RequestRepository_Handler,
+		},
+		{
+			MethodName: "WaitRepositoryRequest",
+			Handler:    _RunnerService_WaitRepositoryRequest_Handler,
+		},
+		{
+			MethodName: "DeclineRepositoryRequest",
+			Handler:    _RunnerService_DeclineRepositoryRequest_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { providerData, type RunnerClient } from '@lazybox/client-core';
 import { Decision, type AgentEvent } from '@lazybox/protocol';
 import { CodeBlock } from './RichContent';
@@ -6,6 +6,8 @@ import { Icon } from './Icons';
 import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
 import { approvalOf, questionsOf, scopeWords, type AlwaysChoice, type AnswerNote, type Question } from './request-model';
 import { shortPath } from './tool-lines';
+import { CardHead, editable, Kbd, useChatKeys, useInitialFocus, type RequestPosition } from './request-parts';
+import { RepositoryRequestCard } from './RepositoryRequestCard';
 import './requests.css';
 
 /**
@@ -21,56 +23,15 @@ export type RequestCardProps = {
   /** The conversation's folder: paths in it are shown relative, outside it flagged. */
   root?: string;
   /** "1 of 3" when several requests wait. */
-  position?: { index: number; count: number };
+  position?: RequestPosition;
   agentName?: string;
 };
 
 export function AgentRequestCard(props: RequestCardProps) {
+  if (props.request.type === 'repository_request') return <RepositoryRequestCard {...props}/>;
   return props.request.type === 'question' ? <QuestionCard {...props}/> : <ApprovalCard {...props}/>;
 }
 
-const editable = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || !!target.closest('.monaco-editor, .xterm'));
-
-/**
- * Keys for the first waiting request of a chat, while focus is in that chat's
- * messages (not in a field) or on the page itself. The card handles its own.
- */
-function useChatKeys(card: React.RefObject<HTMLElement | null>, onKey: (event: KeyboardEvent) => boolean) {
-  const handler = useRef(onKey); handler.current = onKey;
-  useEffect(() => {
-    const listen = (event: KeyboardEvent) => {
-      const node = card.current;
-      if (!node || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || editable(event.target)) return;
-      if (node.contains(event.target as Node) || document.querySelector('dialog[open]')) return;
-      const chat = node.closest('.messages');
-      const inChat = event.target === document.body || (!!chat && chat.contains(event.target as Node));
-      if (!inChat || chat?.querySelector('.request') !== node) return;
-      if (handler.current(event)) event.preventDefault();
-    };
-    document.addEventListener('keydown', listen);
-    return () => document.removeEventListener('keydown', listen);
-  }, [card]);
-}
-
-/** Focus a card's control when it appears, unless the person is typing elsewhere. */
-function useInitialFocus(card: React.RefObject<HTMLElement | null>, selector: string) {
-  useEffect(() => {
-    const node = card.current, active = document.activeElement;
-    if (!node || (active && active !== document.body && (editable(active) || !node.closest('.messages')?.contains(active)))) return;
-    if (node.closest('.messages')?.querySelector('.request') !== node) return;
-    node.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
-  }, [card, selector]);
-}
-
-function CardHead({ eyebrow, tool, position }: { eyebrow: string; tool?: string; position?: RequestCardProps['position'] }) {
-  return <header className="request-head">
-    <span className="eyebrow">{eyebrow}</span>
-    {tool && <span className="request-tool">{tool}</span>}
-    {position && position.count > 1 && <span className="request-count" title={`${position.count} requests are waiting`}>{position.index + 1} of {position.count}</span>}
-  </header>;
-}
-
-function Kbd({ children }: { children: ReactNode }) { return <kbd className="request-key" aria-hidden="true">{children}</kbd>; }
 /** A label with `code` spans, as the providers write commands in them. */
 export function CodeText({ text }: { text: string }) {
   const parts = text.split(/(`[^`]+`)/);
