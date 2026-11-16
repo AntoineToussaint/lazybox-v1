@@ -338,3 +338,4 @@
 .workspace-row>.workspace-name-it:hover{border-style:solid;border-color:#5b5478;color:var(--text)}
 @media(hover:none){.workspace-row>.workspace-name-it{opacity:1}}
 .collection-list .workspace-row:has(>.workspace-name-it)>.workspace-link{padding-right:122px}
+.window-error{max-width:640px;margin:12vh auto;padding:28px;border:1px solid #42434e;border-radius:12px;background:#23242c;color:#d6d8e0}.window-error h2{margin:0 0 8px;font-size:18px}.window-error p{color:#a6a6b2;font-size:13px}.window-error-actions{display:flex;gap:10px;margin:16px 0}.window-error pre{max-height:240px;overflow:auto;font-size:11px;color:#9aa0ad;white-space:pre-wrap}

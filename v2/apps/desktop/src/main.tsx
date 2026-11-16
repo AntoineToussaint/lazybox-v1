@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, WindowControls, Workspace, useRunnerLocator } from '@lazybox/surfaces';
+import { AgentWindow, WindowControls, WindowErrorBoundary, Workspace, useRunnerLocator } from '@lazybox/surfaces';
 import type { AttentionDestination, AttentionHost, SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console'; notice: string; viewState: Record<string,string> };
@@ -107,4 +107,4 @@ function DesktopApp() {
   if (bootstrap) return <>{shown && <div className="error" role="alert">{shown}<button onClick={()=>void invoke('reconnect_view').then(()=>setReconnectError(''),e=>setReconnectError(String(e)))}>Reconnect this window</button></div>}<DesktopWindow bootstrap={bootstrap} followRestart={follow} renew={renew}/></>;
   return <p role={error ? 'alert' : 'status'}>{error ? `Unable to restore this window: ${error}` : 'Restoring your windows…'}</p>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><DesktopApp/></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}><DesktopApp/></WindowErrorBoundary></React.StrictMode>);

@@ -7,3 +7,4 @@ export { Workspace, builtinPanels, type PanelModule, type ModuleProps } from './
 
 export { SettingsPage } from './SettingsPage';
 export { WindowControls } from './WindowControls';
+export { WindowErrorBoundary } from './WindowErrorBoundary';

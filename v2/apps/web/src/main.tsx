@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AgentWindow, Workspace } from '@lazybox/surfaces';
+import { AgentWindow, Workspace, WindowErrorBoundary } from '@lazybox/surfaces';
 import { browserWorkspaceHost } from './browser-host';
 
 const fragment = new URLSearchParams(location.hash.slice(1));
@@ -16,7 +16,7 @@ const panelScope=`${scope}:workspace:${initial.get('collection') || 'home'}`;
 const viewState = { key: mode === 'chat' ? `${panelScope}:panel:${panelId}` : mode === 'workspace' ? `${scope}:main` : scope, scope: mode==='chat'?panelScope:scope, root: scope, getItem: (key: string) => storage.getItem(key), setItem: (key: string, value: string) => storage.setItem(key, value) };
 // Only the main workspace view notifies; a workspace window or a chat window would repeat it.
 const host = browserWorkspaceHost(scope, token, mode === 'chat' ? { panelId, sessionId: initial.get('session') || '', collectionId: initial.get('collection') || '' } : undefined, mode === 'workspace' && !initial.get('workspaceWindow'));
-createRoot(document.getElementById('root')!).render(<React.StrictMode>{mode === 'workspace' ? <Workspace fixedWorkspaceId={initial.get('workspaceWindow') ? initial.get('collection') || undefined : undefined} connection={{ baseUrl: location.origin, token }} viewState={viewState} host={host} initialTarget={{ collectionId: initial.get('collection') || '', sessionId: initial.get('session') || '', commandId: '' }}/>: <AgentWindow
+createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}>{mode === 'workspace' ? <Workspace fixedWorkspaceId={initial.get('workspaceWindow') ? initial.get('collection') || undefined : undefined} connection={{ baseUrl: location.origin, token }} viewState={viewState} host={host} initialTarget={{ collectionId: initial.get('collection') || '', sessionId: initial.get('session') || '', commandId: '' }}/>: <AgentWindow
   connection={{ baseUrl: location.origin, token }}
   agent="claude"
   collectionId={initial.get('collection') || undefined}
@@ -35,4 +35,4 @@ createRoot(document.getElementById('root')!).render(<React.StrictMode>{mode === 
     const url = new URL(location.href); url.searchParams.set('session', session); url.searchParams.set('command', command);
     url.hash = new URLSearchParams({ token }).toString(); window.open(url, '_blank', 'noopener');
   }}
-/>}</React.StrictMode>);
+/>}</WindowErrorBoundary></React.StrictMode>);
