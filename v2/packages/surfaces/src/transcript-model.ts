@@ -1,10 +1,12 @@
 import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 import { failureSentence, isLimitState, switchNote, type SwitchNote } from './subscription-model';
+import { emptySubagents, SubagentFold, subagentRelevant, type Subagents } from './subagent-model';
 
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string };
-export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string };
-export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'' });
+/** `agentId` names the sub-agent whose card a `subagent` message is. */
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string };
+export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents };
+export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents() });
 
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
 export function appendTranscript(state: Transcript, record: JournalEvent): Transcript {
@@ -31,10 +33,17 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
   const list = () => messages ??= [...state.messages];
   const replaceLast = (message: TranscriptMessage) => { const m = list(); m[m.length - 1] = message; owned.add(message); };
   const add = (message: TranscriptMessage) => { list().push(message); owned.add(message); };
+  let subagents: SubagentFold | undefined;
   for (const record of fresh) {
     next.cursor = record.cursor;
     const event = record.event;
     if (event && ACTIVITY_TYPES.has(event.type)) activity.push(record);
+    // A sub-agent's card sits where it started; its own messages and tools live in it.
+    if (subagentRelevant(event)) {
+      const fold = subagents ??= new SubagentFold(state.subagents ?? emptySubagents());
+      fold.record(record);
+      for (const agentId of fold.takeCards()) { add({ id: `subagent:${agentId}`, type: 'subagent', text: '', turnId: event!.turnId, agentId }); next.appendToLast = false; }
+    }
     if (!event || (event.agentId && event.agentId !== 'root')) continue;
     if (event.type === 'session_ready' || event.type === 'context' || event.type === 'usage') {
       const model = providerData(event.providerDataJson).model;
@@ -78,6 +87,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
     }
   }
   if (messages) next.messages = messages;
+  if (subagents) next.subagents = subagents.result();
   if (activity.length) {
     // Bound only what is retained: a long replay drops most activity anyway.
     const room = ACTIVITY - activity.length;

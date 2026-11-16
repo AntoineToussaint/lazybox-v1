@@ -31,7 +31,12 @@ import { NewSessionForm, useSessionLauncher } from './NewSessionForm';
 import { ChatHeader, ChatStatus, SessionHeader, SessionInspection, WindowTopbar } from './ChatHeader';
 import { ConversationTitle } from './ConversationTitle';
 import { PermissionRestartPrompt, SessionLifecycleButton, SessionMenu } from './SessionMenu';
-import { AgentActivity, LiveActivity, ResumeBar, TranscriptNotice } from './SessionNotices';
+import { ResumeBar, TranscriptNotice } from './SessionNotices';
+import { useSubagentHost } from './SubagentHost';
+import { LiveBar } from './LiveBar';
+import { SubagentContext } from './subagent-view';
+import { BackgroundWorkButton, SubagentAttention } from './SubagentTray';
+import { SubagentPanel } from './SubagentPanel';
 import { MessageArea } from './MessageArea';
 import { SubscriptionControls } from './SubscriptionSwitch';
 import { Composer } from './Composer';
@@ -63,6 +68,8 @@ export type AgentWindowProps = {
   onViewChange?: (target: SurfaceTarget) => void | Promise<void>;
   onSessionChange?: (sessionId: string) => void;
   onOpenViewer?: (sessionId: string, commandId: string) => void | Promise<void>;
+  /** Shows one of this conversation's managed commands in the host's command console. */
+  onOpenCommand?: (commandId: string) => void;
 };
 
 /** One independent view of a Runner session. Unmounting disconnects readers,
@@ -78,7 +85,7 @@ export function AgentWindow(props: AgentWindowProps) {
   </RunnerProvider>;
 }
 
-export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, keyboardHint = null }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: KeyHint | null }) {
+export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, onOpenCommand, keyboardHint = null }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: KeyHint | null }) {
   const { api, info, connecting, error: connectionError, refresh, revision } = useRunner();
   const keymap = useKeymap(viewState);
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -323,12 +330,13 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     requestAnimationFrame(() => { node?.focus(); node?.setSelectionRange(start + body.length, start + body.length); });
   };
 
+  const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
   if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError}/>;
 
   const title = <ConversationTitle api={api} session={session} sessionID={sessionID} realTitle={realTitle} suggestedTitle={titleFromMessage(firstPrompt)} branch={branch}
     onRenamed={renamed => { setSession(renamed); refresh(); }} onError={setError}/>;
-  const status = <ChatStatus session={session} live={live}/>;
-  const inspection = <SessionInspection sessionID={sessionID} session={session} activity={transcript.activity} activityTruncated={transcript.activityTruncated}/>;
+  const status = <><ChatStatus session={session} live={live}/><SubagentAttention/></>;
+  const inspection = <><BackgroundWorkButton/><SessionInspection sessionID={sessionID} session={session} activity={transcript.activity} activityTruncated={transcript.activityTruncated}/></>;
   const lifecycle = <SessionLifecycleButton session={session} allowStart={allowStart} onNewSession={newSession} onClose={() => void close()}/>;
 
   return <main className={'agent-window' + (embedded ? ' embedded-chat' : '') + (drop.dragging ? ' file-drag-active' : '')} {...drop.handlers}>
@@ -344,7 +352,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       ? <div className="empty">Select an existing session to view its chat.</div>
       : !sessionID
         ? <NewSessionForm launcher={launcher} info={info} purpose={purpose} emptyWorkspace={emptyWorkspace} collectionId={collectionId} agentName={agentName}/>
-        : <section className="single-session">
+        : <SubagentContext.Provider value={subagents}><section className="single-session">
           {embedded
             ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} modelLabel={modelLabel} inspection={inspection}
               realTitle={realTitle} branch={branch} shownAccount={shownAccount} onOpenChat={onOpenChat}
@@ -359,12 +367,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
           {session?.closed && <ResumeBar session={session} canResumeOnSend={canResumeOnSend} onResume={resumeSession} onError={setError}/>}
           {deleting && session && <DeleteConversationDialog session={session} onClose={() => setDeleting(false)} onDeleted={() => { setDeleting(false); newSession(); }}/>}
           {fileLinks.element}
-          <AgentActivity session={session}/>
           {transcript.error && <TranscriptNotice error={transcript.error} onRetry={transcript.retry}/>}
           <MessageArea api={api} session={session} sessionID={sessionID} transcript={transcript} scroll={scroll} spoken={spoken} agentName={agentName} limited={limited} nameFor={nameFor}
             onOpenFile={session?.collectionId ? openFile : undefined} onError={setError}
             subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/>
-          {!transcript.error && <LiveActivity disconnected={disconnected} live={live} session={session}/>}
+          {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} onInterrupt={() => void interrupt()}
+            onOpenCommand={onOpenCommand || (showCommands ? commandId => { setCommand(commandId); setCommandsOpen(true); } : onOpenViewer ? commandId => void onOpenViewer(sessionID, commandId) : undefined)}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}
@@ -379,11 +387,13 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             onOpenSnippets={() => setSnippetsOpen(true)}
             onSelectFiles={selectFiles}
             onInterrupt={() => void interrupt()}
+            interruptInBar={!transcript.error && !disconnected && !!session?.busy && live.tone === 'busy'}
             onError={setError}/>
           {showCommands && !assistant && <SessionCommands api={api} session={session} sessionID={sessionID} commands={commands} currentCommand={currentCommand} open={commandsOpen} viewState={viewState}
             onToggle={setCommandsOpen} onSelect={setCommand} onError={setError} onOpenViewer={onOpenViewer}
             onSendToAgent={canCompose && !sending ? text => { addToDraft(text, HANDOVER_NOTICE); return ''; } : undefined}/>}
           {!embedded && <EventLog events={events}/>}
-        </section>}
+          <SubagentPanel/>
+        </section></SubagentContext.Provider>}
   </main>;
 }

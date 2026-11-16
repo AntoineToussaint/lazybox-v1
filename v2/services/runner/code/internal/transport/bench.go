@@ -100,7 +100,7 @@ func wireEvent(e agent.Event) *pb.AgentEvent {
 func wireSession(e *runner.Execution) *pb.Session {
 	s := e.Engine.Snapshot()
 	c := s.Capabilities
-	w := &pb.Session{Id: s.ID, ProfileId: s.Profile, ProviderReference: s.Reference, GatewayId: s.GatewayID, Busy: s.Busy, Closed: s.Closed, Fault: s.Fault, Queued: uint32(s.Queued), WorkId: e.WorkID, PreviousExecutionId: e.Previous, CollectionId: e.CollectionID, WorkingDirectory: e.Cwd, Purpose: e.Purpose, Status: string(s.Status), Account: wireAccount(s.Account), ActivityTruncated: s.ActivityTruncated, RotationProfileIds: e.Options.RotationProfiles, Capabilities: &pb.Capabilities{Images: c.Images, Files: c.Files, Questions: c.Questions, Approvals: c.Approvals, Steer: c.Steer, Resume: c.Resume, PendingResume: c.PendingResume, ProfileIsolation: c.ProfileIsolation, Subagents: c.Subagents, LivePermission: c.LivePermission}}
+	w := &pb.Session{Id: s.ID, ProfileId: s.Profile, ProviderReference: s.Reference, GatewayId: s.GatewayID, Busy: s.Busy, Closed: s.Closed, Fault: s.Fault, Queued: uint32(s.Queued), WorkId: e.WorkID, PreviousExecutionId: e.Previous, CollectionId: e.CollectionID, WorkingDirectory: e.Cwd, Purpose: e.Purpose, Status: string(s.Status), Account: wireAccount(s.Account), ActivityTruncated: s.ActivityTruncated, RotationProfileIds: e.Options.RotationProfiles, Capabilities: &pb.Capabilities{Images: c.Images, Files: c.Files, Questions: c.Questions, Approvals: c.Approvals, Steer: c.Steer, Resume: c.Resume, PendingResume: c.PendingResume, ProfileIsolation: c.ProfileIsolation, Subagents: c.Subagents, LivePermission: c.LivePermission, StopAgent: c.StopAgent}}
 	w.ConversationId = e.Saved.ConversationID
 	w.Permission, w.Workflow = e.Options.Permission, e.Options.Workflow
 	w.Title = s.Title
@@ -339,6 +339,9 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		prompt = o.Steer
 	case *pb.ApplyRequest_Interrupt:
 		op.Kind = agent.Interrupt
+	case *pb.ApplyRequest_StopAgent:
+		op.Kind = agent.StopAgent
+		op.AgentID = o.StopAgent.GetAgentId()
 	case *pb.ApplyRequest_Answer:
 		op.Kind = agent.Answer
 		op.RequestID = o.Answer.RequestId

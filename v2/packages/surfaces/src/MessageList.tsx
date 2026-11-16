@@ -9,11 +9,13 @@ import type { ReplayProgress } from './transcript-cache';
 import { switchedLine } from './subscription-model';
 import { useCheckpointUI, type CheckpointScope } from './TurnCheckpoints';
 import { MessageArtifactActions } from './MessageArtifactActions';
+import { SubagentCard } from './SubagentCard';
 
 const ownName = (id: string) => id;
 
 const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile, nameFor = ownName }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; nameFor?(id: string): string }) {
   if (m.type === 'switched' && m.switched) return <div className="subscription-switched" role="note"><span>{switchedLine(m.switched, nameFor)}</span></div>;
+  if (m.type === 'subagent' && m.agentId) return <div className="subagent-anchor" data-message-id={m.id}><SubagentCard id={m.agentId}/></div>;
   if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
   return <article className={'message ' + m.type} data-message-id={m.id}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>

@@ -482,6 +482,9 @@ message Capabilities {
   bool subagents = 9;
   // The permission mode can change while the session runs.
   bool live_permission = 10;
+  // One sub-agent can be stopped (ApplyRequest.stop_agent) while the main
+  // agent continues.
+  bool stop_agent = 11;
 }
 message AgentEvent {
   string type = 1;
@@ -668,7 +671,13 @@ message ApplyRequest {
     Answer answer = 6;
     Approval approval = 7;
     Permission permission = 8;
+    StopAgent stop_agent = 9;
   }
+}
+// Stops one running sub-agent, when Capabilities.stop_agent; the main agent's
+// turn continues. agent_id is an AgentActivity id other than root.
+message StopAgent {
+  string agent_id = 1;
 }
 // Changes a running session's permission mode: ask, read-only or yolo.
 message Permission {

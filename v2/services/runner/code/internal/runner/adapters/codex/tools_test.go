@@ -29,6 +29,22 @@ func TestToolItemsNormalizeAtProviderBoundary(t *testing.T) {
 		}
 	}
 }
+func TestSubAgentCallCarriesItsBriefAndReceivers(t *testing.T) {
+	got, err := normalizedToolCall(json.RawMessage(`{"item":{"id":"call","type":"collabAgentToolCall","tool":"spawnAgent","status":"inProgress","prompt":"Audit the reader","receiverThreadIds":["child"]}}`), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var call struct {
+		Name  string
+		Input map[string]any
+	}
+	if err = json.Unmarshal(got, &call); err != nil || call.Name != "spawnAgent" || call.Input["prompt"] != "Audit the reader" || call.Input["tool"] != "spawnAgent" {
+		t.Fatalf("%s %v", got, err)
+	}
+	if receivers, _ := call.Input["receiverThreadIds"].([]any); len(receivers) != 1 || receivers[0] != "child" {
+		t.Fatalf("%s", got)
+	}
+}
 func TestLargeToolOutputIsBoundedBeforeJournaling(t *testing.T) {
 	raw, _ := json.Marshal(map[string]any{"item": map[string]any{"id": "large", "type": "commandExecution", "aggregatedOutput": strings.Repeat("x", 1000000)}})
 	output, err := normalizedToolCall(raw, true)

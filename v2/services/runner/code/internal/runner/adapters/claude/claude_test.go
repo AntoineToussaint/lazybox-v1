@@ -1,8 +1,13 @@
 package claude
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 )
@@ -21,5 +26,48 @@ func TestGatewayEnvironmentPreservesAuthAndNeverMutatesParent(t *testing.T) {
 	}
 	if parent[0] != "ANTHROPIC_BASE_URL=https://old.test" || parent[1] != "ANTHROPIC_API_KEY=provider-secret" {
 		t.Fatal("parent environment mutated")
+	}
+}
+
+// stopWorker answers open with the given features, then acknowledges a
+// stop_agent call only for the native task it expects.
+func stopWorker(features string) string {
+	return `read -r line
+printf '%s\n' '{"id":"lazybox-1","result":{"reference":"ref","features":` + features + `}}'
+while IFS= read -r line; do
+  case "$line" in
+    *'"method":"stop_agent"'*'"nativeId":"task-7"'*) printf '%s\n' '{"id":"lazybox-2","result":{"delivery":"acknowledged"}}' ;;
+    *) printf '%s\n' '{"id":"lazybox-2","error":{"message":"unexpected"}}' ;;
+  esac
+done
+`
+}
+
+func TestStopAgentReachesOnlyAWorkerThatSupportsIt(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	for _, tc := range []struct {
+		features string
+		works    bool
+	}{{`["permission","context","stop_agent"]`, true}, {`["permission","context"]`, false}} {
+		worker := filepath.Join(t.TempDir(), "worker.sh")
+		if err := os.WriteFile(worker, []byte(stopWorker(tc.features)), 0700); err != nil {
+			t.Fatal(err)
+		}
+		session, err := Adapter{Node: "/bin/sh", Worker: worker}.Open(ctx, agent.Open{Cwd: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if session.Capabilities().StopAgent != tc.works {
+			t.Fatalf("features %s: StopAgent capability %v", tc.features, !tc.works)
+		}
+		r, err := session.Apply(ctx, agent.Operation{ID: "stop", Kind: agent.StopAgent, AgentID: "claude-tool:x", NativeID: "task-7"})
+		if tc.works && (err != nil || r.Delivery != "acknowledged" || r.ID != "stop") {
+			t.Fatalf("stop not acknowledged: %+v %v", r, err)
+		}
+		if !tc.works && !errors.Is(err, agent.ErrUnsupported) {
+			t.Fatalf("an older worker was asked to stop a sub-agent: %v", err)
+		}
+		_ = session.Close()
 	}
 }

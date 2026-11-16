@@ -25,6 +25,8 @@ type Capabilities struct {
 	Subagents        bool   `json:"subagents"`
 	// LivePermission: the permission mode can change while the session runs.
 	LivePermission bool `json:"livePermission,omitempty"`
+	// StopAgent: a single sub-agent can be stopped while the main agent continues.
+	StopAgent bool `json:"stopAgent,omitempty"`
 }
 
 // Open contains resolved execution configuration. Env is private child-process
@@ -143,6 +145,8 @@ const (
 	Approve   Kind = "approve"
 	// Permission changes the running session's permission mode.
 	Permission Kind = "permission"
+	// StopAgent stops one running sub-agent; the main agent's turn continues.
+	StopAgent Kind = "stop_agent"
 )
 
 // PermissionModes are the modes a running session can switch to. Inherit
@@ -163,6 +167,10 @@ type Operation struct {
 	Context string `json:"context,omitempty"`
 	// Permission is the new mode of a Permission operation.
 	Permission string `json:"permission,omitempty"`
+	// AgentID is the Lazybox agent a StopAgent operation stops; NativeID is
+	// the provider's id for it, resolved by the engine from its agent state.
+	AgentID  string `json:"agentId,omitempty"`
+	NativeID string `json:"nativeId,omitempty"`
 }
 
 // Delivery is "acknowledged" only if the provider actually replied. A pipe

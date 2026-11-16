@@ -1,0 +1,86 @@
+// Fixture only: the live bar of a running turn. It says the step with the
+// real command and where it runs, how long it has taken, streams the output of
+// a Lazybox-managed command (last lines, more on request, the console), stops
+// that command or interrupts the turn (saying which), and carries the
+// sub-agents at work. Narrow layouts and reduced motion included.
+import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
+
+const f=await startRunnerFixture();
+const b64=value=>Buffer.from(JSON.stringify(value)).toString('base64');
+const now=Date.now(),at=offset=>new Date(now+offset).toISOString();
+const session=f.sessions[0];
+Object.assign(session,{title:'Ship the front door',provider:'claude',busy:true,status:'running',agents:[{id:'root',status:'running',phase:'tool',tool:'Bash',phaseSinceUnixMillis:String(now-321000),turnStartedAtUnixMillis:String(now-400000)},{id:'claude-tool:toolu_sa',parentId:'root',status:'running',name:'Review the API',kind:'local_agent'}]});
+const output=Array.from({length:12},(_,i)=>`\x1b[32m✓\x1b[0m check step ${i+1}`).join('\n')+'\nCHECK_TAIL_LINE\n';
+f.commands.push({id:'cmd-check',sessionId:session.id,title:'pnpm run check',argv:['pnpm','run','check'],mode:'managed',done:false,offset:String(output.length),output});
+const ch=f.openEvents(session.id);
+const push=(offset,event)=>ch.push(event.data===undefined?event:{...Object.fromEntries(Object.entries(event).filter(([k])=>k!=='data')),providerDataJson:b64(event.data)},at(offset));
+push(-400000,{type:'operation_accepted',text:'Run the checks in the front door and fix what fails.'});
+push(-399000,{type:'turn_started'});
+push(-390000,{type:'message_delta',text:'Running the checks first.'});
+push(-321000,{type:'activity',status:'tool',name:'Bash'});
+push(-321000,{type:'tool_activity',data:{type:'tool_call',id:'toolu_check',name:'Bash',status:'running',input:{command:'cd services/front-door && lazybox run pnpm run check',description:'Run the checks'}}});
+push(-300000,{type:'tool_activity',data:{type:'tool_call',id:'toolu_sa',name:'Task',status:'running',input:{description:'Review the API',prompt:'Review it.',subagent_type:'Explore'}}});
+push(-299000,{type:'agent_status',agentId:'claude-tool:toolu_sa',parentAgentId:'root',nativeId:'task-sa',status:'running',name:'Review the API',data:{toolUseId:'toolu_sa',subagentType:'Explore'}});
+
+const server=await createServer({configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+try{
+ await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
+ const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${f.token}`);
+ const chat=page.locator('.embedded-chat').first(),bar=chat.getByRole('region',{name:'What the agent is doing'});
+
+ // The step, with the actual command, where it runs, and for how long.
+ await expect(bar.locator('.live-activity')).toHaveText(/^Running a command · 5m 2\ds$/);
+ await expect(bar.locator('.live-bar-code')).toHaveText('lazybox run pnpm run check');
+ await expect(bar.locator('.live-bar-where')).toHaveText('in services/front-door');
+ // A managed command streams: its last lines, without colour codes.
+ const out=bar.locator('.live-bar-output');
+ await expect(out).toContainText('CHECK_TAIL_LINE');
+ await expect(out).not.toContainText('[32m');
+ assert.equal((await out.textContent()).split('\n').length,3,'three lines until more is asked for');
+ await bar.getByRole('button',{name:'More output'}).click();
+ await expect(out).toContainText('check step 1');
+ await expect(bar.getByRole('button',{name:'Less output'})).toHaveAttribute('aria-expanded','true');
+ // The sub-agents at work are in the same bar; the old separate lines are gone.
+ await expect(bar.locator('.subagent-chip')).toContainText('Review the API');
+ await expect(chat.locator('.live-bar')).toHaveCount(1);
+ await expect(chat.locator('.agent-activity')).toHaveCount(0);
+ await page.screenshot({path:'.cache/subagents-live-bar.png'});
+
+ // Open in console: the workspace's command output shows it.
+ await bar.getByRole('button',{name:'Open in console'}).click();
+ await expect(page.locator('.command-panel')).toContainText('CHECK_TAIL_LINE');await page.screenshot({path:'.cache/subagents-live-bar-console.png'});
+ {const box=await bar.boundingBox(),pane=await chat.locator('.messages').boundingBox();assert.ok(pane.y+pane.height<=box.y+1,'a short chat keeps the bar clear of the messages');}
+
+ // Stop says what it stops: the command, not the turn.
+ await bar.getByRole('button',{name:'Stop command'}).click();
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='CancelCommand')?.body.commandId).toBe('cmd-check');
+ assert.equal(f.mutations.filter(m=>m.method==='Apply'&&m.body.interrupt).length,0,'stopping the command does not interrupt the turn');
+ // Once no managed command runs, the control interrupts the turn, and says so.
+ await expect(bar.getByRole('button',{name:'Interrupt'})).toBeVisible({timeout:5000});
+ await expect(bar.locator('.live-bar-output')).toHaveCount(0);
+ await bar.getByRole('button',{name:'Interrupt'}).click();
+ await expect.poll(()=>f.mutations.some(m=>m.method==='Apply'&&m.body.interrupt)).toBe(true);
+
+ // A step that is not a command says what it does, in words.
+ push(0,{type:'tool_activity',data:{type:'tool_call',id:'toolu_check',status:'completed',output:'ok'}});
+ push(1,{type:'tool_activity',data:{type:'tool_call',id:'toolu_read',name:'Read',status:'running',input:{file_path:'services/front-door/src/app.ts'}}});
+ await expect(bar.locator('.live-activity')).toHaveText(/^Reading services\/front-door\/src\/app\.ts · \ds$/);
+ await expect(bar.locator('.live-bar-code')).toHaveCount(0);
+
+ // Reduced motion stills the indicator; a phone keeps the bar on screen without sideways scroll.
+ await page.emulateMedia({reducedMotion:'reduce'});
+ assert.equal(await bar.locator('.live-indicator').first().evaluate(n=>getComputedStyle(n).animationName),'none');
+ await page.setViewportSize({width:390,height:844});
+ // A phone shows one panel at a time: back to the chat from the console.
+ {const chatTab=page.locator('.mobile-panel-switcher').getByRole('button',{name:/Agent chat/});if(await chatTab.count())await chatTab.first().click();}
+ await expect(bar.getByRole('button',{name:'Interrupt'})).toBeVisible();
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'no horizontal page scroll');
+ await page.screenshot({path:'.cache/subagents-live-bar-phone.png'});
+
+ // The turn ends: the bar leaves; only background work would keep it.
+ Object.assign(session,{busy:false,status:'ready',agents:[{id:'root',status:'done'}]});push(2,{type:'agent_status',agentId:'claude-tool:toolu_sa',status:'done',data:{toolUseId:'toolu_sa'}});push(3,{type:'turn_ended',status:'completed'});
+ await expect(chat.locator('.live-bar')).toHaveCount(0);
+ assert.deepEqual(errors,[]);
+ console.log('PASS live bar: step with real command and directory, elapsed, managed output tail (3 lines, more, console), Stop command vs Interrupt, step in words, sub-agents in the bar, reduced motion, phone width, leaves when the turn ends. Fixture only.');
+}finally{await browser?.close();await server.close();await f.close();}

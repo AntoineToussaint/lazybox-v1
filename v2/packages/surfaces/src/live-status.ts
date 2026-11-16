@@ -120,7 +120,9 @@ export function liveStatus(session: Session | undefined, now: number, events?: r
   if (session.status === 'switching_profile') return timed('Switching subscription', millis(session.agents.find(a => a.id === 'root')?.phaseSinceUnixMillis), now);
   if (awaitingFirstMessage(session)) return fixed('idle', 'Ready');
   const root = session.agents.find(agent => agent.id === 'root');
-  const children = session.agents.filter(agent => agent.id !== 'root' && ['running', 'starting'].includes(agent.status)).length;
+  // A background shell command (Claude's run_in_background) is not a sub-agent.
+  const working = session.agents.filter(agent => agent.id !== 'root' && ['running', 'starting'].includes(agent.status));
+  const commands = working.filter(agent => agent.kind === 'local_bash').length, children = working.length - commands;
   // The journal is fresher than the polled session: a turn it saw end is over.
   const ended = !!events && turnEndedInJournal(events);
   const rootWorking = !ended && (session.busy || root?.status === 'running' || (!root && session.status === 'running'));
@@ -129,7 +131,7 @@ export function liveStatus(session: Session | undefined, now: number, events?: r
     const step: Phase = journal || { phase: root?.phase || (session.status === 'starting' ? 'starting' : 'working'), tool: root?.tool || '', at: millis(root?.phaseSinceUnixMillis) || millis(root?.turnStartedAtUnixMillis) || undefined };
     return timed(phaseLabel(step.phase, step.tool), step.at, now);
   }
-  if (children) return fixed('busy', `Running · ${children} ${children === 1 ? 'sub-agent' : 'sub-agents'}`);
+  if (children || commands) return fixed('busy', `Running · ${[children && `${children} ${children === 1 ? 'sub-agent' : 'sub-agents'}`, commands && `${commands} background ${commands === 1 ? 'command' : 'commands'}`].filter(Boolean).join(' · ')}`);
   if (session.status === 'starting') return fixed('busy', 'Starting…');
   if (session.status === 'running' && !ended) return fixed('busy', 'Working…');
   if (ended && ['running', 'starting'].includes(session.status)) return fixed('idle', 'Turn done');

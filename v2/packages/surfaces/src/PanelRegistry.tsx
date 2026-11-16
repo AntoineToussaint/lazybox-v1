@@ -41,7 +41,7 @@ export type ModuleProps = {
 };
 export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
 
-function ChatModule({ target, onTarget, viewState, collections, onOpenChat, onNewConversation, onShowModule }: ModuleProps) {
+function ChatModule({ target, onTarget, viewState, collections, onOpenChat, onNewConversation, onShowModule, onShowPanel }: ModuleProps) {
   const { api } = useRunner();
   const collection = collections.find(value => value.id === target.collectionId);
   // A workspace with no conversation open shows what it holds and how to start, not a form.
@@ -50,6 +50,7 @@ function ChatModule({ target, onTarget, viewState, collections, onOpenChat, onNe
     collectionId={target.collectionId} initialSessionId={target.sessionId}
     allowStart={!!collection && collection.state === 'ready' && !collection.ownershipUncertain}
     viewState={viewState}
+    onOpenCommand={commandId => { onTarget({ ...target, commandId }); onShowPanel?.('console', { ...target, commandId }); }}
     onSessionChange={sessionId => onTarget({ ...target, sessionId, commandId: '' })}/>;
 }
 

@@ -229,6 +229,15 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 		}
 		op.RequestID = native
 	}
+	if op.Kind == agent.StopAgent {
+		// Sub-agent ids carry their attempt; one of an earlier subscription
+		// attempt ended with that attempt's native session.
+		native, ok := strings.CutPrefix(op.AgentID, fmt.Sprintf("attempt-%d:", s.attempt))
+		if !ok {
+			return agent.Receipt{}, errors.New("sub-agent belongs to an earlier subscription attempt")
+		}
+		op.AgentID = native
+	}
 	carried := false
 	if s.checkpoint && op.Kind == agent.Message {
 		// The first request on a new subscription carries the conversation so far.

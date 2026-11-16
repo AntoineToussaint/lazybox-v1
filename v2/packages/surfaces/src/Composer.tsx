@@ -14,7 +14,7 @@ import type { FileReference } from './view-state';
  * (with Vim editing and prompt recall), and the send, attach, snippet and
  * interrupt controls. The draft itself is owned by the chat.
  */
-export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, onError }: {
+export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, interruptInBar = false, onError }: {
   textarea: RefObject<HTMLTextAreaElement | null>;
   fileInput: RefObject<HTMLInputElement | null>;
   agentName: string;
@@ -51,6 +51,8 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   /** Files chosen, dropped or pasted. */
   onSelectFiles(files: FileList | File[] | null): void;
   onInterrupt(): void;
+  /** The live bar above offers the right stop for the running turn: no second Interrupt here. */
+  interruptInBar?: boolean;
   onError(message: string): void;
 }) {
   const vimEditing = useVimPreferences(viewState).composer;
@@ -97,7 +99,7 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
       <button type="button" className="attachment" aria-label={embedded ? 'Attach files' : undefined} disabled={!canAttach} onClick={() => fileInput.current?.click()}>{embedded ? <><Icon name="attach"/> Attach</> : '+ Attach files'}</button>
       <input ref={fileInput} hidden aria-label="Attach files" type="file" multiple onChange={e => { onSelectFiles(e.target.files); e.target.value = ''; }}/>
       <small className="composer-hint keyboard-hint">{vim.mode === 'insert' ? `${keymap['chat.send']} to send · Esc for normal mode` : vim.mode ? vim.hint : `${keymap['chat.send']} to send · Shift+Enter for a new line`}</small>
-      {(!embedded || session?.busy) && <button type="button" onClick={onInterrupt} disabled={!session?.busy || session.closed}>Interrupt</button>}
+      {!interruptInBar && (!embedded || session?.busy) && <button type="button" onClick={onInterrupt} disabled={!session?.busy || session.closed}>Interrupt</button>}
       <button className="primary send-button" aria-label={sendLabel} disabled={!canSend}>{embedded ? <Icon name="send" size={18}/> : sendLabel}</button>
     </div>
   </form>;

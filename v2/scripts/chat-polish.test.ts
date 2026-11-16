@@ -10,10 +10,10 @@ import { parseSnippetUsage, recordSnippetUse, sortSnippets } from '../packages/s
 import { branchForName, generatedName, repositoryGroups, suggestWorkspaceName } from '../packages/surfaces/src/repository-model.ts';
 import { branchSummary, conversationDetails, conversationTitle, titleFromMessage } from '../packages/surfaces/src/conversation-model.ts';
 
-type Agent = { id?: string; status?: string; phase?: string; tool?: string; since?: number; started?: number; ended?: number; lastTurnStatus?: string };
+type Agent = { id?: string; kind?: string; status?: string; phase?: string; tool?: string; since?: number; started?: number; ended?: number; lastTurnStatus?: string };
 const session = (init: Omit<Partial<Session>, 'agents'> & { agents?: Agent[] } = {}): Session => {
   const { agents = [], ...rest } = init;
-  return create(SessionSchema, { id: 's', status: 'ready', ...rest, agents: agents.map(a => ({ id: a.id ?? 'root', status: a.status ?? 'running', phase: a.phase ?? '', tool: a.tool ?? '', phaseSinceUnixMillis: BigInt(a.since ?? 0), turnStartedAtUnixMillis: BigInt(a.started ?? 0), turnEndedAtUnixMillis: BigInt(a.ended ?? 0), lastTurnStatus: a.lastTurnStatus ?? '' })) });
+  return create(SessionSchema, { id: 's', status: 'ready', ...rest, agents: agents.map(a => ({ id: a.id ?? 'root', kind: a.kind ?? '', status: a.status ?? 'running', phase: a.phase ?? '', tool: a.tool ?? '', phaseSinceUnixMillis: BigInt(a.since ?? 0), turnStartedAtUnixMillis: BigInt(a.started ?? 0), turnEndedAtUnixMillis: BigInt(a.ended ?? 0), lastTurnStatus: a.lastTurnStatus ?? '' })) });
 };
 const event = (type: string, at: number, extra: Record<string, string> = {}): JournalEvent => create(JournalEventSchema, { capturedAt: new Date(at).toISOString(), event: { type, ...extra } });
 
@@ -51,6 +51,8 @@ test('waiting, failed, saved and sub-agent states are distinct and still', () =>
   assert.equal(liveStatus(session({ closed: true }), 0).text, 'Saved');
   const children = session({ status: 'running', agents: [{ status: 'done', lastTurnStatus: 'completed' }, { id: 'child', status: 'running' }] });
   assert.equal(liveStatus(children, 0).text, 'Running · 1 sub-agent');
+  const background = session({ status: 'running', agents: [{ status: 'done', lastTurnStatus: 'completed' }, { id: 'claude-tool:a', status: 'running' }, { id: 'claude-tool:b', status: 'running', kind: 'local_bash' }, { id: 'claude-tool:c', status: 'running', kind: 'local_bash' }] });
+  assert.equal(liveStatus(background, 0).text, 'Running · 1 sub-agent · 2 background commands', 'a background command is not a sub-agent');
 });
 
 test('an opened session that never ran a turn is Ready, not stuck Starting', () => {

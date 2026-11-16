@@ -20,6 +20,11 @@ const paths: Record<string, string[]> = {
   up: ['M12 19V7', 'm6 11 6-6 6 6', 'M5 4h14'],
   chevronRight: ['m10 8 4 4-4 4'],
   close: ['M6 6l12 12', 'M18 6 6 18'],
+  stop: ['M7 7h10v10H7z'],
+  // A task handed to a helper: one node, a branch to another.
+  subagent: ['M4 5h7v5H4z', 'M13 15h7v5h-7z', 'M7.5 10v7.5H13'],
+  // A window floating over another.
+  float: ['M3 6h13v12H3z', 'M9 3h12v11', 'M9 3v3'],
   output: ['M4 5h16v14H4z', 'M8 10h8', 'M8 14h5'],
   // Two stacked hosts, each with its light on.
   processes: ['M4 4h16v6H4z', 'M4 14h16v6H4z', 'M8 7h.01', 'M8 17h.01', 'M12 7h4', 'M12 17h4'],

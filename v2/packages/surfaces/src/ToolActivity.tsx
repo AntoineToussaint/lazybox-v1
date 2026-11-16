@@ -11,7 +11,8 @@ function Payload({value,label}:{value:unknown;label:string}){
  if(text===undefined)return null;
  return <><CodeBlock text={text.slice(0,24000)} language={typeof value==='object'&&!Array.isArray(value)?'json':''} label={label}/>{text.length>24000&&<small>Preview limited to 24,000 characters.</small>}</>;
 }
-function CallRow({call,now}:{call:ToolCall;now:number}){
+/** One tool call, collapsed; `nested` when it is shown inside its sub-agent's timeline. */
+export function CallRow({call,now,nested=false}:{call:ToolCall;now:number;nested?:boolean}){
  const [expanded,setExpanded]=useState(false);
  const title=toolTitle(call),duration=toolDuration(call,now),observed=call.startedAt??call.endedAt;
  const state=call.status==='Result not reported'?'unknown':call.status.toLowerCase();
@@ -20,12 +21,12 @@ function CallRow({call,now}:{call:ToolCall;now:number}){
  return <details className="tool-call" onToggle={event=>setExpanded(event.currentTarget.open)}>
   <summary>
    <span className={`tool-state ${state}`} role="img" aria-label={call.status==='Result not reported'?'Completion unknown':call.status} title={call.status==='Result not reported'?'No saved completion event':call.status}>{state==='completed'?'✓':state==='failed'?'!':state==='running'?'◌':'○'}</span>
-   <span className="tool-call-heading"><strong title={title}>{title}</strong><small>{call.name}{call.agent!=='root'?' · Sub-agent':''}{state==='running'?' · Running':''}{state==='failed'?' · Failed':''}</small></span>
+   <span className="tool-call-heading"><strong title={title}>{title}</strong><small>{call.name}{call.agent!=='root'&&!nested?' · Sub-agent':''}{state==='running'?' · Running':''}{state==='failed'?' · Failed':''}</small></span>
    <time className="tool-time" dateTime={observed===undefined?undefined:new Date(observed).toISOString()} title={observed===undefined?'Timestamp unavailable':`${call.startedAt===undefined?'Result':'Call'} observed ${new Date(observed).toLocaleString()}`}>{observed===undefined?'—':new Date(observed).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}</time>
    <span className="tool-duration" title={duration===undefined?'Duration unavailable: no recorded start/result pair':'Observed elapsed time, including waiting for approval and provider responses'}>{durationLabel(duration)}</span>
   </summary>
   {expanded&&<div className="tool-call-details">
-   {call.agent!=='root'&&<small className="tool-agent-detail">{call.agent}</small>}
+   {call.agent!=='root'&&!nested&&<small className="tool-agent-detail">{call.agent}</small>}
    {command?<><CodeBlock text={command.slice(0,24000)} language="bash" label="Command"/><details className="tool-raw-input"><summary>Full input</summary><Payload value={call.input} label="Input JSON"/></details></>:<Payload value={call.input} label="Input"/>}
    {call.output===undefined?<p className="tool-empty">{state==='running'?'Waiting for the result…':'No output was saved for this call.'}</p>:<Payload value={call.output} label="Output"/>}
   </div>}

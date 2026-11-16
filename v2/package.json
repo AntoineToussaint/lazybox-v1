@@ -20,7 +20,7 @@
     "dev:web": "npm run dev -w @lazybox/web",
     "build:worker": "tsc -p workers/claude-sdk",
     "test:browser": "node --import tsx scripts/test-browser.mjs",
-    "test:client": "node --import tsx --test scripts/ansi.test.ts scripts/client-state.test.ts scripts/workspace-model.test.ts scripts/command-runs.test.ts scripts/transcript.test.ts scripts/repository-catalog.test.ts scripts/keyboard.test.ts scripts/composer-vim.test.ts scripts/activity-replay.test.ts scripts/diagnostic-recording.test.ts scripts/attention.test.ts scripts/pull-request-model.test.ts scripts/processes-model.test.ts scripts/orchestration-process-model.test.ts scripts/runner-link.test.ts scripts/diagram.test.ts scripts/editor-model.test.ts scripts/chat-polish.test.ts scripts/subscription-switch.test.ts scripts/attachment-images.test.ts scripts/review-model.test.ts scripts/turn-checkpoints.test.ts scripts/workspace-runtime.test.ts scripts/remote-device.test.ts scripts/missions-model.test.ts scripts/artifact-model.test.ts",
+    "test:client": "node --import tsx --test scripts/ansi.test.ts scripts/client-state.test.ts scripts/workspace-model.test.ts scripts/command-runs.test.ts scripts/transcript.test.ts scripts/repository-catalog.test.ts scripts/keyboard.test.ts scripts/composer-vim.test.ts scripts/activity-replay.test.ts scripts/diagnostic-recording.test.ts scripts/attention.test.ts scripts/pull-request-model.test.ts scripts/processes-model.test.ts scripts/orchestration-process-model.test.ts scripts/runner-link.test.ts scripts/diagram.test.ts scripts/editor-model.test.ts scripts/chat-polish.test.ts scripts/subscription-switch.test.ts scripts/attachment-images.test.ts scripts/review-model.test.ts scripts/turn-checkpoints.test.ts scripts/workspace-runtime.test.ts scripts/remote-device.test.ts scripts/missions-model.test.ts scripts/artifact-model.test.ts scripts/subagents.test.ts scripts/live-bar.test.ts",
     "test:worker": "node --import tsx --test workers/claude-sdk/src/*.test.ts",
     "test:startup": "node scripts/test-startup.mjs",
     "test:workspace": "node scripts/test-workspace.mjs",
@@ -75,7 +75,9 @@
     "test:workspace-runtime": "node scripts/test-workspace-runtime.mjs",
     "test:remote-pairing": "node scripts/test-remote-pairing.mjs",
     "test:remote-inbox": "node scripts/test-remote-inbox.mjs",
-    "test:missions": "node scripts/test-missions.mjs"
+    "test:missions": "node scripts/test-missions.mjs",
+    "test:subagents": "node scripts/test-subagents.mjs",
+    "test:live-bar": "node scripts/test-live-bar.mjs"
   },
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",

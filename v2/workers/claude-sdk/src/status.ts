@@ -7,6 +7,16 @@ function toolPreview(value:unknown):unknown {
  const text=typeof value==='string'?value:JSON.stringify(value);
  return text&&text.length>32768?text.slice(0,32768)+'\n[Tool preview truncated]':value;
 }
+// A sub-agent's brief is shown to the person, not executed: bound it.
+const PROMPT_LIMIT=8000;
+function bounded(text:unknown):string|undefined{
+ return typeof text==='string'&&text?(text.length>PROMPT_LIMIT?text.slice(0,PROMPT_LIMIT)+'…':text):undefined;
+}
+type TaskUsage={total_tokens:number;tool_uses:number;duration_ms:number};
+const usage=(u:TaskUsage|undefined)=>u?{totalTokens:u.total_tokens,toolUses:u.tool_uses,durationMs:u.duration_ms}:undefined;
+// Drop absent fields, so the journal holds only what the provider reported.
+const compact=(value:Record<string,unknown>)=>Object.fromEntries(Object.entries(value).filter(([,v])=>v!==undefined&&v!==''));
+const TERMINAL=['done','failed','stopped'];
 export function limitState(code: string): string {
   if (['authentication_failed', 'oauth_org_not_allowed', 'cloud_credential_error', 'gateway_signin_required', 'org_config_refused'].includes(code)) return 'auth_required';
   if (code === 'rate_limit') return 'throttled';
@@ -26,6 +36,9 @@ export class NativeStatus {
   private tools = new Map<string, string>();
   private contexts = new Map<string, { model: string; used: number }>();
   private capacities = new Map<string, number>();
+  // Children whose text arrived as stream deltas since their last complete
+  // message: that message's text was already emitted.
+  private streamed = new Set<string>();
   normalize(message: SDKMessage): Event[] {
     const out: Event[] = [];
     const emit = (e: Event) => out.push({ sessionId: this.reference, ...e });
@@ -46,6 +59,7 @@ export class NativeStatus {
         else if(block.type==='text')emit({type:'activity',agentId:child,status:'responding'});
         else if(block.type==='tool_use')emit({type:'activity',agentId:child,status:'tool',name:block.name});
       }
+      if (e.type === 'content_block_delta' && e.delta.type === 'text_delta' && child) this.streamed.add(child);
       if (e.type === 'content_block_delta' && e.delta.type === 'text_delta') emit({ type: 'message_delta', agentId: child, parentAgentId: child ? 'root' : undefined, text: e.delta.text });
     } else if (m.type === 'system' && m.subtype === 'status') {
       // requesting is the normal API wait, not compaction. null clears a phase.
@@ -76,6 +90,12 @@ export class NativeStatus {
         if (!child) this.failure = state;
         emit({ type: 'failure', agentId: child, status: state, account: { state, reason: m.error }, text: m.error });
       }
+      // A sub-agent's prose arrives as whole messages (forwardSubagentText),
+      // unless it already streamed. Thinking is never forwarded.
+      if (child) {
+        const streamed = this.streamed.delete(child);
+        if (!streamed) for (const content of m.message.content) if (content.type === 'text' && content.text) emit({ type: 'message_delta', agentId: child, parentAgentId: 'root', text: content.text });
+      }
       for (const content of m.message.content) if (content.type === 'tool_use') emit({ type: 'tool_activity', agentId: child, data: {type:'tool_call',id:content.id,name:content.name,status:'running',input:toolPreview(content.input)} });
     } else if (m.type === 'user') {
       if(Array.isArray(m.message.content)) for (const content of m.message.content) if(content.type==='tool_result') {
@@ -102,8 +122,24 @@ export class NativeStatus {
       if (m.tool_use_id) this.tools.set(m.tool_use_id, id);
       this.tasks.set(m.task_id, { id, run: m.run_id || old?.run, status });
       const parent = 'parent_task_id' in m && m.parent_task_id ? this.tasks.get(m.parent_task_id)?.id : undefined;
+      const data = m.subtype === 'task_started'
+        ? compact({ toolUseId: m.tool_use_id, prompt: bounded(m.prompt), subagentType: m.subagent_type, backgrounded: m.is_backgrounded, depth: m.spawn_depth, taskType: m.task_type })
+        : m.subtype === 'task_progress'
+          ? compact({ toolUseId: m.tool_use_id, usage: usage(m.usage), lastTool: m.last_tool_name, summary: m.summary, subagentType: m.subagent_type })
+          : compact({ toolUseId: m.tool_use_id, summary: m.summary, usage: usage(m.usage), reason: m.reason, outputFile: m.output_file });
       emit({ type: 'agent_status', agentId: id, parentAgentId: parent || 'root', nativeId: m.task_id, status,
-        name: 'description' in m ? m.description : undefined, agentKind: 'task_type' in m ? m.task_type : undefined });
+        name: 'description' in m ? m.description : undefined, agentKind: 'task_type' in m ? m.task_type : undefined, data });
+    } else if (m.type === 'system' && m.subtype === 'task_updated') {
+      const old = this.tasks.get(m.task_id);
+      if (!old || (m.run_id && old.run && m.run_id < old.run)) return out;
+      const status = ({ completed: 'done', failed: 'failed', killed: 'stopped', running: 'running', pending: 'starting' } as Record<string, string>)[m.patch.status || ''];
+      const error = m.patch.error;
+      if ((!status || status === old.status) && !error) return out;
+      // A finished run is not restarted by a late patch of the same run.
+      if (status && TERMINAL.includes(old.status) && !TERMINAL.includes(status) && (!m.run_id || m.run_id === old.run)) return out;
+      const next = status || old.status;
+      this.tasks.set(m.task_id, { ...old, run: m.run_id || old.run, status: next });
+      emit({ type: 'agent_status', agentId: old.id, nativeId: m.task_id, status: next, data: error ? { error } : undefined });
     } else if (m.type === 'system' && m.subtype === 'background_tasks_changed') {
       const next = new Set(m.tasks.filter(t => !t.ambient).map(t => t.task_id));
       for (const id of this.background) if (!next.has(id)) {

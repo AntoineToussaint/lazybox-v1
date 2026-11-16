@@ -53,7 +53,7 @@ export async function startRunnerFixture() {
   const waitingMessages=new WeakMap();
   // A saved conversation's journal is finite: after `complete()` the stream ends
   // like the Runner's does at EOF, instead of staying open for live events.
-  const openEvents=id=>{const channel={events:[],clients:new Set(),done:false,push(event){const record={cursor:String(this.events.length+1),event};this.events.push(record);for(const res of this.clients)res.write(frame({...record,retained:record.cursor}));},complete(){this.done=true;for(const res of this.clients)res.end(frame({},2));this.clients.clear();}};eventStreams.set(id,channel);return channel;};
+  const openEvents=id=>{const channel={events:[],clients:new Set(),done:false,push(event,capturedAt){const record={cursor:String(this.events.length+1),event,...(capturedAt?{capturedAt}:{})};this.events.push(record);for(const res of this.clients)res.write(frame({...record,retained:record.cursor}));},complete(){this.done=true;for(const res of this.clients)res.end(frame({},2));this.clients.clear();}};eventStreams.set(id,channel);return channel;};
   const collections = ['alpha', 'beta'].map((id, index) => ({ id, name: index ? 'Beta release' : 'Alpha feature', workId: id, root: `/fixture/collections/${id}`, state: 'ready', ownerExecutionId: `${id}-session`, members: ['api', 'web'].map((name, i) => ({ spec: { name, repositoryId: i ? 'frontend' : 'backend', baseRef: 'main', branch: `lazybox/${id}/${name}` }, path: `/fixture/collections/${id}/${name}`, baseCommit: (index ? 'b' : 'a').repeat(40), ready: true })) }));
   const sessions = collections.map(collection => ({ id: `${collection.id}-session`, collectionId: collection.id, workId: collection.id, profileId: 'claude-default', gatewayId: 'direct', workingDirectory: collection.root, capabilities: { files: true, images: true, resume: true, livePermission: true }, permission: 'ask', instructionsPending: collection.id === 'alpha', pending: [] }));
   sessions[0].status = 'running'; sessions[0].agents = [{ id: 'root', name: 'Main agent', status: 'done' }, { id: 'child-review', parentId: 'root', name: 'Review', status: 'running' }];
@@ -575,6 +575,13 @@ actions:
       case 'CancelDevicePairing': { const offer = remote.offers.get(body.pairingId); if (!offer) return error('not_found', 'unknown'); if (remote.state(offer) === 'pending') offer.state = 'cancelled'; return json(remote.wireOffer(offer)); }
       case 'ListDevices': return json({ devices: [...remote.devices.values()].map(remote.wireDevice) });
       case 'RevokeDevice': { if (!remote.devices.delete(body.deviceId)) return error('not_found', 'this device is not paired'); mutations.push({ method, body }); return json({ devices: [...remote.devices.values()].map(remote.wireDevice) }); }
+      case 'CancelCommand': {
+        mutations.push({ method, body });
+        const command = commands.find(value => value.id === body.commandId);
+        if (!command) return error('not_found', 'Command missing');
+        Object.assign(command, { done: true, signal: 'SIGTERM' });
+        return json({ status: wireCommand(command) });
+      }
       case 'Apply': {
         mutations.push({ method, body, ...(device ? { device: device.id } : {}) });
         // Like the Runner: at a subscription limit a message is accepted and

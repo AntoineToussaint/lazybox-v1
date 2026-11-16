@@ -1,9 +1,14 @@
 /* Per-turn code checkpoints: a quiet marker after each turn, the revert
    confirmation, a turn's changes, and the undo toast. */
-.turn-checkpoint{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:-2px 0 16px;min-height:24px;font-size:11px;line-height:16px;color:#8a8796}
-.turn-checkpoint-line{flex:0 0 14px;height:1px;background:#33343e}
-.turn-checkpoint-summary{display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums}
-.turn-checkpoint-summary svg{color:#6f6c80}
+.turn-checkpoint{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;min-height:22px;font-size:11px;line-height:16px;color:#7f7d8c;min-width:0}
+.turn-checkpoint-line{flex:0 0 14px;height:1px;background:#2e2f38}
+.turn-checkpoint-line.end{flex:1 1 0}
+.turn-checkpoint-summary{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.turn-checkpoint-menu{flex:none;opacity:.5;transition:opacity .12s}
+.turn-checkpoint:hover .turn-checkpoint-menu,.turn-checkpoint:focus-within .turn-checkpoint-menu,.turn-checkpoint-menu[open]{opacity:1}
+.turn-checkpoint-menu>summary{padding:0 5px!important;min-height:18px;border-radius:4px;color:#9a98a8}
+@media (hover:none){.turn-checkpoint-menu{opacity:1}}
+@media (prefers-reduced-motion:reduce){.turn-checkpoint-menu{transition:none}}
 .turn-checkpoint-warning{color:#d5a97c}
 .turn-checkpoint-actions{display:inline-flex;gap:2px;opacity:.55;transition:opacity .12s}
 .turn-checkpoint:hover .turn-checkpoint-actions,.turn-checkpoint:focus-within .turn-checkpoint-actions,.turn-checkpoint[data-reverted] .turn-checkpoint-actions{opacity:1}

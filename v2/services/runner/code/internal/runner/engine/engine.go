@@ -200,6 +200,13 @@ func validate(op agent.Operation, c agent.Capabilities) error {
 			return errors.New("permission must be ask, read-only or yolo")
 		}
 	case agent.Interrupt:
+	case agent.StopAgent:
+		if !c.StopAgent {
+			return agent.ErrUnsupported
+		}
+		if op.AgentID == "" || op.AgentID == "root" || len(op.AgentID) > 256 {
+			return errors.New("sub-agent id required")
+		}
 	case agent.Answer:
 		if !c.Questions {
 			return agent.ErrUnsupported
@@ -270,6 +277,16 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 		e.mu.Unlock()
 		return agent.Receipt{}, errors.New("no active turn")
 	}
+	if op.Kind == agent.StopAgent {
+		// A sub-agent can outlive its parent's turn (a background task), so
+		// this needs the agent running, not the session busy.
+		child, ok := e.state.Agents[op.AgentID]
+		if !ok || child.NativeID == "" || stoppedStatus(child.Status) {
+			e.mu.Unlock()
+			return agent.Receipt{}, errors.New("sub-agent is not running")
+		}
+		op.NativeID = child.NativeID
+	}
 	r := agent.Receipt{ID: op.ID, Delivery: "accepted"}
 	if op.Kind == agent.Message && e.state.Title == "" {
 		title := []rune(strings.TrimSpace(strings.SplitN(op.Text, "\n", 2)[0]))
@@ -284,6 +301,9 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	// after a restart can be answered as the user did.
 	if op.Decision != "" {
 		record["decision"] = op.Decision
+	}
+	if op.AgentID != "" {
+		record["agentId"] = op.AgentID
 	}
 	if len(op.Answers) > 0 {
 		record["answers"] = op.Answers
@@ -608,3 +628,12 @@ func (e *Engine) SetRotation(ids []string) error {
 
 // HostID is the session host running the provider's native process, or "".
 func (e *Engine) HostID() string { return agent.HostOf(e.provider) }
+
+// stoppedStatus reports whether an agent has finished and cannot be stopped.
+func stoppedStatus(status agent.Status) bool {
+	switch status {
+	case agent.Done, agent.Failed, agent.Stopped, agent.Interrupted:
+		return true
+	}
+	return false
+}

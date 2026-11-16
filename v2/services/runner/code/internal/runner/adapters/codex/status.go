@@ -2,6 +2,9 @@ package codex
 
 import (
 	"encoding/json"
+	"sort"
+	"strings"
+
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 )
 
@@ -57,24 +60,76 @@ func collabStatus(status string) string {
 }
 
 // Native collaboration states, rather than tool completion, describe the child.
+// A spawn also names the child after its brief and links it to the spawning
+// call, so a client can show the sub-agent where the parent started it.
 func collaborationEvents(raw json.RawMessage, root string) []agent.Event {
 	var p struct {
 		Item struct {
-			Type, SenderThreadID string
-			AgentsStates         map[string]struct{ Status string }
+			ID, Type, Tool, SenderThreadID string
+			Prompt                         *string
+			AgentsStates                   map[string]struct {
+				Status  string
+				Message *string
+			}
 		}
 	}
 	if json.Unmarshal(raw, &p) != nil || p.Item.Type != "collabAgentToolCall" {
 		return nil
 	}
-	events := []agent.Event{}
-	for id, state := range p.Item.AgentsStates {
-		if id == root {
-			continue
+	// Only a spawn's prompt is the child's brief; a later sendInput is a message to it.
+	brief := ""
+	if p.Item.Prompt != nil && (p.Item.Tool == "" || p.Item.Tool == "spawnAgent") {
+		brief = boundedRunes(*p.Item.Prompt, briefLimit)
+	}
+	ids := make([]string, 0, len(p.Item.AgentsStates))
+	for id := range p.Item.AgentsStates {
+		if id != root {
+			ids = append(ids, id)
 		}
-		events = append(events, agent.Event{Type: "agent_status", AgentID: actorID(id, root), ParentAgentID: actorID(p.Item.SenderThreadID, root), NativeID: id, AgentKind: "agent", Status: collabStatus(state.Status)})
+	}
+	sort.Strings(ids)
+	events := []agent.Event{}
+	for _, id := range ids {
+		state := p.Item.AgentsStates[id]
+		ev := agent.Event{Type: "agent_status", AgentID: actorID(id, root), ParentAgentID: actorID(p.Item.SenderThreadID, root), NativeID: id, AgentKind: "agent", Status: collabStatus(state.Status)}
+		data := map[string]string{}
+		if p.Item.ID != "" {
+			data["toolUseId"] = p.Item.ID
+		}
+		if brief != "" {
+			data["prompt"] = brief
+			ev.Name = briefName(brief)
+		}
+		if state.Message != nil && *state.Message != "" {
+			data["message"] = boundedRunes(*state.Message, briefLimit)
+		}
+		if len(data) > 0 {
+			ev.Data, _ = json.Marshal(data)
+		}
+		events = append(events, ev)
 	}
 	return events
+}
+
+// briefLimit bounds a sub-agent's brief or message as journaled for display.
+const briefLimit = 8000
+
+func boundedRunes(text string, limit int) string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return string(runes[:limit]) + "…"
+}
+
+// briefName is the first line of a brief, short enough for a row.
+func briefName(brief string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(brief), "\n")
+	line = strings.TrimSpace(line)
+	if runes := []rune(line); len(runes) > 80 {
+		line = string(runes[:79]) + "…"
+	}
+	return line
 }
 func threadStatus(raw json.RawMessage) string {
 	var p struct {

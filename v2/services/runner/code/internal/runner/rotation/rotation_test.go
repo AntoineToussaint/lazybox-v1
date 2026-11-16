@@ -153,6 +153,32 @@ func TestRequestsAreScopedToNativeAttemptAndNotReplayed(t *testing.T) {
 	}
 }
 
+func TestStopAgentReachesTheCurrentAttemptsSubAgentOnly(t *testing.T) {
+	s, a, _ := fixture(t, []string{"b"})
+	first := <-a.opened
+	first.Events <- agent.Event{Type: "agent_status", AgentID: "claude-tool:x", NativeID: "task-x", Status: "running"}
+	child := receive(t, s, "agent_status")
+	if child.AgentID == "claude-tool:x" || !strings.HasSuffix(child.AgentID, ":claude-tool:x") {
+		t.Fatalf("sub-agent id not scoped to its attempt: %q", child.AgentID)
+	}
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "stop", Kind: agent.StopAgent, AgentID: child.AgentID, NativeID: "task-x"}); err != nil {
+		t.Fatal(err)
+	}
+	if op := <-first.Applied; op.Kind != agent.StopAgent || op.AgentID != "claude-tool:x" || op.NativeID != "task-x" {
+		t.Fatalf("stop reached the native session as %+v", op)
+	}
+	first.Events <- agent.Event{Type: "failure", Status: "auth_required", Account: &agent.AccountObservation{State: "auth_required"}}
+	receive(t, s, "profile_changed")
+	second := <-a.opened
+	<-second.Applied
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "stale", Kind: agent.StopAgent, AgentID: child.AgentID, NativeID: "task-x"}); err == nil {
+		t.Fatal("a sub-agent of an earlier attempt was stopped on the new subscription")
+	}
+	if len(second.Applied) != 0 {
+		t.Fatal("stale stop delivered")
+	}
+}
+
 type adapterFunc func(context.Context, agent.Open) (agent.Session, error)
 
 func (f adapterFunc) Open(ctx context.Context, o agent.Open) (agent.Session, error) { return f(ctx, o) }

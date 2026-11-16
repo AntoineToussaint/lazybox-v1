@@ -49,6 +49,8 @@
     { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" },
     { "id": "settings-polish", "scope": "ui", "script": "test:settings-polish" },
     { "id": "send-recovery", "scope": "ui", "script": "test:send-recovery" },
+    { "id": "subagents", "scope": "ui", "script": "test:subagents" },
+    { "id": "live-bar", "scope": "ui", "script": "test:live-bar" },
     { "id": "sidebar-width", "scope": "ui", "script": "test:sidebar-width" },
     { "id": "editor-wrap", "scope": "ui", "script": "test:editor-wrap" },
     { "id": "turn-checkpoints", "scope": "ui", "script": "test:turn-checkpoints" },

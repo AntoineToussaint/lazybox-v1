@@ -76,7 +76,7 @@ async function open(options: any) {
   void receive(session);
   // Operations added after the original protocol. A running worker outlives
   // Runner upgrades, so the Runner asks this worker rather than assuming.
-  return { reference: options.resume || '', features: ['permission', 'context'] };
+  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent'] };
 }
 
 async function receive(q: Query) {
@@ -130,6 +130,12 @@ async function handle(request: Request) {
         // approvals granted above gives the same result.
         try { await session.setPermissionMode(native); } catch (error) { if (mode !== 'yolo') throw error; await session.setPermissionMode('default'); }
         permission = mode;
+        reply(request.id, { delivery: 'acknowledged' }); break;
+      }
+      case 'stop_agent': {
+        // Stops one sub-agent; the main agent's turn continues.
+        if (typeof p?.nativeId !== 'string' || !p.nativeId) throw new Error('nativeId required');
+        await session.stopTask(p.nativeId);
         reply(request.id, { delivery: 'acknowledged' }); break;
       }
       case 'interrupt': interrupted = true; await session.interrupt(); reply(request.id, { delivery: 'acknowledged' }); break;

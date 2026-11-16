@@ -1,0 +1,160 @@
+/* Sub-agents: inline cards where they started, a tray of the running ones beside the composer, and a panel that follows one live. */
+.subagent-card{--sa-working:var(--attention-working,#97bba2);--sa-failed:var(--attention-failed,#dc9494);--sa-waiting:var(--attention-input,#d6b46e);--sa-done:#88ad98;--sa-muted:#8b8d9a;
+  position:relative;margin:4px 0 16px;border:1px solid #33343f;border-radius:10px;background:#202129;overflow:hidden;transition:border-color .2s}
+.subagent-card[data-nested]{margin:6px 0;background:#1c1d24;border-color:#2f303a}
+.subagent-card[data-status=running],.subagent-card[data-status=starting]{border-color:color-mix(in srgb,var(--sa-working) 34%,#33343f)}
+.subagent-card[data-status=waiting]{border-color:color-mix(in srgb,var(--sa-waiting) 40%,#33343f)}
+.subagent-card[data-status=failed]{border-color:color-mix(in srgb,var(--sa-failed) 45%,#33343f)}
+/* A running card carries a thin moving line along its top edge. */
+.subagent-card[data-status=running]::before,.subagent-card[data-status=starting]::before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--sa-working) 80%,transparent),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:subagent-sweep 1.8s ease-in-out infinite}
+@keyframes subagent-sweep{from{background-position:-40% 0}to{background-position:140% 0}}
+.subagent-card.subagent-flash,.message-flash>.subagent-card{animation:subagent-flash 1.2s ease-out}
+@keyframes subagent-flash{0%{box-shadow:0 0 0 2px var(--accent,#bdb1ed)}100%{box-shadow:0 0 0 2px transparent}}
+
+.subagent-head{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 6px;min-width:0}
+.embedded-chat .subagent-head>.subagent-toggle,.subagent-head>.subagent-toggle{display:flex;align-items:center;gap:9px;flex:1;min-width:0;padding:4px 6px;border-radius:6px;text-align:left;background:transparent;color:inherit}
+.subagent-who{display:flex;align-items:baseline;gap:8px;min-width:0;flex:1}
+.subagent-type{flex:none;font-size:10px;font-weight:600;letter-spacing:.2px;text-transform:none;color:#b8acdf;background:#2c2838;border:1px solid #3b3550;border-radius:4px;padding:1px 6px;line-height:16px}
+.subagent-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;color:#e2e2ea}
+.subagent-chevron{flex:none;display:inline-flex;color:#7d7f8c;transition:transform .15s}
+.subagent-toggle[aria-expanded=true] .subagent-chevron{transform:rotate(90deg)}
+.subagent-stats{display:inline-flex;gap:4px;flex:none;color:var(--sa-muted,#8b8d9a);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.subagent-sep{color:#5d5f6a;white-space:pre}
+.subagent-actions{display:inline-flex;align-items:center;gap:2px;flex:none}
+.subagent-actions .icon-button{padding:5px!important;color:#9a9ca9}
+.subagent-stop{display:inline-flex;align-items:center;gap:5px;padding:4px 7px!important;color:#c9a3a3!important;font-size:11px!important}
+.subagent-stop.confirming{background:#4a2b2e!important;color:#f2c4c4!important;border-color:#6e3c40!important}
+
+/* The status mark: a turning ring, then a check, a cross or a square. */
+.subagent-mark{--mark-size:14px;flex:none;display:inline-grid;place-items:center;box-sizing:border-box;width:var(--mark-size);height:var(--mark-size);border-radius:50%;font-size:9px;font-weight:700;color:#1b1c21}
+.subagent-mark[data-status=running],.subagent-mark[data-status=starting]{border:1.6px solid color-mix(in srgb,var(--attention-working,#97bba2) 25%,transparent);border-top-color:var(--attention-working,#97bba2);animation:live-spin .9s linear infinite}
+.subagent-mark[data-status=waiting]{background:var(--attention-input,#d6b46e);animation:live-breathe 1.8s ease-out infinite}
+.subagent-mark[data-status=done]{background:#88ad98}
+.subagent-mark[data-status=failed]{background:var(--attention-failed,#dc9494)}
+.subagent-mark[data-status=stopped]{border:1.4px solid #7f818d}
+.subagent-mark[data-status=unknown]{border:1.4px dashed #7f818d;color:#9a9ca9}
+.subagent-mark svg{stroke-width:2.6}
+.subagent-mark-square{width:40%;height:40%;background:#9a9ca9;border-radius:1px}
+
+/* What it is doing now. */
+.subagent-now{display:flex;align-items:center;gap:8px;min-width:0;padding:0 14px 9px 37px;font-size:12px;color:#c4c6d0;font-variant-numeric:tabular-nums}
+.subagent-now-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono,ui-monospace,monospace);font-size:11.5px;
+  background:linear-gradient(90deg,#c4c6d0 40%,#f1f1f6 50%,#c4c6d0 60%);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:subagent-shimmer 2.4s linear infinite}
+@keyframes subagent-shimmer{from{background-position:100% 0}to{background-position:-50% 0}}
+.subagent-now-time{flex:none;color:#7f818d;font-size:11px}
+.subagent-progress{margin:-4px 0 0;padding:0 14px 9px 37px;font-size:12px;line-height:1.5;color:#a3a5b2;font-style:italic}
+
+/* How it ended. */
+.subagent-outcome{padding:0 14px 10px 37px;font-size:12px;line-height:1.55;color:#b4b6c2}
+.subagent-outcome>p{margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.subagent-outcome>p>strong{font-weight:600;margin-right:8px;color:var(--sa-done,#88ad98)}
+.subagent-outcome[data-status=failed]>p>strong{color:var(--sa-failed,#dc9494)}
+.subagent-outcome[data-status=stopped]>p>strong,.subagent-outcome[data-status=unknown]>p>strong{color:#9a9ca9}
+.embedded-chat .subagent-link,.subagent-link{padding:2px 0!important;margin-top:4px;font-size:11px!important;color:var(--accent,#bdb1ed)!important;background:transparent!important;border:0}
+.subagent-link:hover{text-decoration:underline}
+.subagent-result{margin-top:8px;padding:10px 12px;border:1px solid #30313b;border-radius:8px;background:#1a1b21;max-height:420px;overflow:auto;overscroll-behavior:contain}
+.subagent-result p,.subagent-prompt-text p{font-size:13px!important;line-height:1.65!important}
+
+/* Its own steps. */
+.subagent-body{border-top:1px solid #2d2e38;max-height:min(520px,60dvh);overflow:auto;overscroll-behavior:contain;padding:8px 12px 10px 14px;background:#1c1d23}
+.subagent-prompt{margin:2px 0 8px;border:1px solid #2f303a;border-radius:7px;background:#202129}
+.subagent-prompt>summary{display:flex;align-items:baseline;gap:8px;padding:7px 10px;cursor:pointer;list-style:none;font-size:11px;color:#a5a7b4;min-width:0}
+.subagent-prompt>summary::-webkit-details-marker{display:none}
+.subagent-prompt>summary>span{flex:none;font-weight:600;color:#c9cad4}
+.subagent-prompt>summary>small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#868896}
+.subagent-prompt[open]>summary>small{display:none}
+.subagent-prompt-text{padding:2px 12px 10px;max-height:320px;overflow:auto}
+.subagent-timeline{list-style:none;margin:0;padding:0}
+.subagent-step.message .subagent-message{padding:8px 0 10px!important}
+.subagent-step.message .subagent-message p{font-size:13px!important;line-height:1.7!important}
+.subagent-step.tool .tool-call>summary{grid-template-columns:10px 14px minmax(0,1fr) auto 52px;padding:7px 4px}
+.subagent-step.tool .tool-time{display:none}
+.subagent-earlier{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0 8px;font-size:11px;color:#8b8d9a;text-align:center}
+.subagent-earlier .show-earlier{margin:0!important}
+.subagent-empty{padding:10px 0;font-size:12px;color:#8b8d9a}
+
+/* The tray beside the composer. */
+.subagent-tray{position:relative;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 24px;font-size:12px;flex-shrink:0;color:var(--attention-working,#97bba2);font-variant-numeric:tabular-nums}
+.subagent-tray-root{display:inline-flex;align-items:center;gap:8px;flex:none;white-space:nowrap}
+.subagent-tray-count{flex:none;color:#a5a7b4;white-space:nowrap}
+.subagent-tray-root+.subagent-tray-count::before{content:'·';margin-right:10px;color:#5d5f6a}
+.subagent-chips{display:flex;gap:6px;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none;padding:1px}
+.subagent-chips::-webkit-scrollbar{display:none}
+.embedded-chat .subagent-chip,.subagent-chip{display:inline-flex;align-items:center;gap:7px;flex:none;max-width:280px;padding:4px 10px!important;border:1px solid #393a46!important;border-radius:999px!important;background:#24252e!important;color:#d6d7df!important;font-size:11.5px!important;font-weight:400!important}
+.subagent-chip:hover{border-color:#4c4d5c!important;background:#2a2b35!important}
+.subagent-chip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.subagent-chip-name>b{font-weight:600;color:#b8acdf;margin-right:2px}
+.subagent-chip>time{color:#8b8d9a;flex:none}
+.subagent-chip-nested{flex:none;font-size:10px;color:#b8acdf;background:#2c2838;border-radius:999px;padding:0 5px}
+.embedded-chat .subagent-tray-all,.subagent-tray-all{display:inline-flex;align-items:center;gap:6px;flex:none;padding:4px 9px!important;font-size:11px!important;color:#a5a7b4!important}
+.subagent-tree{position:absolute;right:16px;bottom:calc(100% + 6px);z-index:20;width:min(420px,calc(100% - 32px));max-height:min(420px,60dvh);display:flex;flex-direction:column;border:1px solid #3a3b47;border-radius:10px;background:#22232b;box-shadow:0 12px 40px #0008;color:#d6d7df}
+.subagent-tree>header{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid #30313b}
+.subagent-tree>header>small{flex:1;color:#8b8d9a}
+.subagent-tree ul{list-style:none;margin:0;padding:4px;overflow:auto}
+.subagent-tree li{display:flex;align-items:center;gap:2px;padding-left:calc(var(--depth,0) * 18px)}
+.subagent-tree li[data-depth]:not([data-depth="0"])>.subagent-tree-row::before{content:'└';color:#5d5f6a;margin-right:-2px}
+.embedded-chat .subagent-tree-row,.subagent-tree-row{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:6px 8px!important;text-align:left;color:inherit!important}
+.subagent-tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.subagent-tree-name>b{font-weight:600;color:#b8acdf;margin-right:6px}
+.subagent-tree-row>small{flex:none;color:#8b8d9a;font-size:11px;font-variant-numeric:tabular-nums}
+
+/* A failed sub-agent, in the parent's status line. */
+.subagent-attention{display:inline-flex;align-items:center;gap:0;margin-left:4px;border:1px solid color-mix(in srgb,var(--attention-failed,#dc9494) 45%,transparent);border-radius:999px;background:color-mix(in srgb,var(--attention-failed,#dc9494) 12%,transparent)}
+.embedded-chat .subagent-attention-show,.subagent-attention-show{display:inline-flex;align-items:center;gap:6px;padding:2px 4px 2px 9px!important;font-size:11px!important;color:var(--attention-failed,#dc9494)!important;background:transparent!important;white-space:nowrap}
+.subagent-attention .icon-button{padding:3px 6px 3px 3px!important;color:var(--attention-failed,#dc9494)!important}
+
+/* Background commands and the background-work list. */
+.subagent-tree[data-placement=below]{bottom:auto;top:calc(100% + 6px);right:0;width:min(420px,calc(100vw - 32px))}
+.subagent-tree-body{overflow:auto;padding:2px 4px 6px}
+.subagent-tree .subagent-tree-body ul{overflow:visible;padding:0}
+.subagent-tree-body h4{margin:8px 10px 2px;font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:#7f818d}
+.subagent-tree-name>code,code.subagent-chip-name,.subagent-panel-title code{font-family:var(--font-mono,ui-monospace,monospace);font-size:11.5px;color:#d6d7df;background:none;padding:0}
+.subagent-chip.command>svg{flex:none;color:#9a9ca9}
+.background-work{position:relative;display:inline-flex}
+.embedded-chat .background-work-button,.background-work-button{display:inline-flex;align-items:center;gap:4px;padding:4px 7px!important;font-size:11px!important;color:#b1b2bf;font-variant-numeric:tabular-nums}
+.background-work-button[data-running]{color:var(--attention-working,#97bba2)!important}
+.background-work-button[data-failed]:not([data-running]){color:var(--attention-failed,#dc9494)!important}
+.background-command h4{margin:14px 0 6px;font-size:11px;font-weight:600;color:#a5a7b4}
+.background-command-file{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:11px;color:#8b8d9a;min-width:0}
+.background-command-file>code{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all;color:#c4c6d0}
+
+/* The panel. */
+.single-session{position:relative}
+.single-session.subagent-docked{padding-right:var(--subagent-dock,440px)}
+.subagent-panel{--sa-working:var(--attention-working,#97bba2);position:absolute;z-index:15;display:flex;flex-direction:column;min-width:0;background:#1d1e25;color:var(--text,#e2e2e9);font-size:13px}
+.subagent-panel[data-mode=dock]{top:0;right:0;bottom:0;width:var(--subagent-dock,440px);border-left:1px solid var(--line,#2c2d35)}
+.subagent-panel[data-mode=float]{top:64px;right:20px;width:min(480px,calc(100% - 40px));height:min(620px,calc(100% - 96px));min-width:300px;min-height:220px;border:1px solid #3a3b47;border-radius:12px;box-shadow:0 18px 60px #000a;resize:both;overflow:hidden}
+.subagent-panel[data-mode=sheet]{inset:0;border:0}
+.subagent-panel-resize{position:absolute;left:-3px;top:0;bottom:0;width:6px;cursor:col-resize;z-index:1}
+.subagent-panel-resize:hover,.subagent-panel-resize:focus-visible{background:color-mix(in srgb,var(--accent,#bdb1ed) 40%,transparent);outline:none}
+.subagent-panel-head{display:flex;align-items:center;gap:10px;padding:10px 10px 8px 14px;border-bottom:1px solid #2d2e38;flex:none;outline:none}
+.subagent-panel-head[data-movable]{cursor:grab}
+.subagent-panel-head:focus-visible{box-shadow:inset 0 0 0 1px var(--accent,#bdb1ed)}
+.subagent-panel-title{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:1;min-width:0}
+.subagent-panel-title>h3{margin:0;font-size:14px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececf2}
+.subagent-panel-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:8px 14px;flex:none;border-bottom:1px solid #2a2b34}
+.subagent-panel-meta>.subagent-now{padding:0;flex:1;min-width:0}
+.subagent-panel>.subagent-progress{padding:8px 14px 0;margin:0}
+.subagent-panel-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:10px 14px 16px;outline:none}
+.subagent-panel-body>.subagent-outcome{padding:10px 0 0;border-top:1px solid #2d2e38;margin-top:8px}
+.subagent-panel-body>.subagent-outcome>p{-webkit-line-clamp:4}
+
+/* Narrow and phone layouts: the card stacks, the tray scrolls. */
+@media (max-width:720px){
+  .subagent-head{flex-wrap:wrap;row-gap:2px}
+  .subagent-head>.subagent-stats{order:3;flex-basis:100%;padding-left:37px}
+  .subagent-now,.subagent-progress,.subagent-outcome{padding-left:14px}
+  .subagent-tray{padding:6px 12px;gap:8px}
+  .subagent-tray-root{display:none}
+  .subagent-chip{max-width:200px}
+  .subagent-chip>time{display:none}
+  .subagent-tree{right:8px;width:calc(100% - 16px)}
+}
+@media (prefers-reduced-motion:reduce){
+  .subagent-card::before{animation:none!important;background:color-mix(in srgb,var(--attention-working,#97bba2) 60%,transparent)!important}
+  .subagent-mark[data-status]{animation:none}
+  .subagent-mark[data-status=running],.subagent-mark[data-status=starting]{border-color:var(--attention-working,#97bba2)}
+  .subagent-now-text{animation:none;background:none;color:#c4c6d0}
+  .subagent-card.subagent-flash,.message-flash>.subagent-card{animation:none;box-shadow:0 0 0 2px var(--accent,#bdb1ed)}
+  .subagent-chevron{transition:none}
+}

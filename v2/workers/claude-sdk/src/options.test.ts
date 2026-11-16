@@ -42,3 +42,14 @@ test('YOLO is explicit, plan remains restricted, and context appends to native i
   assert.equal(plan.allowDangerouslySkipPermissions, undefined);
   assert.equal(nativeOptions({cwd:'/fixture',permission:'inherit'},{}).permissionMode, undefined);
 });
+
+test('sub-agent text is forwarded; progress summaries only for coding agents', () => {
+  const coding = nativeOptions({ cwd: '/fixture' }, {});
+  assert.equal(coding.forwardSubagentText, true);
+  assert.equal(coding.agentProgressSummaries, true);
+  for (const purpose of ['help', 'planning', 'summary']) {
+    const assistant = nativeOptions({ cwd: '/fixture', purpose }, {});
+    assert.equal(assistant.forwardSubagentText, true);
+    assert.equal(assistant.agentProgressSummaries, undefined, purpose);
+  }
+});

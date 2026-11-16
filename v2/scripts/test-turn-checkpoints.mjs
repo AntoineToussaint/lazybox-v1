@@ -36,25 +36,29 @@ try{
  const chat=page.locator('.messages');
  await expect(chat).toContainText('REPLY_THREE');
  const marker=n=>chat.getByRole('group',{name:`Turn ${n} checkpoint`});
+ // A marker is one quiet divider: its actions are in its ⋯ menu.
+ const action=async(n,name)=>{await marker(n).getByLabel(`Turn ${n} actions`,{exact:true}).click();return marker(n).getByRole('button',{name});};
+ const closeMenu=()=>page.keyboard.press('Escape');
 
  // Mid-turn: finished turns have markers, the running one has none, and nothing can be reverted.
  await expect(marker(1)).toContainText('Turn 1 · 2 files changed · +42 −1');
  await expect(marker(2)).toContainText('Turn 2 · 1 file changed · +12');await expect(marker(2)).not.toContainText('−0');
  await expect(marker(3)).toHaveCount(0);
- await expect(marker(1).getByRole('button',{name:'Revert to before this turn…'})).toBeDisabled();
- assert.match(await marker(1).getByRole('button',{name:'Revert to before this turn…'}).getAttribute('title'),/Wait for the agent’s turn to end/);
+ {const revert=await action(1,'Revert to before this turn…');await expect(revert).toBeDisabled();
+  assert.match(await revert.getAttribute('title'),/Wait for the agent’s turn to end/);await closeMenu();}
+ {const box=await marker(1).boundingBox();assert.ok(box.height<=26,`a marker is one line (${box.height}px)`);}
  // The marker closes its turn: after the reply, before the next prompt.
  assert.deepEqual(await marker(1).evaluate(node=>[node.previousElementSibling?.textContent?.includes('REPLY_ONE'),node.nextElementSibling?.textContent?.includes('Add tests for it')]),[true,true]);
 
  // The turn ends: its marker appears; an empty turn offers no changes to show.
  Object.assign(session,{busy:false,status:'ready',agents:[{id:'root',status:'done'}]});state.turns[2].ended=true;events.push({type:'turn_ended'});
  await expect(marker(3)).toContainText('Turn 3 · No file changes');
- await expect(marker(3).getByRole('button',{name:/Show changes/})).toHaveCount(0);
- await expect(marker(1).getByRole('button',{name:'Revert to before this turn…'})).toBeEnabled();
+ {await action(3,'Revert to before this turn…');await expect(marker(3).getByRole('button',{name:/Show changes/})).toHaveCount(0);await closeMenu();}
+ {const revert=await action(1,'Revert to before this turn…');await expect(revert).toBeEnabled();await closeMenu();}
  await page.screenshot({path:'.cache/turn-checkpoints-markers.png'});
 
  // Revert asks first and lists exactly what will change; cancelling changes nothing.
- await marker(1).getByRole('button',{name:'Revert to before this turn…'}).click();
+ await (await action(1,'Revert to before this turn…')).click();
  const dialog=page.getByRole('dialog',{name:'Revert files to before turn 1'});
  await expect(dialog).toContainText('3 files will change');
  await expect(dialog.getByLabel('Files that will change')).toContainText('Removedparser.go');
@@ -69,7 +73,7 @@ try{
  assert.equal(f.mutations.filter(m=>m.method==='RevertCode').length,0,'cancel reverted nothing');
 
  // Confirm: the files go back, the conversation says so, and the toast offers undo.
- await marker(2).getByRole('button',{name:'Revert to before this turn…'}).click();
+ await (await action(2,'Revert to before this turn…')).click();
  const second=page.getByRole('dialog',{name:'Revert files to before turn 2'});
  await second.getByRole('button',{name:'Revert 1 file'}).click();
  await expect(second).toHaveCount(0);
@@ -87,7 +91,7 @@ try{
 
  // Another agent working in the workspace: the dialog says who, and refuses.
  f.sessions.push({id:'alpha-other',collectionId:'alpha',workId:'alpha',profileId:'claude-default',title:'Other agent',busy:true,status:'running',capabilities:{},pending:[]});
- await marker(1).getByRole('button',{name:'Revert to before this turn…'}).click();
+ await (await action(1,'Revert to before this turn…')).click();
  const blocked=page.getByRole('dialog',{name:'Revert files to before turn 1'});
  await expect(blocked.getByRole('alert')).toContainText('busy: “Other agent”');
  await expect(blocked.getByRole('button',{name:/^Revert \d+ files?$/})).toBeDisabled();
@@ -95,7 +99,7 @@ try{
  f.sessions.pop();
 
  // Show changes opens the workspace's Changes page on that turn: before → after.
- await marker(1).getByRole('button',{name:'Show changes in this turn'}).click();
+ await (await action(1,'Show changes in this turn')).click();
  const changes=page.getByRole('region',{name:'Changes in turn 1'});
  await expect(changes).toContainText('2 files changed in turn 1');
  await expect(page.locator('.changes-panel>header')).toContainText('Agent turn 1 · “Add a parser for the config file”');

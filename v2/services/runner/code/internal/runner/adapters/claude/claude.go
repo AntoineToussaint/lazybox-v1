@@ -156,12 +156,25 @@ func (s *session) Commit(ev agent.Event) {
 func (s *session) Detach() error     { return s.p.Detach() }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
 func (s *session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, LivePermission: s.has("permission"), ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
+	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, LivePermission: s.has("permission"), StopAgent: s.has("stop_agent"), ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
 }
 func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, error) {
 	r := agent.Receipt{ID: op.ID}
 	if op.Kind == agent.Steer {
 		return r, agent.ErrUnsupported
+	}
+	if op.Kind == agent.StopAgent {
+		// A worker started before single sub-agent stops cannot do one.
+		if !s.has("stop_agent") || op.NativeID == "" {
+			return r, agent.ErrUnsupported
+		}
+		result, err := s.p.Call(ctx, string(op.Kind), map[string]string{"nativeId": op.NativeID})
+		if err != nil {
+			return r, err
+		}
+		err = json.Unmarshal(result, &r)
+		r.ID = op.ID
+		return r, err
 	}
 	wire := op
 	wire.Text = agent.Prompt(op)

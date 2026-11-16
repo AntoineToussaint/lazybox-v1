@@ -104,10 +104,34 @@ func normalizedToolCall(raw json.RawMessage, completed bool) (json.RawMessage, e
 		}
 		return nil
 	}
+	input := first(i.Arguments, i.Command, i.Query, i.Changes)
+	if i.Type == "collabAgentToolCall" {
+		// What the parent asked of which sub-agents; the input a reader needs.
+		var collab struct {
+			Item struct {
+				Prompt            *string  `json:"prompt"`
+				ReceiverThreadIDs []string `json:"receiverThreadIds"`
+			} `json:"item"`
+		}
+		_ = json.Unmarshal(raw, &collab)
+		spawn := map[string]any{}
+		if collab.Item.Prompt != nil && *collab.Item.Prompt != "" {
+			spawn["prompt"] = boundedRunes(*collab.Item.Prompt, briefLimit)
+		}
+		if len(collab.Item.ReceiverThreadIDs) > 0 {
+			spawn["receiverThreadIds"] = collab.Item.ReceiverThreadIDs
+		}
+		if i.Tool != "" {
+			spawn["tool"] = i.Tool
+		}
+		if len(spawn) > 0 {
+			input, _ = json.Marshal(spawn)
+		}
+	}
 	out := struct {
 		Type, ID, Name, Status string
 		Input, Output          json.RawMessage
-	}{Type: "tool_call", ID: i.ID, Name: name, Status: status, Input: first(i.Arguments, i.Command, i.Query, i.Changes), Output: first(i.Result, i.AggregatedOutput, i.Error)}
+	}{Type: "tool_call", ID: i.ID, Name: name, Status: status, Input: input, Output: first(i.Result, i.AggregatedOutput, i.Error)}
 	// Keep the JSON vocabulary identical across adapters.
 	return json.Marshal(map[string]any{"type": out.Type, "id": out.ID, "name": out.Name, "status": out.Status, "input": out.Input, "output": out.Output})
 }

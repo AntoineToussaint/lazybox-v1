@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { Session } from '@lazybox/protocol';
-import { statusLabel } from './agent-status';
 import { LiveIndicator } from './LiveIndicator';
 import type { LiveStatus } from './live-status';
 
@@ -30,33 +29,6 @@ export function ResumeBar({ session, canResumeOnSend, onResume, onError }: {
           <button disabled={resuming || !session.providerReference || !session.capabilities?.resume || (session.recoveryRequired && !processesStopped)} onClick={() => void resume()}>{resuming ? 'Resuming…' : 'Resume conversation'}</button>
         </>}
   </div>;
-}
-
-/** The sub-agents the root agent started, and their state. */
-const childState = (status = '') => ({ running: 'Running', starting: 'Starting', waiting_input: 'Needs input', waiting_approval: 'Needs approval', done: 'Done', interrupted: 'Stopped', failed: 'Failed', stopped: 'Stopped' } as Record<string, string>)[status] || 'Working';
-const childTone = (status = '') => status === 'failed' ? 'failed' : status === 'done' ? 'done' : status === 'interrupted' || status === 'stopped' ? 'stopped' : 'running';
-
-/**
- * Background agents and commands the agent started. One line each (the full
- * text on hover), running ones first, newest first, with a plain state.
- */
-export function AgentActivity({ session }: { session?: Session }) {
-  if (!session || session.agents.length <= 1) return null;
-  const children = session.agents.filter(a => a.id !== 'root');
-  const running = children.filter(a => childTone(a.status) === 'running').length;
-  const failed = children.filter(a => childTone(a.status) === 'failed').length;
-  const ordered = [...children].reverse().sort((a, b) => Number(childTone(b.status) === 'running') - Number(childTone(a.status) === 'running'));
-  return <details className="agent-activity">
-    <summary>Background work · {running ? `${running} running` : 'nothing running'}{failed ? ` · ${failed} failed` : ''} · {children.length} in all</summary>
-    <ul>{ordered.map(a => {
-      const name = (a.name || 'Sub-agent').trim(), line = name.split('\n', 1)[0];
-      return <li key={a.id} data-parent={a.parentId} data-tone={childTone(a.status)} title={name}>
-        <span className="activity-name">{line}{line.length < name.length ? ' …' : ''}</span>
-        <small className="activity-state">{childState(a.status)}</small>
-      </li>;
-    })}</ul>
-    {session.activityTruncated && <small>Additional activity was omitted.</small>}
-  </details>;
 }
 
 export function TranscriptNotice({ error, onRetry }: { error: string; onRetry(): void }) {

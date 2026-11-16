@@ -15,6 +15,10 @@ export function nativeOptions(o: ExecutionOptions, env: NodeJS.ProcessEnv): Opti
     // Omit settingSources and permissionMode to retain the native CLI settings
     // chain and configured mode. The SDK handles deny/allow rules before callbacks.
     env, includePartialMessages: true,
+    // A sub-agent's own prose reaches the conversation, so its timeline can be
+    // read; coding agents also report a one-line progress summary while they run.
+    forwardSubagentText: true,
+    ...(['help', 'planning', 'summary'].includes(o.purpose || '') ? {} : { agentProgressSummaries: true }),
     ...(['help', 'planning', 'summary'].includes(o.purpose || '') ? { tools: [], strictMcpConfig: true } : {}),
     // The help assistant's only tools are Lazybox's settings: reading them is
     // allowed, and every update asks, whatever the Runner permission says.
