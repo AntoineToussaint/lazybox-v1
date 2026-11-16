@@ -54,6 +54,14 @@ export function WorkspaceRepositoryDialog({
     workspace?.members.map((m) => m.spec?.repositoryId || ""),
   );
   const canSave = !!(selected.size || empty) && !!(workspace || name.trim());
+  // A double-clicked repository is added, then the dialog finishes on the next
+  // render, once the name suggestion reflects the new selection.
+  const [finishSoon, setFinishSoon] = useState(false);
+  useEffect(() => {
+    if (!finishSoon) return;
+    setFinishSoon(false);
+    void save();
+  }, [finishSoon, selected]);
   const save = async () => {
     if (pending.current || !canSave) return;
     pending.current = true;
@@ -129,6 +137,11 @@ export function WorkspaceRepositoryDialog({
         onSelected={(value) => {
           setSelected(value);
           setEmpty(false);
+        }}
+        onActivate={(identity) => {
+          setSelected((current) => new Set([...current, identity]));
+          setEmpty(false);
+          setFinishSoon(true);
         }}
         chooseRepositoryFolder={chooseRepositoryFolder}
       />

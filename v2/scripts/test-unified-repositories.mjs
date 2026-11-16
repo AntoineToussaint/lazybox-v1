@@ -196,6 +196,18 @@ try {
   await management.getByRole('button',{name:'Retry',exact:true}).click();
   await expect(management.getByRole('alert')).toHaveCount(0);
   await page.screenshot({path:'/tmp/lazybox-polish-workspace-repositories.png'});
+  await management.getByRole('button',{name:/Close/}).first().click().catch(()=>page.keyboard.press('Escape'));
+  // Double-clicking a repository chooses it and creates the workspace at once.
+  const before=f.mutations.filter(m=>m.method==='PrepareWorkspace').length;
+  await page.getByRole('button',{name:'New workspace',exact:true}).click();
+  const quick=page.getByRole('dialog',{name:'New workspace',exact:true});
+  await quick.getByRole('searchbox',{name:'Find repositories'}).fill('fixture-team/api');
+  await quick.locator('.repository-browser-row label').filter({has:page.getByRole('checkbox',{name:'fixture-team/api',exact:true})}).dblclick();
+  await expect(quick).toHaveCount(0);
+  const prepared=f.mutations.filter(m=>m.method==='PrepareWorkspace');
+  assert.equal(prepared.length,before+1,'one double-click creates exactly one workspace');
+  assert.deepEqual(prepared.at(-1).body.repositoryIdentities,['github:fixture-team/api']);
+  assert.ok(f.collections.some(c=>c.name==='api'),'the new workspace is named after its repository');
   assert.deepEqual(errors, []);
   console.log(
     "PASS one catalog across new workspace, add repositories, settings and reload; remote discovery without imports; selected identities survive partial failure; idempotent retry; invalid-name guard; 320/390px long selections, fixed actions, clear search, repository-detail retry; no duplicate GitHub tab.",

@@ -276,3 +276,6 @@
   .workspace-shell .repository-selection button { background: #2a2834; border: 1px solid #3d394c; padding: 4px 7px; }
   .repository-selection button { min-height: 32px; }
 }
+
+.repository-selection-empty{color:#7d8494;font-size:12px;padding:4px 2px}
+.repository-selection{min-height:34px;align-items:center}

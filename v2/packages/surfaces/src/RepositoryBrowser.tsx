@@ -17,6 +17,8 @@ export const RepositoryHostContext = createContext<
 type Props = {
   selected?: ReadonlySet<string>;
   onSelected?(value: Set<string>): void;
+  /** Double-click: choose this repository and finish (create or add) at once. */
+  onActivate?(identity: string): void;
   included?: ReadonlySet<string>;
   disabled?: boolean;
   chooseRepositoryFolder?(): Promise<string | null>;
@@ -25,6 +27,7 @@ type Props = {
 export function RepositoryBrowser({
   selected = new Set(),
   onSelected,
+  onActivate,
   included = new Set(),
   disabled = false,
   chooseRepositoryFolder,
@@ -174,9 +177,14 @@ export function RepositoryBrowser({
               <div className="repository-browser-row">
                 {onSelected ? (
                   <label
-                    onDoubleClick={() => {
-                      if (!disabled && !included.has(repo.repositoryId))
-                        onSelected(new Set([...selected, repo.identity]));
+                    title={onActivate && !included.has(repo.repositoryId) ? "Double-click to choose this repository and continue" : undefined}
+                    onClick={(event) => {
+                      // The second click of a double-click: keep the repository
+                      // chosen (no toggle back) and, if offered, finish at once.
+                      if (event.detail !== 2 || disabled || included.has(repo.repositoryId)) return;
+                      event.preventDefault();
+                      if (onActivate) onActivate(repo.identity);
+                      else onSelected(new Set([...selected, repo.identity]));
                     }}
                   >
                     <input
@@ -275,13 +283,16 @@ export function RepositoryBrowser({
           </button>
         </div>
       )}
-      {onSelected && !!selected.size && (
+      {/* Always present, so choosing the first repository does not shift the
+          list under the pointer (a double-click would land on another row). */}
+      {onSelected && (
         <div
           className="repository-selection"
           role="region"
           aria-label="Selected repositories"
           tabIndex={0}
         >
+          {!selected.size && <span className="repository-selection-empty">No repository selected yet · double-click one to choose it and continue</span>}
           {[...selected].map((id) => (
             <button
               type="button"
