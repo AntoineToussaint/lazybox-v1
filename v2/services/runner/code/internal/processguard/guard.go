@@ -149,7 +149,8 @@ func Start(cmd *exec.Cmd) (*Guard, error) {
 
 // Wait reaps the helper and returns the actual program's outcome. On normal exit
 // the helper records this outcome, then kills its own entire group, including
-// background descendants. Its own PID pins the group identity until that kill.
+// background descendants, until it is empty. Its own PID pins the group
+// identity until then.
 func (g *Guard) Wait() (Outcome, error) {
 	g.wait.Do(func() { g.outcome, g.err = g.waitResult() })
 	return g.outcome, g.err
@@ -183,7 +184,7 @@ func (g *Guard) waitResult() (Outcome, error) {
 			// exits. WaitDelay/pipe failures are not successful resource cleanup.
 			return outcome, ErrCleanupUnconfirmed
 		}
-		// A normal helper cleanup intentionally exits via SIGKILL.
+		// A helper that finished its cleanup exits non-zero, or by its own SIGKILL.
 		return outcome, nil
 	}
 	if g.cmd.ProcessState != nil {
@@ -240,6 +241,9 @@ func run(argv []string) int {
 	}
 	syscall.CloseOnExec(3)
 	syscall.CloseOnExec(4)
+	// The owner's group, recorded while the owner is surely alive: the helper
+	// steps into it to sweep its own group (see sweep).
+	owner, _ := syscall.Getpgid(os.Getppid())
 	var finish sync.Once
 	// A group kill only reaches processes already in the group. A cancellation
 	// racing child.Start could sweep the group while the fork is in flight and
@@ -254,7 +258,7 @@ func run(argv []string) int {
 			starting.Unlock()
 			_ = json.NewEncoder(result).Encode(outcome)
 			result.Close()
-			_ = syscall.Kill(-group, syscall.SIGKILL)
+			sweep(group, owner)
 		})
 	}
 	go func() {
@@ -271,7 +275,7 @@ func run(argv []string) int {
 	starting.Lock()
 	if terminating {
 		starting.Unlock()
-		select {} // terminate is killing this group, the helper included.
+		select {} // terminate is killing this group, and then the helper exits.
 	}
 	err = child.Start()
 	starting.Unlock()
@@ -291,4 +295,44 @@ func run(argv []string) int {
 	}
 	terminate(outcome)
 	return 125
+}
+
+// sweepFor bounds how long the helper keeps killing a group that will not
+// empty (a member that cannot be signalled); the owner's own cleanup check
+// still reports anything left holding the program's output.
+const sweepFor = 2 * time.Second
+
+// sweep kills every process in the helper's group, then ends the helper.
+//
+// A single group kill reaches only the processes already in the group: a
+// descendant being forked while the kill is delivered can be missed (macOS does
+// not order the two) and would run on with no owner, holding the output pipe.
+// So the helper repeats the kill until the group is empty. To survive its own
+// kills it first steps into its owner's group; while it lives its PID cannot be
+// reused, so the group ID it keeps killing cannot name anyone else's group.
+// When the owner died and took its group with it, the session leader's group
+// serves. If neither exists, one kill that ends the helper with everyone else
+// is all it can do.
+func sweep(group, owner int) {
+	if !stepOut(group, owner) {
+		_ = syscall.Kill(-group, syscall.SIGKILL)
+		select {} // The kill above ends the helper too.
+	}
+	for deadline := time.Now().Add(sweepFor); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
+		if syscall.Kill(-group, syscall.SIGKILL) == syscall.ESRCH {
+			break
+		}
+	}
+	os.Exit(125)
+}
+
+// stepOut moves the helper into another live group of its session.
+func stepOut(group, owner int) bool {
+	session, _ := syscall.Getsid(0)
+	for _, target := range []int{owner, session} {
+		if target > 0 && target != group && syscall.Setpgid(0, target) == nil {
+			return true
+		}
+	}
+	return false
 }
