@@ -127,7 +127,7 @@
 .command-panel .command-meta{flex:none;padding:5px 16px;border-color:var(--line)}
 .command-panel .command-report{font-size:calc(11px * var(--text-scale))}
 .command-panel .command-report button{font-size:calc(11px * var(--text-scale))}
-.command-panel .output{flex:1;min-height:0;height:auto;margin:0;background:var(--surface-sunken);color:var(--text-secondary);font-size:calc(12px * var(--code-scale));line-height:1.6;padding:10px 16px}
+.command-panel .output{flex:1;min-height:0;height:auto;margin:0;background:var(--surface-sunken);color:var(--text-secondary);font-size:calc(11px * var(--code-scale));line-height:1.45;padding:10px 16px}
 /* The pill says how it ended and the report line the sizes: no second status row. */
 .command-panel .console>footer,.command-panel .retention{display:none}
 .command-panel>.console-tools+.module-empty,.command-panel>.module-empty{margin:auto;padding:16px;max-width:52ch;text-align:center}
@@ -309,3 +309,5 @@
 @media(hover:none){.workspace-row>.workspace-name-it{opacity:1}}
 .collection-list .workspace-row:has(>.workspace-name-it)>.workspace-link{padding-right:122px}
 .window-error{max-width:640px;margin:12vh auto;padding:28px;border:1px solid var(--line-bold);border-radius:12px;background:var(--surface-hover);color:var(--text-soft)}.window-error h2{margin:0 0 8px;font-size:calc(18px * var(--text-scale))}.window-error p{color:var(--text-subtle);font-size:calc(13px * var(--text-scale))}.window-error-actions{display:flex;gap:10px;margin:16px 0}.window-error pre{max-height:240px;overflow:auto;font-size:calc(11px * var(--code-scale));color:var(--text-subtle);white-space:pre-wrap}
+
+.console-size{display:inline-flex;gap:2px}.console-size .icon-button{min-width:26px;font-size:calc(11px * var(--text-scale));font-weight:600;color:var(--text-muted)}

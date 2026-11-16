@@ -109,7 +109,7 @@ small{color:var(--text-muted);font-size:calc(11px * var(--text-scale));overflow-
 .console-tools input[type=checkbox]{width:auto}
 .console-tools input{font-size:calc(10px * var(--text-scale));padding:7px}
 .console-tools button{font-size:calc(10px * var(--text-scale));padding:7px}
-.output{height:250px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.75;padding:18px;margin:0;color:var(--ok-soft);background:var(--bg);font-size:calc(11px * var(--code-scale));user-select:text}
+.output{height:250px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45;padding:18px;margin:0;color:var(--ok-soft);background:var(--bg);font-size:calc(11px * var(--code-scale));user-select:text}
 .console footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;padding:12px;font-size:calc(10px * var(--text-scale));color:var(--text-muted);border-top:1px solid var(--ok-bg-strong)}
 .retention{display:block;padding:10px 12px;font-size:calc(9px * var(--text-scale));line-height:1.7;color:var(--text-faint)}
 .cancel{margin:12px 24px;font-size:calc(10px * var(--text-scale));color:var(--text-subtle);background:transparent}
