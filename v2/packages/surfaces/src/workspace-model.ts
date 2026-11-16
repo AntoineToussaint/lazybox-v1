@@ -24,7 +24,8 @@ export function parseLayout(text: string): WorkspaceLayout {
   const value: unknown = JSON.parse(text);
   const pageIDs = new Set<string>(), panelIDs = new Set<string>();
   const node = (value: unknown, depth: number): boolean => {
-    if (!object(value) || depth > 8) return false;
+    // A binary tree of at most 12 panels is at most 11 deep, however it was docked.
+    if (!object(value) || depth > 12) return false;
     if (value.type === 'split') return keys(value, ['type', 'direction', 'ratio', 'children']) && ['row', 'column'].includes(value.direction as string) && typeof value.ratio === 'number' && Number.isFinite(value.ratio) && value.ratio >= 0.15 && value.ratio <= 0.85 && Array.isArray(value.children) && value.children.length === 2 && value.children.every(child => node(child, depth + 1));
     if (value.type !== 'panel' || !keys(value, ['type', 'panel']) || !object(value.panel)) return false;
     const p = value.panel;
@@ -63,6 +64,89 @@ export function movePanel(node: LayoutNode, id: string, step: -1 | 1): LayoutNod
   if (index < 0 || !other) return node;
   const current = items[index];
   return mapPanels(node, panel => panel.id === id ? other : panel.id === other.id ? current : panel);
+}
+export type DockSide = 'left' | 'right' | 'top' | 'bottom';
+export const dockSides: readonly DockSide[] = ['left', 'right', 'top', 'bottom'];
+export const isDockSide = (value: unknown): value is DockSide => dockSides.includes(value as DockSide);
+/** The workspace list and the conversation are what a page is for: they never close; other panels dock around them. */
+export const closable = (panel: Panel) => panel.kind !== 'collections' && panel.kind !== 'chat' && !panel.detached;
+/** Where a panel of this kind goes the first time it is shown: a terminal beside the work, output below it. */
+export const defaultDock = (kind: string): DockSide => kind === 'console' ? 'bottom' : kind === 'sessions' ? 'left' : 'right';
+/** The share of the content area a docked panel takes: a terminal wants columns, the rest stay secondary. */
+export const dockShare = (kind: string, side: DockSide) => kind === 'terminal' && (side === 'left' || side === 'right') ? 0.4 : 0.3;
+const round = (value: number) => Math.round(Math.min(0.85, Math.max(0.15, value)) * 100) / 100;
+/** The page's content area: a lone workspace list beside everything else stays at the page edge. */
+export function contentIndex(node: LayoutNode, moving: Pick<Panel, 'kind'>): 0 | 1 | -1 {
+  if (node.type !== 'split' || moving.kind === 'collections') return -1;
+  const list = (child: LayoutNode) => child.type === 'panel' && child.panel.kind === 'collections';
+  return list(node.children[0]) && !list(node.children[1]) ? 1 : list(node.children[1]) && !list(node.children[0]) ? 0 : -1;
+}
+/** Put a panel at one edge of the page's content area, taking `share` of it. */
+export function insertDocked(node: LayoutNode, panel: Panel, side: DockSide, share = dockShare(panel.kind, side)): LayoutNode {
+  const index = contentIndex(node, panel);
+  if (index !== -1 && node.type === 'split') {
+    const [first, second] = node.children;
+    return { ...node, children: index === 0 ? [insertDocked(first, panel, side, share), second] : [first, insertDocked(second, panel, side, share)] };
+  }
+  const leaf: LayoutNode = { type: 'panel', panel }, first = side === 'left' || side === 'top';
+  return { type: 'split', direction: side === 'left' || side === 'right' ? 'row' : 'column', ratio: round(first ? share : 1 - share), children: first ? [leaf, node] : [node, leaf] };
+}
+/** Move an existing panel to an edge of the content area, shown; the only panel stays put. */
+export function dockPanel(node: LayoutNode, id: string, side: DockSide, share?: number): LayoutNode {
+  const panel = panels(node).find(value => value.id === id), rest = removePanel(node, id);
+  if (!panel || !rest) return node;
+  return insertDocked(rest, { ...panel, collapsed: false }, side, share);
+}
+const shape = (node: LayoutNode): unknown => node.type === 'panel' ? node.panel.id : [node.direction, node.children.map(shape)];
+/** The edge a panel is already docked at, so the menu does not offer a move that changes nothing. */
+export function dockedSide(node: LayoutNode, id: string): DockSide | undefined {
+  const current = JSON.stringify(shape(node));
+  return dockSides.find(side => JSON.stringify(shape(dockPanel(node, id, side))) === current);
+}
+/** Show the page's panel of this kind (expanded) or dock a new one; never a second copy. */
+export function showPanel(node: LayoutNode, kind: string, side: DockSide, newID: () => string): { layout: LayoutNode; id: string; added: boolean } {
+  const existing = panels(node).find(panel => panel.kind === kind && !panel.detached);
+  if (existing) return { layout: mapPanels(node, panel => panel.id === existing.id ? { ...panel, collapsed: false } : panel), id: existing.id, added: false };
+  const id = newID();
+  return { layout: insertDocked(node, { id, kind, binding: { mode: 'follow' }, detached: false }, side), id, added: true };
+}
+const visibleChats = (node: LayoutNode) => panels(node).filter(panel => panel.kind === 'chat' && !panel.detached);
+/** One visible chat panel per conversation: a pinned panel showing what a following panel
+ * (or an earlier pinned one) already shows is a duplicate and is dropped. Never drops the last chat. */
+export function dedupeChats(node: LayoutNode, selection: ViewTarget): LayoutNode {
+  const chats = visibleChats(node), shown = new Set<string>();
+  let result = node;
+  for (const panel of [...chats.filter(value => value.binding.mode === 'follow'), ...chats.filter(value => value.binding.mode === 'pinned')]) {
+    const session = resolveTarget(panel, selection).sessionId;
+    if (!shown.has(session)) { shown.add(session); continue; }
+    result = removePanel(result, panel.id) || result;
+  }
+  return result;
+}
+/** Saved pages from before duplicates were prevented show each conversation once. */
+export function repairLayout(layout: WorkspaceLayout): WorkspaceLayout {
+  const pages = layout.pages.map(page => { const next = dedupeChats(page.layout, page.selection); return next === page.layout ? page : { ...page, layout: next }; });
+  return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
+}
+/** The chat panel that shows a selected conversation: the following panel, else one pinned to it,
+ * else the first visible chat switched to follow the page. A chat is added only when the page has none. */
+export function routeChat(node: LayoutNode, selection: ViewTarget, newID: () => string): { layout: LayoutNode; id: string } {
+  const chats = visibleChats(node);
+  const chosen = chats.find(panel => panel.binding.mode === 'follow')
+    || chats.find(panel => panel.binding.mode === 'pinned' && panel.binding.target.sessionId === selection.sessionId)
+    || chats[0];
+  if (!chosen) { const id = newID(); return { layout: insertDocked(node, { id, kind: 'chat', binding: { mode: 'follow' }, detached: false }, 'right', 0.5), id }; }
+  const pinnedHere = chosen.binding.mode === 'pinned' && chosen.binding.target.sessionId === selection.sessionId;
+  const layout = mapPanels(node, panel => panel.id !== chosen.id ? panel : { ...panel, collapsed: false, binding: chosen.binding.mode === 'follow' || pinnedHere ? panel.binding : { mode: 'follow' } });
+  return { layout: dedupeChats(layout, selection), id: chosen.id };
+}
+/** A chat brought back from its window rejoins the page, unless another panel already shows that conversation. */
+export function returnChat(node: LayoutNode, id: string, selection: ViewTarget): LayoutNode {
+  const panel = panels(node).find(value => value.id === id);
+  if (!panel) return node;
+  const session = resolveTarget(panel, selection).sessionId;
+  if (visibleChats(node).some(other => other.id !== id && resolveTarget(other, selection).sessionId === session)) return removePanel(node, id) || node;
+  return mapPanels(node, value => value.id === id ? { ...value, detached: false } : value);
 }
 export function clonePage(page: WorkspacePage, newID: () => string): WorkspacePage {
   return { ...page, id: newID(), name: `${page.name.slice(0, 59)} copy`, selection: { ...page.selection }, layout: mapPanels(page.layout, panel => ({ ...panel, id: newID(), detached: false, binding: panel.binding.mode === 'follow' ? { mode: 'follow' } : { mode: 'pinned', target: { ...panel.binding.target } } })) };

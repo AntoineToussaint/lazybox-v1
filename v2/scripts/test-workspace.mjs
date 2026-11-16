@@ -142,6 +142,16 @@ try {
   await expect(popup.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
   closed = popup.waitForEvent('close'); await page.locator('.detached-tabs').getByRole('button', { name: 'Bring back', exact: true }).click(); await closed;
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
+  // The chat brought back stays pinned to its conversation; choosing conversations in the
+  // sidebar reuses it and never stacks a second panel on the same conversation.
+  const links = page.locator('.page-layout .panel-collections .conversation-link');
+  const second = links.filter({ hasText: 'Second alpha conversation' }), first = links.filter({ hasNotText: 'Second alpha conversation' }).first();
+  for (const link of [first, first, second, second, first, first]) {
+    await link.click();
+    await expect(page.locator('.page-layout .panel-chat')).toHaveCount(1);
+  }
+  await expect(chat).toContainText('Retained conversation for alpha-session');
+  await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
   assert.equal(fixture.mutations.length, 0, 'layout, restore, detach, or dock created/stopped an execution');
 
   {await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Layout configuration', exact: true }).click();}

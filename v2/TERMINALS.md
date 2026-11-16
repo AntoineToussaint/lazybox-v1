@@ -7,15 +7,20 @@ into a terminal.
 
 ## Use it
 
-- **Terminal** in the workspace header starts a shell in the workspace root and
-  shows it in the page's **Terminal** panel, adding the panel below the page if
-  there is none.
+- **Terminal** in the workspace header shows the page's **Terminal** panel and
+  puts the keyboard in it. With no panel, it docks one on the right of the work
+  (or where you last docked a terminal). It starts a shell in the workspace
+  root only when none is running; otherwise it focuses the running one. It
+  never adds a second panel.
+- The panel header moves it like any other panel (see
+  [Arrange panels](WORKSPACES.md#arrange-panels)). Its **×** closes the
+  *panel*: shells keep running and re-attach when the panel comes back.
 - In the panel, pick a directory (**Workspace root** or a repository) and press
-  **New terminal** for another shell. Tabs switch between them; **×** closes one
-  (it hangs up the shell, as closing a terminal window does).
-- **Customize page → Add panel → Terminal** adds the panel anywhere. Opening or
-  restoring the panel never starts a shell; it shows the workspace's running
-  terminals.
+  **New terminal** for another shell. Tabs switch between them; a tab's **×**
+  closes that shell (it hangs up the shell, as closing a terminal window does).
+- **Page actions (⋯) → Show panel → Terminal**, or **Customize page → Add
+  panel**, also add it. Opening or restoring the panel never starts a shell; it
+  shows the workspace's running terminals.
 - A reload, another window, or a Runner restart re-attaches to the same shell
   and shows its recent output.
 

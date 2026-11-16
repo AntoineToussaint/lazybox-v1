@@ -9,10 +9,11 @@ import { useRunner } from './RunnerContext';
 import { Icon } from './Icons';
 import './terminal.css';
 
-/** Workspaces whose next mounted terminal panel should open a new shell. */
+/** Workspaces whose terminal panel was just asked for from the header. */
 const requested = new Set<string>();
 const listeners = new Set<() => void>();
-/** Ask the workspace's terminal panel (now or once it mounts) to start a shell. */
+/** Ask the workspace's terminal panel (now or once it mounts and has listed its shells) to
+ * take focus: on a running shell when there is one, otherwise on a new one it starts. */
 export function requestTerminal(collectionId: string) { requested.add(collectionId); for (const listener of listeners) listener(); }
 
 const theme = { background: '#17181e', foreground: '#d4d5de', cursor: '#bdb1ed', cursorAccent: '#17181e', selectionBackground: '#3d3852', black: '#1d1e24', red: '#e08a8a', green: '#9fc79a', yellow: '#dcc58e', blue: '#8eaee0', magenta: '#bdb1ed', cyan: '#8fcbcf', white: '#d4d5de', brightBlack: '#6b6d7a', brightRed: '#efa3a3', brightGreen: '#b5dcb0', brightYellow: '#ead7a4', brightBlue: '#a9c3ef', brightMagenta: '#d2c8f5', brightCyan: '#a7dde0', brightWhite: '#f1f1f6' };
@@ -30,12 +31,14 @@ export function TerminalPanel({ workspaceId, collections, viewState }: { workspa
   const [directory, setDirectory] = useState('');
   const [error, setError] = useState(''), [listError, setListError] = useState(''), [opening, setOpening] = useState(false);
   const known = useRef<Set<string> | null>(null);
+  const listed = useRef<TerminalStatus[]>([]), selectedRef = useRef(selected); selectedRef.current = selected;
+  const focusView = useRef<(() => void) | null>(null);
   const size = useRef({ cols: 80, rows: 24 });
   const choose = (id: string) => { setSelected(id); if (key) try { viewState?.setItem(key, id); } catch { /* the choice is a convenience */ } };
   const refresh = async (signal?: AbortSignal) => {
     const result = await api.listTerminals({ collectionId: workspaceId }, { signal });
     if (signal?.aborted) return;
-    setTerminals(result.terminals);
+    setTerminals(result.terminals); listed.current = result.terminals;
     const ids = result.terminals.map(value => value.id);
     // A terminal that appeared since the last look was just opened: show it.
     const fresh = known.current ? ids.filter(id => !known.current!.has(id)) : [];
@@ -62,18 +65,26 @@ export function TerminalPanel({ workspaceId, collections, viewState }: { workspa
     const control = new AbortController(); let updating = false;
     const update = async () => {
       if (updating) return; updating = true;
-      try { await refresh(control.signal); if (!control.signal.aborted) setListError(''); }
+      try { await refresh(control.signal); if (!control.signal.aborted) { setListError(''); consumeRef.current(); } }
       catch (error) { if (!control.signal.aborted) setListError(`Could not list terminals: ${String(error)}`); }
       finally { updating = false; }
     };
     void update(); const timer = setInterval(() => void update(), 2000);
     return () => { control.abort(); clearInterval(timer); };
   }, [api, workspaceId]);
-  const openRef = useRef(open); openRef.current = open;
+  // A request waits until this workspace's shells are listed, so asking twice never starts a second one.
+  const consume = () => {
+    if (!workspaceId || known.current === null || !requested.delete(workspaceId)) return;
+    const live = listed.current.filter(terminal => !terminal.done);
+    if (!live.length) { void open(); return; }
+    if (!live.some(terminal => terminal.id === selectedRef.current)) choose(live.at(-1)!.id);
+    requestAnimationFrame(() => focusView.current?.());
+  };
+  const consumeRef = useRef(consume); consumeRef.current = consume;
   useEffect(() => {
-    const consume = () => { if (workspaceId && requested.delete(workspaceId)) void openRef.current(); };
-    listeners.add(consume); consume();
-    return () => { listeners.delete(consume); };
+    const listener = () => consumeRef.current();
+    listeners.add(listener); listener();
+    return () => { listeners.delete(listener); };
   }, [workspaceId]);
   const current = terminals.find(value => value.id === selected);
   const ready = !!collection && collection.state === 'ready';
@@ -91,13 +102,13 @@ export function TerminalPanel({ workspaceId, collections, viewState }: { workspa
           <button aria-label="New terminal" title="New terminal" disabled={!ready || opening} onClick={() => void open()}><Icon name="plus" size={14}/><span>New terminal</span></button>
         </span>
       </div>
-      {current ? <TerminalView key={current.id} api={api} terminal={current} onSize={value => { size.current = value; }} onError={setError}/>
+      {current ? <TerminalView key={current.id} api={api} terminal={current} focusRef={focusView} onSize={value => { size.current = value; }} onError={setError}/>
         : <p className="module-empty">{ready ? 'No terminal is open in this workspace. A terminal runs your login shell on the Runner, in the directory you choose, and keeps running when the Runner restarts.' : 'The workspace is not ready for a terminal.'}{ready && <><br/><button className="primary" disabled={opening} onClick={() => void open()}>Start terminal</button></>}</p>}
     </>}
   </section>;
 }
 
-function TerminalView({ api, terminal, onSize, onError }: { api: RunnerClient; terminal: TerminalStatus; onSize(size: { cols: number; rows: number }): void; onError(error: string): void }) {
+function TerminalView({ api, terminal, focusRef, onSize, onError }: { api: RunnerClient; terminal: TerminalStatus; focusRef: { current: (() => void) | null }; onSize(size: { cols: number; rows: number }): void; onError(error: string): void }) {
   const host = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<TerminalStatus>(terminal);
   const [connection, setConnection] = useState('Connecting');
@@ -106,6 +117,7 @@ function TerminalView({ api, terminal, onSize, onError }: { api: RunnerClient; t
     const element = host.current; if (!element) return;
     const view = new Terminal({ theme, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, allowProposedApi: false });
     const fit = new FitAddon(); view.loadAddon(fit); view.open(element);
+    const focus = () => view.focus(); focusRef.current = focus;
     const control = new AbortController(), signal = control.signal;
     let done = false;
     // Input is sent in order, one request at a time; keys typed meanwhile are batched.
@@ -159,7 +171,7 @@ function TerminalView({ api, terminal, onSize, onError }: { api: RunnerClient; t
         await new Promise<void>(resolve => { const timer = setTimeout(resolve, 1000); signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true }); });
       }
     })();
-    return () => { control.abort(); observer.disconnect(); input.dispose(); binary.dispose(); view.dispose(); };
+    return () => { if (focusRef.current === focus) focusRef.current = null; control.abort(); observer.disconnect(); input.dispose(); binary.dispose(); view.dispose(); };
   }, [api, id]);
   return <div className="terminal-view">
     <div ref={host} className="terminal-host" data-testid="terminal" data-terminal-id={id}/>

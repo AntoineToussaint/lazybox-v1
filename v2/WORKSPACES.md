@@ -151,9 +151,42 @@ Future orchestration modules must call Runner-owned execution APIs; window
 lifecycle and layout must never own agent lifecycle.
 
 **Terminal** in the header opens your login shell in the workspace, on the
-Runner, in a Terminal panel; the panel can also open one in a repository. The
-shell keeps running when the window closes or the Runner restarts. See
-[TERMINALS.md](TERMINALS.md).
+Runner, in a Terminal panel docked beside the work; the panel can also open one
+in a repository. The shell keeps running when the window closes or the Runner
+restarts. See [TERMINALS.md](TERMINALS.md).
+
+### Arrange panels
+
+Every panel with a header (command output, terminal, changes, Ask Lazybox,
+usage, sessions) arranges itself from that header, without Customize page:
+
+- **⋯ → Dock left / right / top / bottom** moves the panel to that edge of the
+  page's content area, shown, at about a third of it (a terminal on a side
+  takes 40%, for columns). The workspace list stays at the page edge. The
+  current edge is marked and disabled. The menu is keyboard-reachable (Enter
+  or ↓ opens it, arrows move, Escape closes) and focus follows the moved panel.
+- **Dragging the header** shows the four edge zones over the content area;
+  release on one to dock there. Escape, or a release away from the edges,
+  cancels. Not on touch or phone layouts.
+- **Clicking the title** collapses the panel to its header (or, beside another
+  panel, to a narrow vertical tab) and back.
+- **×** closes the panel. A closed panel comes back from **Page actions (⋯) →
+  Show panel**. The workspace list and the conversation panel have no panel
+  header and do not close: they are what the page is for, and the other panels
+  dock around them (Customize page still rearranges them).
+
+The edge you last docked each kind of panel at is remembered per person, across
+workspaces: a terminal you moved left opens left next time. Arrangements are
+saved in the page layout like any other change; layouts saved before docking
+load unchanged. Moving or closing a panel never reloads the others: each panel
+renders once and the layout moves it. On a phone, panels show one at a time
+from the panel switcher; docking is hidden and **×** remains.
+
+A conversation shows in at most one chat panel per page. Choosing a
+conversation reuses the page's chat panel, including one brought back from its
+own window (pinned to its conversation); **Bring back** removes the returning
+panel when the page already shows that conversation; and saved pages with
+duplicate chat panels are repaired when they load.
 
 ### Agent telemetry and workspace accounting
 

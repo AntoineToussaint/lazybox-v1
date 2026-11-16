@@ -8,7 +8,8 @@ import { WorkspaceRepositories } from './WorkspaceRepositories';
 import { ChangesPanel } from './ChangesPanel';
 import { TelemetryPanel } from './TelemetryPanel';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
-import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
@@ -19,7 +20,7 @@ import { CommandPanel } from './CommandPanel';
 import { useCommandRuns } from './command-runs';
 import { TerminalPanel, requestTerminal } from './TerminalPanel';
 import { mergeConversations } from './conversation-model';
-import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, closable, contentIndex, defaultDock, dockPanel, dockedSide, dockSides, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnChat, type DockSide, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { Icon } from './Icons';
@@ -27,7 +28,7 @@ import { sessionStatus } from './agent-status';
 import { SettingsPage } from './SettingsPage';
 
 export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void };
-export type PanelModule = { title: string; Component: ComponentType<ModuleProps> };
+export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
 function ChatModule({ target, onTarget, viewState, collections, onOpenChat }: ModuleProps) {
   const {api}=useRunner();
   const collection = collections.find(value => value.id === target.collectionId);
@@ -41,15 +42,18 @@ function AssistantModule({ viewState,workspaceId }: ModuleProps) {
 }
 /** First-party modules use the same runtime and target contract in every page. */
 export const builtinPanels: Readonly<Record<string, PanelModule>> = {
-  collections: { title: 'Workspaces', Component: CollectionPanel },
-  chat: { title: 'Agent chat', Component: ChatModule },
-  console: { title: 'Command output', Component: CommandPanel },
-  terminal: { title: 'Terminal', Component: ({workspaceId,collections,viewState}) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState}/> },
-  assistant: { title: 'Ask Lazybox', Component: AssistantModule },
-  changes: { title: 'Changes', Component: ({workspaceId}) => <ChangesPanel key={workspaceId} workspaceId={workspaceId}/> },
-  usage: { title: 'Usage & cost', Component: ({workspaceId}) => <TelemetryPanel workspaceId={workspaceId}/> },
-  sessions: { title: 'Sessions', Component: ({workspaceId,target,onTarget}) => <ConversationList collectionId={workspaceId} target={target} onTarget={onTarget}/> },
+  collections: { title: 'Workspaces', icon: 'collections', Component: CollectionPanel },
+  chat: { title: 'Agent chat', icon: 'chat', Component: ChatModule },
+  console: { title: 'Command output', icon: 'output', Component: CommandPanel },
+  terminal: { title: 'Terminal', icon: 'terminal', Component: ({workspaceId,collections,viewState}) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState}/> },
+  assistant: { title: 'Ask Lazybox', icon: 'chat', Component: AssistantModule },
+  changes: { title: 'Changes', icon: 'branch', Component: ({workspaceId}) => <ChangesPanel key={workspaceId} workspaceId={workspaceId}/> },
+  usage: { title: 'Usage & cost', icon: 'sliders', Component: ({workspaceId}) => <TelemetryPanel workspaceId={workspaceId}/> },
+  sessions: { title: 'Sessions', icon: 'history', Component: ({workspaceId,target,onTarget}) => <ConversationList collectionId={workspaceId} target={target} onTarget={onTarget}/> },
 };
+/** Panels the page itself is made of: they are rearranged, not shown from the page menu. */
+const pagePanels = new Set(['collections', 'chat', 'changes']);
+const sentence = (title: string) => title.charAt(0).toLowerCase() + title.slice(1);
 type Props = { modules?: Readonly<Record<string, PanelModule>>; fixedWorkspaceId?: string; connection: RunnerConnection; viewState?: ViewStateStore; initialTarget?: ViewTarget; host?: WorkspaceHost; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onTargetChange?(target: ViewTarget): Promise<void> | void };
 export function Workspace(props: Props) { return <RunnerProvider connection={props.connection}><RepositoryHostContext.Provider value={props.host||{}}><WorkspaceView {...props}/></RepositoryHostContext.Provider></RunnerProvider>; }
 
@@ -61,7 +65,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const workspaceKey=(id:string)=>`${viewState?.scope || viewState?.key}:workspace:${id || 'home'}:pages`;
   const key=workspaceKey(workspaceID);
   const [restored] = useState(() => {
-    try { const saved = viewState?.getItem(key); return { layout: saved ? retireMonitor(parseLayout(saved)) : defaultLayout({...initialTarget,collectionId:workspaceID}), error: '' }; }
+    try { const saved = viewState?.getItem(key); return { layout: saved ? repairLayout(retireMonitor(parseLayout(saved))) : defaultLayout({...initialTarget,collectionId:workspaceID}), error: '' }; }
     catch (error) { return { layout: defaultLayout({...initialTarget,collectionId:workspaceID}), error: `Saved pages could not be restored: ${String(error)}. Their data has been retained.` }; }
   });
   const [layout, setLayout] = useState(restored.layout), [locked, setLocked] = useState(!!restored.error);
@@ -79,6 +83,17 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const [module, setModule] = useState<string>('console'), [pending, setPending] = useState<string>('');
   const current = useRef(layout); current.current = layout;
   const stores = useMemo(() => new Map<string, ViewStateStore>(), [viewState,workspaceID]);
+  // One element per displayed panel, created once: React renders each panel into its own
+  // host (a portal) and the layout only moves that host, so docking or closing a panel
+  // never remounts the others. Hosts are keyed by kind and occurrence ("chat:0"), not by
+  // panel ID, so the same panel also stays mounted when another workspace's page (with
+  // its own IDs) takes its place, as the workspace list must.
+  const hosts = useRef(new Map<string, HTMLDivElement>());
+  const hostFor = (slot: string) => {
+    let element = hosts.current.get(slot);
+    if (!element) { element = document.createElement('div'); element.className = 'panel-host'; hosts.current.set(slot, element); }
+    return element;
+  };
   useEffect(() => {
     const retained = new Set(layout.pages.flatMap(page => panels(page.layout).map(panel => panel.id)));
     for (const id of stores.keys()) if (!retained.has(id)) stores.delete(id);
@@ -118,15 +133,16 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       try{
         if (!locked) viewState?.setItem(workspaceKey(workspaceID), JSON.stringify(current.current));
         const saved=viewState?.getItem(workspaceKey(target.collectionId));
-        const next=saved?retireMonitor(parseLayout(saved)):defaultLayout(target);
-        if(target.sessionId)next.pages.find(page=>page.id===next.selectedPage)!.selection=target;
+        let next=saved?retireMonitor(parseLayout(saved)):defaultLayout(target);
+        if(target.sessionId)next={...next,pages:next.pages.map(page=>page.id===next.selectedPage?{...page,selection:target}:page)};
+        next=repairLayout(next);
         viewState?.setItem(`${viewState.key}:active-workspace`,target.collectionId);
         setWorkspaceID(target.collectionId);current.current=next;setLayout(next);setLocked(false);setEditing(false);setConfiguring(false);setError('');
       }catch(error){setError(`Could not open workspace layout: ${String(error)}`);}
       return;
     }
     const live = current.current.pages.find(value => value.id === page.id);
-    if (live) changePage({ ...live, selection: target });
+    if (live) changePage({ ...live, selection: target, layout: dedupeChats(live.layout, target) });
   };
   useEffect(() => {
     if (page.selection.sessionId && !page.selection.collectionId) {
@@ -153,9 +169,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const live = current.current.pages.find(value => value.id === page.id)!;
     const open = detachedFor(live.layout, selection);
     if (open && host) { if (changePage({ ...live, selection })) { setSettings(false); setNewSession(false); } void host.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
-    const hasChat = panels(live.layout).some(p => p.kind === 'chat' && p.binding.mode === 'follow' && !p.detached);
-    const nextLayout: LayoutNode = hasChat ? mapPanels(live.layout, p => p.kind === 'chat' && p.binding.mode === 'follow' ? { ...p, collapsed: false } : p) : { type: 'split', direction: 'row', ratio: 0.5, children: [live.layout, { type: 'panel', panel: { id: crypto.randomUUID(), kind: 'chat', binding: { mode: 'follow' }, detached: false } }] };
-    if (changePage({ ...live, selection, layout: nextLayout })) { setSettings(false); setNewSession(false); }
+    // Reuse the page's chat panel; never stack a second panel on the same conversation.
+    const shown = routeChat(live.layout, selection, () => crypto.randomUUID());
+    if (changePage({ ...live, selection, layout: shown.layout })) { setSettings(false); setNewSession(false); setMobilePanelId(shown.id); }
   };
   const showChanges = () => {
     const existing = current.current.pages.find(value=>panels(value.layout).some(panel=>panel.kind==='changes'));
@@ -164,16 +180,46 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const review:WorkspacePage={id,name:'Changes',selection:{...page.selection,collectionId:workspaceID},layout:{type:'panel',panel:{id:crypto.randomUUID(),kind:'changes',binding:{mode:'follow'},detached:false}}};
     if(commit({...current.current,selectedPage:id,pages:[...current.current.pages,review]}))setSettings(false);
   };
-  /** Start a shell in this workspace, in the page's terminal panel (added below the page if it has none). */
-  const showTerminal = () => {
-    if (!workspaceID) return;
-    const live = current.current.pages.find(value => value.id === page.id)!;
-    const existing = panels(live.layout).find(panel => panel.kind === 'terminal' && !panel.detached);
-    if (!existing && panels(live.layout).length >= 12) { setError('This page already has 12 panels; remove one to add a terminal.'); return; }
-    const panelID = existing?.id || crypto.randomUUID();
-    const layout: LayoutNode = existing ? mapPanels(live.layout, panel => panel.id === panelID ? { ...panel, collapsed: false } : panel) : { type: 'split', direction: 'column', ratio: 0.6, children: [live.layout, { type: 'panel', panel: { id: panelID, kind: 'terminal', binding: { mode: 'follow' }, detached: false } }] };
-    if (changePage({ ...live, layout })) { setSettings(false); setMobilePanelId(panelID); requestTerminal(workspaceID); }
+  // The edge a person last docked each kind of panel at is a personal preference,
+  // shared by every workspace and window: a terminal they moved left opens left.
+  const dockKey = (kind: string) => `${viewState?.root || viewState?.key}:dock:${kind}`;
+  const rememberedDock = (kind: string): DockSide => { try { const side = viewState?.getItem(dockKey(kind)); return isDockSide(side) ? side : defaultDock(kind); } catch { return defaultDock(kind); } };
+  // Focus follows a panel that moved, or returns to the conversation when one closes.
+  const focusAfter = useRef<{ panel: string } | 'content' | null>(null);
+  useEffect(() => {
+    const request = focusAfter.current; if (!request) return; focusAfter.current = null;
+    const frame = requestAnimationFrame(() => {
+      const element = request === 'content'
+        ? document.querySelector<HTMLElement>('.page-layout .panel-chat textarea:not(:disabled)') || document.querySelector<HTMLElement>('.page-layout .workspace-panel:not(.panel-collections) button:not(:disabled)')
+        : document.querySelector<HTMLElement>(`.page-layout [data-panel-id="${CSS.escape(request.panel)}"] .panel-menu>summary`);
+      element?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [layout]);
+  const livePage = () => current.current.pages.find(value => value.id === page.id)!;
+  /** Show the page's panel of this kind, or dock a new one where this kind was last docked. */
+  const showModule = (kind: string) => {
+    const live = livePage();
+    if (!panels(live.layout).some(panel => panel.kind === kind && !panel.detached) && panels(live.layout).length >= 12) { setError(`This page already has 12 panels; close one to add ${sentence(registry[kind]?.title || kind)}.`); return ''; }
+    const shown = showPanel(live.layout, kind, rememberedDock(kind), () => crypto.randomUUID());
+    if (!changePage({ ...live, layout: shown.layout })) return '';
+    setSettings(false); setMobilePanelId(shown.id);
+    return shown.id;
   };
+  /** Show this workspace's terminal: the open panel, or one docked beside the work. It starts a shell only when none is running. */
+  const showTerminal = () => { if (workspaceID && showModule('terminal')) requestTerminal(workspaceID); };
+  const dockTo = (panel: Panel, side: DockSide) => {
+    const live = livePage();
+    if (!changePage({ ...live, layout: dockPanel(live.layout, panel.id, side) })) return;
+    try { viewState?.setItem(dockKey(panel.kind), side); } catch { /* the side is a convenience */ }
+    focusAfter.current = { panel: panel.id };
+  };
+  const closePanel = (panel: Panel) => {
+    const live = livePage(), next = removePanel(live.layout, panel.id);
+    if (!next || !closable(panel)) return;
+    if (changePage({ ...live, layout: next })) focusAfter.current = 'content';
+  };
+  const toggleCollapsed = (panel: Panel) => changePanel(panel.id, value => ({ ...value, collapsed: !value.collapsed }));
   const beginConversation = (collectionId = workspaceID) => {
     if (collectionId !== workspaceID) select({ collectionId, sessionId: '', commandId: '' });
     setNavigatorOpen(false); setQuickStart(false); setNewSession(true);
@@ -199,7 +245,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const dock = async (panel: Panel) => {
     if (!host || pending) return;
     setPending(panel.id);
-    try { await host.dockChat(panel.id); changePanel(panel.id, value => ({ ...value, detached: false })); }
+    try {
+      await host.dockChat(panel.id);
+      const live = current.current.pages.find(value => value.id === page.id);
+      if (live) changePage({ ...live, layout: returnChat(live.layout, panel.id, live.selection) });
+    }
     catch (error) { setError(String(error)); }
     finally { setPending(''); }
   };
@@ -240,6 +290,62 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', stop); handle.addEventListener('pointercancel', stop);
       }}/>;
   };
+  // Dragging a panel header shows where it would dock; releasing near an edge of the page
+  // docks it there (the panel menu is the keyboard equivalent). Escape or a release away
+  // from the edges cancels. Not on touch or phone layouts, which show one panel at a time.
+  type Area = { left: number; top: number; width: number; height: number };
+  const [docking, setDocking] = useState<{ id: string; side?: DockSide; area: Area } | null>(null);
+  const startDrag = (event: ReactPointerEvent<HTMLElement>, panel: Panel) => {
+    if (event.button !== 0 || event.pointerType === 'touch' || editing || matchMedia('(max-width: 760px)').matches) return;
+    if (event.target instanceof Element && event.target.closest('.panel-menu, .panel-close')) return;
+    const header = event.currentTarget, from = { x: event.clientX, y: event.clientY }, pointer = event.pointerId;
+    let active = false, side: DockSide | undefined, area: DOMRect | undefined, relative: Area = { left: 0, top: 0, width: 0, height: 0 };
+    // Zones cover the content area a dock lands in: beside the workspace list, not over it.
+    const measure = () => {
+      const page = document.querySelector('.page-layout'), index = displayedLayout ? contentIndex(displayedLayout, panel) : -1;
+      const cell = index === -1 ? null : page?.querySelectorAll(':scope>.layout-split>.layout-cell')[index];
+      const bounds = page?.getBoundingClientRect(); area = (cell || page)?.getBoundingClientRect();
+      if (bounds && area) relative = { left: area.left - bounds.left, top: area.top - bounds.top, width: area.width, height: area.height };
+    };
+    const zone = (x: number, y: number): DockSide | undefined => {
+      if (!area || x < area.left || x > area.right || y < area.top || y > area.bottom) return undefined;
+      const distance: [DockSide, number][] = [['left', (x - area.left) / area.width], ['right', (area.right - x) / area.width], ['top', (y - area.top) / area.height], ['bottom', (area.bottom - y) / area.height]];
+      const [nearest, value] = distance.reduce((best, item) => item[1] < best[1] ? item : best);
+      return value < 0.25 ? nearest : undefined;
+    };
+    const move = (next: PointerEvent) => {
+      if (next.pointerId !== pointer) return;
+      if (!active) { if (Math.hypot(next.clientX - from.x, next.clientY - from.y) < 6) return; active = true; header.setPointerCapture(pointer); measure(); }
+      side = zone(next.clientX, next.clientY);
+      setDocking(current => current?.id === panel.id && current.side === side ? current : { id: panel.id, side, area: relative });
+    };
+    const finish = (next: Event) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); window.removeEventListener('pointercancel', finish); window.removeEventListener('keydown', cancel, true);
+      if (!active) return;
+      // The release that ends a drag is not a click on the title.
+      const swallow = (click: Event) => { click.stopPropagation(); click.preventDefault(); };
+      header.addEventListener('click', swallow, { capture: true, once: true }); setTimeout(() => header.removeEventListener('click', swallow, { capture: true }), 0);
+      setDocking(null);
+      if (next.type === 'pointerup' && side) dockTo(panel, side);
+    };
+    const cancel = (key: KeyboardEvent) => { if (key.key !== 'Escape' || !active) return; key.preventDefault(); key.stopPropagation(); side = undefined; finish(key); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', finish); window.addEventListener('pointercancel', finish); window.addEventListener('keydown', cancel, true);
+  };
+  /** A panel's own header: its title collapses it, ⋯ docks it at any edge, × closes it. */
+  const panelHeader = (panel: Panel, definition: PanelModule | undefined) => {
+    const title = definition?.title || panel.kind, name = sentence(title);
+    const only = panels(page.layout).length <= 1, docked = dockedSide(page.layout, panel.id);
+    const canClose = closable(panel) && !only;
+    return <>
+      <button className="module-title" aria-label={`${panel.collapsed ? 'Show' : 'Hide'} ${name}`} aria-expanded={!panel.collapsed} title={`${panel.collapsed ? 'Show' : 'Collapse'} ${name} · drag to dock`} onClick={() => toggleCollapsed(panel)}><Icon name={definition?.icon || 'file'}/><span>{title}</span><Icon name="chevron" size={13}/></button>
+      <ActionMenu className="panel-menu" label={`${title} panel actions`}>
+        {dockSides.map(side => <button key={side} className="dock-option" disabled={only || docked === side || !!pending} aria-current={docked === side || undefined} onClick={() => dockTo(panel, side)}><Icon name={`dock-${side}`}/><span>Dock {side}</span>{docked === side && <small>Current</small>}</button>)}
+        <button onClick={() => toggleCollapsed(panel)}><Icon name="chevron"/><span>{panel.collapsed ? 'Expand' : 'Collapse'}</span></button>
+        {canClose && <button className="danger" onClick={() => closePanel(panel)}><Icon name="close"/><span>Close panel</span></button>}
+      </ActionMenu>
+      {canClose && <button className="icon-button panel-close" aria-label={`Close ${title} panel`} title={panel.kind === 'terminal' ? 'Close panel (shells keep running)' : 'Close panel'} onClick={() => closePanel(panel)}><Icon name="close" size={14}/></button>}
+    </>;
+  };
   const renderNode = (node: LayoutNode, path: number[] = []): ReactNode => {
     if (node.type === 'split') return <div className={`layout-split split-${node.direction}`}>
       {editing && <div className="split-controls"><label>Direction<select aria-label={`Direction split ${path.join('-') || 'root'}`} value={node.direction} onChange={event => resize(path, node => ({ ...node, direction: event.target.value as 'row' | 'column' }))}><option value="row">Side by side</option><option value="column">Stacked</option></select></label><label>Size<input aria-label={`Resize split ${path.join('-') || 'root'}`} type="range" min={15} max={85} value={Math.round(node.ratio * 100)} onChange={event => resize(path, node => ({ ...node, ratio: Number(event.target.value) / 100 }))}/></label></div>}
@@ -247,24 +353,37 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         const sibling = node.children[index ? 0 : 1];
         const collapsed = child.type === 'panel' && child.panel.collapsed && !editing;
         const siblingCollapsed = sibling.type === 'panel' && sibling.panel.collapsed && !editing;
-        const cell = <div key={index} className="layout-cell" style={{ minWidth: node.direction === 'row' && child.type === 'panel' && child.panel.kind === 'collections' && !collapsed ? 240 : undefined, flex: collapsed ? `0 0 ${node.direction === 'column' ? 42 : 44}px` : `${siblingCollapsed ? 1 : index ? 1 - node.ratio : node.ratio} 1 0` }}>{renderNode(child, [...path, index])}</div>;
+        const cell = <div key={index} className={`layout-cell${collapsed ? ' collapsed-cell' : ''}`} style={{ minWidth: node.direction === 'row' && child.type === 'panel' && child.panel.kind === 'collections' && !collapsed ? 240 : undefined, flex: collapsed ? `0 0 ${node.direction === 'column' ? 42 : 44}px` : `${siblingCollapsed ? 1 : index ? 1 - node.ratio : node.ratio} 1 0` }}>{renderNode(child, [...path, index])}</div>;
         return index === 1 && !collapsed && !siblingCollapsed ? [splitHandle(node, path), cell] : cell;
       })}
     </div>;
-    const panel = node.panel, definition = Object.hasOwn(registry, panel.kind) ? registry[panel.kind] : undefined, target = resolveTarget(panel, page.selection);
+    return <PanelSlot host={hostFor(slots.get(node.panel.id) || node.panel.id)}/>;
+  };
+  const renderPanel = (panel: Panel): ReactNode => {
+    const definition = Object.hasOwn(registry, panel.kind) ? registry[panel.kind] : undefined, target = resolveTarget(panel, page.selection);
     if (viewState && !stores.has(panel.id)) stores.set(panel.id, { ...viewState, scope: `${viewState.scope || viewState.key}:workspace:${workspaceID || 'home'}`, key: `${viewState.scope || viewState.key}:workspace:${workspaceID || 'home'}:panel:${panel.id}` });
     const store = stores.get(panel.id);
     const onTarget = (target: ViewTarget) => panel.binding.mode === 'pinned' ? changePanel(panel.id, value => ({ ...value, binding: { mode: 'pinned', target } })) : select(target);
-    return <section className={`workspace-panel panel-${panel.kind}${panel.collapsed && !editing ? ' is-collapsed' : ''}${editing ? ' is-editing' : ''}`} aria-label={definition?.title || panel.kind} data-panel-id={panel.id} data-mobile-active={panel.id === mobilePanel?.id || undefined}>
-      <header className="module-header">{panel.kind === 'console' ? <button className="module-title" aria-label={panel.collapsed ? 'Show command output' : 'Hide command output'} aria-expanded={!panel.collapsed} onClick={() => changePanel(panel.id, value => ({ ...value, collapsed: !value.collapsed }))}><Icon name="terminal"/><span>{definition?.title}</span><Icon name="chevron" size={13}/></button> : <strong>{definition?.title || panel.kind}</strong>}{editing && <span>{panel.binding.mode === 'pinned' ? 'Pinned' : 'Follows page'}</span>}
+    return <section className={`workspace-panel panel-${panel.kind}${panel.collapsed && !editing ? ' is-collapsed' : ''}${editing ? ' is-editing' : ''}${docking?.id === panel.id ? ' is-docking' : ''}`} aria-label={definition?.title || panel.kind} data-panel-id={panel.id} data-mobile-active={panel.id === mobilePanel?.id || undefined}>
+      <header className="module-header" onPointerDown={editing ? undefined : event => startDrag(event, panel)}>{!editing ? panelHeader(panel, definition) : panel.kind === 'console' ?<button className="module-title" aria-label={panel.collapsed ? 'Show command output' : 'Hide command output'} aria-expanded={!panel.collapsed} onClick={() => changePanel(panel.id, value => ({ ...value, collapsed: !value.collapsed }))}><Icon name="terminal"/><span>{definition?.title}</span><Icon name="chevron" size={13}/></button> : <strong>{definition?.title || panel.kind}</strong>}{editing && <span>{panel.binding.mode === 'pinned' ? 'Pinned' : 'Follows page'}</span>}
         {editing && <div className="panel-config"><button disabled={panel.detached || !!pending} onClick={() => changePanel(panel.id, value => ({ ...value, binding: value.binding.mode === 'pinned' ? { mode: 'follow' } : { mode: 'pinned', target: { ...target } } }))}>{panel.binding.mode === 'pinned' ? 'Follow page' : 'Pin view'}</button><button aria-label={`Move ${panel.kind} earlier`} onClick={() => changePage({ ...page, layout: movePanel(page.layout, panel.id, -1) })}>←</button><button aria-label={`Move ${panel.kind} later`} onClick={() => changePage({ ...page, layout: movePanel(page.layout, panel.id, 1) })}>→</button><button aria-label={`Remove ${panel.kind} panel`} disabled={panels(page.layout).length === 1 || panel.detached || !!pending} onClick={() => { const next = removePanel(page.layout, panel.id); if (next) changePage({ ...page, layout: next }); }}>Remove</button></div>}
       </header>
       {(!panel.collapsed || editing) && <div className="module-body">{panel.detached ? <div className="module-empty detached-message"><Icon name="external" size={24}/><h3>Chat is in its own window</h3><p>Your conversation continues there.</p><button disabled={!host || !!pending} onClick={() => void detach(panel)}>Open chat window ↗</button><button disabled={!host || !!pending} onClick={() => void dock(panel)}>Bring chat back here</button></div> : definition ? <definition.Component workspaceId={workspaceID} chooseRepositoryFolder={host?.chooseRepositoryFolder} target={target} onTarget={panel.kind==='collections' ? target => target.sessionId ? showSession(target) : onTarget(target) : onTarget} collections={collections} error={catalogError} refresh={refreshCatalog} onNewConversation={beginConversation} viewState={store} onOpenViewer={onOpenViewer} onOpenChat={panel.kind === 'chat' && host && target.sessionId ? () => void detach(panel) : undefined}/> : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}</div>}
     </section>;
   };
   const displayedLayout = editing ? page.layout : mainLayout(page.layout);
+  const shownPanels = displayedLayout ? panels(displayedLayout) : [];
+  const slots = new Map<string, string>(), occurrences = new Map<string, number>();
+  for (const panel of shownPanels) { const n = occurrences.get(panel.kind) || 0; occurrences.set(panel.kind, n + 1); slots.set(panel.id, `${panel.kind}:${n}`); }
+  useEffect(() => {
+    const shown = new Set(slots.values());
+    for (const slot of hosts.current.keys()) if (!shown.has(slot)) hosts.current.delete(slot);
+  });
   const mobilePanels = panels(displayedLayout || page.layout).filter(panel => panel.kind !== 'collections');
-  const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) || mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
+  const terminalReady = !!workspaceID && collections.find(value => value.id === workspaceID)?.state === 'ready';
+  // Panels this page could show but does not (or shows collapsed), offered from the page menu.
+  const hiddenModules = Object.entries(registry).filter(([kind]) => !pagePanels.has(kind) && !panels(page.layout).some(panel => panel.kind === kind && !panel.detached && !panel.collapsed));
+  const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) ||mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
   return <main className={`workspace-shell${editing ? ' layout-editing' : ''}`}><LeaderMenu hint={keyboardHint}/>
     <header className="workspace-header">
       <button className="mobile-navigation-button icon-button" aria-label="Open workspace navigator" aria-expanded={navigatorOpen} onClick={() => setNavigatorOpen(true)}><Icon name="sidebar"/></button>
@@ -272,13 +391,15 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       <nav aria-label="Pages">{layout.pages.map(value => <button key={value.id} disabled={!!pending} className={!settings && value.id === page.id ? 'selected' : ''} onClick={() => { setSettings(false); commit({ ...layout, selectedPage: value.id }); }}>{value.name}</button>)}{!fixedWorkspaceId&&<button className={settings ? 'selected' : ''} onClick={() => setSettings(true)}>Settings</button>}</nav>
       <div className="workspace-header-actions">
         <button className="toolbar-action" disabled={!workspaceID} aria-label="Review changes" title="Review changes" onClick={showChanges}><Icon name="branch"/><span>Changes</span></button>
-        <button className="toolbar-action" disabled={!workspaceID || collections.find(value => value.id === workspaceID)?.state !== 'ready'} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={showTerminal}><Icon name="terminal"/><span>Terminal</span></button>
+        <button className="toolbar-action" disabled={!terminalReady} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={showTerminal}><Icon name="terminal"/><span>Terminal</span></button>
         <button className="toolbar-action new-conversation-action" disabled={!info || !!pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={() => beginConversation()}><Icon name="plus"/><span>New conversation</span></button>
         <span className={'runner-indicator' + (connectionError ? ' offline' : '')} title={connectionError || (connecting ? 'Connecting to Runner' : 'Runner connected')}><i/>{connecting ? 'Connecting' : 'Connected'}</span>
         <ActionMenu label="Page actions">
           {workspaceID&&host?.openWorkspace&&!fixedWorkspaceId&&<button onClick={()=>void host.openWorkspace!(workspaceID)}>Open workspace window</button>}
           <button disabled={settings} onClick={() => setEditing(value => !value)}>{editing ? 'Finish customizing' : 'Customize page'}</button>
           <button disabled={settings} onClick={() => { setJSON(JSON.stringify(layout, null, 2)); setConfiguring(value => !value); }}>Layout configuration</button>
+          {!settings && !editing && hiddenModules.length > 0 && <><small className="action-menu-heading">Show panel</small>
+            {hiddenModules.map(([kind, module]) => <button key={kind} className="show-panel" disabled={kind === 'terminal' && !terminalReady} onClick={() => kind === 'terminal' ? showTerminal() : void showModule(kind)}><Icon name={module.icon || 'file'}/><span>{module.title}</span></button>)}</>}
         </ActionMenu>
       </div>
     </header>
@@ -300,10 +421,18 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     </div>
     {editing && <div className="page-config"><PageName key={page.id} name={page.name} onSave={name => changePage({ ...page, name })}/><button disabled={layout.pages.length >= 8} onClick={() => { const next = clonePage(page, () => crypto.randomUUID()); commit({ ...layout, selectedPage: next.id, pages: [...layout.pages, next] }); }}>Duplicate page</button><button disabled={layout.pages.length <= 1 || layout.pages.some(value => value.id === page.id && panels(value.layout).some(panel => panel.detached))} onClick={() => commit({ ...layout, selectedPage: layout.pages.find(value => value.id !== page.id)!.id, pages: layout.pages.filter(value => value.id !== page.id) })}>Remove page</button><label>Add panel<select value={module} onChange={event => setModule(event.target.value)}>{Object.entries(registry).map(([kind,module]) => <option key={kind} value={kind}>{module.title}</option>)}</select></label><button disabled={panels(page.layout).length >= 12} onClick={() => changePage({ ...page, layout: { type: 'split', direction: 'row', ratio: 0.65, children: [page.layout, { type: 'panel', panel: { id: crypto.randomUUID(), kind: module, binding: { mode: 'follow' }, detached: false } }] } })}>Add panel</button><button disabled={hasDetached || !!pending} onClick={() => commit(defaultLayout(page.selection), true)}>Reset pages</button></div>}
     {mobilePanels.length > 1 && <nav className="mobile-panel-switcher" aria-label="Workspace panels">{mobilePanels.map(panel => <button key={panel.id} aria-pressed={panel.id === mobilePanel?.id} onClick={() => { setMobilePanelId(panel.id); if (panel.collapsed) changePanel(panel.id, value => ({ ...value, collapsed: false })); }}>{registry[panel.kind]?.title || panel.kind}</button>)}</nav>}
-    <div className="page-layout" data-page-id={page.id}>{displayedLayout ? renderNode(displayedLayout) : <p className="module-empty">Your conversations are open in separate windows.</p>}</div>
+    <div className="page-layout" data-page-id={page.id}>{displayedLayout ? renderNode(displayedLayout) : <p className="module-empty">Your conversations are open in separate windows.</p>}
+      {docking && <div className="dock-overlay" aria-hidden="true" style={docking.area.width ? docking.area : undefined}>{dockSides.map(side => <div key={side} className={`dock-zone zone-${side}${docking.side === side ? ' active' : ''}`}>{docking.side === side && <span><Icon name={`dock-${side}`}/>Dock {side}</span>}</div>)}</div>}
+    </div>
+    {!settings && shownPanels.map(panel => createPortal(renderPanel(panel), hostFor(slots.get(panel.id)!), slots.get(panel.id)))}
     </>}
     {navigatorOpen && <WorkspaceNavigator target={page.selection} onTarget={target => target.sessionId ? showSession(target) : select(target)} collections={collections} error={catalogError} refresh={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder} onNewConversation={beginConversation} onClose={() => setNavigatorOpen(false)}/>}
   </main>;
+}
+
+/** Where the layout wants a panel: its stable host element is moved in, not re-rendered. */
+function PanelSlot({ host }: { host: HTMLElement }) {
+  return <div className="panel-slot" ref={node => { if (node && host.parentNode !== node) node.replaceChildren(host); }}/>;
 }
 
 function PageName({ name, onSave }: { name: string; onSave(name: string): void }) {

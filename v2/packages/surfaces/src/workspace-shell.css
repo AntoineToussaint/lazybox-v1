@@ -80,6 +80,9 @@
   .workspace-shell .new-session-dialog input,.workspace-shell .new-session-dialog select{font-size:16px}
   .workspace-shell.layout-editing .page-layout{overflow:auto}
   .workspace-shell.layout-editing .mobile-panel-switcher{display:none!important}
+  /* One panel at a time: docking has no meaning here; closing still does. */
+  .workspace-shell .module-header>.panel-menu{display:none}
+  .workspace-shell .module-header>.panel-menu~.panel-close{opacity:1;width:36px;height:36px}
 }
 
 /* A single focus treatment for shell controls; the composer owns its focus ring. */

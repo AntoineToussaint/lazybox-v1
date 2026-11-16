@@ -31,6 +31,19 @@ try {
  await expect.poll(()=>calls('ResizeTerminal').length).toBeGreaterThan(0);
  const [first]=fixture.terminals.values();
  assert.ok(first.cols>20&&first.rows>3&&!(first.cols===80&&first.rows===24),`fitted size ${first.cols}x${first.rows}`);
+ // It opens beside the conversation, full height, rather than as a row under the page.
+ const box=locator=>locator.boundingBox();
+ let chatBox=await box(page.locator('.panel-chat')),termBox=await box(panel);
+ assert.ok(termBox.x>=chatBox.x+chatBox.width-8,`terminal docks right of the chat (${termBox.x} vs ${chatBox.x+chatBox.width})`);
+ assert.ok(Math.abs(termBox.y-chatBox.y)<8&&termBox.height>600,'the docked terminal spans the page height');
+ assert.ok(termBox.width>350,'a side terminal keeps enough columns');
+ await expect(screen.locator('textarea')).toBeFocused();
+ // Asking again focuses the open terminal: no second panel, no second shell.
+ await page.locator('.panel-chat').getByRole('textbox',{name:'Message',exact:true}).focus();
+ await page.getByRole('button',{name:'Open terminal',exact:true}).click();
+ await expect(screen.locator('textarea')).toBeFocused();
+ await expect(page.locator('.panel-terminal')).toHaveCount(1);
+ assert.equal(calls('OpenTerminal').length,1,'showing the open terminal does not start another shell');
 
  await screen.click();await page.keyboard.type('ls -la');await page.keyboard.press('Enter');
  await expect(screen).toContainText('ran: ls -la');
@@ -52,6 +65,109 @@ try {
  await page.reload();
  await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('ran: ls -la');
  assert.equal(calls('OpenTerminal').length,opened,'re-attaching does not start another shell');
+
+ // Rearranging never remounts a neighbour: the chat keeps its element and its event stream.
+ await page.locator('.panel-chat').evaluate(node=>{node.dataset.qaIdentity='kept';});
+ const streams=calls('WatchEvents').length;
+ // × closes the panel; the shell keeps running and the header brings it back, re-attached.
+ await page.getByRole('button',{name:'Close Terminal panel',exact:true}).click();
+ await expect(page.locator('.panel-terminal')).toHaveCount(0);
+ await expect(page.locator('.panel-chat').getByRole('textbox',{name:'Message',exact:true})).toBeFocused();
+ await page.getByRole('button',{name:'Open terminal',exact:true}).click();
+ await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('ran: ls -la');
+ assert.equal(calls('OpenTerminal').length,opened,'reopening the panel re-attaches to the running shell');
+
+ // The panel menu docks the command output on the right, and a reload keeps the arrangement.
+ await page.getByLabel('Command output panel actions',{exact:true}).click();
+ await page.getByRole('button',{name:'Dock right',exact:true}).click();
+ const output=page.locator('.panel-console');
+ await expect(page.getByRole('button',{name:'Hide command output',exact:true})).toBeVisible();
+ const arrangement=async()=>{const [c,t,o]=await Promise.all([box(page.locator('.panel-chat')),box(page.locator('.panel-terminal')),box(output)]);return {c,t,o};};
+ let shown=await arrangement();
+ assert.ok(shown.o.x>=shown.t.x+shown.t.width-8&&shown.t.x>=shown.c.x+shown.c.width-8,'chat | terminal | output');
+ assert.ok(shown.o.height>600,'output docked right spans the page height');
+ await expect(page.getByLabel('Command output panel actions',{exact:true})).toBeFocused();
+ // The menu marks where the panel already is instead of offering a move that changes nothing.
+ await page.keyboard.press('Enter');
+ await expect(page.getByRole('button',{name:'Dock right Current',exact:true})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'Dock left',exact:true})).toBeFocused();
+ await page.keyboard.press('Escape');
+ await expect(page.getByRole('button',{name:'Dock left',exact:true})).toBeHidden();
+ assert.equal(await page.locator('.panel-chat').getAttribute('data-qa-identity'),'kept','closing and docking neighbours keeps the chat mounted');
+ assert.equal(calls('WatchEvents').length,streams,'the chat did not reconnect');
+ await page.screenshot({path:'/tmp/lazybox-docked-panels.png'});
+ await page.reload();
+ await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('ran: ls -la');
+ const restored=await arrangement();
+ assert.ok(Math.abs(restored.o.x-shown.o.x)<4&&Math.abs(restored.t.x-shown.t.x)<4,'reload keeps the docked layout');
+
+ await page.locator('.panel-chat').evaluate(node=>{node.dataset.qaIdentity='kept';});
+ // Keyboard only: the menu docks the terminal left, and the next terminal opens where it was last docked.
+ await page.getByLabel('Terminal panel actions',{exact:true}).focus();
+ await page.keyboard.press('Enter');
+ await expect(page.getByRole('button',{name:'Dock left',exact:true})).toBeFocused();
+ await page.keyboard.press('Enter');
+ shown=await arrangement();
+ assert.ok(shown.t.x+shown.t.width<=shown.c.x+8,'terminal docked left of the chat');
+ await page.getByRole('button',{name:'Close Terminal panel',exact:true}).click();
+ await page.getByRole('button',{name:'Open terminal',exact:true}).click();
+ await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('ran: ls -la');
+ shown=await arrangement();
+ assert.ok(shown.t.x+shown.t.width<=shown.c.x+8,'a reopened terminal returns to the side it was last docked at');
+ // The workspace list keeps the page edge whatever is docked.
+ const list=await box(page.locator('.page-layout .panel-collections'));
+ assert.ok(list.x<shown.t.x,'workspace list stays leftmost');
+
+ // Dragging a header shows the edge zones and docks where it is released; Escape cancels.
+ const drag=async(locator,to,{cancel=false}={})=>{
+  const header=await locator.locator('.module-header').boundingBox(),area=await box(page.locator('.page-layout'));
+  await page.mouse.move(header.x+40,header.y+header.height/2);await page.mouse.down();
+  const point={right:[area.x+area.width-30,area.y+area.height/2],bottom:[area.x+area.width/2,area.y+area.height-30]}[to];
+  await page.mouse.move(point[0],point[1],{steps:8});
+  await expect(page.locator('.dock-zone.active')).toContainText(`Dock ${to}`);
+  if(cancel){await page.keyboard.press("Escape");await expect(page.locator(".dock-overlay")).toHaveCount(0);}else await page.screenshot({path:`/tmp/lazybox-drag-${to}.png`});
+  await page.mouse.up();
+ };
+ await drag(page.locator('.panel-terminal'),'right',{cancel:true});
+ shown=await arrangement();
+ assert.ok(shown.t.x+shown.t.width<=shown.c.x+8,'Escape leaves the terminal where it was');
+ await expect(page.getByRole('button',{name:'Hide terminal',exact:true})).toBeVisible();
+ await drag(page.locator('.panel-terminal'),'bottom');
+ await page.screenshot({path:'/tmp/lazybox-dragged-terminal.png'});
+ shown=await arrangement();
+ assert.ok(shown.t.y>=shown.c.y+shown.c.height-8,'dragging to the bottom edge docks the terminal below the work');
+ await expect(page.getByRole('button',{name:'Hide terminal',exact:true})).toBeVisible();
+ assert.equal(await page.locator('.panel-chat').getAttribute('data-qa-identity'),'kept');
+
+ // Collapsed beside its neighbour, a panel is a narrow tab that reopens it.
+ await page.getByLabel('Command output panel actions',{exact:true}).click();
+ await page.getByRole('button',{name:'Collapse',exact:true}).click();
+ const strip=await box(output);
+ assert.ok(strip.width<60&&strip.height>300,'collapsed side panel is a vertical strip');
+ await page.getByRole('button',{name:'Show command output',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Hide command output',exact:true})).toBeVisible();
+
+ // A closed panel comes back from the page menu, where it was last docked.
+ await page.getByRole('button',{name:'Close Command output panel',exact:true}).click();
+ await expect(output).toHaveCount(0);
+ await page.getByLabel('Page actions',{exact:true}).click();
+ await page.getByRole('button',{name:'Command output',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Hide command output',exact:true})).toBeVisible();
+ shown=await arrangement();
+ assert.ok(shown.o.x>=shown.c.x+shown.c.width-8,'output returns at the side it was last docked');
+
+ // On a phone, one panel at a time: no docking menu, a reachable ×, no page overflow.
+ await page.setViewportSize({width:390,height:844});
+ await page.getByRole('navigation',{name:'Workspace panels'}).getByRole('button',{name:'Terminal',exact:true}).click();
+ await expect(page.locator('.panel-terminal').getByTestId('terminal')).toBeVisible();
+ await expect(page.getByLabel('Terminal panel actions',{exact:true})).toBeHidden();
+ await expect(page.getByRole('button',{name:'Close Terminal panel',exact:true})).toBeVisible();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no horizontal overflow on a phone');
+ await page.screenshot({path:'/tmp/lazybox-terminal-phone.png'});
+ await page.getByRole('button',{name:'Close Terminal panel',exact:true}).click();
+ await expect(page.locator('.panel-terminal')).toHaveCount(0);
+ await expect(page.locator('.panel-chat')).toBeVisible();
+ assert.equal(calls('OpenTerminal').length,opened);
  assert.deepEqual(errors,[]);
- console.log('PASS terminal: header opens a shell, fitted size, ordered input, member directory, close, re-attach after reload.');
+ console.log('PASS terminal: header opens a shell docked right, focuses rather than duplicates, fitted size, ordered input, member directory, close, re-attach after reload, × close and reopen, dock via menu and keyboard, layout survives reload, remembered dock side, drag to dock with Escape cancel, neighbours stay mounted, collapsed side strip, phone close.');
 } finally {await browser?.close();await server.close();await fixture.close();}

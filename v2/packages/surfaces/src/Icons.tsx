@@ -18,6 +18,13 @@ const paths: Record<string, string[]> = {
   file: ['M14 3H6v18h12V7z', 'M14 3v4h4'],
   up: ['M12 19V7', 'm6 11 6-6 6 6', 'M5 4h14'],
   chevronRight: ['m10 8 4 4-4 4'],
+  close: ['M6 6l12 12', 'M18 6 6 18'],
+  output: ['M4 5h16v14H4z', 'M8 10h8', 'M8 14h5'],
+  // A frame with a solid bar on the edge the panel goes to.
+  'dock-left': ['M3 4h18v16H3z', 'M6 7h2v10H6z'],
+  'dock-right': ['M3 4h18v16H3z', 'M16 7h2v10h-2z'],
+  'dock-top': ['M3 4h18v16H3z', 'M6 7h12v2H6z'],
+  'dock-bottom': ['M3 4h18v16H3z', 'M6 15h12v2H6z'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]?.map((path, i) => <path key={i} d={path}/>)}</svg>;
