@@ -286,6 +286,8 @@ func New(cfg Config) (*Bench, error) {
 		_ = b.Detach()
 		return nil, err
 	}
+	// Re-attached shells reach this Runner through their own credential.
+	b.refreshTerminalEndpoints()
 	privateStore, err := githubconnection.NewFileStore(filepath.Join(cfg.State, "connections"))
 	if err == nil {
 		b.GitHubAPI = github.New()

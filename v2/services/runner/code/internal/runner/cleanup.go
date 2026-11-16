@@ -63,11 +63,17 @@ func (b *Bench) DeleteWorkspace(ctx context.Context, id, name string, discard, s
 			}
 		}
 	}
-	// A shell must not keep running in a directory that is about to go.
+	// A shell must not keep running in a directory that is about to go, and
+	// its credential must not outlive the workspace.
 	if b.Terminals != nil {
-		if err = b.Terminals.DiscardCollection(ctx, id); err != nil {
-			return c, err
+		for _, t := range b.Terminals.List(id) {
+			if err = b.CloseTerminal(ctx, t.ID); err != nil {
+				return c, err
+			}
 		}
+	}
+	if err = b.removeWorkspaceOutput(id); err != nil {
+		return c, err
 	}
 	return b.Collections.FinishDeletion(ctx, id, discard, b.Active)
 }

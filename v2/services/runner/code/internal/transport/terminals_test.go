@@ -65,7 +65,9 @@ func TestTerminalRPCsRunAShellInsideTheWorkspaceOnly(t *testing.T) {
 	wait, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var output strings.Builder
-	for after := uint64(0); !strings.Contains(output.String(), "["+member+"|"+collection.Id+"|none|unset]"); {
+	// The shell gets its own terminal credential, never the Runner's state or the owner's.
+	endpoint := s.Bench.TerminalEndpoint(opened.Id)
+	for after := uint64(0); !strings.Contains(output.String(), "["+member+"|"+collection.Id+"|"+endpoint+"|unset]"); {
 		data, offset, _, err := terminal.Next(wait, after)
 		if err != nil {
 			t.Fatalf("%v; output %q", err, output.String())
@@ -80,6 +82,9 @@ func TestTerminalRPCsRunAShellInsideTheWorkspaceOnly(t *testing.T) {
 	}
 	if _, err = s.WriteTerminal(ctx, &pb.WriteTerminalRequest{TerminalId: opened.Id, Data: []byte("x")}); status.Code(err) != codes.NotFound {
 		t.Fatalf("a closed terminal is gone, got %v", err)
+	}
+	if _, err := os.Stat(endpoint); !os.IsNotExist(err) {
+		t.Fatalf("a closed terminal's credential file is kept: %v", err)
 	}
 	if entries, _ := os.ReadDir(filepath.Join(s.Bench.Config.State, "terminals")); len(entries) != 0 {
 		t.Fatalf("a closed terminal leaves no record: %v", entries)

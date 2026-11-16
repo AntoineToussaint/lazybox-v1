@@ -66,6 +66,9 @@ service RunnerService {
   rpc Publish(PublishRequest) returns (CommandStatus);
   rpc FinishPipe(FinishPipeRequest) returns (CommandStatus);
   rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
+  // Takes a terminal run shared with a conversation (`lazybox log --to`) for
+  // one composer: true for the first caller only, so the run is added once.
+  rpc ClaimCommandShare(CommandRequest) returns (ClaimCommandShareResponse);
   rpc ReadCommand(ReadCommandRequest) returns (ReadCommandResponse);
   rpc WaitCommand(CommandRequest) returns (CommandStatus);
   rpc CancelCommand(CommandRequest) returns (CommandStatus);
@@ -467,8 +470,15 @@ message StartCommandRequest {
   repeated string argv = 3;
 }
 message RegisterPipeRequest {
+  // The execution whose console shows the output (an agent's `lazybox run`/`log`).
   string session_id = 1;
   string title = 2;
+  // Instead of session_id: a workspace run, shown in the console of every
+  // conversation in that workspace (`lazybox log` in a workspace terminal).
+  string collection_id = 3;
+  // With collection_id: the conversation (id or title) whose message box receives
+  // the run's compact view when it finishes. The person still decides to send it.
+  string share_with = 4;
 }
 message PublishRequest {
   string command_id = 1;
@@ -494,6 +504,11 @@ message CommandReport {
   string filter = 4;
   // The file holding the full output; empty when it could not be saved.
   string output_path = 5;
+  // The compact view itself (at most 64 KiB), for a workspace run a person can
+  // hand to an agent. Empty for an agent's own run: that agent already has it.
+  string agent_view = 6;
+  // The output came through a pipe (`lazybox log`): exit_code is not the producer's.
+  bool piped = 7;
 }
 message CommandStatus {
   string id = 1;
@@ -507,9 +522,20 @@ message CommandStatus {
   string capture_error = 9;
   repeated string argv = 10;
   CommandReport report = 11;
+  // Set for a workspace run: it belongs to the workspace, not to one conversation.
+  string collection_id = 12;
+  // "terminal" for a run published from a workspace terminal.
+  string origin = 13;
+  // The conversation id a terminal run was shared with (`lazybox log --to`).
+  string share_with = 14;
 }
 message ListCommandsRequest {
+  // The execution's own commands, and the runs of its workspace.
   string session_id = 1;
+}
+message ClaimCommandShareResponse {
+  bool claimed = 1;
+  CommandStatus status = 2;
 }
 message ListCommandsResponse {
   repeated CommandStatus commands = 1;

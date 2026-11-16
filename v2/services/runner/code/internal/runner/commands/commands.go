@@ -20,7 +20,16 @@ import (
 )
 
 type Spec struct {
-	SessionID string   `json:"sessionId"`
+	SessionID string `json:"sessionId"`
+	// CollectionID, with no SessionID, makes a workspace run: published from a
+	// workspace terminal and shown in every conversation of that workspace.
+	CollectionID string `json:"collectionId,omitempty"`
+	// TerminalID is the workspace terminal whose credential registered the
+	// run; only that credential may publish to it or finish it.
+	TerminalID string `json:"terminalId,omitempty"`
+	// ShareWith is the conversation whose message box receives the run's
+	// compact view once it finishes (`lazybox log --to`).
+	ShareWith string   `json:"shareWith,omitempty"`
 	Title     string   `json:"title"`
 	Cwd       string   `json:"cwd"`
 	Argv      []string `json:"argv,omitempty"`
@@ -49,7 +58,17 @@ type Report struct {
 	AgentBytes  uint64 `json:"agentBytes"`
 	Filter      string `json:"filter,omitempty"`
 	OutputPath  string `json:"outputPath,omitempty"`
+	// AgentView is the compact view itself, kept for a workspace run so a
+	// person can hand it to a conversation. Bounded by MaxAgentView.
+	AgentView string `json:"agentView,omitempty"`
+	// Piped: the output came through `lazybox log`, so ExitCode is not the
+	// producer's.
+	Piped bool `json:"piped,omitempty"`
 }
+
+// MaxAgentView bounds the compact view a report may carry: gortk bounds its
+// own view to 32 KiB, so this leaves room for the header and notes.
+const MaxAgentView = 64 << 10
 
 type Output struct {
 	Type    string  `json:"type"`
@@ -224,8 +243,14 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if err := m.admitLocked(); err != nil {
 		return nil, err
 	}
-	if spec.SessionID == "" || len(spec.Title) > 256 {
-		return nil, errors.New("session and bounded title required")
+	if (spec.SessionID == "") == (spec.CollectionID == "") || len(spec.Title) > 256 {
+		return nil, errors.New("a session or a workspace (not both) and a bounded title required")
+	}
+	if spec.SessionID != "" && (spec.TerminalID != "" || spec.ShareWith != "") {
+		return nil, errors.New("only a workspace run comes from a terminal or is shared")
+	}
+	if spec.CollectionID != "" && len(spec.Argv) > 0 {
+		return nil, errors.New("a workspace run is a pipe")
 	}
 	id := ID()
 	spool, err := journal.Open(filepath.Join(m.dir, id+".jsonl"), m.limit)
@@ -278,6 +303,41 @@ func (m *Manager) List(session string) []Status {
 		}
 	}
 	return out
+}
+
+// ListWorkspace returns a workspace's runs: pipes published from its
+// terminals, which belong to no single conversation.
+func (m *Manager) ListWorkspace(collectionID string) []Status {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []Status{}
+	for _, c := range m.items {
+		if s := c.Status(); collectionID != "" && s.Spec.SessionID == "" && s.Spec.CollectionID == collectionID {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// ClaimShare takes a shared run for one message box. Only the first call
+// returns true, across Runner restarts: the claim is a file created once.
+func (m *Manager) ClaimShare(id string) (bool, error) {
+	c, err := m.Get(id)
+	if err != nil {
+		return false, err
+	}
+	state := c.Status()
+	if state.Spec.ShareWith == "" || !state.Done {
+		return false, nil
+	}
+	f, err := os.OpenFile(filepath.Join(m.dir, id+".shared"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, f.Close()
 }
 func (c *Command) Status() Status { c.mu.Lock(); defer c.mu.Unlock(); return *ptr(c.status) }
 
@@ -342,6 +402,9 @@ func (c *Command) FinishPipeWith(cause error, report *Report) error {
 	if report != nil {
 		copied := *report
 		report = &copied
+		if len(report.AgentView) > MaxAgentView {
+			return errors.New("the agent view exceeds 64 KiB")
+		}
 	}
 	c.complete(nil, "", cause, report)
 	return nil

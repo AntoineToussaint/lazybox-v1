@@ -176,6 +176,8 @@ To publish an existing pipe while keeping its output visible to the agent:
 ```sh
 set -o pipefail
 some-command 2>&1 | bin/lazybox log --session EXECUTION --title tests
+# In a workspace terminal, no flag: the run goes to the workspace's console.
+some-command 2>&1 | lazybox log --title "go test ./..." [--to CONVERSATION]
 ```
 
 The pipe publisher echoes stdin and returns a visible failure if publication fails, including startup failure. Capture EOF does not establish the producer's exit status; use shell `pipefail` or managed execution when that status matters. Agents and their managed commands get their execution's own endpoint file and identity so `lazybox run` and `lazybox log` work without guessing a daemon path. That credential publishes only that execution's console; `approve`, `answer`, `send`, `close` and every other verb need the owner's `endpoint.json`.

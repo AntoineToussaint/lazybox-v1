@@ -36,6 +36,9 @@ type Spec struct {
 	Env       []string `json:"-"`
 	Cols      uint16   `json:"cols"`
 	Rows      uint16   `json:"rows"`
+	// Prepare runs once the terminal has its id, before the shell starts, and
+	// returns variables added to Env (the terminal's own Runner credential).
+	Prepare func(id string) ([]string, error) `json:"-"`
 }
 
 // Status is a terminal's state. Output [Offset-Retained, Offset) is readable.
@@ -245,7 +248,7 @@ func (m *Manager) Start(spec Spec, requestKey string) (*Terminal, error) {
 		return nil, fmt.Errorf("terminal host failed to start: %w", err)
 	}
 	r := record{ID: rand.Text(), Host: host.ID(), Spec: spec, CreatedAt: time.Now().UTC()}
-	r.Spec.Env = nil
+	r.Spec.Env, r.Spec.Prepare = nil, nil
 	// Recorded before the shell runs: a Runner that dies at any point leaves a
 	// record its successor adopts or cleans up.
 	if err = m.save(r); err != nil {
@@ -263,7 +266,15 @@ func (m *Manager) Start(spec Spec, requestKey string) (*Terminal, error) {
 	if closed {
 		return fail(errors.New("runner closed before the terminal started"))
 	}
-	err = host.Spawn(ctx, sessionhost.Spec{Path: spec.Shell, Argv0: "-" + filepath.Base(spec.Shell), Env: spec.Env, Cwd: spec.Cwd, Terminal: &sessionhost.Size{Cols: spec.Cols, Rows: spec.Rows}})
+	env := spec.Env
+	if spec.Prepare != nil {
+		extra, err := spec.Prepare(r.ID)
+		if err != nil {
+			return fail(fmt.Errorf("terminal credential: %w", err))
+		}
+		env = append(append([]string(nil), env...), extra...)
+	}
+	err = host.Spawn(ctx, sessionhost.Spec{Path: spec.Shell, Argv0: "-" + filepath.Base(spec.Shell), Env: env, Cwd: spec.Cwd, Terminal: &sessionhost.Size{Cols: spec.Cols, Rows: spec.Rows}})
 	if err != nil {
 		return fail(fmt.Errorf("shell failed to start: %w", err))
 	}

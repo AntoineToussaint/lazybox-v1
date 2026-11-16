@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -24,6 +25,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"github.com/AntoineToussaint/lazybox/v2/pkg/gen/genconnect"
+	"github.com/codefly-dev/gortk"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -63,6 +65,7 @@ func run() error {
 	global := flag.NewFlagSet("lazybox", flag.ContinueOnError)
 	endpointPath := global.String("endpoint", os.Getenv("LAZYBOX_V2_ENDPOINT"), "endpoint.json printed by the V2 runner")
 	global.Usage = func() {
+		fmt.Fprintln(os.Stderr, "In a Lazybox workspace terminal no flag is needed: `cmd 2>&1 | lazybox log [--title CMD] [--to CONVERSATION]` or `lazybox run [--to CONVERSATION] -- cmd`.")
 		fmt.Fprintln(os.Stderr, "Usage: lazybox --endpoint FILE <account-login|assistant|info|repositories|create-collection|collections|collection|archive-collection|reconcile-collection|open|send|interrupt|approve|answer|events|close|continue|exec|read|wait|cancel|output|log|run> [options]")
 		global.PrintDefaults()
 	}
@@ -143,7 +146,8 @@ func run() error {
 	after := flags.Uint64("after", 0, "replay journal cursor")
 	offset := flags.Uint64("offset", 0, "output byte offset")
 	limit := flags.Uint("limit", 65536, "maximum read bytes")
-	title := flags.String("title", "command", "console title")
+	title := flags.String("title", "", "console title; for log, the producer's command line also picks the compact view's filter (default: \"command\", or \"terminal output\" in a workspace terminal)")
+	to := flags.String("to", "", "log from a workspace terminal: also put the compact view in this conversation's message box (id or title)")
 	wait := flags.Bool("wait", false, "wait for process and return its actual exit status")
 	mode := flags.String("mode", "native", "native or checkpoint continuation")
 	reason := flags.String("reason", "", "continuation reason")
@@ -277,6 +281,9 @@ func run() error {
 		}
 		return stream.Err()
 	case "exec":
+		if *title == "" {
+			*title = "command"
+		}
 		r, err := client.StartCommand(ctx, connect.NewRequest(&pb.StartCommandRequest{SessionId: *session, Title: *title, Argv: flags.Args()}))
 		if err != nil {
 			return err
@@ -324,20 +331,64 @@ func run() error {
 		}
 		return stream.Err()
 	case "log":
-		return publish(ctx, client, *session, *title, os.Stdin, os.Stdout, os.Stderr)
+		return publish(ctx, client, pipeTarget{session: *session, collection: *collection, to: *to}, *title, os.Getenv("LAZYBOX_V2_OUTPUT_DIR"), os.Stdin, os.Stdout, os.Stderr)
 	default:
 		return fmt.Errorf("unknown command %s", verb)
 	}
 }
 
-// Publication failure must not swallow the producer's agent-facing output.
-// Drain and echo stdin even after the RPC has failed, then return a failure.
-func publish(ctx context.Context, client genconnect.RunnerServiceClient, session, title string, input io.Reader, stdout, stderr io.Writer) (resultErr error) {
-	r, publicationErr := client.RegisterPipe(ctx, connect.NewRequest(&pb.RegisterPipeRequest{SessionId: session, Title: title}))
+// Publication failure must not swallow the producer's output. Drain and echo
+// stdin even after the RPC has failed, then return a failure.
+//
+// From a workspace terminal (no session) the run belongs to the workspace and
+// a person may hand it to an agent, so it also keeps what `lazybox run` keeps:
+// the full output in a file and a compact, failure-first view of it, sent with
+// the capture's completion. The terminal still receives every byte.
+func publish(ctx context.Context, client console, target pipeTarget, title, outputDir string, input io.Reader, stdout, stderr io.Writer) (resultErr error) {
+	workspace := target.workspace()
+	if title == "" {
+		title = "command"
+		if workspace {
+			title = "terminal output"
+		}
+	}
+	request, publicationErr := target.request(title)
+	if publicationErr != nil && target.to != "" {
+		// The producer is already running: keep its output, refuse the share.
+		_, err := io.Copy(stdout, input)
+		return errors.Join(publicationErr, err)
+	}
 	id := ""
+	var capture *sink
+	started := time.Now()
+	var shareErr error
 	if publicationErr == nil {
-		id = r.Msg.Id
-		fmt.Fprintln(stderr, "console command:", id)
+		var r *connect.Response[pb.CommandStatus]
+		r, publicationErr = client.RegisterPipe(ctx, connect.NewRequest(request))
+		if publicationErr != nil && request.ShareWith != "" {
+			// The producer is already running: a wrong --to must not cost
+			// its output a console. Publish it unshared and say why.
+			shareErr, target.to = publicationErr, ""
+			request = &pb.RegisterPipeRequest{CollectionId: request.CollectionId, Title: request.Title}
+			r, publicationErr = client.RegisterPipe(ctx, connect.NewRequest(request))
+		}
+		if publicationErr == nil {
+			id = r.Msg.Id
+		}
+	}
+	if shareErr != nil {
+		defer fmt.Fprintf(stderr, "[lazybox] not shared: %v\n", shareErr)
+	}
+	if publicationErr == nil {
+		if workspace {
+			capture = &sink{}
+			if f, path, err := outputFile(outputDir, "", title); err == nil {
+				capture.file, capture.path = f, path
+				defer f.Close()
+			}
+		} else {
+			fmt.Fprintln(stderr, "console command:", id)
+		}
 		defer func() {
 			finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
@@ -347,9 +398,16 @@ func publish(ctx context.Context, client genconnect.RunnerServiceClient, session
 			} else if publicationErr != nil {
 				cause = publicationErr.Error()
 			}
-			_, finishErr := client.FinishPipe(finishCtx, connect.NewRequest(&pb.FinishPipeRequest{CommandId: id, CaptureError: cause}))
+			finish := &pb.FinishPipeRequest{CommandId: id, CaptureError: cause}
+			if capture != nil {
+				finish.Report = capture.pipedReport(title, time.Since(started))
+			}
+			_, finishErr := client.FinishPipe(finishCtx, connect.NewRequest(finish))
 			if resultErr == nil {
 				resultErr = finishErr
+			}
+			if capture != nil {
+				fmt.Fprintln(stderr, workspaceNote(title, target.to, finish.Report, id, resultErr))
 			}
 		}()
 	}
@@ -364,6 +422,9 @@ func publish(ctx context.Context, client genconnect.RunnerServiceClient, session
 			}
 			if written != n {
 				return io.ErrShortWrite
+			}
+			if capture != nil {
+				_, _ = capture.stream(&capture.out).Write(buffer[:n])
 			}
 			if publicationErr == nil {
 				_, publicationErr = client.Publish(ctx, connect.NewRequest(&pb.PublishRequest{CommandId: id, Offset: offset, Data: buffer[:n]}))
@@ -383,6 +444,17 @@ func publish(ctx context.Context, client genconnect.RunnerServiceClient, session
 		return fmt.Errorf("console publication failed (stdin was preserved): %w", publicationErr)
 	}
 	return nil
+}
+
+// pipedReport is what an agent would receive for a piped run: gortk picks its
+// filter from the title, so `--title "go test ./..."` gets the go-test view.
+func (s *sink) pipedReport(title string, elapsed time.Duration) *pb.CommandReport {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := compressor.Compress(gortk.CommandFromLine(title, s.out.data, nil, 0))
+	var view bytes.Buffer
+	writeReport(&view, report{piped: true, line: title, elapsed: elapsed, result: result, path: s.path, bytes: s.total, clipped: s.out.clipped})
+	return &pb.CommandReport{Piped: true, OutputBytes: uint64(s.total), AgentBytes: uint64(view.Len()), Filter: result.Filter, OutputPath: s.path, AgentView: boundView(view.String())}
 }
 
 type processExit int32

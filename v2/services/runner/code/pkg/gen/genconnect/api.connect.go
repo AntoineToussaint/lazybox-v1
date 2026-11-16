@@ -210,6 +210,9 @@ const (
 	// RunnerServiceListCommandsProcedure is the fully-qualified name of the RunnerService's
 	// ListCommands RPC.
 	RunnerServiceListCommandsProcedure = "/lazybox.bench.v1.RunnerService/ListCommands"
+	// RunnerServiceClaimCommandShareProcedure is the fully-qualified name of the RunnerService's
+	// ClaimCommandShare RPC.
+	RunnerServiceClaimCommandShareProcedure = "/lazybox.bench.v1.RunnerService/ClaimCommandShare"
 	// RunnerServiceReadCommandProcedure is the fully-qualified name of the RunnerService's ReadCommand
 	// RPC.
 	RunnerServiceReadCommandProcedure = "/lazybox.bench.v1.RunnerService/ReadCommand"
@@ -306,6 +309,9 @@ type RunnerServiceClient interface {
 	Publish(context.Context, *connect.Request[gen.PublishRequest]) (*connect.Response[gen.CommandStatus], error)
 	FinishPipe(context.Context, *connect.Request[gen.FinishPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	ListCommands(context.Context, *connect.Request[gen.ListCommandsRequest]) (*connect.Response[gen.ListCommandsResponse], error)
+	// Takes a terminal run shared with a conversation (`lazybox log --to`) for
+	// one composer: true for the first caller only, so the run is added once.
+	ClaimCommandShare(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error)
 	ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error)
 	WaitCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	CancelCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
@@ -690,6 +696,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListCommands")),
 			connect.WithClientOptions(opts...),
 		),
+		claimCommandShare: connect.NewClient[gen.CommandRequest, gen.ClaimCommandShareResponse](
+			httpClient,
+			baseURL+RunnerServiceClaimCommandShareProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ClaimCommandShare")),
+			connect.WithClientOptions(opts...),
+		),
 		readCommand: connect.NewClient[gen.ReadCommandRequest, gen.ReadCommandResponse](
 			httpClient,
 			baseURL+RunnerServiceReadCommandProcedure,
@@ -815,6 +827,7 @@ type runnerServiceClient struct {
 	publish                      *connect.Client[gen.PublishRequest, gen.CommandStatus]
 	finishPipe                   *connect.Client[gen.FinishPipeRequest, gen.CommandStatus]
 	listCommands                 *connect.Client[gen.ListCommandsRequest, gen.ListCommandsResponse]
+	claimCommandShare            *connect.Client[gen.CommandRequest, gen.ClaimCommandShareResponse]
 	readCommand                  *connect.Client[gen.ReadCommandRequest, gen.ReadCommandResponse]
 	waitCommand                  *connect.Client[gen.CommandRequest, gen.CommandStatus]
 	cancelCommand                *connect.Client[gen.CommandRequest, gen.CommandStatus]
@@ -1127,6 +1140,11 @@ func (c *runnerServiceClient) ListCommands(ctx context.Context, req *connect.Req
 	return c.listCommands.CallUnary(ctx, req)
 }
 
+// ClaimCommandShare calls lazybox.bench.v1.RunnerService.ClaimCommandShare.
+func (c *runnerServiceClient) ClaimCommandShare(ctx context.Context, req *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error) {
+	return c.claimCommandShare.CallUnary(ctx, req)
+}
+
 // ReadCommand calls lazybox.bench.v1.RunnerService.ReadCommand.
 func (c *runnerServiceClient) ReadCommand(ctx context.Context, req *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error) {
 	return c.readCommand.CallUnary(ctx, req)
@@ -1241,6 +1259,9 @@ type RunnerServiceHandler interface {
 	Publish(context.Context, *connect.Request[gen.PublishRequest]) (*connect.Response[gen.CommandStatus], error)
 	FinishPipe(context.Context, *connect.Request[gen.FinishPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	ListCommands(context.Context, *connect.Request[gen.ListCommandsRequest]) (*connect.Response[gen.ListCommandsResponse], error)
+	// Takes a terminal run shared with a conversation (`lazybox log --to`) for
+	// one composer: true for the first caller only, so the run is added once.
+	ClaimCommandShare(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error)
 	ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error)
 	WaitCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	CancelCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
@@ -1621,6 +1642,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListCommands")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceClaimCommandShareHandler := connect.NewUnaryHandler(
+		RunnerServiceClaimCommandShareProcedure,
+		svc.ClaimCommandShare,
+		connect.WithSchema(runnerServiceMethods.ByName("ClaimCommandShare")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceReadCommandHandler := connect.NewUnaryHandler(
 		RunnerServiceReadCommandProcedure,
 		svc.ReadCommand,
@@ -1803,6 +1830,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceFinishPipeHandler.ServeHTTP(w, r)
 		case RunnerServiceListCommandsProcedure:
 			runnerServiceListCommandsHandler.ServeHTTP(w, r)
+		case RunnerServiceClaimCommandShareProcedure:
+			runnerServiceClaimCommandShareHandler.ServeHTTP(w, r)
 		case RunnerServiceReadCommandProcedure:
 			runnerServiceReadCommandHandler.ServeHTTP(w, r)
 		case RunnerServiceWaitCommandProcedure:
@@ -2070,6 +2099,10 @@ func (UnimplementedRunnerServiceHandler) FinishPipe(context.Context, *connect.Re
 
 func (UnimplementedRunnerServiceHandler) ListCommands(context.Context, *connect.Request[gen.ListCommandsRequest]) (*connect.Response[gen.ListCommandsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListCommands is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ClaimCommandShare(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ClaimCommandShare is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error) {

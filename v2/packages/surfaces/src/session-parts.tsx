@@ -4,7 +4,7 @@ import { follow, providerData, type RunnerClient } from '@lazybox/client-core';
 import { Decision, type AgentEvent, type CommandStatus } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { readConsoleState, writeConsoleState } from './view-state';
-import { reportSummary } from './command-runs';
+import { composeRunMessage, formatBytes, isWorkspaceRun, reportSummary } from './command-runs';
 import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
 
 export function RequestCard({ request, api, session, onError }: { request: AgentEvent; api: RunnerClient; session: string; onError: (s: string) => void }) {
@@ -38,7 +38,9 @@ export function RequestCard({ request, api, session, onError }: { request: Agent
   </article>;
 }
 
-export function Console({ api, command, onOpenViewer, viewState, onError }: { api: RunnerClient; command: string; onOpenViewer?: () => void; viewState?: ViewStateStore; onError?: (error: string) => void }) {
+/** onSendToAgent adds text to the viewed conversation's message and returns
+ * "" or why it could not. Offered for runs from a workspace terminal. */
+export function Console({ api, command, onOpenViewer, viewState, onError, onSendToAgent }: { api: RunnerClient; command: string; onOpenViewer?: () => void; viewState?: ViewStateStore; onError?: (error: string) => void; onSendToAgent?: (text: string) => string }) {
   const [text, setText] = useState('');
   const [status, setStatus] = useState('Connecting');
   const [metadata, setMetadata] = useState<CommandStatus>();
@@ -74,11 +76,24 @@ export function Console({ api, command, onOpenViewer, viewState, onError }: { ap
     }
   }, [text, followOutput, status]);
   const report = metadata?.report;
-  return <section className="console"><div className="panel-title"><div><span className="eyebrow">Shared console</span><h2>{metadata?.title || 'Command output'}</h2>
-    {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy full-output path</button>}</p>}</div><span className="pill">{status}</span></div>
+  const fromTerminal = !!metadata && isWorkspaceRun(metadata);
+  const [handed, setHanded] = useState<{ ok: boolean; text: string }>();
+  useEffect(() => setHanded(undefined), [command]);
+  const view = report?.agentView || '';
+  const sendToAgent = () => {
+    if (!metadata || !view || !onSendToAgent) return;
+    const problem = onSendToAgent(composeRunMessage(metadata, view));
+    setHanded(problem ? { ok: false, text: problem } : { ok: true, text: `Added ${formatBytes(report!.agentBytes)} to your message. Review it and send when ready.` });
+  };
+  const shareTitle = !metadata?.done ? 'Available when the output ends.' : !view ? 'This run has no compact view: its output did not end cleanly.' : `Adds the compact view (${formatBytes(report!.agentBytes)}: outcome and failures first, plus the full-output path) to your message. You decide when to send it.`;
+  return <section className="console"><div className="panel-title"><div><span className="eyebrow">{fromTerminal ? 'From your terminal' : 'Shared console'}</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="pill">{status}</span></div>
+    {/* Shown in every console, including the workspace's (which hides the title): what an agent gets, and the hand-over. */}
+    {(report || (fromTerminal && onSendToAgent)) && <div className="command-meta">{fromTerminal && <span className="command-origin">From your terminal</span>}
+      {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report, fromTerminal)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy full-output path</button>}</p>}
+      {fromTerminal && onSendToAgent && <p className="command-share"><button className="primary" disabled={!metadata.done || !view} title={shareTitle} onClick={sendToAgent}>Send to agent</button>{handed ? <small role={handed.ok ? 'status' : 'alert'} className={handed.ok ? '' : 'error-text'}>{handed.text}</small> : <small>{metadata.done ? view ? `The agent gets ${formatBytes(report!.agentBytes)}, not the ${formatBytes(report!.outputBytes)} above.` : '' : 'You can send it to an agent when the output ends.'}</small>}</p>}</div>}
     <div className="console-tools"><label><input type="checkbox" checked={followOutput} onChange={e => { setFollowOutput(e.target.checked); restoreScroll.current = null; saveView(search, e.target.checked); }}/> Follow</label><input aria-label="Search output" placeholder="Find in output…" value={search} onChange={e => { setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/><button onClick={() => navigator.clipboard.writeText(text).catch(error => onError?.(String(error)))}>Copy</button>{onOpenViewer && <button onClick={onOpenViewer}>Open viewer ↗</button>}</div>
     <pre ref={pane} tabIndex={0} className="output" data-testid="console-output" onWheel={() => { restoreScroll.current = null; }} onScroll={() => { if (!followOutput && restoreScroll.current === null) saveView(search, false); }}>{search ? text.split('\n').filter(line => line.toLocaleLowerCase().includes(search.toLocaleLowerCase())).join('\n') : text || 'Waiting for output…'}</pre>
-    <footer><span className="mono">{command.slice(0, 12)} · {offset.toString()} bytes</span><span>{metadata?.captureError || (metadata?.done ? metadata.exitCode === undefined ? report ? `Exit ${report.exitCode}` : 'Capture EOF · upstream exit unknown' : `Exit ${metadata.exitCode}${metadata.signal ? ' · ' + metadata.signal : ''}` : 'Running')}</span></footer>
+    <footer><span className="mono">{command.slice(0, 12)} · {offset.toString()} bytes</span><span>{metadata?.captureError || (metadata?.done ? metadata.exitCode === undefined ? report && !report.piped ? `Exit ${report.exitCode}` : 'Capture EOF · upstream exit unknown' : `Exit ${metadata.exitCode}${metadata.signal ? ' · ' + metadata.signal : ''}` : 'Running')}</span></footer>
     <small className="retention">Showing up to the last 512 KiB. Full retained output is available through command reads until the configured spool budget is exhausted.</small>
   </section>;
 }

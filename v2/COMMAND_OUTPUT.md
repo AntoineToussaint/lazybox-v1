@@ -62,8 +62,23 @@ Commands get no stdin, so nothing waits for input. If the Runner is
 unreachable, the command still runs and the agent still gets its view.
 `--raw` gives the agent the full output for diffs and JSON.
 
-`cmd | lazybox log` is unchanged: a transparent tee for output from a producer
-lazybox did not start. It cannot know the exit status, so `run` is preferred.
+`cmd | lazybox log` is unchanged for agents: a transparent tee for output from
+a producer lazybox did not start. It cannot know the exit status, so `run` is
+preferred.
+
+**From a workspace terminal** (V1's `cargo test 2>&1 | lazybox log`), the
+reader is a person who may hand the result to an agent. With no session, both
+verbs publish a *workspace run*: the terminal shows every byte as usual, the
+run appears in the console of every conversation in the workspace, and the CLI
+also keeps the full-output file and builds the same compact view, sent with
+the capture's completion (`CommandReport.agent_view`, at most 64 KiB; `piped`
+for `log`, whose title picks the gortk filter). **Send to agent** in the
+console, or `--to CONVERSATION` in the terminal, puts that view in the
+conversation's message box; the person sends it. The agent receives the
+compact view, never the full output. The terminal's credential, scope and
+lifetime are in [terminals](TERMINALS.md#what-the-shell-may-do-with-the-runner).
+Workspace runs are not counted in telemetry: they reach an agent only if a
+person sends them.
 
 **The console follows runs.** When a command starts in the session being
 viewed, a collapsed "Command output" panel opens on it, without taking focus

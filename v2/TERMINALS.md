@@ -24,10 +24,62 @@ into a terminal.
 - A reload, another window, or a Runner restart re-attaches to the same shell
   and shows its recent output.
 
-The shell gets the workspace through `LAZYBOX_V2_COLLECTION_ID` but no Runner
-endpoint: anything started in it, such as an agent CLI run by hand, would
-otherwise inherit the owner's authority over the Runner. To use the `lazybox`
-CLI from the shell, pass `--endpoint` explicitly.
+### Send a command's output to the console, and to an agent
+
+```sh
+go test ./... 2>&1 | lazybox log --title "go test ./..."
+lazybox run -- cargo test              # knows the exit status too
+make lint 2>&1 | lazybox log --to "fix the parser"
+```
+
+No flag is needed. You see every line in the terminal as usual; the run also
+appears in the **Command output** console of every conversation in this
+workspace, labelled *From your terminal* (the console opens on it in the
+conversation you are viewing). It ends with one line saying where the run went
+and what an agent would get, for example `"go test ./..." is in the workspace
+console (an agent gets 2.1 KiB of 1.4 MiB, go-test filter)`.
+
+- **Send to agent**, in the console, adds the run's compact view to the message
+  you are writing in the conversation on the page: the outcome first, failures
+  kept, passing and progress lines dropped, and the path of the full-output
+  file. You decide when to send. The agent never receives the full output.
+- **`--to CONVERSATION`** (an id, a title, or a unique part of a title) does
+  the same from the terminal: when the run ends, its compact view is added to
+  that conversation's message box, once, the next time it is open. A name that
+  matches nothing or several conversations is refused with the list to choose
+  from; `lazybox log` still shows the output and publishes the run unshared,
+  `lazybox run` runs nothing.
+- For `lazybox log`, the title picks the compact view's filter: title it with
+  the command (`--title "go test ./..."`) to get the go-test view. A pipe
+  cannot see the producer's exit status; `lazybox run` can.
+- If the Runner is unreachable, the output still reaches your terminal and the
+  command's exit status is kept.
+
+### What the shell may do with the Runner
+
+Each terminal gets its own credential, never the owner's: anything started in
+the shell, such as an agent CLI run by hand, runs with what the shell holds.
+The shell's `LAZYBOX_V2_ENDPOINT` names `<state>/terminal-endpoints/<terminal
+id>.json` (mode 0600: the Runner URL and a token bound to that terminal). The
+token is accepted for three RPCs only (`internal/transport/auth.go`,
+`terminalRPCs`):
+
+- `RegisterPipe` for a run in **this terminal's workspace** (optionally shared
+  with one of its conversations), never in a conversation's own console or in
+  another workspace;
+- `Publish` and `FinishPipe` for runs **this terminal** opened.
+
+It cannot send, approve, answer, read conversations, open terminals or change
+settings; every other RPC, including any added later, answers
+`PermissionDenied` (a test walks the generated service description). Sharing
+with `--to` only adds text to a message box: a person still sends it.
+
+The token is an HMAC of the terminal id under the Runner's credential key, with
+a different label from agent credentials. It needs no storage, so it survives a
+Runner restart: the next Runner rewrites the file with its own URL when it
+re-attaches the shell. It stops working when the terminal is closed (the file
+is removed, and runs it left open are finished), when its shell exits, and
+when the workspace is deleted.
 
 ## How it works
 
@@ -53,12 +105,24 @@ Login shell       session leader, the terminal as its controlling terminal
   service wiring: every inherited `LAZYBOX_V2_*`, every `CODEFLY*` (including
   Codefly's scoped auth secret), the launching terminal's identity
   (`TERM_PROGRAM`, …), `PWD`, `OLDPWD`, `SHLVL` and `CLAUDECODE`. It adds
-  `TERM=xterm-256color`, `COLORTERM=truecolor` and `LAZYBOX_V2_COLLECTION_ID`,
-  never `LAZYBOX_V2_ENDPOINT`. Credentials a managed account profile injects for
-  agents are never added.
+  `TERM=xterm-256color`, `COLORTERM=truecolor`, `LAZYBOX_V2_COLLECTION_ID`, the
+  terminal's own `LAZYBOX_V2_ENDPOINT` (above, never the owner's),
+  `LAZYBOX_V2_OUTPUT_DIR` (`<state>/command-output/workspace-<id>`, deleted with
+  the workspace and bounded with all command output) and the Runner's CLI first
+  on `PATH`. Credentials a managed account profile injects for agents are never
+  added.
+- A login shell rebuilds `PATH` from your profile (macOS `path_helper`,
+  Homebrew, mise, cargo), which can put another `lazybox`, such as V1's, first.
+  For zsh the Runner sets `ZDOTDIR` to a generated `.zshenv`
+  (`<state>/terminal-shell/zsh/`) that restores your own `ZDOTDIR`, sources
+  your `.zshenv`, and puts the Runner's CLI first on `PATH` once, before the
+  first prompt, after all your startup files ran. Other shells start with the
+  CLI first on `PATH`, which a profile may reorder: `command -v lazybox` shows
+  which one runs.
 - `OpenTerminal` takes a request key: a retried request returns the shell it
   already started instead of starting a second one.
-- Deleting a workspace hangs up its terminals before its files are removed.
+- Deleting a workspace hangs up its terminals (revoking their credentials) and
+  deletes their full-output files before its files are removed.
 
 ### Surviving a Runner restart
 
@@ -121,5 +185,8 @@ without this.
 | --- | --- |
 | `cd services/runner/code && go test ./internal/sessionhost -run Terminal` | PTY mode: controlling terminal, size, default signals, input, resize, exit code, hang-up, bounded scrollback handed over once |
 | `cd services/runner/code && go test ./internal/runner/terminals` | A real `/bin/sh`: input, cwd, environment, resize (`stty size`), exit, re-attachment after detach, close, directory confinement |
-| `cd services/runner/code && go test ./internal/transport -run Terminal` | RPCs against a real workspace: refused directories, request-key retry, environment, close |
+| `cd services/runner/code && go test ./internal/transport -run Terminal` | RPCs against a real workspace: refused directories, request-key retry, environment, close; the terminal credential's scope (own workspace only, never another's, never Apply/approve/history), exhaustive allowlist, revocation on close, shell exit and workspace deletion, survival across a Runner restart, `--to` resolution and claim-once |
+| `cd services/runner/code && go test ./internal/transport -run TestAPipeInAWorkspaceTerminal` | End to end: a real zsh login shell whose `.zshrc` puts another `lazybox` first; `printf … \| lazybox log` runs the Runner's CLI and publishes over Connect with the terminal credential |
+| `cd services/runner/code && go test ./cmd/lazybox` | `lazybox log` and `lazybox run` without a session: everything echoed, the compact view kept, `--to`, output preserved on publication failure |
+| `npm run test:terminal-share` | A terminal run in the console; **Send to agent** and `--to` fill the message box with the compact view, never the full output, and nothing is sent until the person sends (Chromium; `TEST_WEBKIT=1` for WebKit) |
 | `npm run test:terminal` | The panel against the fake Runner in WebKit (`TEST_CHROMIUM=1` for Chromium) |

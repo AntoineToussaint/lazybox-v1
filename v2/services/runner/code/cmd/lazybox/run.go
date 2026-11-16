@@ -26,6 +26,11 @@ import (
 // console receives every byte live, the full output is saved to a file, and
 // the agent receives a compact, failure-first view plus that file's path.
 // The command's exit status is returned unchanged.
+//
+// From a workspace terminal (no session, a workspace) the person is the
+// reader: the output streams to the terminal as usual, the run appears in the
+// console of every conversation in the workspace, and the compact view is
+// kept with it so the person can hand it to an agent (`--to` does that now).
 
 // console is the part of the Runner API a run publishes to.
 type console interface {
@@ -43,7 +48,29 @@ const captureLimit = 32 << 20
 
 type runOptions struct {
 	session, title, outputDir string
-	raw                       bool
+	// collection and to make a workspace run (see pipeTarget).
+	collection, to string
+	raw            bool
+}
+
+// pipeTarget is where a run or a log is published: an execution's console
+// (an agent), or its workspace (a person in a workspace terminal), optionally
+// shared with one conversation of that workspace.
+type pipeTarget struct{ session, collection, to string }
+
+// workspace reports a run published from a workspace terminal.
+func (t pipeTarget) workspace() bool { return t.session == "" && t.collection != "" }
+
+func (t pipeTarget) request(title string) (*pb.RegisterPipeRequest, error) {
+	switch {
+	case t.session != "" && t.to != "":
+		return nil, errors.New("--to shares a run from a workspace terminal; an agent's own runs already reach it")
+	case t.session != "":
+		return &pb.RegisterPipeRequest{SessionId: t.session, Title: title}, nil
+	case t.collection != "":
+		return &pb.RegisterPipeRequest{CollectionId: t.collection, Title: title, ShareWith: t.to}, nil
+	}
+	return nil, errors.New("no Lazybox session or workspace (run it from a Lazybox agent or workspace terminal, or pass --session or --collection)")
 }
 
 // runVerb parses `run` flags and connects to the Runner when it can. An
@@ -53,11 +80,13 @@ func runVerb(ctx context.Context, endpointPath string, args []string, stdout, st
 	flags.SetOutput(stderr)
 	o := runOptions{}
 	flags.StringVar(&o.session, "session", os.Getenv("LAZYBOX_V2_SESSION_ID"), "execution id whose console shows the output")
+	flags.StringVar(&o.collection, "collection", os.Getenv("LAZYBOX_V2_COLLECTION_ID"), "workspace whose console shows the output, when there is no session (set in workspace terminals)")
+	flags.StringVar(&o.to, "to", "", "from a workspace terminal: also put the compact view in this conversation's message box (id or title)")
 	flags.StringVar(&o.title, "title", "", "console title (default: the command line)")
 	flags.StringVar(&o.outputDir, "output-dir", os.Getenv("LAZYBOX_V2_OUTPUT_DIR"), "directory for full-output files (default: the session's, set by the Runner; else system temp)")
 	flags.BoolVar(&o.raw, "raw", false, "give the agent the full output instead of the compact view")
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: lazybox run [--title T] [--raw] -- COMMAND [ARGS...]")
+		fmt.Fprintln(stderr, "Usage: lazybox run [--title T] [--raw] [--to CONVERSATION] -- COMMAND [ARGS...]")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -82,7 +111,16 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 	if title == "" {
 		title = shorten(line, 120)
 	}
+	target := pipeTarget{o.session, o.collection, o.to}
+	request, targetErr := target.request(title)
+	if o.to != "" && targetErr != nil {
+		return targetErr // refused before running anything
+	}
 	s := &sink{}
+	if target.workspace() {
+		// A person is watching: everything reaches the terminal as it arrives.
+		s.out.echo, s.err.echo = stdout, stderr
+	}
 	if f, path, err := outputFile(o.outputDir, o.session, argv[0]); err == nil {
 		s.file, s.path = f, path
 		defer f.Close()
@@ -91,10 +129,13 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 	}
 	if c == nil {
 		s.publishErr = unavailable
-	} else if o.session == "" {
-		s.publishErr = errors.New("no Lazybox session (run it from a Lazybox agent, or pass --session)")
-	} else if r, err := c.RegisterPipe(ctx, connect.NewRequest(&pb.RegisterPipeRequest{SessionId: o.session, Title: title})); err != nil {
+	} else if targetErr != nil {
+		s.publishErr = targetErr
+	} else if r, err := c.RegisterPipe(ctx, connect.NewRequest(request)); err != nil {
 		s.publishErr = err
+		if o.to != "" {
+			return fmt.Errorf("not shared, nothing was run: %w", err) // a wrong --to is fixed before the run, not after
+		}
 	} else {
 		s.ctx, s.console, s.id = ctx, c, r.Msg.Id
 	}
@@ -128,8 +169,24 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 	// run with what the agent received.
 	var view bytes.Buffer
 	published := s.publishErr
-	writeReport(&view, report{line: line, code: code, elapsed: elapsed, result: result, path: s.path, bytes: s.total, clipped: s.out.clipped || s.err.clipped, console: s.id, publishErr: published})
-	s.finish(&pb.CommandReport{ExitCode: int32(code), OutputBytes: uint64(s.total), AgentBytes: uint64(view.Len()), Filter: result.Filter, OutputPath: s.path})
+	r := report{line: line, code: code, elapsed: elapsed, result: result, path: s.path, bytes: s.total, clipped: s.out.clipped || s.err.clipped, console: s.id}
+	if !target.workspace() {
+		r.publishErr = published // a person sees it on stderr instead
+	}
+	writeReport(&view, r)
+	summary := &pb.CommandReport{ExitCode: int32(code), OutputBytes: uint64(s.total), AgentBytes: uint64(view.Len()), Filter: result.Filter, OutputPath: s.path}
+	if target.workspace() {
+		summary.AgentView = boundView(view.String())
+	}
+	s.finish(summary)
+	if target.workspace() {
+		// The person already saw every line; say where the run went.
+		fmt.Fprintln(stderr, workspaceNote(title, o.to, summary, s.id, s.publishErr))
+		if code != 0 {
+			return processExit(code)
+		}
+		return nil
+	}
 	if published == nil && s.publishErr != nil {
 		fmt.Fprintf(&view, "[lazybox] not shown in the Lazybox console: %v\n", s.publishErr)
 	}
@@ -140,7 +197,45 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 	return nil
 }
 
+// boundView keeps a compact view within what a report may carry (64 KiB).
+// gortk already bounds its part to 32 KiB, so this only guards the notes.
+func boundView(view string) string {
+	const limit = 64 << 10
+	if len(view) <= limit {
+		return view
+	}
+	return view[:limit-64] + "\n[lazybox] the compact view was cut at 64 KiB\n"
+}
+
+// workspaceNote is the one line a person sees after a run or log from a
+// workspace terminal: where the run went and what an agent would receive.
+func workspaceNote(title, to string, r *pb.CommandReport, console string, publishErr error) string {
+	if publishErr != nil || console == "" {
+		if publishErr == nil {
+			publishErr = errors.New("no console")
+		}
+		return fmt.Sprintf("[lazybox] not shown in the Lazybox console: %v", publishErr)
+	}
+	where := "is in the workspace console"
+	if to != "" {
+		where = fmt.Sprintf("is in the workspace console, and its compact view is in the message box of %q for you to send", to)
+	}
+	return fmt.Sprintf("[lazybox] %q %s (an agent gets %s of %s, %s)", shorten(title, 60), where, size(int64(r.AgentBytes)), size(int64(r.OutputBytes)), filterName(r.Filter))
+}
+
+func filterName(filter string) string {
+	switch filter {
+	case "", "passthrough":
+		return "no filter"
+	case "raw":
+		return "raw output"
+	}
+	return filter + " filter"
+}
+
 type report struct {
+	// piped: the output came through `lazybox log`, so there is no exit status.
+	piped      bool
 	line       string
 	code       int
 	elapsed    time.Duration
@@ -156,7 +251,11 @@ type report struct {
 // still sees whether the command failed, then the compact output, then how
 // to get the rest. Agents rarely fetch more, so failures must survive here.
 func writeReport(w io.Writer, r report) {
-	fmt.Fprintf(w, "[lazybox] %s → exit %d (%s)\n", shorten(r.line, 200), r.code, r.elapsed.Round(100*time.Millisecond))
+	if r.piped {
+		fmt.Fprintf(w, "[lazybox] %s → piped from a terminal, exit status unknown (%s)\n", shorten(r.line, 200), r.elapsed.Round(100*time.Millisecond))
+	} else {
+		fmt.Fprintf(w, "[lazybox] %s → exit %d (%s)\n", shorten(r.line, 200), r.code, r.elapsed.Round(100*time.Millisecond))
+	}
 	text := r.result.Text
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
@@ -174,7 +273,7 @@ func writeReport(w io.Writer, r report) {
 		}
 		fmt.Fprintf(w, "[lazybox] %s\n", note)
 	}
-	if r.path != "" && (lossy || r.code != 0) {
+	if r.path != "" && (lossy || r.code != 0 || r.piped) {
 		fmt.Fprintf(w, "[lazybox] full output (%s): %s\n", size(r.bytes), r.path)
 	}
 	if r.publishErr != nil {
@@ -201,6 +300,8 @@ type sink struct {
 type buffer struct {
 	data    []byte
 	clipped bool
+	// echo, for a person's run, shows the stream in the terminal as it arrives.
+	echo io.Writer
 }
 
 type streamWriter struct {
@@ -215,6 +316,9 @@ func (w streamWriter) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.total += int64(len(p))
+	if w.b.echo != nil {
+		_, _ = w.b.echo.Write(p)
+	}
 	if room := captureLimit - len(w.b.data); room >= len(p) {
 		w.b.data = append(w.b.data, p...)
 	} else {

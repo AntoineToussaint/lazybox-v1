@@ -21,6 +21,12 @@ export async function startRunnerFixture() {
   // startRun stands in for `lazybox run` in a session: a finished pipe with the
   // report of what its agent received.
   const startRun = (sessionId, title, report) => { const command = { id: `run-${commands.length}`, sessionId, title, mode: 'pipe', done: true, offset: '24', report }; commands.push(command); return command; };
+  // startTerminalRun stands in for `cmd | lazybox log` in a workspace terminal:
+  // a workspace run, optionally shared with a conversation (`--to`).
+  const claimedShares = new Set();
+  const startTerminalRun = (collectionId, title, report, { shareWith = '', done = true, output = 'fixture retained output\n' } = {}) => { const command = { id: `terminal-run-${commands.length}`, sessionId: '', collectionId, origin: 'terminal', shareWith, title, mode: 'pipe', done, offset: String(Buffer.byteLength(output)), report, output }; commands.push(command); return command; };
+  const wireCommand = ({ output, ...command }) => command;
+  const listedCommand = command => { const value = wireCommand(command); return value.report ? { ...value, report: { ...value.report, agentView: undefined } } : value; };
   const requests = new Map();
   const library = [{ id: 'backend', path: '/fixture/backend' }, { id: 'frontend', path: '/fixture/frontend' }];
   const github = { state: 'setup_required', clientId: '', appSlug: '', login: '', userId: '0', pendingSignIn: undefined };
@@ -126,7 +132,8 @@ export async function startRunnerFixture() {
         previous.successorExecutionId=session.id;mutations.push({method,body});return json({session});
       }
       case 'GetSession': { const session = sessions.find(value => value.id === body.sessionId); return session ? json({ session }) : error('not_found', 'Fixture session not found'); }
-      case 'ListCommands': return json({ commands: commands.filter(value => value.sessionId === body.sessionId) });
+      case 'ListCommands': { const workspace = sessions.find(value => value.id === body.sessionId)?.collectionId; return json({ commands: commands.filter(value => value.sessionId === body.sessionId || (!value.sessionId && value.collectionId && value.collectionId === workspace)).map(listedCommand) }); }
+      case 'ClaimCommandShare': { const command = commands.find(value => value.id === body.commandId); if (!command) return error('not_found', 'Command missing'); const claimed = !!command.shareWith && command.done && !claimedShares.has(command.id); if (claimed) claimedShares.add(command.id); return json({ claimed, status: wireCommand(command) }); }
       case 'PreviewWorkspaceDeletion': return json({activeSessionIds:sessions.filter(s=>s.collectionId===body.collectionId&&!s.closed).map(s=>s.id),dirtyRepositories:['api'],filesOutsideRepositories:false});
       case 'DeleteWorkspace': {const index=collections.findIndex(c=>c.id===body.collectionId);if(index<0||body.confirmName!==collections[index].name)return error('failed_precondition','Confirm name');if(!body.stopSessions||!body.discardChanges)return error('failed_precondition','Explicit cleanup consent required');mutations.push({method,body});const collection=collections.splice(index,1)[0];for(const s of sessions.filter(s=>s.collectionId===collection.id)){s.closed=true;s.status='stopped';}return json({collection:{...collection,state:'deleted'}});}
       case 'WatchEvents': {
@@ -136,7 +143,7 @@ export async function startRunnerFixture() {
       }
       case 'WatchOutput': {
         const command = commands.find(value => value.id === body.commandId);
-        const events = [{ cursor: '1', offset: '0', channel: 'stdout', data: Buffer.from('fixture retained output\n').toString('base64'), status: command }];
+        const events = [{ cursor: '1', offset: '0', channel: 'stdout', data: Buffer.from(command?.output || 'fixture retained output\n').toString('base64'), status: command && wireCommand(command) }];
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
       }
       case 'OpenTerminal': {
@@ -201,5 +208,5 @@ export async function startRunnerFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'lazybox-workspace-ui-'));
   const endpoint = join(directory, 'endpoint.json');
   await writeFile(endpoint, JSON.stringify({ url, token }), { mode: 0o600 });
-  return { terminals, commands, startRun, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
+  return { terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
 }

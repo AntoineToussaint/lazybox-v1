@@ -74,15 +74,19 @@ func (s *Service) ResizeTerminal(ctx context.Context, r *pb.ResizeTerminalReques
 	return wireTerminal(t.Status()), nil
 }
 
-// CloseTerminal hangs the shell up, waits for it to exit, and forgets it.
+// CloseTerminal hangs the shell up, waits for it to exit, forgets it and
+// revokes its credential.
 func (s *Service) CloseTerminal(ctx context.Context, r *pb.TerminalRequest) (*pb.TerminalStatus, error) {
 	wait, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	status, err := s.Bench.Terminals.Discard(wait, r.TerminalId)
+	t, err := s.Bench.Terminals.Get(r.TerminalId)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return wireTerminal(status), nil
+	if err = s.Bench.CloseTerminal(wait, r.TerminalId); err != nil {
+		return nil, rpcError(err)
+	}
+	return wireTerminal(t.Status()), nil
 }
 
 // WatchTerminal streams output after a byte offset until the shell exits. The

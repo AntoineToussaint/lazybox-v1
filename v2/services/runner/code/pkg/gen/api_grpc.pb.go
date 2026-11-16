@@ -80,6 +80,7 @@ const (
 	RunnerService_Publish_FullMethodName                      = "/lazybox.bench.v1.RunnerService/Publish"
 	RunnerService_FinishPipe_FullMethodName                   = "/lazybox.bench.v1.RunnerService/FinishPipe"
 	RunnerService_ListCommands_FullMethodName                 = "/lazybox.bench.v1.RunnerService/ListCommands"
+	RunnerService_ClaimCommandShare_FullMethodName            = "/lazybox.bench.v1.RunnerService/ClaimCommandShare"
 	RunnerService_ReadCommand_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ReadCommand"
 	RunnerService_WaitCommand_FullMethodName                  = "/lazybox.bench.v1.RunnerService/WaitCommand"
 	RunnerService_CancelCommand_FullMethodName                = "/lazybox.bench.v1.RunnerService/CancelCommand"
@@ -158,6 +159,9 @@ type RunnerServiceClient interface {
 	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	FinishPipe(ctx context.Context, in *FinishPipeRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	ListCommands(ctx context.Context, in *ListCommandsRequest, opts ...grpc.CallOption) (*ListCommandsResponse, error)
+	// Takes a terminal run shared with a conversation (`lazybox log --to`) for
+	// one composer: true for the first caller only, so the run is added once.
+	ClaimCommandShare(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*ClaimCommandShareResponse, error)
 	ReadCommand(ctx context.Context, in *ReadCommandRequest, opts ...grpc.CallOption) (*ReadCommandResponse, error)
 	WaitCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	CancelCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
@@ -797,6 +801,16 @@ func (c *runnerServiceClient) ListCommands(ctx context.Context, in *ListCommands
 	return out, nil
 }
 
+func (c *runnerServiceClient) ClaimCommandShare(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*ClaimCommandShareResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClaimCommandShareResponse)
+	err := c.cc.Invoke(ctx, RunnerService_ClaimCommandShare_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ReadCommand(ctx context.Context, in *ReadCommandRequest, opts ...grpc.CallOption) (*ReadCommandResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReadCommandResponse)
@@ -981,6 +995,9 @@ type RunnerServiceServer interface {
 	Publish(context.Context, *PublishRequest) (*CommandStatus, error)
 	FinishPipe(context.Context, *FinishPipeRequest) (*CommandStatus, error)
 	ListCommands(context.Context, *ListCommandsRequest) (*ListCommandsResponse, error)
+	// Takes a terminal run shared with a conversation (`lazybox log --to`) for
+	// one composer: true for the first caller only, so the run is added once.
+	ClaimCommandShare(context.Context, *CommandRequest) (*ClaimCommandShareResponse, error)
 	ReadCommand(context.Context, *ReadCommandRequest) (*ReadCommandResponse, error)
 	WaitCommand(context.Context, *CommandRequest) (*CommandStatus, error)
 	CancelCommand(context.Context, *CommandRequest) (*CommandStatus, error)
@@ -1181,6 +1198,9 @@ func (UnimplementedRunnerServiceServer) FinishPipe(context.Context, *FinishPipeR
 }
 func (UnimplementedRunnerServiceServer) ListCommands(context.Context, *ListCommandsRequest) (*ListCommandsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCommands not implemented")
+}
+func (UnimplementedRunnerServiceServer) ClaimCommandShare(context.Context, *CommandRequest) (*ClaimCommandShareResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClaimCommandShare not implemented")
 }
 func (UnimplementedRunnerServiceServer) ReadCommand(context.Context, *ReadCommandRequest) (*ReadCommandResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReadCommand not implemented")
@@ -2299,6 +2319,24 @@ func _RunnerService_ListCommands_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ClaimCommandShare_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ClaimCommandShare(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ClaimCommandShare_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ClaimCommandShare(ctx, req.(*CommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ReadCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReadCommandRequest)
 	if err := dec(in); err != nil {
@@ -2703,6 +2741,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListCommands",
 			Handler:    _RunnerService_ListCommands_Handler,
+		},
+		{
+			MethodName: "ClaimCommandShare",
+			Handler:    _RunnerService_ClaimCommandShare_Handler,
 		},
 		{
 			MethodName: "ReadCommand",

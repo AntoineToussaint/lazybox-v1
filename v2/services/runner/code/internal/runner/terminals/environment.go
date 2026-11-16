@@ -59,8 +59,9 @@ func Shell(preferred string) (string, error) {
 }
 
 // Environment is the shell's environment: the user's own, without the Runner's
-// configuration and service wiring, plus exactly the documented variables an
-// agent gets for the lazybox CLI (LAZYBOX_V2_ENDPOINT, LAZYBOX_V2_COLLECTION_ID).
+// configuration and service wiring, plus the terminal's identity and
+// LAZYBOX_V2_COLLECTION_ID. The Runner adds the terminal's own credential
+// (Spec.Prepare) and its CLI on PATH.
 //
 // Dropped: every inherited LAZYBOX_V2_* variable (Runner configuration such as
 // its state directory), CODEFLY* (service wiring, including Codefly's scoped
@@ -68,8 +69,9 @@ func Shell(preferred string) (string, error) {
 // PWD/OLDPWD/SHLVL, and CLAUDECODE (so an agent CLI started here is not
 // mistaken for a nested one). Account credentials a managed profile would
 // inject for an agent are never added.
-// No Runner endpoint is given: anything the person starts in the shell, such as
-// an agent CLI, would inherit the owner's authority over the Runner.
+// The owner's endpoint is never given: anything the person starts in the
+// shell, such as an agent CLI, would inherit the owner's authority. An
+// inherited LAZYBOX_V2_ENDPOINT is dropped with every other LAZYBOX_V2_*.
 func Environment(inherited []string, collectionID string) []string {
 	drop := map[string]bool{"TERM": true, "COLORTERM": true, "TERM_PROGRAM": true, "TERM_PROGRAM_VERSION": true, "TERM_SESSION_ID": true, "PWD": true, "OLDPWD": true, "SHLVL": true, "CLAUDECODE": true}
 	env := make([]string, 0, len(inherited)+4)

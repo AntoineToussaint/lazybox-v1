@@ -65,6 +65,12 @@ the conversation revokes it (the deletion record is checked on every call) and
 removes the file. A closed execution's credential can still finish a pipe it
 already opened, but cannot open a new one.
 
+A workspace terminal gets a credential of its own, built the same way under a
+different label and bound to the terminal: it may only open runs in its
+terminal's workspace and publish to and finish the runs it opened
+(`terminalRPCs`; see [terminals](TERMINALS.md#what-the-shell-may-do-with-the-runner)).
+Closing the terminal, its shell exiting, or deleting the workspace revokes it.
+
 This separates authority at the RPC boundary only. An agent runs as the same
 OS user and can read the owner's file directly; that needs process isolation,
 which the Runner does not claim. An agent started before this change keeps the

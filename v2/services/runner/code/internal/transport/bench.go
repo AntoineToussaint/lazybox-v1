@@ -91,13 +91,26 @@ func wireSession(e *runner.Execution) *pb.Session {
 	return w
 }
 func wireStatus(s commands.Status) *pb.CommandStatus {
-	w := &pb.CommandStatus{Id: s.ID, SessionId: s.Spec.SessionID, Title: s.Spec.Title, Argv: s.Spec.Argv, Mode: s.Mode, Offset: s.Offset, Done: s.Done, Signal: s.Signal, CaptureError: s.Error}
+	w := &pb.CommandStatus{Id: s.ID, SessionId: s.Spec.SessionID, CollectionId: s.Spec.CollectionID, ShareWith: s.Spec.ShareWith, Title: s.Spec.Title, Argv: s.Spec.Argv, Mode: s.Mode, Offset: s.Offset, Done: s.Done, Signal: s.Signal, CaptureError: s.Error}
+	if s.Spec.TerminalID != "" {
+		w.Origin = "terminal"
+	}
 	if s.ExitCode != nil {
 		code := int32(*s.ExitCode)
 		w.ExitCode = &code
 	}
 	if r := s.Report; r != nil {
-		w.Report = &pb.CommandReport{ExitCode: int32(r.ExitCode), OutputBytes: r.OutputBytes, AgentBytes: r.AgentBytes, Filter: r.Filter, OutputPath: r.OutputPath}
+		w.Report = &pb.CommandReport{ExitCode: int32(r.ExitCode), OutputBytes: r.OutputBytes, AgentBytes: r.AgentBytes, Filter: r.Filter, OutputPath: r.OutputPath, AgentView: r.AgentView, Piped: r.Piped}
+	}
+	return w
+}
+
+// listedStatus is a command in a listing, which the console polls: the
+// compact view is left out (a console reads it from the run's own status).
+func listedStatus(s commands.Status) *pb.CommandStatus {
+	w := wireStatus(s)
+	if w.Report != nil {
+		w.Report.AgentView = ""
 	}
 	return w
 }
@@ -428,6 +441,16 @@ func (s *Service) StartCommand(ctx context.Context, r *pb.StartCommandRequest) (
 	return wireStatus(c.Status()), nil
 }
 func (s *Service) RegisterPipe(ctx context.Context, r *pb.RegisterPipeRequest) (*pb.CommandStatus, error) {
+	if r.CollectionId != "" || r.ShareWith != "" {
+		if r.SessionId != "" || r.CollectionId == "" {
+			return nil, rpcError(errors.New("a pipe belongs to a session or to a workspace, not both; only a workspace run is shared"))
+		}
+		c, err := s.Bench.RegisterWorkspacePipe(ctx, r.CollectionId, callerTerminal(ctx), r.Title, r.ShareWith)
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return wireStatus(c.Status()), nil
+	}
 	e, err := s.Bench.Get(r.SessionId)
 	if err != nil {
 		return nil, rpcError(err)
@@ -459,7 +482,7 @@ func (s *Service) FinishPipe(ctx context.Context, r *pb.FinishPipeRequest) (*pb.
 	}
 	var report *commands.Report
 	if r := r.Report; r != nil {
-		report = &commands.Report{ExitCode: int(r.ExitCode), OutputBytes: r.OutputBytes, AgentBytes: r.AgentBytes, Filter: r.Filter, OutputPath: r.OutputPath}
+		report = &commands.Report{ExitCode: int(r.ExitCode), OutputBytes: r.OutputBytes, AgentBytes: r.AgentBytes, Filter: r.Filter, OutputPath: r.OutputPath, AgentView: r.AgentView, Piped: r.Piped}
 	}
 	if err = s.Bench.FinishPipe(c, cause, report); err != nil {
 		return nil, rpcError(err)
@@ -469,9 +492,30 @@ func (s *Service) FinishPipe(ctx context.Context, r *pb.FinishPipeRequest) (*pb.
 func (s *Service) ListCommands(ctx context.Context, r *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
 	w := &pb.ListCommandsResponse{}
 	for _, c := range s.Bench.Commands.List(r.SessionId) {
-		w.Commands = append(w.Commands, wireStatus(c))
+		w.Commands = append(w.Commands, listedStatus(c))
+	}
+	// A conversation's console also shows its workspace's runs.
+	if r.SessionId != "" {
+		if e, err := s.Bench.Get(r.SessionId); err == nil && e.CollectionID != "" {
+			for _, c := range s.Bench.Commands.ListWorkspace(e.CollectionID) {
+				w.Commands = append(w.Commands, listedStatus(c))
+			}
+		}
 	}
 	return w, nil
+}
+
+// ClaimCommandShare hands a shared run to the first message box that asks.
+func (s *Service) ClaimCommandShare(ctx context.Context, r *pb.CommandRequest) (*pb.ClaimCommandShareResponse, error) {
+	c, err := s.Bench.Commands.Get(r.CommandId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	claimed, err := s.Bench.ClaimCommandShare(r.CommandId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.ClaimCommandShareResponse{Claimed: claimed, Status: wireStatus(c.Status())}, nil
 }
 func (s *Service) ReadCommand(ctx context.Context, r *pb.ReadCommandRequest) (*pb.ReadCommandResponse, error) {
 	c, err := s.Bench.Commands.Get(r.CommandId)

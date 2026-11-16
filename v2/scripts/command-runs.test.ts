@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { CommandReportSchema } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RunTracker, formatBytes, reportSummary } from '../packages/surfaces/src/command-runs.ts';
+import { RunTracker, appendToDraft, composeRunMessage, formatBytes, isWorkspaceRun, reportSummary } from '../packages/surfaces/src/command-runs.ts';
 
 test('a run is labelled with what its agent received, in the sizes the agent was shown', () => {
   assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 1, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' })), 'exit 1 · agent saw 2.1 KiB of 1.4 MiB (go-test filter)');
@@ -18,4 +18,22 @@ test('each command opens the console once, and commands that already existed nev
   assert.deepEqual(tracker.next(['old-build', 'run-1', 'old-server']), ['run-1']);
   assert.deepEqual(tracker.next(['old-build', 'run-1', 'old-server']), [], 'a run the user closed the console on stays closed');
   assert.deepEqual(tracker.next(['run-2', 'run-1', 'run-3']), ['run-2', 'run-3']);
+});
+
+test('a run from a workspace terminal says what an agent would get, and when the exit status is unknown', () => {
+  assert.equal(reportSummary(create(CommandReportSchema, { piped: true, agentBytes: 2150n, outputBytes: 1468006n, filter: 'go-test' }), true), 'piped, exit unknown · agent view 2.1 KiB of 1.4 MiB (go-test filter)');
+  assert.equal(reportSummary(create(CommandReportSchema, { exitCode: 2, agentBytes: 300n, outputBytes: 9000n, filter: 'passthrough' }), true), 'exit 2 · agent view 300 B of 8.8 KiB (no filter)');
+  assert.ok(isWorkspaceRun({ sessionId: '', collectionId: 'alpha' }));
+  assert.ok(!isWorkspaceRun({ sessionId: 'alpha-session', collectionId: '' }));
+});
+
+test('Send to agent adds the compact view as fenced output after the draft', () => {
+  const view = '[lazybox] go test ./... → exit 1 (2.0s)\n--- FAIL: TestParse\n';
+  assert.equal(composeRunMessage({ title: 'go test ./...' }, view), 'Output of `go test ./...` from my terminal:\n```text\n[lazybox] go test ./... → exit 1 (2.0s)\n--- FAIL: TestParse\n```\n');
+  // Output that itself contains a fence cannot close the block early.
+  assert.ok(composeRunMessage({ title: 'cat README.md' }, 'a\n```\nb\n').startsWith('Output of `cat README.md` from my terminal:\n````text\n'));
+  assert.equal(composeRunMessage({ title: 'echo `x`' }, 'x').split('\n')[0], "Output of `echo 'x'` from my terminal:");
+  assert.equal(appendToDraft('', 'run'), 'run');
+  assert.equal(appendToDraft('  \n', 'run'), 'run');
+  assert.equal(appendToDraft('Please fix:\n', 'run'), 'Please fix:\n\nrun');
 });

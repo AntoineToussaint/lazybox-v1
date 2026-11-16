@@ -50,7 +50,7 @@ func TestPublicationFailureNeverSwallowsAgentOutput(t *testing.T) {
 				c.publishError = errors.New("publication failed")
 			}
 			var output, stderr bytes.Buffer
-			err := publish(context.Background(), c, "execution", "console", strings.NewReader(text), &output, &stderr)
+			err := publish(context.Background(), c, pipeTarget{session: "execution"}, "console", "", strings.NewReader(text), &output, &stderr)
 			if output.String() != text {
 				t.Fatal("agent output was swallowed")
 			}
@@ -69,7 +69,7 @@ type shortWriter struct{}
 func (shortWriter) Write(p []byte) (int, error) { return 0, nil }
 func TestFailedAgentWriteStillClosesCapture(t *testing.T) {
 	c := &pipeClient{}
-	err := publish(context.Background(), c, "execution", "console", strings.NewReader("output"), shortWriter{}, io.Discard)
+	err := publish(context.Background(), c, pipeTarget{session: "execution"}, "console", "", strings.NewReader("output"), shortWriter{}, io.Discard)
 	if !errors.Is(err, io.ErrShortWrite) || c.finished == nil || c.finished.CaptureError == "" {
 		t.Fatalf("%v %+v", err, c.finished)
 	}

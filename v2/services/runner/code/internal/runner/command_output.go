@@ -63,7 +63,9 @@ func (b *Bench) FinishPipe(c *commands.Command, cause error, report *commands.Re
 		return nil
 	}
 	state := c.Status()
-	if b.Telemetry != nil {
+	// A workspace run's view reaches an agent only if a person sends it, so it
+	// is not counted with what agents received.
+	if b.Telemetry != nil && state.Spec.SessionID != "" {
 		run := telemetry.CommandRun{ID: state.ID, Scope: telemetry.Scope{Execution: state.Spec.SessionID}, Filter: report.Filter, ExitCode: report.ExitCode, OutputBytes: report.OutputBytes, AgentBytes: report.AgentBytes}
 		if e, err := b.Get(state.Spec.SessionID); err == nil {
 			run.Scope.Workspace, run.Scope.Conversation = e.CollectionID, e.Saved.ConversationID

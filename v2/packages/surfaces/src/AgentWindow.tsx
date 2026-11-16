@@ -24,6 +24,7 @@ import { Icon } from './Icons';
 export type { RunnerConnection } from './RunnerContext';
 import './style.css';
 import { sessionStatus, statusLabel, accountLabel } from './agent-status';
+import { appendToDraft, composeRunMessage, useComposerOffers, useSharedRuns } from './command-runs';
 
 const PERMISSION_CHOICES: [string, string][] = [['ask', 'Ask for approval'], ['read-only', 'Read only'], ['yolo', 'YOLO']];
 
@@ -135,6 +136,24 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     try { writeDraft(viewState, sessionID, { text, files: [...selected.map(file => ({ name: file.name, size: file.size, lastModified: file.lastModified })), ...missing], operationId }); }
     catch (e) { setError(`Could not save this window's draft: ${String(e)}`); }
   };
+  // A run handed over from a terminal joins the draft, after anything already
+  // typed, and the cursor goes to its end: the person adds a line and sends.
+  const [handedOver, setHandedOver] = useState('');
+  useEffect(() => { if (!message.trim()) setHandedOver(''); }, [message]);
+  useEffect(() => setHandedOver(''), [sessionID]);
+  const addToDraft = (text: string, notice: string) => {
+    const next = appendToDraft(message, text);
+    setMessage(next); setUncertainSend(''); sendAttempt.current = null; persistDraft(next, files, missingFiles); setHandedOver(notice);
+    requestAnimationFrame(() => { const box = composer.current; if (box) { box.focus(); box.setSelectionRange(next.length, next.length); box.scrollTop = box.scrollHeight; } });
+  };
+  useComposerOffers(canCompose && !sending && !assistant ? sessionID : '', text => addToDraft(text, 'Added the compact view of a terminal run. Review it, add what you want, and send.'));
+  useSharedRuns(api, assistant ? '' : sessionID, session?.conversationId || session?.id || '', (claimedFor, command, view) => {
+    const text = composeRunMessage(command, view);
+    if (claimedFor === sessionID && !sending) { addToDraft(text, `“${command.title}” was shared from your terminal. Review it, add what you want, and send.`); return; }
+    // The view moved on after the claim: keep the run in that conversation's draft.
+    try { const draft = readDraft(viewState, claimedFor); writeDraft(viewState, claimedFor, { ...draft, text: appendToDraft(draft.text, text) }); }
+    catch (e) { setError(`Could not keep the shared run in its draft: ${String(e)}`); }
+  });
 
   useEffect(() => {
     const control = new AbortController(); lifetime.current = control;
@@ -346,11 +365,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         {files.length > 0 && <ul className="attached-files" aria-label="Attached files">{files.map((file, i) => <li key={i}><span>{file.name} <small>{Math.ceil(file.size / 1024)} KiB</small></span><button type="button" aria-label={`Remove ${file.name}`} disabled={sending} onClick={() => { const next = files.filter((_, index) => index !== i); setFiles(next); setUncertainSend(''); persistDraft(message, next, missingFiles); }}>×</button></li>)}</ul>}
         {missingFiles.length > 0 && <div className="restore-files"><p>Reattach or remove these files before sending:</p>{missingFiles.map((file, i) => <button key={i} type="button" onClick={() => { const next = missingFiles.filter((_, index) => index !== i); setMissingFiles(next); setUncertainSend(''); persistDraft(message, files, next); }}>Remove {file.name}</button>)}</div>}
         {uncertainSend && !sending && <small className="composer-hint">The previous send was not confirmed. Retrying the unchanged message checks the same operation.</small>}
+        {handedOver && <p className="composer-handover" role="status">{handedOver}<button type="button" aria-label="Dismiss" onClick={() => setHandedOver('')}>×</button></p>}
         <textarea ref={composer} data-agent-composer aria-label="Message" placeholder={`Message ${agentName}…`} value={message} onChange={e => { setMessage(e.target.value); setUncertainSend(''); sendAttempt.current = null; persistDraft(e.target.value, files, missingFiles); }} disabled={!canCompose || sending}
           />        {restartTo && <div className="restart-permission" role="alert"><span>Restart the agent in {PERMISSION_CHOICES.find(([mode]) => mode === restartTo)?.[1] || restartTo}? The conversation continues; this agent started before permissions could change live.</span><button className="primary" disabled={!!session?.busy} title={session?.busy ? 'Wait for the current turn to finish' : undefined} onClick={() => void restartWithPermission(restartTo)}>Restart</button><button onClick={() => setRestartTo('')}>Cancel</button></div>}
         <div className="row">{session?.instructionsPending && !session.closed && <span className="composer-chip" role="status" title="The shared Lazybox instructions changed since this conversation started. The update is sent with your next message.">Instructions updated</span>}<button type="button" className="icon-button" aria-label="Snippets" title={`Snippets · ${keymap['snippets.open']}`} disabled={!canCompose||sending} onClick={()=>setSnippetsOpen(true)}><Icon name="snippets"/></button><button type="button" className="attachment" aria-label={embedded ? 'Attach files' : undefined} disabled={!canAttach} onClick={() => fileInput.current?.click()}>{embedded ? <><Icon name="attach"/> Attach</> : '+ Attach files'}</button><input ref={fileInput} hidden aria-label="Attach files" type="file" multiple onChange={e => { selectFiles(e.target.files); e.target.value = ''; }}/><small className="composer-hint keyboard-hint">{keymap['chat.send']} to send · Shift+Enter for a new line</small>{(!embedded || session?.busy) && <button type="button" onClick={() => void interrupt()} disabled={!session?.busy || session.closed}>Interrupt</button>}<button className="primary send-button" aria-label={sending ? 'Sending…' : session?.busy ? 'Queue follow-up' : 'Send message'} disabled={!canSend}>{embedded ? <Icon name="send" size={18}/> : sending ? 'Sending…' : session?.busy ? 'Queue follow-up' : 'Send message'}</button></div>
       </form>
-      {showCommands && !assistant && <details className="session-commands" open={commandsOpen} onToggle={event => setCommandsOpen(event.currentTarget.open)}><summary>Commands & output {commands.length > 0 && `(${commands.length})`}</summary><form onSubmit={startCommand} className="command-form"><input aria-label="Shell command" value={shell} onChange={e => setShell(e.target.value)} disabled={!session || session.closed}/><button disabled={!session || session.closed}>Run</button></form><div className="command-tabs">{commands.map(c => <button key={c.id} className={currentCommand === c.id ? 'selected' : ''} onClick={() => setCommand(c.id)}>{c.done ? '◦' : '●'} {c.title.slice(0, 28)}</button>)}</div>{currentCommand && <><Console key={currentCommand} api={api} command={currentCommand} viewState={viewState} onError={setError} onOpenViewer={onOpenViewer ? async () => { try { await onOpenViewer(sessionID, currentCommand); } catch (e) { setError(String(e)); } } : undefined}/><button className="cancel" onClick={async () => { try { await api.cancelCommand({ commandId: currentCommand }); } catch (e) { setError(String(e)); } }}>Cancel owned command</button></>}</details>}
+      {showCommands && !assistant && <details className="session-commands" open={commandsOpen} onToggle={event => setCommandsOpen(event.currentTarget.open)}><summary>Commands & output {commands.length > 0 && `(${commands.length})`}</summary><form onSubmit={startCommand} className="command-form"><input aria-label="Shell command" value={shell} onChange={e => setShell(e.target.value)} disabled={!session || session.closed}/><button disabled={!session || session.closed}>Run</button></form><div className="command-tabs">{commands.map(c => <button key={c.id} className={currentCommand === c.id ? 'selected' : ''} onClick={() => setCommand(c.id)}>{c.done ? '◦' : '●'} {c.title.slice(0, 28)}</button>)}</div>{currentCommand && <><Console key={currentCommand} api={api} command={currentCommand} viewState={viewState} onError={setError} onSendToAgent={canCompose && !sending ? text => { addToDraft(text, 'Added the compact view of a terminal run. Review it, add what you want, and send.'); return ''; } : undefined} onOpenViewer={onOpenViewer ? async () => { try { await onOpenViewer(sessionID, currentCommand); } catch (e) { setError(String(e)); } } : undefined}/><button className="cancel" onClick={async () => { try { await api.cancelCommand({ commandId: currentCommand }); } catch (e) { setError(String(e)); } }}>Cancel owned command</button></>}</details>}
       {!embedded && <details className="event-detail"><summary>Operation receipts & events ({events.length})</summary><pre>{events.slice(-40).map(e => `${e.cursor} ${e.event?.type} ${e.event?.status || e.receipt?.delivery || ''} ${e.receipt?.providerId || e.event?.turnId || ''}`).join('\n')}</pre></details>}
     </section>}
   </main>;
