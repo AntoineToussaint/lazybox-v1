@@ -73,7 +73,27 @@ uses the same Engine, provider adapters, streaming journal, cancellation,
 follow-ups, usage and account supervision. A Runner-owned neutral directory
 provides the native process cwd. Product Help context comes from
 `internal/runner/assistant/context.md`; caller-supplied context is bounded to
-128 KiB. The optional **Ask Lazybox** workspace module uses this RPC.
+128 KiB. The **Ask Lazybox** panel (Help → Ask Lazybox…, ⌘K, `]] h`) uses this
+RPC; it picks its profile itself from `GetProviderAvailability`.
+
+`GetProviderAvailability` (owner only; on no agent, terminal, hook or device
+allowlist) reports, for each provider in a fixed order, its program — found or
+not, path, version from `--version`, source (`configured`, the Claude SDK's
+`bundled` build, or the Runner's `path`) and, in plain words, why it cannot
+run (a missing Claude worker or Node, a program that does not start, a Claude
+Code installed after the Runner started) — plus an install command when it is
+missing, and every saved subscription with its state: `available`,
+`unverified` (no limit observed and a credential that cannot be checked, such
+as a keyring), `limited` with its reset, `sign_in` or `billing`, best first.
+The sign-in check (`accounts.CheckSignIn`) resolves a profile as an execution
+would and reads only file presence and account metadata, never a token.
+Programs are probed once and again on `refresh`; subscription states are read
+on every call. The provider summary is `ready`, `limited`, `sign_in`,
+`billing`, `no_subscription`, `not_installed` or `unusable`. Ask Lazybox uses
+the person's last-chosen provider's best usable subscription, else the
+other provider's, and lists what each needs when none is usable; the welcome
+shows the same report. When the SDK's bundled Claude Code is missing, the
+Runner runs one found on its PATH at startup.
 
 Assistant execution is narrower than a coding session: managed commands and
 generic file references are disabled. Native images remain supported. Claude
@@ -99,6 +119,16 @@ mode with an `ask` rule, and its worker runs an update only for an input the
 user allowed; Codex dynamic-tool calls always surface as Runner approvals.
 Snippets are not changeable: the Runner's snippet catalog is a read-only
 adapter. Coding agents, planning and summary assistants never get these tools.
+
+It also reads the user documentation (v2/docs, the pages Help → Documentation
+shows) through two read-only Runner tools that never ask: Claude's
+`search_docs` and `read_doc` on the same `lazybox_settings` server, Codex's
+`lazybox_search_docs` and `lazybox_read_doc` (`internal/runner/docstool`).
+They serve Markdown pages inside the configured docs folder only (never
+`docs/internal`, nothing a link leads out to), and the help briefing lists
+every page by path and title. The folder is `docsDirectory`, else
+`LAZYBOX_V2_DOCS_DIR`: an installed release ships `runtime/docs`; Dev and
+Working pass their source's `docs/`. Without one, the briefing says so.
 
 `GetRunnerSettings`, `SaveRunnerSettings`, and `SetModelPrice` expose mutable
 Runner preferences under its resolved state root (`runner-settings.json`). Atomic

@@ -109,6 +109,11 @@ func configureRunnerAt(ctx context.Context, config *adapters.Configuration, addr
 	if worker := os.Getenv("LAZYBOX_V2_BROWSER_WORKER"); worker != "" {
 		cfg.BrowserWorker = worker
 	}
+	// The documentation the help assistant reads: the installed release's, or
+	// the Dev and Working source's docs folder (scripts/runner-command.mjs).
+	if docs := os.Getenv("LAZYBOX_V2_DOCS_DIR"); docs != "" && cfg.DocsDirectory == "" {
+		cfg.DocsDirectory = docs
+	}
 	if dir := os.Getenv("LAZYBOX_V2_CLI_DIR"); dir != "" {
 		// Only brief agents about a CLI they can actually run (older releases have none).
 		if info, err := os.Stat(filepath.Join(dir, "lazybox")); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {

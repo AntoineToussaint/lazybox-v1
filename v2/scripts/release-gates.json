@@ -72,6 +72,7 @@
     { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },
     { "id": "peek", "scope": "ui", "script": "test:peek" },
     { "id": "onboarding", "scope": "ui", "script": "test:onboarding" },
+    { "id": "help", "scope": "ui", "script": "test:help" },
     { "id": "split-diff", "scope": "ui", "script": "test:split-diff" },
     { "id": "web-viewer", "scope": "ui", "script": "test:web-viewer" },
     { "id": "power-actions", "scope": "ui", "script": "test:power-actions" },

@@ -11,6 +11,7 @@ import (
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/docstool"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/rotation"
@@ -66,6 +67,7 @@ func (b *Bench) sessionOpen(e *Execution, contextText, resume string) agent.Open
 
 // executionTools is the Runner tool boundary of one execution. A coding agent
 // gets managed commands, run with env. The help assistant gets only the
+// documentation tools (read-only) and the
 // settings tools: it may read Lazybox's settings and propose a change, which its
 // provider puts to the user before the Runner applies it. Other assistants get
 // no tools at all.
@@ -75,6 +77,9 @@ func (b *Bench) executionTools(e *Execution, env []string) func(context.Context,
 		return func(ctx context.Context, name string, args json.RawMessage) (string, error) {
 			if err := ctx.Err(); err != nil {
 				return "", err
+			}
+			if agent.DocsTool(name) {
+				return docstool.Handle(b.Config.DocsDirectory, name, args)
 			}
 			if !agent.SettingsTool(name) {
 				return "", agent.ErrUnsupported

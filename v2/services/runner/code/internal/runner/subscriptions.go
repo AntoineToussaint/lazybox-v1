@@ -287,7 +287,7 @@ func (b *Bench) RefreshSubscription(ctx context.Context, id string) (accounts.Pr
 		var env []string
 		env, err = accounts.Resolve(profile, os.Environ())
 		if err == nil {
-			observation, err = claude.ReadUsage(ctx, b.Config.Node, b.Config.Worker, b.Config.ClaudeBinary, env, profile.Home)
+			observation, err = claude.ReadUsage(ctx, b.Config.Node, b.Config.Worker, claudeProgram(b.Config), env, profile.Home)
 		}
 	} else {
 		var client NativeAccount

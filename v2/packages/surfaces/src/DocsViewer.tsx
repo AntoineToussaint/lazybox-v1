@@ -12,14 +12,14 @@ import './docs.css';
  * and the search box finds a page by its words. A link that leaves the docs
  * (a web page) opens in the browser as any link does.
  */
-export function DocsViewer({ initial = 'README.md', onClose }: { initial?: string; onClose(): void }) {
+export function DocsViewer({ initial = 'README.md', onClose }: { /** The page to open, with an optional #anchor ("troubleshooting.md#…"). */ initial?: string; onClose(): void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const [pages, setPages] = useState<DocPage[]>();
   const [images, setImages] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState('');
-  const [target, setTarget] = useState<DocTarget>({ path: initial, anchor: '' });
+  const [target, setTarget] = useState<DocTarget>(() => { const [path, anchor = ''] = initial.split('#'); return { path: path || 'README.md', anchor }; });
   const [history, setHistory] = useState<DocTarget[]>([]);
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');

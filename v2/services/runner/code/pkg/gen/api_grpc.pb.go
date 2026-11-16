@@ -30,6 +30,7 @@ const (
 	RunnerService_ListThemes_FullMethodName                   = "/lazybox.bench.v1.RunnerService/ListThemes"
 	RunnerService_CreateTheme_FullMethodName                  = "/lazybox.bench.v1.RunnerService/CreateTheme"
 	RunnerService_Info_FullMethodName                         = "/lazybox.bench.v1.RunnerService/Info"
+	RunnerService_GetProviderAvailability_FullMethodName      = "/lazybox.bench.v1.RunnerService/GetProviderAvailability"
 	RunnerService_GetTelemetry_FullMethodName                 = "/lazybox.bench.v1.RunnerService/GetTelemetry"
 	RunnerService_RenameCollection_FullMethodName             = "/lazybox.bench.v1.RunnerService/RenameCollection"
 	RunnerService_AddSubscription_FullMethodName              = "/lazybox.bench.v1.RunnerService/AddSubscription"
@@ -192,6 +193,12 @@ type RunnerServiceClient interface {
 	// existing one.
 	CreateTheme(ctx context.Context, in *CreateThemeRequest, opts ...grpc.CallOption) (*CreateThemeResponse, error)
 	Info(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*InfoResponse, error)
+	// Owner only. Which agent providers this Runner can run and on which saved
+	// subscriptions: each provider's program (found, where, which version) and
+	// each subscription's state. Ask Lazybox picks its agent from it; the
+	// welcome shows it. Programs are probed once and again on refresh;
+	// subscription states are read on every call.
+	GetProviderAvailability(ctx context.Context, in *ProviderAvailabilityRequest, opts ...grpc.CallOption) (*ProviderAvailability, error)
 	GetTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (*TelemetryReport, error)
 	RenameCollection(ctx context.Context, in *RenameCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	AddSubscription(ctx context.Context, in *AddSubscriptionRequest, opts ...grpc.CallOption) (*SubscriptionEnrollment, error)
@@ -580,6 +587,16 @@ func (c *runnerServiceClient) Info(ctx context.Context, in *InfoRequest, opts ..
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(InfoResponse)
 	err := c.cc.Invoke(ctx, RunnerService_Info_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetProviderAvailability(ctx context.Context, in *ProviderAvailabilityRequest, opts ...grpc.CallOption) (*ProviderAvailability, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProviderAvailability)
+	err := c.cc.Invoke(ctx, RunnerService_GetProviderAvailability_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2060,6 +2077,12 @@ type RunnerServiceServer interface {
 	// existing one.
 	CreateTheme(context.Context, *CreateThemeRequest) (*CreateThemeResponse, error)
 	Info(context.Context, *InfoRequest) (*InfoResponse, error)
+	// Owner only. Which agent providers this Runner can run and on which saved
+	// subscriptions: each provider's program (found, where, which version) and
+	// each subscription's state. Ask Lazybox picks its agent from it; the
+	// welcome shows it. Programs are probed once and again on refresh;
+	// subscription states are read on every call.
+	GetProviderAvailability(context.Context, *ProviderAvailabilityRequest) (*ProviderAvailability, error)
 	GetTelemetry(context.Context, *TelemetryRequest) (*TelemetryReport, error)
 	RenameCollection(context.Context, *RenameCollectionRequest) (*CollectionResponse, error)
 	AddSubscription(context.Context, *AddSubscriptionRequest) (*SubscriptionEnrollment, error)
@@ -2374,6 +2397,9 @@ func (UnimplementedRunnerServiceServer) CreateTheme(context.Context, *CreateThem
 }
 func (UnimplementedRunnerServiceServer) Info(context.Context, *InfoRequest) (*InfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Info not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetProviderAvailability(context.Context, *ProviderAvailabilityRequest) (*ProviderAvailability, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProviderAvailability not implemented")
 }
 func (UnimplementedRunnerServiceServer) GetTelemetry(context.Context, *TelemetryRequest) (*TelemetryReport, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTelemetry not implemented")
@@ -2988,6 +3014,24 @@ func _RunnerService_Info_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).Info(ctx, req.(*InfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetProviderAvailability_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProviderAvailabilityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetProviderAvailability(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetProviderAvailability_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetProviderAvailability(ctx, req.(*ProviderAvailabilityRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -5537,6 +5581,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Info",
 			Handler:    _RunnerService_Info_Handler,
+		},
+		{
+			MethodName: "GetProviderAvailability",
+			Handler:    _RunnerService_GetProviderAvailability_Handler,
 		},
 		{
 			MethodName: "GetTelemetry",

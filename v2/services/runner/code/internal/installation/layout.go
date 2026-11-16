@@ -43,6 +43,9 @@ func (l Layout) Worker() string     { return filepath.Join(l.Root, "worker", "di
 func (l Layout) WorkerRoot() string { return filepath.Join(l.Root, "worker") }
 func (l Layout) Web() string        { return filepath.Join(l.Root, "web") }
 
+// Docs is the documentation (v2/docs, Markdown only) the help assistant reads.
+func (l Layout) Docs() string { return filepath.Join(l.Root, "docs") }
+
 // ClaudeBinary is the Claude Code executable the pinned SDK ships for this
 // platform, the one the worker runs when no other is configured.
 func (l Layout) ClaudeBinary() string {

@@ -19,16 +19,28 @@ func SettingsTool(name string) bool {
 	return name == SettingsReadTool || name == SettingsUpdateTool
 }
 
+// DocsSearchTool and DocsReadTool are the help assistant's read-only view of
+// the Lazybox documentation (Help → Documentation). Neither asks the user.
+const (
+	DocsSearchTool = "lazybox_search_docs"
+	DocsReadTool   = "lazybox_read_doc"
+)
+
+// DocsTool reports whether name is one of the help assistant's documentation tools.
+func DocsTool(name string) bool {
+	return name == DocsSearchTool || name == DocsReadTool
+}
+
 // ToolReplaySafe reports whether a tool call may simply run again when it is
 // redelivered after a Runner restart. Managed commands outlive the Runner, so
 // reading one or waiting for it has no effect a second run could repeat.
 // Listing workspace actions has none either. Starting or cancelling a command
 // or starting an action does: those get an explicit unknown outcome.
-// Reading settings has no effect; an approved settings update names the
+// Reading settings or the documentation has no effect; an approved settings update names the
 // revision it was proposed against, so a second run applies nothing once the
 // first did — it is refused as a conflict.
 func ToolReplaySafe(name string, args json.RawMessage) bool {
-	if SettingsTool(name) {
+	if SettingsTool(name) || DocsTool(name) {
 		return true
 	}
 	if BrowserTool(name) {

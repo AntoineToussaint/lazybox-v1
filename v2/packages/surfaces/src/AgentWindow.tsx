@@ -324,7 +324,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   };
   const realTitle = conversationTitle(session);
   const firstPrompt = conversation.find(m => m.type === 'operation_accepted')?.text || '';
-  const branch = branchSummary(workspace);
+  // An assistant conversation is about Lazybox, not the workspace's branches: its header names none.
+  const branch = assistant ? undefined : branchSummary(workspace);
   const modelLabel = sessionModelLabel(session, transcript.reportedModel);
   const accountName = sessionAccountLabel(session, activeProfile);
   const profileList = info?.profiles;

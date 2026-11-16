@@ -1,5 +1,6 @@
 import { useKeyboardAction } from "./keyboard";
 import { useConversationIndex } from "./useConversationIndex";
+import { isWorkConversation } from "./attention";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 import { repositoryLabel } from "./repository-model";
 import { WorkspaceRepositories } from "./WorkspaceRepositories";
@@ -88,7 +89,7 @@ export function CollectionPanel({
     (value) => value.id === target.collectionId,
   );
   const choose = (collection: Collection) => {
-    const rows = index.sessions.filter((s) => s.collectionId === collection.id);
+    const rows = index.sessions.filter((s) => s.collectionId === collection.id && isWorkConversation(s));
     const sessionId =
       index.complete && rows.length === 1
         ? rows[0].id
@@ -173,7 +174,7 @@ export function CollectionPanel({
       <nav className="collection-list" aria-label="Workspaces">
         {collections.map((collection) => {
           const rows = index.sessions.filter(
-            (s) => s.collectionId === collection.id,
+            (s) => s.collectionId === collection.id && isWorkConversation(s),
           );
           const single =
             index.complete && rows.length === 1 ? rows[0] : undefined;
@@ -229,7 +230,7 @@ export function CollectionPanel({
         </p>
       )}
       <ConversationList
-        sessions={index.sessions}
+        sessions={index.sessions.filter(isWorkConversation)}
         compact
         hideWhenEmpty
         heading="Without a workspace"

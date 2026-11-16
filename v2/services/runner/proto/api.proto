@@ -19,6 +19,12 @@ service RunnerService {
   // existing one.
   rpc CreateTheme(CreateThemeRequest) returns (CreateThemeResponse);
   rpc Info(InfoRequest) returns (InfoResponse);
+  // Owner only. Which agent providers this Runner can run and on which saved
+  // subscriptions: each provider's program (found, where, which version) and
+  // each subscription's state. Ask Lazybox picks its agent from it; the
+  // welcome shows it. Programs are probed once and again on refresh;
+  // subscription states are read on every call.
+  rpc GetProviderAvailability(ProviderAvailabilityRequest) returns (ProviderAvailability);
   rpc GetTelemetry(TelemetryRequest) returns (TelemetryReport);
   rpc RenameCollection(RenameCollectionRequest) returns (CollectionResponse);
   rpc AddSubscription(AddSubscriptionRequest) returns (SubscriptionEnrollment);
@@ -422,6 +428,53 @@ message InfoResponse {
   bool restart_available = 9;
   // Random per Runner process: a new value means a new process is serving.
   string instance_id = 10;
+}
+message ProviderAvailabilityRequest {
+  // Probe the provider programs again (path and version) instead of answering
+  // from the last probe.
+  bool refresh = 1;
+}
+message ProviderAvailability {
+  // Every provider the Runner knows, installed or not, in a fixed order.
+  repeated ProviderStatus providers = 1;
+  // When the programs were last probed.
+  int64 checked_at_unix_millis = 2;
+}
+message ProviderStatus {
+  // "claude" or "codex".
+  string provider = 1;
+  // The program as people know it: "Claude Code", "Codex".
+  string title = 2;
+  // ready (a subscription can take work), limited (every subscription is at a
+  // limit), sign_in (none is signed in), billing, no_subscription,
+  // not_installed, or unusable (installed but cannot run: see error).
+  string state = 3;
+  bool installed = 4;
+  // The program the Runner runs, and its reported version ("2.1.311").
+  string path = 5;
+  string version = 6;
+  // Where the program comes from: configured, bundled (with the SDK), path.
+  string source = 7;
+  // Why the provider cannot run, in plain words; empty when it can.
+  string error = 8;
+  // A command that installs the provider, when it is missing.
+  string install_command = 9;
+  // This provider's saved subscriptions, the best to use first.
+  repeated SubscriptionAvailability subscriptions = 10;
+}
+message SubscriptionAvailability {
+  string profile_id = 1;
+  // The label Settings shows; empty for a CLI sign-in the Runner inherited.
+  string label = 2;
+  // available, unverified (no limit observed and no credential found to
+  // check), limited, sign_in or billing.
+  string state = 3;
+  // When a limited subscription resets (Unix seconds); 0 when unknown.
+  int64 reset_at = 4;
+  // One plain line: "Signed in", "Not signed in", the reason it is unusable.
+  string detail = 5;
+  bool managed = 6;
+  string isolation = 7;
 }
 message RestartRunnerRequest {}
 message RestartRunnerResponse {

@@ -175,9 +175,12 @@ try {
   await page.getByRole('textbox', { name: 'Page configuration', exact: true }).fill(JSON.stringify(exported));
   await page.getByRole('button', { name: 'Import layout', exact: true }).click();
   const assistant = page.locator('[data-panel-id="alpha-work-chat"]');
-  await expect(assistant.getByRole('combobox', { name: 'Assistant purpose' })).toHaveValue('help');
+  // Ask Lazybox opens on Help (test-help.mjs); its menu leads to a planning conversation.
+  await expect(assistant.getByRole('textbox', { name: 'Ask Lazybox', exact: true })).toBeVisible();
   await expect(assistant.getByLabel('Working directory', { exact: true })).toHaveCount(0);
-  await assistant.getByRole('combobox', { name: 'Assistant purpose' }).selectOption('planning');
+  await assistant.locator('summary[aria-label="Choose the agent for Ask Lazybox"]').click();
+  await page.getByRole('button', { name: 'Discuss a plan instead', exact: true }).click();
+  await expect(assistant.getByRole('combobox', { name: 'Assistant purpose' })).toHaveValue('planning');
   assert.equal(fixture.mutations.length, 0, 'adding an assistant module started inference');
   await assistant.getByRole('button', { name: 'Start Claude ↗', exact: true }).click();
   await expect(assistant.getByRole('textbox', { name: 'Message', exact: true })).toBeEnabled();

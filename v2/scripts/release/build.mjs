@@ -294,6 +294,10 @@ async function main() {
   const packages = await bundleWorker(runtime);
   await run('npm', ['run', 'build:web']);
   await cp(join(root, 'apps/web/dist'), join(runtime, 'web'), { recursive: true });
+  // The documentation Ask Lazybox reads (the app bundles its own copy for
+  // Help → Documentation): Markdown only, never docs/internal.
+  const docs = join(root, 'docs');
+  await cp(docs, join(runtime, 'docs'), { recursive: true, filter: source => { const rel = relative(docs, source); return !rel.startsWith('internal') && !rel.startsWith('images') && (!rel || rel.endsWith('.md') || !rel.includes('.')); } });
   await writeFile(join(runtime, 'VERSION'), version + '\n');
   for (const exe of ['bin/lazybox', 'bin/lazybox-runner', 'node/bin/node']) await chmod(join(runtime, exe), 0o755);
   console.log(`  Node ${nodeVersion}, ${packages} worker packages`);

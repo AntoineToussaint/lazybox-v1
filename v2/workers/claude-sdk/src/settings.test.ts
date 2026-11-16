@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { nativeOptions } from './options.js';
-import { canonical, readSettingsTool, settingsTools, SettingsApprovals, updateSettingsTool } from './settings.js';
+import { canonical, docsTools, readDocTool, readSettingsTool, searchDocsTool, settingsTools, SettingsApprovals, updateSettingsTool } from './settings.js';
 
 const proposal = { revision: 3, reason: 'The user asked for approval prompts.', changes: { permission: 'ask' as const } };
 
@@ -10,7 +10,7 @@ test('help assistant reads settings freely and is always asked before an update,
     const options = nativeOptions({ cwd: '/fixture', purpose: 'help', permission }, {});
     assert.equal(options.permissionMode, 'default');
     assert.equal(options.allowDangerouslySkipPermissions, undefined);
-    assert.deepEqual(options.settings, { permissions: { allow: [readSettingsTool], ask: [updateSettingsTool] }, disableClaudeAiConnectors: true });
+    assert.deepEqual(options.settings, { permissions: { allow: [readSettingsTool, searchDocsTool, readDocTool], ask: [updateSettingsTool] }, disableClaudeAiConnectors: true });
     assert.deepEqual(options.tools, []);
     assert.equal(options.strictMcpConfig, true);
   }
@@ -56,4 +56,16 @@ test('a Runner refusal reaches the agent as a tool error with its message', asyn
   const result = await update.handler(proposal, undefined);
   assert.equal(result.isError, true);
   assert.deepEqual(result.content, [{ type: 'text', text: 'lazybox settings changed since revision 3 (now 4)' }]);
+});
+
+test('the documentation tools read through the Runner and never ask', async () => {
+  const calls: Array<[string, unknown]> = [];
+  const { search, page } = docsTools(async (name, args) => { calls.push([name, args]); return name === 'lazybox_read_doc' ? '# Chat' : '{"pages":[]}'; });
+  assert.equal(search.name, 'search_docs');
+  assert.equal(page.name, 'read_doc');
+  assert.equal((await search.handler({ query: 'subscription limit' }, undefined)).isError, undefined);
+  assert.deepEqual(await page.handler({ path: 'guides/chat.md' }, undefined), { content: [{ type: 'text', text: '# Chat' }] });
+  assert.deepEqual(calls, [['lazybox_search_docs', { query: 'subscription limit' }], ['lazybox_read_doc', { path: 'guides/chat.md' }]]);
+  const missing = await docsTools(async () => { throw new Error(JSON.stringify({ message: 'the Lazybox documentation is not available on this Runner' })); }).page.handler({ path: 'x.md' }, undefined);
+  assert.equal(missing.isError, true);
 });

@@ -5,11 +5,15 @@ import { z } from 'zod';
 export const settingsServerName = 'lazybox_settings';
 export const readSettingsTool = `mcp__${settingsServerName}__get_settings`;
 export const updateSettingsTool = `mcp__${settingsServerName}__update_settings`;
+/** The documentation tools, on the same server: read-only, never asked. */
+export const searchDocsTool = `mcp__${settingsServerName}__search_docs`;
+export const readDocTool = `mcp__${settingsServerName}__read_doc`;
 /** Runner tool names; the Runner validates and applies, the worker never touches settings files. */
 const runnerRead = 'lazybox_get_settings', runnerUpdate = 'lazybox_update_settings';
+const runnerSearchDocs = 'lazybox_search_docs', runnerReadDoc = 'lazybox_read_doc';
 
 /** Reading needs no approval; every update is put to the user, whatever else the native settings allow. */
-export const helpPermissions = { allow: [readSettingsTool], ask: [updateSettingsTool] };
+export const helpPermissions = { allow: [readSettingsTool, searchDocsTool, readDocTool], ask: [updateSettingsTool] };
 
 const updateShape = {
   revision: z.number().int().positive().describe('The revision get_settings returned. A stale revision is refused.'),
@@ -61,7 +65,23 @@ const reason = (error: unknown) => {
 
 export function settingsServer(call: RunnerCall, approvals: SettingsApprovals): McpSdkServerConfigWithInstance {
   const { read, update } = settingsTools(call, approvals);
-  return createSdkMcpServer({ name: settingsServerName, version: '0.1.0', tools: [read, update] });
+  const { search, page } = docsTools(call);
+  return createSdkMcpServer({ name: settingsServerName, version: '0.1.0', tools: [search, page, read, update] });
+}
+
+/** The Lazybox documentation (Help → Documentation), read through the Runner. */
+export function docsTools(call: RunnerCall) {
+  const search = tool('search_docs', 'Search the Lazybox documentation (the pages Help → Documentation shows) by a few words. Returns the best pages with their path, title and matching lines.', {
+    query: z.string().min(1).max(500).describe('A few words about the topic, such as "switch subscription limit".'),
+  }, async args => {
+    try { return text(await call(runnerSearchDocs, args)); } catch (error) { return text(reason(error), true); }
+  }, { annotations: { readOnlyHint: true } });
+  const page = tool('read_doc', 'Read one Lazybox documentation page by the path search_docs or the page list gives, such as guides/chat.md.', {
+    path: z.string().min(1).max(500).describe('The page path inside the documentation, such as guides/subscriptions.md.'),
+  }, async args => {
+    try { return text(await call(runnerReadDoc, args)); } catch (error) { return text(reason(error), true); }
+  }, { annotations: { readOnlyHint: true } });
+  return { search, page };
 }
 
 export function settingsTools(call: RunnerCall, approvals: SettingsApprovals) {

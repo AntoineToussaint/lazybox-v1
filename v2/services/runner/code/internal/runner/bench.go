@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/assistant"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/availability"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/docstool"
 	"os"
 	"path/filepath"
 	"sort"
@@ -95,9 +97,13 @@ type Config struct {
 	ThemeDirectory string `json:"themeDirectory,omitempty"`
 	// OutputBudget bounds both roots together; the oldest files go first.
 	// Zero selects 1 GiB.
-	OutputBudget int64  `json:"commandOutputBudget,omitempty"`
-	CodexBinary  string `json:"codexBinary,omitempty"`
-	ClaudeBinary string `json:"claudeBinary,omitempty"`
+	OutputBudget int64 `json:"commandOutputBudget,omitempty"`
+	// DocsDirectory is the Lazybox documentation (v2/docs) the help assistant
+	// reads through its documentation tools. An installed release ships it;
+	// the Dev and Working launchers name their source's. Empty: none.
+	DocsDirectory string `json:"docsDirectory,omitempty"`
+	CodexBinary   string `json:"codexBinary,omitempty"`
+	ClaudeBinary  string `json:"claudeBinary,omitempty"`
 	// Node runs the Claude SDK worker. Empty is `node` on the Runner's PATH
 	// (Dev, Working); an installed release names the Node it ships
 	// (INSTALL.md), so a launchd service with a minimal PATH still finds one.
@@ -185,6 +191,9 @@ type Bench struct {
 	trims     sync.WaitGroup
 	// ports caches what each managed command listens on (CommandPorts).
 	ports portCache
+	// Availability is the last probe of the provider programs
+	// (provider_availability.go); a test may replace its Probe.
+	Availability *availability.Cache
 	// Adapters is an injection boundary for deterministic conformance tests.
 	Adapters map[string]agent.Adapter
 	// agentKey derives each execution's scoped credential (agent_credentials.go).
@@ -352,7 +361,8 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, hosting: hosts, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary, Node: cfg.Node}}}
+	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, hosting: hosts, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: claudeProgram(cfg), Node: cfg.Node}}}
+	b.Availability = &availability.Cache{Probe: availability.DefaultProbe(cfg.Worker, cfg.Node, cfg.ClaudeBinary, cfg.CodexBinary, claudeProgram(cfg))}
 	// Shells a previous Runner left running are re-attached here, like commands.
 	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals, Backend: hosts}); err != nil {
 		_ = b.Detach()
@@ -515,9 +525,9 @@ func (b *Bench) OpenAssistant(profile, purpose, contextText string, options acco
 	role := "Answer from the supplied context. Produce advice or a proposal; do not execute commands, edit files, or apply configuration."
 	product := assistant.Context
 	if purpose == "help" {
-		// Only the help assistant has the settings tools; the user approves each change.
-		product += "\n" + assistant.Settings
-		role = "Answer from the supplied context. Do not execute commands or edit files. You may propose a change to Lazybox's own settings only through the settings tools, and only the user's approval applies it."
+		// Only the help assistant has the settings and documentation tools; the user approves each settings change.
+		product += "\n" + assistant.Docs(docstool.Index(b.Config.DocsDirectory)) + "\n" + assistant.Settings
+		role = "Answer from the documentation and the supplied context. Do not execute commands or edit files. You may propose a change to Lazybox's own settings only through the settings tools, and only the user's approval applies it."
 	}
 	contextText = product + "\nYou are the Lazybox application assistant for " + purpose + ". " + role + " Supplied context follows:\n" + contextText
 	collectionID := ""

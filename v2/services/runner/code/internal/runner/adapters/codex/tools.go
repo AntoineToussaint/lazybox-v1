@@ -11,13 +11,15 @@ const commandSchema = `{"type":"object","properties":{"action":{"type":"string",
 const settingsChangeSchema = `{"type":"object","properties":{"revision":{"type":"integer","minimum":1,"description":"The revision lazybox_get_settings returned. A stale revision is refused."},"reason":{"type":"string","description":"One or two plain sentences for the user: what changes and why."},"changes":{"type":"object","description":"Only the settings that change; each value replaces the current one whole.","properties":{"naming":{"type":"string","enum":["repositories","generated"]},"permission":{"type":"string","enum":["","ask","read-only","yolo"]},"context":{"type":"string","maxLength":32768},"claudeContext":{"type":"string","maxLength":16384},"codexContext":{"type":"string","maxLength":16384}},"additionalProperties":false}},"required":["revision","reason","changes"],"additionalProperties":false}`
 
 // dynamicTools are the Runner tools an execution may call, by its purpose: the
-// help assistant gets the settings tools, a coding agent the managed-command
+// help assistant gets the documentation and settings tools, a coding agent the managed-command
 // tool (and the browser tools when the Runner offers its agent browser), and
 // other assistants (which have no Runner tools) none.
 func dynamicTools(purpose string, browser bool) []map[string]any {
 	switch {
 	case purpose == "help":
 		return []map[string]any{
+			{"type": "function", "name": agent.DocsSearchTool, "description": "Search the Lazybox documentation (the pages Help → Documentation shows) by a few words. Returns the best pages with their path, title and matching lines.", "inputSchema": json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"A few words about the topic, such as \"switch subscription limit\"."}},"required":["query"],"additionalProperties":false}`)},
+			{"type": "function", "name": agent.DocsReadTool, "description": "Read one Lazybox documentation page by the path search or the page list gives, such as guides/chat.md.", "inputSchema": json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"The page's path inside the documentation, such as guides/subscriptions.md."}},"required":["path"],"additionalProperties":false}`)},
 			{"type": "function", "name": agent.SettingsReadTool, "description": "Read Lazybox's agent settings (Settings → Agents & workspaces) and their revision. Never returns credentials.", "inputSchema": json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)},
 			{"type": "function", "name": agent.SettingsUpdateTool, "description": "Propose a change to Lazybox's agent settings. The user sees the reason and the proposed values and must allow it; nothing changes otherwise. Changeable: naming, permission, context, claudeContext, codexContext.", "inputSchema": json.RawMessage(settingsChangeSchema)},
 		}
@@ -46,10 +48,10 @@ func toolOffered(purpose, name string) bool {
 }
 
 // toolApproval is the approval card title of a dynamic tool call; empty when
-// the call runs without asking, which only reading Lazybox's settings does.
+// the call runs without asking, which only reading (settings, documentation) does.
 func toolApproval(name string) string {
 	switch name {
-	case agent.SettingsReadTool:
+	case agent.SettingsReadTool, agent.DocsSearchTool, agent.DocsReadTool:
 		return ""
 	case agent.SettingsUpdateTool:
 		return "Change Lazybox settings"

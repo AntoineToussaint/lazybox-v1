@@ -51,6 +51,7 @@ import { useContextMenuContribution } from './ContextMenu';
 import { bindings } from './actions';
 import { provideLayoutCommands, type LayoutCommand } from './layout-commands';
 import { applyTemplate, builtinPresets, DEFAULT_PRESET, parseSavedLayouts, templateOf, type LayoutPreset } from './layout-presets';
+import { requestAsk } from './help-requests';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -296,6 +297,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   useWebViewer(openWeb);
   useKeyboardAction('web.open', () => { openWeb({ url: '', newPanel: !shownPanels(livePage()).some(panel => panel.kind === 'web' && !panel.detached) }); });
+  // Ask Lazybox (Help menu, ⌘K, ]] h): its panel on this page, with the message box focused.
+  useKeyboardAction('help.ask', () => { if (showModule('assistant')) requestAsk(); });
   /** Show this workspace's terminal: the open panel, or one docked beside the work. It starts a shell only when none is running. */
   const showTerminal = () => { if (workspaceID && showModule('terminal')) requestTerminal(workspaceID); };
   // A panel asked for in another workspace is shown once that workspace's page is.

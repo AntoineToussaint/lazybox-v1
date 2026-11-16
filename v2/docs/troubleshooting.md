@@ -47,6 +47,32 @@ turn for 5m"* or *"no event for 12m while a turn runs"*. `lazybox watch
 
 (V1 — the terminal app — has its own troubleshooting; it does not apply here.)
 
+## Ask Lazybox says no agent is ready
+
+**You see** *No agent is ready to answer* in the Ask Lazybox panel, with what
+each agent needs. Lazybox runs agents with your own subscription, on the
+Runner's computer, so each needs its program and a sign-in:
+
+- **Claude Code — Not installed.** Claude Code ships with Lazybox; this means
+  that copy is missing. Reinstall Lazybox (in a checkout: `make -C v2 deps`).
+  To use a Claude Code you install yourself, run the command the panel shows
+  (`curl -fsSL https://claude.ai/install.sh | bash`) and restart the Runner
+  (Settings → Runner) so it finds it.
+- **Codex — Not installed.** Run `npm install -g @openai/codex` (or `brew
+  install codex`). An installed Lazybox's Runner reads the PATH once: run
+  `lazybox service install` to refresh it, then **Check again**.
+- **Not signed in, or no subscription.** Settings → Subscriptions → add a Claude
+  or ChatGPT subscription; or sign in once in a terminal (`claude`, then
+  `/login`; `codex login`) and Lazybox uses that sign-in as *CLI sign-in*.
+- **Limit reached · back at …** Every subscription of that agent is at its
+  limit. Wait for the reset, or add another subscription.
+- **Cannot run.** The panel says why (a program that does not start, the Claude
+  worker or Node missing). `lazybox doctor` checks the same things with a fix
+  for each.
+
+**Check again** looks again for programs and sign-ins. Help → Documentation
+works without any agent. More in [Ask Lazybox](guides/ask-lazybox.md).
+
 ## An account hit its limit
 
 **You see** a card: *Personal Claude reached its limit (resets 6:00 PM)*, or the

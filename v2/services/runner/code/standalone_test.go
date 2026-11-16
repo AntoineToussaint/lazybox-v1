@@ -87,3 +87,20 @@ func TestServeUsesTheBundledClaudeCodeWhenPresent(t *testing.T) {
 		t.Fatalf("claude %q", o.claude)
 	}
 }
+
+// The help assistant reads the documentation a release ships; an older
+// release without it names none.
+func TestServeNamesTheReleasesDocumentationWhenPresent(t *testing.T) {
+	runtime := installation.Layout{Root: t.TempDir()}
+	o, _ := parseStandalone(nil, getenvOf(map[string]string{"HOME": "/h"}), &runtime)
+	if o.environment()["LAZYBOX_V2_DOCS_DIR"] != "" {
+		t.Fatalf("named documentation that is not there: %s", o.docs)
+	}
+	if err := os.MkdirAll(runtime.Docs(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	o, _ = parseStandalone(nil, getenvOf(map[string]string{"HOME": "/h"}), &runtime)
+	if o.environment()["LAZYBOX_V2_DOCS_DIR"] != runtime.Docs() {
+		t.Fatalf("docs %q, want %q", o.docs, runtime.Docs())
+	}
+}

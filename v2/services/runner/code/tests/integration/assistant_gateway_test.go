@@ -20,7 +20,7 @@ import (
 // Application assistants advertise no built-in or ambient MCP tools. The help
 // assistant advertises exactly Lazybox's settings tools; the others nothing.
 func TestClaudeAssistantAdvertisesOnlyItsLazyboxTools(t *testing.T) {
-	for purpose, want := range map[string]string{"help": "mcp__lazybox_settings__get_settings,mcp__lazybox_settings__update_settings", "planning": ""} {
+	for purpose, want := range map[string]string{"help": "mcp__lazybox_settings__get_settings,mcp__lazybox_settings__read_doc,mcp__lazybox_settings__search_docs,mcp__lazybox_settings__update_settings", "planning": ""} {
 		t.Run(purpose, func(t *testing.T) { claudeAssistantTools(t, purpose, want) })
 	}
 }

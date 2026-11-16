@@ -90,6 +90,23 @@ export async function startRunnerFixture() {
   const profiles = [{ id: 'claude-default', provider: 'claude', isolation: 'inherited' }, { id: 'codex-default', provider: 'codex', isolation: 'inherited', availability: { state: 'available', plan: 'plus', observedAtUnixMillis: String(Date.now()), windows: [{ name: 'codex:primary', durationMinutes: '300', usedPercent: 45, resetAt: String(Math.floor(Date.now()/1000)+7200) }, { name: 'codex:secondary', durationMinutes: '10080', usedPercent: 60, resetAt: String(Math.floor(Date.now()/1000)+172800) }] } }];
   profiles.push({ id:'codex-saved', provider:'codex', label:'Saved Codex', managed:true, isolation:'environment', availability:{...structuredClone(profiles[1].availability),email:'codex-fixture@example.invalid'} });
   const enrollments = new Map();
+  // What GetProviderAvailability reports: each provider's program, and each
+  // profile's state by id (default available and signed in). Explicitly fake:
+  // nothing is probed. A test sets a program missing or a profile limited.
+  const availability = {
+    claude: { installed: true, path: '/fixture/runtime/claude', version: '2.1.311', source: 'bundled', error: '' },
+    codex: { installed: true, path: '/fixture/bin/codex', version: '0.98.0', source: 'path', error: '' },
+    states: {}, refreshes: 0,
+  };
+  const availabilityRank = { available: 0, unverified: 1, limited: 2, billing: 3, sign_in: 4 };
+  const availabilityReport = () => ({ checkedAtUnixMillis: String(Date.now()), providers: ['claude', 'codex'].map(provider => {
+    const program = availability[provider];
+    const subscriptions = profiles.filter(p => p.provider === provider).map(p => { const s = availability.states[p.id] || { state: 'available', detail: 'Signed in' }; return { profileId: p.id, label: p.label || '', isolation: p.isolation, managed: !!p.managed, state: s.state, resetAt: String(s.resetAt || 0), detail: s.detail || '' }; })
+      .sort((a, b) => availabilityRank[a.state] - availabilityRank[b.state] || Number(b.managed) - Number(a.managed));
+    const best = subscriptions[0]?.state;
+    const state = !program.installed ? 'not_installed' : program.error ? 'unusable' : !best ? 'no_subscription' : best === 'available' || best === 'unverified' ? 'ready' : best;
+    return { provider, title: provider === 'claude' ? 'Claude Code' : 'Codex', state, installed: program.installed, path: program.installed ? program.path : '', version: program.installed ? program.version : '', source: program.installed ? program.source : '', error: program.installed ? program.error : `${provider === 'claude' ? 'Claude Code' : 'Codex'} is not installed on the Runner's computer.`, installCommand: program.installed ? '' : provider === 'claude' ? 'curl -fsSL https://claude.ai/install.sh | bash' : 'npm install -g @openai/codex', subscriptions };
+  }) });
   const completeEnrollment = id => { const flow = enrollments.get(id); if (!flow) throw new Error('Unknown fixture enrollment'); if (flow.state === 'added') return; flow.state = 'added'; flow.signInUrl = ''; flow.userCode = ''; profiles.push({ id: flow.profileId, provider: flow.provider, label: flow.label, managed:true, isolation: 'environment', availability: flow.provider === 'codex' ? { state: 'available', plan: 'pro', observedAtUnixMillis: String(Date.now()), windows: [{ name: 'codex:primary', durationMinutes: '300', usedPercent: 73, resetAt: String(Math.floor(Date.now()/1000)+3600) }] } : { state: 'unknown' } }); };
 
   // Terminals echo what is typed and answer each line, like a minimal shell.
@@ -383,6 +400,11 @@ actions:
         const stopping = runner.instanceId; runner.restarts++;
         setTimeout(() => { runner.down = true; setTimeout(() => { runner.instanceId = randomUUID(); runner.down = false; }, runner.restartMs); }, 50);
         return json({ instanceId: stopping });
+      }
+      case 'GetProviderAvailability': {
+        if (device) return error('permission_denied', 'this device is not allowed to do that');
+        if (body.refresh) availability.refreshes++;
+        return json(availabilityReport());
       }
       case 'Info': return json({ restartAvailable: runner.restartAvailable, instanceId: runner.instanceId, profiles, pendingEnrollments: [...enrollments.values()].filter(flow => flow.state === 'awaiting_login').map(({ id, state, provider, label, profileId }) => ({ id, state, provider, label, profileId })), sessions, attachmentLimits: { maxFiles: 4, maxFileBytes: '20971520', maxMessageBytes: '20971520' } });
       case 'AddSubscription': {
@@ -776,7 +798,7 @@ actions:
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
   return { power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
-    get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
+    availability, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */

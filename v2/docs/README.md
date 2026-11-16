@@ -23,6 +23,7 @@ Task by task:
 
 | I want to… | Guide |
 | --- | --- |
+| Ask how to do something in Lazybox, or have it change a setting for me | [Ask Lazybox](guides/ask-lazybox.md) |
 | Work with an agent: answer its questions, approve, follow sub-agents | [Work in the chat](guides/chat.md) |
 | See less (or more) of what the agent ran | [Activity detail](guides/activity-detail.md) |
 | Check what an agent changed, comment, undo a turn, open and merge a PR | [Review an agent's work](guides/review-agent-work.md) |
@@ -50,8 +51,8 @@ Task by task:
 
 ## When something is wrong
 
-- [Troubleshooting](troubleshooting.md) — `lazybox debug`, limits, provider
-  errors, interrupted turns, a Runner that restarted.
+- [Troubleshooting](troubleshooting.md) — `lazybox debug`, no agent ready,
+  limits, provider errors, interrupted turns, a Runner that restarted.
 - [FAQ](faq.md) — including "is Lazybox a terminal?" (no).
 
 ## Contributing

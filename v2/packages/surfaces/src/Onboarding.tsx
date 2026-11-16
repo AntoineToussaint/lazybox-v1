@@ -12,6 +12,8 @@ import { useConversationIndex } from './useConversationIndex';
 import type { SettingsTab } from './SettingsPage';
 import { essentialKeys, welcomeDecision, whatsNewDecision, WELCOME_PREFERENCE, WHATS_NEW_PREFERENCE, type Release } from './onboarding-model';
 import { releaseNotes } from './release-notes';
+import { providerLine } from './help-availability';
+import { useProviderAvailability } from './useProviderAvailability';
 import './onboarding.css';
 
 // The documentation ships with the app and reads offline (DocsViewer.tsx); it
@@ -23,6 +25,9 @@ export type OnboardingRequest = 'welcome' | 'whats-new' | 'shortcuts' | 'docs';
 const EVENT = 'lazybox-onboarding';
 /** Open the welcome, What's new or the shortcuts from anywhere in the window. */
 export const openOnboarding = (request: OnboardingRequest) => window.dispatchEvent(new CustomEvent<OnboardingRequest>(EVENT, { detail: request }));
+const DOCS_EVENT = 'lazybox-docs';
+/** Open the documentation at a page, with an optional #anchor ("troubleshooting.md#…"). */
+export const openDocs = (page = 'README.md') => window.dispatchEvent(new CustomEvent<string>(DOCS_EVENT, { detail: page }));
 
 // A preference is a convenience: an unavailable store never breaks the window.
 const read = (store: ViewStateStore | undefined, name: string) => { try { return readPreference(store, name); } catch { return null; } };
@@ -37,7 +42,8 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
   const [welcome, setWelcome] = useState(false);
   const [decided, setDecided] = useState(() => !automatic || read(viewState, WELCOME_PREFERENCE) !== null);
   const [whatsNew, setWhatsNew] = useState<{ releases: readonly Release[]; asked: boolean }>();
-  const [docs, setDocs] = useState(false);
+  // The page the documentation opens at; '' while it is closed.
+  const [docs, setDocs] = useState('');
   useEffect(() => {
     if (!automatic) return;
     const decision = whatsNewDecision(read(viewState, WHATS_NEW_PREFERENCE), releaseNotes);
@@ -49,18 +55,20 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
       const request = (event as CustomEvent<OnboardingRequest>).detail;
       if (request === 'welcome') setWelcome(true);
       if (request === 'whats-new') setWhatsNew({ releases: releaseNotes, asked: true });
-      if (request === 'docs') setDocs(true);
+      if (request === 'docs') setDocs('README.md');
       // The shortcuts overlay lists every key; its Customize leads to Settings.
       if (request === 'shortcuts' && !runAction('shortcuts.open')) onOpenSettings('keyboard');
     };
+    const docsListener = (event: Event) => setDocs((event as CustomEvent<string>).detail || 'README.md');
     window.addEventListener(EVENT, listener);
-    return () => window.removeEventListener(EVENT, listener);
+    window.addEventListener(DOCS_EVENT, docsListener);
+    return () => { window.removeEventListener(EVENT, listener); window.removeEventListener(DOCS_EVENT, docsListener); };
   });
   // Help in the command palette and the desktop menu bar.
   useActions({
     'help.welcome': () => setWelcome(true),
     'help.whats-new': () => setWhatsNew({ releases: releaseNotes, asked: true }),
-    'help.docs': () => setDocs(true),
+    'help.docs': () => setDocs('README.md'),
   });
   const closeWelcome = () => { write(viewState, WELCOME_PREFERENCE, 'seen'); setWelcome(false); };
   const dismissWhatsNew = () => { if (releaseNotes[0]) write(viewState, WHATS_NEW_PREFERENCE, releaseNotes[0].id); setWhatsNew(undefined); };
@@ -73,7 +81,7 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
       onSubscription={() => { closeWelcome(); onOpenSettings('subscriptions'); }}
       onWorkspace={() => { closeWelcome(); requestAnimationFrame(() => invokeAction('workspace.new')); }}/>}
     {whatsNew && <WhatsNew releases={whatsNew.releases} focus={whatsNew.asked} onDismiss={dismissWhatsNew}/>}
-    {docs && <Suspense fallback={null}><DocsViewer onClose={() => setDocs(false)}/></Suspense>}
+    {docs && <Suspense fallback={null}><DocsViewer key={docs} initial={docs} onClose={() => setDocs('')}/></Suspense>}
   </>;
 }
 
@@ -104,7 +112,7 @@ function Welcome({ viewState, onClose, onSubscription, onWorkspace }: { viewStat
     <ol className="onboarding-steps">
       <li>
         <span className="onboarding-step-icon" aria-hidden="true"><Icon name="card" size={16}/></span>
-        <div><h3>Connect a subscription</h3><p>Sign in with your Claude or ChatGPT plan. Add more than one and Lazybox switches when one reaches its limit.</p></div>
+        <div><h3>Connect a subscription</h3><p>Sign in with your Claude or ChatGPT plan. Add more than one and Lazybox switches when one reaches its limit.</p><AgentReadiness/></div>
         <button onClick={onSubscription}>Connect a subscription</button>
       </li>
       <li>
@@ -131,6 +139,20 @@ function Welcome({ viewState, onClose, onSubscription, onWorkspace }: { viewStat
       <button className="primary" data-autofocus onClick={onClose}>Get started</button>
     </footer>
   </DraggableDialog>;
+}
+
+/**
+ * What is ready on the Runner's computer, from the same check Ask Lazybox
+ * uses: "Claude Code 2.1.311 installed · signed in", "Codex not installed".
+ */
+function AgentReadiness() {
+  const { report } = useProviderAvailability();
+  if (!report) return null;
+  return <ul className="onboarding-agents" aria-label="Agents on this computer">
+    {report.providers.map(p => <li key={p.provider} className={p.state === 'ready' ? 'ready' : 'missing'}>
+      <Icon name={p.state === 'ready' ? 'check' : p.installed ? 'alert' : 'skip'} size={12}/><span>{providerLine(p)}</span>
+    </li>)}
+  </ul>;
 }
 
 /** Release notes in a corner card: it never takes focus from work unless asked for from Help. */

@@ -22,6 +22,8 @@ import { TerminalPanel } from './TerminalPanel';
 import { conversationReader } from './transcript-cache';
 import type { ViewTarget } from './workspace-model';
 import { WorkspaceHome } from './WorkspaceHome';
+import { HelpAssistant } from './HelpAssistant';
+import { useAskRequests } from './help-requests';
 
 /** What a panel's header shows while its module has something better than its kind's title: a web page's title and icon. */
 export type PanelTitle = { text: string; /** An image URL (a page's icon). */ icon?: string; tooltip?: string };
@@ -65,12 +67,24 @@ function ChatModule({ target, onTarget, viewState, collections, onOpenChat, onNe
     onSessionChange={sessionId => onTarget({ ...target, sessionId, commandId: '' })}/>;
 }
 
-function AssistantModule({ viewState, workspaceId }: ModuleProps) {
+/**
+ * Ask Lazybox: the help assistant (HelpAssistant.tsx), or a planning or
+ * summary conversation. "Ask Lazybox" from the Help menu, ⌘K or ]] h brings
+ * it back to Help and focuses its message box.
+ */
+function AssistantModule({ viewState, workspaceId, collections }: ModuleProps) {
   const key = `${viewState?.key}:assistant-session`;
   const [sessionId, setSessionId] = useState(() => viewState?.getItem(key) || '');
   const [purpose, setPurpose] = useState<'help' | 'planning' | 'summary'>(() => { const saved = viewState?.getItem(`${key}:purpose`); return saved === 'planning' || saved === 'summary' ? saved : 'help'; });
+  const [focusToken, setFocusToken] = useState(0);
+  const changePurpose = (next: typeof purpose) => {
+    if (next === purpose) return;
+    setPurpose(next); viewState?.setItem(`${key}:purpose`, next); setSessionId(''); viewState?.setItem(key, '');
+  };
+  useAskRequests(() => { changePurpose('help'); setFocusToken(token => token + 1); });
+  if (purpose === 'help') return <HelpAssistant key={purpose} workspaceId={workspaceId} workspaceName={collections.find(c => c.id === workspaceId)?.name} viewState={viewState} sessionKey={key} focusToken={focusToken} onPurpose={changePurpose}/>;
   return <>
-    <label className="assistant-purpose">Conversation<select aria-label="Assistant purpose" value={purpose} onChange={e => { setPurpose(e.target.value as typeof purpose); viewState?.setItem(`${key}:purpose`, e.target.value); setSessionId(''); viewState?.setItem(key, ''); }}>
+    <label className="assistant-purpose">Conversation<select aria-label="Assistant purpose" value={purpose} onChange={e => changePurpose(e.target.value as typeof purpose)}>
       <option value="help">Help</option>
       <option value="planning">Planning</option>
       <option value="summary">Summary</option>
@@ -87,7 +101,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   chat: { title: 'Agent chat', icon: 'chat', Component: ChatModule },
   console: { title: 'Command output', icon: 'output', Component: CommandPanel },
   terminal: { title: 'Terminal', icon: 'terminal', Component: ({ workspaceId, collections, viewState, onClosePanel, target, onShowSession }) => <TerminalPanel key={workspaceId} workspaceId={workspaceId} collections={collections} viewState={viewState} onClosePanel={onClosePanel} sessionId={target.collectionId === workspaceId ? target.sessionId : ''} onShowSession={onShowSession}/> },
-  assistant: { title: 'Ask Lazybox', icon: 'chat', Component: AssistantModule },
+  assistant: { title: 'Ask Lazybox', icon: 'ask', Component: AssistantModule },
   changes: { title: 'Changes', icon: 'branch', Component: ({ workspaceId, viewState, target, onShowSession }) => <ChangesPanel key={workspaceId} workspaceId={workspaceId} sessionId={target.collectionId === workspaceId ? target.sessionId : ''} onShowSession={onShowSession} viewState={viewState}/> },
   usage: { title: 'Usage & cost', icon: 'sliders', Component: ({ workspaceId }) => <TelemetryPanel workspaceId={workspaceId}/> },
   sessions: { title: 'Sessions', icon: 'history', Component: ({ workspaceId, target, onTarget }) => <ConversationList collectionId={workspaceId} target={target} onTarget={onTarget}/> },

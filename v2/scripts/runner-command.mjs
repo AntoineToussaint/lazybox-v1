@@ -13,6 +13,8 @@ export function runnerArguments({ paths, source, snippetAdapter, snippetDirector
     LAZYBOX_V2_BROWSER_WORKER: join(source, 'workers/browser/dist/main.js'),
     // The phone app the device gateway serves (REMOTE.md); `make build-web` builds it.
     LAZYBOX_V2_WEB_DIR: join(source, 'apps/web/dist'),
+    // The documentation Ask Lazybox reads (Help → Documentation shows the same pages).
+    LAZYBOX_V2_DOCS_DIR: join(source, 'docs'),
     // Persistent environments keep agents running across Runner restarts.
     LAZYBOX_V2_KEEP_AGENTS: '1',
     ...(snippetAdapter ? { LAZYBOX_V2_SNIPPET_COMMAND: snippetAdapter, LAZYBOX_V2_SNIPPET_DIRECTORY: snippetDirectory } : {}),

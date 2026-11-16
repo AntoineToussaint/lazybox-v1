@@ -110,14 +110,14 @@ func codexGatewayFixture(t *testing.T, purpose string) {
 					t.Errorf("assistant exposes execution tool %s", name)
 				}
 			}
-			// The help assistant's own tools are Lazybox's settings, and only those.
+			// The help assistant's own tools are the documentation and Lazybox's settings, and only those.
 			settings := map[string]bool{}
 			for _, name := range names {
 				if strings.HasPrefix(name, "lazybox_") {
 					settings[name] = true
 				}
 			}
-			if len(settings) != 2 || !settings[agent.SettingsReadTool] || !settings[agent.SettingsUpdateTool] {
+			if len(settings) != 4 || !settings[agent.SettingsReadTool] || !settings[agent.SettingsUpdateTool] || !settings[agent.DocsSearchTool] || !settings[agent.DocsReadTool] {
 				t.Errorf("help assistant Lazybox tools: %v", names)
 			}
 		}

@@ -19,10 +19,10 @@ func toolNames(purpose string) []string {
 	return names
 }
 
-// Only the help assistant gets the settings tools; a coding agent keeps the
+// Only the help assistant gets the documentation and settings tools; a coding agent keeps the
 // managed-command tool and never gets them; other assistants get no tools.
 func TestDynamicToolsFollowThePurpose(t *testing.T) {
-	if got := strings.Join(toolNames("help"), ","); got != agent.SettingsReadTool+","+agent.SettingsUpdateTool {
+	if got := strings.Join(toolNames("help"), ","); got != agent.DocsSearchTool+","+agent.DocsReadTool+","+agent.SettingsReadTool+","+agent.SettingsUpdateTool {
 		t.Fatalf("help tools: %s", got)
 	}
 	for _, purpose := range []string{"", "coding"} {
@@ -43,6 +43,16 @@ func TestDynamicToolsFollowThePurpose(t *testing.T) {
 	}
 	if toolApproval(agent.SettingsUpdateTool) == "" || toolApproval(agent.CommandTool) == "" {
 		t.Fatal("a tool with effects runs without approval")
+	}
+	// Reading the documentation has nothing to approve, and is offered only to help.
+	if toolApproval(agent.DocsSearchTool) != "" || toolApproval(agent.DocsReadTool) != "" || toolOffered("", agent.DocsReadTool) || toolOffered("planning", agent.DocsSearchTool) {
+		t.Fatal("documentation tools")
+	}
+	for _, tool := range dynamicTools("help", false)[:2] {
+		var schema map[string]any
+		if err := json.Unmarshal(tool["inputSchema"].(json.RawMessage), &schema); err != nil {
+			t.Fatalf("%s schema: %v", tool["name"], err)
+		}
 	}
 	var schema map[string]any
 	if err := json.Unmarshal([]byte(settingsChangeSchema), &schema); err != nil {

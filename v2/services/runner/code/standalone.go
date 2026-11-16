@@ -48,7 +48,7 @@ func init() {
 // (installation.Current); a flag or the matching LAZYBOX_V2_* variable wins.
 type standaloneOptions struct {
 	state, config, worktrees, actions, restartRequest string
-	worker, node, web, cliDir, claude                 string
+	worker, node, web, cliDir, claude, docs           string
 	// browserWorker is the agent browser service (BROWSER.md); the installer
 	// does not ship it yet, so an installed Runner has no agent browser unless
 	// this names one.
@@ -68,11 +68,15 @@ func parseStandalone(args []string, getenv func(string) string, runtime *install
 		return fallback
 	}
 	o := standaloneOptions{}
-	var worker, node, web, cliDir, claude string
+	var worker, node, web, cliDir, claude, docs string
 	if runtime != nil {
 		worker, node, web, cliDir = runtime.Worker(), runtime.Node(), runtime.Web(), runtime.Bin()
 		if _, err := os.Stat(runtime.ClaudeBinary()); err == nil {
 			claude = runtime.ClaudeBinary()
+		}
+		// Older releases shipped no documentation for the help assistant.
+		if info, err := os.Stat(runtime.Docs()); err == nil && info.IsDir() {
+			docs = runtime.Docs()
 		}
 	}
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
@@ -87,6 +91,7 @@ func parseStandalone(args []string, getenv func(string) string, runtime *install
 	flags.StringVar(&o.web, "web", pick("LAZYBOX_V2_WEB_DIR", web), "phone app the device gateway serves")
 	flags.StringVar(&o.cliDir, "cli-dir", pick("LAZYBOX_V2_CLI_DIR", cliDir), "directory of the lazybox CLI agents and hooks run")
 	flags.StringVar(&o.claude, "claude", pick("LAZYBOX_V2_CLAUDE_BINARY", claude), "Claude Code executable (default: the one the SDK ships)")
+	flags.StringVar(&o.docs, "docs", pick("LAZYBOX_V2_DOCS_DIR", docs), "Lazybox documentation the help assistant reads (default: the release's)")
 	flags.BoolVar(&o.supervised, "supervised", false, "launchd starts this Runner again whenever it exits: offer Restart Runner")
 	flags.BoolVar(&o.keepAgents, "keep-agents", true, "leave agents, commands and terminals running across a Runner restart")
 	if err := flags.Parse(args); err != nil {
@@ -120,6 +125,7 @@ func (o standaloneOptions) environment() map[string]string {
 		"LAZYBOX_V2_WEB_DIR":        o.web,
 		"LAZYBOX_V2_CLI_DIR":        o.cliDir,
 		"LAZYBOX_V2_CLAUDE_BINARY":  o.claude,
+		"LAZYBOX_V2_DOCS_DIR":       o.docs,
 	}
 	if o.keepAgents {
 		env["LAZYBOX_V2_KEEP_AGENTS"] = "1"

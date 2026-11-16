@@ -62,6 +62,9 @@ const (
 	RunnerServiceCreateThemeProcedure = "/lazybox.bench.v1.RunnerService/CreateTheme"
 	// RunnerServiceInfoProcedure is the fully-qualified name of the RunnerService's Info RPC.
 	RunnerServiceInfoProcedure = "/lazybox.bench.v1.RunnerService/Info"
+	// RunnerServiceGetProviderAvailabilityProcedure is the fully-qualified name of the RunnerService's
+	// GetProviderAvailability RPC.
+	RunnerServiceGetProviderAvailabilityProcedure = "/lazybox.bench.v1.RunnerService/GetProviderAvailability"
 	// RunnerServiceGetTelemetryProcedure is the fully-qualified name of the RunnerService's
 	// GetTelemetry RPC.
 	RunnerServiceGetTelemetryProcedure = "/lazybox.bench.v1.RunnerService/GetTelemetry"
@@ -501,6 +504,12 @@ type RunnerServiceClient interface {
 	// existing one.
 	CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error)
 	Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error)
+	// Owner only. Which agent providers this Runner can run and on which saved
+	// subscriptions: each provider's program (found, where, which version) and
+	// each subscription's state. Ask Lazybox picks its agent from it; the
+	// welcome shows it. Programs are probed once and again on refresh;
+	// subscription states are read on every call.
+	GetProviderAvailability(context.Context, *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error)
 	GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error)
 	RenameCollection(context.Context, *connect.Request[gen.RenameCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddSubscription(context.Context, *connect.Request[gen.AddSubscriptionRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
@@ -847,6 +856,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceInfoProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("Info")),
+			connect.WithClientOptions(opts...),
+		),
+		getProviderAvailability: connect.NewClient[gen.ProviderAvailabilityRequest, gen.ProviderAvailability](
+			httpClient,
+			baseURL+RunnerServiceGetProviderAvailabilityProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetProviderAvailability")),
 			connect.WithClientOptions(opts...),
 		),
 		getTelemetry: connect.NewClient[gen.TelemetryRequest, gen.TelemetryReport](
@@ -1710,6 +1725,7 @@ type runnerServiceClient struct {
 	listThemes                   *connect.Client[gen.ListThemesRequest, gen.ThemeFolder]
 	createTheme                  *connect.Client[gen.CreateThemeRequest, gen.CreateThemeResponse]
 	info                         *connect.Client[gen.InfoRequest, gen.InfoResponse]
+	getProviderAvailability      *connect.Client[gen.ProviderAvailabilityRequest, gen.ProviderAvailability]
 	getTelemetry                 *connect.Client[gen.TelemetryRequest, gen.TelemetryReport]
 	renameCollection             *connect.Client[gen.RenameCollectionRequest, gen.CollectionResponse]
 	addSubscription              *connect.Client[gen.AddSubscriptionRequest, gen.SubscriptionEnrollment]
@@ -1901,6 +1917,11 @@ func (c *runnerServiceClient) CreateTheme(ctx context.Context, req *connect.Requ
 // Info calls lazybox.bench.v1.RunnerService.Info.
 func (c *runnerServiceClient) Info(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error) {
 	return c.info.CallUnary(ctx, req)
+}
+
+// GetProviderAvailability calls lazybox.bench.v1.RunnerService.GetProviderAvailability.
+func (c *runnerServiceClient) GetProviderAvailability(ctx context.Context, req *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return c.getProviderAvailability.CallUnary(ctx, req)
 }
 
 // GetTelemetry calls lazybox.bench.v1.RunnerService.GetTelemetry.
@@ -2625,6 +2646,12 @@ type RunnerServiceHandler interface {
 	// existing one.
 	CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error)
 	Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error)
+	// Owner only. Which agent providers this Runner can run and on which saved
+	// subscriptions: each provider's program (found, where, which version) and
+	// each subscription's state. Ask Lazybox picks its agent from it; the
+	// welcome shows it. Programs are probed once and again on refresh;
+	// subscription states are read on every call.
+	GetProviderAvailability(context.Context, *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error)
 	GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error)
 	RenameCollection(context.Context, *connect.Request[gen.RenameCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddSubscription(context.Context, *connect.Request[gen.AddSubscriptionRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
@@ -2967,6 +2994,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceInfoProcedure,
 		svc.Info,
 		connect.WithSchema(runnerServiceMethods.ByName("Info")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetProviderAvailabilityHandler := connect.NewUnaryHandler(
+		RunnerServiceGetProviderAvailabilityProcedure,
+		svc.GetProviderAvailability,
+		connect.WithSchema(runnerServiceMethods.ByName("GetProviderAvailability")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceGetTelemetryHandler := connect.NewUnaryHandler(
@@ -3837,6 +3870,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceCreateThemeHandler.ServeHTTP(w, r)
 		case RunnerServiceInfoProcedure:
 			runnerServiceInfoHandler.ServeHTTP(w, r)
+		case RunnerServiceGetProviderAvailabilityProcedure:
+			runnerServiceGetProviderAvailabilityHandler.ServeHTTP(w, r)
 		case RunnerServiceGetTelemetryProcedure:
 			runnerServiceGetTelemetryHandler.ServeHTTP(w, r)
 		case RunnerServiceRenameCollectionProcedure:
@@ -4166,6 +4201,10 @@ func (UnimplementedRunnerServiceHandler) CreateTheme(context.Context, *connect.R
 
 func (UnimplementedRunnerServiceHandler) Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.Info is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetProviderAvailability(context.Context, *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetProviderAvailability is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error) {
