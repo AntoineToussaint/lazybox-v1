@@ -1,8 +1,9 @@
 /* Tool calls as quiet lines of the conversation (ToolLine.tsx). */
 .tool-lines{display:flex;flex-direction:column;gap:1px;margin:2px 0 10px;font-size:12px}
 .tool-line{min-width:0}
-.tool-line-row{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:7px;width:100%;min-height:24px;padding:2px 6px 2px 2px;border-radius:5px;cursor:pointer;color:#9aa0ae;line-height:18px}
-.tool-line-row:hover{background:#1c1f25;color:#c7ccd7}
+/* Scoped like the chat's own button rule (.embedded-chat button), which would otherwise pad every line to two. */
+.tool-line-row,.embedded-chat .tool-line-row,.workspace-shell .tool-line-row{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:7px;width:100%;min-height:24px;padding:2px 6px 2px 2px;border-radius:5px;cursor:pointer;color:#9aa0ae;font-size:12px;line-height:18px}
+.tool-line-row:hover,.embedded-chat .tool-line-row:hover,.workspace-shell .tool-line-row:hover{background:#1c1f25;color:#c7ccd7}
 .tool-line-row:focus-visible{outline:1px solid #6d7ea0;outline-offset:0}
 .tool-chevron{display:inline-flex;width:12px;flex:none;color:#5f6572;transition:transform .12s}
 .tool-chevron[data-open]{transform:rotate(90deg)}

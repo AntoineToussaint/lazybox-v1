@@ -4,17 +4,21 @@ import { liveStatus, type LiveStatus, type LiveTone } from './live-status';
 import './live-status.css';
 
 // One clock for every live row in the window, ticking only while one is shown.
+// Rows read the same instant, so the same elapsed time never reads two ways
+// (a card and its panel, a chip and its card).
 const listeners = new Set<(now: number) => void>();
 let timer: ReturnType<typeof setInterval> | undefined;
+let tick = Date.now();
+const current = () => timer ? tick : Date.now();
 function subscribe(listener: (now: number) => void) {
   listeners.add(listener);
-  if (!timer) timer = setInterval(() => { const now = Date.now(); for (const l of listeners) l(now); }, 1000);
+  if (!timer) { tick = Date.now(); timer = setInterval(() => { tick = Date.now(); for (const l of listeners) l(tick); }, 1000); }
   return () => { listeners.delete(listener); if (!listeners.size && timer) { clearInterval(timer); timer = undefined; } };
 }
 /** The current time, re-rendering every second while `ticking`. */
 export function useNow(ticking: boolean): number {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => { if (!ticking) return; setNow(Date.now()); return subscribe(setNow); }, [ticking]);
+  const [now, setNow] = useState(current);
+  useEffect(() => { if (!ticking) return; const off = subscribe(setNow); setNow(tick); return off; }, [ticking]);
   return ticking ? now : Date.now();
 }
 

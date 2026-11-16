@@ -5,6 +5,7 @@ import type { OpenModifiers } from './file-links';
 import { Icon } from './Icons';
 import { CodeBlock } from './RichContent';
 import { commandText, describeGroup, describeTool, groupTools, kindOf, shortPath, type ToolEntry, type ToolItem, type ToolKind } from './tool-lines';
+import { titleWhenTruncated } from './truncated-title';
 import './tool-lines.css';
 
 /**
@@ -35,7 +36,8 @@ export const ToolLines = memo(function ToolLines({ entries }: { entries: readonl
   return <div className="tool-lines" role="list" aria-label="Tool calls">{items.map(item => <ToolItemLine key={item.kind === 'call' ? item.entry.id : item.entries[0].id} item={item}/>)}</div>;
 });
 
-function ToolItemLine({ item }: { item: ToolItem }) {
+/** One line of a run: a call, or a group of reads or edits. */
+export function ToolItemLine({ item }: { item: ToolItem }) {
   if (item.kind === 'call') return <ToolLine entry={item.entry}/>;
   return <ToolGroup item={item}/>;
 }
@@ -44,11 +46,12 @@ const OPEN_EDITS = 4;
 function ToolGroup({ item }: { item: Exclude<ToolItem, { kind: 'call' }> }) {
   // A few edits stay open, each with its diff; reads fold away.
   const [open, setOpen] = useState(item.kind === 'edits' && item.entries.length <= OPEN_EDITS);
-  const { text, meta, running } = describeGroup(item);
+  const { root } = useContext(ToolLineContext);
+  const { text, meta, running } = describeGroup(item, root);
   return <div className="tool-line tool-group" role="listitem" data-state={running ? 'running' : 'completed'}>
     <button type="button" className="tool-line-row" aria-expanded={open} onClick={() => setOpen(!open)}>
       <Chevron open={open}/><StateIcon kind={item.kind === 'edits' ? 'edit' : 'read'} state={running ? 'running' : 'completed'}/>
-      <span className="tool-line-title"><span className="tool-verb">{text}</span></span>
+      <span className="tool-line-title" onPointerEnter={titleWhenTruncated(text)}><span className="tool-verb">{text}</span></span>
       <Meta meta={meta}/>
     </button>
     {open && <div className="tool-group-calls">{item.entries.map(entry => <ToolLine key={entry.id} entry={entry}/>)}</div>}
@@ -67,9 +70,10 @@ export const ToolLine = memo(function ToolLine({ entry }: { entry: ToolEntry }) 
     <span className="tool-line-row" role="status" aria-live="off"><span className="tool-chevron" aria-hidden="true"/><StateIcon kind={kind} state={entry.status === 'running' ? 'thinking' : entry.status}/><span className="tool-line-title"><span className="tool-verb">{title.verb}</span></span></span>
   </div>;
   return <div className="tool-line" role="listitem" data-state={entry.status} data-kind={kind} data-tool-id={entry.id}>
-    <button type="button" className="tool-line-row" aria-expanded={open} aria-label={`${label}${title.meta.length ? ' · ' + title.meta.join(' · ') : ''} · ${stateLabel(entry)}`} title={`${entry.name} · ${stateLabel(entry)}`} onClick={() => setOpen(!open)}>
+    {/* No tooltip repeating the line: it would cover the next one. The whole line on hover only when it is cut. */}
+    <button type="button" className="tool-line-row" aria-expanded={open} aria-label={`${label}${title.meta.length ? ' · ' + title.meta.join(' · ') : ''} · ${stateLabel(entry)}`} onClick={() => setOpen(!open)}>
       <Chevron open={open}/><StateIcon kind={kind} state={entry.status}/>
-      <span className="tool-line-title"><span className="tool-verb">{title.verb}</span>{title.target && <> {title.code ? <code className="tool-target" title={title.target}>{title.target}</code> : <span className="tool-target" title={title.target}>{title.target}</span>}</>}</span>
+      <span className="tool-line-title" onPointerEnter={titleWhenTruncated(label)}><span className="tool-verb">{title.verb}</span>{title.target && <> {title.code ? <code className="tool-target">{title.target}</code> : <span className="tool-target">{title.target}</span>}</>}</span>
       <Meta meta={title.meta} failed={entry.status === 'failed'}/>
     </button>
     {title.problem && !open && <p className="tool-line-problem" role="note">{title.problem}</p>}

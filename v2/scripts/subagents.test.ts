@@ -3,7 +3,8 @@ import { JournalEventSchema, type JournalEvent } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyTranscript, foldTranscript, type Transcript } from '../packages/surfaces/src/transcript-model.ts';
-import { actionLabel, agentElapsed, ancestry, backgroundCommands, commandTitle, currentAction, mergedStatus, resultPreview, subagentTree, tokenLabel, toolTotal } from '../packages/surfaces/src/subagent-model.ts';
+import { describeGroup, describeTool } from '../packages/surfaces/src/tool-lines.ts';
+import { actionLabel, agentElapsed, ancestry, backgroundCommands, commandTitle, currentAction, mergedStatus, resultPreview, stepRows, subagentLabel, subagentTree, tokenLabel, toolTotal, type Subagent } from '../packages/surfaces/src/subagent-model.ts';
 
 let cursor = 0n;
 const T0 = Date.parse('2026-11-16T10:00:00Z');
@@ -240,4 +241,85 @@ test('background commands are named by what runs, never by the whole script', ()
   assert.equal(commandTitle('export FOO=1\nset -e\ntimeout 600 ./scripts/long-job.sh --all > out.log'), 'long-job.sh');
   assert.equal(commandTitle('sleep 30; curl -s http://localhost:8080/health'), 'curl http://localhost:8080/health');
   assert.ok(!commandTitle('for f in *.go; do\n  gofmt -l $f\ndone').includes('\n'));
+});
+
+/** A sub-agent with only what a test names; the rest as the fold starts it. */
+const bare = (fields: Partial<Subagent>): Subagent => ({ ...fold(emptyTranscript(), record(0, { type: 'agent_status', agentId: 'claude-tool:bare', status: 'running', name: 'x' })).subagents.byId['claude-tool:bare'], name: '', ...fields });
+
+test('a sub-agent is called by its kind and task; a placeholder is never its title', () => {
+  // Claude's Agent tool input: {description, prompt, subagent_type}.
+  assert.deepEqual(subagentLabel(bare({ name: 'Review the datasource diff', type: 'Explore' })), { kind: 'Explore', title: 'Review the datasource diff' });
+  // A kind that says nothing is no badge.
+  assert.deepEqual(subagentLabel(bare({ name: 'Survey adapters', type: 'general-purpose' })), { kind: '', title: 'Survey adapters' });
+  // No description: the first line of its instructions, never the Runner's "Sub-agent".
+  assert.deepEqual(subagentLabel(bare({ prompt: '\n## Review the diff in /tmp/rev.diff\nLook for regressions.', type: 'Explore' }), 'Sub-agent'), { kind: 'Explore', title: 'Review the diff in /tmp/rev.diff' });
+  assert.equal(subagentLabel(bare({}), 'Check the docs').title, 'Check the docs');
+  assert.deepEqual(subagentLabel(bare({ type: 'Explore' }), 'Agent'), { kind: '', title: 'Explore sub-agent' });
+  assert.deepEqual(subagentLabel(bare({}), 'Sub-agent'), { kind: '', title: 'Sub-agent' });
+});
+
+test('real Claude event orders all name the card from the spawning call', () => {
+  // A placeholder name in a status update does not replace the task.
+  cursor = 0n;
+  let t = fold(emptyTranscript(),
+    record(0, { type: 'tool_activity', data: call('toolu_r', 'Agent', 'running', { input: { description: 'Review the datasource diff', prompt: 'Review /tmp/rev.diff.', subagent_type: 'Explore' } }) }),
+    record(10, { type: 'agent_status', agentId: 'claude-tool:toolu_r', status: 'running', name: 'Sub-agent', data: { toolUseId: 'toolu_r' } }),
+  );
+  assert.equal(t.subagents.byId['claude-tool:toolu_r'].name, 'Review the datasource diff');
+
+  // Its own events first, under the Runner's attempt prefix, then the spawning call: one card, named.
+  cursor = 0n;
+  const real = 'attempt-2:claude-tool:toolu_e';
+  t = fold(emptyTranscript(),
+    record(0, { type: 'activity', agentId: real, parentAgentId: 'root', status: 'working' }),
+    record(5, { type: 'tool_activity', agentId: real, data: call('e1', 'Bash', 'running', { input: { command: 'git diff --stat', description: 'Gather diff stats' } }) }),
+    record(10, { type: 'tool_activity', data: call('toolu_e', 'Agent', 'running', { input: { description: 'Review the datasource diff', prompt: 'Review it.', subagent_type: 'Explore' } }) }),
+    record(20, { type: 'agent_status', agentId: real, status: 'running', data: { toolUseId: 'toolu_e' } }),
+  );
+  assert.equal(t.messages.filter(m => m.type === 'subagent').length, 1, 'one card');
+  const agent = t.subagents.byId[real];
+  assert.deepEqual(subagentLabel(agent), { kind: 'Explore', title: 'Review the datasource diff' });
+  assert.equal(agent.toolCount, 1);
+
+  // The first report of the call lacks its input (a provider that streams it); a later one carries it.
+  cursor = 0n;
+  t = fold(emptyTranscript(),
+    record(0, { type: 'tool_activity', data: call('toolu_s', 'Task', 'running') }),
+    record(5, { type: 'tool_activity', data: call('toolu_s', 'Task', 'running', { input: { description: 'Map the pipeline', prompt: 'Trace it.', subagent_type: 'Explore' } }) }),
+  );
+  assert.deepEqual(subagentLabel(t.subagents.byId['claude-tool:toolu_s']), { kind: 'Explore', title: 'Map the pipeline' });
+
+  // A journal written with spaces after colons still names its spawns.
+  cursor = 0n;
+  const spaced = create(JournalEventSchema, { cursor: ++cursor, capturedAt: new Date(T0).toISOString(), event: { type: 'tool_activity', providerDataJson: new TextEncoder().encode(JSON.stringify(call('toolu_p', 'Agent', 'running', { input: { description: 'Spaced', prompt: 'p' } }), null, 1)) } });
+  assert.equal(foldTranscript(emptyTranscript(), [spaced]).subagents.byId['claude-tool:toolu_p']?.name, 'Spaced');
+});
+
+test('a timeline reads as the chat\'s tool lines: reads grouped, a file read again counted, a failure on its own line', () => {
+  cursor = 0n;
+  const child = 'claude-tool:toolu_g';
+  const read = (id: string, at: number, status = 'completed') => [
+    record(at, { type: 'tool_activity', agentId: child, data: call(id, 'Read', 'running', { input: { file_path: '/tmp/rev.diff' } }) }),
+    record(at + 1, { type: 'tool_activity', agentId: child, data: call(id, undefined as never, status) }),
+  ];
+  const t = fold(emptyTranscript(),
+    record(0, { type: 'tool_activity', data: call('toolu_g', 'Agent', 'running', { input: { description: 'Review', prompt: 'p' } }) }),
+    ...read('r1', 10), ...read('r2', 20), ...read('r3', 30),
+    ...read('r4', 40, 'failed'), ...read('r5', 50, 'failed'),
+    record(60, { type: 'message_delta', agentId: child, text: 'Found it.' }),
+    ...read('r6', 70),
+    record(80, { type: 'tool_activity', agentId: child, data: call('r7', 'Read', 'running', { input: { file_path: '/tmp/rev.diff' } }) }),
+    record(90, { type: 'tool_activity', agentId: child, data: call('b1', 'Bash', 'running', { input: { command: 'git diff --stat', description: 'Gather diff stats' } }) }),
+    record(91, { type: 'tool_activity', agentId: child, data: call('b1', undefined as never, 'completed', { output: ' 2 files changed' }) }),
+  );
+  const rows = stepRows(t.subagents.byId[child].items);
+  const shape = rows.map(row => row.kind !== 'tool' ? row.kind : row.item.kind === 'call' ? `call:${row.item.entry.status}` : `${row.item.kind}:${row.item.entries.length}`);
+  assert.deepEqual(shape, ['explore:3', 'call:failed', 'call:failed', 'message', 'explore:2', 'call:completed']);
+  const [reads, , , , rereads, bash] = rows as Extract<typeof rows[number], { kind: 'tool' }>[];
+  assert.equal(describeGroup(reads.item as never).text, 'Read /tmp/rev.diff ×3');
+  assert.equal(describeGroup(rereads.item as never).text, 'Reading /tmp/rev.diff ×2', 'a run with the running call says so');
+  assert.deepEqual(rereads.ids, ['r6', 'r7'], 'the running call is found in its row');
+  // Under a second says nothing.
+  assert.deepEqual(describeTool((bash.item as { entry: never }).entry).meta, ['exit 0']);
+  assert.equal(stepRows(t.subagents.byId[child].items), rows, 'rows are computed once per timeline');
 });

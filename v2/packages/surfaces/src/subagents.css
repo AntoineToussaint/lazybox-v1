@@ -1,6 +1,8 @@
 /* Sub-agents: inline cards where they started, a tray of the running ones beside the composer, and a panel that follows one live. */
 .subagent-card{--sa-working:var(--attention-working,#97bba2);--sa-failed:var(--attention-failed,#dc9494);--sa-waiting:var(--attention-input,#d6b46e);--sa-done:#88ad98;--sa-muted:#8b8d9a;
-  position:relative;margin:4px 0 16px;border:1px solid #33343f;border-radius:10px;background:#202129;overflow:hidden;transition:border-color .2s}
+  position:relative;margin:4px 0 16px;border:1px solid #33343f;border-radius:10px;background:#202129;overflow:hidden;transition:border-color .2s;
+  /* Its layout follows its own width (a narrow panel), not the window's. */
+  container:subagent-card/inline-size}
 .subagent-card[data-nested]{margin:6px 0;background:#1c1d24;border-color:#2f303a}
 .subagent-card[data-status=running],.subagent-card[data-status=starting]{border-color:color-mix(in srgb,var(--sa-working) 34%,#33343f)}
 .subagent-card[data-status=waiting]{border-color:color-mix(in srgb,var(--sa-waiting) 40%,#33343f)}
@@ -11,17 +13,25 @@
 .subagent-card.subagent-flash,.message-flash>.subagent-card{animation:subagent-flash 1.2s ease-out}
 @keyframes subagent-flash{0%{box-shadow:0 0 0 2px var(--accent,#bdb1ed)}100%{box-shadow:0 0 0 2px transparent}}
 
-.subagent-head{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 6px;min-width:0}
+/* One header row: state, "Explore · task", then its numbers and actions on the right, inside the card. */
+.subagent-head{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 6px;min-width:0}
 .embedded-chat .subagent-head>.subagent-toggle,.subagent-head>.subagent-toggle{display:flex;align-items:center;gap:9px;flex:1;min-width:0;padding:4px 6px;border-radius:6px;text-align:left;background:transparent;color:inherit}
-.subagent-who{display:flex;align-items:baseline;gap:8px;min-width:0;flex:1}
-.subagent-type{flex:none;font-size:10px;font-weight:600;letter-spacing:.2px;text-transform:none;color:#b8acdf;background:#2c2838;border:1px solid #3b3550;border-radius:4px;padding:1px 6px;line-height:16px}
-.subagent-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;color:#e2e2ea}
+.subagent-head>.subagent-toggle:hover{background:#262731}
+/* "Kind · task" is one line that ellipsizes as a whole: the kind leads, so it stays readable. */
+.subagent-who{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;line-height:20px;color:#e2e2ea}
+.subagent-type{font-weight:500;color:#b8acdf}
+.subagent-name{color:inherit}
 .subagent-chevron{flex:none;display:inline-flex;color:#7d7f8c;transition:transform .15s}
 .subagent-toggle[aria-expanded=true] .subagent-chevron{transform:rotate(90deg)}
+.subagent-side{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:auto}
 .subagent-stats{display:inline-flex;gap:4px;flex:none;color:var(--sa-muted,#8b8d9a);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .subagent-sep{color:#5d5f6a;white-space:pre}
 .subagent-actions{display:inline-flex;align-items:center;gap:2px;flex:none}
-.subagent-actions .icon-button{padding:5px!important;color:#9a9ca9}
+.embedded-chat .subagent-actions .icon-button,.subagent-actions .icon-button{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0!important;color:#9a9ca9}
+/* Narrow cards: fewer numbers first, then the numbers and actions take a row of their own. */
+@container subagent-card (max-width:560px){
+  .subagent-stat-tokens,.subagent-stat-tokens+.subagent-sep,.subagent-stats>.subagent-sep:has(+.subagent-stat-tokens){display:none}
+}
 .subagent-stop{display:inline-flex;align-items:center;gap:5px;padding:4px 7px!important;color:#c9a3a3!important;font-size:11px!important}
 .subagent-stop.confirming{background:#4a2b2e!important;color:#f2c4c4!important;border-color:#6e3c40!important}
 
@@ -65,13 +75,28 @@
 .subagent-prompt[open]>summary>small{display:none}
 .subagent-prompt-text{padding:2px 12px 10px;max-height:320px;overflow:auto}
 .subagent-timeline{list-style:none;margin:0;padding:0}
-.subagent-step.message .subagent-message{padding:8px 0 10px!important}
+.subagent-step.message .subagent-message{padding:6px 6px 8px!important}
 .subagent-step.message .subagent-message p{font-size:calc(var(--chat-font-size,14px) - 1px)!important;line-height:var(--chat-line-height,1.5)!important}
-.subagent-step.tool .tool-call>summary{grid-template-columns:10px 14px minmax(0,1fr) auto 52px;padding:7px 4px}
-.subagent-step.tool .tool-time{display:none}
-.subagent-earlier{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0 8px;font-size:11px;color:#8b8d9a;text-align:center}
+/* In a card, prose is a few lines; the panel and "Show all" give the whole. */
+.subagent-timeline[data-compact] .subagent-message{max-height:5.2em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
+.subagent-timeline[data-compact] .subagent-message p{margin:0!important}
+/* What it does now stays in sight at the bottom while it runs. */
+.subagent-step[data-current]{position:sticky;bottom:-10px;z-index:1;background:#1c1d23;padding-bottom:2px}
+.subagent-panel .subagent-step[data-current]{bottom:-16px;background:#1d1e25}
+.subagent-step.now .tool-line-row{cursor:default}
+.subagent-step.now .tool-line-row:hover{background:none}
+.subagent-earlier{display:flex;flex-direction:column;align-items:center;gap:4px;padding:2px 0 6px;font-size:11px;color:#8b8d9a;text-align:center}
 .subagent-earlier .show-earlier{margin:0!important}
+.subagent-earlier .subagent-link{margin:0}
 .subagent-empty{padding:10px 0;font-size:12px;color:#8b8d9a}
+
+/* Its tool calls are the chat's tool lines (ToolLine); in a timeline their facts (exit code, time, size) sit at the right edge. */
+.subagent-step .tool-lines{margin:0}
+.subagent-timeline .tool-line-row>.tool-meta{margin-left:auto;padding-left:8px}
+.subagent-timeline .tool-line-row>.tool-meta>span:first-child:before{content:none}
+.subagent-timeline .tool-line[data-state=failed]>.tool-line-row{background:color-mix(in srgb,var(--attention-failed,#dc9494) 9%,transparent)}
+.subagent-timeline .tool-line[data-state=failed]>.tool-line-row .tool-verb{color:#e2a39f}
+.subagent-timeline .tool-line-problem{margin-left:24px}
 
 /* The tray beside the composer. */
 .subagent-tray{position:relative;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 24px;font-size:12px;flex-shrink:0;color:var(--attention-working,#97bba2);font-variant-numeric:tabular-nums}
@@ -83,7 +108,7 @@
 .embedded-chat .subagent-chip,.subagent-chip{display:inline-flex;align-items:center;gap:7px;flex:none;max-width:280px;padding:4px 10px!important;border:1px solid #393a46!important;border-radius:999px!important;background:#24252e!important;color:#d6d7df!important;font-size:11.5px!important;font-weight:400!important}
 .subagent-chip:hover{border-color:#4c4d5c!important;background:#2a2b35!important}
 .subagent-chip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.subagent-chip-name>b{font-weight:600;color:#b8acdf;margin-right:2px}
+.subagent-chip-name .subagent-type,.subagent-tree-name .subagent-type{font-weight:600;color:#b8acdf}
 .subagent-chip>time{color:#8b8d9a;flex:none}
 .subagent-chip-nested{flex:none;font-size:10px;color:#b8acdf;background:#2c2838;border-radius:999px;padding:0 5px}
 .embedded-chat .subagent-tray-all,.subagent-tray-all{display:inline-flex;align-items:center;gap:6px;flex:none;padding:4px 9px!important;font-size:11px!important;color:#a5a7b4!important}
@@ -95,7 +120,6 @@
 .subagent-tree li[data-depth]:not([data-depth="0"])>.subagent-tree-row::before{content:'└';color:#5d5f6a;margin-right:-2px}
 .embedded-chat .subagent-tree-row,.subagent-tree-row{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:6px 8px!important;text-align:left;color:inherit!important}
 .subagent-tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.subagent-tree-name>b{font-weight:600;color:#b8acdf;margin-right:6px}
 .subagent-tree-row>small{flex:none;color:#8b8d9a;font-size:11px;font-variant-numeric:tabular-nums}
 
 /* A failed sub-agent, in the parent's status line. */
@@ -111,10 +135,11 @@
 .subagent-tree-name>code,code.subagent-chip-name,.subagent-panel-title code{font-family:var(--font-mono,ui-monospace,monospace);font-size:11.5px;color:#d6d7df;background:none;padding:0}
 .subagent-chip.command>svg{flex:none;color:#9a9ca9}
 .background-work{position:relative;display:inline-flex}
-.embedded-chat .background-work-button,.background-work-button{display:inline-flex;align-items:center;gap:4px;padding:4px 7px!important;font-size:11px!important;color:#b1b2bf;font-variant-numeric:tabular-nums}
+/* Wider than an icon button: its icon and words must not spill out of it. */
+.embedded-chat .background-work-button,.background-work-button{display:inline-flex;align-items:center;gap:5px;width:auto;min-width:28px;padding:4px 8px!important;font-size:11px!important;color:#9d9cad;font-variant-numeric:tabular-nums;white-space:nowrap}
+.background-work-button:hover{background:#272830;color:var(--text)}
 .background-work-button[data-running]{color:var(--attention-working,#97bba2)!important}
-.background-work-button[data-failed]:not([data-running]){color:var(--attention-failed,#dc9494)!important}
-.background-command h4{margin:14px 0 6px;font-size:11px;font-weight:600;color:#a5a7b4}
+.background-work-button[data-failed]:not([data-running]){color:var(--attention-failed,#dc9494)!important}.background-command h4{margin:14px 0 6px;font-size:11px;font-weight:600;color:#a5a7b4}
 .background-command-file{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:11px;color:#8b8d9a;min-width:0}
 .background-command-file>code{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all;color:#c4c6d0}
 
@@ -131,21 +156,28 @@
 .subagent-panel-head[data-movable]{cursor:grab}
 .subagent-panel-head:focus-visible{box-shadow:inset 0 0 0 1px var(--accent,#bdb1ed)}
 .subagent-panel-title{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:1;min-width:0}
-.subagent-panel-title>h3{margin:0;font-size:14px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececf2}
+.subagent-panel-title>h3{margin:0;font-size:14px;font-weight:600;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececf2}
+.subagent-panel-title .subagent-who{font-size:14px;font-weight:600;color:#ececf2;max-width:100%}
+.subagent-eyebrow{font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:#7f818d}
 .subagent-panel-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:8px 14px;flex:none;border-bottom:1px solid #2a2b34}
-.subagent-panel-meta>.subagent-now{padding:0;flex:1;min-width:0}
 .subagent-panel>.subagent-progress{padding:8px 14px 0;margin:0}
 .subagent-panel-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:10px 14px 16px;outline:none}
 .subagent-panel-body>.subagent-outcome{padding:10px 0 0;border-top:1px solid #2d2e38;margin-top:8px}
 .subagent-panel-body>.subagent-outcome>p{-webkit-line-clamp:4}
 
-/* Narrow and phone layouts: the card stacks, the tray scrolls. */
-@media (max-width:720px){
-  .subagent-head{flex-wrap:wrap;row-gap:2px}
-  .subagent-head>.subagent-stats{order:3;flex-basis:100%;padding-left:37px}
+/* A narrow card (a slim panel, a phone): its numbers and actions take a row of their own, still inside it. */
+@container subagent-card (max-width:420px){
+  .subagent-head{flex-wrap:wrap;row-gap:0}
+  .subagent-side{flex-basis:100%;justify-content:space-between;padding-left:35px}
   .subagent-now,.subagent-progress,.subagent-outcome{padding-left:14px}
+  .subagent-body{padding-inline:8px}
+  .subagent-body .tool-details{margin-left:8px}
+}
+/* Narrow and phone layouts: the tray scrolls. */
+@media (max-width:720px){
   .subagent-tray{padding:6px 12px;gap:8px}
   .subagent-tray-root{display:none}
+  .subagent-tray-noun{display:none}
   .subagent-chip{max-width:200px}
   .subagent-chip>time{display:none}
   .subagent-tree{right:8px;width:calc(100% - 16px)}

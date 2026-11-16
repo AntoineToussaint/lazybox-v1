@@ -33,6 +33,8 @@ export class SubagentView {
   /** The Runner's names, for a sub-agent whose journal never named it. */
   names: Record<string, string> = {};
   canStop = false;
+  /** The conversation's folder: tool lines show paths inside it relative to it. */
+  root = '';
   actions: SubagentActions = { revealMessage() {} };
   /** Bumped by every change of presentation. */
   version = 0;
@@ -49,8 +51,9 @@ export class SubagentView {
     const canStop = !!session?.capabilities?.stopAgent && !session.closed;
     const changed = canStop !== this.canStop || Object.keys(runner).length !== Object.keys(this.runner).length || Object.entries(runner).some(([id, status]) => this.runner[id] !== status);
     const renamed = Object.entries(names).some(([id, name]) => this.names[id] !== name);
-    this.runner = runner; this.names = names; this.canStop = canStop;
-    return changed || renamed;
+    const root = session?.workingDirectory || '', moved = root !== this.root;
+    this.runner = runner; this.names = names; this.canStop = canStop; this.root = root;
+    return changed || renamed || moved;
   }
   toggle(id: string, open = !this.expanded.has(id)) {
     if (open) { this.expanded.add(id); this.seen.add(id); } else this.expanded.delete(id);

@@ -2,10 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import { Icon } from './Icons';
 import { CodeBlock } from './RichContent';
 import { useNow } from './LiveIndicator';
-import { elapsedLabel } from './live-status';
-import { activeSubagent, currentAction, type Subagent, type SubagentStatus } from './subagent-model';
+import { titleWhenTruncated } from './truncated-title';
+import { activeSubagent, type Subagent, type SubagentStatus } from './subagent-model';
 import { usePresentation, useSubagent, useSubagentView } from './subagent-view';
-import { StopSubagent, SubagentMark, SubagentOutcome, SubagentPrompt, SubagentStats, SubagentTimeline, subagentTitle, useAgentStatus } from './SubagentCard';
+import { StopSubagent, SubagentMark, SubagentName, SubagentOutcome, SubagentPrompt, SubagentStats, SubagentTimeline, subagentTitle, useAgentStatus } from './SubagentCard';
 import './subagents.css';
 
 const WIDTH_KEY = 'lazybox.subagent-dock-width';
@@ -64,7 +64,7 @@ export function SubagentPanel() {
   if (!view || !panel) return null;
   const close = () => { view.closePanel(); const back = returnFocus.current; if (back instanceof HTMLElement && back.isConnected) back.focus(); };
   if (!agent) return <aside ref={host} className="subagent-panel" data-mode="float" aria-label="Sub-agent"><header ref={header} tabIndex={-1}><span>This sub-agent is no longer in the conversation’s history.</span><button type="button" className="icon-button" aria-label="Close sub-agent panel" onClick={close}><Icon name="close" size={14}/></button></header></aside>;
-  const title = subagentTitle(agent, view), action = active && agent.kind === 'agent' ? currentAction({ ...agent, status }) : undefined;
+  const title = subagentTitle(agent, view);
   const command = agent.kind === 'command', noun = command ? 'background command' : 'sub-agent';
 
   const clamp = (left: number, top: number) => {
@@ -117,8 +117,8 @@ export function SubagentPanel() {
     <header ref={header} tabIndex={-1} className="subagent-panel-head" data-movable={!docked && !narrow || undefined} title={!docked && !narrow ? 'Drag to move. Arrow keys move it.' : undefined} onPointerDown={startDrag} onKeyDown={headerKeys}>
       <SubagentMark status={status}/>
       <div className="subagent-panel-title">
-        <span className="subagent-type">{command ? 'Background command' : agent.type || 'Sub-agent'}{agent.depth > 0 && !command ? ' · nested' : ''}</span>
-        <h3 title={command ? agent.command : title}>{command ? <code>{title}</code> : title}</h3>
+        <span className="subagent-eyebrow">{command ? 'Background command' : agent.depth > 0 ? 'Nested sub-agent' : 'Sub-agent'}</span>
+        <h3>{command ? <code onPointerEnter={titleWhenTruncated(agent.command || title)}>{title}</code> : <SubagentName agent={agent} view={view}/>}</h3>
       </div>
       <span className="subagent-actions">
         <StopSubagent view={view} agent={agent} status={status}/>
@@ -129,7 +129,6 @@ export function SubagentPanel() {
     </header>
     <div className="subagent-panel-meta">
       <SubagentStats agent={agent} status={status} now={now}/>
-      {action && <span className="subagent-now"><span className="subagent-now-text">{action.text}</span>{action.since !== undefined && now >= action.since && <span className="subagent-now-time">{elapsedLabel(now - action.since)}</span>}</span>}
     </div>
     {active && agent.progress && <p className="subagent-progress">{agent.progress}</p>}
     <div className="subagent-panel-body" ref={body} tabIndex={0} aria-label={command ? 'Command and output' : 'Sub-agent timeline'} onScroll={event => { const node = event.currentTarget; following.current = node.scrollHeight - node.scrollTop - node.clientHeight < 32; }}>

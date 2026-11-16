@@ -25,7 +25,7 @@ push(-299000,{type:'turn_started'});
 push(-298000,{type:'message_delta',text:'I will split this: one agent maps the transcript, one audits the worker, and I will rerun the flaky test.'});
 // A long run that already finished, with hundreds of steps and a result.
 spawn(-290000,E,'toolu_long','Survey every adapter','general-purpose','Read every adapter under internal/runner/adapters and list what each forwards.');
-for(let i=0;i<160;i++){push(-289000+i*500,{type:'tool_activity',agentId:E,data:call('e'+i,i%3?'Read':'Grep','running',{input:i%3?{file_path:`services/runner/code/internal/runner/adapters/file${i}.go`}:{pattern:'parent_tool_use_id'}})});push(-288800+i*500,{type:'tool_activity',agentId:E,data:call('e'+i,undefined,'completed',{output:`line ${i}\n`.repeat(40)})});if(i%20===0)push(-288700+i*500,{type:'message_delta',agentId:E,text:`Step ${i}: the adapter forwards tool calls but drops sub-agent prose.`});}
+for(let i=0;i<160;i++){push(-289000+i*500,{type:'tool_activity',agentId:E,data:call('e'+i,i%3?'Read':'Bash','running',{input:i%3?{file_path:`services/runner/code/internal/runner/adapters/file${i}.go`}:{command:`rg -n parent_tool_use_id adapters/file${i}.go`}})});push(-288800+i*500,{type:'tool_activity',agentId:E,data:call('e'+i,undefined,'completed',{output:`line ${i}\n`.repeat(40)})});if(i%20===0)push(-288700+i*500,{type:'message_delta',agentId:E,text:`Step ${i}: the adapter forwards tool calls but drops sub-agent prose.`});}
 push(-200000,{type:'tool_activity',data:{type:'tool_call',id:'toolu_long',status:'completed',output:[{type:'text',text:'## Findings\n\n- **Claude**: sub-agent prose is dropped unless `forwardSubagentText` is on.\n- **Codex**: sub-threads are attributed by thread id.\n\nLONG_RESULT_END'},{type:'text',text:'agentId: a1b2 (use to resume)'}]}});
 push(-199990,{type:'agent_status',agentId:E,status:'done',data:{toolUseId:'toolu_long',summary:'Surveyed 4 adapters',usage:{totalTokens:182000,toolUses:160,durationMs:90000}}});
 // Two in parallel, now.
@@ -42,7 +42,12 @@ spawn(-40000,C,'toolu_logs','Read the CI logs','general-purpose','Read the last 
 push(-30000,{type:'tool_activity',agentId:C,data:call('c1','WebFetch','running',{input:{url:'https://ci.example.com/runs/4242/logs'}})});
 // One failed.
 spawn(-120000,D,'toolu_flaky','Rerun the flaky test 50 times','general-purpose','Run go test -run TestLogin -count 50 and report failures.');
-push(-110000,{type:'tool_activity',agentId:D,data:call('d1','Bash','running',{input:{command:'go test ./... -run TestLogin -count 50'}})});
+// The same file read twice in a row reads as one step; the failed run stands out.
+push(-119000,{type:'tool_activity',agentId:D,data:call('dq','Bash','running',{input:{command:'git diff --stat',description:'Gather diff stats'}})});
+push(-118700,{type:'tool_activity',agentId:D,data:call('dq',undefined,'completed',{output:' 2 files changed'})});
+for(const [n,offset] of [['d0a',-118000],['d0b',-117000]]){push(offset,{type:'tool_activity',agentId:D,data:call(n,'Read','running',{input:{file_path:'/tmp/rev.diff'}})});push(offset+100,{type:'tool_activity',agentId:D,data:call(n,undefined,'completed',{output:'diff --git a/x b/x'})});}
+push(-110000,{type:'tool_activity',agentId:D,data:call('d1','Bash','running',{input:{command:'go test ./... -run TestLogin -count 50',description:'Rerun the login test'}})});
+push(-101000,{type:'tool_activity',agentId:D,data:call('d1',undefined,'failed',{output:'panic: test timed out after 10m0s'})});
 push(-100000,{type:'agent_status',agentId:D,status:'failed',data:{toolUseId:'toolu_flaky',error:'The test binary timed out after 10m.'}});
 push(-4000,{type:'activity',status:'thinking'});
 // A background command whose name is a whole script, as Claude reports it.
@@ -76,11 +81,22 @@ try{
  // Cards sit where they started, in order, with their type, task and state.
  await expect(messages.locator('.subagent-anchor > .subagent-card')).toHaveCount(4);
  assert.deepEqual(await messages.locator('.subagent-anchor > .subagent-card').evaluateAll(n=>n.map(e=>e.dataset.agentId)),[E,A,B,D],"cards follow the journal");
+ // "Explore · Map the transcript pipeline": a kind that says something, then the task. The Runner's
+ // placeholder name ("Sub-agent") is never a title, and a generic kind is no badge.
+ await expect(card(A).locator('.subagent-who')).toHaveText('Explore · Map the transcript pipeline');
  await expect(card(A).locator('.subagent-type')).toHaveText('Explore');
  await expect(card(A).locator('.subagent-name')).toHaveText('Map the transcript pipeline');
+ await expect(card(E).locator('.subagent-who')).toHaveText('Survey every adapter');
+ await expect(card(E).locator('.subagent-type'),'general-purpose says nothing: no badge').toHaveCount(0);
+ await expect(messages.locator('.subagent-card .subagent-who').filter({hasText:/^Sub-agent$/})).toHaveCount(0);
  await expect(card(A)).toHaveAttribute('data-status','running');
  await expect(card(A).locator('.subagent-now-text')).toHaveText('Reading packages/surfaces/src/transcript-model.ts');
  await expect(card(A).locator('.subagent-stats')).toContainText(/1m 3\d+s · 14 tools · 48k tokens/);
+ // One elapsed time: the card's. The current step does not run a second clock.
+ await expect(card(A).locator('time')).toHaveCount(1);
+ // Its numbers and actions sit in its header row, inside the card.
+ {const head=await card(A).locator(':scope > .subagent-head').boundingBox(),box=await card(A).boundingBox(),open=await card(A).getByRole('button',{name:/in a panel$/}).boundingBox();
+  assert.ok(open.y>=head.y&&open.y+open.height<=head.y+head.height+0.5&&open.x+open.width<=box.x+box.width-4,'the panel button sits inside the header row');}
  await expect(card(A).locator('.subagent-progress')).toHaveText('Reading the transcript fold');
  {const first=await card(A).locator('.subagent-stats time').textContent();await expect.poll(()=>card(A).locator('.subagent-stats time').textContent(),{timeout:4000}).not.toBe(first);}
  await expect(messages.locator('.message').filter({hasText:'skips every event'}),'a sub-agent\'s prose is not a main message').toHaveCount(0);
@@ -94,7 +110,7 @@ try{
  await expect(card(E).locator('.subagent-result')).not.toContainText('agentId: a1b2');
  await expect(card(D)).toHaveAttribute('data-status','failed');
  await expect(card(D).locator('.subagent-outcome')).toContainText('The test binary timed out after 10m.');
- await page.screenshot({path:'.cache/subagents-cards.png'});
+ await page.screenshot({path:'.cache/subagents-polish-cards.png'});
 
  // Live: the current action moves with the sub-agent.
  push(0,{type:'tool_activity',agentId:A,data:call('a2',undefined,'completed',{output:'export function foldTranscript…'})});
@@ -106,18 +122,63 @@ try{
  const body=card(A).locator('.subagent-body');
  await expect(body.locator('.subagent-prompt summary')).toContainText('Trace how journal events become transcript messages.');
  await expect(body.locator('.subagent-message')).toContainText('skips every event whose agentId is not root');
- await expect(body.locator('.tool-call')).toHaveCount(3);
- await expect(body.locator('.tool-call-details')).toHaveCount(0);
- await body.locator('.tool-call summary').first().click();
- await expect(body.locator('.tool-call-details').first()).toContainText('transcript-model.ts:52');
+ // Each step is the chat's tool line: one dense line, icon and what it did.
+ const rows=body.locator('.subagent-step.tool .tool-line-row');
+ await expect(rows).toHaveCount(3);
+ await expect(rows.first()).toHaveText('Searched for agentId in packages/surfaces/src');
+ for(const height of await rows.evaluateAll(n=>n.map(e=>e.getBoundingClientRect().height)))assert.ok(height<=30,`a step is one line (${height}px)`);
+ // No tooltip repeats a line that is fully shown (it would cover the next line).
+ assert.deepEqual(await body.locator('.tool-line-row, .tool-line-row [title]').evaluateAll(n=>n.map(e=>e.getAttribute('title')).filter(Boolean)),[]);
+ await rows.first().locator('.tool-line-title').hover();
+ assert.equal(await rows.first().locator('.tool-line-title').getAttribute('title'),null,'hovering a line that fits adds no tooltip');
+ // Open, what it does now is the last line, pinned; the separate line above is gone.
+ await expect(body.locator('.subagent-step[data-current]')).toHaveCount(1);
+ await expect(body.locator('.subagent-step[data-current]')).toHaveText('Running go test ./internal/runner/... -run Subagent');
+ await expect(body.locator('.subagent-step[data-current] .tool-line')).toHaveAttribute('data-state','running');
+ await expect(card(A).locator(':scope > .subagent-now')).toHaveCount(0);
+ await expect(body.locator('.tool-details')).toHaveCount(0);
+ await rows.first().click();
+ await expect(body.locator('.tool-details').first()).toContainText('transcript-model.ts:52');
+ await page.screenshot({path:'.cache/subagents-polish-expanded.png'});
+ // (WebKit does not focus a clicked button; a keyboard reader is on the line.)
+ await rows.first().focus();
  await page.keyboard.press('Escape');
  await expect(card(A).locator('.subagent-body')).toHaveCount(0);
  await expect(card(A).locator(':scope > .subagent-head > .subagent-toggle')).toHaveAttribute('aria-expanded','false');
 
- // A long run mounts only its latest steps.
+ // A repeated call is one line with a count; a failed step stands out. (Expanding the failed card counts as having seen it.)
+ const reviewFailed=async()=>{
+ const toggleD=card(D).locator(':scope > .subagent-head > .subagent-toggle');
+ if(await toggleD.getAttribute('aria-expanded')!=='true')await toggleD.click();
+ const lines=card(D).locator('.subagent-step.tool > .tool-lines > .tool-line');
+ await expect(lines).toHaveCount(3);
+ await expect(lines.nth(0).locator('.tool-meta'),'under a second says nothing').toHaveText('exit 0');
+ await expect(lines.nth(1).locator(':scope > .tool-line-row')).toHaveText('Read /tmp/rev.diff ×2');
+ await expect(lines.nth(2)).toHaveAttribute('data-state','failed');
+ await expect(lines.nth(2).locator('.tool-meta'),'a step of 9s says so').toHaveText('9s');
+ await expect(lines.nth(2).locator('.tool-line-problem')).toHaveText('panic: test timed out after 10m0s');
+ {const bg=await lines.nth(2).locator(':scope > .tool-line-row').evaluate(n=>getComputedStyle(n).backgroundColor);assert.notEqual(bg,'rgba(0, 0, 0, 0)','a failed step is tinted');}
+ // Facts sit at the right edge of the line.
+ {const row=await lines.nth(2).locator(':scope > .tool-line-row').boundingBox(),meta=await lines.nth(2).locator('.tool-meta').boundingBox();assert.ok(row.x+row.width-(meta.x+meta.width)<12,'facts are right-aligned');}
+ await card(D).screenshot({path:'.cache/subagents-polish-failed.png'});
+ await lines.nth(1).locator(':scope > .tool-line-row').click();
+ await expect(lines.nth(1).locator('.tool-group-calls .tool-line-row')).toHaveText([/^Read \/tmp\/rev\.diff\s*1 line$/,/^Read \/tmp\/rev\.diff\s*1 line$/]);
+ await card(D).locator(':scope > .subagent-head > .subagent-toggle').click();
+ };
+
+ // A long run shows its latest few steps; all of them on request, mounted from the end.
+ await card(E).getByRole('button',{name:'Hide full result'}).click();
  await card(E).locator(':scope > .subagent-head > .subagent-toggle').click();
+ await expect(card(E).locator('.subagent-step')).toHaveCount(5);
+ const showAll=card(E).getByRole('button',{name:/^Show all \d+ steps$/});
+ {const steps=Number((await showAll.textContent()).match(/\d+/)[0]);assert.ok(steps>40&&steps<168,`reads are grouped, so fewer steps than calls (${steps})`);}
+ {const box=await card(E).boundingBox();assert.ok(box.height<420,`an open card stays compact (${box.height}px)`);}
+ await page.screenshot({path:'.cache/subagents-polish-long.png'});
+ await showAll.click();
  await expect(card(E).locator('.subagent-step')).toHaveCount(40);
  await expect(card(E).getByRole('button',{name:/Show earlier steps/})).toBeVisible();
+ await card(E).getByRole('button',{name:'Show only the latest 5'}).click();
+ await expect(card(E).locator('.subagent-step')).toHaveCount(5);
  await card(E).locator(':scope > .subagent-head > .subagent-toggle').click();
 
  // The tray: parallel sub-agents side by side, the nested one on its parent's chip.
@@ -166,19 +227,33 @@ try{
  await page.screenshot({path:'.cache/subagents-background-command.png'});
  await bgPanel.getByRole('button',{name:'Close background command panel'}).click();
  // The header keeps the way to all background work.
- await expect(chat.locator('.chat-heading').getByRole('button',{name:/^Background work: 6 in all, 4 running, 1 failed$/})).toBeVisible();
+ // Its numbers say what they count: in words, and in full in the tooltip.
+ const workButton=chat.locator('.chat-heading').getByRole('button',{name:/^Background work: 6 in all, 4 running, 1 failed$/});
+ await expect(workButton).toHaveText('4 running');
+ await expect(workButton).toHaveAttribute('title','6 sub-agents and commands, 4 running, 1 failed. Show them all.');
+ await expect(chat.locator('.chat-heading').getByRole('button',{name:'View tools and activity'})).toHaveText(/^\d+ tool calls$/);
+ await expect(tray.locator('.subagent-tray-all')).toHaveText('All 6 in background');
+ await page.screenshot({path:'.cache/subagents-polish-header.png',clip:{x:280,y:88,width:1160,height:80}});
 
  // A panel of its own, docked, following live.
  await card(A).getByRole('button',{name:'Open Map the transcript pipeline in a panel'}).click();
  const panel=chat.getByRole('complementary',{name:'Sub-agent: Map the transcript pipeline'});
  await expect(panel).toHaveAttribute('data-mode','dock');
  await expect(panel.locator('.subagent-panel-head')).toBeFocused();
- await expect(panel.locator('.subagent-now-text')).toHaveText('Running go test ./internal/runner/... -run Subagent');
+ await expect(panel.locator('.subagent-who')).toHaveText('Explore · Map the transcript pipeline');
+ await expect(panel.locator('.subagent-step[data-current]')).toHaveText('Running go test ./internal/runner/... -run Subagent');
+ await expect(panel.locator('.subagent-panel-head, .subagent-panel-meta').locator('time'),'one elapsed time for the sub-agent').toHaveCount(1);
+ // Beside a docked panel the header is slim: counts stay, their words go to the tooltip, the status line keeps its room.
+ await expect(workButton).toHaveText('4',{useInnerText:true});
+ await expect(workButton).toHaveAttribute('title',/^6 sub-agents and commands, 4 running/);
+ // The card, its panel and its chip read one clock: never two different times for one sub-agent.
+ for(let i=0;i<3;i++){const times=await page.evaluate(id=>[document.querySelector(`.subagent-card[data-agent-id="${id}"] .subagent-stats time`),document.querySelector('.subagent-panel .subagent-stats time'),[...document.querySelectorAll('.subagent-chip')].find(c=>c.textContent.includes('Map the transcript'))?.querySelector('time')].map(n=>n?.textContent),A);
+  assert.ok(times[0]&&times.every(t=>t===times[0]),`one elapsed time everywhere: ${times.join(' / ')}`);await page.waitForTimeout(400);}
  {const box=await panel.boundingBox(),composer=await chat.locator('.composer').boundingBox();assert.ok(composer.x+composer.width<=box.x+1,'the docked panel sits beside the conversation');}
  push(20,{type:'message_delta',agentId:A,parentAgentId:'root',text:'PANEL_FOLLOWS_LIVE'});
  await expect(panel.locator('.subagent-panel-body')).toContainText('PANEL_FOLLOWS_LIVE');
  assert.ok(await panel.locator('.subagent-panel-body').evaluate(n=>n.scrollHeight-n.scrollTop-n.clientHeight<40),'the panel follows the latest step');
- await page.screenshot({path:'.cache/subagents-panel-docked.png'});
+ await page.screenshot({path:'.cache/subagents-polish-panel.png'});
  // Resize from its edge with the keyboard.
  {const handle=panel.getByRole('separator',{name:'Resize sub-agent panel'});const before=Number(await handle.getAttribute('aria-valuenow'));await handle.focus();await page.keyboard.press('ArrowLeft');await expect(handle).toHaveAttribute('aria-valuenow',String(before+24));}
  // Float it and move it by its header.
@@ -206,6 +281,7 @@ try{
  await attention.getByRole('button',{name:'1 sub-agent failed',exact:true}).click();
  await expect(card(D)).toBeInViewport();
  await expect(attention).toHaveCount(0);
+ await reviewFailed();
 
  // Reduced motion stills every animation.
  assert.equal(await card(B).locator('.subagent-mark').first().evaluate(n=>getComputedStyle(n).animationName),'live-spin');
@@ -218,6 +294,12 @@ try{
  await page.setViewportSize({width:390,height:844});
  await expect(tray.locator('.subagent-chip').first()).toBeVisible();
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'no horizontal page scroll');
+ // A narrow card keeps its numbers and actions inside it, on a row of their own.
+ await card(B).scrollIntoViewIfNeeded();
+ for(const id of [B,D]){const box=await card(id).boundingBox(),head=card(id).locator(':scope > .subagent-head');
+  for(const b of await head.locator('button,.subagent-stats').evaluateAll(n=>n.map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right};})))
+   assert.ok(b.left>=box.x-0.5&&b.right<=box.x+box.width+0.5,`header controls stay inside the card at phone width (${JSON.stringify(b)} in ${box.x}..${box.x+box.width})`);}
+ await card(B).screenshot({path:'.cache/subagents-polish-narrow.png'});
  await card(B).getByRole('button',{name:'Open Audit worker events in a panel'}).click();
  const sheet=chat.getByRole('complementary',{name:'Sub-agent: Audit worker events'});
  await expect(sheet).toHaveAttribute('data-mode','sheet');
@@ -233,5 +315,5 @@ try{
   const mounted=await fan.locator('.subagent-anchor').count();assert.ok(mounted>0&&mounted<=40,`only the latest cards are mounted (${mounted})`);
   console.log(`80 sub-agents, ${many.events.length} events: latest card in ${elapsed} ms`);}
  assert.deepEqual(errors,[]);
- console.log('PASS sub-agent cards (order, type, task, live action, elapsed, tools, tokens, progress, outcome, full result), timeline (prompt, prose, collapsed tools, windowed long run), tray (parallel chips, nested badge, keyboard, reveal), tree, panel (dock, follow, resize, float, move, Esc), stop, failed attention, reduced motion, phone sheet, background commands (short names, no card, script and output panel, header access), 80-sub-agent conversation opens fast. Fixture only.');
+ console.log('PASS sub-agent cards (order, "kind · task" title without placeholders or generic kinds, live action, one elapsed time on one clock, tools, tokens, progress, outcome, full result, controls inside the header row at any width), timeline (prompt, prose, steps as the chat’s one-line tool lines with facts on the right and no time under 1s, reads grouped and a re-read file counted, failed step stands out, latest 5 with "Show all", current step pinned, no duplicate tooltip, windowed long run), header and tray counts in words, tray (parallel chips, nested badge, keyboard, reveal), tree, panel (dock, follow, resize, float, move, Esc), stop, failed attention, reduced motion, phone sheet, background commands (short names, no card, script and output panel, header access), 80-sub-agent conversation opens fast. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}

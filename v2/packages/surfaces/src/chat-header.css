@@ -44,6 +44,8 @@
 .chat-heading-actions .tool-activity-toolbar>button[data-running]{color:var(--attention-working,#97bba2)}
 .chat-heading-actions .tool-activity-toolbar>button[data-failed]:not([data-running]) .tool-activity-count{color:var(--attention-failed,#dc9494)}
 .chat-heading-actions .tool-activity-count{margin:0}
+/* A slim chat keeps the counts; their words stay in the tooltip and the accessible name. */
+.chat-heading[data-narrow] .tool-activity-noun,.chat-heading[data-narrow] .background-work-noun{display:none}
 .context-mini-bar[data-level=medium] i{background:#d2b474}
 .context-mini-bar[data-level=high] i{background:#db9393}
 

@@ -1,5 +1,6 @@
 import type { JournalEvent } from '@lazybox/protocol';
 import type { ToolCall } from './tool-activity';
+import { applyToolPayload, groupTools, type ToolEntry, type ToolItem } from './tool-lines';
 import { toolLabel } from './live-status';
 
 /**
@@ -93,7 +94,23 @@ export type Subagents = {
 };
 export const emptySubagents = (): Subagents => ({ byId: {}, order: [], spawns: {}, aliases: {}, truncated: false });
 
-/** Tools whose call starts a sub-agent. */
+/**
+ * What the spawning call says of a sub-agent. Claude's Task/Agent input is
+ * `{description, prompt, subagent_type, name?, run_in_background?}`.
+ */
+function adoptInput(agent: Subagent, input: Record<string, any>) {
+  agent.name ||= [text(input.description), text(input.name)].find(name => name.trim() && !genericName(name))?.trim() || '';
+  agent.type ||= text(input.subagent_type);
+  agent.prompt ||= text(input.prompt);
+  agent.backgrounded ||= input.run_in_background === true;
+}
+
+/** Kinds of agent that tell a reader nothing ("general-purpose"): no badge for them. */
+const GENERIC_TYPES = new Set(['', 'general-purpose', 'general', 'agent', 'local_agent', 'sub-agent', 'subagent', 'default', 'task']);
+/** Names a provider or the Runner gives an agent it knows nothing about. */
+const GENERIC_NAMES = new Set(['', 'agent', 'sub-agent', 'subagent', 'sub agent', 'task']);
+export const genericType = (type: string) => GENERIC_TYPES.has(type.trim().toLowerCase());
+export const genericName = (name: string) => GENERIC_NAMES.has(name.trim().toLowerCase());
 const SPAWN_TOOLS = new Set(['Task', 'Agent']);
 /** Tools the agent reads a background command's output with. */
 const READ_TOOLS = new Set(['BashOutput', 'TaskOutput']);
@@ -277,15 +294,21 @@ export class SubagentFold {
     if (!known) {
       if (data.status !== 'running' || !SPAWN_TOOLS.has(data.name)) return;
       const id = `claude-tool:${data.id}`;
-      const created = this.create(this.resolve(id), owner, at);
+      // Its own events may come first, under the Runner's attempt prefix: that card is this one.
+      const heard = this.get(id) ? id : (this.order ?? this.state.order).find(known => known.endsWith(`:${id}`) && this.get(known)?.kind === 'agent');
+      const created = heard ? this.get(heard) : this.create(this.resolve(id), owner, at);
       if (!created) return;
       (this.spawns ??= { ...this.state.spawns })[data.id] = created.id;
       const agent = this.edit(created.id), input = data.input && typeof data.input === 'object' ? data.input : {};
       agent.toolUseId = data.id;
-      agent.name ||= text(input.description);
-      agent.type ||= text(input.subagent_type);
-      agent.prompt ||= text(input.prompt);
-      agent.backgrounded ||= input.run_in_background === true;
+      adoptInput(agent, input);
+      return;
+    }
+    // A later report of the same call may be the first to carry its input.
+    if (data.status === 'running') {
+      const input = data.input && typeof data.input === 'object' ? data.input : undefined;
+      const current = this.get(known);
+      if (input && current && (!current.name || !current.type || !current.prompt)) adoptInput(this.edit(known), input);
       return;
     }
     if (data.status !== 'completed' && data.status !== 'failed') return;
@@ -312,9 +335,9 @@ export class SubagentFold {
           const head = peek(e.providerDataJson);
           const pending = (this.spawns ?? this.state.spawns);
           let data: Record<string, any> | undefined;
-          if (/"name":"(Task|Agent|BashOutput|TaskOutput)"/.test(head)) data = payload(e.providerDataJson);
+          if (/"name"\s*:\s*"(Task|Agent|BashOutput|TaskOutput)"/.test(head)) data = payload(e.providerDataJson);
           else {
-            const id = /"id":"([^"]+)"/.exec(head)?.[1];
+            const id = /"id"\s*:\s*"([^"]+)"/.exec(head)?.[1];
             if (id && pending[id]) data = payload(e.providerDataJson);
           }
           if (data) this.spawnCall('root', data, at, e.providerDataJson);
@@ -411,7 +434,8 @@ export class SubagentFold {
     const agent = this.edit(id);
     if (e.name) {
       if (agent.kind === 'command') { agent.command = e.name; agent.name = commandTitle(e.name); }
-      else agent.name = e.name;
+      // A placeholder ("Sub-agent") never replaces the task it was given.
+      else if (!genericName(e.name)) agent.name = e.name;
     }
     if (text(data.outputFile)) agent.outputFile = data.outputFile;
     if (e.nativeId) agent.nativeId = e.nativeId;
@@ -549,6 +573,73 @@ export function tokenLabel(tokens: number): string {
   if (tokens < 1000) return `${tokens} tokens`;
   if (tokens < 1_000_000) return `${(tokens / 1000).toFixed(tokens < 10_000 ? 1 : 0).replace(/\.0$/, '')}k tokens`;
   return `${(tokens / 1_000_000).toFixed(1).replace(/\.0$/, '')}M tokens`;
+}
+
+/**
+ * What a person calls a sub-agent: its kind, when the kind says something
+ * ("Explore", never "general-purpose"), and its task. The task is the
+ * spawning call's description, else a name the Runner has for it, else the
+ * first line of its instructions; a placeholder name is never a title.
+ */
+export function subagentLabel(agent: Subagent, runnerName = ''): { kind: string; title: string } {
+  if (agent.kind === 'command') return { kind: '', title: agent.name || 'Background command' };
+  const kind = genericType(agent.type) ? '' : agent.type.trim();
+  const named = [agent.name, runnerName].find(name => name && !genericName(name) && name !== agent.type);
+  const brief = agent.prompt.split('\n').map(line => line.replace(/^#+\s*/, '').trim()).find(Boolean);
+  const title = named?.trim() || (brief ? oneLine(brief, 120) : '');
+  if (title) return { kind, title };
+  return kind ? { kind: '', title: `${kind} sub-agent` } : { kind: '', title: 'Sub-agent' };
+}
+
+/**
+ * One line of a sub-agent's timeline: prose, a nested sub-agent, or a tool
+ * line as the chat shows it (a call, or a run of reads or edits).
+ */
+export type StepRow =
+  | { kind: 'message'; id: string; text: string }
+  | { kind: 'agent'; id: string; agentId: string }
+  | { kind: 'tool'; id: string; item: ToolItem; ids: readonly string[] };
+
+const entries = new WeakMap<ToolCall, ToolEntry>();
+const STATUS: Record<string, ToolEntry['status']> = { Running: 'running', Completed: 'completed', Failed: 'failed' };
+/** A sub-agent's call as the chat's tool lines read it; computed once per version of the call. */
+export function toolEntry(call: ToolCall): ToolEntry {
+  let entry = entries.get(call);
+  if (entry) return entry;
+  const status = STATUS[call.status] || 'unknown';
+  entry = applyToolPayload(undefined, { type: 'tool_call', id: call.id, name: call.name, status, input: call.input, output: call.output }, call.startedAt ?? call.endedAt) || { id: call.id, name: call.name, status };
+  // The journal's own times: when the call was seen to start, and to end.
+  entry.status = status; entry.startedAt = call.startedAt; entry.endedAt = call.endedAt;
+  entries.set(call, entry);
+  return entry;
+}
+
+const rowCache = new WeakMap<readonly SubagentItem[], StepRow[]>();
+/**
+ * The timeline as rows, its tool calls grouped as the chat groups them:
+ * consecutive reads and searches one line, edits one line, a file read
+ * again and again one line with a count; a failed call always its own.
+ */
+export function stepRows(items: readonly SubagentItem[]): StepRow[] {
+  const cached = rowCache.get(items);
+  if (cached) return cached;
+  const rows: StepRow[] = [];
+  let run: ToolEntry[] = [];
+  const flush = () => {
+    for (const item of groupTools(run)) {
+      const group = item.kind === 'call' ? [item.entry] : item.entries;
+      rows.push({ kind: 'tool', id: `tool:${group[0].id}`, item, ids: group.map(entry => entry.id) });
+    }
+    run = [];
+  };
+  for (const item of items) {
+    if (item.kind === 'tool') { run.push(toolEntry(item.call)); continue; }
+    flush();
+    rows.push(item.kind === 'message' ? { kind: 'message', id: item.id, text: item.text } : { kind: 'agent', id: item.id, agentId: item.agentId });
+  }
+  flush();
+  rowCache.set(items, rows);
+  return rows;
 }
 
 export const statusWord: Record<SubagentStatus, string> = { starting: 'Starting', running: 'Running', waiting: 'Waiting', done: 'Done', failed: 'Failed', stopped: 'Stopped', unknown: 'Status unknown' };

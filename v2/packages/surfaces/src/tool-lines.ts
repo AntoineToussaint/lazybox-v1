@@ -274,7 +274,7 @@ export function describeTool(entry: ToolEntry, root = ''): ToolTitle {
       const action = entry.actions?.find(a => a.type === 'read');
       const file = path || action?.path || action?.name || '';
       if (typeof i.offset === 'number' || typeof i.limit === 'number') meta.push(`lines ${(i.offset || 0) + 1}–${(i.offset || 0) + (i.limit || 0) || '…'}`);
-      else if (entry.outputLines && !running && entry.name !== 'View image') meta.push(`${entry.outputLines} lines`);
+      else if (entry.outputLines && !running && entry.name !== 'View image') meta.push(plural(entry.outputLines, 'line'));
       return { verb: tense('Read', 'Reading'), target: file ? shortPath(file, root) : commandText(entry), code: true, file: file || undefined, meta, problem };
     }
     case 'search': {
@@ -299,8 +299,9 @@ export function describeTool(entry: ToolEntry, root = ''): ToolTitle {
       const command = commandText(entry);
       if (!running) {
         if (entry.exitCode !== undefined) meta.push(`exit ${entry.exitCode}`);
-        const took = shortDuration(durationOf(entry));
-        if (took) meta.push(took);
+        // Under a second is not worth a word on every line.
+        const ms = durationOf(entry);
+        if (ms !== undefined && ms >= 1000) meta.push(shortDuration(ms));
       }
       if (i.run_in_background === true) return { verb: tense('Started', 'Starting'), target: command, code: true, meta: ['in the background'], problem };
       const why = failed && entry.exitCode !== undefined && entry.exitCode !== 0 ? firstLine((entry.output || '').replace(/^Exit code \d+\n?/, '')) || `Exited with ${entry.exitCode}` : problem;
@@ -362,8 +363,8 @@ export function groupTools(entries: readonly ToolEntry[]): ToolItem[] {
 
 const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 
-/** A group's line: "Read 6 files, searched 2 patterns", "Editing 3 files +12 −4". */
-export function describeGroup(item: Exclude<ToolItem, { kind: 'call' }>): { text: string; meta: string[]; running: boolean } {
+/** A group's line: "Read 6 files, searched 2 patterns", "Editing 3 files +12 −4", "Read src/app.ts ×2". */
+export function describeGroup(item: Exclude<ToolItem, { kind: 'call' }>, root = ''): { text: string; meta: string[]; running: boolean } {
   const running = item.entries.some(e => e.status === 'running');
   if (item.kind === 'edits') {
     const files = new Set(item.entries.flatMap(e => e.diff?.files || [String(object(e.input).file_path || e.id)]));
@@ -376,6 +377,11 @@ export function describeGroup(item: Exclude<ToolItem, { kind: 'call' }>): { text
     if (kind === 'read') reads.add(String(i.file_path || i.path || e.actions?.find(a => a.type === 'read')?.path || e.id));
     else if (kind === 'search') searches++;
     else lists++;
+  }
+  // The same file read again and again is that file, so many times; not "Read 1 file".
+  if (reads.size === 1 && !searches && !lists) {
+    const [path] = reads;
+    return { text: `${running ? 'Reading' : 'Read'} ${shortPath(path, root)} ×${item.entries.length}`, meta: [], running };
   }
   const parts: string[] = [];
   if (reads.size) parts.push(`${running ? 'reading' : 'read'} ${plural(reads.size, 'file')}`);

@@ -1,4 +1,4 @@
-import type { MouseEventHandler, ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type MouseEventHandler, type ReactNode } from 'react';
 import type { InfoResponse, JournalEvent, Session } from '@lazybox/protocol';
 import { sessionStatus } from './agent-status';
 import type { branchSummary } from './conversation-model';
@@ -10,6 +10,26 @@ import { ToolActivity } from './ToolActivity';
 import './chat-header.css';
 
 type Branch = ReturnType<typeof branchSummary>;
+
+/**
+ * Whether an element is narrower than `width`: a chat in a slim panel says
+ * its counts without their words, which stay in the tooltip and the
+ * accessible name. Measured, not a container query: a size container would
+ * become the containing block of the header's fixed popovers.
+ */
+function useNarrow(width: number) {
+  const ref = useRef<HTMLElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const measure = () => setNarrow(node.clientWidth < width);
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(node);
+    return () => observer.disconnect();
+  }, [width]);
+  return [ref, narrow] as const;
+}
 
 /** What the agent is doing now, with the queue behind it. */
 export function ChatStatus({ session, live }: { session?: Session; live: LiveStatus }) {
@@ -52,7 +72,8 @@ export function ChatHeader({ agentName, session, sessionID, title, status, model
   onOpenChat?(): void;
   menu: ReactNode;
 }) {
-  return <header className="chat-heading" onContextMenu={onContextMenu}>
+  const [header, narrow] = useNarrow(760);
+  return <header ref={header} className="chat-heading" data-narrow={narrow || undefined} onContextMenu={onContextMenu}>
     <span className={'agent-avatar ' + agentName.toLowerCase()} aria-hidden="true">{agentName === 'Claude' ? '✳︎' : '›'}</span>
     <div className="chat-heading-main">
       {title}
