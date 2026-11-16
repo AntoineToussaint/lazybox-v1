@@ -170,6 +170,13 @@ test('real Vite server watches CSS and refuses runtime-state files', {timeout:15
   const file=join(source,'apps/desktop',name);
   await writeFile(file,'body { --reload-fixture: before; }');
   t.after(()=>rm(file,{force:true}));
+  // The page exists before the server starts, like the stylesheet: an HTML file
+  // the watcher first sees as added reloads the page, and that reload, landing
+  // whenever the polling backend gets to it, threw away the stylesheet the
+  // nested-save check adds to the page.
+  const html=join(source,'apps/desktop',`${name}.html`);
+  await writeFile(html,`<html><head><link rel="stylesheet" href="/${name}"></head><body>Reload check</body></html>`);
+  t.after(()=>rm(html,{force:true}));
   const signalHandlers=process.listeners('SIGTERM');
   const {server,url}=await startDesktopDevServer(source);
   assert.deepEqual(process.listeners('SIGTERM'),signalHandlers,'embedded Vite must not own launcher shutdown');
@@ -178,9 +185,6 @@ test('real Vite server watches CSS and refuses runtime-state files', {timeout:15
   assert.match(await (await fetch(`${url}/${name}`)).text(),/before/);
   const denied=await fetch(`${url}/@fs/${join(source,'services/runner/code/work.go')}`);
   assert.equal(denied.status,403,'development source outside UI must not be served');
-  const html=join(source,'apps/desktop',`${name}.html`);
-  await writeFile(html,`<html><head><link rel="stylesheet" href="/${name}"></head><body>Reload check</body></html>`);
-  t.after(()=>rm(html,{force:true}));
   const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
   const page=await browser.newPage();
   const connected=new Promise(resolve=>page.on('websocket',socket=>socket.on('framereceived',frame=>{
