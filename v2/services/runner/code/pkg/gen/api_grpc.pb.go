@@ -147,6 +147,9 @@ const (
 	RunnerService_CancelDevicePairing_FullMethodName          = "/lazybox.bench.v1.RunnerService/CancelDevicePairing"
 	RunnerService_ListDevices_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ListDevices"
 	RunnerService_RevokeDevice_FullMethodName                 = "/lazybox.bench.v1.RunnerService/RevokeDevice"
+	RunnerService_GetPushSettings_FullMethodName              = "/lazybox.bench.v1.RunnerService/GetPushSettings"
+	RunnerService_SetPushSettings_FullMethodName              = "/lazybox.bench.v1.RunnerService/SetPushSettings"
+	RunnerService_SendTestPush_FullMethodName                 = "/lazybox.bench.v1.RunnerService/SendTestPush"
 	RunnerService_ListMissions_FullMethodName                 = "/lazybox.bench.v1.RunnerService/ListMissions"
 	RunnerService_GetMission_FullMethodName                   = "/lazybox.bench.v1.RunnerService/GetMission"
 	RunnerService_CreateMission_FullMethodName                = "/lazybox.bench.v1.RunnerService/CreateMission"
@@ -418,6 +421,12 @@ type RunnerServiceClient interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
 	RevokeDevice(ctx context.Context, in *RevokeDeviceRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
+	// Web Push to a paired phone (REMOTE.md). A phone reads and sets its own
+	// subscription and preferences (the device allowlist admits it with read);
+	// the owner sees them on each device and can send it a test.
+	GetPushSettings(ctx context.Context, in *GetPushSettingsRequest, opts ...grpc.CallOption) (*PushSettings, error)
+	SetPushSettings(ctx context.Context, in *SetPushSettingsRequest, opts ...grpc.CallOption) (*PushSettings, error)
+	SendTestPush(ctx context.Context, in *SendTestPushRequest, opts ...grpc.CallOption) (*SendTestPushResponse, error)
 	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
 	// derived from its event log and live observations; nothing else is stored.
 	ListMissions(ctx context.Context, in *ListMissionsRequest, opts ...grpc.CallOption) (*ListMissionsResponse, error)
@@ -1827,6 +1836,36 @@ func (c *runnerServiceClient) RevokeDevice(ctx context.Context, in *RevokeDevice
 	return out, nil
 }
 
+func (c *runnerServiceClient) GetPushSettings(ctx context.Context, in *GetPushSettingsRequest, opts ...grpc.CallOption) (*PushSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PushSettings)
+	err := c.cc.Invoke(ctx, RunnerService_GetPushSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SetPushSettings(ctx context.Context, in *SetPushSettingsRequest, opts ...grpc.CallOption) (*PushSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PushSettings)
+	err := c.cc.Invoke(ctx, RunnerService_SetPushSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SendTestPush(ctx context.Context, in *SendTestPushRequest, opts ...grpc.CallOption) (*SendTestPushResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendTestPushResponse)
+	err := c.cc.Invoke(ctx, RunnerService_SendTestPush_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListMissions(ctx context.Context, in *ListMissionsRequest, opts ...grpc.CallOption) (*ListMissionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListMissionsResponse)
@@ -2402,6 +2441,12 @@ type RunnerServiceServer interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error)
 	RevokeDevice(context.Context, *RevokeDeviceRequest) (*ListDevicesResponse, error)
+	// Web Push to a paired phone (REMOTE.md). A phone reads and sets its own
+	// subscription and preferences (the device allowlist admits it with read);
+	// the owner sees them on each device and can send it a test.
+	GetPushSettings(context.Context, *GetPushSettingsRequest) (*PushSettings, error)
+	SetPushSettings(context.Context, *SetPushSettingsRequest) (*PushSettings, error)
+	SendTestPush(context.Context, *SendTestPushRequest) (*SendTestPushResponse, error)
 	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
 	// derived from its event log and live observations; nothing else is stored.
 	ListMissions(context.Context, *ListMissionsRequest) (*ListMissionsResponse, error)
@@ -2885,6 +2930,15 @@ func (UnimplementedRunnerServiceServer) ListDevices(context.Context, *ListDevice
 }
 func (UnimplementedRunnerServiceServer) RevokeDevice(context.Context, *RevokeDeviceRequest) (*ListDevicesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RevokeDevice not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetPushSettings(context.Context, *GetPushSettingsRequest) (*PushSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPushSettings not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetPushSettings(context.Context, *SetPushSettingsRequest) (*PushSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetPushSettings not implemented")
+}
+func (UnimplementedRunnerServiceServer) SendTestPush(context.Context, *SendTestPushRequest) (*SendTestPushResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendTestPush not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListMissions(context.Context, *ListMissionsRequest) (*ListMissionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMissions not implemented")
@@ -5261,6 +5315,60 @@ func _RunnerService_RevokeDevice_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_GetPushSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPushSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetPushSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetPushSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetPushSettings(ctx, req.(*GetPushSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SetPushSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetPushSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetPushSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetPushSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetPushSettings(ctx, req.(*SetPushSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SendTestPush_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendTestPushRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SendTestPush(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SendTestPush_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SendTestPush(ctx, req.(*SendTestPushRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListMissions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListMissionsRequest)
 	if err := dec(in); err != nil {
@@ -6321,6 +6429,18 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeDevice",
 			Handler:    _RunnerService_RevokeDevice_Handler,
+		},
+		{
+			MethodName: "GetPushSettings",
+			Handler:    _RunnerService_GetPushSettings_Handler,
+		},
+		{
+			MethodName: "SetPushSettings",
+			Handler:    _RunnerService_SetPushSettings_Handler,
+		},
+		{
+			MethodName: "SendTestPush",
+			Handler:    _RunnerService_SendTestPush_Handler,
 		},
 		{
 			MethodName: "ListMissions",

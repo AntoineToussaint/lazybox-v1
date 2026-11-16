@@ -66,18 +66,20 @@ try {
   assert.deepEqual(await phone.locator('.group-needs-input .remote-row strong').allInnerTexts(), ['Bump dependencies', 'Ship release notes']);
   const approvalRow = phone.locator('.remote-row').filter({ hasText: 'Bump dependencies' });
   await expect(approvalRow).toContainText('Beta release');
-  await expect(approvalRow.locator('.remote-row-line')).toHaveText('Approval · Run npm update');
+  await expect(approvalRow.locator('.remote-row-line')).toHaveText('Approval');
+  await expect(approvalRow.locator('.remote-row-what')).toHaveText('npm update');
+  await expect(approvalRow.getByRole('button', { name: 'Allow' })).toBeVisible();
   await expect(phone.locator('.remote-row').filter({ hasText: 'Deploy preview' }).locator('.remote-row-line')).toContainText('A message could not be delivered');
   for (const width of [320, 390]) {
     await phone.setViewportSize({ width, height: 700 });
     assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `no sideways scrolling at ${width}`);
-    for (const box of await phone.locator('.remote-row button').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height))) assert.ok(box >= 44, 'rows are thumb-sized');
+    for (const box of await phone.locator('.remote-row-open').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height))) assert.ok(box >= 44, 'rows are thumb-sized');
   }
   await phone.setViewportSize({ width: 390, height: 844 });
   await phone.screenshot({ path: '/tmp/lazybox-phone-inbox.png' });
 
   // Approve from the phone.
-  await approvalRow.getByRole('button').click();
+  await approvalRow.locator('.remote-row-open').click();
   await expect(phone.getByRole('heading', { name: 'Bump dependencies' })).toBeVisible();
   assert.equal(new URL(phone.url()).searchParams.get('session'), 'approval-session');
   const approval = phone.locator('.request').filter({ hasText: 'Approval required' });
@@ -94,7 +96,7 @@ try {
   await expect(phone.getByRole('heading', { name: 'Inbox' })).toBeVisible();
 
   // Answer a question.
-  await phone.locator('.remote-row').filter({ hasText: 'Ship release notes' }).getByRole('button').click();
+  await phone.locator('.remote-row').filter({ hasText: 'Ship release notes' }).locator('.remote-row-open').click();
   const question = phone.locator('.request').filter({ hasText: 'Agent question' });
   await question.getByRole('textbox').fill('2.4.0');
   await question.getByRole('button', { name: 'Send answer' }).click();
@@ -103,7 +105,7 @@ try {
   await expect(phone.getByRole('heading', { name: 'Inbox' })).toBeVisible();
 
   // Reply to a finished turn; opening it marks it seen.
-  await phone.locator('.remote-row').filter({ hasText: 'Refactor the parser' }).getByRole('button').click();
+  await phone.locator('.remote-row').filter({ hasText: 'Refactor the parser' }).locator('.remote-row-open').click();
   await composer.fill('Ship it, then open a PR.');
   await phone.getByRole('button', { name: 'Send message' }).click();
   await expect(composer).toHaveValue('');
@@ -113,14 +115,14 @@ try {
   await expect(phone.locator('.group-review')).toHaveCount(0);
 
   // A working agent can be interrupted from the phone.
-  await phone.locator('.remote-row').filter({ hasText: 'Index the API' }).getByRole('button').click();
+  await phone.locator('.remote-row').filter({ hasText: 'Index the API' }).locator('.remote-row-open').click();
   await phone.getByRole('button', { name: 'Interrupt' }).click();
   await expect.poll(() => f.mutations.filter(m => m.method === 'Apply' && m.body.interrupt).length).toBe(1);
   await phone.getByRole('button', { name: 'Back to inbox' }).click();
 
   // A read-only phone sees the same inbox and request, and can send nothing.
   const reader = await pairPhone([], 'Old phone');
-  await reader.locator('.remote-row').filter({ hasText: 'Ship release notes' }).getByRole('button').click();
+  await reader.locator('.remote-row').filter({ hasText: 'Ship release notes' }).locator('.remote-row-open').click();
   await expect(reader.locator('.remote-composer')).toHaveText('This phone can read conversations only. Pair it again to reply.');
   await expect(reader.locator('.request')).toHaveCount(0);
   await expect(reader.locator('.remote-transcript')).toContainText('This phone can only read; answer on your computer.');
@@ -130,7 +132,7 @@ try {
   assert.deepEqual(f.remote.deviceDenied, []);
   const phoneCalls = f.calls.filter(c => c.device);
   assert.ok(phoneCalls.length > 0);
-  assert.deepEqual([...new Set(phoneCalls.map(c => c.method))].sort().filter(m => !['Apply', 'GetSession', 'Info', 'ListCollections', 'WatchEvents'].includes(m)), [], 'the phone used an RPC it does not need');
+  assert.deepEqual([...new Set(phoneCalls.map(c => c.method))].sort().filter(m => !['Apply', 'GetPushSettings', 'GetSession', 'Info', 'ListCollections', 'ListCommands', 'WatchEvents'].includes(m)), [], 'the phone used an RPC it does not need');
   assert.deepEqual(f.mutations.filter(m => m.method === 'Apply' && !m.device), [], 'every reply came from a paired phone');
   assert.deepEqual(errors, []);
   console.log('PASS remote inbox: grouped attention across workspaces, approve, answer, reply, interrupt, back gesture, read-only phone, 320/390 widths, device allowlist only.');

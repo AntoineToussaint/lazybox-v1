@@ -9,6 +9,18 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.4',
+    date: '2026-11-17',
+    title: 'Your phone tells you, and you answer from the Inbox',
+    items: [
+      { title: 'Notifications on your phone', body: 'Turn them on in the phone\'s Inbox and it tells you when an agent asks a question, waits for approval or fails, even with Lazybox closed. Choose the kinds, set quiet hours, send a test; a tap opens the conversation, ready to answer. On an iPhone, add Lazybox to the Home Screen first (iOS 16.4 or later); the phone shows how.' },
+      { title: 'Answer from the Inbox row', body: 'Allow or Deny an approval, or tap a question\'s option, without opening the conversation. Undo stays a few seconds before the answer goes, and a command flagged as risky asks first, on the row and in the conversation.' },
+      { title: 'Swipe the phone\'s Inbox', body: 'Right to allow or pin, left to mark read or stop a turn; a long press or ⋯ shows every action, and pulling down refreshes.' },
+      { title: 'Follow a command from the phone', body: 'The commands an agent runs are listed under the conversation\'s title; tap one to follow its output live.' },
+      { title: 'Which phones are notified', body: 'Settings → Devices shows each phone\'s notifications and can send it a test.' },
+    ],
+  },
+  {
     id: '2026-11-17.3',
     date: '2026-11-17',
     title: 'A quieter, clearer conversation',

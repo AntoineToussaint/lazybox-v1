@@ -4,7 +4,7 @@ import { Decision, type AgentEvent } from '@lazybox/protocol';
 import { CodeBlock } from './RichContent';
 import { Icon } from './Icons';
 import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
-import { approvalOf, questionsOf, scopeWords, type AlwaysChoice, type AnswerNote, type Question } from './request-model';
+import { approvalOf, questionsOf, scopeWords, type AlwaysChoice, type Approval, type AnswerNote, type Question } from './request-model';
 import { shortPath } from './tool-lines';
 import { CardHead, editable, Kbd, useChatKeys, useInitialFocus, type RequestPosition } from './request-parts';
 import { RepositoryRequestCard } from './RepositoryRequestCard';
@@ -26,6 +26,8 @@ export type RequestCardProps = {
   /** "1 of 3" when several requests wait. */
   position?: RequestPosition;
   agentName?: string;
+  /** Asks before allowing a flagged or default-to-no request (the phone does; the computer shows the flags). */
+  confirmAllow?(approval: Approval): Promise<boolean>;
 };
 
 export function AgentRequestCard(props: RequestCardProps) {
@@ -45,7 +47,7 @@ const SCOPE_CHIP: Record<string, string> = { conversation: 'This conversation', 
 
 type Row = { id: string; label: string; detail?: string; key?: string; tone: 'allow' | 'always' | 'deny'; choice?: AlwaysChoice };
 
-function ApprovalCard({ request, api, session, onError, root = '', position, agentName = 'the agent' }: RequestCardProps) {
+function ApprovalCard({ request, api, session, onError, root = '', position, agentName = 'the agent', confirmAllow }: RequestCardProps) {
   const data = useMemo(() => providerData(request.providerDataJson), [request.providerDataJson]);
   const approval = useMemo(() => approvalOf(data, request.text, root), [data, request.text, root]);
   const settings = isSettingsUpdate(data.tool);
@@ -69,6 +71,7 @@ function ApprovalCard({ request, api, session, onError, root = '', position, age
     if (waiting) return;
     if (row.tone === 'deny') { setDenying(true); requestAnimationFrame(() => card.current?.querySelector<HTMLTextAreaElement>('.deny-reason textarea')?.focus()); return; }
     if (approval.acceptUnsupported) return;
+    if (confirmAllow && (approval.risks.length || approval.defaultToNo)) { void confirmAllow(approval).then(ok => { if (ok) void decide(Decision.ACCEPT, { always: row.choice?.id }); }); return; }
     void decide(Decision.ACCEPT, { always: row.choice?.id });
   };
   const deny = () => void decide(Decision.DECLINE, { reason: reason.trim() });

@@ -26,7 +26,9 @@ export function RequestCard(props: RequestCardProps) {
  * host passes (the command picker) leads a single row with the outcome, Stop,
  * find and copy, so a short panel is output, not chrome.
  */
-export function Console({ api, command, onOpenViewer, viewState, onError, onSendToAgent, onOpenFile, toolbar }: { api: RunnerClient; command: string; onOpenViewer?: () => void; viewState?: ViewStateStore; onError?: (error: string) => void; onSendToAgent?: (text: string) => string;
+export function Console({ api, command, onOpenViewer, viewState, onError, onSendToAgent, onOpenFile, toolbar, readOnly }: { api: RunnerClient; command: string;
+  /** A paired phone follows output but may not stop or rerun it (REMOTE.md). */
+  readOnly?: boolean; onOpenViewer?: () => void; viewState?: ViewStateStore; onError?: (error: string) => void; onSendToAgent?: (text: string) => string;
   /** Opens a file the output names (`main.go:42`); without it, file names are plain text. */
   onOpenFile?: (link: FileLink, how: OpenModifiers) => void; toolbar?: ReactNode }) {
   // The output, read line by line as it arrives (log-lines.ts); `version` re-renders at most once a frame.
@@ -123,8 +125,8 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
   const setHideNoise = (on: boolean) => { setHideNoiseState(on); restoreScroll.current = null; try { writePreference(viewState, noisePreference, on ? 'on' : 'off'); } catch { /* still applies here */ } };
   const empty = !text ? 'Waiting for output…' : !rows.length ? (hidden.size && [...counts.keys()].every(owner => hidden.has(owner)) ? 'Every source is hidden. Show one above.' : search ? `No line contains “${search.trim()}”.` : '') : '';
   const menu = contextMenu('command', () => [
-    running && { label: 'Stop', icon: 'stop', danger: true, run: () => api.cancelCommand({ commandId: command }).then(() => showMenuNotice('Stopping…')) },
-    metadata?.done && !fromTerminal && metadata.sessionId && metadata.argv.length > 0 && { label: 'Run again', icon: 'play', run: () => api.startCommand({ sessionId: metadata.sessionId, title: metadata.title, argv: metadata.argv, cwd: metadata.cwd }).then(() => showMenuNotice(`Started “${metadata.title}” again`)) },
+    running && !readOnly && { label: 'Stop', icon: 'stop', danger: true, run: () => api.cancelCommand({ commandId: command }).then(() => showMenuNotice('Stopping…')) },
+    !readOnly && metadata?.done && !fromTerminal && metadata.sessionId && metadata.argv.length > 0 && { label: 'Run again', icon: 'play', run: () => api.startCommand({ sessionId: metadata.sessionId, title: metadata.title, argv: metadata.argv, cwd: metadata.cwd }).then(() => showMenuNotice(`Started “${metadata.title}” again`)) },
     'separator',
     { label: 'Copy output', icon: 'copy', disabled: !text && 'No output yet', run: () => copyText(stripAnsi(text), 'Copied output') },
     commandLine && { label: 'Copy command', icon: 'copy', run: () => copyText(commandLine, 'Copied command') },
@@ -134,7 +136,7 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     fromTerminal && onSendToAgent && { label: 'Send to agent', icon: 'send', disabled: !metadata?.done ? 'Available when the output ends' : !view && 'This run has no compact view', run: sendToAgent },
   ], { commandId: command });
   const size = formatBytes(offset);
-  const state = <span className="console-state">{running && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="stop" size={11}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status" title={`${size} of output so far`}>{outcome.text}</span></span>;
+  const state = <span className="console-state">{running && !readOnly && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="stop" size={11}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status" title={`${size} of output so far`}>{outcome.text}</span></span>;
   return <section className={`console${toolbar ? ' console-docked' : ''}`} onContextMenu={menu}>{!toolbar && <div className="panel-title"><div><span className="eyebrow">{runtimeEyebrow || (fromTerminal ? 'From your terminal' : 'Shared console')}</span><h2>{metadata?.title || 'Command output'}</h2></div>{state}</div>}
     {/* Shown in every console, including the workspace's (which hides the title): what an agent gets, and the hand-over. */}
     {(report || (fromTerminal && onSendToAgent)) && <div className="command-meta">{fromTerminal && <span className="command-origin">From your terminal</span>}

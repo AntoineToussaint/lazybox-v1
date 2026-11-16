@@ -148,7 +148,7 @@ func wireDevices(m *devices.Manager) *pb.ListDevicesResponse {
 }
 
 func wireDevice(d devices.Device) *pb.Device {
-	return &pb.Device{Id: d.ID, Name: d.Name, Grants: d.Grants, PairedAtUnixMillis: d.PairedAt.UnixMilli(), LastSeenAtUnixMillis: d.LastSeenAt.UnixMilli(), Fingerprint: d.Fingerprint()}
+	return &pb.Device{Id: d.ID, Name: d.Name, Grants: d.Grants, PairedAtUnixMillis: d.PairedAt.UnixMilli(), LastSeenAtUnixMillis: d.LastSeenAt.UnixMilli(), Fingerprint: d.Fingerprint(), Push: wirePush(d.PushSettings())}
 }
 
 func wirePairing(o devices.Offer) *pb.DevicePairing {

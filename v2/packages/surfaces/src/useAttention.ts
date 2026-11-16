@@ -74,7 +74,14 @@ export function useSeen() {
     for (const entry of entries) next = markSeen(next, entry.key, entry.at);
     if (next !== current) write(seenKey(root), JSON.stringify(next));
   }, [root]);
-  return { seen, mark };
+  /** Undoes a mark: a conversation's mark goes back to what it was (undefined: none). */
+  const restore = useCallback((key: string, previous: number | undefined) => {
+    const current = loadSeen(root);
+    const marks = { ...current.marks };
+    if (previous === undefined) delete marks[key]; else marks[key] = previous;
+    write(seenKey(root), JSON.stringify({ since: current.since, marks }));
+  }, [root]);
+  return { seen, mark, restore };
 }
 
 /** Every work conversation this Runner knows, as an inbox. */

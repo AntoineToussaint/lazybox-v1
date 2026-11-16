@@ -83,6 +83,7 @@ export function DevicesSettings() {
           <strong>{device.name}</strong>
           <span className="device-meta"><span>Paired {new Date(Number(device.pairedAtUnixMillis)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span><span className="device-seen">{lastSeen(device, now)}</span></span>
           <span className="device-grants">{device.grants.map(grant => <span key={grant} className="grant-chip">{grantLabels[grant] || grant}</span>)}</span>
+          <DevicePush device={device}/>
           <small className="mono device-fingerprint" title="Key fingerprint. The phone shows the same one under its name.">{device.fingerprint}</small>
         </div>
         {confirm === device.id ? <div className="device-confirm" role="group" aria-label={`Revoke ${device.name}?`}>
@@ -197,4 +198,34 @@ function PairPhoneDialog({ phoneUrl, onClose }: { phoneUrl: string; onClose(): v
       </div>
     </div>}
   </DraggableDialog>;
+}
+
+const pushKinds = [['needsInput', 'Needs input'], ['failed', 'Failed'], ['review', 'Ready for review']] as const;
+
+/**
+ * A phone's notifications, as the phone set them (REMOTE.md): on or off,
+ * which kinds, quiet hours, and a test the owner can send from here. The
+ * phone chooses; revoking it ends them.
+ */
+function DevicePush({ device }: { device: Device }) {
+  const { api } = useRunner();
+  const [status, setStatus] = useState<{ ok: boolean; text: string }>();
+  const [sending, setSending] = useState(false);
+  const push = device.push;
+  if (!push?.subscribed) return <span className="device-push" data-on="false"><Icon name="bell" size={12}/>Notifications off · the phone turns them on in its settings</span>;
+  const p = push.preferences;
+  const kinds = pushKinds.filter(([key]) => p?.[key]).map(([, label]) => label);
+  const test = async () => {
+    setSending(true); setStatus(undefined);
+    try { await api.sendTestPush({ deviceId: device.id }, { timeoutMs: 20000 }); setStatus({ ok: true, text: 'Sent' }); }
+    catch (e) { setStatus({ ok: false, text: message(e) }); }
+    finally { setSending(false); }
+  };
+  return <span className="device-push" data-on="true">
+    <Icon name="bell" size={12}/>
+    <span>Notifications on{kinds.length ? ` · ${kinds.join(', ')}` : ' · every kind off'}{p?.quietStart && p.quietEnd ? ` · quiet ${p.quietStart}–${p.quietEnd}` : ''}</span>
+    <button type="button" className="device-push-test" disabled={sending} onClick={() => void test()}>{sending ? 'Sending…' : 'Send test'}</button>
+    {status && <small role="status" className={status.ok ? 'device-push-ok' : 'device-push-error'}>{status.text}</small>}
+    {!status && push.lastError && <small className="device-push-error" role="note">Last delivery failed: {push.lastError}</small>}
+  </span>;
 }

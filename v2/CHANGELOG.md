@@ -14,6 +14,14 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.4] - 2026-11-17 · Your phone tells you, and you answer from the Inbox
+
+- **Notifications on your phone** Turn them on in the phone's Inbox and it tells you when an agent asks a question, waits for approval or fails, even with Lazybox closed. Choose the kinds, set quiet hours, send a test; a tap opens the conversation, ready to answer. On an iPhone, add Lazybox to the Home Screen first (iOS 16.4 or later); the phone shows how.
+- **Answer from the Inbox row** Allow or Deny an approval, or tap a question's option, without opening the conversation. Undo stays a few seconds before the answer goes, and a command flagged as risky asks first, on the row and in the conversation.
+- **Swipe the phone's Inbox** Right to allow or pin, left to mark read or stop a turn; a long press or ⋯ shows every action, and pulling down refreshes.
+- **Follow a command from the phone** The commands an agent runs are listed under the conversation's title; tap one to follow its output live.
+- **Which phones are notified** Settings → Devices shows each phone's notifications and can send it a test.
+
 ## [2026-11-17.3] - 2026-11-17 · A quieter, clearer conversation
 
 - **Lazybox's messages are events, not yours** What Lazybox tells an agent (a repository you added, review findings, a question from the other agent, a mission task) is one line with an icon, such as Added authority to this workspace with its branch, the path on hover and to copy; it opens to exactly what the agent received. Never a You message.

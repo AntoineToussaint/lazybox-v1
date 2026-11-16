@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
+import { createHash, createPublicKey, generateKeyPairSync, randomUUID, verify } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-process.json', import.meta.url), 'utf8'));
@@ -356,14 +356,34 @@ actions:
   // Remote control (REMOTE.md): a fake Tailscale route, pairing offers checked
   // with the phone's real WebCrypto signatures, paired devices, and short
   // device credentials. deviceRPCs mirrors the Runner's device allowlist.
-  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', OpenSession: 'start', ResumeSession: 'start' };
+  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', OpenSession: 'start', ResumeSession: 'start', GetPushSettings: 'read', SetPushSettings: 'read', SendTestPush: 'read' };
+  // Web Push (REMOTE.md): the Runner's VAPID key (a real P-256 key, so a browser accepts it
+  // as applicationServerKey), each device's subscription and preferences, and what was
+  // pushed — payloads exactly as the Runner's notifier builds them.
+  const vapid = (() => { const jwk = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).publicKey.export({ format: 'jwk' }); return Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, 'base64url'), Buffer.from(jwk.y, 'base64url')]).toString('base64url'); })();
+  const pushDefaults = { needsInput: true, failed: true, review: false, quietStart: '', quietEnd: '', timeZone: '' };
   const remote = {
     phoneUrl: '', localUrl: 'http://127.0.0.1:4100', offerLifetimeMs: 300_000,
     tailscale: { state: 'available', dnsName: 'laptop.example.ts.net', httpsPort: 8443, enabled: false, detail: '' },
     offers: new Map(), devices: new Map(), challenges: new Map(), tokens: new Map(), deviceCalls: [], deviceDenied: [], pairRequests: [],
+    vapid, pushes: [], pushFailure: '',
+    /** Like the Runner: an approval answered (or a question) leaves the conversation's pending requests. */
+    resolveOnAnswer: false,
+    pushView(d, withKey) { const push = d.push || { preferences: { ...pushDefaults } }; return { ...(withKey ? { applicationServerKey: vapid } : {}), subscribed: !!push.subscription, preferences: push.preferences, service: push.subscription ? new URL(push.subscription.endpoint).host : '', ...(push.lastSentAt ? { lastSentAtUnixMillis: String(push.lastSentAt) } : {}), ...(push.lastError ? { lastError: push.lastError } : {}) }; },
+    /** What the Runner's notifier would push to each subscribed device for this conversation. */
+    notify(kind, session) {
+      const wants = { approval: 'needsInput', question: 'needsInput', failed: 'failed', review: 'review' }[kind];
+      const sent = [];
+      for (const d of remote.devices.values()) {
+        if (!d.push?.subscription || (wants && !d.push.preferences[wants])) continue;
+        const payload = { title: (session.title || 'Untitled conversation').slice(0, 80), kind, url: `/?view=remote&session=${session.id}`, tag: session.conversationId || session.id };
+        remote.pushes.push({ device: d.id, endpoint: d.push.subscription.endpoint, payload }); d.push.lastSentAt = Date.now(); sent.push(payload);
+      }
+      return sent;
+    },
     access() { const t = remote.tailscale; return { localUrl: remote.localUrl, phoneUrl: t.enabled && t.state === 'serving' ? remote.phoneUrl : '', tailscale: { ...t } }; },
     state(offer) { if (offer.state === 'pending' && Date.now() >= Number(offer.expiresAtUnixMillis)) offer.state = 'expired'; return offer.state; },
-    wireDevice(d) { return { id: d.id, name: d.name, grants: d.grants, pairedAtUnixMillis: String(d.pairedAt), lastSeenAtUnixMillis: String(d.lastSeenAt), fingerprint: d.fingerprint }; },
+    wireDevice(d) { return { id: d.id, name: d.name, grants: d.grants, pairedAtUnixMillis: String(d.pairedAt), lastSeenAtUnixMillis: String(d.lastSeenAt), fingerprint: d.fingerprint, push: remote.pushView(d, false) }; },
     wireOffer(offer) { const device = offer.device && remote.devices.get(offer.device); return { id: offer.id, state: remote.state(offer), expiresAtUnixMillis: offer.expiresAtUnixMillis, grants: offer.grants, ...(device ? { device: remote.wireDevice(device) } : {}) }; },
     deviceFor(credential) { const id = remote.tokens.get(credential); const d = id && remote.devices.get(id); if (d) d.lastSeenAt = Date.now(); return d; },
     /** Expire an offer now, as five minutes passing would. */
@@ -786,6 +806,27 @@ actions:
       case 'GetDevicePairing': { const offer = remote.offers.get(body.pairingId); return offer ? json(remote.wireOffer(offer)) : error('not_found', 'this pairing code is not valid'); }
       case 'CancelDevicePairing': { const offer = remote.offers.get(body.pairingId); if (!offer) return error('not_found', 'unknown'); if (remote.state(offer) === 'pending') offer.state = 'cancelled'; return json(remote.wireOffer(offer)); }
       case 'ListDevices': return json({ devices: [...remote.devices.values()].map(remote.wireDevice) });
+      // Like the Runner: a phone reads and sets only its own push; the owner may only test a named device.
+      case 'GetPushSettings': { if (!device) return error('failed_precondition', 'only a paired phone has push settings; open Lazybox on the phone'); return json(remote.pushView(device, true)); }
+      case 'SetPushSettings': {
+        if (!device) return error('failed_precondition', 'only a paired phone has push settings; open Lazybox on the phone');
+        mutations.push({ method, body, device: device.id });
+        const push = device.push ||= { preferences: { ...pushDefaults } };
+        if (body.subscription) { if (!/^https:\/\/([a-z0-9-]+\.)*(push\.apple\.com|fcm\.googleapis\.com|push\.services\.mozilla\.com|notify\.windows\.com)\//.test(body.subscription.endpoint || '')) return error('invalid_argument', 'this push service is not accepted'); push.subscription = body.subscription; push.lastError = ''; }
+        if (body.unsubscribe) delete push.subscription;
+        if (body.preferences) push.preferences = { needsInput: false, failed: false, review: false, quietStart: '', quietEnd: '', timeZone: '', ...body.preferences }; // ProtoJSON omits false and ''
+        return json(remote.pushView(device, true));
+      }
+      case 'SendTestPush': {
+        const target = device ? (body.deviceId && body.deviceId !== device.id ? null : device) : remote.devices.get(body.deviceId);
+        if (!target) return device ? error('permission_denied', 'a phone may only test itself') : error('not_found', 'this device is not paired');
+        mutations.push({ method, body, ...(device ? { device: device.id } : {}) });
+        if (!target.push?.subscription) return error('failed_precondition', 'Notifications are off on this phone; turn them on there.');
+        if (remote.pushFailure) { target.push.lastError = remote.pushFailure; return error('failed_precondition', remote.pushFailure); }
+        const payload = { title: 'Notifications work', kind: 'test', url: '/?view=remote', tag: 'test' };
+        remote.pushes.push({ device: target.id, endpoint: target.push.subscription.endpoint, payload }); target.push.lastSentAt = Date.now();
+        return json({ push: remote.pushView(target, false) });
+      }
       case 'RevokeDevice': { if (!remote.devices.delete(body.deviceId)) return error('not_found', 'this device is not paired'); mutations.push({ method, body }); return json({ devices: [...remote.devices.values()].map(remote.wireDevice) }); }
       case 'CancelCommand': {
         mutations.push({ method, body });
@@ -805,6 +846,7 @@ actions:
       }
       case 'Apply': {
         mutations.push({ method, body, ...(device ? { device: device.id } : {}) });
+        if (remote.resolveOnAnswer && (body.approval || body.answer)) { const answered = sessions.find(s => s.id === body.sessionId); const id = (body.approval || body.answer).requestId; if (answered?.pending?.some(r => r.requestId === id)) { answered.pending = answered.pending.filter(r => r.requestId !== id); if (!answered.pending.length) { answered.status = 'running'; answered.busy = true; } } }
         // Like the Runner: at a subscription limit a message is accepted and
         // waits in the queue (journaled once), delivered after the switch.
         const session=sessions.find(s=>s.id===body.sessionId);

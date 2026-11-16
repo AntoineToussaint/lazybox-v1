@@ -7,7 +7,7 @@ import { Icon } from './Icons';
 import { SettingsGroup, SettingsHeader } from './settings-parts';
 import { playAlert, type AlertSound } from './sounds';
 
-const options: { key: keyof NotificationPreferences; label: string; detail: string }[] = [
+export const notificationOptions: { key: keyof NotificationPreferences; label: string; detail: string }[] = [
   { key: 'needsInput', label: 'Needs input', detail: 'An agent asks a question or waits for an approval.' },
   { key: 'failed', label: 'Failed', detail: 'A provider failure, a message that could not be delivered, or a turn a Runner restart interrupted.' },
   { key: 'review', label: 'Ready for review', detail: 'An agent finished its turn.' },
@@ -38,7 +38,7 @@ export function NotificationSettings() {
     {permission === 'denied' && <p className="settings-error" role="alert">Notifications are blocked for this site. Allow them in your browser’s site settings, then come back.</p>}
     {permission === 'default' && host?.requestNotificationPermission && <p className="settings-error tone-note">Your browser asks before showing notifications. <button onClick={() => void host.requestNotificationPermission!().then(setPermission)}>Allow notifications</button></p>}
     <SettingsGroup title="Notify me when">
-      {options.map(option => <label key={option.key} className="settings-row notification-option">
+      {notificationOptions.map(option => <label key={option.key} className="settings-row notification-option">
         <span className="settings-row-text"><span className="settings-row-label">{option.label}</span><small>{option.detail}</small></span>
         <span className="settings-row-control settings-switch"><input type="checkbox" role="switch" checked={preferences[option.key]} onChange={event => save({ ...preferences, [option.key]: event.target.checked })}/></span>
       </label>)}

@@ -74,6 +74,12 @@ var deviceRPCs = map[string]deviceRule{
 		return o == nil || (o.Permission == "" && o.GatewayId == "" && o.Instructions == "")
 	}},
 	pb.RunnerService_ResumeSession_FullMethodName: {grant: devices.GrantStart},
+	// A phone's own push notifications (push.go): reading what needs the person
+	// includes being told, so a read-only phone may subscribe. Each RPC acts on
+	// the calling device only; the service refuses another device's id.
+	pb.RunnerService_GetPushSettings_FullMethodName: {grant: devices.GrantRead},
+	pb.RunnerService_SetPushSettings_FullMethodName: {grant: devices.GrantRead},
+	pb.RunnerService_SendTestPush_FullMethodName:    {grant: devices.GrantRead},
 }
 
 // deviceStreams are the server streams a device may follow.

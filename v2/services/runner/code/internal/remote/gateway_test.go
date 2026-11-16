@@ -254,6 +254,24 @@ func TestGatewayServesOnlyTheBuiltApp(t *testing.T) {
 	}
 }
 
+// The service worker and the manifest are revalidated on every start, so a new
+// release's worker replaces the old one at once; hashed assets are immutable.
+func TestGatewayRevalidatesTheServiceWorker(t *testing.T) {
+	f := newGateway(t)
+	_ = os.WriteFile(filepath.Join(f.web, "sw.js"), []byte("self.addEventListener('push', () => {})"), 0o644)
+	_ = os.WriteFile(filepath.Join(f.web, "manifest.webmanifest"), []byte("{}"), 0o644)
+	for path, want := range map[string]string{"/sw.js": "no-cache", "/manifest.webmanifest": "no-cache", "/": "no-cache", "/assets/main.js": "public, max-age=31536000, immutable"} {
+		res, err := f.server.Client().Get(f.server.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != http.StatusOK || res.Header.Get("Cache-Control") != want {
+			t.Errorf("%s: %d, Cache-Control %q, want %q", path, res.StatusCode, res.Header.Get("Cache-Control"), want)
+		}
+	}
+}
+
 // The gateway binds loopback only, and the same port again after a restart
 // so a Tailscale route made before still reaches it.
 func TestGatewayListensOnLoopbackAndKeepsItsPort(t *testing.T) {

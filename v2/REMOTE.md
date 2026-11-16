@@ -1,9 +1,10 @@
 # Remote control from a phone
 
-Status: first increment implemented 2026-11-16. A phone paired by QR code
-follows and answers the agents on a local Runner from anywhere on the owner's
-tailnet. Push notifications, the native iPhone app and an off-tailnet relay are
-deferred (below). This is a Runner-local capability; it does not replace the
+Status: first increment implemented 2026-11-16; the phone that acts, with web
+push, 2026-11-17 (audit brief R7p). A phone paired by QR code follows and
+answers the agents on a local Runner from anywhere on the owner's tailnet:
+from the Inbox row itself, from a notification, or in the conversation. The
+native iPhone app and an off-tailnet relay are deferred (below). This is a Runner-local capability; it does not replace the
 Hub's device identity in [device experience](DEVICE_EXPERIENCE.md).
 
 ## What the person does
@@ -26,9 +27,36 @@ Hub's device identity in [device experience](DEVICE_EXPERIENCE.md).
    conversation shows its transcript, its pending approval or question with
    Allow/Decline or an answer form, and a composer above the keyboard. Back
    (button or gesture) returns to the inbox. Interrupt is there while a turn runs.
-5. **Settings → Devices** lists each paired phone with its grants, fingerprint,
-   paired date and last seen ("Active now"), and **Revoke**, which signs the
-   phone out at its next request; the phone then says so and forgets its key.
+5. **Inbox rows act** (R7p). An approval row shows the command and its flags
+   with **Deny** and **Allow**; a question with up to six short options shows
+   them as chips (one tap, or several then **Send**). An answer waits 4.5 s for
+   **Undo**, then goes; leaving the page sends it at once. A flagged command
+   (the computer's risk rules: deletes recursively, discards work, network,
+   root, publishes, outside the workspace) or a provider's "default to no"
+   asks first in a sheet whose focus is on Cancel — on the row and on the
+   conversation's own card alike. Deny takes an optional reason. A diff, a
+   settings change, several questions or a typed answer open the
+   conversation instead. **Swipes:** right allows an approval row, or pins any
+   other; left reveals Read, Pin and Stop (a long swipe marks read); Stop
+   confirms. A long press or **⋯** opens every action. Pull down refreshes;
+   offline and "can't reach your computer" are said in a bar with Retry.
+6. **Notifications.** The Inbox offers **Turn on notifications** once (and
+   Settings on the phone always). The phone asks permission inside the tap,
+   subscribes with the Runner's key and hands the subscription to the Runner.
+   The phone chooses the kinds — needs input, failed, ready for review, the
+   same three and defaults as the computer's Settings → Notifications — quiet
+   hours in its own time zone, and can send itself a test. A tap on a
+   notification opens its conversation, ready to answer. On an iPhone this
+   needs Lazybox on the Home Screen (iOS 16.4+); in a Safari tab the phone says
+   how. Android Chrome needs nothing more.
+7. **A command's output.** A conversation lists its commands under the header,
+   live ones first; one opens the computer's console view (search, folds, text
+   size), following new output. A phone reads output; it cannot stop or rerun.
+8. **Settings → Devices** lists each paired phone with its grants, fingerprint,
+   paired date and last seen ("Active now"), whether its notifications are on
+   and for what, a **Send test**, and **Revoke**, which signs the phone out at
+   its next request and drops its subscription; the phone then says so and
+   forgets its key.
 
 ## Threat model
 
@@ -47,6 +75,8 @@ machine), conversation content.
 | A copy of the phone's storage | Become the phone | The phone's ECDSA P-256 private key is a non-extractable WebCrypto key: script can sign with it but cannot read it. A new credential needs a fresh single-use challenge signed with it. |
 | A paired phone (lost, or a mistaken grant) | Escalate | The device allowlist (below) is exhaustive and pinned by tests; settings, subscriptions, GitHub, terminals, commands, files, deletion, processes, restart and device management are unreachable. Changing an agent's permission mode (e.g. to yolo) is refused even with every grant. Info hides account usage, emails, sign-in flows and gateways. |
 | An agent on this machine | Use the phone's authority | Agent and terminal credentials are refused by the gateway; device credentials are refused by the owner's listener. |
+| A paired phone | Make the Runner post somewhere (SSRF) through its push endpoint | The endpoint must be `https`, port 443, no credentials, no IP literal, on Apple's, Google's, Mozilla's or Microsoft's push hosts (exact or subdomain); the Runner's push client follows no redirect, uses no proxy, and its dialer refuses loopback, private, link-local and tailnet (100.64/10) addresses. |
+| The push services (Apple, Google, …) | Read what an agent is doing | The payload is encrypted to the phone's key (RFC 8291, aes128gcm) and holds only the conversation's title, the kind of event and a link — never transcript, command or workspace text. The service sees size and timing. The VAPID `sub` names the project, not the person or the tailnet. |
 | A malicious page | Frame or script the phone app | `Content-Security-Policy` with `script-src 'self'`, `frame-ancestors 'none'`, `form-action 'none'`, `no-referrer`, `nosniff`. |
 
 Out of scope, as for agent credentials ([resource ownership](RESOURCE_OWNERSHIP.md#agent-credentials)):
@@ -105,6 +135,42 @@ owner's windows ──▶ Codefly Connect/gRPC listeners on loopback ──▶ L
   paired and last-seen times (written at most once a minute). No credential is
   ever written to disk.
 
+### Push (R7p)
+
+```
+Runner ─ every 3 s: conversations ─▶ Notifier ─ new request / failure / turn end ─▶ per phone: kinds, quiet hours, 8/min
+                                       └─ encrypt (RFC 8291) + VAPID JWT ─▶ phone's push service ─▶ service worker ─▶ notification
+```
+
+- **Keys**: `<state>/vapid.key` (0600), a P-256 key made once and never
+  replaced (`internal/webpush`). Its public half is the phone's
+  `applicationServerKey`, returned only to a device's own `GetPushSettings`.
+- **Subscriptions**: on the device record in `devices.json` (`push`), with the
+  phone's kinds, quiet hours and time zone, last sent and last error. Revoking
+  the device removes it; a push service's 404/410 clears it (only that
+  subscription, so a newer one survives); the phone hands its current
+  subscription to the Runner at every start, so a rotated one heals itself.
+- **What notifies** (`internal/remote/notify.go`) is the desktop's attention
+  rule (`attention.ts`) ported: a request id the conversation did not have
+  before, a turn into failure with new activity, a root turn ending. The first
+  look after a start only records, so a Runner restart never re-notifies.
+  More than three at once become one "N conversations need you". Needs input
+  is sent with `Urgency: high` and a 1 h TTL; each conversation has its own
+  `Topic`, so an offline phone receives only its newest.
+- **Payload**: `{"title","kind","url","tag"}` — kinds `approval`, `question`,
+  `failed`, `review`, `summary`, `test`; `url` is `/?view=remote&session=<id>`;
+  `tag` is the conversation, so a banner replaces its predecessor.
+- **Service worker** (`apps/web/public/sw.js`, served `no-cache`): shows every
+  push (iOS and Chrome require it), opens or focuses the app on a tap and
+  takes it to the conversation without a reload, and keeps the app shell
+  (network first) so the phone opens Lazybox and says the computer is
+  unreachable rather than showing the browser's error page. It never caches
+  the API. The page closes banners whose conversation no longer waits.
+- **Pins** are the phone's own (`remote/pins.ts`, a `PinStore` interface) and
+  so are its read marks, until the desktop's pins move into the Runner's
+  preferences (audit brief R1); then a Runner-backed store replaces the local
+  one behind the same interface.
+
 ### What a device may call
 
 Pinned by `TestDeviceAllowlistIsPinned`; every other RPC is denied to a device
@@ -112,7 +178,7 @@ holding every grant (`TestDeviceCredentialIsDeniedEveryRPCOffTheAllowlist`).
 
 | Grant | RPCs |
 | --- | --- |
-| `read` (always) | `Info` (redacted), `ListHistory`, `GetSession`, `ListCollections`, `GetCollection`, `ListWorkspaceChanges`, `ReadWorkspaceDiff`, `ListCommands`, `ReadCommand`, `ReadAttachment` (images a sent message carried); streams `WatchEvents`, `WatchOutput` |
+| `read` (always) | `Info` (redacted), `ListHistory`, `GetSession`, `ListCollections`, `GetCollection`, `ListWorkspaceChanges`, `ReadWorkspaceDiff`, `ListCommands`, `ReadCommand`, `ReadAttachment` (images a sent message carried); `GetPushSettings`, `SetPushSettings` (its own only; the owner is refused) and `SendTestPush` (itself only), so a read-only phone is notified too; streams `WatchEvents`, `WatchOutput` |
 | `respond` (default) | `Apply` with message, steer, interrupt, answer or approval — never permission |
 | `start` (opt-in) | `OpenSession` only in an existing workspace with no directory, resume reference, permission, gateway or instructions override; `ResumeSession` |
 
@@ -139,6 +205,37 @@ holding every grant (`TestDeviceCredentialIsDeniedEveryRPCOffTheAllowlist`).
   inbox, approve, answer, reply, interrupt, back gesture, read-only phone, 320
   and 390 px widths, and that the phone sent only device credentials and
   called only allowlisted RPCs.
+- Push, Go: `internal/webpush` (the RFC 8291 Appendix A vector byte for byte,
+  round trip through a receiving-side decrypt, VAPID JWT signature, `aud`,
+  `exp`, `sub`, endpoint allowlist and SSRF refusals, key file mode and never
+  replacing a key, push-service status codes); `webpushtest` is a fake push
+  service that decrypts and checks VAPID as the real ones do;
+  `internal/devices` (subscription and preferences validation, persistence,
+  revoke removes it, gone clears only the failed subscription);
+  `internal/remote/notify` (first look silent, new request once, failure and
+  turn-end transitions, per-kind toggles, quiet hours across midnight and time
+  zones, rate limit, burst summary, gone subscription cleared, revoked device
+  gets nothing, no transcript or command text in a payload); `internal/transport`
+  (a phone sets and reads only its own push, cannot test another, the owner
+  is refused Get/Set and may test a named device, listing shows push without
+  the key; the pinned allowlist).
+- `scripts/remote-phone.test.ts`: push support (iPhone tab → Home Screen,
+  iOS < 16.4, iPadOS, Android), quiet hours, what a row offers for each
+  request (plain, flagged, default-to-no, diff, settings, chips, multi,
+  several questions, typed answers), pins, routes.
+- Playwright `test:remote-push` (Chromium at 390 px, the full Chromium in
+  headless mode, which has notifications): row Allow with Undo then sent from
+  the device, the request gone on the computer; flagged command confirmed
+  (Cancel sends nothing); Deny with a reason; chips single and multi; swipe
+  right pins with Undo, long left swipe marks read with Undo, left tray Stop
+  confirms then interrupts; ⋯ sheet; pull to refresh; offline bar; a running
+  command's output following live; the permission flow and subscription with
+  a mocked `PushManager`; kinds, quiet hours with the time zone, test push and
+  its failure; a needs-input push delivered to the service worker with the
+  page closed (`ServiceWorker.deliverPushMessage`) shown as "Approval needed",
+  its click taking the open app to the conversation, approved there behind the
+  confirmation; the iPhone Home Screen guidance; revoke ending notifications.
+  Screenshots `v2/.cache/remote-*.png`, dark and light.
 
 **Not verified:** a real `tailscale serve` (the tests use a fake CLI; the
 command form is `tailscale serve --bg --https=<port> http://127.0.0.1:<port>`
@@ -147,13 +244,27 @@ phone on a tailnet, iOS Safari's IndexedDB persistence of non-extractable keys
 across app restarts, and the `Tailscale-Funnel-Request` header name, which is
 defence in depth on top of refusing Funnel ports.
 
+**Not verified (push; needs a real phone):** delivery through Apple's,
+Google's and Mozilla's real push services (Apple's acceptance of the `sub`
+claim and the `Topic` header in particular); iOS showing notifications from a
+Home Screen app and its permission prompt; a notification tap with no Lazybox
+window open (`clients.openWindow` needs a real tap; the test covers the open
+app); the subscription surviving iOS restarts; Android Chrome's real
+`PushManager` (the tests mock it); swipe feel and haptics on a real touch
+screen (Android ticks; iOS Safari has no vibration API); the push client's
+dialer against real DNS answers; the notifier's 3 s observation cost on a
+Runner with many conversations (it does the work of an `Info` call, and only
+while some phone is subscribed).
+
 ## Deferred
 
-- **Push notifications.** Web push needs a service worker, VAPID keys, the
-  Runner sending to Apple/Google push services, and on iOS a home-screen
-  install (iOS 16.4+). The origin is now HTTPS and the app has a manifest, so
-  this is possible; until then the phone's tab title carries the needs-input
-  count and the inbox refreshes while open.
+- **Shared pins and read marks** with the computer, once they live in the
+  Runner's preferences (R1); the phone already reads pins through a
+  `PinStore`. A notification sent while the computer shows that conversation
+  is not suppressed (the Runner does not know what a window shows).
+- A missed notification across a Runner restart: the first look after a
+  start only records, so a request that arrived while the Runner was down is
+  in the Inbox but not pushed.
 - **Off-tailnet access** through V1's relay with Noise IK, in the native iPhone
   app (see the decision above).
 - A phone revoking itself on the Runner ("Forget pairing" only clears the

@@ -410,6 +410,15 @@ const (
 	// RunnerServiceRevokeDeviceProcedure is the fully-qualified name of the RunnerService's
 	// RevokeDevice RPC.
 	RunnerServiceRevokeDeviceProcedure = "/lazybox.bench.v1.RunnerService/RevokeDevice"
+	// RunnerServiceGetPushSettingsProcedure is the fully-qualified name of the RunnerService's
+	// GetPushSettings RPC.
+	RunnerServiceGetPushSettingsProcedure = "/lazybox.bench.v1.RunnerService/GetPushSettings"
+	// RunnerServiceSetPushSettingsProcedure is the fully-qualified name of the RunnerService's
+	// SetPushSettings RPC.
+	RunnerServiceSetPushSettingsProcedure = "/lazybox.bench.v1.RunnerService/SetPushSettings"
+	// RunnerServiceSendTestPushProcedure is the fully-qualified name of the RunnerService's
+	// SendTestPush RPC.
+	RunnerServiceSendTestPushProcedure = "/lazybox.bench.v1.RunnerService/SendTestPush"
 	// RunnerServiceListMissionsProcedure is the fully-qualified name of the RunnerService's
 	// ListMissions RPC.
 	RunnerServiceListMissionsProcedure = "/lazybox.bench.v1.RunnerService/ListMissions"
@@ -742,6 +751,12 @@ type RunnerServiceClient interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
 	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	// Web Push to a paired phone (REMOTE.md). A phone reads and sets its own
+	// subscription and preferences (the device allowlist admits it with read);
+	// the owner sees them on each device and can send it a test.
+	GetPushSettings(context.Context, *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SetPushSettings(context.Context, *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SendTestPush(context.Context, *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error)
 	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
 	// derived from its event log and live observations; nothing else is stored.
 	ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error)
@@ -1610,6 +1625,24 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
 			connect.WithClientOptions(opts...),
 		),
+		getPushSettings: connect.NewClient[gen.GetPushSettingsRequest, gen.PushSettings](
+			httpClient,
+			baseURL+RunnerServiceGetPushSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetPushSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		setPushSettings: connect.NewClient[gen.SetPushSettingsRequest, gen.PushSettings](
+			httpClient,
+			baseURL+RunnerServiceSetPushSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetPushSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		sendTestPush: connect.NewClient[gen.SendTestPushRequest, gen.SendTestPushResponse](
+			httpClient,
+			baseURL+RunnerServiceSendTestPushProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendTestPush")),
+			connect.WithClientOptions(opts...),
+		),
 		listMissions: connect.NewClient[gen.ListMissionsRequest, gen.ListMissionsResponse](
 			httpClient,
 			baseURL+RunnerServiceListMissionsProcedure,
@@ -1934,6 +1967,9 @@ type runnerServiceClient struct {
 	cancelDevicePairing          *connect.Client[gen.DevicePairingRequest, gen.DevicePairing]
 	listDevices                  *connect.Client[gen.ListDevicesRequest, gen.ListDevicesResponse]
 	revokeDevice                 *connect.Client[gen.RevokeDeviceRequest, gen.ListDevicesResponse]
+	getPushSettings              *connect.Client[gen.GetPushSettingsRequest, gen.PushSettings]
+	setPushSettings              *connect.Client[gen.SetPushSettingsRequest, gen.PushSettings]
+	sendTestPush                 *connect.Client[gen.SendTestPushRequest, gen.SendTestPushResponse]
 	listMissions                 *connect.Client[gen.ListMissionsRequest, gen.ListMissionsResponse]
 	getMission                   *connect.Client[gen.GetMissionRequest, gen.Mission]
 	createMission                *connect.Client[gen.CreateMissionRequest, gen.Mission]
@@ -2603,6 +2639,21 @@ func (c *runnerServiceClient) RevokeDevice(ctx context.Context, req *connect.Req
 	return c.revokeDevice.CallUnary(ctx, req)
 }
 
+// GetPushSettings calls lazybox.bench.v1.RunnerService.GetPushSettings.
+func (c *runnerServiceClient) GetPushSettings(ctx context.Context, req *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return c.getPushSettings.CallUnary(ctx, req)
+}
+
+// SetPushSettings calls lazybox.bench.v1.RunnerService.SetPushSettings.
+func (c *runnerServiceClient) SetPushSettings(ctx context.Context, req *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return c.setPushSettings.CallUnary(ctx, req)
+}
+
+// SendTestPush calls lazybox.bench.v1.RunnerService.SendTestPush.
+func (c *runnerServiceClient) SendTestPush(ctx context.Context, req *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error) {
+	return c.sendTestPush.CallUnary(ctx, req)
+}
+
 // ListMissions calls lazybox.bench.v1.RunnerService.ListMissions.
 func (c *runnerServiceClient) ListMissions(ctx context.Context, req *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error) {
 	return c.listMissions.CallUnary(ctx, req)
@@ -2998,6 +3049,12 @@ type RunnerServiceHandler interface {
 	// Owner only. Paired devices, and revoking one: its access ends at its next request.
 	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
 	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	// Web Push to a paired phone (REMOTE.md). A phone reads and sets its own
+	// subscription and preferences (the device allowlist admits it with read);
+	// the owner sees them on each device and can send it a test.
+	GetPushSettings(context.Context, *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SetPushSettings(context.Context, *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SendTestPush(context.Context, *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error)
 	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
 	// derived from its event log and live observations; nothing else is stored.
 	ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error)
@@ -3862,6 +3919,24 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceGetPushSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetPushSettingsProcedure,
+		svc.GetPushSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("GetPushSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetPushSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceSetPushSettingsProcedure,
+		svc.SetPushSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("SetPushSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendTestPushHandler := connect.NewUnaryHandler(
+		RunnerServiceSendTestPushProcedure,
+		svc.SendTestPush,
+		connect.WithSchema(runnerServiceMethods.ByName("SendTestPush")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListMissionsHandler := connect.NewUnaryHandler(
 		RunnerServiceListMissionsProcedure,
 		svc.ListMissions,
@@ -4310,6 +4385,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceListDevicesHandler.ServeHTTP(w, r)
 		case RunnerServiceRevokeDeviceProcedure:
 			runnerServiceRevokeDeviceHandler.ServeHTTP(w, r)
+		case RunnerServiceGetPushSettingsProcedure:
+			runnerServiceGetPushSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSetPushSettingsProcedure:
+			runnerServiceSetPushSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSendTestPushProcedure:
+			runnerServiceSendTestPushHandler.ServeHTTP(w, r)
 		case RunnerServiceListMissionsProcedure:
 			runnerServiceListMissionsHandler.ServeHTTP(w, r)
 		case RunnerServiceGetMissionProcedure:
@@ -4889,6 +4970,18 @@ func (UnimplementedRunnerServiceHandler) ListDevices(context.Context, *connect.R
 
 func (UnimplementedRunnerServiceHandler) RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RevokeDevice is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetPushSettings(context.Context, *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetPushSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetPushSettings(context.Context, *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetPushSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendTestPush(context.Context, *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendTestPush is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error) {

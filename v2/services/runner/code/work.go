@@ -16,6 +16,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
 	"github.com/AntoineToussaint/lazybox/v2/internal/transport"
+	"github.com/AntoineToussaint/lazybox/v2/internal/webpush"
 	"github.com/AntoineToussaint/lazybox/v2/pkg/adapters"
 	"github.com/codefly-dev/core/standards"
 	codefly "github.com/codefly-dev/sdk-go"
@@ -238,6 +239,16 @@ func startRemote(ctx context.Context, state string, service *transport.Service, 
 		fmt.Printf("V2 Runner device gateway: %s\n", gateway.LocalURL())
 	}
 	service.Devices, service.Remote = manager, gateway
+	// Push notifications to paired phones: a VAPID key of this Runner's own,
+	// and a notifier that watches the conversations as the desktop inbox does.
+	stopPush := func() {}
+	if keys, err := webpush.LoadOrCreateKey(filepath.Join(state, "vapid.key")); err != nil {
+		fmt.Fprintf(os.Stderr, "V2 Runner: phone notifications are unavailable: %v\n", err)
+	} else {
+		notifier := &remote.Notifier{Devices: manager, Sender: webpush.NewSender(keys), Sessions: service.Sessions, Keys: keys}
+		notifier.Start(ctx)
+		service.Push, stopPush = notifier, notifier.Stop
+	}
 	var once sync.Once
-	return func() { once.Do(func() { _ = gateway.Close(); stopRPC() }) }, nil
+	return func() { once.Do(func() { stopPush(); _ = gateway.Close(); stopRPC() }) }, nil
 }

@@ -112,6 +112,9 @@ type Device struct {
 	Grants     []string  `json:"grants"`
 	PairedAt   time.Time `json:"pairedAt"`
 	LastSeenAt time.Time `json:"lastSeenAt"`
+	// Push is the device's notification subscription and preferences
+	// (push.go); nil until the phone first sets them.
+	Push *Push `json:"push,omitempty"`
 }
 
 // Has reports whether the device holds a grant.
@@ -351,7 +354,7 @@ func (m *Manager) Begin(grants []string) (Offer, string, error) {
 func (m *Manager) view(o *offer) Offer {
 	v := Offer{ID: o.id, State: o.state, Grants: append([]string(nil), o.grants...), ExpiresAt: o.expires}
 	if d := m.devices[o.device]; d != nil {
-		c := *d
+		c := d.clone()
 		v.Device = &c
 	}
 	return v
@@ -463,7 +466,7 @@ func (m *Manager) Complete(r PairRequest) (Device, error) {
 	}
 	o.state, o.device, o.ended = OfferPaired, id, now
 	m.persisted[id] = now
-	return *d, nil
+	return d.clone(), nil
 }
 
 func deviceName(name string) (string, error) {
@@ -556,7 +559,7 @@ func (m *Manager) Session(device, value, signature string) (string, time.Time, D
 	}
 	expires := now.Add(CredentialLifetime).Truncate(time.Second)
 	m.touch(d, now)
-	return m.token(device, expires), expires, *d, nil
+	return m.token(device, expires), expires, d.clone(), nil
 }
 
 func (m *Manager) mac(device string, expires int64) []byte {
@@ -603,7 +606,7 @@ func (m *Manager) Authenticate(token string) (Device, error) {
 		return Device{}, errors.New("device credential revoked")
 	}
 	m.touch(d, now)
-	return *d, nil
+	return d.clone(), nil
 }
 
 // touch records activity, writing it at most once a minute. Caller holds mu.
@@ -621,7 +624,7 @@ func (m *Manager) List() []Device {
 	defer m.mu.Unlock()
 	out := make([]Device, 0, len(m.devices))
 	for _, d := range m.devices {
-		out = append(out, *d)
+		out = append(out, d.clone())
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if !out[i].PairedAt.Equal(out[j].PairedAt) {
@@ -662,7 +665,7 @@ func (m *Manager) save() error {
 		Devices []Device `json:"devices"`
 	}{Version: 1, Devices: []Device{}}
 	for _, d := range m.devices {
-		file.Devices = append(file.Devices, *d)
+		file.Devices = append(file.Devices, d.clone())
 	}
 	sort.Slice(file.Devices, func(i, j int) bool { return file.Devices[i].ID < file.Devices[j].ID })
 	data, err := json.MarshalIndent(file, "", "  ")

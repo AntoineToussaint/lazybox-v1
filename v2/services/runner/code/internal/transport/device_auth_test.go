@@ -107,9 +107,9 @@ func TestDeviceAllowlistIsPinned(t *testing.T) {
 	}
 	sort.Strings(got)
 	want := []string{
-		"Apply:respond", "GetCollection:read", "GetSession:read", "Info:read", "ListCollections:read", "ListCommands:read",
+		"Apply:respond", "GetCollection:read", "GetPushSettings:read", "GetSession:read", "Info:read", "ListCollections:read", "ListCommands:read",
 		"ListHistory:read", "ListWorkspaceChanges:read", "OpenSession:start", "ReadAttachment:read", "ReadCommand:read", "ReadWorkspaceDiff:read",
-		"ResumeSession:start", "WatchEvents:read:stream", "WatchOutput:read:stream",
+		"ResumeSession:start", "SendTestPush:read", "SetPushSettings:read", "WatchEvents:read:stream", "WatchOutput:read:stream",
 	}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("device allowlist changed; review it deliberately and update REMOTE.md:\n got %v\nwant %v", got, want)

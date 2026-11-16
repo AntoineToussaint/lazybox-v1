@@ -285,7 +285,9 @@ func (g *Gateway) static(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lazybox</title><body style="font:16px system-ui;margin:2rem;max-width:32rem"><h1>Lazybox is reachable</h1><p>The phone app is not built on this computer yet. On it, run <code>make -C v2 build-web</code>, then restart the Runner.</p></body>`)
 		return
 	}
-	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+	// The service worker and the manifest are checked on every start, so a new
+	// release's worker takes over at once (sw.js keeps no cache of the API).
+	if r.URL.Path == "/" || r.URL.Path == "/index.html" || r.URL.Path == "/sw.js" || r.URL.Path == "/manifest.webmanifest" {
 		w.Header().Set("Cache-Control", "no-cache")
 	} else if strings.HasPrefix(r.URL.Path, "/assets/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

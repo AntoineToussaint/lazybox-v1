@@ -237,6 +237,12 @@ service RunnerService {
   // Owner only. Paired devices, and revoking one: its access ends at its next request.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   rpc RevokeDevice(RevokeDeviceRequest) returns (ListDevicesResponse);
+  // Web Push to a paired phone (REMOTE.md). A phone reads and sets its own
+  // subscription and preferences (the device allowlist admits it with read);
+  // the owner sees them on each device and can send it a test.
+  rpc GetPushSettings(GetPushSettingsRequest) returns (PushSettings);
+  rpc SetPushSettings(SetPushSettingsRequest) returns (PushSettings);
+  rpc SendTestPush(SendTestPushRequest) returns (SendTestPushResponse);
   // Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
   // derived from its event log and live observations; nothing else is stored.
   rpc ListMissions(ListMissionsRequest) returns (ListMissionsResponse);
@@ -2081,10 +2087,57 @@ message Device {
   int64 last_seen_at_unix_millis = 5;
   // A short digest of the device's key; the phone shows the same one.
   string fingerprint = 6;
+  // Its push notifications, without the Runner's key.
+  PushSettings push = 7;
 }
 message ListDevicesRequest {}
 message ListDevicesResponse { repeated Device devices = 1; }
 message RevokeDeviceRequest { string device_id = 1; }
+message GetPushSettingsRequest {}
+// A browser's push subscription, as PushSubscription.toJSON() gives it.
+message PushSubscription {
+  // The push service URL. Only Apple's, Google's, Mozilla's and Microsoft's
+  // push services are accepted: the Runner posts to it.
+  string endpoint = 1;
+  // The browser's P-256 public key and auth secret, base64url.
+  string p256dh = 2;
+  string auth = 3;
+}
+message PushPreferences {
+  bool needs_input = 1;
+  bool failed = 2;
+  bool review = 3;
+  // Quiet hours in the phone's time zone, "HH:MM"; both empty for none.
+  string quiet_start = 4;
+  string quiet_end = 5;
+  // An IANA time zone, e.g. Europe/Paris.
+  string time_zone = 6;
+}
+message PushSettings {
+  // The Runner's VAPID public key (an uncompressed P-256 point, base64url):
+  // the phone's applicationServerKey. Only a phone's own call returns it.
+  string application_server_key = 1;
+  bool subscribed = 2;
+  PushPreferences preferences = 3;
+  // The push service's host, e.g. web.push.apple.com.
+  string service = 4;
+  int64 last_sent_at_unix_millis = 5;
+  // Why the last delivery failed, if it did.
+  string last_error = 6;
+}
+message SetPushSettingsRequest {
+  // Replaces the phone's subscription.
+  PushSubscription subscription = 1;
+  // Removes the subscription: notifications off on this phone.
+  bool unsubscribe = 2;
+  // Absent keeps the current preferences.
+  PushPreferences preferences = 3;
+}
+message SendTestPushRequest {
+  // The owner names a device; a phone may only test itself (empty or its own id).
+  string device_id = 1;
+}
+message SendTestPushResponse { PushSettings push = 1; }
 // Missions. Statuses: ready, blocked, working, needs_you, changes_requested,
 // claimed_done, done, failed, canceled (verifying is reserved). Trust:
 // claimed (said so), observed (the Runner saw the exit status or process),

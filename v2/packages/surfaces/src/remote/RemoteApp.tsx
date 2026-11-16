@@ -3,9 +3,9 @@ import { ConnectError, DeviceRequestError, DeviceRevoked, indexedDBDeviceStore, 
 import type { Collection, Session } from '@lazybox/protocol';
 import { RunnerProvider, useRunner } from '../RunnerContext';
 import { AttentionScope, useInbox, useMarkViewed } from '../useAttention';
-import { ageLabel, attentionTitle, requestSummary, type Attention } from '../attention';
-import { AttentionIcon } from '../Inbox';
-import { conversationDetails, conversationName } from '../conversation-model';
+import { requestSummary } from '../attention';
+import { conversationName } from '../conversation-model';
+import type { Approval } from '../request-model';
 import { sessionStatus } from '../agent-status';
 import { useTranscript } from '../useTranscript';
 import { ConversationLoading, MessageList } from '../MessageList';
@@ -16,6 +16,13 @@ import { useComposerDictation } from '../voice/ComposerDictation';
 import { VoicePill } from '../voice/VoiceLayer';
 import { useVoiceState } from '../voice/voice-session';
 import { grantLabels } from '../DevicesSettings';
+import { parseRoute, useRoute, type Route } from './route';
+import { localPinStore } from './pins';
+import { closeStaleNotifications, registerWorker, resyncPush } from './push';
+import { PhoneInbox } from './PhoneInbox';
+import { PhoneSettings } from './PhoneSettings';
+import { CommandStrip, PhoneCommand, useConversationCommands } from './PhoneCommand';
+import { ConfirmSheet } from './PhoneSheets';
 import '../style.css';
 import '../inbox.css';
 import './remote.css';
@@ -135,99 +142,77 @@ function Signed({ baseUrl, stored, initial, fetch, onRevoked, onForget }: { base
   return <RunnerProvider connection={connection}><AttentionScope root={`remote:${session.device.id}`}><PhoneShell device={session.device} onForget={onForget}/></AttentionScope></RunnerProvider>;
 }
 
-/** The open conversation is in the URL, so the phone's back gesture returns to the inbox. */
-function useRoute(): [string, (session: string) => void] {
-  const read = () => new URLSearchParams(location.search).get('session') || '';
-  const [session, setSession] = useState(read);
-  useEffect(() => { const pop = () => setSession(read()); window.addEventListener('popstate', pop); return () => window.removeEventListener('popstate', pop); }, []);
-  const go = useCallback((next: string) => {
-    const url = new URL(location.href);
-    if (next) url.searchParams.set('session', next); else url.searchParams.delete('session');
-    if (next) history.pushState({ session: next }, '', url); else if (history.state?.session) history.back(); else history.replaceState(null, '', url);
-    setSession(next); window.scrollTo(0, 0);
+/** Ask the computer again when the phone comes back: online, or the app brought to the front. */
+function useWakeRefresh(refresh: () => void) {
+  useEffect(() => {
+    const wake = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('online', wake); document.addEventListener('visibilitychange', wake);
+    return () => { window.removeEventListener('online', wake); document.removeEventListener('visibilitychange', wake); };
+  }, [refresh]);
+}
+
+function useOnline(): boolean {
+  const [online, setOnline] = useState(() => navigator.onLine !== false);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine !== false);
+    window.addEventListener('online', update); window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
   }, []);
-  return [session, go];
+  return online;
 }
 
 function PhoneShell({ device, onForget }: { device: DeviceSession['device']; onForget(): void }) {
-  const { api, info, error } = useRunner();
+  const { api, info, error, refresh } = useRunner();
   const [route, go] = useRoute();
   const [collections, setCollections] = useState<Collection[]>([]);
+  const pins = useMemo(() => localPinStore(`remote:${device.id}`), [device.id]);
+  const loadCollections = useCallback((signal?: AbortSignal) => api.listCollections({}, { signal, timeoutMs: 10000 }).then(result => { if (!signal?.aborted) setCollections(result.collections); }, () => {}), [api]);
   useEffect(() => {
     const control = new AbortController();
-    const load = () => void api.listCollections({}, { signal: control.signal, timeoutMs: 10000 }).then(result => { if (!control.signal.aborted) setCollections(result.collections); }, () => {});
-    load(); const timer = setInterval(load, 20000);
+    void loadCollections(control.signal); const timer = setInterval(() => void loadCollections(control.signal), 20000);
     return () => { control.abort(); clearInterval(timer); };
-  }, [api]);
+  }, [loadCollections]);
+  useWakeRefresh(refresh);
+  const online = useOnline();
+  // The service worker shows pushes and opens their conversation here, without a reload.
+  useEffect(() => {
+    void registerWorker().then(() => api.getPushSettings({}, { timeoutMs: 15000 })).then(settings => resyncPush(api, settings)).catch(() => undefined);
+    const message = (event: MessageEvent) => {
+      if (event.data?.type !== 'lazybox-open' || typeof event.data.url !== 'string') return;
+      const target = new URL(event.data.url, location.origin);
+      if (target.origin === location.origin) go(parseRoute(target.search));
+    };
+    navigator.serviceWorker?.addEventListener('message', message);
+    return () => navigator.serviceWorker?.removeEventListener('message', message);
+  }, [api, go]);
+  // A banner whose conversation no longer waits (answered here or on the computer) leaves the lock screen.
+  const inbox = useInbox();
+  const waiting = useMemo(() => new Set(inbox.rows.filter(row => row.state === 'needs-input' || (row.state === 'failed' && row.unread)).map(row => row.key)), [inbox.rows]);
+  useEffect(() => { if (info && document.visibilityState === 'visible') void closeStaleNotifications(tag => tag === 'test' || (tag === 'summary' ? waiting.size > 0 : waiting.has(tag))); }, [info, waiting]);
+  const onRefresh = useCallback(async () => {
+    const before = info;
+    refresh(); await loadCollections();
+    // Until the computer answered (or gave up), so the spinner means something.
+    const started = Date.now();
+    while (Date.now() - started < 6000 && latestInfo.current === before) await new Promise(resolve => setTimeout(resolve, 120));
+  }, [info, refresh, loadCollections]);
+  const latestInfo = useRef(info); latestInfo.current = info;
   const offline = !!error && !info;
   return <>
-    {route ? <PhoneConversation sessionId={route} device={device} collections={collections} onBack={() => go('')}/> : <PhoneInbox device={device} collections={collections} onOpen={go} onForget={onForget}/>}
-    {error && <div className="remote-offline" role="status">{offline ? 'Connecting to your computer…' : 'Connection interrupted · reconnecting…'}</div>}
+    {route.screen === 'settings' ? <PhoneSettings device={device} pins={pins} onBack={() => go({})} onForget={onForget}/>
+      : route.session ? <PhoneConversation sessionId={route.session} commandId={route.command} device={device} collections={collections} go={go}/>
+      : <PhoneInbox device={device} collections={collections} pins={pins} go={go} onRefresh={onRefresh}/>}
+    {!online ? <div className="remote-offline" role="status"><Icon name="cloud" size={15}/>This phone is offline. What you see was loaded earlier.</div>
+      : error && <div className="remote-offline" role="status"><span className="remote-spinner" aria-hidden="true"/>{offline ? 'Connecting to your computer…' : 'Can’t reach your computer · retrying'}<button type="button" onClick={refresh}>Retry now</button></div>}
   </>;
 }
 
-const DONE_SHOWN = 5;
-function PhoneInbox({ device, collections, onOpen, onForget }: { device: DeviceSession['device']; collections: Collection[]; onOpen(session: string): void; onForget(): void }) {
-  const inbox = useInbox();
-  const { info } = useRunner();
-  const [allDone, setAllDone] = useState(false);
-  const [menu, setMenu] = useState(false);
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
-  useEffect(() => setNow(Date.now()), [inbox.rows]);
-  const needs = inbox.counts['needs-input'];
-  useEffect(() => { document.title = needs ? `(${needs}) Lazybox` : 'Lazybox'; }, [needs]);
-  const workspace = (row: Attention) => collections.find(value => value.id === row.session.collectionId)?.name || '';
-  const summary = needs ? `${needs} waiting for you` : inbox.counts.failed || inbox.counts.review ? `${inbox.counts.failed + inbox.counts.review} to look at` : inbox.rows.length ? 'Nothing needs you' : '';
-  return <main className="remote-inbox" aria-labelledby="remote-inbox-title">
-    <header className="remote-bar">
-      <Brand/>
-      <div className="remote-bar-title"><h1 id="remote-inbox-title">Inbox</h1>{summary && <span role="status">{summary}</span>}</div>
-      <button className="remote-icon-button" aria-label="This phone" aria-expanded={menu} onClick={() => setMenu(value => !value)}><Icon name="phone" size={18}/></button>
-    </header>
-    {menu && <section className="remote-device-card" aria-label="This phone">
-      <strong>{device.name}</strong>
-      <span className="mono">{device.fingerprint}</span>
-      <span>{device.grants.map(grant => grantLabels[grant] || grant).join(' · ')}</span>
-      <button onClick={onForget}>Forget pairing on this phone</button>
-      <small>Also revoke it on your computer (Settings → Devices) to remove it there.</small>
-    </section>}
-    {!info ? <p className="remote-empty" role="status">Loading conversations…</p>
-      : !inbox.rows.length ? <div className="remote-empty"><Icon name="inbox" size={28}/><strong>No conversations yet</strong><p>Agents that need you will show up here.</p></div>
-      : <>
-        {!needs && !inbox.counts.failed && !inbox.counts.review && <p className="remote-caught-up"><Icon name="check" size={14}/>Nothing needs you right now. Your agents keep working.</p>}
-        {inbox.groups.map(group => {
-          const rows = group.state === 'idle' && !allDone ? group.rows.slice(0, DONE_SHOWN) : group.rows;
-          return <section key={group.state} className={`remote-group group-${group.state}`} aria-labelledby={`remote-group-${group.state}`}>
-            <h2 id={`remote-group-${group.state}`}><AttentionIcon state={group.state} size={13}/>{attentionTitle[group.state]}<span>{group.rows.length}</span></h2>
-            <ul>{rows.map(row => <li key={row.key} className="remote-row" data-state={row.state} data-unread={row.unread || undefined}>
-              <button onClick={() => onOpen(row.session.id)}>
-                <AttentionIcon state={row.state} size={18}/>
-                <span className="remote-row-main">
-                  <span className="remote-row-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot" aria-label="unread"/>}<strong>{conversationName(row.session)}</strong></span>
-                  <span className="remote-row-meta">{[workspace(row), conversationDetails(row.session, info.profiles, false)].filter(Boolean).join(' · ')}</span>
-                  {(row.line || row.state !== 'idle') && <span className="remote-row-line">{row.state === 'working' ? <LiveText session={row.session}/> : <em>{row.reason}</em>}{row.line && <> · {row.line}</>}</span>}
-                </span>
-                <time dateTime={row.at ? new Date(row.at).toISOString() : undefined}>{ageLabel(row.at, now)}</time>
-              </button>
-            </li>)}</ul>
-            {rows.length < group.rows.length && <button className="remote-more" onClick={() => setAllDone(true)}>Show {group.rows.length - rows.length} more</button>}
-          </section>;
-        })}
-      </>}
-  </main>;
-}
-
-function LiveText({ session }: { session: Session }) {
-  const status = useLiveStatus(session);
-  return <em className="remote-live">{status.text}</em>;
-}
-
-function PhoneConversation({ sessionId, device, collections, onBack }: { sessionId: string; device: DeviceSession['device']; collections: Collection[]; onBack(): void }) {
+function PhoneConversation({ sessionId, commandId, device, collections, go }: { sessionId: string; commandId?: string; device: DeviceSession['device']; collections: Collection[]; go(route: Route): void }) {
   const { api, info } = useRunner();
   const transcript = useTranscript(api, sessionId, !!info);
   const [fetched, setFetched] = useState<Session>();
   const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState<{ approval: Approval; resolve(ok: boolean): void }>();
   const live = info?.sessions.find(value => value.id === sessionId);
   // An ended conversation is not in the live list; read it, and keep reading while it is shown.
   useEffect(() => {
@@ -237,20 +222,25 @@ function PhoneConversation({ sessionId, device, collections, onBack }: { session
     return () => { control.abort(); clearInterval(timer); };
   }, [api, sessionId, !!live]);
   const session = live || fetched;
-  useMarkViewed(session);
+  const commands = useConversationCommands(sessionId);
+  useMarkViewed(commandId ? undefined : session);
   const [visible, setVisible] = useState(60);
   const end = useRef<HTMLDivElement>(null);
   const count = transcript.messages.length + (session?.pending.length || 0);
-  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [count]);
+  useEffect(() => { if (!commandId) end.current?.scrollIntoView({ block: 'end' }); }, [count, commandId]);
   const agentName = (session?.provider || info?.profiles.find(p => p.id === session?.profileId)?.provider) === 'codex' ? 'Codex' : 'Claude';
   const respond = device.grants.includes('respond'), start = device.grants.includes('start');
   const workspace = collections.find(value => value.id === session?.collectionId)?.name || '';
   const status = useLiveStatus(session, transcript.recent);
+  // The phone asks before allowing what the computer flags; the computer shows the same flags.
+  const confirmAllow = useCallback((approval: Approval) => new Promise<boolean>(resolve => setConfirming({ approval, resolve })), []);
+  if (commandId) return <PhoneCommand commandId={commandId} commands={commands} onBack={() => go({ session: sessionId })}/>;
   return <main className="remote-conversation" aria-label={conversationName(session, 'Conversation')}>
     <header className="remote-bar">
-      <button className="remote-icon-button" aria-label="Back to inbox" onClick={onBack}><Icon name="back" size={20}/></button>
+      <button className="remote-icon-button" aria-label="Back to inbox" onClick={() => go({})}><Icon name="back" size={20}/></button>
       <div className="remote-bar-title"><h1>{conversationName(session, 'Conversation')}</h1><span>{[workspace, sessionStatus(session)].filter(Boolean).join(' · ')}</span></div>
     </header>
+    <CommandStrip commands={commands} onOpen={command => go({ session: sessionId, command })}/>
     <div className="remote-transcript">
       {transcript.error && <p className="remote-error" role="alert">Conversation could not be loaded. {transcript.error} <button onClick={transcript.retry}>Retry</button></p>}
       {error && !session && <p className="remote-error" role="alert">{error}</p>}
@@ -262,13 +252,16 @@ function PhoneConversation({ sessionId, device, collections, onBack }: { session
         : request.type === 'browser_request'
         ? <p key={request.requestId} className="remote-hint">Browser · {requestSummary(request)}? The agent's browsing waits for you. Answer on your computer.</p>
         : respond
-        ? <RequestCard key={request.requestId} request={request} api={api} session={session.id} onError={setError}/>
+        ? <RequestCard key={request.requestId} request={request} api={api} session={session.id} onError={setError} agentName={agentName} confirmAllow={confirmAllow}/>
         : <p key={request.requestId} className="remote-hint">The agent is waiting for an answer. This phone can only read; answer on your computer.</p>)}
       {session && !session.closed && status.tone === 'busy' && <div className="remote-activity" aria-hidden="true"><LiveIndicator tone="busy"/>{status.text}</div>}
       <div ref={end}/>
     </div>
     {error && session && <p className="remote-error remote-floating" role="alert">{error}<button aria-label="Dismiss" onClick={() => setError('')}>×</button></p>}
     {session && <PhoneComposer session={session} respond={respond} start={start} onError={setError}/>}
+    {confirming && <ConfirmSheet title="Allow this?" tone="primary" confirm="Allow"
+      detail={<><code className="remote-sheet-code">{confirming.approval.command || confirming.approval.file || confirming.approval.description || confirming.approval.tool}</code><ul className="remote-risks">{confirming.approval.risks.map(risk => <li key={risk.kind}><Icon name="alert" size={12}/>{risk.text}</li>)}{confirming.approval.defaultToNo && !confirming.approval.risks.length && <li><Icon name="alert" size={12}/>{agentName} suggests saying no unless you are sure</li>}</ul></>}
+      onConfirm={() => confirming.resolve(true)} onClose={() => { confirming.resolve(false); setConfirming(undefined); }}/>}
     <PhoneVoicePill/>
   </main>;
 }
