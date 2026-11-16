@@ -19,8 +19,11 @@ fixture.versionInfo.agentCli = { cli: '/Applications/Lazybox.app/Contents/Resour
 fixture.runnerSettings.prices = defaultModelPrices();
 const now = Math.floor(Date.now() / 1000);
 const limited = (id, label, resetAt, extra = {}) => ({ id, provider: 'claude', label, managed: true, isolation: 'environment', availability: { state: 'exhausted', plan: 'max', observedAtUnixMillis: String(Date.now() - 600_000), windows: [{ name: 'five_hour', durationMinutes: '300', usedPercent: 100, resetAt: String(resetAt) }, { name: 'seven_day', durationMinutes: '10080', usedPercent: 64, resetAt: String(now + 300_000) }], ...extra } });
+const backAt = now + 2 * 3600 + 10 * 60;
+// After 21:50 local time the reset is past midnight, and the line names the day.
+const backDay = new Date(backAt * 1000).toDateString() === new Date().toDateString() ? '' : 'tomorrow ';
 fixture.profiles.push(
-  limited('claude-future', 'Limited until later', now + 2 * 3600 + 10 * 60),
+  limited('claude-future', 'Limited until later', backAt),
   limited('claude-past', 'Limit already over', now - 120),
   { id: 'claude-unknown', provider: 'claude', label: 'Limit without a time', managed: true, isolation: 'environment', availability: { state: 'exhausted', observedAtUnixMillis: String(Date.now()) } },
 );
@@ -40,7 +43,7 @@ try {
 
   // Subscriptions: when a limited one is back, in one line.
   const future = page.getByRole('article', { name: 'Limited until later subscription', exact: true });
-  await expect(future.locator('.subscription-back')).toHaveText(/^Back at \d{1,2}:\d{2}\s?[AP]M \(in 2h (9|10)m\)$/);
+  await expect(future.locator('.subscription-back')).toHaveText(new RegExp(`^Back ${backDay}at \\d{1,2}:\\d{2}\\s?[AP]M \\(in 2h (9|10)m\\)$`));
   await expect(future.locator('.account-state')).toHaveText('Limit reached');
   const past = page.getByRole('article', { name: 'Limit already over subscription', exact: true });
   await expect(past.locator('.subscription-back')).toHaveText('Should be available again — checking…');
