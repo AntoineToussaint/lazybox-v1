@@ -32,8 +32,8 @@ pub struct Host {
     pub notice: Mutex<String>,
     /// Armed by Restart Runner: the bearer the stopping Runner held and how
     /// long to wait for its successor. While armed, the next Runner the same
-    /// private locator names is adopted even on a newly allocated origin,
-    /// which otherwise needs an explicit Retry.
+    /// private locator names is adopted on a newly allocated origin even when
+    /// it reports no identity; an identified Runner is followed regardless.
     pub restart: Mutex<Option<(String, Instant)>>,
 }
 
@@ -437,11 +437,10 @@ pub fn runner_bootstrap(
         connection: match &host.reload_endpoint {
             Some(path) => {
                 follow_restart(&window, &host, path)?;
-                host.connection
-                    .lock()
-                    .map_err(|e| e.to_string())?
-                    .refreshed(path)
-                    .map_err(|e| e.to_string())?
+                let mut current = host.connection.lock().map_err(|e| e.to_string())?;
+                let next = current.followed(path).map_err(|e| e.to_string())?;
+                adopt(&window, &mut current, next)?;
+                current.clone()
             }
             None => host.connection.lock().map_err(|e| e.to_string())?.clone(),
         },

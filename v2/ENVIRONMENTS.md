@@ -252,19 +252,35 @@ writes are visible. An unreadable view file is retained and reported. Attachment
 bytes are not persisted as drafts: reattach missing files after reopening.
 
 The selected private locator is reread in both Dev and Working, and a different
-Runner identity is rejected. A changed loopback port requires explicit Retry;
-a renewed bearer at the same origin is adopted automatically. Native storage
-and restoration logic are tested; physical display restoration is still a
-manual validation gate.
+Runner identity is rejected. Every Runner start publishes a new bearer: a Codefly
+hot reload keeps the port, a launcher restart (Restart Runner, or any other) gets
+a new one. Both are followed automatically for a Runner that reports its
+identity, whether or not the restart was requested from this app: the host
+validates the loopback URL and grants only that RPC origin to the HTTP client
+first. A Runner without an identity on a new port still needs **Reconnect this
+window**. Native storage and restoration logic are tested; physical display
+restoration is still a manual validation gate.
 
+Each window rereads the locator every three seconds (every second while a
+restart it requested is under way), and at once when a request is refused as
+unauthenticated or cannot reach the Runner. A refused request is retried once
+against the Runner the locator names (it was rejected before anything ran); one
+that could not complete is not repeated, since it may have run. All of a window's clients, including open
+streams and cached conversation readers, send the current bearer, never an empty
+one; streams reconnect from their own cursor. A bearer the Runner keeps refusing
+shows as **Not authorized** in the header. The workspace list keeps the last list
+the Runner gave while it is unreachable and says it is reconnecting; a window
+that has not heard from the Runner yet says so instead of showing no workspaces.
 Dev polls Info with a bounded timeout every three seconds and retries automatically.
 The workspace displays one connection banner while the Runner is unavailable.
-**Retry now** in native Dev rereads the same private endpoint locator, validates
-its loopback URL, grants only that resolved RPC origin to the HTTP client, and
-reloads the window with its saved target. This handles a full launcher restart
-that allocated a different port. Normal hot reload adopts a new bearer at the
-same origin automatically. Requests that mutate agents are never replayed by
-connection retry.
+**Retry now** in native Dev rereads the same private endpoint locator and reloads
+the window with its saved target. Requests that mutate agents are never replayed
+by connection retry.
+
+Lazybox Dev (`ai.lazybox.v2.dev`) and Lazybox (Working, `ai.lazybox.v2.working`)
+are separate applications with separate Runners and separate workspace stores
+(`<environments>/dev/collections` and `<environments>/working/collections`): a
+workspace created in one is never listed by the other.
 
 Vite runs in middleware mode under a launcher-owned HTTP/HMR server. Standalone
 Vite's SIGTERM handler calls `process.exit()`, which previously cut off watcher

@@ -30,7 +30,7 @@ import { RestartNotice, RunnerIndicator } from './RunnerControl';
 import { AttentionCenter } from './Inbox';
 import { AttentionScope } from './useAttention';
 
-export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void; onShowSession?(target: ViewTarget): void };
+export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; loaded?: boolean; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void; onShowSession?(target: ViewTarget): void };
 export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
 function ChatModule({ target, onTarget, viewState, collections, onOpenChat }: ModuleProps) {
   const {api}=useRunner();
@@ -62,7 +62,7 @@ export function Workspace(props: Props) { return <RunnerProvider connection={pro
 
 function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = emptyTarget(), host, onOpenViewer, onTargetChange }: Props) {
   const keyboardHint=useKeyboardNavigation(viewState);
-  const { connection, api, info, error: connectionError, refresh: refreshRunner, restart } = useRunner();
+  const { api, info, error: connectionError, refresh: refreshRunner, restart } = useRunner();
   const registry=useMemo(()=>({...builtinPanels,...modules}),[modules]);
   const [workspaceID,setWorkspaceID]=useState(()=>fixedWorkspaceId || initialTarget.collectionId || viewState?.getItem(`${viewState.key}:active-workspace`) || '');
   const workspaceKey=(id:string)=>`${viewState?.scope || viewState?.key}:workspace:${id || 'home'}:pages`;
@@ -74,6 +74,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const [layout, setLayout] = useState(restored.layout), [locked, setLocked] = useState(!!restored.error);
   const [error, setError] = useState(restored.error), [editing, setEditing] = useState(false), [configuring, setConfiguring] = useState(false), [json, setJSON] = useState('');
   const [collections, setCollections] = useState<Collection[]>([]), [catalogError, setCatalogError] = useState(''), [revision, setRevision] = useState(0);
+  // Whether this window has heard the Runner's list at all: until then there is
+  // nothing to show, which is not the same as having no workspaces.
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [repositoryWorkspace,setRepositoryWorkspace]=useState<Collection>();
   const [navigatorOpen, setNavigatorOpen] = useState(false);
   const [mobilePanelId, setMobilePanelId] = useState('');
@@ -109,14 +112,16 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   useEffect(() => {
     const control = new AbortController(); let updating = false;
     const update = async () => {
-      if (updating || !connection.token) return; updating = true;
-      try { const result = await api.listCollections({}, { signal: control.signal }); if (!control.signal.aborted) { setCollections(result.collections); setCatalogError(''); } }
+      if (updating) return; updating = true;
+      // Bounded: a request stuck on a Runner that is going away must not stop
+      // this poll from reaching its successor.
+      try { const result = await api.listCollections({}, { signal: control.signal, timeoutMs: 10000 }); if (!control.signal.aborted) { setCollections(result.collections); setCatalogLoaded(true); setCatalogError(''); } }
       catch (error) { if (!control.signal.aborted) setCatalogError(String(error)); }
       finally { updating = false; }
     };
     void update(); const timer = setInterval(() => void update(), 3000);
     return () => { control.abort(); clearInterval(timer); };
-  }, [api, revision, connection.token]);
+  }, [api, revision]);
   const commit = (next: WorkspaceLayout, reset = false) => {
     try {
       if (locked && !reset) throw new Error('Restore, import, or explicitly reset the retained layout before editing.');
@@ -372,7 +377,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       <header className="module-header" onPointerDown={editing ? undefined : event => startDrag(event, panel)}>{!editing ? panelHeader(panel, definition) : panel.kind === 'console' ?<button className="module-title" aria-label={panel.collapsed ? 'Show command output' : 'Hide command output'} aria-expanded={!panel.collapsed} onClick={() => changePanel(panel.id, value => ({ ...value, collapsed: !value.collapsed }))}><Icon name="terminal"/><span>{definition?.title}</span><Icon name="chevron" size={13}/></button> : <strong>{definition?.title || panel.kind}</strong>}{editing && <span>{panel.binding.mode === 'pinned' ? 'Pinned' : 'Follows page'}</span>}
         {editing && <div className="panel-config"><button disabled={panel.detached || !!pending} onClick={() => changePanel(panel.id, value => ({ ...value, binding: value.binding.mode === 'pinned' ? { mode: 'follow' } : { mode: 'pinned', target: { ...target } } }))}>{panel.binding.mode === 'pinned' ? 'Follow page' : 'Pin view'}</button><button aria-label={`Move ${panel.kind} earlier`} onClick={() => changePage({ ...page, layout: movePanel(page.layout, panel.id, -1) })}>←</button><button aria-label={`Move ${panel.kind} later`} onClick={() => changePage({ ...page, layout: movePanel(page.layout, panel.id, 1) })}>→</button><button aria-label={`Remove ${panel.kind} panel`} disabled={panels(page.layout).length === 1 || panel.detached || !!pending} onClick={() => { const next = removePanel(page.layout, panel.id); if (next) changePage({ ...page, layout: next }); }}>Remove</button></div>}
       </header>
-      {(!panel.collapsed || editing) && <div className="module-body">{panel.detached ? <div className="module-empty detached-message"><Icon name="external" size={24}/><h3>Chat is in its own window</h3><p>Your conversation continues there.</p><button disabled={!host || !!pending} onClick={() => void detach(panel)}>Open chat window ↗</button><button disabled={!host || !!pending} onClick={() => void dock(panel)}>Bring chat back here</button></div> : definition ? <definition.Component workspaceId={workspaceID} chooseRepositoryFolder={host?.chooseRepositoryFolder} target={target} onTarget={panel.kind==='collections' ? target => target.sessionId ? showSession(target) : onTarget(target) : onTarget} collections={collections} error={catalogError} refresh={refreshCatalog} onNewConversation={beginConversation} onShowSession={showSession} viewState={store} onOpenViewer={onOpenViewer} onOpenChat={panel.kind === 'chat' && host && target.sessionId ? () => void detach(panel) : undefined}/> : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}</div>}
+      {(!panel.collapsed || editing) && <div className="module-body">{panel.detached ? <div className="module-empty detached-message"><Icon name="external" size={24}/><h3>Chat is in its own window</h3><p>Your conversation continues there.</p><button disabled={!host || !!pending} onClick={() => void detach(panel)}>Open chat window ↗</button><button disabled={!host || !!pending} onClick={() => void dock(panel)}>Bring chat back here</button></div> : definition ? <definition.Component workspaceId={workspaceID} chooseRepositoryFolder={host?.chooseRepositoryFolder} target={target} onTarget={panel.kind==='collections' ? target => target.sessionId ? showSession(target) : onTarget(target) : onTarget} collections={collections} error={catalogError} loaded={catalogLoaded} refresh={refreshCatalog} onNewConversation={beginConversation} onShowSession={showSession} viewState={store} onOpenViewer={onOpenViewer} onOpenChat={panel.kind === 'chat' && host && target.sessionId ? () => void detach(panel) : undefined}/> : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}</div>}
     </section>;
   };
   const displayedLayout = editing ? page.layout : mainLayout(page.layout);
@@ -433,7 +438,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     </div>
     {!settings && shownPanels.map(panel => createPortal(renderPanel(panel), hostFor(slots.get(panel.id)!), slots.get(panel.id)))}
     </>}
-    {navigatorOpen && <WorkspaceNavigator target={page.selection} onTarget={target => target.sessionId ? showSession(target) : select(target)} collections={collections} error={catalogError} refresh={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder} onNewConversation={beginConversation} onClose={() => setNavigatorOpen(false)}/>}
+    {navigatorOpen && <WorkspaceNavigator target={page.selection} onTarget={target => target.sessionId ? showSession(target) : select(target)} collections={collections} error={catalogError} loaded={catalogLoaded} refresh={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder} onNewConversation={beginConversation} onClose={() => setNavigatorOpen(false)}/>}
   </main>;
 }
 

@@ -113,6 +113,9 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const [command, setCommand] = useState(initialCommandId);
   const [shell, setShell] = useState('');
   const [error, setError] = useState('');
+  // A failed refresh of the session is current state, not an event: the next
+  // successful refresh clears it (a Runner restart must not leave a stale alarm).
+  const [refreshError, setRefreshError] = useState('');
   const [opening, setOpening] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [renaming,setRenaming]=useState(false),[conversationName,setConversationName]=useState(''),[savingName,setSavingName]=useState(false);
@@ -194,8 +197,9 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             const next=await api.getSession({sessionId:state.session.successorExecutionId},{signal:control.signal});
             if(!control.signal.aborted&&next.session){continueConversation(api,sessionID,next.session);setSessionID(next.session.id);onSessionChange?.(next.session.id);}
           } else { transcript.reader.session=state.session; setSession(state.session); setCommands(output.commands); }
+          setRefreshError('');
         }
-      } catch (e) { if (!control.signal.aborted) setError(String(e)); }
+      } catch (e) { if (!control.signal.aborted) setRefreshError(String(e)); }
       finally { refreshing = false; }
     };
     void update(); const timer = setInterval(() => void update(), 1500);
@@ -347,7 +351,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     {!embedded&&<LeaderMenu hint={keyboardHint}/>}
     {snippetsOpen&&<SnippetPicker store={viewState} canSend={canCompose&&!sending&&!message.trim()&&!files.length&&!missingFiles.length} onClose={()=>{setSnippetsOpen(false);composer.current?.focus();}} onInsert={body=>{const node=composer.current,start=node?.selectionStart??message.length,end=node?.selectionEnd??message.length;const next=message.slice(0,start)+body+message.slice(end);setMessage(next);persistDraft(next,files,missingFiles);setUncertainSend('');sendAttempt.current=null;requestAnimationFrame(()=>{node?.focus();node?.setSelectionRange(start+body.length,start+body.length);});}} onSend={text=>send(undefined,text)}/>}
     {!embedded && <header className="topbar"><span className="brand" aria-hidden="true">l<span>↗</span></span><div><h1>lazybox <span>V2</span></h1><p>One window. Your agent.</p></div><span className="pill" role="status">{connecting ? 'Connecting to Runner' : !info ? 'Runner unavailable' : sessionID ? sessionStatus(session) : 'Runner connected'}</span></header>}
-    {(error || connectionError) && !(embedded && connectionError) && <div className="error" role="alert">{error || connectionError}<button onClick={() => setError('')}>Dismiss</button></div>}
+    {(error || connectionError || refreshError) && !(embedded && connectionError) && <div className="error" role="alert">{error || connectionError || refreshError}<button onClick={() => { setError(''); setRefreshError(''); }}>Dismiss</button></div>}
     {!info && !connecting && <div className="connection-retry"><button onClick={refresh}>Retry connection</button></div>}
     {!sessionID && !allowStart ? <div className="empty">Select an existing session to view its chat.</div> : !sessionID ? <section className="session-setup"><div className="eyebrow">New conversation</div><h2>{emptyWorkspace ? 'Empty workspace' : 'Choose your agent.'}</h2><p>{assistant ? `${purpose === 'help' ? 'Ask about Lazybox' : purpose === 'planning' ? 'Discuss a plan' : 'Summarize supplied evidence'}. This conversation runs on the Runner.` : emptyWorkspace ? 'Start a conversation with room to create files. No repository needed.' : 'Connect to your project and start working.'}</p>
       <form onSubmit={open} className="open-form"><div className="setup-row"><label>Agent<select value={provider} disabled={!info || opening} onChange={e => { setProvider(e.target.value); setProfile(''); setModel(''); setGateway(''); setRotationProfiles([]); }}><option value="claude">Claude</option><option value="codex">Codex</option></select></label><label>Account profile<select value={selectedProfile} disabled={!profiles.length || opening} onChange={e => setProfile(e.target.value)}>{profiles.map(p => <option key={p.id} value={p.id}>{p.label || p.id}{p.availability && p.availability.state !== 'available' && p.availability.state !== 'unknown' ? ` · ${accountLabel(p.availability.state)}` : ''}</option>)}</select></label></div>

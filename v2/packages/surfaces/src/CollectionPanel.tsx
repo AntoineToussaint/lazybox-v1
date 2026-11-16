@@ -19,6 +19,7 @@ export function CollectionPanel({
   onTarget,
   collections,
   error,
+  loaded = true,
   refresh,
   chooseRepositoryFolder,
   onNewConversation,
@@ -27,6 +28,8 @@ export function CollectionPanel({
   onTarget(target: ViewTarget): void;
   collections: Collection[];
   error: string;
+  /** Whether the Runner's list has been received at all in this window. */
+  loaded?: boolean;
   refresh(): void;
   chooseRepositoryFolder?(): Promise<string | null>;
   onNewConversation?(workspaceId: string): void;
@@ -120,6 +123,20 @@ export function CollectionPanel({
           Workspaces unavailable: {error}
         </p>
       )}
+      {/* Never an empty list for a Runner this window cannot reach: an absent
+          answer is not "no workspaces", and the last list stays until the next. */}
+      {!loaded && (
+        <p className="module-empty collection-status" role="status">
+          {error || connectionError
+            ? "Reconnecting to the Runner… Your workspaces appear as soon as it answers."
+            : "Loading workspaces…"}
+        </p>
+      )}
+      {loaded && (error || connectionError) && collections.length > 0 && (
+        <p className="collection-status" role="status">
+          Reconnecting to the Runner… These are the workspaces it last listed.
+        </p>
+      )}
       {index.unsupported&&<p className="module-empty">Live conversations · saved history requires a Runner update.</p>}
       {index.error&&!connectionError&&<p className="error" role="alert">Could not refresh conversation history. Previously loaded entries are retained.</p>}
       {creating && (
@@ -200,7 +217,7 @@ export function CollectionPanel({
           );
         })}
       </nav>
-      {!error && !collections.length && (
+      {loaded && !error && !connectionError && !collections.length && (
         <p className="module-empty">
           Create a workspace to group your repositories and conversations.
         </p>
@@ -262,7 +279,7 @@ export function CollectionPanel({
           />
         </DraggableDialog>
       )}
-      {target.collectionId && !selected && !error && (
+      {loaded && target.collectionId && !selected && !error && !connectionError && (
         <p className="module-empty">
           This workspace is unavailable. Its saved conversations can still be
           read.

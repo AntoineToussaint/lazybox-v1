@@ -9,7 +9,8 @@ import { randomUUID } from 'node:crypto';
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
 const stream = values => Buffer.concat([...values.map(value => frame(value)), frame({}, 2)]);
 export async function startRunnerFixture() {
-  const token = randomUUID();
+  // A restarted Runner has a new bearer, and a launcher restart a new port: both change.
+  let token = randomUUID(), url = '';
   const calls = [], mutations = [];
   const workspaceFiles=new Map();
   const eventStreams=new Map();
@@ -60,9 +61,19 @@ export async function startRunnerFixture() {
   let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[]};
   // The fake Runner process. RestartRunner answers, then the "process" is down
   // for restartMs (every RPC fails as unavailable) before a new instance serves.
-  const runner = { instanceId: randomUUID(), restartAvailable: true, restartError: '', restartMs: 1500, down: false, restarts: 0 };
-  const server = createServer(async (req, res) => {
-    if (req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unauthenticated', message: 'Fixture bearer required' })); return; }
+  // listDelayMs holds ListCollections answers (a slow first response);
+  // refusedBearers records every bearer the fake Runner did not accept.
+  const runner = { instanceId: randomUUID(), restartAvailable: true, restartError: '', restartMs: 1500, down: false, restarts: 0, listDelayMs: 0, refusedBearers: [] };
+  const handle = async (req, res) => {
+    // A desktop window calls the Runner's own origin (no proxy), as the native app does.
+    if (req.headers.origin) {
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+      res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'authorization, content-type, connect-protocol-version, connect-timeout-ms');
+      res.setHeader('Access-Control-Allow-Methods', 'POST');
+      res.setHeader('Access-Control-Expose-Headers', '*');
+      if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+    }
+    if (req.headers.authorization !== `Bearer ${token}`) { runner.refusedBearers.push({ bearer: req.headers.authorization ?? null, method: req.url.split('/').at(-1) }); res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unauthenticated', message: 'local test bench bearer required' })); return; }
     if (runner.down) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unavailable', message: 'Fixture Runner is restarting' })); return; }
     const method = req.url.split('/').at(-1); let body;
     try {
@@ -127,7 +138,7 @@ export async function startRunnerFixture() {
       case 'RenameConversation': {const session=sessions.find(s=>s.id===body.sessionId);if(!session)return error('not_found','Missing conversation');session.title=body.title;mutations.push({method,body});return json({session});}
       case 'ListHistory': return json({sessions:sessions.filter(s=>(body.collectionId===undefined||s.collectionId===body.collectionId)&&(!body.search||(s.title||`Conversation ${s.id}`).toLowerCase().includes(body.search.toLowerCase()))).map(s=>({...s,title:s.title||`Conversation ${s.id}`,conversationId:s.workId||s.id})),hasMore:false});
       case 'RefreshSubscription': { const profile = profiles.find(p => p.id === body.profileId); if (!profile) return error('not_found', 'Unknown profile'); if (profile.provider === 'claude') profile.availability = {state:'available',plan:'max',windows:[{name:'five_hour',usedPercent:37,durationMinutes:'300',resetAt:String(Math.floor(Date.now()/1000)+3600)}]}; profile.availability.observedAtUnixMillis = String(Date.now()); profile.availability.windows[0].usedPercent += 5; return json(profile); }
-      case 'ListCollections': return json({ collections });
+      case 'ListCollections': { if (runner.listDelayMs) await new Promise(resolve => setTimeout(resolve, runner.listDelayMs)); return json({ collections }); }
       case 'AddLocalRepository': {
         mutations.push({ method, body });
         let repository = library.find(repo => repo.path === body.path);
@@ -254,11 +265,20 @@ export async function startRunnerFixture() {
       case 'CloseSession': mutations.push({ method, body }); return error('failed_precondition', 'Closing a surface must not close a session');
       default: return error('unimplemented', `Unsupported fixture RPC ${method}`);
     }
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const url = `http://127.0.0.1:${server.address().port}`;
+  };
+  const listen = async () => { const next = createServer(handle); await new Promise(resolve => next.listen(0, '127.0.0.1', resolve)); return next; };
+  const stop = async value => { value.closeAllConnections(); await new Promise(resolve => value.close(resolve)); };
+  let server = await listen();
+  url = `http://127.0.0.1:${server.address().port}`;
   const directory = await mkdtemp(join(tmpdir(), 'lazybox-workspace-ui-'));
   const endpoint = join(directory, 'endpoint.json');
-  await writeFile(endpoint, JSON.stringify({ url, token }), { mode: 0o600 });
-  return { runner, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, url, token, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState, async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); } };
+  const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
+  await publish();
+  return { runner, terminals, commands, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents,
+    get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
+    /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
+    async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
+    /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */
+    async moveToNewPort() { const previous = server; server = await listen(); url = `http://127.0.0.1:${server.address().port}`; token = randomUUID(); runner.instanceId = randomUUID(); await stop(previous); await publish(); },
+    async close() { await stop(server); await rm(directory, { recursive: true, force: true }); } };
 }

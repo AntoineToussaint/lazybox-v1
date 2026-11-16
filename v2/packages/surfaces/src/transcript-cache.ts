@@ -1,4 +1,4 @@
-import { follow, type RunnerClient } from '@lazybox/client-core';
+import { follow, runnerLink, type RunnerClient } from '@lazybox/client-core';
 import { appendTranscript, emptyTranscript } from './transcript-model';
 import type { Session } from '@lazybox/protocol';
 
@@ -29,9 +29,12 @@ export class ConversationReader {
  }
  retry=()=>{this.controller?.abort();this.controller=undefined;this.publish({...emptyTranscript(),error:'',loading:true,status:'Connecting'});if(this.active)this.start();};
 }
-const caches=new WeakMap<RunnerClient,Map<string,ConversationReader>>();
+// Keyed by the window's Runner link, not one client: a restarted Runner gives
+// the window a new client, and its readers continue from their cursors.
+const caches=new WeakMap<object,Map<string,ConversationReader>>();
+const owner=(api:RunnerClient):object=>runnerLink(api)||api;
 export function conversationReader(api:RunnerClient,id:string){
- let cache=caches.get(api);if(!cache){cache=new Map();caches.set(api,cache);}
+ let cache=caches.get(owner(api));if(!cache){cache=new Map();caches.set(owner(api),cache);}
  let entry=cache.get(id);if(!entry){entry=new ConversationReader(api,id);cache.set(id,entry);}
  // Keep recent inactive readers; never evict a reader mounted in another panel.
  cache.delete(id);cache.set(id,entry);
@@ -39,7 +42,7 @@ export function conversationReader(api:RunnerClient,id:string){
  return entry;
 }
 
-export function forgetConversation(api:RunnerClient,id:string){caches.get(api)?.delete(id);}
+export function forgetConversation(api:RunnerClient,id:string){caches.get(owner(api))?.delete(id);}
 
 /** A successor extends the same contiguous Runner timeline; retain its rendered prefix. */
 export function continueConversation(api:RunnerClient,previousId:string,session:Session){

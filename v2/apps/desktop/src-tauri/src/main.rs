@@ -40,18 +40,24 @@ impl Bootstrap {
         Ok(config)
     }
 
-    // Codefly keeps this invocation's port while replacing its Go process.
-    // Accept its new bearer only from the already-selected private locator;
-    // moving to another origin requires a new launch and a new HTTP scope.
-    fn refreshed(&self, path: &Path) -> Result<Self, Box<dyn Error>> {
+    // The Runner this window was opened on, as its private locator names it
+    // now. Every restart gives it a new bearer: Codefly keeps the port on a
+    // hot reload, a launcher restart gets a new one. Both are the same Runner
+    // (its persistent identity), so its new bearer and origin are followed
+    // whether or not the restart was requested from this app; the host
+    // installs the new origin's HTTP scope first. A locator naming another
+    // Runner is never followed, and a Runner that reports no identity is
+    // followed to a new origin only by an explicit reconnect.
+    fn followed(&self, path: &Path) -> Result<Self, Box<dyn Error>> {
         let next = Self::read(path)?;
         if !self.runner_id.is_empty() && self.runner_id != next.runner_id {
             return Err("Runner identity changed; open this connection in a new app launch".into());
         }
-        if next.url != self.url {
-            return Err("Runner address changed; relaunch Dev to select its new origin".into());
+        if next.url != self.url && self.runner_id.is_empty() {
+            return Err("Runner address changed; use Reconnect this window to follow it".into());
         }
         Ok(Self {
+            url: next.url,
             token: next.token,
             ..self.clone()
         })
@@ -245,7 +251,7 @@ mod tests {
             r#"{"url":"http://127.0.0.1:43210","token":"new"}"#,
         )
         .expect("write");
-        let next = first.refreshed(file.path()).expect("reload");
+        let next = first.followed(file.path()).expect("reload");
         assert_eq!(next.token, "new");
         assert_eq!(next.session_id, first.session_id);
         assert_eq!(next.working_directory, first.working_directory);
@@ -255,9 +261,50 @@ mod tests {
             "partial",
         ] {
             fs::write(file.path(), invalid).expect("write");
-            assert!(first.refreshed(file.path()).is_err());
+            assert!(first.followed(file.path()).is_err());
         }
         assert_eq!(first.token, "old");
+    }
+
+    #[test]
+    fn an_identified_runner_is_followed_to_a_new_origin_without_a_requested_restart() {
+        let file = tempfile::NamedTempFile::new().expect("fixture");
+        let old = Bootstrap {
+            url: "http://127.0.0.1:12345".into(),
+            token: "before".into(),
+            runner_id: "runneridentity0001".into(),
+            working_directory: "/fixture".into(),
+            session_id: "saved".into(),
+        };
+        // A hot reload: same port, new bearer.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:12345","token":"reloaded","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        let next = old.followed(file.path()).expect("hot reload");
+        assert_eq!(next.url, "http://127.0.0.1:12345");
+        assert_eq!(next.token, "reloaded");
+        // A launcher restart nobody armed: new port, new bearer, same Runner.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:23456","token":"restarted","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        let next = old.followed(file.path()).expect("restart on a new port");
+        assert_eq!(next.url, "http://127.0.0.1:23456");
+        assert_eq!(next.token, "restarted");
+        assert_eq!(next.session_id, "saved");
+        assert_eq!(next.working_directory, "/fixture");
+        // Another Runner, a non-loopback origin or an empty bearer is never followed.
+        for invalid in [
+            r#"{"url":"http://127.0.0.1:23456","token":"other","runnerId":"someotherrunner0002"}"#,
+            r#"{"url":"http://example.com:23456","token":"other","runnerId":"runneridentity0001"}"#,
+            r#"{"url":"http://127.0.0.1:23456","token":"","runnerId":"runneridentity0001"}"#,
+        ] {
+            fs::write(file.path(), invalid).expect("write");
+            assert!(old.followed(file.path()).is_err(), "{invalid}");
+        }
     }
 
     #[test]

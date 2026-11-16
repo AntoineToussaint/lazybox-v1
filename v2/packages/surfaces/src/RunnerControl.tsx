@@ -10,7 +10,8 @@ function runnerState(runner: ReturnType<typeof useRunner>): { label: string; ton
   if (restart.phase === 'restarted') return { label: 'Restarted', tone: 'ok' };
   if (restart.phase === 'failed') return { label: 'Restart failed', tone: 'bad' };
   if (connecting) return { label: 'Connecting', tone: 'busy' };
-  if (error) return { label: 'Disconnected', tone: 'bad' };
+  // Header says so when the Runner refuses this window's bearer, even while Info itself answered.
+  if (error) return { label: runner.authFailed ? 'Not authorized' : 'Disconnected', tone: 'bad' };
   return { label: 'Connected', tone: 'ok' };
 }
 

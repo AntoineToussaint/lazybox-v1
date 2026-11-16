@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, Workspace } from '@lazybox/surfaces';
+import { AgentWindow, Workspace, useRunnerLocator } from '@lazybox/surfaces';
 import type { AttentionDestination, AttentionHost, SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console'; notice: string; viewState: Record<string,string> };
@@ -30,7 +30,8 @@ const desktopAttention: AttentionHost = {
   },
 };
 
-function DesktopWindow({ bootstrap, followRestart }: { bootstrap: Bootstrap; followRestart(): void }) {
+type Renew = () => Promise<{ baseUrl: string; token: string } | undefined>;
+function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstrap; followRestart(): void; renew: Renew }) {
   const [error, setError] = useState(bootstrap.notice);
   const host = useMemo<SurfaceHost>(() => ({
     saveTarget: target => invoke<void>('save_surface', { target }),
@@ -82,11 +83,11 @@ function DesktopWindow({ bootstrap, followRestart }: { bootstrap: Bootstrap; fol
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {bootstrap.kind === 'workspace' ? <Workspace
       fixedWorkspaceId={bootstrap.fixedWorkspaceId || undefined}
-      connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner }}
+      connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner, renew }}
       viewState={viewState} host={workspaceHost} onTargetChange={saveSelection} onOpenViewer={openViewer}
       initialTarget={{ collectionId: bootstrap.target.collectionId || '', sessionId: bootstrap.target.sessionId, commandId: bootstrap.target.commandId }}
     /> : <AgentWindow
-      connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner }}
+      connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner, renew }}
       agent="claude" mode={bootstrap.kind === 'console' ? 'console' : 'agent'} viewState={viewState}
       collectionId={bootstrap.target.collectionId} allowStart={false}
       showCommands={false} embedded={bootstrap.kind === 'chat'}
@@ -99,36 +100,16 @@ function DesktopWindow({ bootstrap, followRestart }: { bootstrap: Bootstrap; fol
     />}
   </div>;
 }
+// The host rereads this window's Runner locator. A restarted Runner (a Codefly
+// hot reload, or Restart Runner from the app) gets a new bearer and may get a
+// new port; the window follows it without reloading, whether or not the
+// restart was requested here.
+const readBootstrap = () => invoke<Bootstrap>('runner_bootstrap');
 function DesktopApp() {
-  const [bootstrap, setBootstrap] = useState<Bootstrap>();
-  const [error, setError] = useState('');
-  // Until this time, reread the endpoint every second: a requested restart is under way.
-  const following = useRef(0);
-  const followRestart = useCallback(() => { following.current = Date.now() + 300_000; }, []);
-  useEffect(() => {
-    let disposed = false, reading = false, ticks = 0, seen = '';
-    const read = async () => {
-      if (reading) return;
-      reading = true;
-      try {
-        const next = await invoke<Bootstrap>('runner_bootstrap');
-        if (!disposed) {
-          // The restarted Runner is adopted: back to the ordinary pace.
-          if (seen && seen !== next.url + ' ' + next.token) following.current = 0;
-          seen = next.url + ' ' + next.token;
-          // Retain the component tree, drafts and selection across a backend
-          // rebuild. Changing the bearer recreates only the RPC clients.
-          setBootstrap(current => current?.token === next.token && current?.url === next.url ? current : next);
-          setError('');
-        }
-      } catch (error) { if (!disposed) setError(String(error)); }
-      finally { reading = false; }
-    };
-    void read();
-    const timer = setInterval(() => { if (++ticks % 3 === 0 || Date.now() < following.current) void read(); }, 1000);
-    return () => { disposed = true; if (timer) clearInterval(timer); };
-  }, []);
-  if (bootstrap) return <>{error&&<div className="error" role="alert">{error}<button onClick={()=>void invoke('reconnect_view').catch(e=>setError(String(e)))}>Reconnect this window</button></div>}<DesktopWindow bootstrap={bootstrap} followRestart={followRestart}/></>;
+  const { value: bootstrap, error, renew, follow } = useRunnerLocator(readBootstrap);
+  const [reconnectError, setReconnectError] = useState('');
+  const shown = reconnectError || error;
+  if (bootstrap) return <>{shown && <div className="error" role="alert">{shown}<button onClick={()=>void invoke('reconnect_view').then(()=>setReconnectError(''),e=>setReconnectError(String(e)))}>Reconnect this window</button></div>}<DesktopWindow bootstrap={bootstrap} followRestart={follow} renew={renew}/></>;
   return <p role={error ? 'alert' : 'status'}>{error ? `Unable to restore this window: ${error}` : 'Restoring your windows…'}</p>;
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><DesktopApp/></React.StrictMode>);
