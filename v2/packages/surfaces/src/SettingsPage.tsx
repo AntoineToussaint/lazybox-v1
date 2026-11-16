@@ -3,6 +3,7 @@ import { RuntimeSettings } from './RuntimeSettings';
 import {KeyboardSettings} from './KeyboardSettings';
 import { PowerSettings } from './PowerSettings';
 import { NotificationSettings } from './NotificationSettings';
+import { VoiceSettings } from './voice/VoiceSettings';
 import { ChatSettings } from './ChatSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { DevicesSettings } from './DevicesSettings';
@@ -38,7 +39,7 @@ function windowName(window: UsageWindow) {
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power' | 'about';
+export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'voice' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power' | 'about';
 /** The sections, in the order and groups the sidebar shows them. */
 export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
   { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
@@ -50,6 +51,7 @@ export const settingsTabs: { id: SettingsTab; label: string; icon: string; group
   { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'Preferences' },
   { id: 'chat', label: 'Chat', icon: 'chat', group: 'Preferences' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'Preferences' },
+  { id: 'voice', label: 'Voice', icon: 'mic', group: 'Preferences' },
   { id: 'web', label: 'Web & links', icon: 'globe', group: 'Preferences' },
   { id: 'keyboard', label: 'Shortcuts', icon: 'keyboard', group: 'Preferences' },
   { id: 'power', label: 'Actions & hooks', icon: 'play', group: 'Preferences' },
@@ -283,6 +285,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
     {panel('chat', <ChatSettings store={viewState}/>)}
     {panel('appearance', <AppearanceSettings store={viewState} zoom={zoom}/>)}
     {panel('notifications', <NotificationSettings/>)}
+    {panel('voice', <VoiceSettings store={viewState}/>)}
     {panel('web', <WebSettings store={viewState}/>)}
     {panel('keyboard', <KeyboardSettings store={viewState}/>)}
     {panel('power', <PowerSettings viewState={viewState}/>)}

@@ -116,6 +116,16 @@ Act on the conversation you last clicked or focused.
 | Interrupt the agent | — | — |
 | Rename the conversation… | — | — |
 
+## Voice
+
+Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). See [Voice](../guides/voice.md).
+
+| Action | macOS | Windows / Linux |
+| --- | --- | --- |
+| Dictate | `⌥Space` | `Alt+Space` |
+| Say a command | `⌥⇧Space` | `Alt+Shift+Space` |
+| Stop reading aloud | — | — |
+
 ## Sidebar
 
 After `]]` puts the keyboard in the sidebar. The *Arrows* preset uses the arrow keys instead.

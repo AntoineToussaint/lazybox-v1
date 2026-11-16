@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
-import { actionDefinitions, actionEnabled, bindings, displayBinding, runAction, useActionRevision, type ActionDefinition } from './actions';
+import { actionDefinition, actionDefinitions, actionEnabled, bindings, displayBinding, runAction, useActionRevision, type ActionDefinition } from './actions';
+import { showToast } from './toasts';
+import { spokenAnswer, spokenDecision, spokenScore } from './voice/voice-model';
+import { cancelDictation, registerDictationTarget, takeOverDictation, toggleDictation, useVoiceState, recognizers, voiceState, type DictationSink } from './voice/voice-session';
+import { VoicePill } from './voice/VoiceLayer';
 import { attentionTitle, type Attention } from './attention';
 import { openArtifact } from './artifact-events';
 import { conversationTitle } from './conversation-model';
@@ -46,6 +50,12 @@ export function needsYou(rows: readonly Attention[]): Attention[] {
   return rows.filter(row => row.state === 'needs-input' || (row.unread && (row.state === 'failed' || row.state === 'review')));
 }
 const firstKeys = (value: string | undefined) => bindings(value).slice(0, 1).map(binding => displayBinding(binding).join(' '));
+/** Voice runs these only after a yes: the person's own actions (they run scripts, send messages) and anything that cannot be undone. */
+export function voiceConfirms(item: { key: string; kind: string }): boolean {
+  if (item.key.startsWith('user-action:')) return true;
+  return item.kind === 'action' && !!actionDefinition(item.key.replace(/^action:/, ''))?.destructive;
+}
+type VoiceNote = { tone: 'info' | 'confirm'; text: string; item?: Item };
 
 /**
  * The command palette: every action of the registry plus "go to" anything —
@@ -58,7 +68,15 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
   const dialog = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null), list = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
   const [query, setQuery] = useState(initialQuery), [selected, setSelected] = useState(0);
+  // A query said rather than typed ranks by words (voice-model.ts) and may run on its own.
+  const [spoken, setSpoken] = useState<{ text: string; live: boolean } | null>(null);
+  const [voiceNote, setVoiceNote] = useState<VoiceNote | null>(null);
+  const [decide, setDecide] = useState<string | null>(null);
+  const voice = useVoiceState();
+  const listening = voice.kind === 'palette' && (voice.phase === 'starting' || voice.phase === 'listening' || voice.phase === 'stopping');
+  const latestVoice = useRef({ query, voiceNote }); latestVoice.current = { query, voiceNote };
   const recent = useMemo(() => readRecent(viewState), [viewState]);
+  const recentRank = (key: string) => { const i = recent.indexOf(key); return i < 0 ? 99 : i; };
   useActionRevision();
   const userActions = useUserCommands('palette');
   // However it closes (Esc, ⌘K again, a choice), focus returns where it was — unless the choice moves it.
@@ -68,7 +86,8 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     const previous = returnFocus.current;
     return () => { if (restore.current && previous?.isConnected) requestAnimationFrame(() => previous.focus?.({ preventScroll: true })); };
   }, []);
-  const scope = prefixes.find(value => query.startsWith(value.prefix));
+  const spokenMode = !!spoken && spoken.text === query;
+  const scope = spokenMode ? undefined : prefixes.find(value => query.startsWith(value.prefix));
   const term = (scope ? query.slice(1) : query).trim();
   const inbox = useInbox();
   const workspaceId = navigator.current.collectionId;
@@ -154,6 +173,17 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     }
     const pool = scope ? (scope.kind === 'file' ? [] : all.filter(item => item.kind === scope.kind)) : all;
     const ranked: Shown[] = [];
+    if (spokenMode) {
+      // Said, not typed: words matter, not letters in order (the decision reads these scores).
+      for (const item of [...pool, ...fileItems]) {
+        const score = spokenScore(term, item.title, `${item.extra || ''} ${item.detail || ''}`);
+        if (score > 0) ranked.push({ ...item, positions: [], score });
+      }
+      ranked.sort((a, b) => b.score - a.score || recentRank(a.key) - recentRank(b.key));
+      // What was clearly said about; a few best guesses when nothing was.
+      const strong = ranked.filter(item => item.score >= 25);
+      return [{ title: '', items: (strong.length ? strong : ranked).slice(0, strong.length ? 30 : 8) }];
+    }
     for (const item of pool) {
       const match = bestMatch(term, item.title, item.extra || item.detail);
       if (!match) continue;
@@ -166,9 +196,56 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     }
     ranked.sort((a, b) => b.score - a.score);
     return [{ title: '', items: ranked.slice(0, 60) }];
-  }, [items, fileItems, term, scope, recent, inbox.rows, navigator.workbench, workspaceId]);
+  }, [items, fileItems, term, scope, recent, inbox.rows, navigator.workbench, workspaceId, spokenMode]);
 
   const flat = sections.flatMap(section => section.items);
+
+  // The palette takes dictation while it is open: what is said is the query.
+  const voiceRun = (item: Item, said: string) => { showToast({ id: 'voice:ran', tone: 'info', title: item.title, body: `You said “${said}”` }); choose(item); };
+  // Closing the palette while it listens ends that dictation.
+  useEffect(() => () => { const now = voiceState(); if (now.kind === 'palette' && now.phase !== 'idle' && now.phase !== 'error') cancelDictation(); }, []);
+  useEffect(() => registerDictationTarget({
+    kind: 'palette',
+    element: () => dialog.current,
+    available: () => !!dialog.current?.open,
+    begin(): DictationSink {
+      const before = latestVoice.current.query;
+      // Answering "Run …?": the list stays as it is while the person says yes or no.
+      const answering = latestVoice.current.voiceNote?.tone === 'confirm';
+      return {
+        update(view) { if (answering) return; setQuery(view.text); setSpoken({ text: view.text, live: view.liveStart < view.text.length }); },
+        end(reason, view) {
+          const said = view.text.trim();
+          if (reason === 'cancel' || reason === 'error' || !said) { setQuery(before); setSpoken(null); input.current?.focus(); return; }
+          // The answer to "Run …? Say yes".
+          const asked = latestVoice.current.voiceNote;
+          const answer = asked?.tone === 'confirm' ? spokenAnswer(said) : undefined;
+          if (asked?.item && answer) {
+            setVoiceNote(null);
+            if (answer === 'yes') voiceRun(asked.item, said); else { setQuery(before); setSpoken(null); input.current?.focus(); }
+            return;
+          }
+          setVoiceNote(null);
+          setQuery(said); setSpoken({ text: said, live: false }); setDecide(said);
+          input.current?.focus();
+        },
+      };
+    },
+  }), []);
+  // Once the spoken query is ranked: run a clear winner, ask about one that needs a yes, or let the person pick.
+  useEffect(() => {
+    if (decide === null || !spokenMode) return;
+    setDecide(null);
+    const decision = spokenDecision(flat.map(item => ({ key: item.key, title: item.title, score: item.score, confirm: voiceConfirms(item) })));
+    const item = 'key' in decision ? flat.find(row => row.key === decision.key) : undefined;
+    if (decision.kind === 'run' && item) { voiceRun(item, decide); return; }
+    if (decision.kind === 'confirm' && item) {
+      setSelected(flat.indexOf(item));
+      setVoiceNote({ tone: 'confirm', item, text: `Run “${item.title}”? Say “yes” (hold the voice key) or press ↵.` });
+      return;
+    }
+    setVoiceNote({ tone: 'info', text: decision.kind === 'none' ? `Nothing matches “${decide}”. Say it another way, or type.` : 'Several things match: pick one with ↑ ↓ and ↵, or say it again.' });
+  }, [decide, sections]);
   useEffect(() => { setSelected(0); }, [query]);
   useEffect(() => { list.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }); }, [selected, flat.length]);
   const keydown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -189,9 +266,14 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     <div className="command-palette-field">
       <Icon name="search" size={16}/>
       {scope && <span className="command-palette-scope">{scope.label}</span>}
-      <input ref={input} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={keydown} placeholder={placeholder} aria-label="Search commands" role="combobox" aria-expanded="true" aria-controls="command-palette-results" aria-autocomplete="list" aria-activedescendant={flat[selected] ? `command-palette-${selected}` : undefined} spellCheck={false} autoComplete="off"/>
+      <input ref={input} value={query} className={listening && spoken?.live ? 'is-dictating' : undefined} onChange={event => { if (listening) takeOverDictation(); setSpoken(null); setVoiceNote(null); setQuery(event.target.value); }} onKeyDown={keydown} placeholder={placeholder} aria-label="Search commands" role="combobox" aria-expanded="true" aria-controls="command-palette-results" aria-autocomplete="list" aria-activedescendant={flat[selected] ? `command-palette-${selected}` : undefined} spellCheck={false} autoComplete="off"/>
       {files.searching && <span className="quick-open-busy" aria-hidden="true"/>}
+      {recognizers().length > 0 && <button type="button" className="command-palette-mic" aria-label={listening ? 'Stop listening' : 'Say a command'} aria-pressed={listening} title={listening ? 'Stop listening' : `Say a command${firstKeys(keymap['voice.command' as keyof Keymap])[0] ? ` · hold ${firstKeys(keymap['voice.command' as keyof Keymap])[0]}` : ''}`} onClick={() => toggleDictation({ kind: 'palette' })}><Icon name="mic" size={15}/></button>}
     </div>
+    {voice.kind === 'palette' && (listening || voice.phase === 'error') && <VoicePill state={voice} keymap={keymap} inline/>}
+    {voiceNote && <div className="command-palette-voice" role="status" data-tone={voiceNote.tone}><Icon name="mic" size={13}/><span>{voiceNote.text}</span>
+      {voiceNote.tone === 'confirm' && <button type="button" onClick={() => { const item = voiceNote.item; setVoiceNote(null); if (item) choose(item); }}>Run</button>}
+    </div>}
     {!query && <div className="command-palette-prefixes" aria-label="Narrow the search">
       {prefixes.map(value => <button key={value.prefix} type="button" onClick={() => { setQuery(value.prefix); input.current?.focus(); }}><kbd>{value.prefix}</kbd>{value.label}</button>)}
     </div>}

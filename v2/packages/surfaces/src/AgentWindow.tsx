@@ -52,6 +52,7 @@ import { shellBlocksIn } from './code-run';
 import { showMenuNotice } from './ContextMenu';
 import { useSlashCommands } from './useSlashCommands';
 import { showToast } from './toasts';
+import { useReadAloudReplies } from './voice/useReadAloudReplies';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -427,6 +428,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     },
   });
 
+  // Settings → Voice → Read aloud: a reply that finishes while this conversation is shown.
+  useReadAloudReplies(mode === 'agent' ? sessionID : '', transcript);
   const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
   if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError}/>;
 
@@ -482,6 +485,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             slash={slash}
             onSubmit={send}
             onChange={text => { recall.reset(); setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); }}
+            onDictate={setMessage}
             onRecallKey={recall.onKeyDown}
             onRemoveFile={i => { const next = files.filter((_, index) => index !== i); setFiles(next); setUncertainSend(''); persistDraft(message, next, missingFiles); }}
             onRemoveMissingFile={i => { const next = missingFiles.filter((_, index) => index !== i); setMissingFiles(next); setUncertainSend(''); setError(''); persistDraft(message, files, next); }}

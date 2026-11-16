@@ -91,6 +91,10 @@ const paths: Record<string, string[]> = {
   palette: ['M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5-1.3-1.7-1.3-3 0-1.1.9-2 2-2H17a4 4 0 0 0 4-4c0-4-4-7-9-7z', 'M7.5 11.5h.01', 'M10 7.5h.01', 'M15 7.5h.01'],
   contrast: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 3v18'],
   text: ['M5 6V4h14v2', 'M12 4v16', 'M9 20h6'],
+  // Voice: a microphone, a speaker, and the cloud a server-side recognizer is.
+  mic: ['M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z', 'M5.5 11a6.5 6.5 0 0 0 13 0', 'M12 17.5V21', 'M9 21h6'],
+  speaker: ['M4 9h4l5-4v14l-5-4H4z', 'M16.5 9a4 4 0 0 1 0 6', 'M19 6.5a7.5 7.5 0 0 1 0 11'],
+  cloud: ['M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.5 4.25 4.25 0 0 0 7 18z'],
 };
 /** The same icon as plain DOM, for UI built outside React (dock tabs). */
 export function iconElement(name: string, size = 16, owner: Document = document): SVGSVGElement {

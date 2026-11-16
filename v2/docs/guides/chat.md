@@ -15,6 +15,8 @@ it did.
 
 - `Enter` sends, `Shift+Enter` starts a new line. A message sent while the agent
   works is **queued** and delivered when the turn ends.
+- **Dictate** instead of typing: hold `⌥Space` and speak, or click the
+  microphone in the message box — see [Voice](voice.md).
 - **Attach** files with the paperclip, by dropping them on the chat, or by
   pasting a screenshot. Up to four files, 20 MiB per message. Images show as
   thumbnails; hover one to see it larger.

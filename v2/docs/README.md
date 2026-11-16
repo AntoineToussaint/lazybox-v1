@@ -33,6 +33,7 @@ Task by task:
 | Answer my agents from my phone | [Pair your phone](guides/phone.md) |
 | Arrange panels, pages and windows | [Layouts and docking](guides/layouts.md) |
 | Switch to light, make my own theme, change fonts, zoom, notifications | [Appearance and notifications](guides/appearance.md) |
+| Talk instead of typing: dictate, say commands, hear replies | [Voice](guides/voice.md) |
 | Script Lazybox, add my own actions and hooks | [Automate with the CLI, actions and hooks](guides/automate.md) |
 
 ## Reference
@@ -40,6 +41,8 @@ Task by task:
 - [Keyboard shortcuts](reference/keyboard-shortcuts.md) — generated from the
   app's action registry, so it always matches the defaults.
 - [The `lazybox` CLI](reference/cli.md) — every command, exit codes, completions.
+- [Voice settings](reference/voice-settings.md) — every option of Settings →
+  Voice, with its default.
 - [Configuration files](reference/configuration.md) — `.lazybox/workspace.yaml`,
   `.lazybox/process.yaml`, `~/.config/lazybox/actions.yaml`, with examples and
   their JSON Schemas.

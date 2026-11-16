@@ -4,8 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
-import type { AppHost, AppInfo, AttentionDestination, AttentionHost, AvailableUpdate, NativeWebViews, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateProgress, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
+import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, configureVoice, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
+import type { AppHost, AppInfo, AttentionDestination, AttentionHost, AvailableUpdate, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
 import { FirstRun } from './FirstRun';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact' | 'web'; notice: string; viewState: Record<string,string> };
@@ -80,6 +80,59 @@ const desktopApp: AppHost = {
     return { link: report.link, hints: report.hints || [] };
   },
 };
+
+/**
+ * Voice (VOICE.md): macOS speech recognition on-device and AVSpeechSynthesizer,
+ * in the host (src-tauri/src/voice.rs). The page never opens the microphone:
+ * the host does, for one recognition at a time, and streams its text here.
+ */
+type NativeVoiceEvent = RecognitionEvent & { session: number };
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+let speaking = 0;
+const desktopVoice: VoiceHost = {
+  recognizer: {
+    id: 'system',
+    label: 'macOS speech recognition',
+    status: language => invoke<RecognizerStatus>('voice_status', { language }),
+    requestPermission: language => invoke<RecognizerStatus>('voice_request_permission', { language }),
+    languages: () => invoke<RecognizerLanguage[]>('voice_languages'),
+    openPrivacySettings: pane => invoke<void>('voice_open_settings', { pane }),
+    async start(options, listener) {
+      // Events can arrive before the session id does: hold them until then.
+      let session = 0, done = false;
+      const early: NativeVoiceEvent[] = [];
+      let stop: (() => void) | undefined;
+      const deliver = (event: NativeVoiceEvent) => {
+        if (event.session !== session || done) return;
+        const { session: _, ...rest } = event;
+        if (event.kind === 'end') { done = true; stop?.(); }
+        listener(rest as RecognitionEvent);
+      };
+      stop = await getCurrentWebview().listen<NativeVoiceEvent>('voice-event', event => { if (session) deliver(event.payload); else early.push(event.payload); });
+      try { session = await invoke<number>('voice_start', { options }); }
+      catch (error) { stop(); throw error instanceof Error ? error : new Error(String(error)); }
+      for (const event of early) deliver(event);
+      return { stop: () => invoke<void>('voice_stop', { session }), cancel: () => invoke<void>('voice_cancel', { session }) };
+    },
+  },
+  synthesizer: {
+    voices: () => invoke<SpeechVoice[]>('speech_voices'),
+    async speak(text, { voice, rate }) {
+      const mine = ++speaking;
+      await invoke<void>('speech_speak', { options: { text, voice, rate } });
+      // The synthesizer reports no end here: watch it until it stops (or another reading takes over).
+      let started = false;
+      for (let waited = 0; mine === speaking; waited += 250) {
+        await sleep(250);
+        const now = await invoke<boolean>('speech_speaking');
+        if (now) started = true;
+        else if (started || waited > 2000) return;
+      }
+    },
+    stop: async () => { speaking++; await invoke<void>('speech_stop'); },
+  },
+};
+configureVoice(desktopVoice);
 
 type Renew = () => Promise<{ baseUrl: string; token: string } | undefined>;
 function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstrap; followRestart(): void; renew: Renew }) {

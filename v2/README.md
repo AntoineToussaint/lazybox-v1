@@ -52,7 +52,8 @@ them up where they were.
 ([guide](docs/guides/subscriptions.md)) · versioned plans and reports as
 [artifacts](docs/guides/artifacts.md) · your phone as a remote, paired by QR
 code over Tailscale *(preview)* ([guide](docs/guides/phone.md)) · light, dark and your own
-themes ([guide](docs/guides/appearance.md)) · a `lazybox`
+themes ([guide](docs/guides/appearance.md)) · voice: hold `⌥Space` to dictate,
+say commands, hear replies — on-device on the Mac ([guide](docs/guides/voice.md)) · a `lazybox`
 CLI that does what the app does, plus your own actions and hooks in one YAML
 file ([guide](docs/guides/automate.md)).
 

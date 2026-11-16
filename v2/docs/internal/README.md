@@ -116,6 +116,7 @@ configuration are resolved explicitly and stay isolated during development.
 | --- | --- |
 | [Workspaces](../../WORKSPACES.md) | Workspaces of worktrees across repositories, panels and docking, the Web panel, review, checkpoints, navigation, snippets. |
 | [Appearance](../../APPEARANCE.md) | Themes, user theme files, accent, fonts, density, zoom, minimum contrast; design tokens for developers. |
+| [Voice](../../VOICE.md) | Dictation (macOS Speech on-device, Web Speech), spoken commands, voice in the palette, read-aloud; the engine choice, the Whisper design, the manual macOS checklist. |
 | [Workspace runtime](../../WORKSPACE_RUNTIME.md) | `.lazybox/workspace.yaml`: setup, actions and archive scripts, approval, port blocks, Run and Preview. |
 | [GitHub](../../GITHUB.md) | The optional GitHub connection, the PR loop, review comments. |
 | [Subscriptions](../../SUBSCRIPTIONS.md) | Account profiles, isolated credentials, rotation, native resume and checkpoint handoff. |

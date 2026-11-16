@@ -70,3 +70,6 @@
 .remote-interrupt{flex:none;padding:0 12px;font-size:calc(13px * var(--text-scale))}
 .remote-readonly{justify-content:center;color:var(--remote-muted);font-size:calc(13.5px * var(--text-scale));text-align:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}
 .remote-offline{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:3;padding:10px 14px;border-radius:12px;background:var(--warn-bg-strong);color:var(--warn-strong);font-size:calc(13.5px * var(--text-scale));text-align:center;box-shadow:0 8px 30px color-mix(in srgb,var(--shadow) calc(53% * var(--shadow-strength)),transparent)}
+/* Dictation (VOICE.md): the microphone beside Send; red while it listens. */
+.remote-mic{width:44px;height:44px;padding:0;border-radius:50%!important;display:inline-flex;align-items:center;justify-content:center;flex:none;background:var(--remote-surface);border:1px solid var(--remote-line)}
+.remote-mic.is-active{color:var(--danger);border-color:var(--danger)}

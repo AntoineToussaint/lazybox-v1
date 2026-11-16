@@ -35,6 +35,8 @@ export function validateKeymap(map: Keymap): string {
     for (const binding of bindings(value)) {
       if (binding.split(/\s+/).some((key) => !keyPattern.test(key))) return `Invalid key in ${action.label}. Use a character or a key such as Ctrl+b or ArrowDown.`;
       if (binding.split(/\s+/).length > 4) return "Shortcuts support up to four keys.";
+      // A key held down to talk cannot be a sequence, nor a key you type.
+      if (actionDefinition(action.id)?.hold && (binding.includes(" ") || !/(?:^|\+)(?:Ctrl|Meta|Alt)\+|^F\d+$/.test(binding))) return `${action.label} needs one key held with ⌥, ⌃ or ⌘ (or a function key), such as Alt+Space.`;
     }
   }
   const owners: { binding: string; action: (typeof keyboardActions)[number] }[] = [];
@@ -50,9 +52,10 @@ const storageKey = "keyboard:v2";
 /**
  * Keymaps saved before the action registry (no version) hold only the first
  * thirteen actions; version 2 predates `] ] v` (activity detail) and `] ] b` (web panel);
- * version 3 predates `] ] r` (run the last command block).
+ * version 3 predates `] ] r` (run the last command block); version 4 predates the
+ * voice keys (⌥Space, ⌥⇧Space).
  */
-const keymapVersion = 4;
+const keymapVersion = 5;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
@@ -108,7 +111,7 @@ export function actionKeys(map: Keymap, id: Action): string[] {
 export function chordBindings(map: Keymap): Map<string, Action> {
   const prefixes = new Set(keyboardActions.flatMap((a) => bindings(map[a.id]).filter((b) => b.includes(" ")).map((b) => b.split(" ")[0])));
   const chords = new Map<string, Action>();
-  for (const a of keyboardActions) for (const binding of bindings(map[a.id])) if (isChord(binding) && !prefixes.has(binding) && a.scope === "global") chords.set(binding, a.id);
+  for (const a of keyboardActions) for (const binding of bindings(map[a.id])) if (isChord(binding) && !prefixes.has(binding) && a.scope === "global" && !actionDefinition(a.id)?.hold) chords.set(binding, a.id);
   return chords;
 }
 /** The first key of every global sequence (the leader, such as "]"), as
@@ -285,6 +288,8 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
       // Single chords (Mod+K) belong to the chord listener (useActionKeys).
       const candidates: { id: string; label: string; keys: string; entry?: MenuEntry; run?: () => void }[] = [
         ...keyboardActions
+          // Push-to-talk keys belong to the voice layer (its keyup ends the dictation).
+          .filter((a) => !actionDefinition(a.id)?.hold)
           .filter((a) => a.scope === "global" || (a.scope === "agent" && agent) || (a.scope === "navigation" && navigation))
           .flatMap((a) => bindings(map[a.id]).filter((keys) => !chords.has(keys) && !(typing && keys.length === 1 && keys !== "]")).map((keys) => ({ id: a.id as string, label: a.label as string, keys }))),
         ...menu.map((entry) => ({ id: "menu:" + entry.key, label: entry.label || entry.snippet, keys: `${leader} ${entry.key}`, entry })),

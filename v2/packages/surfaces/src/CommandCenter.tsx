@@ -13,6 +13,7 @@ import { dismissToast, showToast, useToasts, type Toast } from './toasts';
 import { useInbox } from './useAttention';
 import type { Workbench } from './workbench';
 import type { ViewTarget } from './workspace-model';
+import { VoiceLayer } from './voice/VoiceLayer';
 import './command-center.css';
 
 /** What a window lets the palette and the navigation keys reach. */
@@ -116,6 +117,7 @@ export function CommandCenter({ viewState, navigator }: { viewState?: ViewStateS
   return <>
     {palette && <CommandPalette keymap={keymap} navigator={navigator} viewState={viewState} initialQuery={palette.query} onClose={() => setPalette(null)}/>}
     {shortcuts && <ShortcutsOverlay keymap={keymap} onClose={() => setShortcuts(false)}/>}
+    <VoiceLayer viewState={viewState} keymap={keymap} onOpenSettings={navigator.openSettings ? () => navigator.openSettings!('voice') : undefined}/>
     <ToastStack/>
   </>;
 }

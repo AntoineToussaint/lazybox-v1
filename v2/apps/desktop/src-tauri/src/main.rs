@@ -12,6 +12,7 @@ mod release;
 mod updates;
 mod viewer;
 mod viewstate;
+mod voice;
 
 const RPC_PATH: &str = "/lazybox.bench.v1.RunnerService/";
 
@@ -177,7 +178,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             release::link_cli,
             release::show_runner_log,
             updates::check_for_update,
-            updates::install_update
+            updates::install_update,
+            voice::voice_status,
+            voice::voice_request_permission,
+            voice::voice_languages,
+            voice::voice_open_settings,
+            voice::voice_start,
+            voice::voice_stop,
+            voice::voice_cancel,
+            voice::speech_voices,
+            voice::speech_speak,
+            voice::speech_stop,
+            voice::speech_speaking
         ])
         .setup(|app| {
             attention::setup(app.handle())?;

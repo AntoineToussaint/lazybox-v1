@@ -60,6 +60,9 @@ test('the release configuration adds the version, runtime and public key, and dr
   assert.deepEqual(config.bundle.resources, { '/stage/runtime/': 'runtime/' });
   assert.equal(config.bundle.macOS.signingIdentity, '-');
   assert.equal(config.bundle.macOS.hardenedRuntime, true);
+  // The hardened runtime denies the microphone (voice dictation) without this entitlement.
+  assert.equal(config.bundle.macOS.entitlements, 'Entitlements.plist');
+  assert.match(await readFile(resolve(root, 'apps/desktop/src-tauri', config.bundle.macOS.entitlements), 'utf8'), /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\/>/);
   assert.equal(config.bundle.createUpdaterArtifacts, true);
   assert.equal(config.plugins.updater.pubkey, 'PUB');
   assert.ok(config.plugins.updater.endpoints.every(u => u.startsWith('https://')));

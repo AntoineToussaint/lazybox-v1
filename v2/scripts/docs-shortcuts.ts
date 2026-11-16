@@ -31,6 +31,7 @@ const groupIntro: Record<string, string> = {
   'Go to': 'Move between conversations and workspaces. Chords with ⌘ (Ctrl) work even while you type in the message box.',
   'Workspace': 'Open the parts of the workspace in front.',
   'Conversation': 'Act on the conversation you last clicked or focused.',
+  'Voice': 'Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). See [Voice](../guides/voice.md).',
   'Sidebar': 'After `]]` puts the keyboard in the sidebar. The *Arrows* preset uses the arrow keys instead.',
   'Message box': 'While you type a message.',
 };

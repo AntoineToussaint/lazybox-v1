@@ -114,3 +114,59 @@ export type SurfaceHost = {
   reopenClosed(): Promise<void>;
   reconnect(): Promise<void>;
 };
+
+// ---- Voice (VOICE.md) -----------------------------------------------------
+
+/** An authorization the system holds for the app: the microphone, or speech recognition. */
+export type VoicePermission = 'granted' | 'denied' | 'restricted' | 'not-determined' | 'unsupported';
+/** Whether a recognizer can dictate now, and whether audio stays on this device. */
+export type RecognizerStatus = {
+  available: boolean;
+  /** True only when recognition runs on this device: the audio never leaves it. */
+  onDevice: boolean;
+  microphone: VoicePermission;
+  speech: VoicePermission;
+  /** Why it is not available, as a sentence; empty when it is. */
+  reason: string;
+  /** The system's language (BCP 47), what "Automatic" uses; empty when unknown. */
+  language: string;
+};
+export type RecognizerLanguage = { code: string; name: string; onDevice?: boolean };
+/** What a recognition reports. `segment` numbers stretches of speech; `final` settles one. */
+export type RecognitionEvent =
+  | { kind: 'result'; segment: number; text: string; final: boolean }
+  /** The microphone's level, 0–1. */
+  | { kind: 'level'; level: number }
+  /** Speech heard or not (for engines that report no level). */
+  | { kind: 'activity'; speaking: boolean }
+  | { kind: 'error'; code: string; message: string }
+  /** Over: the microphone is closed. */
+  | { kind: 'end' };
+export type RecognitionSession = {
+  /** Stop listening; the recognizer settles what it heard, then ends. */
+  stop(): Promise<void>;
+  /** Stop listening and drop what was heard. */
+  cancel(): Promise<void>;
+};
+export type RecognitionOptions = { language: string; punctuation: boolean; allowServer: boolean };
+/** A speech recognizer: the desktop's (macOS Speech, on-device) or the browser's (Web Speech). */
+export type SpeechRecognizerHost = {
+  id: 'system' | 'browser';
+  label: string;
+  status(language: string): Promise<RecognizerStatus>;
+  /** Asks for the microphone and speech recognition, where the system asks once. */
+  requestPermission?(language: string): Promise<RecognizerStatus>;
+  languages(): Promise<RecognizerLanguage[]>;
+  /** Opens the system's privacy settings for one permission. */
+  openPrivacySettings?(pane: 'microphone' | 'speech'): Promise<void>;
+  start(options: RecognitionOptions, listener: (event: RecognitionEvent) => void): Promise<RecognitionSession>;
+};
+export type SpeechVoice = { id: string; name: string; language: string };
+/** Read-aloud: the desktop's AVSpeechSynthesizer or the browser's speechSynthesis. */
+export type SpeechSynthesizerHost = {
+  voices(): Promise<SpeechVoice[]>;
+  /** Resolves when the text was read or reading stopped. */
+  speak(text: string, options: { voice: string; rate: number }): Promise<void>;
+  stop(): Promise<void>;
+};
+export type VoiceHost = { recognizer?: SpeechRecognizerHost; synthesizer?: SpeechSynthesizerHost };

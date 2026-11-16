@@ -38,6 +38,12 @@ grouped by what it needs: *needs input*, *failed*, *ready for review*,
 approval, answer a question, send a message, or **Interrupt** a running turn.
 The tab's title carries the number of conversations waiting for you.
 
+To **dictate** a reply, tap the microphone next to Send, speak, and tap it again;
+the words appear as you speak, and you tap Send when ready (saying "send" /
+« envoie » at the end stops listening; the phone never sends for you). It uses
+the phone browser's speech recognition; where the browser has none, the button is hidden
+and the keyboard's own microphone dictates instead. See [Voice](voice.md).
+
 ## Revoke
 
 Settings → Devices lists each paired phone with its permissions, fingerprint,

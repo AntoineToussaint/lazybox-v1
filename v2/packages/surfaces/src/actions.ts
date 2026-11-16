@@ -17,7 +17,7 @@ import type { MenuAction } from './context-menu-model';
  * default is ⌘ on a Mac and Ctrl elsewhere; saved keymaps hold the resolved key.
  */
 export type ActionScope = 'global' | 'navigation' | 'agent';
-export type ActionGroup = 'General' | 'Go to' | 'Workspace' | 'Layout' | 'Conversation' | 'Sidebar' | 'Message box';
+export type ActionGroup = 'General' | 'Go to' | 'Workspace' | 'Layout' | 'Conversation' | 'Voice' | 'Sidebar' | 'Message box';
 export type MenuSection = 'File' | 'Go' | 'Help';
 export type ActionDefinition = {
   id: string;
@@ -39,6 +39,14 @@ export type ActionDefinition = {
   required?: boolean;
   /** Members of a numbered series ("Go to workspace 1…9") share this. */
   series?: string;
+  /**
+   * A key held down (push-to-talk): the voice layer owns its keydown and
+   * keyup, so the chord and sequence dispatchers leave it alone. Its keys
+   * must be one chord with a modifier, or a function key.
+   */
+  hold?: boolean;
+  /** Cannot be undone: voice asks before running it (VOICE.md). */
+  destructive?: boolean;
 };
 
 const workspaceSlots = Array.from({ length: 9 }, (_, i) => i + 1);
@@ -107,6 +115,10 @@ const tail = [
   { id: 'chat.stop', title: 'Interrupt the agent', group: 'Conversation', icon: 'stop', keys: '', scope: 'global', keywords: '/stop cancel abort halt' },
   { id: 'chat.rename', title: 'Rename the conversation…', group: 'Conversation', icon: 'pencil', keys: '', scope: 'global', keywords: '/rename title name' },
   { id: 'missions.open', title: 'Show missions', group: 'Workspace', icon: 'target', keys: '', scope: 'global', palette: false, keywords: '/mission tasks goals orchestrate' },
+  // Voice (VOICE.md): dictation and spoken commands, held or toggled.
+  { id: 'voice.dictate', title: 'Dictate', group: 'Voice', icon: 'mic', keys: 'Alt+Space', scope: 'global', hold: true, keywords: 'voice speech speak talk microphone dictation push to talk dictée micro parler' },
+  { id: 'voice.command', title: 'Say a command', group: 'Voice', icon: 'mic', keys: 'Alt+Shift+Space', scope: 'global', hold: true, overDialogs: true, keywords: 'voice speech command palette speak talk microphone commande vocale' },
+  { id: 'voice.stop-reading', title: 'Stop reading aloud', group: 'Voice', icon: 'stop', keys: '', scope: 'global', keywords: 'voice speech read aloud text to speech silence quiet lecture' },
   { id: 'navigation.next', title: 'Next entry', group: 'Sidebar', icon: 'chevron', keys: 'j', scope: 'navigation', palette: false },
   { id: 'navigation.previous', title: 'Previous entry', group: 'Sidebar', icon: 'up', keys: 'k', scope: 'navigation', palette: false },
   { id: 'navigation.parent', title: 'Workspace / left pane', group: 'Sidebar', icon: 'back', keys: 'h', scope: 'navigation', palette: false },
@@ -119,7 +131,7 @@ const tail = [
 
 export type ActionId = (typeof head)[number]['id'] | (typeof tail)[number]['id'] | `workspace.select.${Slot}`;
 export const actionDefinitions: readonly (ActionDefinition & { id: ActionId })[] = [...head, ...slotDefinitions, ...tail];
-export const actionGroups: readonly ActionGroup[] = ['General', 'Go to', 'Workspace', 'Layout', 'Conversation', 'Sidebar', 'Message box'];
+export const actionGroups: readonly ActionGroup[] = ['General', 'Go to', 'Workspace', 'Layout', 'Conversation', 'Voice', 'Sidebar', 'Message box'];
 const byId = new Map<string, ActionDefinition>(actionDefinitions.map(definition => [definition.id, definition]));
 export function actionDefinition(id: string): ActionDefinition | undefined { return byId.get(id); }
 
