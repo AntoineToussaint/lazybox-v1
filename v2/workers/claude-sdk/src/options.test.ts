@@ -2,9 +2,9 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { nativeOptions } from './options.js';
 
-test('default Claude startup preserves native permissions, settings, and account context', () => {
+test('default Claude startup preserves native permissions, settings chain, and account context', () => {
   const env = Object.freeze({ CLAUDE_CONFIG_DIR: '/fixture/current-profile', CLAUDE_CODE_OAUTH_TOKEN: 'fixture-subscription', ANTHROPIC_BASE_URL: 'https://fixture-existing-route.invalid' });
-  const options = nativeOptions({ cwd: '/fixture/collection' }, env);
+  const options = nativeOptions({ cwd: '/fixture/collection', claudeAiConnectors: true }, env);
   for (const key of ['permissionMode', 'settingSources', 'settings', 'allowedTools', 'disallowedTools', 'allowDangerouslySkipPermissions', 'sandbox']) {
     assert.equal(Object.hasOwn(options, key), false, `startup overrides ${key}`);
   }
@@ -13,12 +13,31 @@ test('default Claude startup preserves native permissions, settings, and account
   assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'fixture-subscription');
 });
 
+test('claude.ai connectors are off unless the person turned them on, whatever the permission mode', () => {
+  const env = Object.freeze({ CLAUDE_CONFIG_DIR: '/fixture/current-profile', CLAUDE_CODE_OAUTH_TOKEN: 'fixture-subscription' });
+  // Off: the typed setting in the flag layer (it adds to the settings chain, replaces none of it), and the older env switch.
+  for (const value of [undefined, false]) {
+    const options = nativeOptions({ cwd: '/fixture', claudeAiConnectors: value }, env);
+    assert.deepEqual(options.settings, { disableClaudeAiConnectors: true }, String(value));
+    assert.equal(options.settingSources, undefined);
+    assert.deepEqual(options.env, { ...env, ENABLE_CLAUDEAI_MCP_SERVERS: 'false' });
+    assert.equal(options.env!.CLAUDE_CODE_OAUTH_TOKEN, 'fixture-subscription');
+  }
+  assert.deepEqual(nativeOptions({ cwd: '/fixture', permission: 'ask' }, {}).settings, { permissions: { ask: ['Bash', 'mcp__lazybox__command'] }, disableClaudeAiConnectors: true });
+  assert.equal((nativeOptions({ cwd: '/fixture', purpose: 'help' }, {}).settings as { disableClaudeAiConnectors?: boolean }).disableClaudeAiConnectors, true);
+  for (const permission of ['read-only', 'yolo', 'inherit']) assert.deepEqual(nativeOptions({ cwd: '/fixture', permission }, {}).settings, { disableClaudeAiConnectors: true }, permission);
+  // On: nothing is added, and the permission settings stay as they were.
+  const on = nativeOptions({ cwd: '/fixture', permission: 'ask', claudeAiConnectors: true }, env);
+  assert.deepEqual(on.settings, { permissions: { ask: ['Bash', 'mcp__lazybox__command'] } });
+  assert.equal(on.env, env);
+});
+
 test('explicit permission choices remain explicit and retain saved settings sources', () => {
-  const ask = nativeOptions({ cwd: '/fixture', permission: 'ask' }, {});
+  const ask = nativeOptions({ cwd: '/fixture', permission: 'ask', claudeAiConnectors: true }, {});
   assert.equal(ask.permissionMode, 'default');
   assert.equal(ask.settingSources, undefined);
   assert.deepEqual(ask.settings, { permissions: { ask: ['Bash', 'mcp__lazybox__command'] } });
-  const readOnly = nativeOptions({ cwd: '/fixture', permission: 'read-only' }, {});
+  const readOnly = nativeOptions({ cwd: '/fixture', permission: 'read-only', claudeAiConnectors: true }, {});
   assert.equal(readOnly.permissionMode, 'plan');
   assert.equal(readOnly.settings, undefined);
   const plan = nativeOptions({ cwd: '/fixture', workflow: 'plan' }, {});

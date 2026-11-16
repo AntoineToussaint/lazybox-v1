@@ -15,6 +15,35 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 )
 
+// The claude.ai connectors setting is read when a session starts: off until
+// the person turns it on, and then on for the sessions started afterwards.
+func TestClaudeAIConnectorsFollowTheSettingAtSessionStart(t *testing.T) {
+	b, err := New(Config{State: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	fake := &agenttest.Adapter{}
+	b.Adapters["codex"] = fake
+	if _, err = b.OpenEmptyWorkspace("codex-default", accounts.Options{}, "direct"); err != nil {
+		t.Fatal(err)
+	}
+	if fake.Session.Open.ClaudeAIConnectors {
+		t.Fatal("claude.ai connectors load by default")
+	}
+	prefs := b.Preferences.Snapshot()
+	prefs.ClaudeAIConnectors = true
+	if err = b.Preferences.Save(prefs); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = b.OpenEmptyWorkspace("codex-default", accounts.Options{}, "direct"); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.Session.Open.ClaudeAIConnectors {
+		t.Fatal("a session started after the person turned connectors on did not get them")
+	}
+}
+
 func TestAgentsGetTheCLIFirstOnPathAndTheCommandBriefing(t *testing.T) {
 	for _, withCLI := range []bool{true, false} {
 		cfg := Config{State: t.TempDir()}
@@ -44,6 +73,10 @@ func TestAgentsGetTheCLIFirstOnPathAndTheCommandBriefing(t *testing.T) {
 		briefed := strings.Contains(open.Context, "lazybox run -- <command>")
 		if briefed != strings.Contains(open.Context, "lazybox artifact put <file|-> --title") {
 			t.Fatal("the briefing does not tell agents how to publish artifacts")
+		}
+		// Design docs and plans stay in Lazybox, one artifact per document, not in a connector's document tool.
+		if briefed != (strings.Contains(open.Context, "--id ID`, never as a second artifact") && strings.Contains(open.Context, "Never put these documents in an external document tool or connector (Claude Docs")) {
+			t.Fatal("the briefing does not keep design docs in Lazybox artifacts, one artifact per document")
 		}
 		if briefed != (strings.Contains(open.Context, "lazybox workspace repos") && strings.Contains(open.Context, `lazybox workspace request-repo <name|owner/repo|path> --reason "why you need it"`)) {
 			t.Fatal("the briefing does not tell agents how to ask for a repository instead of reaching outside the workspace")

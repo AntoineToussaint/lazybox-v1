@@ -57,9 +57,10 @@ try{
 
  // The Artifacts panel opens on the new page.
  const artifactPage=page.getByRole('article',{name:'Datasource migration plan'});
- await expect(artifactPage.getByRole('heading',{name:'Datasource migration plan',level:2})).toBeVisible();
+ await expect(artifactPage.getByRole('heading',{name:'Datasource migration plan',level:1})).toBeVisible();
  await expect(artifactPage.locator('.artifact-document')).toContainText('Phase one: dual read');
- await expect(artifactPage.locator('.artifact-meta')).toContainText('v1 · from a chat message');
+ await expect(artifactPage.locator('.artifact-meta')).toContainText('From a chat message');
+ await expect(artifactPage.getByLabel('Version',{exact:true})).toHaveValue('1');
  await page.screenshot({path:'.cache/artifacts-tracked.png'});
 
  // A later message of the same conversation offers an update, shown as a diff first.
@@ -91,10 +92,13 @@ try{
 
  // Changes between versions, and an older version with a way back.
  await artifactPage.getByRole('tab',{name:'Changes'}).click();
+ // Rendered side by side by default; the line diff is one click away.
+ await expect(artifactPage.getByRole('region',{name:'Rendered changes'}).locator('.doc-diff-row.is-changed')).toHaveCount(1);
+ await artifactPage.getByRole('radio',{name:'Text'}).click();
  await expect(artifactPage.getByRole('region',{name:'Changes from v1 to v2'}).locator('.artifact-diff-line.is-add')).toHaveCount(2);
  await artifactPage.getByRole('tab',{name:'Document'}).click();
  if(!await versions.isVisible())await artifactPage.getByRole('button',{name:'2 versions'}).click();
- await artifactPage.getByRole('option',{name:/^v1/}).click();
+ await versions.getByRole('option',{name:/^v1/}).click();
  await expect(artifactPage.getByRole('note')).toContainText('You are viewing v1 of 2.');
  await expect(artifactPage.locator('.artifact-document')).not.toContainText('Phase four');
  await artifactPage.getByRole('button',{name:'Back to latest'}).click();
@@ -110,15 +114,15 @@ try{
  assert.equal(await readFile(await download.path(),'utf8'),plan2);
 
  // Rename in place.
- await artifactPage.getByRole('heading',{name:'Datasource migration plan',level:2}).dblclick();
+ await artifactPage.getByRole('heading',{name:'Datasource migration plan',level:1}).dblclick();
  await page.getByLabel('Artifact title').fill('Datasource rollout plan');await page.keyboard.press('Enter');
  const renamed=page.getByRole('article',{name:'Datasource rollout plan'});
- await expect(renamed.getByRole('heading',{name:'Datasource rollout plan',level:2})).toBeVisible();
+ await expect(renamed.getByRole('heading',{name:'Datasource rollout plan',level:1})).toBeVisible();
 
  // Its own window: the same page, following the same artifact.
  const [detached]=await Promise.all([context.waitForEvent('page'),renamed.getByRole('button',{name:'Open in its own window'}).click()]);
  await detached.waitForLoadState();
- await expect(detached.getByRole('heading',{name:'Datasource rollout plan',level:2})).toBeVisible();
+ await expect(detached.getByRole('heading',{name:'Datasource rollout plan',level:1})).toBeVisible();
  await expect(detached.locator('.artifact-document')).toContainText('Phase four');
  assert.match(detached.url(),/view=artifact/);
  await detached.screenshot({path:'.cache/artifacts-window.png'});
@@ -129,7 +133,7 @@ try{
  const back=renamed.getByRole('button',{name:'Back to artifacts'});
  if(await back.isVisible())await back.click();
  const list=page.getByRole('listbox',{name:'Artifacts'});
- await expect(list.getByRole('option',{name:/Review findings/})).toContainText('published by an agent',{timeout:10000});
+ await expect(list.getByRole('option',{name:/Review findings/})).toContainText('by an agent',{timeout:10000});
 
  // A Markdown file tracked from Files follows changes on disk.
  await page.locator('summary[aria-label="Panels"]').click();
@@ -143,10 +147,11 @@ try{
  await expect.poll(()=>fixture.mutations.some(m=>m.method==='TrackArtifactFile')).toBe(true);
  const tracked=fixture.mutations.find(m=>m.method==='TrackArtifactFile');assert.match(tracked.body.path,/README\.md$/);
  const filePage=page.getByRole('article',{name:'File preview'});
- await expect(filePage.locator('.artifact-meta')).toContainText(`Synced with ${tracked.body.path}`);
+ await expect(filePage.locator('.doc-title-block')).toContainText(`Synced with ${tracked.body.path}`);
  fixture.artifacts.fileChanged('alpha',tracked.body.path,'# File preview\nEdited by an agent on disk.\n');
  await expect(filePage.locator('.artifact-document')).toContainText('Edited by an agent on disk.',{timeout:10000});
- await expect(filePage.locator('.artifact-meta')).toContainText('v2 · file changed on disk');
+ await expect(filePage.locator('.artifact-meta')).toContainText('File changed on disk');
+ await expect(filePage.getByLabel('Version',{exact:true})).toHaveValue('2');
 
  // Deleting asks first, then the page and its row are gone.
  await filePage.getByLabel('Artifact actions',{exact:true}).click();

@@ -28,7 +28,14 @@ try{
  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Agents & workspaces',exact:true}).click();
  await page.getByLabel('Suggested workspace names').selectOption('generated');await page.getByLabel('Default permissions').selectOption('yolo');
  await page.getByLabel('Lazybox context for every new agent').fill('Shared workspace rules');await page.getByLabel('Additional Claude context').fill('Claude-specific instructions');
+ // claude.ai connectors stay out of Lazybox sessions until the person turns them on.
+ const connectors=page.getByRole('switch',{name:'Use my claude.ai connectors in Lazybox sessions'});
+ await expect(connectors).not.toBeChecked();await mkdir('.cache',{recursive:true});await page.locator('.settings-row').filter({has:connectors}).screenshot({path:'.cache/agent-settings-connectors.png'});
  await page.getByRole('button',{name:'Save agent settings'}).click();await expect(page.getByRole('status').filter({hasText:'Agent settings saved.'})).toBeVisible();
+ assert.equal(fixture.mutations.findLast(m=>m.method==='SaveRunnerSettings').body.claudeAiConnectors??false,false);
+ await connectors.check();await page.getByRole('button',{name:'Save agent settings'}).click();await expect(page.getByRole('status').filter({hasText:'Agent settings saved.'})).toBeVisible();
+ assert.equal(fixture.mutations.findLast(m=>m.method==='SaveRunnerSettings').body.claudeAiConnectors,true);
+ await connectors.uncheck();await page.getByRole('button',{name:'Save agent settings'}).click();await expect(page.getByRole('status').filter({hasText:'Agent settings saved.'})).toBeVisible();
  await page.getByRole('navigation',{name:'Pages'}).getByRole('button').first().click();await page.getByRole('button',{name:'New workspace',exact:true}).click();await expect(name).toHaveValue('gentle-copper-otter');await api.check();await expect(name).toHaveValue('gentle-copper-otter');await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Pricing',exact:true}).click();await page.getByRole('button',{name:'Add model price',exact:true}).click();await page.getByLabel('Exact model ID').fill('claude-fable-5-1');
  for(const [label,value] of [['Input','10'],['Output','50'],['Cache read','0.25'],['Cache write · 5 minutes','12.5'],['Cache write · 1 hour','20']])await page.getByLabel(label,{exact:true}).fill(value);

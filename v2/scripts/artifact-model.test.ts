@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agentReference, ago, diffStats, guessKind, hunks, lineDiff, slug, suggestedPath, titleFromMarkdown, updatedLine } from '../packages/surfaces/src/artifact-model.ts';
+import { agentReference, ago, authorShort, diffStats, guessKind, hunks, lineDiff, slug, suggestedPath, titleFromMarkdown, updatedLine, updatedSinceSeen } from '../packages/surfaces/src/artifact-model.ts';
 
 test('the title is the first heading outside code, else the first prose line', () => {
   assert.equal(titleFromMarkdown('Some intro\n\n# Migration **plan**\n\n## Steps'), 'Migration plan');
@@ -77,4 +77,20 @@ test('send to agent gives a fetchable reference and an outline, not the whole te
   assert.match(text, /^Artifact “Plan” \(plan, v3\)\. Read it in full with `lazybox artifact get ART1`\./);
   assert.match(text, /Outline:\n- Plan\n {2}- Step one\n {2}- Step two\n/);
   assert.doesNotMatch(text, /not a heading|filler/);
+});
+
+test('the list says who made the latest version, and marks one the person has not seen', () => {
+  const agent = { number: 2, createdAtUnixMillis: 2000n, author: { kind: 'agent', sessionId: 's' }, source: { kind: 'agent' } } as never;
+  const person = { number: 3, createdAtUnixMillis: 3000n, author: { kind: 'person' }, source: { kind: 'edit' } } as never;
+  const file = { number: 4, createdAtUnixMillis: 4000n, author: { kind: 'file' }, source: { kind: 'file', path: 'PLAN.md' } } as never;
+  assert.equal(authorShort(agent), 'by an agent');
+  assert.equal(authorShort(person), 'by you');
+  assert.equal(authorShort(file), 'from the file');
+  assert.equal(authorShort({ number: 1, source: { kind: 'message' } } as never), 'from chat');
+  const of = (version: never) => ({ updatedAtUnixMillis: 1n, versions: [version] });
+  assert.equal(updatedSinceSeen(of(agent), undefined), true, 'never opened');
+  assert.equal(updatedSinceSeen(of(agent), '2000'), false, 'seen this version');
+  assert.equal(updatedSinceSeen(of(agent), '1000'), true, 'a newer version since');
+  assert.equal(updatedSinceSeen(of(file), '1000'), true);
+  assert.equal(updatedSinceSeen(of(person), undefined), false, 'your own version is never news');
 });

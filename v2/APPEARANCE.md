@@ -73,6 +73,12 @@ nearest Dark token for how it is used (text, line, surface, tinted fill, the
 `on-*` text of a fill, diff, focus) and prints nothing else; review the
 result. Print styles (`@media print`) keep their literals.
 
+The artifact reader (`artifact-reader.css`) reads in its own bundled faces,
+Inter for text and Newsreader for titles (`@fontsource-variable/*`, so the
+desktop app needs no network), as `--font-reading` and `--font-display`, with
+the interface font as fallback. Its colours are tokens like everything else,
+and its sizes follow `--text-scale`.
+
 | Where | What |
 |---|---|
 | `appearance/tokens.ts` | The token catalogue: groups, meaning, base or derived, how each derives (OKLab mixes), and its contrast class. |

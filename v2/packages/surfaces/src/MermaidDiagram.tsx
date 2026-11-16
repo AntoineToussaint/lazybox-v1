@@ -208,10 +208,14 @@ function DiagramViewer({ rendered, actions }: { rendered: Rendered; actions: Rea
   </>;
 }
 
-/** A Mermaid block in agent prose: rendered when it nears the screen, then zoomable. */
-export function MermaidDiagram({ text, sourceView }: { text: string; sourceView(text: string): ReactNode }) {
+/**
+ * A Mermaid block in agent prose: rendered when it nears the screen, then
+ * zoomable. `eager` renders it at once: a document has few diagrams, and a
+ * printed one must not be a placeholder.
+ */
+export function MermaidDiagram({ text, sourceView, eager = false }: { text: string; sourceView(text: string): ReactNode; eager?: boolean }) {
   const figure = useRef<HTMLElement>(null);
-  const near = useNearViewport(figure);
+  const near = useNearViewport(figure) || eager;
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const [result, setResult] = useState<Rendered | { text: string; error: string }>();
   const [source, setSource] = useState(false);

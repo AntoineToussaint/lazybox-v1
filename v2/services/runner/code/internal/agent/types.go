@@ -46,6 +46,9 @@ type Open struct {
 	Tools                                                 func(context.Context, string, json.RawMessage) (string, error)
 	// Browser offers the agent browser's tools (BrowserTools) through Tools.
 	Browser bool
+	// ClaudeAIConnectors: a Claude session may load the person's claude.ai
+	// connectors (cloud MCP servers). False turns them off for the session.
+	ClaudeAIConnectors bool
 	// Host asks a native adapter to run its process under a detached session
 	// host so it survives the Runner. Nil keeps a Runner-owned local pipe.
 	Host *Hosting

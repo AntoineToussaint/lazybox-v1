@@ -71,3 +71,31 @@ func TestStopAgentReachesOnlyAWorkerThatSupportsIt(t *testing.T) {
 		_ = session.Close()
 	}
 }
+
+// The person's claude.ai connectors setting reaches the worker at open: off
+// unless they turned it on (Settings → Agents).
+func TestOpenTellsTheWorkerWhetherClaudeAIConnectorsLoad(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	for _, tc := range []struct {
+		on   bool
+		want string
+	}{{false, `"claudeAiConnectors":false`}, {true, `"claudeAiConnectors":true`}} {
+		worker := filepath.Join(t.TempDir(), "worker.sh")
+		script := `read -r line
+case "$line" in
+  *'"method":"open"'*'` + tc.want + `'*) printf '%s\n' '{"id":"lazybox-1","result":{"reference":"ref","features":[]}}' ;;
+  *) printf '%s\n' '{"id":"lazybox-1","error":{"message":"connectors setting missing"}}' ;;
+esac
+while IFS= read -r line; do :; done
+`
+		if err := os.WriteFile(worker, []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+		session, err := Adapter{Node: "/bin/sh", Worker: worker}.Open(ctx, agent.Open{Cwd: t.TempDir(), ClaudeAIConnectors: tc.on})
+		if err != nil {
+			t.Fatalf("connectors %v: the worker was not told %s: %v", tc.on, tc.want, err)
+		}
+		_ = session.Close()
+	}
+}

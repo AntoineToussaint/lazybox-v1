@@ -297,6 +297,10 @@ message RunnerSettings { uint64 revision = 1; string naming = 2; string permissi
   // Subscriptions left out of automatic switching; every other signed-in
   // subscription of a conversation's provider is in its default pool.
   repeated string rotation_excluded_profile_ids = 10;
+  // New Claude sessions load the person's claude.ai connectors (Claude's cloud
+  // MCP servers, such as Claude Docs, Gmail or Notion). Off by default: plans
+  // and documents stay in Lazybox artifacts. Running sessions keep theirs.
+  bool claude_ai_connectors = 11;
 }
 message SetModelPriceRequest { uint64 revision = 1; ModelPrice price = 2; bool remove = 3; }
 message ListThemesRequest {}

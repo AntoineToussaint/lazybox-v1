@@ -10,7 +10,7 @@ test('help assistant reads settings freely and is always asked before an update,
     const options = nativeOptions({ cwd: '/fixture', purpose: 'help', permission }, {});
     assert.equal(options.permissionMode, 'default');
     assert.equal(options.allowDangerouslySkipPermissions, undefined);
-    assert.deepEqual(options.settings, { permissions: { allow: [readSettingsTool], ask: [updateSettingsTool] } });
+    assert.deepEqual(options.settings, { permissions: { allow: [readSettingsTool], ask: [updateSettingsTool] }, disableClaudeAiConnectors: true });
     assert.deepEqual(options.tools, []);
     assert.equal(options.strictMcpConfig, true);
   }

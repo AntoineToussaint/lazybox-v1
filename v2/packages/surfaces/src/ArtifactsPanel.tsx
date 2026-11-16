@@ -1,17 +1,39 @@
 import { peekProps } from './peek-model';
-import { useContext, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Artifact, Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { ArtifactHostContext, ArtifactPage } from './ArtifactPage';
 import { ContextMenu, menuPoint, type ContextMenuState } from './ContextMenu';
 import { DeleteArtifactDialog } from './ArtifactDialogs';
-import { asKind, kindIcon, kindLabel, updatedLine } from './artifact-model';
+import { ago, asKind, authorShort, kindIcon, kindLabel, updatedLine, updatedSinceSeen } from './artifact-model';
 import { useArtifactSelection } from './artifact-events';
 import { useArtifacts, useOtherArtifacts } from './useArtifacts';
 import { useWorkConversation } from './PullRequestFlow';
 import { Icon } from './Icons';
 import type { ViewTarget } from './workspace-model';
 import './artifacts.css';
+
+/**
+ * The latest version the person saw of each artifact in a workspace, per
+ * device: it puts the "updated since you looked" dot on a row.
+ */
+function useSeenVersions(viewState: ViewStateStore | undefined, workspaceId: string) {
+  const key = `${viewState?.key || 'lazybox'}:artifact-seen:${workspaceId}`;
+  const read = useCallback((): Record<string, string> => { try { return JSON.parse((viewState ? viewState.getItem(key) : localStorage.getItem(key)) || '{}') || {}; } catch { return {}; } }, [viewState, key]);
+  const [seen, setSeen] = useState(read);
+  useEffect(() => setSeen(read()), [read]);
+  const markSeen = useCallback((artifact: Artifact) => {
+    const at = artifact.versions.at(-1)?.createdAtUnixMillis;
+    if (at === undefined) return;
+    setSeen(current => {
+      if (current[artifact.id] === String(at)) return current;
+      const next = { ...current, [artifact.id]: String(at) };
+      try { const text = JSON.stringify(next); if (viewState) viewState.setItem(key, text); else localStorage.setItem(key, text); } catch { /* a convenience */ }
+      return next;
+    });
+  }, [viewState, key]);
+  return { seen, markSeen };
+}
 
 /**
  * The Artifacts panel: a workspace's plans, reports, specs and notes. The list
@@ -37,6 +59,9 @@ export function ArtifactsPanel({ workspaceId, collections, viewState, target, on
   const other = elsewhere ? others.find(o => o.collectionId === elsewhere.collectionId && o.artifact.id === elsewhere.id) : undefined;
   const current = other ? other.artifact : artifacts.find(a => a.id === selected);
   const currentCollectionId = other ? other.collectionId : workspaceId;
+  const { seen, markSeen } = useSeenVersions(viewState, workspaceId);
+  // Opening an artifact, or reading it while a new version arrives, is looking at it.
+  useEffect(() => { if (current && !other) markSeen(current); }, [current, other, markSeen]);
   if (!workspaceId) return <p className="module-empty">Choose a workspace to see its artifacts.</p>;
   const focusRow = (id: string) => requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-artifact-id="${CSS.escape(id)}"]`)?.focus());
   const rowMenu = (artifact: Artifact, point: { x: number; y: number }, returnFocus: HTMLElement | null) => setMenu({ ...point, label: `${artifact.title} actions`, returnFocus, items: [
@@ -65,15 +90,20 @@ export function ArtifactsPanel({ workspaceId, collections, viewState, target, on
         {shown.map((artifact, i) => {
           const kind = asKind(artifact.kind);
           const active = artifact.id === selected;
+          const unread = !active && updatedSinceSeen(artifact, seen[artifact.id]);
           return <li key={artifact.id} role="option" aria-selected={active} data-artifact-id={artifact.id} {...peekProps({ kind: 'artifact', workspaceId, artifactId: artifact.id, title: artifact.title })} tabIndex={active || (!current && i === 0) ? 0 : -1}
-            className="artifact-row" onClick={() => setSelected(artifact.id)}
+            className={`artifact-row${unread ? ' is-unread' : ''}`} onClick={() => setSelected(artifact.id)}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(artifact.id); } if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); setDeleting(artifact); } if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); rowMenu(artifact, { x: r.left + 24, y: r.bottom - 4 }, event.currentTarget); } }}
             onContextMenu={event => { if (event.shiftKey) return; event.preventDefault(); rowMenu(artifact, menuPoint(event), event.currentTarget); }}>
             <span className={`artifact-kind-icon kind-${kind}`} title={kindLabel[kind]}><Icon name={kindIcon[kind]} size={16}/></span>
             <span className="artifact-row-text">
               <strong>{artifact.title}</strong>
-              <small>{updatedLine(artifact)}</small>
+              <small title={updatedLine(artifact)}>{kindLabel[kind]} · v{artifact.versions.at(-1)?.number ?? 1} · {authorShort(artifact.versions.at(-1))}</small>
               {(artifact.trackedPath || artifact.trackingProblem) && <small className={artifact.trackingProblem ? 'artifact-row-problem' : 'artifact-row-file'}>{artifact.trackingProblem ? <><Icon name="alert" size={11}/>{artifact.trackingProblem}</> : <><Icon name="refresh" size={11}/>{artifact.trackedPath}</>}</small>}
+            </span>
+            <span className="artifact-row-aside">
+              <time dateTime={new Date(Number(artifact.updatedAtUnixMillis)).toISOString()}>{ago(artifact.updatedAtUnixMillis)}</time>
+              {unread && <span className="artifact-unread" role="img" aria-label="Updated since you last looked" title="Updated since you last looked"/>}
             </span>
           </li>;
         })}

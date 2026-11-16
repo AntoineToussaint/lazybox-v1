@@ -14,7 +14,7 @@ import (
 
 func (s *Service) GetRunnerSettings(context.Context, *pb.InfoRequest) (*pb.RunnerSettings, error) {
 	d, rates := s.Bench.Preferences.SnapshotRates()
-	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, SuggestedName: petname.Generate(3, "-")}
+	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, SuggestedName: petname.Generate(3, "-")}
 	for key, r := range rates {
 		provider, model, _ := strings.Cut(key, "/")
 		_, custom := d.Prices[key]
@@ -32,7 +32,7 @@ func settingsError(err error) error {
 	return rpcError(err)
 }
 func (s *Service) SaveRunnerSettings(ctx context.Context, r *pb.RunnerSettings) (*pb.RunnerSettings, error) {
-	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds})
+	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors})
 	if err != nil {
 		return nil, settingsError(err)
 	}

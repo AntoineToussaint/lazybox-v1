@@ -29,6 +29,9 @@ type Data struct {
 	ProcessBackend string `json:"processBackend,omitempty"`
 	// RotationExcluded lists subscriptions left out of automatic switching.
 	RotationExcluded []string `json:"rotationExcluded,omitempty"`
+	// ClaudeAIConnectors lets new Claude sessions load the person's claude.ai
+	// connectors. Off by default, so documents stay in Lazybox artifacts.
+	ClaudeAIConnectors bool `json:"claudeAiConnectors,omitempty"`
 }
 type Store struct {
 	mu   sync.RWMutex

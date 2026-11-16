@@ -94,7 +94,7 @@ try {
   // System follows the computer: dark, then light, with nothing chosen.
   const dark = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
   let page = await dark.newPage(); page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(String(e)));
-  await visitKeyPages(page, base, fixture.token, name => audit(page, 'dark', name), { settingsTabs: ['Subscriptions', 'Appearance'] });
+  await visitKeyPages(page, base, fixture.token, name => audit(page, 'dark', name), { settingsTabs: ['Subscriptions', 'Appearance'], artifactId: fixture.designDoc.id });
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()), '#1d1e24', 'Dark keeps its canvas');
   // The audits are not vacuous: a literal colour and faint body text are caught.
   await page.evaluate(() => { const p = document.createElement('p'); p.id = 'audit-control'; p.textContent = 'control text'; p.style.cssText = 'color:#2a2b2f;position:fixed;top:0;left:0;z-index:9;background:var(--surface)'; document.body.appendChild(p); });
@@ -105,7 +105,7 @@ try {
 
   const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
   page = await light.newPage(); page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(String(e)));
-  await visitKeyPages(page, base, fixture.token, name => audit(page, 'light', name), { settingsTabs: ['Subscriptions', 'Appearance'] });
+  await visitKeyPages(page, base, fixture.token, name => audit(page, 'light', name), { settingsTabs: ['Subscriptions', 'Appearance'], artifactId: fixture.designDoc.id });
   const css = name => page.evaluate(n => getComputedStyle(document.documentElement).getPropertyValue(`--${n}`).trim(), name);
   assert.equal(await css('surface'), '#fafafc');
 

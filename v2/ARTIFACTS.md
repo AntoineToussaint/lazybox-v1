@@ -73,19 +73,49 @@ lazybox artifact list
 ```
 
 Every agent's briefing (`commandBriefing` in
-`internal/runner/command_output.go`) tells it to publish plans, reports and
-specs this way. An agent credential may call `ListArtifacts`, `GetArtifact`
+`internal/runner/command_output.go`) tells it to publish plans, design docs,
+specs, reports and notes this way, to keep one artifact per document (each
+revision is a new version with `--id`), to write the repository file too when
+the document belongs there, and never to put these documents in an external
+document tool or connector (Claude Docs, Notion, Google Docs…) unless the
+person asks for that tool by name. An agent credential may call `ListArtifacts`, `GetArtifact`
 and `PutArtifact` only for **its own execution's workspace**. Its versions
 are always recorded as that agent, with source `agent`, whatever the request
 claims. Every other artifact call is owner only, and a workspace terminal's
 credential can call none of them (`internal/transport/auth.go`).
 
+## Lazybox artifacts by default
+
+A Claude agent signed in with a claude.ai account also gets that account's
+**claude.ai connectors** (Claude's cloud MCP servers: Claude Docs, Gmail,
+Notion…), and with them a way to write a plan somewhere other than Lazybox.
+**Settings → Agents & workspaces → Use my claude.ai connectors in Lazybox
+sessions** is off by default. Off, each new Claude session starts with the
+Claude Code setting `disableClaudeAiConnectors: true` in its flag settings
+layer and `ENABLE_CLAUDEAI_MCP_SERVERS=false` in its environment (the older
+spelling, for a configured Claude binary that predates the setting)
+(`workers/claude-sdk/src/options.ts`). The setting is read when a session
+starts or resumes; a running session keeps what it started with.
+
+What it does not cover:
+
+- MCP servers configured on this computer (user or project settings,
+  `.mcp.json`, plugins) still load: they are the person's own choice.
+- Codex has no claude.ai connectors; its sessions are unchanged.
+- Nothing changes on claude.ai: the connectors stay connected there and in
+  other Claude Code sessions.
+- A setting that already disables connectors (for example in
+  `~/.claude/settings.json` or managed settings) wins even when the switch is
+  on: any source that disables them disables them.
+
 ## The Artifacts panel and page
 
 **The panel.** **Panels → Artifacts** (workspace header), or `] ] a`, opens
 it. Tracking something also opens it. The list shows each artifact's kind
-icon, title, latest version, who made that version and when, and the file
-it follows, if any. A filter appears when there are more than four
+icon, title, kind, latest version, who made that version, when, and the file
+it follows, if any. A dot marks an artifact **updated since you looked**: a
+version you did not make, newer than the last one you opened on this device
+(kept per workspace in the window's view state). A filter appears when there are more than four
 artifacts. The keyboard works the list:
 
 - ↑/↓ (or j/k) move.
@@ -97,15 +127,43 @@ When the panel is wide, the list and the open page sit side by side. When it
 is narrow, the page replaces the list and **Back** returns to it. The panel
 docks, collapses and closes like any other panel.
 
-**The page.** The header shows the title (double-click to rename, Enter to
-save, Escape to cancel), a kind picker, and the latest version's origin and
-time. Below it:
+**The page** is a reader. A slim toolbar holds Document / Changes, History,
+Send to agent, Export, Open in its own window and ⋯; once you scroll past the
+title, it names the document.
 
-- **Document** shows the rendered Markdown.
-- **Changes** shows a diff between the shown version and any earlier one.
-- **History** lists every version with its origin and time. It sits beside
-  the document on a wide page and opens over it on a narrow one. Choosing an
-  older version shows "You are viewing v2 of 5 · Back to latest".
+- **The title block**: the kind (a pill; choose another to change it), the
+  title in the display face (double-click to rename, Enter to save, Escape to
+  cancel), who made the shown version, when, the **version picker**, and the
+  reading time. A leading `# Title` that repeats the artifact's title is not
+  shown twice. "Synced with `path`" and a tracking problem sit above the title.
+- **The document** is typeset for long reading: a 44-em measure in Inter at
+  16 px with 1.7 line height, headings with anchors, Newsreader for titles
+  (both bundled, so the desktop app needs no network). Blockquotes that open
+  with `> **Note**`, `**Tip**`, `**Important**`, `**Warning**`, `**Caution**`
+  or `**Decision**` (or GitHub's `> [!NOTE]`) become callouts; a bold title
+  after the kind (`**Decision: reads first**`) becomes the callout's title.
+  Tables sit in their own frame with a sticky header and quiet zebra rows, and
+  a cell that reads as a status or a level (Done, In progress, Planned,
+  Blocked, High, Low…) becomes a pill. Task lists show checkboxes; code
+  blocks their language and a copy button on hover; Mermaid diagrams render at
+  once, fit the column, and keep zoom, pan and full screen behind a toolbar
+  that appears on hover; footnotes jump both ways.
+- **On this page**: when the page is at least 1080 px wide and the document
+  has three or more sections, the outline sits beside it and follows the
+  reading position; on a narrower page, **Contents** in the title block jumps
+  to a section.
+- **History** is closed until you open it: the toolbar's History button (with
+  the version count) or **H**. Each window remembers whether it is open. It is
+  a timeline of every version with its author and time; choose one to read
+  it ("You are viewing v2 of 5 · What changed since · Back to latest"), or
+  **Compare with vN** to see what it changed. It sits beside the reader on a
+  wide page, which gives it its room, and over it on a narrow one.
+- **Changes** compares the shown version with any earlier one. **Rendered**
+  (the default) shows both versions side by side, rendered: unchanged blocks
+  once on each side (long runs fold into "N unchanged blocks"), a replaced
+  block beside its replacement with the changed table rows, list items and
+  paragraphs marked, added and removed blocks tinted. Narrow, the two sides
+  stack. **Text** shows the line diff. The choice is remembered per window.
 
 The page follows new versions by itself.
 
@@ -131,9 +189,13 @@ The **Export** menu has:
 - **Copy as Markdown**: the latest version.
 - **Download .md**: named after the title, for example
   `datasource-migration-plan.md`.
-- **Print or save as PDF…**: prints the rendered document alone, with its
-  title, kind, version and date, using a print stylesheet. "Save as PDF" is
-  the system print dialog's own option.
+- **Print or save as PDF…**: prints the rendered document alone, as a
+  document: a title block (kind, title, version, date, author, workspace),
+  22 × 20 mm page margins, page numbers, light callouts, tables whose rows do
+  not split, code that wraps, and no app chrome, buttons or outline. It waits
+  briefly for a diagram still being drawn; a diagram drawn in a dark theme
+  prints as its light negative. "Save as PDF" is the system print dialog's own
+  option.
 - **Save to repository…**: pick a workspace repository and a path (by
   default `docs/<title>.md`). The file is written but never staged or
   committed, so review it in Changes. Replacing an existing file is a
@@ -172,9 +234,14 @@ on the artifact side:
   `<a download>`) and "Print" (`window.print()`) are tested in the browser
   only. If the webview ignores them, the next step is host actions
   (`save_file`, `print`) on the Tauri side.
-- **Printing is not complete for long documents:** a Mermaid diagram is
-  printed as it is on screen. A diagram that was never scrolled into view is
-  still a placeholder.
+- **Page numbers** use CSS page margin boxes (`@bottom-center`). They are
+  tested in Chromium (`npm run test:artifact-reader` prints the sample design
+  doc to `.cache/artifact-reader-print.pdf`); WebKit, the macOS desktop
+  webview, is not verified and may print without them.
+- **The rendered comparison is by block:** a moved paragraph shows as removed
+  in one place and added in another, and footnote references inside a
+  compared block do not link across blocks.
+- **Comments anchored to paragraphs** are not built.
 - **GitHub issue creation is tested only against a local test server:** the
   client call is tested that way, and the handler is tested only for
   refusing when GitHub is not connected. It has not been run against GitHub

@@ -175,5 +175,26 @@ export function agentReference(artifact: Pick<Artifact, 'id' | 'title' | 'kind' 
   return lines.join('\n');
 }
 
+/** Who made the latest version, for a list row: "by an agent", "from the file", "from chat", "by you". */
+export function authorShort(version: ArtifactVersion | undefined): string {
+  if (!version) return '';
+  const author = version.author?.kind, source = version.source?.kind;
+  if (author === 'file' || (!author && source === 'file')) return 'from the file';
+  if (author === 'agent') return 'by an agent';
+  if (source === 'message') return 'from chat';
+  return 'by you';
+}
+
+/**
+ * "Updated since you looked": a version the person did not make, newer than
+ * the one they last saw (or one they never opened). `seen` is the
+ * `updatedAtUnixMillis` they last saw, as a string.
+ */
+export function updatedSinceSeen(artifact: Pick<Artifact, 'updatedAtUnixMillis' | 'versions'>, seen: string | undefined): boolean {
+  const latest = artifact.versions.at(-1);
+  if (!latest || (latest.author?.kind || 'person') === 'person') return false;
+  return seen === undefined || Number(latest.createdAtUnixMillis) > Number(seen);
+}
+
 /** A workspace path for "Save to repository": `member/docs/<slug>.md`. */
 export const suggestedPath = (member: string, title: string) => `${member ? member + '/' : ''}docs/${slug(title)}.md`;

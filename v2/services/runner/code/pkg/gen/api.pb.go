@@ -242,8 +242,12 @@ type RunnerSettings struct {
 	// Subscriptions left out of automatic switching; every other signed-in
 	// subscription of a conversation's provider is in its default pool.
 	RotationExcludedProfileIds []string `protobuf:"bytes,10,rep,name=rotation_excluded_profile_ids,json=rotationExcludedProfileIds,proto3" json:"rotation_excluded_profile_ids,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	// New Claude sessions load the person's claude.ai connectors (Claude's cloud
+	// MCP servers, such as Claude Docs, Gmail or Notion). Off by default: plans
+	// and documents stay in Lazybox artifacts. Running sessions keep theirs.
+	ClaudeAiConnectors bool `protobuf:"varint,11,opt,name=claude_ai_connectors,json=claudeAiConnectors,proto3" json:"claude_ai_connectors,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *RunnerSettings) Reset() {
@@ -344,6 +348,13 @@ func (x *RunnerSettings) GetRotationExcludedProfileIds() []string {
 		return x.RotationExcludedProfileIds
 	}
 	return nil
+}
+
+func (x *RunnerSettings) GetClaudeAiConnectors() bool {
+	if x != nil {
+		return x.ClaudeAiConnectors
+	}
+	return false
 }
 
 type SetModelPriceRequest struct {
@@ -23191,7 +23202,7 @@ const file_api_proto_rawDesc = "" +
 	"\tmax_input\x18\b \x01(\x03R\bmaxInput\x12\x18\n" +
 	"\aversion\x18\t \x01(\tR\aversion\x12\x16\n" +
 	"\x06custom\x18\n" +
-	" \x01(\bR\x06custom\"\x93\x03\n" +
+	" \x01(\bR\x06custom\"\xc5\x03\n" +
 	"\x0eRunnerSettings\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x16\n" +
 	"\x06naming\x18\x02 \x01(\tR\x06naming\x12\x1e\n" +
@@ -23205,7 +23216,8 @@ const file_api_proto_rawDesc = "" +
 	"\x0esuggested_name\x18\b \x01(\tR\rsuggestedName\x12'\n" +
 	"\x0fprocess_backend\x18\t \x01(\tR\x0eprocessBackend\x12A\n" +
 	"\x1drotation_excluded_profile_ids\x18\n" +
-	" \x03(\tR\x1arotationExcludedProfileIds\"~\n" +
+	" \x03(\tR\x1arotationExcludedProfileIds\x120\n" +
+	"\x14claude_ai_connectors\x18\v \x01(\bR\x12claudeAiConnectors\"~\n" +
 	"\x14SetModelPriceRequest\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x122\n" +
 	"\x05price\x18\x02 \x01(\v2\x1c.lazybox.bench.v1.ModelPriceR\x05price\x12\x16\n" +

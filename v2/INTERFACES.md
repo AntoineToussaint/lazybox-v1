@@ -121,7 +121,10 @@ from the logs on every read; nothing else is stored. See
 [orchestration](ORCHESTRATION.md#slice-1-as-built).
 
 The Agents & workspaces tab configures workspace display-name suggestions,
-default permissions, common Lazybox context, and additional Claude/Codex context.
+default permissions, common Lazybox context, additional Claude/Codex context,
+and whether new Claude sessions load the person's claude.ai connectors
+(`RunnerSettings.claude_ai_connectors`, off by default; see
+[Artifacts](ARTIFACTS.md#lazybox-artifacts-by-default)).
 `RunnerOptions.instructions` adds context for one new conversation (32 KiB limit).
 The effective context is common + provider + session instructions alongside
 workspace facts; Claude appends it to its native system preset, Codex uses native

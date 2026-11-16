@@ -106,7 +106,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	}
 	setup, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	result, err := p.Call(setup, "open", map[string]any{"cwd": o.Cwd, "purpose": o.Purpose, "model": o.Model, "resume": o.Resume, "permission": o.Permission, "workflow": o.Workflow, "binary": a.Binary, "context": o.Context, "browser": o.Browser})
+	result, err := p.Call(setup, "open", map[string]any{"cwd": o.Cwd, "purpose": o.Purpose, "model": o.Model, "resume": o.Resume, "permission": o.Permission, "workflow": o.Workflow, "binary": a.Binary, "context": o.Context, "browser": o.Browser, "claudeAiConnectors": o.ClaudeAIConnectors})
 	if err != nil {
 		p.Close()
 		return nil, err

@@ -31,7 +31,14 @@ Run tests, builds, linters, installs and other noisy commands as ` + "`lazybox r
 - Commands get no input. Pass non-interactive flags (--yes, CI=1) rather than waiting for a prompt.
 - Start long-running servers and watchers with the Lazybox command tool, which runs them in the background, not with lazybox run.
 - If the workspace defines actions (the command tool's action "actions" lists them, with their URL), start its dev server with "start_action" instead: it gets the workspace's own port, and the user sees it in Run and Preview.
-- Publish plans, reports and specs you write for the user with ` + "`lazybox artifact put <file|-> --title \"…\" --kind plan`" + ` (add ` + "`--id ID`" + ` to publish a new version of the same artifact) instead of only writing them in your reply; the user reviews them as tracked pages in Lazybox. ` + "`lazybox artifact get ID`" + ` prints one.`
+
+## Documents you write for the person
+Plans, design docs, specs, reports, reviews and notes you write for the person are Lazybox artifacts: versioned pages they read, compare and export in Lazybox.
+- Publish one with ` + "`lazybox artifact put <file|-> --title \"…\" --kind plan|spec|report|notes|other`" + `. It prints the artifact's ID.
+- Keep it in sync as it evolves: publish each revision as a new version of the same artifact with ` + "`--id ID`" + `, never as a second artifact. ` + "`lazybox artifact list`" + ` finds an ID; ` + "`lazybox artifact get ID`" + ` prints the latest text.
+- When the document also belongs in the repository (for example docs/PLAN.md), write the file there too and publish it with the same ID after each change.
+- Write GitHub-flavoured Markdown: headings, tables, task lists, fenced code with a language, ` + "```mermaid" + ` diagrams, and callouts as ` + "`> **Note**`" + `, ` + "`> **Warning**`" + ` or ` + "`> **Decision**`" + ` blockquotes.
+- Never put these documents in an external document tool or connector (Claude Docs, claude.ai artifacts, Notion, Google Docs, Confluence…) unless the person explicitly asks for that tool by name. Mention the artifact in your reply rather than pasting the whole document again.`
 
 // withCLI puts the lazybox CLI first on PATH so agents, and the commands they
 // start, run this Runner's CLI rather than another lazybox on the system.
