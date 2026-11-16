@@ -55,5 +55,5 @@ func ToolReplaySafe(name string, args json.RawMessage) bool {
 	if json.Unmarshal(args, &call) != nil {
 		return false
 	}
-	return call.Action == "read" || call.Action == "wait" || call.Action == "actions"
+	return call.Action == "read" || call.Action == "tail" || call.Action == "wait" || call.Action == "actions"
 }

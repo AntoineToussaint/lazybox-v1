@@ -126,6 +126,7 @@ configuration are resolved explicitly and stay isolated during development.
 | [Terminals](../../TERMINALS.md) | The workspace shell on the Runner, `lazybox log` / `lazybox run`. |
 | [Remote control](../../REMOTE.md) | Pairing a phone by QR code over Tailscale, device grants, threat model. |
 | [Agent browser](../../BROWSER.md) | The browser agents drive and people watch: tools, engine choice, site permissions, Take over, safety. |
+| [ACP agents](../../ACP.md) | Any Agent Client Protocol agent as a conversation: the adapter, the protocol mapping, files and terminals served by Lazybox, restarts, gaps. |
 | [Computer control](../../COMPUTER_CONTROL.md) | Design only: agents driving other Mac apps, its permissions, risks and smallest safe first step. |
 | [Power users](../../POWER.md) | CLI parity, `actions.yaml` actions and hooks, hook credentials, `lazybox open` / `shot`. |
 | [The `lazybox` CLI](../../services/runner/code/cmd/lazybox/README.md) | Every verb, its flags, exit codes and credentials. |

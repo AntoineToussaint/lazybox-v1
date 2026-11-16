@@ -144,6 +144,9 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 		}
 		return ev, err
 	}
+	if strings.HasPrefix(s.scope.Provider, "acp:") {
+		return ev, s.reportedUsage(ctx, actor, body)
+	}
 	if s.scope.Provider == "codex" {
 		usage := object(body["tokenUsage"])
 		last := object(usage["last"])

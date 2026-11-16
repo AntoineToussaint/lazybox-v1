@@ -31,7 +31,7 @@ try {
   await expect(denied.getByRole('button', { name: 'Retry connection' })).toBeVisible();
   await denied.close();
   await page.goto(url);
-  await expect(page.getByRole('combobox', { name: 'Agent', exact: true })).toHaveValue('claude');
+  await expect(page.getByRole('combobox', { name: 'Agent', exact: true })).toHaveText(/^Claude/);
   await expect(page.getByLabel('Account profile')).toHaveValue('claude-default');
   await page.screenshot({ path: '.cache/agent-window-setup.png', fullPage: true });
   let opens = 0;
@@ -137,7 +137,8 @@ try {
   await expect(page.getByRole('status')).toHaveText('Session ended');
   await page.getByRole('button', { name: 'New conversation', exact: true }).click();
   assert.equal(new URL(page.url()).searchParams.has('session'), false);
-  await page.getByRole('combobox', { name: 'Agent', exact: true }).selectOption('codex');
+  await page.getByRole('combobox', { name: 'Agent', exact: true }).click();
+  await page.getByRole('option', { name: /^Codex/ }).click();
   await page.getByLabel('Account profile').selectOption('codex-default');
   await page.getByLabel('Working directory').fill(directory);
   const opened = page.waitForResponse(response => response.url().endsWith('/OpenSession'));

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { agentTitle } from '../providers';
 import { ConnectError, DeviceRequestError, DeviceRevoked, indexedDBDeviceStore, openDeviceSession, pairDevice, parsePairingFragment, type DeviceSession, type DeviceStore, type PairingOffer, type StoredDevice } from '@lazybox/client-core';
 import type { Collection, Session } from '@lazybox/protocol';
 import { RunnerProvider, useRunner } from '../RunnerContext';
@@ -228,7 +229,7 @@ function PhoneConversation({ sessionId, commandId, device, collections, go }: { 
   const end = useRef<HTMLDivElement>(null);
   const count = transcript.messages.length + (session?.pending.length || 0);
   useEffect(() => { if (!commandId) end.current?.scrollIntoView({ block: 'end' }); }, [count, commandId]);
-  const agentName = (session?.provider || info?.profiles.find(p => p.id === session?.profileId)?.provider) === 'codex' ? 'Codex' : 'Claude';
+  const agentName = agentTitle(session?.provider || info?.profiles.find(p => p.id === session?.profileId)?.provider, info?.profiles);
   const respond = device.grants.includes('respond'), start = device.grants.includes('start');
   const workspace = collections.find(value => value.id === session?.collectionId)?.name || '';
   const status = useLiveStatus(session, transcript.recent);

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
 )
@@ -19,6 +20,9 @@ func (b *Bench) sharedInstructions(provider, purpose string) sharedInstructions 
 	s := sharedInstructions{settings: prefs.Context, provider: prefs.ClaudeContext}
 	if provider == "codex" {
 		s.provider = prefs.CodexContext
+	}
+	if accounts.ACPProvider(provider) {
+		s.provider = ""
 	}
 	if b.Config.CLIDir != "" && !agent.IsAssistant(purpose) {
 		s.briefing = b.briefing()

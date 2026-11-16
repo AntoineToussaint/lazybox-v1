@@ -25,6 +25,13 @@ service RunnerService {
   // welcome shows it. Programs are probed once and again on refresh;
   // subscription states are read on every call.
   rpc GetProviderAvailability(ProviderAvailabilityRequest) returns (ProviderAvailability);
+  // Owner only. Adds or changes an ACP agent the person runs (a custom one,
+  // or a built-in one's command), and answers with the availability report,
+  // probed again. Environment values stay on the Runner (ACP.md).
+  rpc SaveAcpAgent(SaveAcpAgentRequest) returns (ProviderAvailability);
+  // Owner only. Removes a custom ACP agent, or restores a built-in one's
+  // command. Running conversations keep their agent.
+  rpc RemoveAcpAgent(RemoveAcpAgentRequest) returns (ProviderAvailability);
   rpc GetTelemetry(TelemetryRequest) returns (TelemetryReport);
   rpc RenameCollection(RenameCollectionRequest) returns (CollectionResponse);
   rpc AddSubscription(AddSubscriptionRequest) returns (SubscriptionEnrollment);
@@ -509,9 +516,9 @@ message ProviderAvailability {
   int64 checked_at_unix_millis = 2;
 }
 message ProviderStatus {
-  // "claude" or "codex".
+  // "claude", "codex", or an ACP agent: "acp:<id>" (ACP.md).
   string provider = 1;
-  // The program as people know it: "Claude Code", "Codex".
+  // The program as people know it: "Claude Code", "Codex", "Gemini CLI".
   string title = 2;
   // ready (a subscription can take work), limited (every subscription is at a
   // limit), sign_in (none is signed in), billing, no_subscription,
@@ -529,6 +536,40 @@ message ProviderStatus {
   string install_command = 9;
   // This provider's saved subscriptions, the best to use first.
   repeated SubscriptionAvailability subscriptions = 10;
+  // Set for an ACP agent (provider "acp:<id>"); Claude and Codex have none.
+  AcpAgentInfo acp = 11;
+}
+// An ACP agent (Agent Client Protocol) as Settings → Agents shows it.
+message AcpAgentInfo {
+  string id = 1;
+  // The client's icon for it ("agent-gemini"); "agent" for a custom one.
+  string icon = 2;
+  // How the Runner starts it: a program on its PATH or an absolute path.
+  string command = 3;
+  repeated string args = 4;
+  // The names of the environment variables it is given. Their values never
+  // leave the Runner.
+  repeated string env_names = 5;
+  string homepage = 6;
+  // The person added it, or changed a built-in one's command.
+  bool custom = 7;
+}
+message AcpEnvVar {
+  string name = 1;
+  // Empty keeps the value saved before under this name.
+  string value = 2;
+}
+message SaveAcpAgentRequest {
+  // Lowercase letters, digits and dashes; empty makes one from the title. A
+  // built-in agent's id changes how that agent starts.
+  string id = 1;
+  string title = 2;
+  string command = 3;
+  repeated string args = 4;
+  repeated AcpEnvVar env = 5;
+}
+message RemoveAcpAgentRequest {
+  string id = 1;
 }
 message SubscriptionAvailability {
   string profile_id = 1;

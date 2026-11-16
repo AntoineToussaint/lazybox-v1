@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { agentTitle } from './providers';
 import { follow, type RunnerClient } from '@lazybox/client-core';
 import type { CommandStatus, JournalEvent, Session } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -22,7 +23,7 @@ const OUTPUT_PREFERENCE = 'chat.live-output';
 const outputHidden = (store?: ViewStateStore) => { try { return readPreference(store, OUTPUT_PREFERENCE) === 'hidden'; } catch { return false; } };
 
 const TAIL_BYTES = 32768;
-const agentLabel = (session?: Session) => session?.provider === 'codex' ? 'Codex' : session?.provider === 'claude' ? 'Claude' : 'the agent';
+const agentLabel = (session?: Session) => agentTitle(session?.provider, [], 'the agent');
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** The newest output of a Lazybox-managed command, as it streams. */

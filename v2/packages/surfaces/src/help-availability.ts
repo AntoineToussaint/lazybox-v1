@@ -124,7 +124,8 @@ export type ProviderNeed = {
 
 /** Each provider's state for the empty state and the welcome, in the Runner's order. */
 export function providerNeeds(report: ProviderAvailability | undefined, now = Date.now()): ProviderNeed[] {
-  return (report?.providers || []).map(p => {
+  // Ask Lazybox runs on Claude or Codex; ACP agents are not its to need.
+  return (report?.providers || []).filter(p => asProvider(p.provider)).map(p => {
     const base = { provider: p.provider, title: p.title || agentNames[p.provider] || p.provider, command: p.installCommand, ready: false };
     const version = p.version ? ` ${p.version}` : '';
     switch (p.state) {

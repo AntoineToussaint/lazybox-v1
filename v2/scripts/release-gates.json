@@ -17,6 +17,7 @@
     { "id": "empty-workspace", "scope": "ui", "script": "test:empty-workspace" },
     { "id": "telemetry", "scope": "ui", "script": "test:telemetry" },
     { "id": "agent-settings", "scope": "ui", "script": "test:agent-settings" },
+    { "id": "acp", "scope": "ui", "script": "test:acp" },
     { "id": "activity-review", "scope": "ui", "script": "test:activity-review" },
     { "id": "activity-presentation", "scope": "ui", "script": "test:activity-presentation" },
     { "id": "rich-activity", "scope": "ui", "script": "test:rich-activity" },

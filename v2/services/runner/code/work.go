@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -121,6 +122,8 @@ func configureRunnerAt(ctx context.Context, config *adapters.Configuration, addr
 			cfg.CLIDir = dir
 		}
 	}
+	// The ACP agents installed on this computer are offered (ACP.md).
+	cfg.ACPLookPath = exec.LookPath
 	if root := os.Getenv("LAZYBOX_V2_WORKTREE_ROOT"); root != "" {
 		cfg.WorktreeRoot = root
 	}

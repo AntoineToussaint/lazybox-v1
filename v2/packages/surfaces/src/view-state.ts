@@ -1,4 +1,5 @@
 import type { ViewStateStore } from '@lazybox/platform';
+import { isAcp } from './providers';
 
 export type FileReference = { name: string; size: number; lastModified: number };
 export type Draft = { text: string; files: FileReference[]; operationId: string };
@@ -61,7 +62,7 @@ export function readLaunchChoices(store?: ViewStateStore): Partial<LaunchChoices
   try {
     const raw = store.getItem(`${store.scope || store.key}:launch-choices`);
     const data = raw && raw.length < 4096 ? JSON.parse(raw) : {};
-    if (!data || !['claude', 'codex'].includes(data.provider)) return {};
+    if (!data || !(['claude', 'codex'].includes(data.provider) || isAcp(data.provider))) return {};
     return Object.fromEntries(['provider', 'profile', 'model', 'gateway'].filter(k => typeof data[k] === 'string' && data[k].length < 512).map(k => [k, data[k]]));
   } catch { return {}; }
 }

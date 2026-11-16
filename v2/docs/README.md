@@ -32,6 +32,7 @@ Task by task:
 | Track a goal across several conversations, with evidence | [Missions and evidence](guides/missions.md) |
 | Keep plans and reports as versioned pages | [Artifacts](guides/artifacts.md) |
 | Use several Claude or Codex accounts, and survive limits | [Subscriptions and limits](guides/subscriptions.md) |
+| Run Gemini CLI, Goose, OpenCode or any other ACP agent | [Gemini CLI, Goose and other agents](guides/other-agents.md) |
 | Answer my agents from my phone | [Pair your phone](guides/phone.md) |
 | Arrange panels, pages and windows | [Layouts and docking](guides/layouts.md) |
 | Switch to light, make my own theme, change fonts, zoom, notifications | [Appearance and notifications](guides/appearance.md) |

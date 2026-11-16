@@ -22,6 +22,7 @@ import (
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/acp"
 )
 
 // Providers the Runner runs, in the order every surface lists them.
@@ -66,10 +67,25 @@ type Subscription struct {
 // Usable reports whether a subscription can be picked without asking.
 func (s Subscription) Usable() bool { return s.State == "available" || s.State == "unverified" }
 
+// ACPAgent is what a report says of an ACP agent beyond its program: how
+// it is started (never its environment's values) and how it is shown.
+type ACPAgent struct {
+	ID       string
+	Icon     string
+	Command  string
+	Args     []string
+	Env      []string
+	Homepage string
+	// Custom: the person added it, or changed a built-in one's command.
+	Custom bool
+}
+
 // Provider is one provider's program and subscriptions, with their summary.
 type Provider struct {
 	Provider string
 	Title    string
+	// ACP is set for an ACP agent (adapters/acp), nil for Claude and Codex.
+	ACP *ACPAgent
 	// State: ready, limited, sign_in, billing, no_subscription, not_installed
 	// or unusable.
 	State          string
@@ -95,6 +111,12 @@ type Probe struct {
 	// ("" for the bundled build). A Claude Code found on the PATH only after
 	// the Runner started is reported as needing a restart.
 	ClaudeRunning string
+	// Agents lists the ACP agents the Runner can run (the built-ins and the
+	// person's own); nil reports none.
+	Agents func() []acp.Agent
+	// AgentProgram finds an ACP agent's executable ("" when missing); nil
+	// looks it up with LookPath.
+	AgentProgram func(acp.Agent) string
 	// LookPath finds a program on the Runner's PATH (exec.LookPath).
 	LookPath func(string) (string, error)
 	// Version runs `program --version` and returns its first line.
@@ -162,7 +184,7 @@ func (p Probe) ClaudeProgram() (path, source string) {
 	return "", ""
 }
 
-// Programs probes every provider's program, concurrently.
+// Programs probes every provider's program, ACP agents' too, concurrently.
 func (p Probe) Programs(ctx context.Context) map[string]Program {
 	result := map[string]Program{}
 	var mu sync.Mutex
@@ -177,8 +199,47 @@ func (p Probe) Programs(ctx context.Context) map[string]Program {
 			mu.Unlock()
 		}()
 	}
+	if p.Agents != nil {
+		for _, a := range p.Agents() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				program := p.agentProgram(ctx, a)
+				mu.Lock()
+				result[acp.Provider(a.ID)] = program
+				mu.Unlock()
+			}()
+		}
+	}
 	wg.Wait()
 	return result
+}
+
+// agentProgram finds an ACP agent's program and, for a built-in one, asks
+// its version. A custom command may be a launcher (npx, uvx) whose own
+// version would say nothing about the agent, so it is not asked.
+func (p Probe) agentProgram(ctx context.Context, a acp.Agent) Program {
+	path := a.Program(p.LookPath)
+	if p.AgentProgram != nil {
+		path = p.AgentProgram(a)
+	}
+	if path == "" {
+		if filepath.IsAbs(a.Command) {
+			return Program{Path: a.Command, Source: "configured", Error: a.Title + " is configured at " + a.Command + ", but nothing runs there."}
+		}
+		return Program{Error: a.Title + " is not installed on the Runner's computer (no " + a.Command + " on its PATH)."}
+	}
+	program := Program{Installed: true, Path: path, Source: "path"}
+	if a.Custom {
+		program.Source = "configured"
+		return program
+	}
+	if p.Version != nil {
+		if line, err := p.Version(ctx, path); err == nil {
+			program.Version = version(line)
+		}
+	}
+	return program
 }
 
 func (p Probe) program(ctx context.Context, provider string) Program {
@@ -314,8 +375,9 @@ func better(a, b Subscription) bool {
 }
 
 // Build combines programs and subscriptions into the report, summarizing
-// each provider in one state.
-func Build(programs map[string]Program, subscriptions map[string][]Subscription, checkedAt time.Time) Report {
+// each provider in one state. ACP agents follow Claude and Codex, in the
+// order agents lists them.
+func Build(programs map[string]Program, subscriptions map[string][]Subscription, checkedAt time.Time, agents ...acp.Agent) Report {
 	report := Report{CheckedAt: checkedAt}
 	for _, provider := range Providers {
 		program := programs[provider]
@@ -323,6 +385,20 @@ func Build(programs map[string]Program, subscriptions map[string][]Subscription,
 		p := Provider{Provider: provider, Title: Titles[provider], Program: program, Subscriptions: subs, State: summary(program, subs)}
 		if !program.Installed {
 			p.InstallCommand = InstallCommands[provider]
+		}
+		report.Providers = append(report.Providers, p)
+	}
+	for _, a := range agents {
+		provider := acp.Provider(a.ID)
+		program, probed := programs[provider]
+		if !probed {
+			// Added since the last probe: found now, versioned on the next one.
+			program = Probe{LookPath: exec.LookPath}.agentProgram(context.Background(), a)
+		}
+		subs := subscriptions[provider]
+		p := Provider{Provider: provider, Title: a.Title, Program: program, Subscriptions: subs, State: summary(program, subs), ACP: &ACPAgent{ID: a.ID, Icon: a.Icon, Command: a.Command, Args: append([]string(nil), a.Args...), Env: a.EnvNames(), Homepage: a.Homepage, Custom: a.Custom}}
+		if !program.Installed {
+			p.InstallCommand = a.Install
 		}
 		report.Providers = append(report.Providers, p)
 	}

@@ -18,6 +18,7 @@ import { SettingsHeader, useNow } from './settings-parts';
 import { Icon } from './Icons';
 import './settings.css';
 import { RepositoryBrowser } from './RepositoryBrowser';
+import { AcpAgentsSettings } from './AcpAgentsSettings';
 import { AgentSettings, PricingSettings, useRunnerSettings } from './RunnerSettings';
 import { RunnerSection } from './RunnerControl';
 import { OrchestrationProcessSettings } from './OrchestrationProcessSettings';
@@ -299,7 +300,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
     {panel('runner', <RunnerSection onShowProcesses={onShowProcesses}/>)}
     {panel('process', <OrchestrationProcessSettings/>)}
     {panel('about', <AboutSettings app={app}/>)}
-    {panel('agents', <AgentSettings/>)}
+    {panel('agents', <><AgentSettings/><AcpAgentsSettings/></>)}
     {panel('workspaces', <RuntimeSettings/>)}
     {panel('devices', <DevicesSettings/>)}
     {panel('pricing', <PricingSettings/>)}

@@ -71,7 +71,7 @@ func Open(path string) (*SQLite, error) {
 	return &SQLite{db: db, lock: lock}, nil
 }
 func validScope(s Scope) bool {
-	return s.Execution != "" && s.Conversation != "" && s.Profile != "" && (s.Provider == "claude" || s.Provider == "codex")
+	return s.Execution != "" && s.Conversation != "" && s.Profile != "" && (s.Provider == "claude" || s.Provider == "codex" || (strings.HasPrefix(s.Provider, "acp:") && len(s.Provider) > 4))
 }
 func validTokens(t Tokens) bool {
 	for _, v := range []*int64{t.Input, t.Output, t.CacheRead, t.CacheWrite5m, t.CacheWrite1h} {
@@ -93,7 +93,7 @@ func (s *SQLite) Put(ctx context.Context, r Record) error {
 		return err
 	}
 	// A late partial/duplicate stream cannot erase a committed terminal snapshot.
-	_, err = s.db.ExecContext(ctx, `INSERT INTO usage VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=json_set(excluded.body,'$.scope',json_extract(usage.body,'$.scope')) WHERE json_extract(usage.body,'$.status')!='complete' OR (json_extract(excluded.body,'$.source')='sdk' AND json_extract(excluded.body,'$.tokens.output')>json_extract(usage.body,'$.tokens.output'))`, r.ID, r.Scope.Workspace, r.Scope.Execution, string(data))
+	_, err = s.db.ExecContext(ctx, `INSERT INTO usage VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=json_set(excluded.body,'$.scope',json_extract(usage.body,'$.scope')) WHERE json_extract(usage.body,'$.status')!='complete' OR (json_extract(excluded.body,'$.source')='sdk' AND json_extract(excluded.body,'$.tokens.output')>json_extract(usage.body,'$.tokens.output')) OR json_extract(excluded.body,'$.source')='reported'`, r.ID, r.Scope.Workspace, r.Scope.Execution, string(data))
 	return err
 }
 

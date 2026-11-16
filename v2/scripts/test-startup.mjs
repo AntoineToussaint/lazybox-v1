@@ -23,6 +23,8 @@ try {
     if (method === 'GetRunnerSettings') return route.fulfill({ json: {} });
     // The window's command palette and attention read the workspace list: a read, never a provider start.
     if (method === 'ListCollections') return route.fulfill({ json: { collections: [] } });
+    // The agent picker reads which agents can run: a read too.
+    if (method === 'GetProviderAvailability') return route.fulfill({ json: { providers: [] } });
     assert.equal(method, 'OpenSession', `unexpected provider RPC: ${method}`);
     opens.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'unavailable', message: 'Fixture stops before provider startup' }) });
@@ -32,7 +34,9 @@ try {
   await expect(page.getByRole('combobox', { name: 'Permissions', exact: true })).toHaveValue('');
   await page.getByLabel('Working directory').fill('/fixture/collection');
   for (const provider of ['claude', 'codex']) {
-    await page.getByRole('combobox', { name: 'Agent', exact: true }).selectOption(provider);
+    // The agent picker is a select-only combobox (AgentPicker.tsx).
+    await page.getByRole('combobox', { name: 'Agent', exact: true }).click();
+    await page.getByRole('option', { name: provider === 'claude' ? /^Claude/ : /^Codex/ }).click();
     await expect(page.getByLabel('Account profile')).toHaveValue(`${provider}-default`);
     const before = opens.length;
     await page.getByRole('button', { name: `Start ${provider === 'claude' ? 'Claude' : 'Codex'} ↗` }).click();

@@ -30,6 +30,7 @@ import { usePromptRecall } from './usePromptRecall';
 import { useSessionRefresh, useSessionWorkspace } from './useSessionPolling';
 import { useFileDrop } from './useFileDrop';
 import { NewSessionForm, useSessionLauncher } from './NewSessionForm';
+import { agentTitle } from './providers';
 import { ChatHeader, ChatStatus, SessionHeader, SessionInspection, WindowTopbar, type HeaderStats } from './ChatHeader';
 import { TelemetryPanel } from './TelemetryPanel';
 import { ToolActivity } from './ToolActivity';
@@ -307,7 +308,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const live = useLiveStatus(session, events);
   const disconnected = stream.startsWith('Disconnected') || stream === 'Reconnecting';
   const activeProfile = info?.profiles.find(p => p.id === session?.profileId);
-  const agentName = (activeProfile?.provider || launcher.provider) === 'claude' ? 'Claude' : 'Codex';
+  const agentName = agentTitle(activeProfile?.provider || session?.provider || launcher.provider, info?.profiles);
   const currentCommand = command || commands.at(-1)?.id;
   // How much tool activity this conversation shows: the default, or its own.
   const activity = useConversationActivity(viewState, session?.conversationId || sessionID, mode === 'agent' && !!sessionID);
@@ -409,7 +410,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   });
 
   // Slash commands: the menu over the message box, and Lazybox's own commands (useSlashCommands.tsx).
-  const provider = (activeProfile?.provider || launcher.provider) === 'codex' ? 'codex' : 'claude';
+  const provider = activeProfile?.provider || session?.provider || launcher.provider;
   const slash = useSlashCommands({
     api, viewState, enabled: mode === 'agent' && !!sessionID, session, sessionID, agentName, provider, catalog: transcript.catalog,
     model: transcript.reportedModel || session?.model || '', conversation, shellBlock: !!codeRuns && !!lastShellBlock(), detail: activity.detail,

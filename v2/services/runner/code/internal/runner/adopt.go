@@ -26,7 +26,7 @@ import (
 // execution must build the identical stack.
 func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options accounts.Options, conversationID string) agent.Adapter {
 	id, collectionID, cwd := e.ID, e.CollectionID, e.Cwd
-	native := telemetry.Adapter{Native: b.Adapters[selected.Provider], Store: b.Telemetry, Prices: b.Prices, Gateway: b.Meter, Scope: telemetry.Scope{Workspace: collectionID, Conversation: conversationID, Execution: id, Provider: selected.Provider}}
+	native := telemetry.Adapter{Native: b.adapter(selected.Provider), Store: b.Telemetry, Prices: b.Prices, Gateway: b.Meter, Scope: telemetry.Scope{Workspace: collectionID, Conversation: conversationID, Execution: id, Provider: selected.Provider}}
 	return rotation.Adapter{Native: native, Profiles: b.Profiles(), Eligible: options.RotationProfiles, State: b.Accounts,
 		Resolve: func(p accounts.Profile, open agent.Open) (agent.Open, error) {
 			open.Isolated = p.Isolation == "environment"
@@ -180,7 +180,7 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 	if selected.ID == "" || selected.Provider != r.Provider {
 		return errors.New("original account profile is no longer configured")
 	}
-	if b.Adapters[selected.Provider] == nil {
+	if b.adapter(selected.Provider) == nil {
 		return errors.New("provider adapter unavailable")
 	}
 	options := r.Options

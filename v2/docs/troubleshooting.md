@@ -99,6 +99,22 @@ continues and the error clears. If instead the conversation says it **needs
 recovery**, Lazybox lost track of the agent's process; use **Resume** in the
 conversation before sending.
 
+## Gemini CLI (or another ACP agent) does not start
+
+**You see** *Gemini CLI needs you to sign in* when you start the
+conversation. **Run the agent once in your own terminal** (`gemini`, `goose
+configure`, …) and sign in the way it asks; the message names its ways. Then
+start the conversation again.
+
+**It is not in New conversation:** Settings → Agents & workspaces → Agent
+programs says whether the Runner found it. The Runner looks on its own PATH:
+an agent installed after the Runner started is found by **Check again**; one
+installed where the Runner's PATH does not reach (for example `~/.local/bin`)
+needs `lazybox service install` to refresh that PATH, or **Edit** with its
+absolute path. *speaks ACP version N* means the agent is newer or older than
+the protocol Lazybox speaks (version 1): update one of them. See
+[Gemini CLI, Goose and other agents](guides/other-agents.md).
+
 ## I interrupted a turn
 
 That is not an error. The turn ends as *interrupted*, the conversation is

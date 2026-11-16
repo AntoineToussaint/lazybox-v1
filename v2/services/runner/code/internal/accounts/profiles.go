@@ -101,9 +101,19 @@ func DefaultRotationPool(profiles []Profile, selected Profile, excluded []string
 	return pool
 }
 
+// ACPProvider reports whether provider names an ACP agent ("acp:<id>",
+// adapters/acp). An ACP agent runs on its own sign-in: its profile inherits
+// the Runner's environment and carries no credentials of its own.
+func ACPProvider(provider string) bool {
+	return strings.HasPrefix(provider, "acp:") && len(provider) > len("acp:")
+}
+
 func Resolve(p Profile, inherited []string) ([]string, error) {
-	if p.ID == "" || (p.Provider != "codex" && p.Provider != "claude") {
+	if p.ID == "" || (p.Provider != "codex" && p.Provider != "claude" && !ACPProvider(p.Provider)) {
 		return nil, errors.New("invalid profile identity/provider")
+	}
+	if ACPProvider(p.Provider) && (p.Isolation == "environment" || p.Home != "" || p.TokenFile != "" || len(p.EnvRefs) > 0) {
+		return nil, errors.New("an ACP agent runs on its own sign-in; its profile holds no credentials")
 	}
 	env := map[string]string{}
 	for _, entry := range inherited {

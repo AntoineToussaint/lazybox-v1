@@ -32,5 +32,5 @@ func (b *Bench) ProviderAvailability(ctx context.Context, refresh bool) (availab
 	}
 	programs, checked := b.Availability.Programs(ctx, refresh)
 	subscriptions := availability.Subscriptions(b.Profiles(), b.Accounts.Observation, os.Environ(), time.Now())
-	return availability.Build(programs, subscriptions, checked), nil
+	return availability.Build(programs, subscriptions, checked, b.ACPAgents()...), nil
 }

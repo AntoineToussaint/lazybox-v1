@@ -15,9 +15,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/acp"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/claude"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/codex"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/artifacts"
@@ -104,6 +106,11 @@ type Config struct {
 	DocsDirectory string `json:"docsDirectory,omitempty"`
 	CodexBinary   string `json:"codexBinary,omitempty"`
 	ClaudeBinary  string `json:"claudeBinary,omitempty"`
+	// ACPLookPath finds the built-in ACP agents (Gemini CLI, Goose…, ACP.md)
+	// on the Runner's PATH; the service sets exec.LookPath. Nil offers only
+	// the agents the person added, so what a test machine has installed
+	// never changes a test's providers.
+	ACPLookPath func(string) (string, error) `json:"-"`
 	// Node runs the Claude SDK worker. Empty is `node` on the Runner's PATH
 	// (Dev, Working); an installed release names the Node it ships
 	// (INSTALL.md), so a launchd service with a minimal PATH still finds one.
@@ -196,6 +203,8 @@ type Bench struct {
 	Availability *availability.Cache
 	// Adapters is an injection boundary for deterministic conformance tests.
 	Adapters map[string]agent.Adapter
+	// ACP lists the ACP agents the Runner runs (acp_agents.go).
+	ACP *acp.Registry
 	// agentKey derives each execution's scoped credential (agent_credentials.go).
 	agentKey []byte
 	// hosting starts every agent, command and terminal host (hosting.go).
@@ -369,7 +378,13 @@ func New(cfg Config) (*Bench, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, hosting: hosts, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: claudeProgram(cfg), Node: cfg.Node}}}
+	if b.ACP, err = openACP(cfg.State); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	b.profiles = b.withACP(b.profiles)
 	b.Availability = &availability.Cache{Probe: availability.DefaultProbe(cfg.Worker, cfg.Node, cfg.ClaudeBinary, cfg.CodexBinary, claudeProgram(cfg))}
+	b.Availability.Probe.Agents, b.Availability.Probe.AgentProgram = b.ACPAgents, b.acpProgram
 	// Shells a previous Runner left running are re-attached here, like commands.
 	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals, Backend: hosts}); err != nil {
 		_ = b.Detach()
@@ -895,6 +910,44 @@ func (b *Bench) RegisterPipe(e *Execution, title string) (*commands.Command, err
 	return b.Commands.Register(commands.Spec{SessionID: e.ID, Title: title, Cwd: e.Cwd})
 }
 
+// withCommandEnv is a command's environment with the variables an agent asked
+// to add. The conversation's own credential and endpoint stay as they are.
+func withCommandEnv(base, pinned, extra []string) ([]string, error) {
+	if pinned != nil {
+		base = pinned
+	}
+	if len(extra) > 64 {
+		return nil, errors.New("at most 64 added environment variables")
+	}
+	set := map[string]string{}
+	order := []string{}
+	for _, entry := range base {
+		k, v, _ := strings.Cut(entry, "=")
+		if _, seen := set[k]; !seen {
+			order = append(order, k)
+		}
+		set[k] = v
+	}
+	for _, entry := range extra {
+		k, v, ok := strings.Cut(entry, "=")
+		if !ok || k == "" || strings.ContainsAny(k, "\x00") || strings.ContainsRune(v, 0) {
+			return nil, errors.New("environment entries are NAME=value")
+		}
+		if strings.HasPrefix(k, "LAZYBOX_") {
+			return nil, fmt.Errorf("%s belongs to Lazybox and cannot be set by an agent", k)
+		}
+		if _, seen := set[k]; !seen {
+			order = append(order, k)
+		}
+		set[k] = v
+	}
+	out := make([]string, 0, len(order))
+	for _, k := range order {
+		out = append(out, k+"="+set[k])
+	}
+	return out, nil
+}
+
 func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args json.RawMessage, pinnedEnv []string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -912,6 +965,13 @@ func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args
 		Offset  uint64   `json:"offset"`
 		Name    string   `json:"name"`
 		Restart bool     `json:"restart"`
+		// A start's console title, folder (inside the workspace) and added
+		// environment: what an ACP agent's terminal/create asks for.
+		Title string   `json:"title"`
+		Cwd   string   `json:"cwd"`
+		Env   []string `json:"env"`
+		// Limit bounds a tail, in bytes.
+		Limit int `json:"limit"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", err
@@ -924,7 +984,18 @@ func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args
 		}
 		value = v
 	} else if p.Action == "start" {
-		c, err := b.start(e, "agent command", p.Argv, pinnedEnv, false, "")
+		title := p.Title
+		if title == "" || len(title) > 512 {
+			title = "agent command"
+		}
+		env := pinnedEnv
+		if len(p.Env) > 0 {
+			var err error
+			if env, err = withCommandEnv(e.Env, pinnedEnv, p.Env); err != nil {
+				return "", err
+			}
+		}
+		c, err := b.start(e, title, p.Argv, env, false, p.Cwd)
 		if err != nil {
 			return "", err
 		}
@@ -944,6 +1015,20 @@ func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args
 				return "", err
 			}
 			value = map[string]any{"output": string(data), "nextOffset": p.Offset + uint64(len(data)), "status": status}
+		case "tail":
+			// The latest output, at most limit bytes on a UTF-8 boundary, and
+			// whether earlier output was left out (ACP's terminal/output).
+			limit := p.Limit
+			if limit <= 0 || limit > 1<<20 {
+				limit = 1 << 20
+			}
+			data := c.Tail(ctx, limit+4)
+			status := c.Status()
+			truncated := status.Offset > uint64(len(data)) || len(data) > limit
+			for len(data) > limit || (len(data) > 0 && !utf8.RuneStart(data[0])) {
+				data = data[1:]
+			}
+			value = map[string]any{"output": string(data), "truncated": truncated, "status": status}
 		case "wait":
 			status, err := c.Wait(ctx)
 			if err != nil {
@@ -1133,6 +1218,6 @@ func (b *Bench) ReloadProfiles() error {
 		byID[p.ID] = p
 		next = append(next, p)
 	}
-	b.profiles = next
+	b.profiles = b.withACP(next)
 	return nil
 }

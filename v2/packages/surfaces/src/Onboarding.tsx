@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
+import { isAcp } from './providers';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { invokeAction, readKeymap } from './keyboard';
@@ -149,7 +150,7 @@ function AgentReadiness() {
   const { report } = useProviderAvailability();
   if (!report) return null;
   return <ul className="onboarding-agents" aria-label="Agents on this computer">
-    {report.providers.map(p => <li key={p.provider} className={p.state === 'ready' ? 'ready' : 'missing'}>
+    {report.providers.filter(p => !isAcp(p.provider) || p.installed).map(p => <li key={p.provider} className={p.state === 'ready' ? 'ready' : 'missing'}>
       <Icon name={p.state === 'ready' ? 'check' : p.installed ? 'alert' : 'skip'} size={12}/><span>{providerLine(p)}</span>
     </li>)}
   </ul>;

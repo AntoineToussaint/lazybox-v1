@@ -31,6 +31,8 @@ const (
 	RunnerService_CreateTheme_FullMethodName                  = "/lazybox.bench.v1.RunnerService/CreateTheme"
 	RunnerService_Info_FullMethodName                         = "/lazybox.bench.v1.RunnerService/Info"
 	RunnerService_GetProviderAvailability_FullMethodName      = "/lazybox.bench.v1.RunnerService/GetProviderAvailability"
+	RunnerService_SaveAcpAgent_FullMethodName                 = "/lazybox.bench.v1.RunnerService/SaveAcpAgent"
+	RunnerService_RemoveAcpAgent_FullMethodName               = "/lazybox.bench.v1.RunnerService/RemoveAcpAgent"
 	RunnerService_GetTelemetry_FullMethodName                 = "/lazybox.bench.v1.RunnerService/GetTelemetry"
 	RunnerService_RenameCollection_FullMethodName             = "/lazybox.bench.v1.RunnerService/RenameCollection"
 	RunnerService_AddSubscription_FullMethodName              = "/lazybox.bench.v1.RunnerService/AddSubscription"
@@ -209,6 +211,13 @@ type RunnerServiceClient interface {
 	// welcome shows it. Programs are probed once and again on refresh;
 	// subscription states are read on every call.
 	GetProviderAvailability(ctx context.Context, in *ProviderAvailabilityRequest, opts ...grpc.CallOption) (*ProviderAvailability, error)
+	// Owner only. Adds or changes an ACP agent the person runs (a custom one,
+	// or a built-in one's command), and answers with the availability report,
+	// probed again. Environment values stay on the Runner (ACP.md).
+	SaveAcpAgent(ctx context.Context, in *SaveAcpAgentRequest, opts ...grpc.CallOption) (*ProviderAvailability, error)
+	// Owner only. Removes a custom ACP agent, or restores a built-in one's
+	// command. Running conversations keep their agent.
+	RemoveAcpAgent(ctx context.Context, in *RemoveAcpAgentRequest, opts ...grpc.CallOption) (*ProviderAvailability, error)
 	GetTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (*TelemetryReport, error)
 	RenameCollection(ctx context.Context, in *RenameCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	AddSubscription(ctx context.Context, in *AddSubscriptionRequest, opts ...grpc.CallOption) (*SubscriptionEnrollment, error)
@@ -643,6 +652,26 @@ func (c *runnerServiceClient) GetProviderAvailability(ctx context.Context, in *P
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProviderAvailability)
 	err := c.cc.Invoke(ctx, RunnerService_GetProviderAvailability_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SaveAcpAgent(ctx context.Context, in *SaveAcpAgentRequest, opts ...grpc.CallOption) (*ProviderAvailability, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProviderAvailability)
+	err := c.cc.Invoke(ctx, RunnerService_SaveAcpAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RemoveAcpAgent(ctx context.Context, in *RemoveAcpAgentRequest, opts ...grpc.CallOption) (*ProviderAvailability, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProviderAvailability)
+	err := c.cc.Invoke(ctx, RunnerService_RemoveAcpAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2229,6 +2258,13 @@ type RunnerServiceServer interface {
 	// welcome shows it. Programs are probed once and again on refresh;
 	// subscription states are read on every call.
 	GetProviderAvailability(context.Context, *ProviderAvailabilityRequest) (*ProviderAvailability, error)
+	// Owner only. Adds or changes an ACP agent the person runs (a custom one,
+	// or a built-in one's command), and answers with the availability report,
+	// probed again. Environment values stay on the Runner (ACP.md).
+	SaveAcpAgent(context.Context, *SaveAcpAgentRequest) (*ProviderAvailability, error)
+	// Owner only. Removes a custom ACP agent, or restores a built-in one's
+	// command. Running conversations keep their agent.
+	RemoveAcpAgent(context.Context, *RemoveAcpAgentRequest) (*ProviderAvailability, error)
 	GetTelemetry(context.Context, *TelemetryRequest) (*TelemetryReport, error)
 	RenameCollection(context.Context, *RenameCollectionRequest) (*CollectionResponse, error)
 	AddSubscription(context.Context, *AddSubscriptionRequest) (*SubscriptionEnrollment, error)
@@ -2582,6 +2618,12 @@ func (UnimplementedRunnerServiceServer) Info(context.Context, *InfoRequest) (*In
 }
 func (UnimplementedRunnerServiceServer) GetProviderAvailability(context.Context, *ProviderAvailabilityRequest) (*ProviderAvailability, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProviderAvailability not implemented")
+}
+func (UnimplementedRunnerServiceServer) SaveAcpAgent(context.Context, *SaveAcpAgentRequest) (*ProviderAvailability, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveAcpAgent not implemented")
+}
+func (UnimplementedRunnerServiceServer) RemoveAcpAgent(context.Context, *RemoveAcpAgentRequest) (*ProviderAvailability, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveAcpAgent not implemented")
 }
 func (UnimplementedRunnerServiceServer) GetTelemetry(context.Context, *TelemetryRequest) (*TelemetryReport, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTelemetry not implemented")
@@ -3244,6 +3286,42 @@ func _RunnerService_GetProviderAvailability_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).GetProviderAvailability(ctx, req.(*ProviderAvailabilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SaveAcpAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveAcpAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SaveAcpAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SaveAcpAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SaveAcpAgent(ctx, req.(*SaveAcpAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RemoveAcpAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveAcpAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RemoveAcpAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RemoveAcpAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RemoveAcpAgent(ctx, req.(*RemoveAcpAgentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -5977,6 +6055,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProviderAvailability",
 			Handler:    _RunnerService_GetProviderAvailability_Handler,
+		},
+		{
+			MethodName: "SaveAcpAgent",
+			Handler:    _RunnerService_SaveAcpAgent_Handler,
+		},
+		{
+			MethodName: "RemoveAcpAgent",
+			Handler:    _RunnerService_RemoveAcpAgent_Handler,
 		},
 		{
 			MethodName: "GetTelemetry",

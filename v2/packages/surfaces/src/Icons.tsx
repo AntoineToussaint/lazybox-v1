@@ -100,6 +100,19 @@ const paths: Record<string, string[]> = {
   mic: ['M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z', 'M5.5 11a6.5 6.5 0 0 0 13 0', 'M12 17.5V21', 'M9 21h6'],
   speaker: ['M4 9h4l5-4v14l-5-4H4z', 'M16.5 9a4 4 0 0 1 0 6', 'M19 6.5a7.5 7.5 0 0 1 0 11'],
   cloud: ['M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.5 4.25 4.25 0 0 0 7 18z'],
+  // Agents (providers.ts): plain signifiers, not brand marks. `agent` is any ACP agent.
+  agent: ['M6 8h12v11H6z', 'M12 4v4', 'M12 3.5h.01', 'M9.5 12.5h.01', 'M14.5 12.5h.01', 'M10 16h4', 'M3 12v3', 'M21 12v3'],
+  'agent-claude': ['M12 3v18', 'M3 12h18', 'm5.6 5.6 12.8 12.8', 'm18.4 5.6-12.8 12.8'],
+  'agent-codex': ['m12 3 8 4.5v9L12 21l-8-4.5v-9z', 'M12 12l8-4.5', 'M12 12v9', 'M12 12 4 7.5'],
+  'agent-gemini': ['M12 3c.6 4.8 4.2 8.4 9 9-4.8.6-8.4 4.2-9 9-.6-4.8-4.2-8.4-9-9 4.8-.6 8.4-4.2 9-9z'],
+  'agent-goose': ['M8 20c0-4 1.5-6.5 4.5-7.5V7a3 3 0 0 1 6 0', 'M18.5 7H21', 'M5 20h12', 'M16 7h.01'],
+  'agent-opencode': ['M8 4H5v16h3', 'M16 4h3v16h-3', 'm10 15 4-6'],
+  'agent-qwen': ['M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'm14.5 14.5 5 5'],
+  'agent-copilot': ['M8 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M16 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M12 12.5v.01', 'M4 13H2', 'M22 13h-2'],
+  'agent-cursor': ['m5 3 14 7-6 1.8L10.5 19z'],
+  'agent-kiro': ['M6 20V10a6 6 0 0 1 12 0v10l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5z', 'M10 10h.01', 'M14 10h.01'],
+  'agent-cline': ['M4 5h16v11H9l-5 4z', 'm8 9 2 2-2 2', 'M12 13h4'],
+  'agent-auggie': ['M4 18 12 4l8 14', 'M7.5 12h9'],
 };
 /** The same icon as plain DOM, for UI built outside React (dock tabs). */
 export function iconElement(name: string, size = 16, owner: Document = document): SVGSVGElement {

@@ -1,4 +1,5 @@
 import type { Collection, InfoResponse } from '@lazybox/protocol';
+import { agentTitle, isAcp } from './providers';
 import { conversationName, mergeConversations } from './conversation-model';
 import { Icon } from './Icons';
 import type { ViewTarget } from './workspace-model';
@@ -15,8 +16,9 @@ export function WorkspaceSwitcher({ selection, workspaceID, collections, info, l
   onShowRepositories(workspace?: Collection): void;
 }) {
   const workspace = collections.find(value => value.id === workspaceID);
-  const providerName = (profileId: string) => info?.profiles.find(profile => profile.id === profileId)?.provider === 'codex' ? 'Codex' : 'Claude';
-  const profileLabel = (profileId: string) => info?.profiles.find(profile => profile.id === profileId)?.label;
+  const providerName = (profileId: string) => agentTitle(info?.profiles.find(profile => profile.id === profileId)?.provider, info?.profiles, 'Claude');
+  // An ACP agent's profile is the agent itself: its label would only repeat its name.
+  const profileLabel = (profileId: string) => { const profile = info?.profiles.find(p => p.id === profileId); return profile && !isAcp(profile.provider) ? profile.label : undefined; };
   return <div className="workspace-context">
     <div className="collection-breadcrumb">
       <Icon name="folder" size={17}/>

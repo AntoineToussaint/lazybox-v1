@@ -43,7 +43,8 @@ type Options = {
   session?: Session;
   sessionID: string;
   agentName: string;
-  provider: 'claude' | 'codex';
+  /** "claude", "codex" or an ACP agent (providers.ts). */
+  provider: string;
   catalog: CommandCatalog;
   /** The model the conversation runs on now, as best known. */
   model: string;
@@ -103,7 +104,7 @@ export function useSlashCommands(o: Options) {
   const live = !!session && !session.closed;
   const lastAgentMessage = useMemo(() => [...o.conversation].reverse().find(trackable), [o.conversation]);
   const context: SlashContext = {
-    provider, live, busy: !!session?.busy, coding: !!session && (!session.purpose || session.purpose === 'coding'), workspace: !!workspaceId,
+    provider, agentName: o.agentName, live, busy: !!session?.busy, coding: !!session && (!session.purpose || session.purpose === 'coding'), workspace: !!workspaceId,
     permission: session?.permission || '', planWorkflow: session?.workflow === 'plan', livePermission: !!session?.capabilities?.livePermission,
     model: o.model, liveModel: !!session?.capabilities?.liveModel, resumable: !!session?.capabilities?.resume, models: catalog.models,
     agentMessage: !!lastAgentMessage, shellBlock: o.shellBlock, compact: provider === 'claude', detail: o.detail, subscriptions: o.subscriptions,

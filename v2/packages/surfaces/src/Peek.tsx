@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { agentTitle } from './providers';
 import { ConnectError } from '@lazybox/client-core';
 import type { Artifact, HostedProcess, Session, WorkspaceFile } from '@lazybox/protocol';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
@@ -271,7 +272,7 @@ function ConversationPeek({ sessionId, onResolved, onTitle }: { sessionId: strin
   const scroller = useRef<HTMLDivElement>(null), stuck = useRef(true);
   useEffect(() => { onResolved({ workspaceId: session?.collectionId, sessionId }); onTitle(session ? conversationName(session) : ''); }, [session?.collectionId, session?.title]);
   useLayoutEffect(() => { const node = scroller.current; if (node && stuck.current) node.scrollTop = node.scrollHeight; }, [transcript.messages.length, transcript.messages.at(-1)?.text]);
-  const agentName = session?.provider === 'codex' ? 'Codex' : 'Claude';
+  const agentName = agentTitle(session?.provider, info?.profiles, 'Claude');
   return <div className="peek-conversation">
     <div className="peek-meta">
       {session && <LiveStatusLabel session={session}/>}

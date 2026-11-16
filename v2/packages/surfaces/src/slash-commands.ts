@@ -1,4 +1,5 @@
 import { fuzzyMatch } from './fuzzy';
+import { agentTitle, isAcp } from './providers';
 
 /**
  * Slash commands in the message box: `/` at the very start of the box opens a
@@ -222,7 +223,10 @@ export const DETAIL_CHOICES: SlashChoice[] = [
 
 /** What Lazybox's commands need to know about the conversation in front. */
 export type SlashContext = {
-  provider: 'claude' | 'codex';
+  /** "claude", "codex" or an ACP agent ("acp:gemini", providers.ts). */
+  provider: string;
+  /** The agent's name: "Claude", "Gemini CLI". */
+  agentName?: string;
   /** There is a live conversation (not saved, not still connecting). */
   live: boolean;
   busy: boolean;
@@ -255,7 +259,7 @@ const unless = (...reasons: (string | false | undefined)[]) => reasons.find(Bool
 /** Lazybox's own commands, each with why it cannot run now (when it cannot). */
 export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
   const notLive = !ctx.live && 'The conversation is not running';
-  const agentName = ctx.provider === 'claude' ? 'Claude' : 'Codex';
+  const agentName = ctx.agentName || agentTitle(ctx.provider);
   const restart = (live: boolean) => live ? '' : ctx.resumable ? ' (restarts the agent; the conversation continues)' : '';
   const models: SlashChoice[] = ctx.models.map(model => ({ value: model.value, label: model.displayName, detail: [model.value !== model.displayName ? model.value : '', model.description].filter(Boolean).join(' · '), current: sameModel(model, ctx.model), keywords: model.value }));
   if (ctx.model && !models.some(choice => choice.current)) models.unshift({ value: ctx.model, label: ctx.model, detail: 'Current model', current: true });
@@ -264,7 +268,7 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
     { key: 'lazybox:model', name: 'model', group: 'lazybox', icon: 'sparkle', argumentHint: '<name>', description: ctx.liveModel ? `Switch ${agentName}'s model` : `Switch ${agentName}'s model${restart(false)}`, choices: models, freeArgument: true, disabled: unless(notLive), keywords: 'opus sonnet haiku gpt' },
     { key: 'lazybox:permissions', name: 'permissions', group: 'lazybox', icon: 'shield', argumentHint: 'ask|read-only|yolo', aliases: ['permission', 'yolo'], description: 'Ask, Read only or YOLO', choices: permissions, disabled: unless(notLive, !ctx.coding && 'Assistants are read-only') },
     { key: 'lazybox:subscription', name: 'subscription', group: 'lazybox', icon: 'card', description: 'Switch subscription…', aliases: ['account'], disabled: unless(notLive), keywords: 'account login profile limit' },
-    { key: 'lazybox:compact', name: 'compact', group: 'lazybox', icon: 'collapse', description: 'Compact the context: summarize the conversation so far', disabled: unless(notLive, ctx.busy && 'Wait for the turn to finish', !ctx.compact && (ctx.provider === 'codex' ? 'Codex compacts its context on its own' : 'Not available until the agent reports its commands')), keywords: 'summarize context shrink tokens' },
+    { key: 'lazybox:compact', name: 'compact', group: 'lazybox', icon: 'collapse', description: 'Compact the context: summarize the conversation so far', disabled: unless(notLive, ctx.busy && 'Wait for the turn to finish', !ctx.compact && (ctx.provider === 'codex' ? 'Codex compacts its context on its own' : isAcp(ctx.provider) ? `${agentName} has no /compact; see its own commands` : 'Not available until the agent reports its commands')), keywords: 'summarize context shrink tokens' },
     { key: 'lazybox:clear', name: 'clear', group: 'lazybox', icon: 'plus', description: 'New conversation in this workspace (this one is kept)', aliases: ['new'], disabled: unless(!ctx.workspace && 'Only in a workspace'), keywords: 'reset fresh start' },
     { key: 'lazybox:cost', name: 'cost', group: 'lazybox', icon: 'activity', description: 'Token cost of this conversation', aliases: ['usage'], keywords: 'tokens price money spend' },
     { key: 'lazybox:context', name: 'context', group: 'lazybox', icon: 'activity', description: 'How full the context window is', keywords: 'tokens window memory' },

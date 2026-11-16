@@ -54,7 +54,8 @@ time. [Agent browser →](docs/guides/agent-browser.md)
 new build: agents and the commands they started keep running, and Lazybox picks
 them up where they were.
 
-**And:** several subscriptions with automatic switching at a limit
+**And:** Gemini CLI, Goose, OpenCode and any other ACP agent as first-class
+conversations ([guide](docs/guides/other-agents.md)) · several subscriptions with automatic switching at a limit
 ([guide](docs/guides/subscriptions.md)) · versioned plans and reports as
 [artifacts](docs/guides/artifacts.md) · your phone as a remote, paired by QR
 code over Tailscale *(preview)* ([guide](docs/guides/phone.md)) · light, dark and your own

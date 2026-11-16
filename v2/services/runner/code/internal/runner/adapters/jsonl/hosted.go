@@ -55,11 +55,16 @@ func (h *Host) Abandon() {
 // stops the agent: only an explicit Detach (or the Runner dying outright)
 // leaves it running for a later Runner.
 func (h *Host) Start(ctx context.Context, binary string, args, env []string, cwd string) (*Process, error) {
+	return h.StartWith(ctx, binary, args, env, cwd, Options{})
+}
+
+// StartWith is Start speaking the dialect opts describes.
+func (h *Host) StartWith(ctx context.Context, binary string, args, env []string, cwd string, opts Options) (*Process, error) {
 	if err := h.client.Spawn(ctx, sessionhost.Spec{Path: binary, Args: args, Env: env, Cwd: cwd}); err != nil {
 		h.Abandon()
 		return nil, err
 	}
-	return hosted(ctx, h.backend, h.root, h.client, 0), nil
+	return hosted(ctx, h.backend, h.root, h.client, 0, opts), nil
 }
 
 // Attach re-connects to a host started by an earlier Runner. ack is the highest
@@ -71,6 +76,12 @@ func Attach(ctx context.Context, root, id string, ack uint64) (*Process, error) 
 // AttachOn is Attach through backend (the default when nil). Any backend
 // re-attaches a host any other one started.
 func AttachOn(ctx context.Context, backend sessionhost.Backend, root, id string, ack uint64) (*Process, error) {
+	return AttachWith(ctx, backend, root, id, ack, Options{})
+}
+
+// AttachWith is AttachOn speaking the dialect opts describes; a host is
+// re-attached with the options it was started with.
+func AttachWith(ctx context.Context, backend sessionhost.Backend, root, id string, ack uint64, opts Options) (*Process, error) {
 	backend = sessionhost.Use(backend)
 	c, err := backend.Attach(ctx, root, id, ack)
 	if err != nil {
@@ -80,7 +91,7 @@ func AttachOn(ctx context.Context, backend sessionhost.Backend, root, id string,
 		_ = c.Detach()
 		return nil, errors.New("session host never started its agent")
 	}
-	p := hosted(ctx, backend, root, c, ack)
+	p := hosted(ctx, backend, root, c, ack, opts)
 	// The previous Runner's calls may still be answered on this host. Start
 	// this Runner's request IDs elsewhere, so a late reply to one of them is
 	// never taken for the answer to a new call.
@@ -92,8 +103,8 @@ func AttachOn(ctx context.Context, backend sessionhost.Backend, root, id string,
 
 // hosted wraps a host connection. ack is the cursor already recorded, set
 // before the reader starts.
-func hosted(ctx context.Context, backend sessionhost.Backend, root string, c *sessionhost.Client, ack uint64) *Process {
-	p := &Process{host: c, hostBackend: backend, hostRoot: root, commit: ack, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: &redact.Tail{}}
+func hosted(ctx context.Context, backend sessionhost.Backend, root string, c *sessionhost.Client, ack uint64, opts Options) *Process {
+	p := &Process{opts: opts, host: c, hostBackend: backend, hostRoot: root, commit: ack, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: &redact.Tail{}}
 	go p.readHosted()
 	go func() {
 		select {
@@ -166,9 +177,12 @@ func (p *Process) readHosted() {
 				case ch <- msg:
 				default:
 				}
+				// A reply has no event; it is recorded once the next event commits.
+				continue
 			}
-			// A reply has no event; it is recorded once the next event commits.
-			continue
+			if !p.opts.Unmatched {
+				continue
+			}
 		}
 		p.commitMu.Lock()
 		p.delivered = m.Seq

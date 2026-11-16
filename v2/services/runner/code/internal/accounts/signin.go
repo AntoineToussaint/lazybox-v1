@@ -44,6 +44,10 @@ func CheckSignIn(p Profile, inherited []string) (SignIn, string) {
 	if p.Provider == "codex" {
 		return codexSignIn(env)
 	}
+	if ACPProvider(p.Provider) {
+		// Each agent keeps its sign-in its own way; the first turn tells.
+		return SignInUnknown, "Signs in with its own account"
+	}
 	return claudeSignIn(env)
 }
 

@@ -1,4 +1,5 @@
 import type { Collection, Session, Profile } from '@lazybox/protocol';
+import { agentTitle, isAcp } from './providers';
 
 /**
  * The conversation's own title, or '' while it has none. The Runner starts a
@@ -98,6 +99,8 @@ export function sessionModelLabel(session?:Session,reportedModel=''):string {
  return '';
 }
 export function sessionAccountLabel(session?:Session,profile?:Profile):string {
+ // An ACP agent signs in on its own: Lazybox has no account to name.
+ if(isAcp(profile?.provider||session?.provider))return '';
  if(profile?.label&&profile.id!=='claude-default'&&profile.id!=='codex-default')return profile.label;
  if(profile?.isolation==='inherited'||session?.profileId==='claude-default'||session?.profileId==='codex-default')return 'Account not reported';
  return session?.profileId?'Saved account':'Loading account…';
@@ -105,6 +108,6 @@ export function sessionAccountLabel(session?:Session,profile?:Profile):string {
 export function conversationDetails(session:Session,profiles:readonly Profile[],includeAccount=true):string {
  const profile=profiles.find(value=>value.id===session.profileId);
  const provider=session.provider||profile?.provider||'';
- const agent=provider==='claude'?'Claude':provider==='codex'?'Codex':provider||'Agent';
- return [agent,sessionModelLabel(session),includeAccount?sessionAccountLabel(session,profile):''].filter(Boolean).join(' · ');
+ const agent=agentTitle(provider,profiles);
+ return [agent,sessionModelLabel(session),includeAccount&&!isAcp(provider)?sessionAccountLabel(session,profile):''].filter(Boolean).join(' · ');
 }

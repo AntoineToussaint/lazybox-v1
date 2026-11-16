@@ -3,6 +3,7 @@ import type { RunnerClient } from '@lazybox/client-core';
 import type { InfoResponse } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { accountLabel } from './agent-status';
+import { AgentPicker } from './AgentPicker';
 import { useRunnerSettings } from './RunnerSettings';
 import { readLaunchChoices, writeLaunchChoices } from './view-state';
 
@@ -102,10 +103,7 @@ export function NewSessionForm({ launcher, info, purpose, emptyWorkspace, collec
     <p>{assistant ? `${purposeLabel(purpose)}. This conversation runs on the Runner.` : emptyWorkspace ? 'Start a conversation with room to create files. No repository needed.' : 'Connect to your project and start working.'}</p>
     <form onSubmit={open} className="open-form">
       <div className="setup-row">
-        <label>Agent<select value={provider} disabled={!info || opening} onChange={e => { setProvider(e.target.value); setProfile(''); setModel(''); setGateway(''); }}>
-          <option value="claude">Claude</option>
-          <option value="codex">Codex</option>
-        </select></label>
+        <AgentPicker value={provider} disabled={!info || opening} onChange={next => { setProvider(next); setProfile(''); setModel(''); setGateway(''); }}/>
         <label>Account profile<select value={selectedProfile} disabled={!profiles.length || opening} onChange={e => setProfile(e.target.value)}>
           {profiles.map(p => <option key={p.id} value={p.id}>{p.label || p.id}{p.availability && p.availability.state !== 'available' && p.availability.state !== 'unknown' ? ` · ${accountLabel(p.availability.state)}` : ''}</option>)}
         </select></label>
