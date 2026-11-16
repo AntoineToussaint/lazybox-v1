@@ -140,5 +140,7 @@ export function liveStatus(session: Session | undefined, now: number, events?: r
 }
 
 function timed(text: string, at: number | undefined, now: number): LiveStatus {
-  return at && now >= at ? { tone: 'busy', label: text, text: `${text} · ${elapsedLabel(now - at)}`, since: at } : { tone: 'busy', label: text, text: `${text}…` };
+  // A step that started after the shared clock's last tick is still a timed step ("0s"): whether a status
+  // is timed must not depend on the instant it is read at, or the ticker that reads it turns itself off and on.
+  return at ? { tone: 'busy', label: text, text: `${text} · ${elapsedLabel(Math.max(0, now - at))}`, since: at } : { tone: 'busy', label: text, text: `${text}…` };
 }

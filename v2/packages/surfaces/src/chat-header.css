@@ -83,6 +83,14 @@
 
 /* The meta line never clips a control: the failure notice is a small chip that can shrink. */
 .chat-heading-meta .subagent-attention{flex:0 1 auto;min-width:0;height:18px;margin-left:2px}
+/* Nothing in this line moves because a clock ticked. The status ("Running a command · 1m 2s") lives in a
+   slot whose width comes from the line, never from its own text: it truncates inside the slot and its
+   neighbours stay put. When the line is short of room the branch, model and account give way first, then
+   the status slot; the "2 failed" chip is never clipped, and sits before the status so it cannot be pushed out. */
+.chat-heading-meta .chat-status[data-tone=busy],.chat-heading-meta .chat-status[data-tone=waiting]{flex:0 1 auto;width:clamp(14ch,42%,30ch);min-width:9ch;box-sizing:border-box}
+.chat-heading-meta .chat-status{order:2}
+.chat-heading-meta .subagent-attention{order:1;flex:none}
+.chat-heading-meta .chat-model,.chat-heading-meta .chat-account{flex-shrink:4;min-width:3ch}
 .chat-heading-meta .subagent-attention::before{content:none}
 .chat-heading-meta .subagent-attention button{min-height:0!important;height:18px;line-height:calc(16px * var(--text-scale));font-size:calc(11px * var(--text-scale))!important}
 .chat-heading-meta .subagent-attention-show{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
