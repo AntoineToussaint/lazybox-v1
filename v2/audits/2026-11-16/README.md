@@ -87,7 +87,11 @@ docs, Cursor/Copilot/Devin changelogs, herdr.dev).
 
 The interface itself — agents list, panes, palette, terminal, theming —
 against herdr's desktop and phone apps, with a prioritized list of UI
-changes: [herdr-gui.md](herdr-gui.md).
+changes: [herdr-gui.md](herdr-gui.md). Its evening re-audit scores every
+row again (21 Lazybox, 11 herdr, 12 tie) and gives a fix brief for each row
+Lazybox does not win. The state of the art in agent coordination, with a
+coordination design for Lazybox (orchestrator grant, leases, messages,
+budgets, merge train), is in [sota-agents.md](sota-agents.md).
 
 Market notes that matter for strategy: Conductor was acquired by Meta on
 Nov 4 and partly reversed course on Nov 13; Vibe Kanban, Crystal and Terragon
