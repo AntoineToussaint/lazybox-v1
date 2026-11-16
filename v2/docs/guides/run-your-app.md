@@ -1,0 +1,132 @@
+# Run your app
+
+Every workspace can run its own copy of your app — its own dev server, on its
+own ports — and show it beside the chat. Two workspaces of the same app run side
+by side without fighting over port 3000.
+
+- [Describe your app once: `.lazybox/workspace.yaml`](#describe-your-app-once-lazyboxworkspaceyaml)
+- [Approve the scripts](#approve-the-scripts)
+- [Run, Actions and Preview](#run-actions-and-preview)
+- [Ports](#ports)
+- [Browse beside your work: the Web panel](#browse-beside-your-work-the-web-panel)
+- [Send your terminal's output to Lazybox](#send-your-terminals-output-to-lazybox)
+
+## Describe your app once: `.lazybox/workspace.yaml`
+
+Commit this file to a repository, and every new workspace of it knows what to
+copy, what to install and what to run:
+
+```yaml
+# yaml-language-server: $schema=<path to workspace.schema.json>
+setup: |                        # once per new workspace, after files are copied
+  npm ci
+files:                          # copied from your checkout, never overwriting
+  - .env
+actions:
+  web:
+    run: npm run dev -- --port $LAZYBOX_PORT
+    url: http://localhost:$LAZYBOX_PORT
+    default: true               # what Run starts
+  test: npm test                # a plain string is just the command
+archive:                        # before the workspace is deleted
+  run: docker compose down -v
+```
+
+Every field, limit and variable is in the
+[configuration reference](../reference/configuration.md#lazyboxworkspaceyaml-setup-and-actions).
+Don't want to commit it? Settings → Workspaces takes the same YAML per
+repository, just for you.
+
+## Approve the scripts
+
+A committed script runs code on your machine as you, so **nothing from the file
+runs until you approve it** — not setup, not an action, not its environment
+variables. When a repository's scripts are new or changed, **Review scripts**
+appears: the file, with what changed since you last approved it marked, and
+**Approve and run setup**, **Approve** or **Not now**. An approval covers that
+exact version; any change asks again. Agents cannot approve scripts.
+
+## Run, Actions and Preview
+
+![The Run menu and the Actions panel with a running dev server](../images/workspace-runtime.webp)
+
+- **Run** in the workspace header starts the default action. Its menu (▾) lists
+  every action with its state and port; a running one shows a live dot, how long
+  it has run, and **Stop**. While setup runs, the button says so — click it for
+  the log.
+- **Actions** (from Run's menu, or Page actions ⋯ → Show panel) lists each
+  repository's setup and actions: state, port, address, the last output line,
+  **Start / Restart / Stop**, **Log**, and **Preview**.
+- **Preview** shows what an action serves inside the page, with an address bar,
+  back and forward, reload, zoom and **Open in browser**.
+- **Stop** asks the whole process tree to quit, then forces it after 5 seconds.
+- Actions keep running when you close the window or restart the Runner.
+- An action marked `concurrent: false` runs in one workspace at a time: starting
+  it stops the same action elsewhere, and the menu tells you where it was running.
+- Agents can list and start actions too (their briefing tells them to use the
+  workspace's dev server rather than start their own), under the conversation's
+  permission. They cannot approve scripts or stop actions.
+
+> **Preview** (the feature) only reaches apps on the machine running the
+> window. With a Runner on another machine, open the address there or forward
+> the port.
+
+## Ports
+
+Each workspace gets a block of **10 consecutive ports** (from 20000–29999 by
+default; Settings → Workspaces changes the range), kept for the life of the
+workspace. Scripts see them as `$LAZYBOX_PORT_0` … `$LAZYBOX_PORT_9`; an action's
+own port is `$LAZYBOX_PORT` (port 0 unless it sets `port:`). If another program
+already holds an action's port, Lazybox refuses to start it and tells you which
+port, with the `lsof` command to find the culprit.
+
+## Browse beside your work: the Web panel
+
+![A Web panel docked beside the conversation](../images/web-panel.webp)
+
+A **Web panel** is a small browser docked like any panel: address bar (an
+address or words to search), back and forward, reload, zoom, copy address, and
+open in your browser. Its origin is always shown in bold, with a padlock for
+https.
+
+- **Open one:** `]] b`, or **⌥-click** any web link in Lazybox — in a chat
+  message, an artifact, a pull request, a check. A right-click on a link offers
+  *Open in Lazybox*, *Open in a new Lazybox panel*, *Open in your browser* and
+  *Copy link*.
+- A plain click still opens your browser. Prefer the opposite? Settings → Web &
+  links swaps them, and picks the search engine.
+- An empty Web panel lists the workspace's running previews, one click each.
+- **⋯ → Move to a new window** gives the page a window of its own.
+
+## Send your terminal's output to Lazybox
+
+Lazybox is not a terminal — keep yours. From a Lazybox workspace terminal
+(**Terminal** in the workspace header, a minimal shell on the Runner), pipe any
+command into the workspace's console:
+
+```sh
+go test ./... 2>&1 | lazybox log --title "go test ./..."
+lazybox run -- cargo test                 # also records the exit status
+make lint 2>&1 | lazybox log --to "fix the parser"
+```
+
+The run appears in the **Command output** console of every conversation in the
+workspace. **Send to agent** in the console adds the run's compact view — the
+outcome, the failures, the path of the full output — to your message; `--to`
+does the same for a named conversation. The agent never gets the full output
+dumped into its context.
+
+**From your own terminal** (iTerm, Ghostty…) `lazybox log` and `lazybox run`
+need to be told which Runner and which workspace, because nothing in that shell
+says so. Pass the Runner's endpoint file and the workspace id (from
+`lazybox ls --json`):
+
+```sh
+endpoint=~/src/lazybox/v2/.cache/environments/working/state/endpoint.json
+go test ./... 2>&1 | lazybox --endpoint "$endpoint" log --collection <workspace-id> --title "go test ./..."
+```
+
+The path above is the default for a Working install from a checkout at
+`~/src/lazybox`; `make -C v2 environments` prints your state folder, and the
+endpoint file is `endpoint.json` inside it. A shorter form that
+finds the Runner and takes a workspace by name is not there yet.

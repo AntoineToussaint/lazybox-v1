@@ -1,0 +1,106 @@
+# The `lazybox` CLI
+
+Everything you do in the window is scriptable from a terminal: list and follow
+conversations, send, approve, stop, wait, open things in the window, take a
+screenshot, run your actions. Every command below takes `--json` and exits
+with a [documented code](#exit-codes).
+
+Build it with `make -C v2 build-go` (it lands in `v2/bin/lazybox`); agents in
+Lazybox already have it on their `PATH`. Run `lazybox` with no arguments for the
+list. The complete, contributor-level reference is
+[`cmd/lazybox/README.md`](../../services/runner/code/cmd/lazybox/README.md).
+
+## Which Runner it talks to
+
+You rarely need to say. In order, it uses:
+
+1. `--endpoint FILE` — an endpoint file (`<state>/endpoint.json`);
+2. `LAZYBOX_V2_ENDPOINT` — set for you inside Lazybox (an agent, a workspace
+   terminal, a hook);
+3. `--runner NAME` or `LAZYBOX_RUNNER=NAME` — a registered Runner;
+4. the Runners the Dev and Working launchers register in
+   `~/.config/lazybox/runners/`: the only one, or `working` when both run.
+
+`lazybox runners` shows them and which one is live. `--endpoint` and `--runner`
+go **before** the command: `lazybox --runner dev ls`.
+
+## Follow and answer
+
+| Command | What it does |
+| --- | --- |
+| `lazybox ls [--all]` | Workspaces, their conversations and agents, with live state (needs input, failed, working, review, idle, ended). `--all` covers every registered Runner. |
+| `lazybox inbox [--all]` | What needs you, in order — needs input › failed › working › ready for review — with the `approve` / `deny` line for each pending approval. |
+| `lazybox send <conversation> [text\|-]` | Send a message (text from arguments, or stdin with `-` or a pipe). An ended conversation is resumed first. `--steer` steers the running turn. |
+| `lazybox approve <request\|conversation>` / `deny …` | Answer a pending approval, by request id, or by conversation when it has exactly one. Questions are answered in the app. |
+| `lazybox stop <conversation\|command> [--agent ID] [--end]` | Interrupt the running turn; `--agent` stops one sub-agent; `--end` ends the conversation (resumable). A command id cancels that command. |
+| `lazybox wait <conversation> --until idle\|needs-input [--timeout 30m]` | Block until reached (exit 0); exit 5 on timeout; exit 1 if the turn failed. |
+| `lazybox watch <conversation\|workspace> [--since 10m] [--tail N]` | Follow events live as a timeline. `--json` prints one JSON record per line. A workspace follows every live conversation. |
+| `lazybox debug <conversation> [--events N]` | A diagnosis in plain words: busy, queued, faults, pending requests, sub-agents, the last lifecycle events, and findings such as "the last turn ended by an interrupt you sent". |
+
+A conversation is named by its id, its title (case does not matter), the start
+of its title when only one matches, or `Workspace/title` to look in one
+workspace. An ambiguous name lists the candidates and exits 2.
+
+## Work with the window
+
+| Command | What it does |
+| --- | --- |
+| `lazybox open <workspace\|conversation\|file[:line]> [--panel KIND]` | Show it in the Lazybox window in front. A file opens in its workspace (`--workspace W` when there are several). |
+| `lazybox shot [window\|PANEL] [--out FILE]` | A PNG of the window or one panel, taken by the desktop app itself (no screen-recording permission). A browser tab cannot. |
+| `lazybox new <name> --repo R [--repo R…] [--branch B]` | Create a workspace from repositories Lazybox knows (`owner/name`, a name or a path). |
+
+Panels for `--panel` and `shot`: `chat`, `console`, `terminal`, `assistant`,
+`changes`, `usage`, `sessions`, `missions`, `processes`, `actions`, `preview`,
+`files`, `editor`, `artifacts`, `settings`, `inbox`.
+
+## Missions, artifacts, actions, hooks
+
+| Command | What it does |
+| --- | --- |
+| `lazybox missions [ls\|show ID\|new TITLE --brief B\|accept ID TASK\|reject ID TASK --note N]` | [Missions](../guides/missions.md) and their tasks; accept or send back work. |
+| `lazybox artifact put FILE\|- --title T --kind plan` · `get ID [--version N]` · `list` | Publish and read a workspace's [artifacts](../guides/artifacts.md). Used by agents, from inside their workspace. |
+| `lazybox actions [ls\|validate [FILE]\|schema\|path\|init\|run ID]` | Your [actions file](configuration.md#actionsyaml-your-actions-and-hooks): list what loaded and its problems, check a file, print the schema, create it, or have the window run an action. |
+| `lazybox hooks [ls\|runs\|test ID\|log RUN]` | Your hooks, their recent runs, a test run, a run's output. |
+| `lazybox process validate\|show\|explain EVENT\|events\|schema` | Check [`.lazybox/process.yaml`](configuration.md#lazyboxprocessyaml-how-missions-run) from files, no Runner needed. |
+
+## Command output
+
+| Command | What it does |
+| --- | --- |
+| `cmd 2>&1 \| lazybox log [--title CMD] [--to CONVERSATION]` | Publish piped output to the workspace's Command output console. `--to` also hands its compact view to a conversation's message box. |
+| `lazybox run [--to CONVERSATION] -- cmd args…` | Run a command: you see every byte, the console keeps it with its exit status, an agent gets the compact view. |
+
+Both need no flag inside a Lazybox workspace terminal or agent. From your own
+terminal, give them the Runner and the workspace explicitly — see
+[Run your app](../guides/run-your-app.md#send-your-terminals-output-to-lazybox).
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Done |
+| 1 | Failed: the Runner refused, the turn failed, the hook failed |
+| 2 | Usage or validation error: bad flags, an ambiguous name, an invalid actions file |
+| 3 | Not found: conversation, workspace, request, action, hook |
+| 4 | Not allowed: a scoped credential (agent, terminal, hook) or a refused token |
+| 5 | Timed out: `wait`, or a window that did not answer |
+| 6 | Unavailable: no Runner answers, none is registered, or no Lazybox window is open for `open` / `shot` / `actions run` |
+
+## Shell completion
+
+Completes commands, flags, and the names of your conversations, workspaces,
+actions and hooks:
+
+```sh
+lazybox completion zsh  > "${fpath[1]}/_lazybox"      # or: source <(lazybox completion zsh)
+lazybox completion bash > ~/.local/share/bash-completion/completions/lazybox
+lazybox completion fish > ~/.config/fish/completions/lazybox.fish
+```
+
+## What agents and hooks may do
+
+Inside an agent, a workspace terminal or a hook, the CLI uses that place's own
+**scoped** credential, never yours: an agent reaches its own console and its
+workspace's artifacts; a terminal only its own runs; a hook only what its
+`grants` allow. Your verbs fail there with exit 4 and a sentence saying what
+the credential may do.
