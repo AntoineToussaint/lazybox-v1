@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -156,5 +157,35 @@ func TestCommittedChangesSinceBaseIncludeRenamesCommitsAndDiffs(t *testing.T) {
 	}
 	if _, err = (Git{}).Committed(context.Background(), root, "--output=/tmp/x"); err == nil {
 		t.Fatal("a base must never be read as an option")
+	}
+}
+
+func TestBranchesAndComparingWithAnotherBranch(t *testing.T) {
+	root := t.TempDir()
+	git(t, root, "init", "-b", "main")
+	write(t, root, "shared.txt", "base\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "initial")
+	git(t, root, "switch", "-c", "feature")
+	write(t, root, "feature.txt", "feature work\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "feature work")
+	git(t, root, "switch", "main")
+	write(t, root, "main-only.txt", "later on main\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "main moves on")
+	git(t, root, "switch", "feature")
+
+	branches, def, err := Git{}.Branches(context.Background(), root)
+	if err != nil || def != "main" || !slices.Contains(branches, "feature") || !slices.Contains(branches, "main") {
+		t.Fatalf("%v %q %v", err, def, branches)
+	}
+	// Like a pull request: only what the branch did since it left main.
+	got, err := Git{}.Committed(context.Background(), root, "main")
+	if err != nil || len(got.Files) != 1 || got.Files[0].Path != "feature.txt" || len(got.Commits) != 1 {
+		t.Fatalf("%v %+v", err, got)
+	}
+	if _, err = (Git{}).Committed(context.Background(), root, "no-such-branch"); err == nil {
+		t.Fatal("an unknown branch must be reported")
 	}
 }

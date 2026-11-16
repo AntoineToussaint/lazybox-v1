@@ -35,9 +35,10 @@ func (s *Service) ListWorkspaceChanges(ctx context.Context, r *pb.WorkspaceChang
 		for _, f := range state.Files {
 			row.Files = append(row.Files, &pb.ChangedFile{Path: f.Path, OriginalPath: f.OriginalPath, IndexStatus: f.IndexStatus, WorktreeStatus: f.WorktreeStatus})
 		}
+		row.Branches, row.DefaultBranch, _ = s.gitInspector().Branches(ctx, path)
 		// What the agent committed matters as much as what it left uncommitted.
-		row.Base = member.BaseCommit
-		committed, err := s.gitInspector().Committed(ctx, path, member.BaseCommit)
+		row.Base = compareBase(member.BaseCommit, r.Compare)
+		committed, err := s.gitInspector().Committed(ctx, path, row.Base)
 		if err != nil {
 			row.CommittedError = err.Error()
 			continue
@@ -70,7 +71,7 @@ func (s *Service) ReadWorkspaceDiff(ctx context.Context, r *pb.WorkspaceDiffRequ
 		base := ""
 		for _, member := range workspace.Members {
 			if member.Name == r.Member {
-				base = member.BaseCommit
+				base = compareBase(member.BaseCommit, r.Compare)
 			}
 		}
 		diff, err = s.gitInspector().CommittedDiff(ctx, path, base, r.Path)
@@ -84,6 +85,15 @@ func (s *Service) ReadWorkspaceDiff(ctx context.Context, r *pb.WorkspaceDiffRequ
 		return nil, rpcError(err)
 	}
 	return &pb.WorkspaceDiff{Text: diff.Text, Truncated: diff.Truncated, Binary: diff.Binary}, nil
+}
+
+// compareBase is the ref a branch's commits are compared with: the requested
+// one, or the commit the workspace started from.
+func compareBase(start, compare string) string {
+	if compare != "" {
+		return compare
+	}
+	return start
 }
 
 func (s *Service) gitInspector() gitinspect.Inspector {

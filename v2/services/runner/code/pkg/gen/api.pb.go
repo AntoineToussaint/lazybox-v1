@@ -2415,8 +2415,10 @@ func (x *RenameConversationRequest) GetTitle() string {
 }
 
 type WorkspaceChangesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CollectionId  string                 `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	CollectionId string                 `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	// Ref to compare the branch's commits with (e.g. main, origin/main); empty is the commit the workspace started from.
+	Compare       string `protobuf:"bytes,2,opt,name=compare,proto3" json:"compare,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2454,6 +2456,13 @@ func (*WorkspaceChangesRequest) Descriptor() ([]byte, []int) {
 func (x *WorkspaceChangesRequest) GetCollectionId() string {
 	if x != nil {
 		return x.CollectionId
+	}
+	return ""
+}
+
+func (x *WorkspaceChangesRequest) GetCompare() string {
+	if x != nil {
+		return x.Compare
 	}
 	return ""
 }
@@ -2601,8 +2610,11 @@ type RepositoryChanges struct {
 	Commits            []*Commit              `protobuf:"bytes,9,rep,name=commits,proto3" json:"commits,omitempty"`
 	CommittedTruncated bool                   `protobuf:"varint,10,opt,name=committed_truncated,json=committedTruncated,proto3" json:"committed_truncated,omitempty"`
 	CommittedError     string                 `protobuf:"bytes,11,opt,name=committed_error,json=committedError,proto3" json:"committed_error,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Local and remote-tracking branches, and the default branch (origin/HEAD, else main or master).
+	Branches      []string `protobuf:"bytes,12,rep,name=branches,proto3" json:"branches,omitempty"`
+	DefaultBranch string   `protobuf:"bytes,13,opt,name=default_branch,json=defaultBranch,proto3" json:"default_branch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RepositoryChanges) Reset() {
@@ -2712,6 +2724,20 @@ func (x *RepositoryChanges) GetCommittedError() string {
 	return ""
 }
 
+func (x *RepositoryChanges) GetBranches() []string {
+	if x != nil {
+		return x.Branches
+	}
+	return nil
+}
+
+func (x *RepositoryChanges) GetDefaultBranch() string {
+	if x != nil {
+		return x.DefaultBranch
+	}
+	return ""
+}
+
 type WorkspaceChanges struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Repositories  []*RepositoryChanges   `protobuf:"bytes,1,rep,name=repositories,proto3" json:"repositories,omitempty"`
@@ -2757,12 +2783,14 @@ func (x *WorkspaceChanges) GetRepositories() []*RepositoryChanges {
 }
 
 type WorkspaceDiffRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CollectionId  string                 `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
-	Member        string                 `protobuf:"bytes,2,opt,name=member,proto3" json:"member,omitempty"`
-	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
-	Staged        bool                   `protobuf:"varint,4,opt,name=staged,proto3" json:"staged,omitempty"` // Diff of the branch's commits since the workspace's base, not of uncommitted changes.
-	Committed     bool                   `protobuf:"varint,5,opt,name=committed,proto3" json:"committed,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	CollectionId string                 `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	Member       string                 `protobuf:"bytes,2,opt,name=member,proto3" json:"member,omitempty"`
+	Path         string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Staged       bool                   `protobuf:"varint,4,opt,name=staged,proto3" json:"staged,omitempty"` // Diff of the branch's commits since the workspace's base, not of uncommitted changes.
+	Committed    bool                   `protobuf:"varint,5,opt,name=committed,proto3" json:"committed,omitempty"`
+	// With committed: the ref compared with; empty is the workspace start.
+	Compare       string `protobuf:"bytes,6,opt,name=compare,proto3" json:"compare,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2830,6 +2858,13 @@ func (x *WorkspaceDiffRequest) GetCommitted() bool {
 		return x.Committed
 	}
 	return false
+}
+
+func (x *WorkspaceDiffRequest) GetCompare() string {
+	if x != nil {
+		return x.Compare
+	}
+	return ""
 }
 
 type WorkspaceDiff struct {
@@ -8941,9 +8976,10 @@ const file_api_proto_rawDesc = "" +
 	"\x19RenameConversationRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
-	"\x05title\x18\x02 \x01(\tR\x05title\">\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\"X\n" +
 	"\x17WorkspaceChangesRequest\x12#\n" +
-	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\"\x92\x01\n" +
+	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12\x18\n" +
+	"\acompare\x18\x02 \x01(\tR\acompare\"\x92\x01\n" +
 	"\vChangedFile\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12#\n" +
 	"\roriginal_path\x18\x02 \x01(\tR\foriginalPath\x12!\n" +
@@ -8952,7 +8988,7 @@ const file_api_proto_rawDesc = "" +
 	"\x06Commit\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asubject\x18\x02 \x01(\tR\asubject\x12*\n" +
-	"\x11committed_at_unix\x18\x03 \x01(\x03R\x0fcommittedAtUnix\"\x9f\x03\n" +
+	"\x11committed_at_unix\x18\x03 \x01(\x03R\x0fcommittedAtUnix\"\xe2\x03\n" +
 	"\x11RepositoryChanges\x12\x16\n" +
 	"\x06member\x18\x01 \x01(\tR\x06member\x12\x16\n" +
 	"\x06branch\x18\x02 \x01(\tR\x06branch\x12\x12\n" +
@@ -8965,15 +9001,18 @@ const file_api_proto_rawDesc = "" +
 	"\acommits\x18\t \x03(\v2\x18.lazybox.bench.v1.CommitR\acommits\x12/\n" +
 	"\x13committed_truncated\x18\n" +
 	" \x01(\bR\x12committedTruncated\x12'\n" +
-	"\x0fcommitted_error\x18\v \x01(\tR\x0ecommittedError\"[\n" +
+	"\x0fcommitted_error\x18\v \x01(\tR\x0ecommittedError\x12\x1a\n" +
+	"\bbranches\x18\f \x03(\tR\bbranches\x12%\n" +
+	"\x0edefault_branch\x18\r \x01(\tR\rdefaultBranch\"[\n" +
 	"\x10WorkspaceChanges\x12G\n" +
-	"\frepositories\x18\x01 \x03(\v2#.lazybox.bench.v1.RepositoryChangesR\frepositories\"\x9d\x01\n" +
+	"\frepositories\x18\x01 \x03(\v2#.lazybox.bench.v1.RepositoryChangesR\frepositories\"\xb7\x01\n" +
 	"\x14WorkspaceDiffRequest\x12#\n" +
 	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12\x16\n" +
 	"\x06member\x18\x02 \x01(\tR\x06member\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x16\n" +
 	"\x06staged\x18\x04 \x01(\bR\x06staged\x12\x1c\n" +
-	"\tcommitted\x18\x05 \x01(\bR\tcommitted\"Y\n" +
+	"\tcommitted\x18\x05 \x01(\bR\tcommitted\x12\x18\n" +
+	"\acompare\x18\x06 \x01(\tR\acompare\"Y\n" +
 	"\rWorkspaceDiff\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12\x1c\n" +
 	"\ttruncated\x18\x02 \x01(\bR\ttruncated\x12\x16\n" +

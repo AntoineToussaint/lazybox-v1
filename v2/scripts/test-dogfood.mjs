@@ -13,7 +13,7 @@ let browser;
 try{
  await server.listen();browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1500,height:1000}});page.setDefaultTimeout(10000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));const reads=[];
- await page.route('**/ListWorkspaceChanges',route=>route.fulfill({json:{repositories:[{member:'api',branch:'feature/steady-otter',head:'a'.repeat(40),base:'c'.repeat(40),committed:[{path:'handler.go',indexStatus:'M'}],commits:[{id:'d'.repeat(40),subject:'Add contract handler',committedAtUnix:String(Math.floor(Date.now()/1000)-120)}],files:[{path:'contract.ts',indexStatus:'M',worktreeStatus:'M'}]},{member:'web',branch:'feature/steady-otter',head:'b'.repeat(40),files:[{path:'new-view.tsx',indexStatus:'?',worktreeStatus:'?'}]}]}}));
+ const lists=[];await page.route('**/ListWorkspaceChanges',route=>{lists.push(route.request().postDataJSON());return route.fulfill({json:{repositories:[{member:'api',branch:'feature/steady-otter',head:'a'.repeat(40),base:'c'.repeat(40),committed:[{path:'handler.go',indexStatus:'M'}],branches:['feature/steady-otter','main','origin/main','release/2'],defaultBranch:'origin/main',commits:[{id:'d'.repeat(40),subject:'Add contract handler',committedAtUnix:String(Math.floor(Date.now()/1000)-120)}],files:[{path:'contract.ts',indexStatus:'M',worktreeStatus:'M'}]},{member:'web',branch:'feature/steady-otter',head:'b'.repeat(40),files:[{path:'new-view.tsx',indexStatus:'?',worktreeStatus:'?'}]}]}})});
  await page.route('**/ReadWorkspaceDiff',route=>{const body=route.request().postDataJSON();reads.push(body);return route.fulfill({json:{text:body.committed?'@@ branch @@\n+branch change':body.staged?'@@ staged @@\n+saved change':'@@ working tree @@\n+working change'}})});
  const url=`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace#token=${fixture.token}`;await page.goto(url);
  await page.getByRole('combobox',{name:'Workspace',exact:true}).selectOption('alpha');await page.getByRole('combobox',{name:'Session',exact:true}).selectOption('alpha-session');
@@ -25,6 +25,13 @@ try{
  // The first branch change opens by itself, compared with the workspace start.
  await expect(changes.getByLabel('File diff')).toContainText('+branch change');assert.equal(reads.at(-1).committed,true);assert.equal(reads.at(-1).member,'api');await expect(changes.getByRole('checkbox',{name:'Staged',exact:true})).toHaveCount(0);
  await changes.getByText('1 commit since cccccccc').click();await expect(changes.getByText('Add contract handler')).toBeVisible();
+ // Compare with the default branch, another branch, or uncommitted work only.
+ const compare=changes.getByRole('combobox',{name:'Compare with',exact:true});
+ await expect(compare.locator('option')).toContainText(['Uncommitted only','Workspace start','origin/main','main','release/2']);
+ await compare.selectOption('origin/main');await expect.poll(()=>lists.at(-1)?.compare).toBe('origin/main');await expect(changes).toContainText('1 file changed vs origin/main');
+ await expect(changes.getByLabel('File diff')).toContainText('+branch change');assert.equal(reads.at(-1).compare,'origin/main');
+ await compare.selectOption({label:'Uncommitted only'});await expect.poll(()=>lists.at(-1)?.compare??'').toBe('');await expect(changes.getByRole('button',{name:'M handler.go'})).toHaveCount(0);await expect(changes).toContainText('2 uncommitted');
+ await compare.selectOption({label:'Workspace start'});
 await changes.getByRole('button',{name:'MM contract.ts'}).click();await expect(changes.getByLabel('File diff')).toContainText('+working change');await changes.getByRole('checkbox',{name:'Staged',exact:true}).check();await expect(changes.getByLabel('File diff')).toContainText('+saved change');assert.equal(reads.at(-1).collectionId,'alpha');assert.equal(reads.at(-1).member,'api');assert.equal(reads.at(-1).staged,true);
  await changes.getByRole('button',{name:'?? new-view.tsx'}).click();await expect(changes.getByRole('checkbox',{name:'Staged',exact:true})).not.toBeChecked();await expect(changes.getByLabel('File diff')).toContainText('+working change');
  await mkdir('.cache',{recursive:true});await page.screenshot({path:'.cache/dogfood-changes.png'});

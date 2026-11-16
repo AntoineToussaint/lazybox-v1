@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ type Inspector interface {
 	Diff(context.Context, string, string, bool) (Diff, error)
 	Committed(context.Context, string, string) (Committed, error)
 	CommittedDiff(context.Context, string, string, string) (Diff, error)
+	Branches(context.Context, string) ([]string, string, error)
 }
 type Git struct{}
 type bounded struct {
@@ -277,4 +279,34 @@ func (g Git) CommittedDiff(ctx context.Context, root, base, path string) (Diff, 
 	}
 	data, cut, err := run(ctx, root, args...)
 	return Diff{Text: strings.ToValidUTF8(string(data), "�"), Truncated: cut, Binary: bytes.Contains(data, []byte("Binary files "))}, err
+}
+
+const branchLimit = 200
+
+// Branches lists local and remote-tracking branches, and the default branch:
+// origin/HEAD when the clone recorded it, else main or master.
+func (Git) Branches(ctx context.Context, root string) ([]string, string, error) {
+	raw, _, err := run(ctx, root, "for-each-ref", "--format=%(refname)", "--sort=-committerdate", "--count="+strconv.Itoa(branchLimit), "refs/heads", "refs/remotes")
+	if err != nil {
+		return nil, "", err
+	}
+	branches := []string{}
+	for _, ref := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if name, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+			branches = append(branches, name)
+		} else if name, ok := strings.CutPrefix(ref, "refs/remotes/"); ok && !strings.HasSuffix(name, "/HEAD") {
+			branches = append(branches, name)
+		}
+	}
+	if head, _, err := run(ctx, root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		if name := strings.TrimSpace(string(head)); name != "" {
+			return branches, name, nil
+		}
+	}
+	for _, name := range []string{"main", "master", "origin/main", "origin/master"} {
+		if slices.Contains(branches, name) {
+			return branches, name, nil
+		}
+	}
+	return branches, "", nil
 }
