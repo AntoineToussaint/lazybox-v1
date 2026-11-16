@@ -1,4 +1,5 @@
 import { ActionMenu } from './ActionMenu';
+import { LeaderMenu } from './LeaderMenu';
 import { WorkspaceNavigator } from './WorkspaceNavigator';
 import {useKeyboardNavigation} from './keyboard';
 import {RepositoryHostContext} from './RepositoryBrowser';
@@ -242,7 +243,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const displayedLayout = editing ? page.layout : mainLayout(page.layout);
   const mobilePanels = panels(displayedLayout || page.layout).filter(panel => panel.kind !== 'collections');
   const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) || mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
-  return <main className={`workspace-shell${editing ? ' layout-editing' : ''}`}>{keyboardHint&&<div className="keyboard-sequence-hint" role="status">{keyboardHint}</div>}
+  return <main className={`workspace-shell${editing ? ' layout-editing' : ''}`}><LeaderMenu hint={keyboardHint}/>
     <header className="workspace-header">
       <button className="mobile-navigation-button icon-button" aria-label="Open workspace navigator" aria-expanded={navigatorOpen} onClick={() => setNavigatorOpen(true)}><Icon name="sidebar"/></button>
       <div className="workspace-brand"><span className="brand-mark">l<span>↗</span></span><strong>lazybox</strong></div>

@@ -1,7 +1,8 @@
 import { ActionMenu } from './ActionMenu';
+import { LeaderMenu } from './LeaderMenu';
 import { ToolActivity } from "./ToolActivity";
 import {SnippetPicker} from './SnippetPicker';
-import {useKeyboardNavigation,useKeyboardAction,useKeymap} from './keyboard';
+import {useKeyboardNavigation,useKeyboardAction,useKeymap,useMenuSnippet,type KeyHint} from './keyboard';
 import {continueConversation} from './transcript-cache';
 import {useChatScroll} from './useChatScroll';
 import {sessionModelLabel,sessionAccountLabel} from './conversation-model';
@@ -60,12 +61,23 @@ export function AgentWindow(props: AgentWindowProps) {
   return <RunnerProvider connection={props.connection}><ChatPanel {...props} keyboardHint={keyboardHint}/></RunnerProvider>;
 }
 
-export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, keyboardHint = '' }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: string }) {
+export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, workingDirectory = '', emptyWorkspace = false, initialSessionId = '', collectionId = '', embedded = false, showCommands = true, allowStart = true, autoStart = false, onOpenChat, initialCommandId = '', initialCommandsOpen, mode = 'agent', viewState, onViewChange, onSessionChange, onOpenViewer, keyboardHint = null }: Omit<AgentWindowProps, 'connection'> & { keyboardHint?: KeyHint | null }) {
   const { api, info, connecting, error: connectionError, refresh } = useRunner();
   const keymap=useKeymap(viewState);
   const composer=useRef<HTMLTextAreaElement>(null);
   const [snippetsOpen,setSnippetsOpen]=useState(false);
   useKeyboardAction('snippets.open',()=>{if(canCompose&&(document.activeElement===composer.current||document.querySelector('[data-agent-composer]')===composer.current))setSnippetsOpen(true);});
+  // A ]] menu entry sends its snippet to the conversation being typed in, or
+  // inserts it when there is already a draft (never overwriting one).
+  useMenuSnippet(entry=>{
+    if(!canCompose||!(document.activeElement===composer.current||document.querySelector('[data-agent-composer]')===composer.current))return;
+    void api.listSnippets({}).then(result=>{
+      const snippet=result.snippets.find(row=>row.key===entry.snippet);
+      if(!snippet){setError(`Snippet "${entry.snippet}" no longer exists. Update the ]] menu in Settings → Keyboard.`);return;}
+      if(entry.mode==='send'&&!message.trim()&&!files.length&&!missingFiles.length&&!sending)void send(undefined,snippet.body);
+      else{const next=message+(message&&!message.endsWith('\n')?'\n':'')+snippet.body;setMessage(next);persistDraft(next,files,missingFiles);requestAnimationFrame(()=>composer.current?.focus());}
+    },error=>setError(String(error)));
+  });
   useKeyboardAction('chat.send',()=>{const focused=document.activeElement as HTMLTextAreaElement;if(focused===composer.current&&canSend)focused.form?.requestSubmit();});
   const [remembered] = useState(() => {const choices=readLaunchChoices(viewState);return agent&&agent!==choices.provider ? {} : choices;});
   const {settings: runnerSettings, loading: settingsLoading} = useRunnerSettings();
@@ -284,7 +296,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       const next = event.relatedTarget;
       if (!(next instanceof Node) || !event.currentTarget.contains(next)) setDragging(false);
     }}>
-    {keyboardHint&&!embedded&&<div className="keyboard-sequence-hint" role="status">{keyboardHint}</div>}
+    {!embedded&&<LeaderMenu hint={keyboardHint}/>}
     {snippetsOpen&&<SnippetPicker store={viewState} canSend={canCompose&&!sending&&!message.trim()&&!files.length&&!missingFiles.length} onClose={()=>{setSnippetsOpen(false);composer.current?.focus();}} onInsert={body=>{const node=composer.current,start=node?.selectionStart??message.length,end=node?.selectionEnd??message.length;const next=message.slice(0,start)+body+message.slice(end);setMessage(next);persistDraft(next,files,missingFiles);setUncertainSend('');sendAttempt.current=null;requestAnimationFrame(()=>{node?.focus();node?.setSelectionRange(start+body.length,start+body.length);});}} onSend={text=>send(undefined,text)}/>}
     {!embedded && <header className="topbar"><span className="brand" aria-hidden="true">l<span>↗</span></span><div><h1>lazybox <span>V2</span></h1><p>One window. Your agent.</p></div><span className="pill" role="status">{connecting ? 'Connecting to Runner' : !info ? 'Runner unavailable' : sessionID ? sessionStatus(session) : 'Runner connected'}</span></header>}
     {(error || connectionError) && !(embedded && connectionError) && <div className="error" role="alert">{error || connectionError}<button onClick={() => setError('')}>Dismiss</button></div>}

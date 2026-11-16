@@ -115,6 +115,51 @@ export function saveKeymap(map: Keymap, store?: ViewStateStore) {
   writePreference(store, storageKey, JSON.stringify(map));
   window.dispatchEvent(new Event("lazybox-keymap"));
 }
+/** A user-defined entry in the ]] menu: one key that sends or inserts a snippet. */
+export type MenuEntry = { key: string; label: string; snippet: string; mode: "send" | "insert" };
+/** What the ]] menu shows while a sequence is in progress. */
+export type KeyHint = { prefix: string; items: { keys: string; label: string }[] };
+const menuKey = "leader-menu:v1";
+const builtInMenuKeys = (map: Keymap) => {
+  const leader = map["navigation.exit"].trim();
+  return keyboardActions.map((a) => map[a.id].trim()).filter((keys) => keys.startsWith(leader + " ")).map((keys) => keys.slice(leader.length + 1));
+};
+export function readMenu(store?: ViewStateStore): MenuEntry[] {
+  try {
+    const raw = JSON.parse(readPreference(store, menuKey) || "[]");
+    return Array.isArray(raw) ? raw.filter((e) => e && typeof e.key === "string" && typeof e.snippet === "string" && typeof e.label === "string").map((e) => ({ key: e.key, label: e.label, snippet: e.snippet, mode: e.mode === "insert" ? "insert" : "send" })) : [];
+  } catch {
+    return [];
+  }
+}
+export function validateMenu(entries: MenuEntry[], map: Keymap): string {
+  const taken = new Set(builtInMenuKeys(map));
+  for (const e of entries) {
+    if (!/^(?:[a-z0-9]|Shift\+[a-z])$/.test(e.key)) return `Menu key "${e.key}" must be one letter or digit.`;
+    if (taken.has(e.key)) return `Menu key "${e.key}" is already used.`;
+    if (!e.snippet.trim()) return `Choose a snippet for "${e.key}".`;
+    if (e.label.length > 60) return `Label for "${e.key}" is too long.`;
+    taken.add(e.key);
+  }
+  return entries.length > 36 ? "The menu holds up to 36 entries." : "";
+}
+export function saveMenu(entries: MenuEntry[], store?: ViewStateStore) {
+  const error = validateMenu(entries, readKeymap(store));
+  if (error) throw Error(error);
+  writePreference(store, menuKey, JSON.stringify(entries));
+  window.dispatchEvent(new Event("lazybox-keymap"));
+}
+/** Asks the focused chat to send or insert a snippet chosen from the ]] menu. */
+export function useMenuSnippet(callback: (entry: MenuEntry) => void) {
+  const ref = useRef(callback);
+  ref.current = callback;
+  useEffect(() => {
+    const listener = (event: Event) => ref.current((event as CustomEvent<MenuEntry>).detail);
+    window.addEventListener("lazybox-menu", listener);
+    return () => window.removeEventListener("lazybox-menu", listener);
+  }, []);
+}
+
 export function invokeAction(id: Action) {
   window.dispatchEvent(new CustomEvent("lazybox-action", { detail: id }));
 }
@@ -133,19 +178,21 @@ function eventKey(e: KeyboardEvent) {
   return `${e.ctrlKey ? "Ctrl+" : ""}${e.metaKey ? "Meta+" : ""}${e.altKey ? "Alt+" : ""}${e.shiftKey && (e.key.length > 1 || /^[a-z]$/i.test(e.key)) ? "Shift+" : ""}${e.key === " " ? "Space" : e.key.length === 1 ? e.key.toLowerCase() : e.key}`;
 }
 export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
-  const [hint, setHint] = useState("");
+  const [hint, setHint] = useState<KeyHint | null>(null);
   useEffect(() => {
     if (!enabled) return;
     let map = readKeymap(store),
+      menu = readMenu(store),
       sequence: string[] = [],
       typed: HTMLTextAreaElement | undefined;
     const reset = () => {
       sequence = [];
       typed = undefined;
-      setHint("");
+      setHint(null);
     };
     const reload = () => {
       map = readKeymap(store);
+      menu = readMenu(store);
       reset();
     };
     const keydown = (e: KeyboardEvent) => {
@@ -170,23 +217,25 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
         reset();
         return;
       }
-      const candidates = keyboardActions.filter(
-        (a) =>
-          a.scope === "global" ||
-          (a.scope === "agent" && agent) ||
-          (a.scope === "navigation" && navigation),
-      );
+      const leader = map["navigation.exit"].trim();
+      // User entries live under the leader, next to the built-in actions.
+      const candidates: { id: string; label: string; keys: string; entry?: MenuEntry }[] = [
+        ...keyboardActions
+          .filter((a) => a.scope === "global" || (a.scope === "agent" && agent) || (a.scope === "navigation" && navigation))
+          .map((a) => ({ id: a.id as string, label: a.label as string, keys: map[a.id] })),
+        ...menu.map((entry) => ({ id: "menu:" + entry.key, label: entry.label || entry.snippet, keys: `${leader} ${entry.key}`, entry })),
+      ];
       const key = eventKey(e);
       let next = [...sequence, key];
       let matches = candidates.filter(
         (a) =>
-          map[a.id].split(/\s+/).slice(0, next.length).join(" ") ===
+          a.keys.split(/\s+/).slice(0, next.length).join(" ") ===
           next.join(" "),
       );
       if (!matches.length) {
         reset();
         next = [key];
-        matches = candidates.filter((a) => map[a.id].split(/\s+/)[0] === key);
+        matches = candidates.filter((a) => a.keys.split(/\s+/)[0] === key);
         if (!matches.length) return;
       }
       // A lone closing bracket remains ordinary text. Only the completed leader removes it.
@@ -211,20 +260,15 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
         typed = undefined;
       }
       sequence = next;
-      const exact = matches.find((a) => map[a.id] === next.join(" "));
-      if (exact) invokeAction(exact.id);
-      const descendants = matches.filter(
-        (a) => map[a.id].split(/\s+/).length > next.length,
-      );
+      const exact = matches.find((a) => a.keys === next.join(" "));
+      if (exact?.entry) window.dispatchEvent(new CustomEvent("lazybox-menu", { detail: exact.entry }));
+      else if (exact) invokeAction(exact.id as Action);
+      const descendants = matches.filter((a) => a.keys.split(/\s+/).length > next.length);
       if (descendants.length)
-        setHint(
-          descendants
-            .map(
-              (a) =>
-                `${map[a.id].split(/\s+/).slice(next.length).join(" ")} ${a.label}`,
-            )
-            .join(" · "),
-        );
+        setHint({
+          prefix: next.join(" "),
+          items: descendants.map((a) => ({ keys: a.keys.split(/\s+/).slice(next.length).join(" "), label: a.label })),
+        });
       else reset();
     };
     const navigate = (event: Event) => {

@@ -1,3 +1,4 @@
+import { LeaderMenuSettings } from "./LeaderMenuSettings";
 import { useState } from "react";
 import type { ViewStateStore } from "@lazybox/platform";
 import {
@@ -60,6 +61,7 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
         <button className="primary">Save shortcuts</button>
       </form>
       <p role="status">{status}</p>
+      <LeaderMenuSettings store={store} />
     </section>
   );
 }

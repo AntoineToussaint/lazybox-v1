@@ -116,6 +116,26 @@ try {
   await expect(alpha.locator(".workspace-link")).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(rows.nth(1).locator(".workspace-link")).toBeFocused();
+  // The leader menu is configurable: add an entry, see it in the which-key card, use it.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Shortcuts" }).click();
+  await page.getByRole("button", { name: "Add entry", exact: true }).click();
+  await page.getByLabel("Key for entry 1").fill("r");
+  await page.getByLabel("Snippet for entry 1").selectOption("review");
+  await page.getByLabel("Action for entry 1").selectOption("insert");
+  await page.getByRole("button", { name: "Save menu", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Menu saved." })).toBeVisible();
+  await page.getByRole("navigation", { name: "Pages" }).getByRole("button").first().click();
+  await message.fill("");
+  await message.focus();
+  await message.press("Control+b");
+  const menu = page.getByRole("status", { name: "Keyboard menu" });
+  await expect(menu).toContainText("Ctrl+b");
+  await expect(menu.locator("li").filter({ hasText: "Review this change" })).toContainText("r");
+  await expect(menu.locator("li").filter({ hasText: "Snippets" })).toContainText("s");
+  await page.keyboard.press("r");
+  await expect(menu).toHaveCount(0);
+  await expect(message).toHaveValue("Review the current change carefully.");
   f.sessions.push({
     ...f.sessions[0],
     id: "alpha-second",
