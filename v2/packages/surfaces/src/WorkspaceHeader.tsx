@@ -1,3 +1,4 @@
+import { HelpMenu } from './HelpMenu';
 import type { Collection, InfoResponse } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { ActionMenu } from './ActionMenu';
@@ -64,6 +65,7 @@ export function WorkspaceHeader({ pages, selectedPage, settings, pending, fixedW
       <button className="toolbar-action" disabled={!terminalReady} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={onShowTerminal}><Icon name="terminal"/><span>Terminal</span></button>
       <button className="toolbar-action new-conversation-action" disabled={!info || pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={onNewConversation}><Icon name="plus"/><span>New conversation</span></button>
       <RunnerIndicator onOpen={fixedWorkspace ? undefined : onOpenRunner}/>
+      <HelpMenu settings={!fixedWorkspace}/>
       <ActionMenu label="Page actions">
         {canOpenWorkspaceWindow && <button onClick={onOpenWorkspaceWindow}>Open workspace window</button>}
         <button disabled={settings} onClick={onToggleEditing}>{editing ? 'Finish customizing' : 'Customize page'}</button>

@@ -1,0 +1,122 @@
+// Onboarding against the fake Runner: the first-run welcome on a fresh
+// install (shown once, its buttons work, reopened from Help), no welcome for an
+// existing user, and What's new after an update (shown once per release,
+// never stealing focus, reopened from Help).
+import {createServer} from 'vite';
+import react from '@vitejs/plugin-react';
+import {chromium,expect} from '@playwright/test';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
+import {mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {startRunnerFixture} from './fixtures/runner-ui.mjs';
+import {testViteCache} from './fixtures/vite-cache.mjs';
+import {releaseNotes} from '../packages/surfaces/src/release-notes.ts';
+
+const fixture=await startRunnerFixture();
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+let browser;
+try{
+ await server.listen();browser=await chromium.launch({headless:true});
+ const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
+ const url=`${origin}/?view=workspace#token=${fixture.token}`;
+ // The browser host keeps a workspace window's preferences in localStorage, under the Runner's scope.
+ const scope=createHash('sha256').update(origin+'\0'+fixture.token).digest('hex');
+ const welcomeKey=`${scope}:onboarding.welcome`,whatsNewKey=`${scope}:onboarding.whats-new`;
+ const stored=(page,key)=>page.evaluate(key=>localStorage.getItem(key),key);
+ const open=async context=>{const page=await context.newPage();page.setDefaultTimeout(10000);const errors=[];page.on('pageerror',e=>errors.push(String(e)));await page.goto(url);return {page,errors};};
+ const help=async(page,item)=>{await page.locator('summary[aria-label="Help"]').click();await page.getByRole('button',{name:item,exact:true}).click();};
+ await mkdir('.cache',{recursive:true});
+
+ // (a) A fresh install: no workspace, no conversation.
+ const savedCollections=fixture.collections.splice(0),savedSessions=fixture.sessions.splice(0);
+ {
+  const context=await browser.newContext({viewport:{width:1400,height:900}});
+  const {page,errors}=await open(context);
+  const welcome=page.getByRole('dialog',{name:'Welcome to Lazybox'});
+  await expect(welcome).toBeVisible();
+  await expect(welcome.getByRole('button',{name:'Get started'})).toBeFocused();
+  // The five keys, from the default (vim) keymap, and Go to file for this platform.
+  const list=welcome.locator('dl[aria-label="The five keys that matter"]');
+  await expect(list.locator('dt')).toHaveCount(5);
+  await expect(list).toContainText('Leave the agent');await expect(list).toContainText('New conversation');await expect(list).toContainText('Go to file');await expect(list).toContainText('Inbox');await expect(list).toContainText('Next / previous');
+  assert.deepEqual(await list.locator('div').nth(1).locator('kbd').allTextContents(),[']',']','c']);
+  assert.deepEqual(await list.locator('div').nth(4).locator('kbd').allTextContents(),['j','k']);
+  assert.match((await list.locator('div').nth(2).locator('kbd').textContent()),/^(⌘P|Ctrl\+P)$/);
+  await expect(welcome.getByRole('link',{name:/Read the documentation/})).toHaveAttribute('href','https://lazybox.ai/docs/');
+  await page.screenshot({path:'.cache/onboarding-welcome.png'});
+  // What's new is never shown on a first run: the newest release is recorded silently.
+  await expect(page.getByRole('complementary',{name:"What's new"})).toHaveCount(0);
+  assert.equal(await stored(page,whatsNewKey),releaseNotes[0].id);
+  // Connect a subscription: Settings, on Subscriptions.
+  await welcome.getByRole('button',{name:'Connect a subscription'}).click();
+  await expect(welcome).toHaveCount(0);
+  await expect(page.getByRole('tab',{name:'Subscriptions'})).toHaveAttribute('aria-selected','true');
+  assert.equal(await stored(page,welcomeKey),'seen');
+  // Shown once: a reload does not show it again.
+  await page.reload();
+  await expect(page.getByText('Create a workspace to group your repositories and conversations.')).toBeVisible();
+  await page.waitForTimeout(600);
+  await expect(page.getByRole('dialog',{name:'Welcome to Lazybox'})).toHaveCount(0);
+  // Help reopens it; Escape closes it; Create a workspace opens the new-workspace flow.
+  await help(page,'Welcome & getting started');
+  await expect(welcome).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(welcome).toHaveCount(0);
+  await help(page,'Welcome & getting started');
+  await welcome.getByRole('button',{name:'Create a workspace'}).click();
+  await expect(welcome).toHaveCount(0);
+  await expect(page.getByRole('dialog',{name:'New workspace'})).toBeVisible();
+  await page.getByRole('button',{name:'Close workspace dialog'}).click();
+  // Help → Keyboard shortcuts opens the shortcuts overlay (Customize there leads to Settings).
+  await help(page,'Keyboard shortcuts');
+  const overlay=page.getByRole('dialog',{name:'Keyboard shortcuts'});await expect(overlay).toBeVisible();await page.keyboard.press('Escape');await expect(overlay).toHaveCount(0);
+  assert.deepEqual(errors,[]);
+  await context.close();
+ }
+ fixture.collections.push(...savedCollections);fixture.sessions.push(...savedSessions);
+
+ // (b) An existing user: workspaces already there. No welcome, recorded silently; nothing new to show.
+ const context=await browser.newContext({viewport:{width:1400,height:900}});
+ {
+  const {page,errors}=await open(context);
+  await expect(page.getByRole('navigation',{name:'Workspaces'})).toContainText('Alpha feature');
+  await expect.poll(()=>stored(page,welcomeKey)).toBe('existing');
+  await expect(page.getByRole('dialog',{name:'Welcome to Lazybox'})).toHaveCount(0);
+  await expect(page.getByRole('complementary',{name:"What's new"})).toHaveCount(0);
+  assert.equal(await stored(page,whatsNewKey),releaseNotes[0].id);
+
+  // (c) After an update: the last release seen is older than the newest.
+  const older=releaseNotes.at(-1).id;
+  await page.evaluate(([key,value])=>localStorage.setItem(key,value),[whatsNewKey,older]);
+  await page.reload();
+  const card=page.getByRole('complementary',{name:"What's new"});
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(releaseNotes[0].title);
+  for(const item of releaseNotes[0].items)await expect(card).toContainText(item.title);
+  const between=releaseNotes.length-2;
+  if(between>0)await expect(card.locator('summary')).toHaveText(`${between} more since you last looked`);
+  // It does not take focus from work.
+  assert.equal(await card.evaluate(node=>node.contains(document.activeElement)),false);
+  await page.waitForTimeout(300);await page.screenshot({path:'.cache/onboarding-whats-new.png'});
+  await card.getByRole('button',{name:'Got it'}).click();
+  await expect(card).toHaveCount(0);
+  assert.equal(await stored(page,whatsNewKey),releaseNotes[0].id);
+  // Once per release.
+  await page.reload();
+  await expect(page.getByRole('navigation',{name:'Workspaces'})).toContainText('Alpha feature');
+  await page.waitForTimeout(600);
+  await expect(card).toHaveCount(0);
+  // Help shows every release, focused; Escape dismisses it.
+  await help(page,"What's new");
+  await expect(card).toBeVisible();await expect(card).toBeFocused();
+  await expect(card.locator('summary')).toHaveText('Earlier releases');
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+  assert.deepEqual(errors,[]);
+ }
+ await context.close();
+ console.log('onboarding: welcome once on a fresh install, never for an existing user, What\'s new once per release, Help reopens both');
+} finally {
+ await browser?.close();await server.close();await fixture.close();
+}

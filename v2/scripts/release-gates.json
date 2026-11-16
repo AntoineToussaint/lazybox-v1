@@ -61,7 +61,8 @@
     { "id": "missions", "scope": "ui", "script": "test:missions" },
     { "id": "context-menus", "scope": "ui", "script": "test:context-menus" },
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
-    { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" }
+    { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },
+    { "id": "onboarding", "scope": "ui", "script": "test:onboarding" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

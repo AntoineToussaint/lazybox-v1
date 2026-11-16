@@ -74,6 +74,9 @@ const tail = [
   { id: 'navigation.parent', title: 'Workspace / left pane', group: 'Sidebar', icon: 'back', keys: 'h', scope: 'navigation', palette: false },
   { id: 'navigation.open', title: 'Open entry / agent', group: 'Sidebar', icon: 'chevronRight', keys: 'l', scope: 'navigation', palette: false },
   { id: 'chat.send', title: 'Send message', group: 'Message box', icon: 'send', keys: 'Enter', scope: 'agent', palette: false, required: true },
+  { id: 'help.welcome', title: 'Welcome and getting started', group: 'General', icon: 'sparkle', keys: '', scope: 'global', overDialogs: true, keywords: 'onboarding first run start tour help', menu: { section: 'Help', title: 'Welcome to Lazybox', separatorBefore: true } },
+  { id: 'help.whats-new', title: "What's new", group: 'General', icon: 'notes', keys: '', scope: 'global', overDialogs: true, keywords: 'release notes changelog update version help', menu: { section: 'Help', title: "What's New" } },
+  { id: 'help.docs', title: 'Documentation', group: 'General', icon: 'external', keys: '', scope: 'global', keywords: 'docs manual guide help', menu: { section: 'Help', title: 'Lazybox Documentation' } },
 ] as const satisfies readonly ActionDefinition[];
 
 export type ActionId = (typeof head)[number]['id'] | (typeof tail)[number]['id'] | `workspace.select.${Slot}`;
