@@ -213,10 +213,24 @@ export async function startDictation({ mode, target, kind }: { mode: 'hold' | 't
 }
 
 let errorTimer: ReturnType<typeof setTimeout> | undefined;
-function fail(code: string, message: string, kind?: DictationKind) {
+/** macOS refuses recognition while Dictation is off, in its own words: say what to do instead. */
+export const DICTATION_OFF = 'Voice uses macOS Dictation, which is turned off. Turn it on in System Settings → Keyboard → Dictation (macOS downloads its on-device model the first time), then try again.';
+export function voiceProblem(code: string, message: string): { code: string; message: string } {
+  if (code === 'dictation-off' || /siri and dictation are disabled|dictation is (disabled|turned off)/i.test(message)) return { code: 'dictation-off', message: DICTATION_OFF };
+  return { code, message };
+}
+export const canOpenVoiceSystemSettings = () => !!host.recognizer?.openPrivacySettings;
+/** Opens the system settings page that fixes a voice problem (desktop only). */
+export function openVoiceSystemSettings(pane: 'microphone' | 'speech' | 'keyboard'): Promise<void> {
+  const open = host.recognizer?.openPrivacySettings;
+  return open ? open(pane) : Promise.reject(new Error('System settings open only in the desktop app.'));
+}
+function fail(rawCode: string, rawMessage: string, kind?: DictationKind) {
+  const { code, message } = voiceProblem(rawCode, rawMessage);
   clearTimeout(errorTimer);
   set({ ...idle, phase: 'error', kind, error: message, errorCode: code, reading: state.reading });
-  errorTimer = setTimeout(() => { if (state.phase === 'error') set({ phase: 'idle', error: '', errorCode: '' }); }, 8000);
+  // A problem the person must fix in System Settings stays until they act on it or dismiss it.
+  if (code !== 'dictation-off') errorTimer = setTimeout(() => { if (state.phase === 'error') set({ phase: 'idle', error: '', errorCode: '' }); }, 8000);
 }
 export function dismissVoiceError() { clearTimeout(errorTimer); if (state.phase === 'error') set({ phase: 'idle', error: '', errorCode: '' }); }
 

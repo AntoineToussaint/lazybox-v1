@@ -236,6 +236,9 @@ pub fn level(samples: &[f32]) -> f32 {
 
 /// System Settings' privacy pane for one permission. Only these two URLs can
 /// be opened: the page names a pane, never a URL.
+/// What to say when macOS's Dictation is off: its recognizer will not run without it.
+const DICTATION_OFF: &str = "Voice uses macOS Dictation, which is turned off. Turn it on in System Settings → Keyboard → Dictation (macOS downloads its on-device model the first time), then try again.";
+
 pub fn settings_url(pane: &str) -> Result<&'static str, String> {
     match pane {
         "microphone" => {
@@ -244,6 +247,8 @@ pub fn settings_url(pane: &str) -> Result<&'static str, String> {
         "speech" => {
             Ok("x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition")
         }
+        // Keyboard → Dictation: macOS's recognizer refuses to run while Dictation is off.
+        "keyboard" => Ok("x-apple.systempreferences:com.apple.Keyboard-Settings.extension"),
         _ => Err("unknown settings pane".into()),
     }
 }
@@ -753,6 +758,8 @@ mod native {
                         // 1110: nothing was said; 203/216: the task was cancelled or ended early.
                         let (code, message) = match error.code() {
                             1110 => ("no-speech", "Nothing was heard.".to_string()),
+                            // kAFAssistantErrorDomain 1700: "Siri and Dictation are disabled".
+                            1700 => ("dictation-off", super::DICTATION_OFF.to_string()),
                             203 | 216 | 301 => ("ended", String::new()),
                             _ => ("recognition", error.localizedDescription().to_string()),
                         };

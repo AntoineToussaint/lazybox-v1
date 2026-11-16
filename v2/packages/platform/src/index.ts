@@ -158,7 +158,7 @@ export type SpeechRecognizerHost = {
   requestPermission?(language: string): Promise<RecognizerStatus>;
   languages(): Promise<RecognizerLanguage[]>;
   /** Opens the system's privacy settings for one permission. */
-  openPrivacySettings?(pane: 'microphone' | 'speech'): Promise<void>;
+  openPrivacySettings?(pane: 'microphone' | 'speech' | 'keyboard'): Promise<void>;
   start(options: RecognitionOptions, listener: (event: RecognitionEvent) => void): Promise<RecognitionSession>;
 };
 export type SpeechVoice = { id: string; name: string; language: string };

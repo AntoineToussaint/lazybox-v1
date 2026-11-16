@@ -4,7 +4,7 @@ import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBindin
 import { Icon } from '../Icons';
 import type { Keymap } from '../keyboard';
 import { elapsed } from './voice-model';
-import { cancelDictation, dictating, dismissVoiceError, setDictationKeyHeld, setDictationMode, setVoicePreferencesContext, startDictation, stopDictation, stopReading, toggleDictation, useVoicePreferences, useVoiceState, voiceKeysSuspended, voiceState, type DictationKind } from './voice-session';
+import { canOpenVoiceSystemSettings, cancelDictation, dictating, dismissVoiceError, openVoiceSystemSettings, setDictationKeyHeld, setDictationMode, setVoicePreferencesContext, startDictation, stopDictation, stopReading, toggleDictation, useVoicePreferences, useVoiceState, voiceKeysSuspended, voiceState, type DictationKind } from './voice-session';
 import './voice.css';
 
 /** How long a press of the dictation key may last and still be a tap (it then keeps listening). */
@@ -154,7 +154,9 @@ export function VoicePill({ state, keymap, onOpenSettings, inline }: { state: Re
     return <div className={'voice-pill is-error' + (inline ? ' is-inline' : '')} role="alert" style={style} onPointerDown={down} onPointerMove={move} onPointerUp={up}>
       <span className="voice-pill-icon"><Icon name="alert" size={15}/></span>
       <span className="voice-pill-text">{state.error}</span>
-      {onOpenSettings && <button type="button" className="voice-pill-button" onClick={() => { dismissVoiceError(); onOpenSettings(); }}>Voice settings</button>}
+      {state.errorCode === 'dictation-off' && canOpenVoiceSystemSettings()
+        ? <button type="button" className="voice-pill-button" onClick={() => void openVoiceSystemSettings('keyboard').catch(() => undefined)}>Open Keyboard settings</button>
+        : onOpenSettings && <button type="button" className="voice-pill-button" onClick={() => { dismissVoiceError(); onOpenSettings(); }}>Voice settings</button>}
       <button type="button" className="icon-button voice-pill-close" aria-label="Dismiss" onClick={dismissVoiceError}><Icon name="close" size={13}/></button>
     </div>;
   }
