@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { nativeOptions } from './options.js';
+import { droppedOnInterrupt } from './interrupt.js';
 import { readQuota } from './usage.js';
 import { NativeStatus } from './status.js';
 import { contextSnapshot } from './context.js';
@@ -85,6 +86,11 @@ async function receive(q: Query) {
     let readingContext=false;
     for await (const message of q) {
       for (const normalized of status.normalize(message)) {
+        // A turn the person interrupted ends with Claude's "error during
+        // execution" diagnostic ("[ede_diagnostic] … stop_reason=tool_use").
+        // That is the interrupt, not a provider error: it must not fault the
+        // conversation. Account limits still count.
+        if (interrupted && droppedOnInterrupt(normalized)) continue;
         if (normalized.type === 'turn_ended') { if (interrupted) normalized.status = 'interrupted'; interrupted = false; }
         event(normalized);
       }
