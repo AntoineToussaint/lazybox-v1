@@ -10,11 +10,21 @@ export type Docking = { id: string; side?: DockSide; area: DockArea };
 const splitName = (path: number[]) => path.join('-') || 'root';
 
 /**
+ * The Workspaces sidebar keeps one width in pixels for every workspace and
+ * window size, so switching workspace never moves it; dragging its edge
+ * changes it everywhere.
+ */
+export type SidebarWidth = { width: number; onWidth(width: number): void };
+export const SIDEBAR_MIN = 200, SIDEBAR_MAX = 640, SIDEBAR_DEFAULT = 280;
+export const clampSidebar = (width: number) => Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, width)));
+const isSidebar = (node: LayoutNode, direction: string, editing: boolean) => direction === 'row' && node.type === 'panel' && node.panel.kind === 'collections' && !(node.panel.collapsed && !editing);
+
+/**
  * A page's layout tree: splits with their resize handles, and a slot for each
  * panel. Panels are not rendered here: each slot receives the panel's stable
  * host element, so rearranging the layout never remounts a panel.
  */
-export function LayoutTree({ node, path = [], editing, hostFor, onResize }: { node: LayoutNode; path?: number[]; editing: boolean; hostFor(panel: Panel): HTMLElement; onResize: ResizeSplit }) {
+export function LayoutTree({ node, path = [], editing, hostFor, onResize, sidebar }: { node: LayoutNode; path?: number[]; editing: boolean; hostFor(panel: Panel): HTMLElement; onResize: ResizeSplit; sidebar?: SidebarWidth }) {
   if (node.type !== 'split') return <PanelSlot host={hostFor(node.panel)}/>;
   return <div className={`layout-split split-${node.direction}`}>
     {editing && <SplitControls node={node} path={path} onResize={onResize}/>}
@@ -22,13 +32,16 @@ export function LayoutTree({ node, path = [], editing, hostFor, onResize }: { no
       const sibling = node.children[index ? 0 : 1];
       const collapsed = child.type === 'panel' && child.panel.collapsed && !editing;
       const siblingCollapsed = sibling.type === 'panel' && sibling.panel.collapsed && !editing;
-      const cell = <div key={index} className={`layout-cell${collapsed ? ' collapsed-cell' : ''}`} style={{
-        minWidth: node.direction === 'row' && child.type === 'panel' && child.panel.kind === 'collections' && !collapsed ? 240 : undefined,
-        flex: collapsed ? `0 0 ${node.direction === 'column' ? 42 : 44}px` : `${siblingCollapsed ? 1 : index ? 1 - node.ratio : node.ratio} 1 0`,
+      const isFixed = !!sidebar && !siblingCollapsed && isSidebar(child, node.direction, editing);
+      const besideFixed = !!sidebar && !collapsed && isSidebar(sibling, node.direction, editing);
+      const cell = <div key={index} className={`layout-cell${collapsed ? ' collapsed-cell' : ''}${isFixed ? ' sidebar-cell' : ''}`} style={{
+        flex: collapsed ? `0 0 ${node.direction === 'column' ? 42 : 44}px` : isFixed ? `0 0 ${sidebar!.width}px` : besideFixed ? '1 1 0' : `${siblingCollapsed ? 1 : index ? 1 - node.ratio : node.ratio} 1 0`,
       }}>
-        <LayoutTree node={child} path={[...path, index]} editing={editing} hostFor={hostFor} onResize={onResize}/>
+        <LayoutTree node={child} path={[...path, index]} editing={editing} hostFor={hostFor} onResize={onResize} sidebar={sidebar}/>
       </div>;
-      return index === 1 && !collapsed && !siblingCollapsed ? [<SplitHandle key="handle" node={node} path={path} onResize={onResize}/>, cell] : cell;
+      if (index !== 1 || collapsed || siblingCollapsed) return cell;
+      const fixedFirst = !!sidebar && isSidebar(sibling, node.direction, editing);
+      return [isFixed || besideFixed ? <SidebarHandle key="handle" path={path} first={fixedFirst} sidebar={sidebar!}/> : <SplitHandle key="handle" node={node} path={path} onResize={onResize}/>, cell];
     })}
   </div>;
 }
@@ -72,6 +85,28 @@ function SplitHandle({ node, path, onResize }: { node: Split; path: number[]; on
       const stop = () => {
         handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', stop); handle.removeEventListener('pointercancel', stop);
         delete handle.dataset.dragging; save(ratio);
+      };
+      handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', stop); handle.addEventListener('pointercancel', stop);
+    }}/>;
+}
+
+/** The Workspaces sidebar's edge: resizes it in pixels, for every workspace. */
+function SidebarHandle({ path, first, sidebar }: { path: number[]; first: boolean; sidebar: SidebarWidth }) {
+  return <div className="split-handle" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={`Resize split ${splitName(path)}`} aria-valuemin={SIDEBAR_MIN} aria-valuemax={SIDEBAR_MAX} aria-valuenow={sidebar.width}
+    onKeyDown={event => {
+      const step = { ArrowLeft: first ? -16 : 16, ArrowRight: first ? 16 : -16 }[event.key];
+      if (step === undefined) return; event.preventDefault(); sidebar.onWidth(clampSidebar(sidebar.width + step));
+    }}
+    onPointerDown={event => {
+      if (event.button !== 0) return;
+      const handle = event.currentTarget, cell = (first ? handle.previousElementSibling : handle.nextElementSibling) as HTMLElement;
+      const box = cell.getBoundingClientRect();
+      event.preventDefault(); handle.setPointerCapture(event.pointerId); handle.dataset.dragging = 'true';
+      let width = box.width;
+      const move = (next: PointerEvent) => { width = clampSidebar(first ? next.clientX - box.left : box.right - next.clientX); cell.style.flex = `0 0 ${width}px`; };
+      const stop = () => {
+        handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', stop); handle.removeEventListener('pointercancel', stop);
+        delete handle.dataset.dragging; sidebar.onWidth(width);
       };
       handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', stop); handle.addEventListener('pointercancel', stop);
     }}/>;

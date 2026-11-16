@@ -26,7 +26,8 @@ import { DetachedTabs } from './DetachedTabs';
 import { NewConversationDialog } from './NewConversationDialog';
 import { LayoutConfiguration, PageConfig } from './PageEditor';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { DockOverlay, LayoutTree, MobilePanelSwitcher, type Split } from './PanelLayout';
+import { readPreference, writePreference } from './view-state';
+import { clampSidebar, DockOverlay, LayoutTree, MobilePanelSwitcher, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, type Split } from './PanelLayout';
 import { WorkspacePanel, type PanelActions, type SharedModuleProps } from './WorkspacePanel';
 import { usePanelDocking } from './usePanelDocking';
 import { usePanelHosts } from './usePanelHosts';
@@ -263,6 +264,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     catch (error) { setError(String(error)); }
     finally { setPending(''); }
   };
+  // One sidebar width for every workspace (see PanelLayout).
+  const [sidebarWidth, setSidebarWidth] = useState(() => { const saved = Number(readPreference(viewState, 'workspace.sidebar-width')); return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : SIDEBAR_DEFAULT; });
+  const saveSidebarWidth = (width: number) => { const next = clampSidebar(width); setSidebarWidth(next); try { writePreference(viewState, 'workspace.sidebar-width', String(next)); } catch { /* a convenience */ } };
   const resize = (path: number[], change: (node: Split) => LayoutNode) => {
     const update = (node: LayoutNode, rest: number[]): LayoutNode => {
       if (node.type !== 'split') return node;
@@ -346,7 +350,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         {mobilePanels.length > 1 && <MobilePanelSwitcher panels={mobilePanels} active={mobilePanel} title={panel => registry[panel.kind]?.title || panel.kind}
           onChoose={panel => { setMobilePanelId(panel.id); if (panel.collapsed) changePanel(panel.id, value => ({ ...value, collapsed: false })); }}/>}
         <div className="page-layout" data-page-id={page.id}>
-          {displayedLayout ? <LayoutTree node={displayedLayout} editing={editing} hostFor={panelHosts.hostFor} onResize={resize}/> : <p className="module-empty">Your conversations are open in separate windows.</p>}
+          {displayedLayout ? <LayoutTree node={displayedLayout} editing={editing} hostFor={panelHosts.hostFor} onResize={resize} sidebar={{ width: sidebarWidth, onWidth: saveSidebarWidth }}/> : <p className="module-empty">Your conversations are open in separate windows.</p>}
           {docking && <DockOverlay docking={docking}/>}
         </div>
         {!settings && shownPanels.map(panel => createPortal(renderPanel(panel), panelHosts.hostFor(panel), panelHosts.slotOf(panel)))}

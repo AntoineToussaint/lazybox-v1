@@ -61,7 +61,7 @@ try {
   await expect.poll(async () => Number(await divider.getAttribute('aria-valuenow'))).toBeGreaterThan(before);
   const dragged = Number(await divider.getAttribute('aria-valuenow'));
   await divider.focus(); await page.keyboard.press('ArrowLeft');
-  await expect(divider).toHaveAttribute('aria-valuenow', String(dragged - 2));
+  await expect(divider).toHaveAttribute('aria-valuenow', String(dragged - 16)); // the Workspaces sidebar moves in 16px steps
   // The session menu closes when clicking outside it.
   await chat.getByLabel('Session actions', { exact: true }).click();
   await expect(chat.getByRole('button', { name: 'End session', exact: true })).toBeVisible();
