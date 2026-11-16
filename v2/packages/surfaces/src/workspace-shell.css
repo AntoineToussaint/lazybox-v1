@@ -99,6 +99,13 @@
   .workspace-shell .module-header>.panel-menu~.panel-close{opacity:1;width:36px;height:36px}
 }
 
+/* A phone's header holds nine tools: they give up a few pixels each so a page tab still has room to be read. */
+@media(max-width:480px){
+  .workspace-shell .workspace-header{gap:2px;padding:0 6px}
+  .workspace-shell .workspace-header-actions{gap:0}
+  .workspace-shell .toolbar-action,.workspace-shell .mobile-navigation-button,.workspace-shell .workspace-header-actions>.workspace-actions>summary{width:31px!important;min-width:0;padding:0}
+  .workspace-shell .workspace-header>nav{min-width:84px;padding-right:10px}
+}
 /* A single focus treatment for shell controls; the composer owns its focus ring. */
 .workspace-shell button:focus-visible,.workspace-shell summary:focus-visible,.workspace-shell select:focus-visible,.workspace-shell input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .workspace-shell .embedded-chat .composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px #b6acd433}
