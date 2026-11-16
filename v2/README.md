@@ -6,8 +6,9 @@ Claude and Codex all day: it keeps every agent of every workspace in view, shows
 what each one actually did, and keeps them running when the app or its Runner
 restarts.
 
-> **Preview.** V2 is built from source on macOS; there is no installer yet. The
-> `lazybox` on Homebrew is V1, the terminal PR inbox
+> **Preview.** V2 installs as a Mac app ([INSTALL.md](INSTALL.md)) once its
+> first release is published; until then, build it from source on macOS. The
+> `lazybox` formula on Homebrew is V1, the terminal PR inbox
 > ([its docs](https://lazybox.ai/docs/)).
 
 ![Lazybox V2: workspaces on the left, a conversation with the agent's work folded into readable lines, its plan, and the artifact it published](docs/images/hero.webp)
@@ -55,22 +56,12 @@ themes ([guide](docs/guides/appearance.md)) · a `lazybox`
 CLI that does what the app does, plus your own actions and hooks in one YAML
 file ([guide](docs/guides/automate.md)).
 
-## Install (preview)
+## Install
 
-On macOS, with Git, Go 1.27+, Node 24+, Rust 1.90+, the Codefly CLI, and Claude
-Code and/or Codex installed:
-
-```sh
-git clone https://github.com/AntoineToussaint/lazybox.git && cd lazybox
-git switch feat/v2-command-output
-make -C v2 deps
-make -C v2 stage                          # builds and checks a release; prints its id
-make -C v2 promote RELEASE=<that id>
-make -C v2 working                        # opens Lazybox; keep this terminal open
-```
-
-Or `make -C v2 dev` to run **Lazybox Dev** straight from your checkout, with its
-own data. Details and prerequisites: [Getting started](docs/getting-started.md#install-preview).
+**[INSTALL.md](INSTALL.md)**: the disk image or `brew install --cask
+AntoineToussaint/lazybox/lazybox-v2`, the first run (the background Runner and
+the `lazybox` command), updates, `lazybox doctor` and uninstalling. Building
+from source, for Dev and Working: [Getting started](docs/getting-started.md#build-from-source).
 
 ## Quick start
 

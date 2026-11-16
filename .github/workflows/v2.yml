@@ -45,6 +45,8 @@ on:
       - ".github/workflows/v2.yml"
       - ".github/actions/v2-playwright/**"
   workflow_dispatch:
+  # The release workflow runs these same jobs as its gates (v2-release.yml).
+  workflow_call:
 
 permissions:
   contents: read

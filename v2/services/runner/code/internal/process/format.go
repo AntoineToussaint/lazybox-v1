@@ -10,7 +10,7 @@ import (
 // read. Parsing the output gives the same process back.
 func (p *Process) YAML() ([]byte, error) {
 	var b bytes.Buffer
-	b.WriteString("# yaml-language-server: $schema=" + SchemaURL + "\n")
+	b.WriteString("# yaml-language-server: $schema=" + SchemaFile + "\n")
 	encoder := yaml.NewEncoder(&b)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(p); err != nil {

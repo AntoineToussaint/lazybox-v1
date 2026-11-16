@@ -118,7 +118,23 @@ environments:
 share-subscriptions:
 	node scripts/environments.mjs share-subscriptions '$(SUBSCRIPTION_STATE)'
 test-environments:
-	node --test scripts/environments.test.mjs scripts/runner-service.test.mjs scripts/runner-restart.test.mjs scripts/release-gates.test.mjs scripts/user-config.test.mjs
+	node --test scripts/environments.test.mjs scripts/runner-service.test.mjs scripts/runner-restart.test.mjs scripts/release-gates.test.mjs scripts/user-config.test.mjs scripts/release/release.test.mjs
+	bash scripts/release/publish-cask_test.sh
+
+# An installable release (RELEASING.md): dist/$(VERSION)/ with the DMG, the
+# updater archive, latest.json, the cask, notes and checksums. Signs with the
+# APPLE_* secrets in the environment, ad-hoc without them; publishes nothing.
+# GATES=1 runs the release gate catalog first (CI runs it as separate jobs);
+# LAUNCHD=1 adds the smoke test that installs a test launchd service.
+.PHONY: release release-smoke release-notes
+release: deps
+	node scripts/release/build.mjs --version '$(VERSION)' $(if $(filter 1,$(GATES)),--gates) $(if $(filter 1,$(LAUNCHD)),--launchd) $(RELEASE_FLAGS)
+# The smoke tests against an already built app: RUNTIME=<Lazybox.app>/Contents/Resources/runtime
+release-smoke:
+	cd $(GO_ROOT) && LAZYBOX_V2_RELEASE_RUNTIME='$(abspath $(RUNTIME))' $(if $(filter 1,$(LAUNCHD)),LAZYBOX_V2_RELEASE_LAUNCHD=1) go test -count=1 -timeout 5m -v -run '^TestRelease' ./cmd/lazybox
+# Regenerate the app's What's new from CHANGELOG.md.
+release-notes:
+	node scripts/release/changelog.mjs --write
 
 .PHONY: runner-service-plan runner-service-install runner-service-start runner-service-stop runner-service-status runner-service-uninstall working-client
 runner-service-plan runner-service-install runner-service-start runner-service-stop runner-service-status runner-service-uninstall:

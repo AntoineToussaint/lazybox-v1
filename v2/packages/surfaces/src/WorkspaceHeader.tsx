@@ -1,6 +1,7 @@
 import { HelpMenu } from './HelpMenu';
 import type { Collection, InfoResponse } from '@lazybox/protocol';
-import type { ViewStateStore } from '@lazybox/platform';
+import type { AppHost, ViewStateStore } from '@lazybox/platform';
+import { UpdateNotice } from './AboutSettings';
 import { ActionMenu } from './ActionMenu';
 import { Icon } from './Icons';
 import { AttentionCenter } from './Inbox';
@@ -15,7 +16,9 @@ import type { ViewTarget, WorkspacePage } from './workspace-model';
  * the inbox, the workspace's tools, a new conversation, the Runner, and the
  * page's own actions.
  */
-export function WorkspaceHeader({ pages, selectedPage, settings, pending, fixedWorkspace, navigatorOpen, collections, selection, viewState, workspaceID, info, terminalReady, canShowNewSession, editing, hiddenModules, canOpenWorkspaceWindow, onOpenNavigator, onSelectPage, onOpenSettings, onOpenAttention, onShowChanges, onBrowseFiles, onShowTerminal, onNewConversation, onOpenRunner, onOpenWorkspaceWindow, onToggleEditing, onToggleConfiguring, onShowModule }: {
+export function WorkspaceHeader({ app, pages, selectedPage, settings, pending, fixedWorkspace, navigatorOpen, collections, selection, viewState, workspaceID, info, terminalReady, canShowNewSession, editing, hiddenModules, canOpenWorkspaceWindow, onOpenNavigator, onSelectPage, onOpenSettings, onOpenAttention, onShowChanges, onBrowseFiles, onShowTerminal, onNewConversation, onOpenRunner, onOpenWorkspaceWindow, onToggleEditing, onToggleConfiguring, onShowModule }: {
+  /** The desktop app, for its update notice (absent in a browser and in workspace windows). */
+  app?: AppHost;
   pages: WorkspacePage[];
   selectedPage: string;
   /** Settings are on screen instead of a page. */
@@ -62,6 +65,7 @@ export function WorkspaceHeader({ pages, selectedPage, settings, pending, fixedW
       <RunControl workspaceId={workspaceID} disabled={!terminalReady} onShowPanel={onShowModule}/>
       <button className="toolbar-action" disabled={!terminalReady} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={onShowTerminal}><Icon name="terminal"/><span>Terminal</span></button>
       <button className="toolbar-action new-conversation-action" disabled={!info || pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={onNewConversation}><Icon name="plus"/><span>New conversation</span></button>
+      <UpdateNotice app={app}/>
       <RunnerIndicator onOpen={fixedWorkspace ? undefined : onOpenRunner}/>
       <HelpMenu settings={!fixedWorkspace}/>
       <ActionMenu label="Page actions">

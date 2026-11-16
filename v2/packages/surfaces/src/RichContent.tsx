@@ -20,6 +20,7 @@ import { codeBlockItems, fileLinkItems } from './chat-context-menu';
 import type { OpenModifiers } from './file-links';
 import { inlineRunItems, useRunnableBlock, useRunScope } from './code-runs';
 import { inlineCommand, pathProgramsIn, programAt } from './code-run';
+import { headingSlug } from './docs-model';
 for (const [name, language] of Object.entries({json,bash,typescript,python,go,rust,yaml,diff})) hljs.registerLanguage(name,language);
 hljs.registerAliases(['js','javascript','tsx','jsx','ts'],{languageName:'typescript'});
 
@@ -56,12 +57,29 @@ const fileTitle=`Open file · ${isMac?'⌥':'Alt+'}click for a quick look · ${i
 /** All agent-authored prose uses this renderer, including help and planning.
  * Raw HTML is never interpreted; code and diagram source remain copyable. */
 /** `onOpenFile` gets the click's modifiers: Alt asks for a quick look, Cmd/Ctrl for the file beside the current one. */
-export const RichContent=memo(function RichContent({text,onOpenFile}:{text:string;onOpenFile?(reference:FileLink,how:OpenModifiers):void}) {
+/**
+ * A document the app ships (the in-app documentation, DocsViewer.tsx): its
+ * relative links and anchors stay inside the viewer, its images are the
+ * bundled files, and headings get GitHub-style ids for anchors to land on.
+ */
+export type RichDocument = { link(href: string): void; image(src: string): string | undefined };
+const headingText=(node:ReactNode):string=>typeof node==='string'||typeof node==='number'?String(node):Array.isArray(node)?node.map(headingText).join(''):isValidElement<{children?:ReactNode}>(node)?headingText(node.props.children):'';
+function documentComponents(doc:RichDocument){
+ const heading=(Tag:'h1'|'h2'|'h3'|'h4')=>({children}:{children?:ReactNode})=><Tag id={headingSlug(headingText(children))}>{children}</Tag>;
+ return {
+  h1:heading('h1'),h2:heading('h2'),h3:heading('h3'),h4:heading('h4'),
+  a:({href,children}:{href?:string;children?:ReactNode})=>!href?<span>{children}</span>:/^(https?:|mailto:)/i.test(href)?components.a({href,children}):<a href={href} className="doc-link" onClick={event=>{event.preventDefault();doc.link(href);}}>{children}</a>,
+  img:({src,alt}:{src?:string;alt?:string})=>{const url=typeof src==='string'?doc.image(src):undefined;return url?<img src={url} alt={alt||''} loading="lazy"/>:<span className="content-reference">{alt||'Image'}</span>;},
+ };
+}
+export const RichContent=memo(function RichContent({text,onOpenFile,document:doc}:{text:string;onOpenFile?(reference:FileLink,how:OpenModifiers):void;document?:RichDocument}) {
  const fileMenu=(file:FileLink)=>contextMenu('file-link',()=>fileLinkItems(file,onOpenFile!),file);
  // In an agent's message, inline code that reads as a command offers to run it, from its menu only.
  const run=useRunScope();
  const programs=useMemo(()=>run?pathProgramsIn(text):[],[run,text]);
- const rawJSON=useMemo(()=>{if(text.length>200000||!/^\s*[\[{]/.test(text))return false;try{JSON.parse(text);return true;}catch{return false;}},[text]);
+ const rawJSON=useMemo(()=>{if(doc||text.length>200000||!/^\s*[\[{]/.test(text))return false;try{JSON.parse(text);return true;}catch{return false;}},[text,doc]);
+ const docComponents=useMemo(()=>doc?documentComponents(doc):undefined,[doc]);
+ if(docComponents)return <div className="rich-content rich-document"><Markdown remarkPlugins={[remarkGfm]} components={{...components,...docComponents}}>{text}</Markdown></div>;
  return <div className="rich-content">{rawJSON?<CodeBlock text={text} language="json"/>:<Markdown remarkPlugins={[remarkGfm]} components={{...components,
  a:({href,children})=>{const file=href&&fileReference(href);return file&&onOpenFile?<button className="file-reference" title={fileTitle} onPointerEnter={preloadEditor} onClick={event=>onOpenFile(file,event)} onContextMenu={fileMenu(file)}>{children}</button>:components.a({href,children});},
  code:({children,className,node})=>{const file=!className&&typeof children==='string'?fileReference(children,'automatic'):undefined;if(file&&onOpenFile)return <button className="file-reference inline-file" title={fileTitle} onPointerEnter={preloadEditor} onClick={event=>onOpenFile(file,event)} onContextMenu={fileMenu(file)}>{children}</button>;

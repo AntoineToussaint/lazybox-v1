@@ -1,0 +1,62 @@
+# Homebrew cask for Lazybox (V2), the desktop app with its Runner service.
+#
+# Rendered by scripts/release/build.mjs (__VERSION__ and __SHA256__ are
+# substituted; #{version} stays Ruby interpolation) and pushed to the
+# AntoineToussaint/homebrew-lazybox tap as Casks/lazybox-v2.rb by
+# .github/workflows/v2-release.yml, beside V1's `lazybox` formula and
+# `lazybox-desktop` cask, which it does not touch.
+#
+#   brew install --cask AntoineToussaint/lazybox/lazybox-v2
+cask "lazybox-v2" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/AntoineToussaint/lazybox/releases/download/v2-v#{version}/Lazybox_#{version}_aarch64.dmg",
+      verified: "github.com/AntoineToussaint/lazybox/"
+  name "Lazybox"
+  desc "Run and supervise coding agents across your repositories"
+  homepage "https://lazybox.ai/"
+
+  livecheck do
+    url "https://github.com/AntoineToussaint/lazybox/releases/download/v2-updates/latest.json"
+    strategy :json do |json|
+      json["version"]
+    end
+  end
+
+  # The app updates itself (Settings → About), restarting its Runner service
+  # without stopping running agents; `brew upgrade --greedy` also works.
+  auto_updates true
+  depends_on arch: :arm64
+  depends_on macos: ">= :monterey"
+  # V1's desktop app is lazybox.app; the two names collide on a case-insensitive disk.
+  conflicts_with cask: "lazybox-desktop"
+
+  app "Lazybox.app"
+
+  # No `binary` stanza: V1's `lazybox` formula owns that name in Homebrew's
+  # bin. Lazybox offers to link its CLI on first launch (`lazybox link`).
+
+  # Removing the cask stops the Runner service; agents it ran stop by
+  # themselves within a day. `zap` also deletes conversations and settings.
+  uninstall launchctl: "ai.lazybox.runner",
+            delete:    [
+              "~/.config/lazybox/runners/lazybox.json",
+              "~/Library/LaunchAgents/ai.lazybox.runner.plist",
+            ]
+
+  zap trash: [
+    "~/Library/Application Support/ai.lazybox.app",
+    "~/Library/Application Support/Lazybox",
+    "~/Library/Caches/ai.lazybox.app",
+    "~/Library/Logs/Lazybox",
+    "~/Library/Saved Application State/ai.lazybox.app.savedState",
+    "~/Library/WebKit/ai.lazybox.app",
+  ]
+
+  caveats <<~EOS
+    Open Lazybox once: it sets up its background service (the Runner) and
+    offers to put the `lazybox` command on your PATH. `lazybox doctor`
+    checks the installation.
+  EOS
+end

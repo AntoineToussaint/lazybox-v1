@@ -3,6 +3,14 @@
 Use separate native apps and separate Runners when dogfooding. A working build
 must not execute from the source tree currently being edited.
 
+This page is about developing Lazybox. The **installed release** people use
+(a disk image or Homebrew cask, its Runner a launchd service, updates from a
+signed feed) is a third, separate installation: see [INSTALL.md](INSTALL.md)
+and [RELEASING.md](RELEASING.md). It has its own app identity
+(`ai.lazybox.app`), state (`~/Library/Application Support/Lazybox`) and
+launchd job (`ai.lazybox.runner`), runs its Runner without Codefly
+(`lazybox-runner serve`), and never touches Dev or Working.
+
 From the repository root on macOS:
 
 ```sh
@@ -157,7 +165,10 @@ start again (`--restart never`); Settings → Runner says so. Restart it with
 agents keep running across that restart too.
 
 Automatic restart and login start are disabled in this slice. They must not hide
-the outstanding agent resource-ownership/crash-cleanup gate. This provides
+the outstanding agent resource-ownership/crash-cleanup gate. (The installed
+release's own launchd job, [INSTALL.md](INSTALL.md), does start at login and
+keeps its Runner alive: agents outlive the Runner in session hosts, and a
+restarted Runner adopts them.) This provides
 client-independent lifetime, not crash-safe agent recovery. The service still
 needs the installed Codefly/Go/Node/provider toolchain; it is not a standalone
 remote installer or a mobile connection mechanism.

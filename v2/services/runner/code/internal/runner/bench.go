@@ -91,9 +91,13 @@ type Config struct {
 	ThemeDirectory string `json:"themeDirectory,omitempty"`
 	// OutputBudget bounds both roots together; the oldest files go first.
 	// Zero selects 1 GiB.
-	OutputBudget    int64                    `json:"commandOutputBudget,omitempty"`
-	CodexBinary     string                   `json:"codexBinary,omitempty"`
-	ClaudeBinary    string                   `json:"claudeBinary,omitempty"`
+	OutputBudget int64  `json:"commandOutputBudget,omitempty"`
+	CodexBinary  string `json:"codexBinary,omitempty"`
+	ClaudeBinary string `json:"claudeBinary,omitempty"`
+	// Node runs the Claude SDK worker. Empty is `node` on the Runner's PATH
+	// (Dev, Working); an installed release names the Node it ships
+	// (INSTALL.md), so a launchd service with a minimal PATH still finds one.
+	Node            string                   `json:"node,omitempty"`
 	Profiles        []accounts.Profile       `json:"profiles"`
 	Gateways        []Gateway                `json:"gateways,omitempty"`
 	Defaults        accounts.Options         `json:"defaults"`
@@ -340,7 +344,7 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, hosting: hosts, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary}}}
+	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, hosting: hosts, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary, Node: cfg.Node}}}
 	// Shells a previous Runner left running are re-attached here, like commands.
 	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals, Backend: hosts}); err != nil {
 		_ = b.Detach()

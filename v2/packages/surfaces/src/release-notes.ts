@@ -2,11 +2,24 @@ import type { Release } from './onboarding-model';
 
 /**
  * The release notes bundled with the app, newest first. "What's new" shows
- * the releases newer than the last one this person saw (onboarding-model.ts),
- * so a release id never changes once shipped: add a new entry at the top.
- * Bodies are plain sentences; keep each item to what a person can now do.
+ * the releases newer than the last one this person saw (onboarding-model.ts).
+ *
+ * Generated from v2/CHANGELOG.md by `node scripts/release/changelog.mjs --write`:
+ * edit the changelog, not this file.
  */
 export const releaseNotes: readonly Release[] = [
+  {
+    id: '0.1.0',
+    date: '2026-11-17',
+    title: 'Install Lazybox like any Mac app',
+    items: [
+      { title: 'A real installer', body: 'Download the disk image, drag Lazybox to Applications and open it, or brew install --cask lazybox-v2 from the lazybox tap. Nothing else to install: the app brings its Runner, the Claude worker and the Node it runs on.' },
+      { title: 'Agents keep working when the window is closed', body: 'On first launch Lazybox asks once to set up its background service, the Runner. It starts when you log in, keeps your agents running when you quit the app, and an update restarts it without stopping them.' },
+      { title: 'The lazybox command, everywhere', body: 'Lazybox offers to put lazybox on your PATH with shell completions, no administrator password needed. lazybox doctor checks the service, versions, providers, GitHub and disk space and says what to do about anything wrong; lazybox service and lazybox uninstall manage the rest.' },
+      { title: 'The documentation, in the app', body: 'Help → Documentation opens the guides and references offline, with search; links between pages and Back work as in a browser.' },
+      { title: 'Updates that explain themselves', body: 'When a new version is out, the header says so. Read what\'s new, then Restart to update: the app and its Runner move to the new version together, and Settings → About shows the one version they share.' },
+    ],
+  },
   {
     id: '2026-11-16.3',
     date: '2026-11-16',

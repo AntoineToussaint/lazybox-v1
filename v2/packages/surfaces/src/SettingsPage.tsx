@@ -9,7 +9,7 @@ import { DevicesSettings } from './DevicesSettings';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Fragment, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import type { Profile, SubscriptionEnrollment, UsageWindow } from '@lazybox/protocol';
-import type { ViewStateStore, ZoomHost } from '@lazybox/platform';
+import type { AppHost, ViewStateStore, ZoomHost } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
 import { backWhen, comeback, resetTime, untilText, type Comeback } from './subscription-model';
 import { SettingsHeader, useNow } from './settings-parts';
@@ -19,6 +19,7 @@ import { RepositoryBrowser } from './RepositoryBrowser';
 import { AgentSettings, PricingSettings, useRunnerSettings } from './RunnerSettings';
 import { RunnerSection } from './RunnerControl';
 import { OrchestrationProcessSettings } from './OrchestrationProcessSettings';
+import { AboutSettings } from './AboutSettings';
 
 
 function bareWindowName(window: UsageWindow) {
@@ -37,7 +38,7 @@ function windowName(window: UsageWindow) {
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
-export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power';
+export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'web' | 'devices' | 'keyboard' | 'runner' | 'process' | 'power' | 'about';
 /** The sections, in the order and groups the sidebar shows them. */
 export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
   { id: 'subscriptions', label: 'Subscriptions', icon: 'card', group: 'Accounts' },
@@ -54,6 +55,7 @@ export const settingsTabs: { id: SettingsTab; label: string; icon: string; group
   { id: 'power', label: 'Actions & hooks', icon: 'play', group: 'Preferences' },
   { id: 'devices', label: 'Devices', icon: 'phone', group: 'System' },
   { id: 'runner', label: 'Runner', icon: 'processes', group: 'System' },
+  { id: 'about', label: 'About', icon: 'sparkle', group: 'System' },
 ];
 
 const usedText = (percent: number) => `${percent.toLocaleString(undefined, { maximumFractionDigits: 1 })}% used`;
@@ -101,7 +103,7 @@ function SubscriptionCard({ profile, now, refreshing, error, onRefresh, footer }
     <footer>{footer}<button type="button" className="quiet" disabled={refreshing} aria-label={refreshing ? "Refreshing…" : "Refresh usage"} title={observed} onClick={onRefresh}><Icon name="refresh" size={13}/>{refreshing ? "Refreshing…" : "Refresh"}</button></footer>
   </article>;
 }
-export function SettingsPage({ zoom, viewState, openSignIn, copySignInCode, chooseRepositoryFolder, tab: shownTab, onTab, onShowProcesses }: { zoom?: ZoomHost; onShowProcesses?(): void; chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; tab?: SettingsTab; onTab?(tab: SettingsTab): void }) {
+export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode, chooseRepositoryFolder, tab: shownTab, onTab, onShowProcesses }: { /** The desktop app: version and updates (Settings → About). */ app?: AppHost; zoom?: ZoomHost; onShowProcesses?(): void; chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; tab?: SettingsTab; onTab?(tab: SettingsTab): void }) {
   const { api, info, refresh } = useRunner();
   const [ownTab, setOwnTab] = useState<SettingsTab>('subscriptions');
   const tab = shownTab || ownTab, setTab = (next: SettingsTab) => { setOwnTab(next); onTab?.(next); };
@@ -286,6 +288,7 @@ export function SettingsPage({ zoom, viewState, openSignIn, copySignInCode, choo
     {panel('power', <PowerSettings viewState={viewState}/>)}
     {panel('runner', <RunnerSection onShowProcesses={onShowProcesses}/>)}
     {panel('process', <OrchestrationProcessSettings/>)}
+    {panel('about', <AboutSettings app={app}/>)}
     {panel('agents', <AgentSettings/>)}
     {panel('workspaces', <RuntimeSettings/>)}
     {panel('devices', <DevicesSettings/>)}

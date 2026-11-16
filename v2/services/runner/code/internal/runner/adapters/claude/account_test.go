@@ -120,7 +120,7 @@ func TestNativeManagedSubscriptionUsage(t *testing.T) {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		observation, err := ReadUsage(ctx, os.Getenv("LAZYBOX_V2_WORKER"), "", env, profile.Home)
+		observation, err := ReadUsage(ctx, "", os.Getenv("LAZYBOX_V2_WORKER"), "", env, profile.Home)
 		cancel()
 		if err != nil {
 			t.Fatalf("account %d: %v", count, err)

@@ -132,7 +132,7 @@ func scopedEnvironment(getenv func(string) string) bool {
 
 // resolveTarget finds the Runner a power verb talks to: --endpoint, then
 // LAZYBOX_V2_ENDPOINT, then --runner / LAZYBOX_RUNNER, then the registered
-// Runners ("working" when there are several).
+// Runners (the installed "lazybox", then "working", when there are several).
 func resolveTarget(getenv func(string) string, endpointFlag, runnerFlag string) (target, error) {
 	if endpointFlag != "" {
 		return loadTarget("", endpointFlag, getenv("LAZYBOX_V2_ENDPOINT") == endpointFlag && scopedEnvironment(getenv))
@@ -164,13 +164,17 @@ func resolveTarget(getenv func(string) string, endpointFlag, runnerFlag string) 
 	}
 	switch len(locators) {
 	case 0:
-		return target{}, fail(exitUnavailable, "no Lazybox Runner found: start one (make -C v2 dev or working), or pass --endpoint <state>/endpoint.json")
+		return target{}, fail(exitUnavailable, "no Lazybox Runner found: open the Lazybox app (or run `lazybox service install`), start one with make -C v2 dev or working, or pass --endpoint <state>/endpoint.json")
 	case 1:
 		return loadTarget(locators[0].Name, locators[0].Endpoint, false)
 	}
-	for _, l := range locators {
-		if l.Name == "working" {
-			return loadTarget(l.Name, l.Endpoint, false)
+	// The installed app's Runner first, then Working: the ones a person uses
+	// day to day, rather than Dev, which is being changed.
+	for _, preferred := range []string{"lazybox", "working"} {
+		for _, l := range locators {
+			if l.Name == preferred {
+				return loadTarget(l.Name, l.Endpoint, false)
+			}
 		}
 	}
 	return target{}, fail(exitUsage, "several Runners are registered; choose one with --runner NAME or LAZYBOX_RUNNER%s", knownRunners(locators))

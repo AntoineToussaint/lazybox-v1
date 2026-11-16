@@ -5,7 +5,8 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
-import type { AttentionDestination, AttentionHost, NativeWebViews, SurfaceHost, SurfaceTarget, ViewStateStore, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
+import type { AppHost, AppInfo, AttentionDestination, AttentionHost, AvailableUpdate, NativeWebViews, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateProgress, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
+import { FirstRun } from './FirstRun';
 
 type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact' | 'web'; notice: string; viewState: Record<string,string> };
 const publishMenu = (items: NativeMenuItem[]) => invoke<void>('set_action_menu', { items });
@@ -62,6 +63,24 @@ const desktopZoom: ZoomHost = {
   },
 };
 
+/**
+ * The app itself (src-tauri/src/release.rs, updates.rs): its version, and for
+ * an installed release its updates and the CLI on PATH. Installing an update
+ * moves the Runner service to it and restarts the app.
+ */
+const desktopApp: AppHost = {
+  info: () => invoke<AppInfo>('app_info'),
+  checkForUpdate: async () => (await invoke<AvailableUpdate | null>('check_for_update')) ?? undefined,
+  installUpdate: async onProgress => {
+    const stop = await listen<UpdateProgress>('update-progress', event => onProgress?.(event.payload));
+    try { await invoke<void>('install_update'); } finally { stop(); }
+  },
+  linkCli: async () => {
+    const report = await invoke<{ link: string; hints?: string[] }>('link_cli');
+    return { link: report.link, hints: report.hints || [] };
+  },
+};
+
 type Renew = () => Promise<{ baseUrl: string; token: string } | undefined>;
 function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstrap; followRestart(): void; renew: Renew }) {
   const [error, setError] = useState(bootstrap.notice);
@@ -101,6 +120,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     dockChat: panelId => invoke<void>('dock_chat', { panelId }),
     openArtifact: target => invoke<void>('open_artifact', target),
     openLink,
+    app: desktopApp,
     webViews: desktopWebViews,
     openWebWindow: target => invoke<void>('open_web_window', target),
     // `lazybox open` and `lazybox shot` (POWER.md): only the main window
@@ -193,4 +213,6 @@ configureContextMenus({
   revealInFinder: path => invoke<void>('plugin:opener|reveal_item_in_dir', { paths: [path] }),
   ...(import.meta.env.DEV ? { inspect: () => invoke<void>('plugin:webview|internal_toggle_devtools') } : {}),
 });
-createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}><DesktopApp/></WindowErrorBoundary></React.StrictMode>);
+// An installed release's first run opens the setup window instead (release.rs).
+const firstRun = getCurrentWebview().label === 'setup';
+createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}>{firstRun ? <FirstRun/> : <DesktopApp/>}</WindowErrorBoundary></React.StrictMode>);

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://lazybox.ai/schemas/v2/actions.schema.json",
+  "$id": "urn:lazybox:schema:actions:v1",
   "title": "Lazybox actions and hooks",
   "description": "Named actions the app offers in its menus, and hooks the Runner runs on events. See v2/POWER.md.",
   "type": "object",

@@ -182,11 +182,15 @@ func (a *AccountClient) Close() error {
 
 // ReadUsage queries the pinned native SDK without submitting a prompt or creating
 // an Engine execution. Provider credentials stay inside the isolated worker.
-func ReadUsage(ctx context.Context, worker, binary string, env []string, cwd string) (*agent.AccountObservation, error) {
+// node runs the worker; empty is `node` on PATH, as for Adapter.Node.
+func ReadUsage(ctx context.Context, node, worker, binary string, env []string, cwd string) (*agent.AccountObservation, error) {
 	if worker == "" {
 		return nil, errors.New("Claude SDK worker is not configured")
 	}
-	p, err := jsonl.Start(ctx, "node", []string{worker}, env, cwd)
+	if node == "" {
+		node = "node"
+	}
+	p, err := jsonl.Start(ctx, node, []string{worker}, env, cwd)
 	if err != nil {
 		return nil, err
 	}

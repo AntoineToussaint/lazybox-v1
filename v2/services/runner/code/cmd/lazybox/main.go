@@ -23,6 +23,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
+	"github.com/AntoineToussaint/lazybox/v2/internal/version"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"github.com/AntoineToussaint/lazybox/v2/pkg/gen/genconnect"
 	"github.com/codefly-dev/gortk"
@@ -71,6 +72,10 @@ func run() error {
 		fmt.Fprintln(os.Stderr, "In a Lazybox workspace terminal no flag is needed: `cmd 2>&1 | lazybox log [--title CMD] [--to CONVERSATION]` or `lazybox run [--to CONVERSATION] -- cmd`. Agents publish plans and reports with `lazybox artifact put FILE --title T`.")
 		fmt.Fprintln(os.Stderr, "Usage: lazybox --endpoint FILE <account-login|assistant|info|repositories|create-collection|collections|collection|archive-collection|reconcile-collection|open|send|interrupt|approve|answer|events|close|continue|exec|read|wait|cancel|output|log|run|process|artifact> [options]")
 		global.PrintDefaults()
+	}
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
+		fmt.Println("lazybox " + version.String())
+		return nil
 	}
 	if err := global.Parse(os.Args[1:]); err != nil {
 		return err
@@ -140,8 +145,12 @@ func run() error {
 		defer stop()
 		return artifactVerb(ctx, *endpointPath, args[1:], os.Stdin, os.Stdout, os.Stderr)
 	}
+	if args[0] == "log" {
+		// From a person's own terminal, the registered Runner (pipe_target.go).
+		*endpointPath = ownerEndpoint(os.Getenv, *endpointPath, *runnerName)
+	}
 	if *endpointPath == "" {
-		return preserveOnFailure(args[0], errors.New("--endpoint or LAZYBOX_V2_ENDPOINT is required; no V1 state is used"), os.Stdin, os.Stdout)
+		return preserveOnFailure(args[0], errors.New("no Runner endpoint: open Lazybox or start a Runner (lazybox runners lists them), or pass --endpoint; no V1 state is used"), os.Stdin, os.Stdout)
 	}
 	data, err := os.ReadFile(*endpointPath)
 	if err != nil {
@@ -367,6 +376,13 @@ func run() error {
 		}
 		return stream.Err()
 	case "log":
+		if *session == "" && !scopedEnvironment(os.Getenv) {
+			// A workspace by name, or the one the current directory is in.
+			cwd, _ := os.Getwd()
+			if *collection, err = resolveWorkspace(ctx, client, *collection, cwd); err != nil {
+				fmt.Fprintln(os.Stderr, "lazybox:", err)
+			}
+		}
 		return publish(ctx, client, pipeTarget{session: *session, collection: *collection, to: *to}, *title, os.Getenv("LAZYBOX_V2_OUTPUT_DIR"), os.Stdin, os.Stdout, os.Stderr)
 	default:
 		return fmt.Errorf("unknown command %s", verb)

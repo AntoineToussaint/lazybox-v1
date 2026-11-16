@@ -22,6 +22,27 @@ export type PowerHost = {
   focusWindow?(): Promise<void>;
   captureWindow?(rect?: WindowRect): Promise<Uint8Array>;
 };
+/** The app itself: its version and, for an installed release, its updates (INSTALL.md). */
+export type AppInfo = {
+  version: string;
+  /** "release" for an installed release; otherwise the app's identity (Dev, Working). */
+  channel: string;
+  /** This build checks a signed update feed. */
+  updater: boolean;
+  /** The bundled `lazybox` CLI, for an installed release. */
+  cli: string;
+};
+export type AvailableUpdate = { version: string; current: string; notes: string; date: string };
+export type UpdateProgress = { phase: 'download' | 'runner'; downloaded: number; total: number };
+export type AppHost = {
+  info(): Promise<AppInfo>;
+  /** Asks the feed; resolves undefined when this is the newest version. */
+  checkForUpdate?(): Promise<AvailableUpdate | undefined>;
+  /** Installs the update found by the last check, moves the Runner to it and restarts the app. */
+  installUpdate?(onProgress?: (progress: UpdateProgress) => void): Promise<void>;
+  /** Puts the bundled CLI on PATH (`lazybox link`); returns where, and anything to do by hand. */
+  linkCli?(): Promise<{ link: string; hints: string[] }>;
+};
 /**
  * Where a native web view sits, in the window's CSS pixels, with the
  * viewport it was measured in (the host scales it by the window's zoom).
@@ -67,6 +88,8 @@ export type ZoomHost = {
 export type WorkspaceHost = AttentionHost & PowerHost & {
   /** The UI zoom, where the host owns one (the desktop app). */
   zoom?: ZoomHost;
+  /** The desktop app: version, updates (absent in a browser). */
+  app?: AppHost;
   /** Opens a link in the person's browser (http, https and mailto only). */
   openLink?(url: string): Promise<void>;
   /** Native web views for the Web panel and Preview; without them both use an iframe. */

@@ -1,8 +1,10 @@
 # Troubleshooting
 
 Start with the conversation's own words — Lazybox says why it refuses
-something — then ask `lazybox debug`.
+something — then ask `lazybox doctor` (the installation) or `lazybox debug`
+(a conversation).
 
+- [The installation: `lazybox doctor`](#the-installation-lazybox-doctor)
 - [First: `lazybox debug`](#first-lazybox-debug)
 - [An account hit its limit](#an-account-hit-its-limit)
 - [The provider returned an error](#the-provider-returned-an-error)
@@ -14,6 +16,21 @@ something — then ask `lazybox debug`.
 - [Pull requests are unavailable](#pull-requests-are-unavailable)
 - [The CLI cannot find the Runner](#the-cli-cannot-find-the-runner)
 - [The launcher exited after a Go edit (Dev)](#the-launcher-exited-after-a-go-edit-dev)
+
+## The installation: `lazybox doctor`
+
+```sh
+lazybox doctor
+```
+
+For the installed app ([INSTALL.md](../INSTALL.md)). It checks the release,
+the Runner service (installed, running, answering on this Mac only), that the
+app, the CLI and the Runner are the same version, the bundled Node and Claude
+worker, Claude Code, Codex, `git` and `gh` on the PATH agents get, your GitHub
+connection and free disk space, and prints the fix beside anything wrong. The
+setup window runs the same checks (**Run diagnostics**) when the app cannot
+reach its Runner. `lazybox service logs -f` follows the Runner's log;
+`lazybox service restart` gives you a fresh Runner and keeps your agents.
 
 ## First: `lazybox debug`
 
@@ -28,8 +45,7 @@ an interrupt you sent at 16:59"*, *"a message has been queued behind the running
 turn for 5m"* or *"no event for 12m while a turn runs"*. `lazybox watch
 <conversation>` then follows it live.
 
-There is no `lazybox doctor` in V2. (V1 — the terminal app — has its own
-troubleshooting; it does not apply here.)
+(V1 — the terminal app — has its own troubleshooting; it does not apply here.)
 
 ## An account hit its limit
 
@@ -106,9 +122,9 @@ each organization on GitHub.
 
 ## The CLI cannot find the Runner
 
-`lazybox: no Lazybox Runner found` means no launcher is running, or it was
-started some other way. Start `make -C v2 working` (or `dev`), or pass
-`--endpoint <state>/endpoint.json`. `lazybox runners` lists the Runners it knows
+`lazybox: no Lazybox Runner found` means no Runner is registered: open the
+Lazybox app once (or `lazybox service install`), start `make -C v2 working`
+(or `dev`) from a checkout, or pass `--endpoint <state>/endpoint.json`. `lazybox runners` lists the Runners it knows
 and which is live. Inside an agent or a workspace terminal, the CLI only uses
 that place's own limited credential; your own commands there fail with exit 4.
 

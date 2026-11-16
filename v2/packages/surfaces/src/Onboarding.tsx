@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
@@ -14,10 +14,12 @@ import { essentialKeys, welcomeDecision, whatsNewDecision, WELCOME_PREFERENCE, W
 import { releaseNotes } from './release-notes';
 import './onboarding.css';
 
-export const DOCS_URL = 'https://lazybox.ai/docs/';
+// The documentation ships with the app and reads offline (DocsViewer.tsx); it
+// loads only when opened.
+const DocsViewer = lazy(() => import('./DocsViewer').then(m => ({ default: m.DocsViewer })));
 
 /** What Help asks the onboarding host for. */
-export type OnboardingRequest = 'welcome' | 'whats-new' | 'shortcuts';
+export type OnboardingRequest = 'welcome' | 'whats-new' | 'shortcuts' | 'docs';
 const EVENT = 'lazybox-onboarding';
 /** Open the welcome, What's new or the shortcuts from anywhere in the window. */
 export const openOnboarding = (request: OnboardingRequest) => window.dispatchEvent(new CustomEvent<OnboardingRequest>(EVENT, { detail: request }));
@@ -35,6 +37,7 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
   const [welcome, setWelcome] = useState(false);
   const [decided, setDecided] = useState(() => !automatic || read(viewState, WELCOME_PREFERENCE) !== null);
   const [whatsNew, setWhatsNew] = useState<{ releases: readonly Release[]; asked: boolean }>();
+  const [docs, setDocs] = useState(false);
   useEffect(() => {
     if (!automatic) return;
     const decision = whatsNewDecision(read(viewState, WHATS_NEW_PREFERENCE), releaseNotes);
@@ -46,6 +49,7 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
       const request = (event as CustomEvent<OnboardingRequest>).detail;
       if (request === 'welcome') setWelcome(true);
       if (request === 'whats-new') setWhatsNew({ releases: releaseNotes, asked: true });
+      if (request === 'docs') setDocs(true);
       // The shortcuts overlay lists every key; its Customize leads to Settings.
       if (request === 'shortcuts' && !runAction('shortcuts.open')) onOpenSettings('keyboard');
     };
@@ -56,7 +60,7 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
   useActions({
     'help.welcome': () => setWelcome(true),
     'help.whats-new': () => setWhatsNew({ releases: releaseNotes, asked: true }),
-    'help.docs': () => { window.open(DOCS_URL, '_blank', 'noopener,noreferrer'); },
+    'help.docs': () => setDocs(true),
   });
   const closeWelcome = () => { write(viewState, WELCOME_PREFERENCE, 'seen'); setWelcome(false); };
   const dismissWhatsNew = () => { if (releaseNotes[0]) write(viewState, WHATS_NEW_PREFERENCE, releaseNotes[0].id); setWhatsNew(undefined); };
@@ -69,6 +73,7 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
       onSubscription={() => { closeWelcome(); onOpenSettings('subscriptions'); }}
       onWorkspace={() => { closeWelcome(); requestAnimationFrame(() => invokeAction('workspace.new')); }}/>}
     {whatsNew && <WhatsNew releases={whatsNew.releases} focus={whatsNew.asked} onDismiss={dismissWhatsNew}/>}
+    {docs && <Suspense fallback={null}><DocsViewer onClose={() => setDocs(false)}/></Suspense>}
   </>;
 }
 
@@ -121,7 +126,7 @@ function Welcome({ viewState, onClose, onSubscription, onWorkspace }: { viewStat
       </li>
     </ol>
     <footer>
-      <a className="onboarding-docs" href={DOCS_URL} target="_blank" rel="noreferrer noopener">Read the documentation <Icon name="external" size={12}/></a>
+      <button type="button" className="onboarding-docs" onClick={() => openOnboarding('docs')}>Read the documentation <Icon name="notes" size={12}/></button>
       <small>Reopen this from Help (?) in the header.</small>
       <button className="primary" data-autofocus onClick={onClose}>Get started</button>
     </footer>

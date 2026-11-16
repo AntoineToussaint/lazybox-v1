@@ -94,10 +94,20 @@ func runVerb(ctx context.Context, endpointPath string, args []string, stdout, st
 	}
 	var c console
 	var unavailable error
+	// From a person's own terminal: the registered Runner, and the workspace
+	// by name or by the current directory (pipe_target.go).
+	endpointPath = ownerEndpoint(os.Getenv, endpointPath, os.Getenv("LAZYBOX_RUNNER"))
 	if address, err := readEndpoint(endpointPath); err != nil {
 		unavailable = err
 	} else {
-		c = genconnect.NewRunnerServiceClient(newHTTPClient(address.Token), address.URL)
+		client := genconnect.NewRunnerServiceClient(newHTTPClient(address.Token), address.URL)
+		c = client
+		if o.session == "" && !scopedEnvironment(os.Getenv) {
+			cwd, _ := os.Getwd()
+			if o.collection, err = resolveWorkspace(ctx, client, o.collection, cwd); err != nil {
+				fmt.Fprintln(stderr, "lazybox:", err)
+			}
+		}
 	}
 	return runCommand(ctx, c, unavailable, o, flags.Args(), stdout, stderr)
 }

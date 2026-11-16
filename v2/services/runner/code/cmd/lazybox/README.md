@@ -18,9 +18,14 @@ screenshot, run your own actions, inspect hooks. Every power verb takes
 3. `--runner NAME` or `LAZYBOX_RUNNER=NAME` — a registered Runner.
 4. The registered Runners: the Dev and Working launchers register theirs in
    `$XDG_CONFIG_HOME/lazybox/runners/<name>.json` (else
-   `~/.config/lazybox/runners/`). With one, it is used; with several,
-   `working` is; otherwise the CLI asks you to choose. `lazybox runners`
-   lists them and which is live.
+   `~/.config/lazybox/runners/`), and an installed release's service its own
+   as `lazybox`. With one, it is used; with several, `lazybox` (the installed
+   app) and then `working` are; otherwise the CLI asks you to choose.
+   `lazybox runners` lists them and which is live.
+
+`lazybox run` and `lazybox log` resolve the Runner the same way from your own
+terminal, and the workspace from `--collection` (an id or a workspace's
+name) or, without it, the workspace whose folder or worktree you are in.
 
 Inside an agent, a workspace terminal or a hook (any of
 `LAZYBOX_V2_SESSION_ID`, `LAZYBOX_V2_COLLECTION_ID`, `LAZYBOX_V2_ENDPOINT`
@@ -76,6 +81,32 @@ lists them).
 | 4 | not allowed: a scoped credential (agent, terminal, hook) or a refused token |
 | 5 | timed out (`wait`, a window that did not answer) |
 | 6 | unavailable: no Runner answers, none is registered, or no Lazybox window is open for `open`/`shot`/`actions run` |
+
+### An installed release
+
+These act on the release this `lazybox` belongs to (`v2/INSTALL.md`); a Dev or
+Working build says so and exits 6.
+
+| Verb | What |
+| --- | --- |
+| `--version`, `version` | The release; app, CLI and Runner carry the same one |
+| `service [status]` | Installed? loaded? running (pid)? answering, with which version? Exit 6 when it is not answering |
+| `service install` | Write the launchd job (`~/Library/LaunchAgents/ai.lazybox.runner.plist`) and start it; on a loaded job, replace it: the old Runner detaches its agents, the new one re-attaches them. Also refreshes the PATH agents get, from your login shell |
+| `service start`, `stop`, `restart` | Load or kickstart; unload (until the next login); a fresh Runner. Agents keep running throughout |
+| `service logs [-f] [--lines N]` | `~/Library/Logs/Lazybox/runner.log` |
+| `service plan` | The plist `install` would write, written nowhere |
+| `service uninstall` | Unload and remove the job and the CLI locator; data stays |
+| `doctor` | Release, service, endpoint (and its mode), versions, Node, Claude worker, Claude Code, Codex, git, gh, GitHub connection, disk, `lazybox` on PATH; each with its fix. Exit 1 when a check fails |
+| `link [--dir DIR] [--shell S]` | Link this CLI into `/usr/local/bin` (when writable without sudo) or `~/.local/bin`, with completions; never replaces another program without `--force` |
+| `uninstall [--dry-run] [--remove-data [--yes]]` | Remove the service, links and completions it created; with `--remove-data`, also state, workspaces, logs and the app's window state, after typing `delete` |
+
+`lazybox schema [actions|process|workspace|theme] [--write DIR]` prints (or
+writes, for an editor) the JSON Schemas of the files a person writes. They
+ship with the CLI and are identified by `urn:lazybox:schema:…` ids, never a
+web address; a process file names `process.schema.json` beside it.
+
+`LAZYBOX_SERVICE_LABEL` selects another launchd label, with state, logs and a
+locator of its own: the release smoke test installs a test service that way.
 
 ### Completions
 

@@ -43,7 +43,9 @@ try{
   assert.deepEqual(await list.locator('div').nth(1).locator('kbd').allTextContents(),[']',']','c']);
   assert.deepEqual(await list.locator('div').nth(4).locator('kbd').allTextContents(),['j','k']);
   assert.match((await list.locator('div').nth(2).locator('kbd').textContent()),/^(⌘P|Ctrl\+P)$/);
-  await expect(welcome.getByRole('link',{name:/Read the documentation/})).toHaveAttribute('href','https://lazybox.ai/docs/');
+  // The documentation ships with the app: a button, never a web link.
+  await expect(welcome.getByRole('button',{name:/Read the documentation/})).toBeVisible();
+  await expect(welcome.getByRole('link',{name:/Read the documentation/})).toHaveCount(0);
   await page.screenshot({path:'.cache/onboarding-welcome.png'});
   // What's new is never shown on a first run: the newest release is recorded silently.
   await expect(page.getByRole('complementary',{name:"What's new"})).toHaveCount(0);
@@ -71,6 +73,21 @@ try{
   // Help → Keyboard shortcuts opens the shortcuts overlay (Customize there leads to Settings).
   await help(page,'Keyboard shortcuts');
   const overlay=page.getByRole('dialog',{name:'Keyboard shortcuts'});await expect(overlay).toBeVisible();await page.keyboard.press('Escape');await expect(overlay).toHaveCount(0);
+  // Help → Documentation opens the bundled docs, offline: pages, links between
+  // them, anchors, Back, and search; Escape closes.
+  await help(page,'Documentation');
+  const docs=page.getByRole('dialog',{name:'Documentation'});await expect(docs).toBeVisible();
+  await expect(docs.locator('.docs-page h1')).toContainText('Lazybox V2 documentation');
+  await docs.locator('.docs-page a.doc-link',{hasText:'Getting started'}).first().click();
+  await expect(docs.locator('.docs-page h1')).toContainText('Getting started');
+  await docs.getByRole('button',{name:'Back'}).click();
+  await expect(docs.locator('.docs-page h1')).toContainText('Lazybox V2 documentation');
+  await docs.getByRole('searchbox',{name:'Search the documentation'}).fill('keyboard shortcuts');
+  await expect(docs.getByRole('navigation',{name:'Search results'}).getByRole('button').first()).toBeVisible();
+  await docs.getByRole('searchbox',{name:'Search the documentation'}).press('Enter');
+  await expect(docs.getByRole('navigation',{name:'Pages'})).toBeVisible();
+  await page.screenshot({path:'.cache/onboarding-docs.png'});
+  await page.keyboard.press('Escape');await expect(docs).toHaveCount(0);
   assert.deepEqual(errors,[]);
   await context.close();
  }

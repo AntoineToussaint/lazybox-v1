@@ -48,6 +48,7 @@ const ROOT_AS_IS = ['LICENSE', 'NOTICE', 'CODE_OF_CONDUCT.md', 'CLA.md'];
 // root; so do links to any file the export writes at the root.
 const ROOT_LINK_MAP = new Map([
   ['.github/workflows/v2.yml', '.github/workflows/ci.yml'],
+  ['.github/workflows/v2-release.yml', '.github/workflows/release.yml'],
   ['.github/actions/v2-playwright', '.github/actions/playwright'],
 ]);
 
@@ -275,6 +276,12 @@ const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // Exact-text edits. `pre` edits apply to the committed text before the general
 // rules, `post` edits to the result. Each must match (once, unless `all`).
 const PATCHES = [
+  // The release workflow (v2/RELEASING.md) runs from the repository root, where
+  // V1's tag-triggered workflows no longer exist beside it.
+  { file: '.github/workflows/release.yml', find: 'name: V2 Release\n', replace: 'name: Release\n' },
+  { file: '.github/workflows/release.yml', find: "#\n# V1's release.yml and release-desktop.yml ignore `v2-v*` tags.\n", replace: '' },
+  { file: '.github/workflows/release.yml', find: '        shell: bash\n        working-directory: v2\n', replace: '        shell: bash\n' },
+  { file: '.github/workflows/release.yml', find: /v2\/dist\//g, replace: 'dist/', all: true },
   { file: 'Makefile', find: 'PROJECT ?= $(abspath ..)', replace: 'PROJECT ?= $(abspath .)' },
   { file: 'Makefile', find: /\n# export-repo: begin[^]*?# export-repo: end\n\n/, replace: '\n', optional: true },
   // The snippet helper was built from the V1 Cargo workspace around v2/; it is
@@ -290,7 +297,6 @@ const PATCHES = [
   await run('cargo', ['build', '--locked', '--manifest-path', join(source, 'tools/lazybox-snippets/Cargo.toml')], source, {...buildEnv, CARGO_TARGET_DIR:target});` },
   { file: 'scripts/environments.mjs', find: "snippetDirectory: channel === 'dev' ? resolve(source, '..') : source,", replace: 'snippetDirectory: source,' },
   // The repository is V2 alone and V2 is on main.
-  { file: 'README.md', find: 'git clone https://github.com/AntoineToussaint/lazybox.git && cd lazybox\ngit switch feat/v2-command-output\n', replace: 'git clone https://github.com/AntoineToussaint/lazybox.git && cd lazybox\n' },
   { file: 'docs/getting-started.md', find: 'cd lazybox\ngit switch feat/v2-command-output        # V2 lives on this branch for now\n', replace: 'cd lazybox\n' },
   { file: 'docs/README.md', find: 'They describe what is on the `feat/v2-command-output` branch today;', replace: 'They describe what is on `main` today;' },
   { file: 'docs/internal/README.md', find: 'The internal pages live next to the code at the top of `v2/`, where code', replace: 'The internal pages live next to the code at the repository root, where code' },
@@ -388,7 +394,7 @@ function rewriteText(path, text, topLevel, rootFiles) {
   if (path.endsWith('.md')) apply('links', value => relinkMarkdown(path, value, rootFiles));
   apply('go-module', value => value.replace(new RegExp(escapeRegExp(GO_MODULE.from) + '(?=[/";`\\s)]|$)', 'gm'), GO_MODULE.to));
   if (!KEEP_V2_TEXT.has(path)) {
-    apply('workflow-names', value => value.replaceAll('.github/workflows/v2.yml', '.github/workflows/ci.yml').replaceAll('`v2.yml`', '`ci.yml`').replaceAll('.github/actions/v2-playwright', '.github/actions/playwright'));
+    apply('workflow-names', value => value.replaceAll('.github/workflows/v2.yml', '.github/workflows/ci.yml').replaceAll('`v2.yml`', '`ci.yml`').replaceAll('.github/workflows/v2-release.yml', '.github/workflows/release.yml').replaceAll('(v2-release.yml)', '(release.yml)').replaceAll('.github/actions/v2-playwright', '.github/actions/playwright'));
     // Keeps aligned trailing comments aligned: the six characters go before the `#`.
     apply('make-C-v2', value => value.replace(/make -C v2 ([^\n#`]*?)( {2,}#)/g, 'make $1      $2').replaceAll('make -C v2 ', 'make '));
     // A `cd v2` line in a shell example; in code it is test input, kept as is.
@@ -413,7 +419,7 @@ function main() {
   // DEST is emptied except .git: never a checkout that holds Dev/Working state.
   if (existsSync(join(dest, '.cache', 'environments'))) throw new Error(`Refusing DEST ${dest}: it holds .cache/environments (live Dev/Working state). Export into a dedicated clone.`);
 
-  const source = readTree(repo, sha, ['v2', ...ROOT_AS_IS, '.github/workflows/v2.yml', '.github/actions/v2-playwright']);
+  const source = readTree(repo, sha, ['v2', ...ROOT_AS_IS, '.github/workflows/v2.yml', '.github/workflows/v2-release.yml', '.github/actions/v2-playwright']);
   const output = new Map(), summary = [];
   const record = (path, mode, data, note) => {
     if (output.has(path)) throw new Error(`Two sources for ${path}`);
@@ -459,6 +465,9 @@ function main() {
   if (!workflow || !action) throw new Error('Missing the V2 workflow or its Playwright action');
   transform('.github/workflows/ci.yml', workflow.mode, workflow.data, 'from .github/workflows/v2.yml');
   transform('.github/actions/playwright/action.yml', action.mode, action.data, 'from .github/actions/v2-playwright');
+  const release = source.get('.github/workflows/v2-release.yml');
+  if (!release) throw new Error('Missing the V2 release workflow');
+  transform('.github/workflows/release.yml', release.mode, release.data, 'from .github/workflows/v2-release.yml');
   const ignore = source.get('v2/.gitignore');
   record('.gitignore', '100644', Buffer.concat([ignore.data, Buffer.from('\n# Editor and OS files, local agent state.\n.DS_Store\n*.swp\n*.swo\n.claude/\n')]), 'merged from v2/.gitignore');
   for (const [path, file] of overlay) record(path, file.mode, file.data, 'V2 version (scripts/export-repo/root)');

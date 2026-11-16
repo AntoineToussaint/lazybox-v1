@@ -57,6 +57,13 @@ func init() {
 		{Name: "actions", Args: "[ls|validate [FILE]|schema|path|init|run ID]", Summary: "your actions file: list, check, create, run an action", Subs: []string{"ls", "validate", "schema", "path", "init", "run"}, Flags: []string{"--json", "--conversation", "--timeout"}, Complete: "actions", run: (*cli).actions},
 		{Name: "hooks", Args: "[ls|runs|test ID|log RUN]", Summary: "your hooks, their recent runs and output", Subs: []string{"ls", "runs", "test", "log"}, Flags: []string{"--json", "--limit"}, Complete: "hooks", run: (*cli).hooks},
 		{Name: "completion", Args: "zsh|bash|fish", Summary: "print a shell completion script", Subs: []string{"zsh", "bash", "fish"}, run: (*cli).completion},
+		// An installed release (v2/INSTALL.md): its Runner service, the CLI on PATH, a health check, removal.
+		{Name: "service", Args: "[status|install|uninstall|start|stop|restart|logs [-f]|plan]", Summary: "the Runner service: install, update, start, stop, its logs", Subs: []string{"status", "install", "uninstall", "start", "stop", "restart", "logs", "plan"}, Flags: []string{"--json", "--no-start", "--follow", "--lines"}, run: (*cli).service},
+		{Name: "doctor", Summary: "check the service, endpoint, versions, Node, providers, GitHub and disk", Flags: []string{"--json"}, run: (*cli).doctor},
+		{Name: "link", Args: "[--dir DIR] [--shell zsh|bash|fish]", Summary: "put this lazybox on your PATH and install shell completions (no sudo)", Flags: []string{"--json", "--dir", "--shell=zsh|bash|fish", "--no-completions", "--force", "--dry-run"}, run: (*cli).link},
+		{Name: "uninstall", Args: "[--dry-run] [--remove-data [--yes]]", Summary: "remove the service, links and completions (and, if asked, your data)", Flags: []string{"--json", "--dry-run", "--remove-data", "--yes"}, run: (*cli).uninstall},
+		{Name: "version", Summary: "this lazybox's version (also --version)", Flags: []string{"--json"}, run: (*cli).version},
+		{Name: "schema", Args: "[actions|process|workspace|theme] [--write DIR]", Summary: "the JSON Schemas of the files you write, for your editor (no web address)", Subs: []string{"actions", "process", "workspace", "theme"}, Flags: []string{"--json", "--write"}, run: (*cli).schema},
 		{Name: "__complete", Summary: "", run: (*cli).complete},
 	}
 }
@@ -104,6 +111,8 @@ type cli struct {
 	poll time.Duration
 	// json: the verb's --json.
 	json bool
+	// install finds the release and the system around it (install.go).
+	install setup
 	// last is the client the verb dialed, to explain its failure.
 	last *client
 }

@@ -8,9 +8,14 @@ import (
 	"sync"
 )
 
-// SchemaURL is the JSON Schema id a process file names in its
-// `# yaml-language-server: $schema=` line (or `$schema` key).
-const SchemaURL = "https://lazybox.ai/schema/process.v1.json"
+// SchemaID is the process file schema's id. A name, not an address: the
+// schema ships with the CLI (`lazybox schema process`) and nothing is fetched.
+const SchemaID = "urn:lazybox:schema:process:v1"
+
+// SchemaFile is what a process file's `# yaml-language-server: $schema=` line
+// names: the schema beside it (`lazybox schema process --write .lazybox`),
+// a relative path that means the same on every machine that checks it out.
+const SchemaFile = "process.schema.json"
 
 // Schema returns the JSON Schema of the process file, generated from the Go
 // types and their tags. schema/process.v1.json is this output, committed; a
@@ -43,7 +48,7 @@ func schemaDocument() map[string]any {
 	g := generator{defs: map[string]any{}}
 	root := g.schema(reflect.TypeFor[Process](), reflect.StructTag(""))
 	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-	root["$id"] = SchemaURL
+	root["$id"] = SchemaID
 	root["title"] = "Lazybox process"
 	root["description"] = "How Lazybox runs a mission: phases, gates, roles, rules and limits. See v2/ORCHESTRATION.md."
 	root["$defs"] = g.defs

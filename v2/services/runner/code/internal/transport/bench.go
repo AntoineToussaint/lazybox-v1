@@ -22,6 +22,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
+	"github.com/AntoineToussaint/lazybox/v2/internal/version"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -671,7 +672,7 @@ func (s *Service) WatchOutput(r *pb.WatchOutputRequest, stream grpc.ServerStream
 func grpcError(code codes.Code, err error) error { return status.Error(code, err.Error()) }
 
 func (s *Service) Version(context.Context, *pb.VersionRequest) (*pb.VersionResponse, error) {
-	return &pb.VersionResponse{Version: "0.1.0-experiment"}, nil
+	return &pb.VersionResponse{Version: version.String()}, nil
 }
 
 func (s *Service) ListHistory(ctx context.Context, r *pb.ListHistoryRequest) (*pb.ListHistoryResponse, error) {

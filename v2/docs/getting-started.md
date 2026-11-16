@@ -2,7 +2,8 @@
 
 Ten minutes from a clone to an agent working in its own workspace.
 
-- [Install (preview)](#install-preview)
+- [Install](#install)
+- [Build from source](#build-from-source)
 - [First launch](#first-launch)
 - [Your first workspace](#your-first-workspace)
 - [Your first agent](#your-first-agent)
@@ -10,10 +11,22 @@ Ten minutes from a clone to an agent working in its own workspace.
 - [Use the CLI from your terminal](#use-the-cli-from-your-terminal)
 - [Next steps](#next-steps)
 
-## Install (preview)
+## Install
 
-V2 has no installer or signed app yet. You build it from source, on **macOS**
-(the desktop app has only been built and tested there).
+Lazybox is a Mac app for Apple Silicon. Download the disk image from a
+release, drag **Lazybox** to Applications and open it (or
+`brew install --cask AntoineToussaint/lazybox/lazybox-v2`). The first launch
+explains and sets up its background service, the **Runner**, and offers to
+put the `lazybox` command on your PATH. It brings its own Runner, Claude
+worker and Node; you need `git` and the agents you use (Claude Code, Codex)
+signed in. Updates arrive in the app. Everything else — where things are,
+unsigned builds, uninstalling — is in [INSTALL.md](../INSTALL.md).
+
+No release is published yet. Until then, build it from source.
+
+## Build from source
+
+On **macOS** (the desktop app has only been built and tested there).
 
 **You need**
 

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://lazybox.ai/schema/process.v1.json
+# yaml-language-server: $schema=process.schema.json
 version: 1
 name: solo-pair
 autonomy: 3                      # you review every PR

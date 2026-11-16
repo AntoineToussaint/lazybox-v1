@@ -171,10 +171,15 @@ cannot take one and says so. All of it is owner-only: an agent cannot take a
 screenshot of your screen.
 
 **Finding the Runner from any terminal.** The launchers record each
-environment's endpoint locator in `~/.config/lazybox/runners/<dev|working>.json`
-(no credential: the path of the private `endpoint.json`). `lazybox` uses
-`--endpoint`, then `LAZYBOX_V2_ENDPOINT`, then `--runner NAME` /
-`LAZYBOX_RUNNER`, then those locators (Working when both run). Inside an
+environment's endpoint locator in `~/.config/lazybox/runners/<dev|working>.json`,
+and an installed release's service its own as `lazybox.json`
+([INSTALL.md](INSTALL.md)) (no credential: the path of the private
+`endpoint.json`). `lazybox` uses `--endpoint`, then `LAZYBOX_V2_ENDPOINT`,
+then `--runner NAME` / `LAZYBOX_RUNNER`, then those locators (the installed
+one, then Working, when several run). `lazybox run` and `lazybox log` from a
+person's own terminal find it the same way, and publish to the workspace
+named by `--collection` (an id or a name) or, without it, the one whose
+folder or worktree the current directory is in. Inside an
 agent or a Lazybox terminal it never falls back to them: those keep their
 scoped credentials and allowlisted verbs. That is defense in depth, not a
 boundary: an agent runs as your OS user ([resource ownership](RESOURCE_OWNERSHIP.md#agent-credentials)).

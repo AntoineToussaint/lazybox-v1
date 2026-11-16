@@ -64,7 +64,7 @@ func TestProcessValidateReadsTheRepositoryFile(t *testing.T) {
 func TestProcessShowExplainSchemaEvents(t *testing.T) {
 	t.Chdir(t.TempDir())
 	out, err := runProcess(t, "show", "--preset", "reviewed-team")
-	if err != nil || !strings.HasPrefix(out, "# yaml-language-server: $schema="+process.SchemaURL+"\nversion: 1\nname: reviewed-team\n") {
+	if err != nil || !strings.HasPrefix(out, "# yaml-language-server: $schema="+process.SchemaFile+"\nversion: 1\nname: reviewed-team\n") {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if out, err = runProcess(t, "show", "--json"); err != nil || !strings.Contains(out, `"name": "solo-pair"`) {

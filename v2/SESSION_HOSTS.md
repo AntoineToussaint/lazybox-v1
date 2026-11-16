@@ -138,7 +138,12 @@ notices in the conversation.
 - A host whose directory was deleted (its state is gone) stops its program and
   exits. A host removes its directory when it exits.
 - `scripts/runner-command.mjs` sets `LAZYBOX_V2_KEEP_AGENTS=1` for Dev, Working
-  and the Codefly service. Ephemeral test Runners keep the old contract: their
+  and the Codefly service; an installed release's `lazybox-runner serve` keeps
+  agents by default, and its launchd job is the supervisor that offers Restart
+  Runner (`--supervised`, [INSTALL.md](INSTALL.md)). Updating the app replaces
+  the job (`lazybox service install`: bootout, then bootstrap of the new
+  release's Runner); `TestReleaseServiceUpdateKeepsWhatRuns` checks a
+  terminal's shell survives that against the built artifacts. Ephemeral test Runners keep the old contract: their
   agents and commands stop with them, and at startup they stop any agent host
   a crashed predecessor left behind.
 - `RestartRunner` (owner only, `internal/restart`) records a request for the

@@ -5,8 +5,9 @@ conversations, send, approve, stop, wait, open things in the window, take a
 screenshot, run your actions. Every command below takes `--json` and exits
 with a [documented code](#exit-codes).
 
-Build it with `make -C v2 build-go` (it lands in `v2/bin/lazybox`); agents in
-Lazybox already have it on their `PATH`. Run `lazybox` with no arguments for the
+The installed app puts it on your `PATH` when you ask (first run, Settings →
+About, or `lazybox link`); from a checkout, `make -C v2 build-go` builds it into
+`v2/bin/lazybox`. Agents in Lazybox already have it on their `PATH`. Run `lazybox` with no arguments for the
 list. The complete, contributor-level reference is
 [`cmd/lazybox/README.md`](../../services/runner/code/cmd/lazybox/README.md).
 
@@ -18,8 +19,9 @@ You rarely need to say. In order, it uses:
 2. `LAZYBOX_V2_ENDPOINT` — set for you inside Lazybox (an agent, a workspace
    terminal, a hook);
 3. `--runner NAME` or `LAZYBOX_RUNNER=NAME` — a registered Runner;
-4. the Runners the Dev and Working launchers register in
-   `~/.config/lazybox/runners/`: the only one, or `working` when both run.
+4. the Runners registered in `~/.config/lazybox/runners/` — the installed
+   app's (`lazybox`) and the Dev and Working launchers': the only one, or
+   `lazybox`, then `working`, when several run.
 
 `lazybox runners` shows them and which one is live. `--endpoint` and `--runner`
 go **before** the command: `lazybox --runner dev ls`.
@@ -71,8 +73,23 @@ Panels for `--panel` and `shot`: `chat`, `console`, `terminal`, `assistant`,
 | `lazybox run [--to CONVERSATION] -- cmd args…` | Run a command: you see every byte, the console keeps it with its exit status, an agent gets the compact view. |
 
 Both need no flag inside a Lazybox workspace terminal or agent. From your own
-terminal, give them the Runner and the workspace explicitly — see
+terminal they find the Runner as above, and the workspace you are in (your
+current directory inside its folder or one of its worktrees), or the one
+`--collection` names by id or by name — see
 [Run your app](../guides/run-your-app.md#send-your-terminals-output-to-lazybox).
+
+## The installation
+
+For the installed app ([INSTALL.md](../../INSTALL.md)):
+
+| Command | What it does |
+| --- | --- |
+| `lazybox --version` | The release. The app, the CLI and the Runner always share it. |
+| `lazybox doctor` | Checks everything the app needs and prints the fix beside each problem. |
+| `lazybox service [status\|install\|start\|stop\|restart\|logs [-f]\|plan\|uninstall]` | The Runner's launchd service. `install` also repairs it and refreshes the PATH agents get; a restart or update keeps agents running. |
+| `lazybox link [--dir DIR]` | Puts this `lazybox` on your PATH with completions, no password. |
+| `lazybox uninstall [--dry-run] [--remove-data]` | Removes the service, link and completions; `--remove-data` also your conversations and workspaces, after asking. |
+| `lazybox schema [actions\|process\|workspace\|theme] [--write DIR]` | The JSON Schemas of the files you write, for your editor; they ship with the CLI, nothing is fetched. |
 
 ## Exit codes
 

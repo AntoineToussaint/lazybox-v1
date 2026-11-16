@@ -35,7 +35,7 @@ func TestSchemaIsGeneratedFromTheTypes(t *testing.T) {
 	if err = json.Unmarshal(generated, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc["$id"] != SchemaURL || doc["$ref"] != "#/$defs/Process" {
+	if doc["$id"] != SchemaID || doc["$ref"] != "#/$defs/Process" {
 		t.Fatalf("schema root: $id %v $ref %v", doc["$id"], doc["$ref"])
 	}
 	defs := doc["$defs"].(map[string]any)

@@ -8,6 +8,8 @@ mod capture;
 mod host;
 mod layout;
 mod placement;
+mod release;
+mod updates;
 mod viewer;
 mod viewstate;
 
@@ -113,7 +115,14 @@ fn validate_endpoint(value: &str) -> Result<String, Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let application = tauri::Builder::default()
+    let context = tauri::generate_context!();
+    // Only a release build carries an updater configuration (updates.rs).
+    let updater = updates::configured(context.config());
+    let mut builder = tauri::Builder::default();
+    if updater {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    let application = builder
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             host::second_instance(app, args)
         }))
@@ -124,6 +133,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .plugin(tauri_plugin_notification::init())
         .manage(attention::Attention::default())
         .manage(viewer::Viewers::default())
+        .manage(updates::Pending::default())
         .invoke_handler(tauri::generate_handler![
             host::runner_bootstrap,
             host::save_view_state,
@@ -157,7 +167,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             capture::focus_window,
             appearance::ui_zoom,
             appearance::set_ui_zoom,
-            appearance::share_preference
+            appearance::share_preference,
+            release::app_info,
+            release::setup_state,
+            release::setup_install,
+            release::setup_start,
+            release::setup_finish,
+            release::run_doctor,
+            release::link_cli,
+            release::show_runner_log,
+            updates::check_for_update,
+            updates::install_update
         ])
         .setup(|app| {
             attention::setup(app.handle())?;
@@ -165,7 +185,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         })
         .on_window_event(host::window_event)
         .on_menu_event(|app, event| host::menu_event(app, event.id().as_ref()))
-        .build(tauri::generate_context!())?;
+        .build(context)?;
     application.run(|app, event| match event {
         tauri::RunEvent::ExitRequested {
             code: None, api, ..

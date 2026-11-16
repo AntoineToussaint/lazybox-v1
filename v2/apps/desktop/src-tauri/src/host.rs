@@ -129,12 +129,18 @@ fn launch_options() -> Result<LaunchOptions, String> {
     })
 }
 
-fn connection(app: &tauri::AppHandle) -> Result<(Bootstrap, PathBuf), Box<dyn std::error::Error>> {
+fn connection(
+    app: &tauri::AppHandle,
+    release_endpoint: Option<PathBuf>,
+) -> Result<(Bootstrap, PathBuf), Box<dyn std::error::Error>> {
     let LaunchOptions {
         endpoint,
         project,
         session,
     } = launch_options()?;
+    // An explicit endpoint (Dev, Working, `make desktop`) wins; an installed
+    // release connects to its own service's (release.rs).
+    let endpoint = endpoint.or(release_endpoint);
     let config = app.path().app_config_dir()?.join("runner.json");
     let previous: Option<Locator> = match fs::read(&config) {
         Ok(data) => Some(serde_json::from_slice(&data)?),
@@ -170,7 +176,26 @@ fn connection(app: &tauri::AppHandle) -> Result<(Bootstrap, PathBuf), Box<dyn st
 }
 
 pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let (connection, endpoint) = connection(app.handle())?;
+    let handle = app.handle();
+    // Dev, Working and `make desktop` name their Runner; an installed release
+    // finds (or first sets up) its own service.
+    if launch_options()?.endpoint.is_none()
+        && let Some(release) = crate::release::Release::detect(handle)
+    {
+        return match crate::release::prepare(&release) {
+            Some(endpoint) => start(handle, Some(endpoint)),
+            None => crate::release::open_setup(handle).map_err(Into::into),
+        };
+    }
+    start(handle, None)
+}
+
+/// Connects the app to its Runner and restores its windows.
+pub fn start(
+    app: &tauri::AppHandle,
+    release_endpoint: Option<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (connection, endpoint) = connection(app, release_endpoint)?;
     let authority = authority(&connection);
     let repository = Repository::new(&app.path().app_local_data_dir()?, &authority);
     println!("Desktop layout file: {}", repository.path.display());
@@ -246,9 +271,9 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         notice: Mutex::new(notice),
         restart: Mutex::new(None),
     });
-    app.set_menu(build_menu(app.handle(), &[])?)?;
+    app.set_menu(build_menu(app, &[])?)?;
     for (_, label) in restore {
-        open(app.handle(), &label)?;
+        open(app, &label)?;
     }
     Ok(())
 }
@@ -823,8 +848,17 @@ fn follow_restart(window: &Webview, host: &Host, path: &std::path::Path) -> Resu
 pub fn window_event(window: &tauri::Window, event: &WindowEvent) {
     let app = window.app_handle();
     let Some(host) = app.try_state::<Host>() else {
+        // Closing the first-run window before setting up quits: there is
+        // nothing to connect to yet. The Runner was not touched.
+        if window.label() == crate::release::SETUP_LABEL && matches!(event, WindowEvent::Destroyed)
+        {
+            app.exit(0);
+        }
         return;
     };
+    if window.label() == crate::release::SETUP_LABEL {
+        return;
+    }
     if host.quitting.load(Ordering::SeqCst) {
         return;
     }
@@ -935,6 +969,10 @@ pub fn menu_event(app: &tauri::AppHandle, id: &str) {
 
 pub fn second_instance(app: &tauri::AppHandle, args: Vec<String>) {
     let Some(host) = app.try_state::<Host>() else {
+        // Still setting up: bring the setup window forward.
+        if let Err(error) = crate::release::open_setup(app) {
+            eprintln!("Setup window: {error}");
+        }
         return;
     };
     if let Some(index) = args.iter().position(|s| s == "--endpoint") {

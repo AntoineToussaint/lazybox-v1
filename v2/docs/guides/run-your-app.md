@@ -117,16 +117,15 @@ does the same for a named conversation. The agent never gets the full output
 dumped into its context.
 
 **From your own terminal** (iTerm, Ghostty…) `lazybox log` and `lazybox run`
-need to be told which Runner and which workspace, because nothing in that shell
-says so. Pass the Runner's endpoint file and the workspace id (from
-`lazybox ls --json`):
+find the Runner by themselves (the installed app's, or Working's), and publish
+to the workspace your current directory is in — its folder or one of its
+worktrees:
 
 ```sh
-endpoint=~/src/lazybox/v2/.cache/environments/working/state/endpoint.json
-go test ./... 2>&1 | lazybox --endpoint "$endpoint" log --collection <workspace-id> --title "go test ./..."
+cd ~/Library/Application\ Support/Lazybox/workspaces/alpha/api   # a workspace's worktree
+go test ./... 2>&1 | lazybox log --title "go test ./..."
+lazybox run --collection "Alpha feature" -- make lint             # or name the workspace
 ```
 
-The path above is the default for a Working install from a checkout at
-`~/src/lazybox`; `make -C v2 environments` prints your state folder, and the
-endpoint file is `endpoint.json` inside it. A shorter form that
-finds the Runner and takes a workspace by name is not there yet.
+`--collection` takes a workspace's id or its name; `--endpoint FILE` still picks
+a Runner explicitly.

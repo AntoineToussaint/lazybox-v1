@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://lazybox.ai/schemas/workspace.v1.json",
+  "$id": "urn:lazybox:schema:workspace:v1",
   "title": "Lazybox workspace runtime (.lazybox/workspace.yaml)",
   "description": "What a new workspace of this repository sets up, runs and archives. Lazybox shows these scripts and runs them only after you approve this exact version. See v2/WORKSPACE_RUNTIME.md.",
   "type": "object",

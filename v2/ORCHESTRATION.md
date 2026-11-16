@@ -270,7 +270,9 @@ that passes a gate.
 1. **Schema**: a JSON Schema generated from the Go types, published with the
    binary (`lazybox process schema`; committed as
    `internal/process/schema/process.v1.json`); editors get completion through
-   a `# yaml-language-server: $schema=` line. Every file is checked against it
+   a `# yaml-language-server: $schema=process.schema.json` line naming the
+   schema beside the file (`lazybox schema process --write .lazybox` puts it
+   there; nothing is fetched from the web). Every file is checked against it
    before it is decoded, so a wrong key or value is reported at its line.
 2. **Semantics** (`lazybox process validate`): roles referenced exist; event
    types are known; every phase is reachable and has an exit; no role holds a
@@ -313,7 +315,7 @@ Settings → Process, not only YAML:
 You coordinate; one worker builds; the other provider reviews on demand.
 
 ```yaml
-# yaml-language-server: $schema=https://lazybox.ai/schema/process.v1.json
+# yaml-language-server: $schema=process.schema.json
 version: 1
 name: solo-pair
 autonomy: 3                      # you review every PR

@@ -26,6 +26,19 @@ func init() { WithConfigure(configureRunner) }
 // configureRunner adds execution behavior through Codefly's generated seam;
 // the scaffold owns listeners, network resolution, health, and shutdown.
 func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean, error) {
+	return configureRunnerAt(ctx, config, func() (string, error) {
+		instance, err := codefly.For(ctx).API(standards.CONNECT).ResolveNetworkInstance()
+		if err != nil {
+			return "", err
+		}
+		return instance.Address, nil
+	})
+}
+
+// configureRunnerAt is the Runner behind either launch: Codefly's generated
+// main (configureRunner) or an installed release's standalone serve mode
+// (standalone.go). address resolves the Connect URL clients reach it at.
+func configureRunnerAt(ctx context.Context, config *adapters.Configuration, address func() (string, error)) (Clean, error) {
 	if err := requireLoopbackListeners(ctx, config); err != nil {
 		return nil, err
 	}
@@ -84,6 +97,14 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 	if worker := os.Getenv("LAZYBOX_V2_WORKER"); worker != "" {
 		cfg.Worker = worker
 	}
+	// An installed release names the Node and Claude Code it ships (standalone.go);
+	// a choice in the Runner configuration still wins.
+	if node := os.Getenv("LAZYBOX_V2_NODE"); node != "" && cfg.Node == "" {
+		cfg.Node = node
+	}
+	if claude := os.Getenv("LAZYBOX_V2_CLAUDE_BINARY"); claude != "" && cfg.ClaudeBinary == "" {
+		cfg.ClaudeBinary = claude
+	}
 	if dir := os.Getenv("LAZYBOX_V2_CLI_DIR"); dir != "" {
 		// Only brief agents about a CLI they can actually run (older releases have none).
 		if info, err := os.Stat(filepath.Join(dir, "lazybox")); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
@@ -103,12 +124,11 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 	}
 	// The owner's endpoint file. Agents get their own (runner.Bench.AgentEndpoint).
 	endpoint := filepath.Join(cfg.State, "endpoint.json")
-	instance, err := codefly.For(ctx).API(standards.CONNECT).ResolveNetworkInstance()
+	cfg.Address, err = address()
 	if err != nil {
 		lock.Close()
 		return nil, err
 	}
-	cfg.Address = instance.Address
 	bench, err := runner.New(cfg)
 	if err != nil {
 		lock.Close()
@@ -121,7 +141,7 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 		return nil, err
 	}
 	token := commands.ID() + commands.ID()
-	data, err := json.Marshal(map[string]string{"url": instance.Address, "token": token, "runnerId": runnerID})
+	data, err := json.Marshal(map[string]string{"url": cfg.Address, "token": token, "runnerId": runnerID})
 	if err == nil {
 		var file *os.File
 		file, err = os.CreateTemp(cfg.State, ".endpoint-")

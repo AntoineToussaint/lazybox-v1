@@ -85,10 +85,21 @@ Not in CI, and why:
 - `test:browser`, `make test-real*` and every other live/provider test: they
   need a selected live Runner and provider credentials (the catalog's
   `external` entries). CI holds neither.
-- `make stage`/`promote` and the real Tauri app bundle: CI checks the desktop
-  crate (fmt, tests, clippy) but does not build, sign or launch the `.app`.
+- `make stage`/`promote` and the real Tauri app bundle: per-change CI checks
+  the desktop crate (fmt, tests, clippy) but does not build, sign or launch
+  the `.app`. The release workflow does, on a `v2-v*` tag (below).
 - Real-device, remote Hub, native service install and provider qualification:
   separate roadmap gates, as above.
+
+### Release
+
+[`.github/workflows/v2-release.yml`](../.github/workflows/v2-release.yml)
+runs on a `v2-v<x.y.z>` tag. Its first job *is* this workflow
+(`workflow_call`), so a release passes exactly the gates a pull request does;
+only then does it build, sign and smoke-test the installable app
+(`make release`, [RELEASING.md](RELEASING.md)) and publish it. The smoke test
+starts the built standalone Runner in a temporary state directory, checks the
+bundled CLI reaches it with the same version, and stops it.
 
 `v2 ci` is one check that passes only when every job did. It runs only when the
 workflow does, so requiring it in branch protection needs a paths-aware rule;

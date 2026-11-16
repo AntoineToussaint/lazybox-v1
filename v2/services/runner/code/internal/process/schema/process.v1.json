@@ -726,7 +726,7 @@
       "type": "object"
     }
   },
-  "$id": "https://lazybox.ai/schema/process.v1.json",
+  "$id": "urn:lazybox:schema:process:v1",
   "$ref": "#/$defs/Process",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "How Lazybox runs a mission: phases, gates, roles, rules and limits. See v2/ORCHESTRATION.md.",
