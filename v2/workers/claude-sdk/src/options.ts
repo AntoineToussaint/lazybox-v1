@@ -1,4 +1,5 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
+import { helpPermissions } from './settings.js';
 
 type ExecutionOptions = {
   cwd: string; model?: string; resume?: string; context?: string;
@@ -15,7 +16,10 @@ export function nativeOptions(o: ExecutionOptions, env: NodeJS.ProcessEnv): Opti
     // chain and configured mode. The SDK handles deny/allow rules before callbacks.
     env, includePartialMessages: true,
     ...(['help', 'planning', 'summary'].includes(o.purpose || '') ? { tools: [], strictMcpConfig: true } : {}),
-    ...(o.permission === 'read-only' || o.workflow === 'plan' ? { permissionMode: 'plan' as const }
+    // The help assistant's only tools are Lazybox's settings: reading them is
+    // allowed, and every update asks, whatever the Runner permission says.
+    ...(o.purpose === 'help' ? { permissionMode: 'default' as const, settings: { permissions: helpPermissions } }
+      : o.permission === 'read-only' || o.workflow === 'plan' ? { permissionMode: 'plan' as const }
       : o.permission === 'yolo' ? { permissionMode: 'bypassPermissions' as const, allowDangerouslySkipPermissions: true }
       : o.permission === 'ask' ? { permissionMode: 'default' as const, settings: { permissions: { ask: ['Bash', 'mcp__lazybox__command'] } } }
       : {}),

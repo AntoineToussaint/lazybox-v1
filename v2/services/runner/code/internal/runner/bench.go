@@ -375,7 +375,14 @@ func (b *Bench) OpenAssistant(profile, purpose, contextText string, options acco
 	}
 	options.Permission = "read-only"
 	options.Workflow = "execute"
-	contextText = assistant.Context + "\nYou are the Lazybox application assistant for " + purpose + ". Answer from the supplied context. Produce advice or a proposal; do not execute commands, edit files, or apply configuration. Supplied context follows:\n" + contextText
+	role := "Answer from the supplied context. Produce advice or a proposal; do not execute commands, edit files, or apply configuration."
+	product := assistant.Context
+	if purpose == "help" {
+		// Only the help assistant has the settings tools; the user approves each change.
+		product += "\n" + assistant.Settings
+		role = "Answer from the supplied context. Do not execute commands or edit files. You may propose a change to Lazybox's own settings only through the settings tools, and only the user's approval applies it."
+	}
+	contextText = product + "\nYou are the Lazybox application assistant for " + purpose + ". " + role + " Supplied context follows:\n" + contextText
 	collectionID := ""
 	if len(workspace) > 0 {
 		collectionID = workspace[0]

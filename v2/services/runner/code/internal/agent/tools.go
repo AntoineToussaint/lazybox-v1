@@ -6,11 +6,30 @@ import "encoding/json"
 // managed commands.
 const CommandTool = "lazybox_command"
 
+// SettingsReadTool and SettingsUpdateTool are the Runner tools through which the
+// help assistant reads and proposes changes to Lazybox's own settings. Only the
+// help assistant has them; every update is put to the user before it runs.
+const (
+	SettingsReadTool   = "lazybox_get_settings"
+	SettingsUpdateTool = "lazybox_update_settings"
+)
+
+// SettingsTool reports whether name is one of the help assistant's settings tools.
+func SettingsTool(name string) bool {
+	return name == SettingsReadTool || name == SettingsUpdateTool
+}
+
 // ToolReplaySafe reports whether a tool call may simply run again when it is
 // redelivered after a Runner restart. Managed commands outlive the Runner, so
 // reading one or waiting for it has no effect a second run could repeat.
 // Starting or cancelling one does: those get an explicit unknown outcome.
+// Reading settings has no effect; an approved settings update names the
+// revision it was proposed against, so a second run applies nothing once the
+// first did — it is refused as a conflict.
 func ToolReplaySafe(name string, args json.RawMessage) bool {
+	if SettingsTool(name) {
+		return true
+	}
 	if name != CommandTool {
 		return false
 	}

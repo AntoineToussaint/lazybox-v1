@@ -72,6 +72,22 @@ installed app-server/local gateway fixture. Coding startup still inherits
 native permissions unless explicitly overridden. No native settings file is
 rewritten.
 
+The Help assistant (and only it) can change Lazybox's own agent settings. It
+gets two Runner tools — Claude sees them as the in-process `lazybox_settings`
+MCP server (`get_settings`, `update_settings`), Codex as the dynamic tools
+`lazybox_get_settings` and `lazybox_update_settings`. Reading returns the
+Settings → Agents & workspaces fields and their revision, never credentials,
+accounts or prices. An update names that revision, a reason and only the
+changed fields (`naming`, `permission`, `context`, `claudeContext`,
+`codexContext`); the Runner validates it like the Settings page and refuses a
+stale revision, so it applies at most once. Every update is put to the user as
+an approval card showing the reason and current → proposed values, whatever
+the Runner's default permission: Claude runs the help assistant in `default`
+mode with an `ask` rule, and its worker runs an update only for an input the
+user allowed; Codex dynamic-tool calls always surface as Runner approvals.
+Snippets are not changeable: the Runner's snippet catalog is a read-only
+adapter. Coding agents, planning and summary assistants never get these tools.
+
 `GetRunnerSettings`, `SaveRunnerSettings`, and `SetModelPrice` expose mutable
 Runner preferences under its resolved state root (`runner-settings.json`). Atomic
 private-file replacement and revision checks prevent a stale window from silently
@@ -91,7 +107,8 @@ and Codex `never` approval policy with `danger-full-access`. It is available per
 coding session or as an explicitly saved Runner default. The shipped default
 remains unchanged native CLI behavior; `inherit` explicitly skips a Runner
 permission override. Plan sessions cannot request YOLO; help/planning/summary
-application assistants remain read-only regardless of the coding default.
+application assistants remain read-only regardless of the coding default, and
+the Help assistant's settings updates always ask, even under a YOLO default.
 Permission flags affect the launched process, never persisted CLI configuration.
 
 

@@ -32,6 +32,7 @@ type session struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	tools           func(context.Context, string, json.RawMessage) (string, error)
+	purpose         string
 	// responded: the user's responses to requests answered before a Runner restart.
 	responded map[string]agent.Operation
 }
@@ -145,8 +146,8 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	if o.Resume != "" {
 		method = "thread/resume"
 		params["threadId"] = o.Resume
-	} else if o.Tools != nil {
-		params["dynamicTools"] = []any{map[string]any{"type": "function", "name": "lazybox_command", "description": "Start, read, wait for or cancel a runner-owned command. Output remains available to independent human consoles. Start requires human approval. Never repeat a start after receiving its command id.", "inputSchema": json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["start","read","wait","cancel"]},"argv":{"type":"array","items":{"type":"string"}},"id":{"type":"string"},"offset":{"type":"integer","minimum":0}},"required":["action"],"additionalProperties":false}`)}}
+	} else if tools := dynamicTools(o.Purpose); o.Tools != nil && tools != nil {
+		params["dynamicTools"] = tools
 	}
 	result, err := p.Call(setup, method, params)
 	if err != nil {
@@ -167,7 +168,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	if err = json.Unmarshal(result, &response); err != nil || response.Thread.ID == "" {
 		return fail(errors.New("Codex omitted native thread id"))
 	}
-	s := &session{p: p, ref: response.Thread.ID, model: response.Model, workflow: o.Workflow, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools}
+	s := &session{p: p, ref: response.Thread.ID, model: response.Model, workflow: o.Workflow, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, purpose: o.Purpose}
 	settings := map[string]json.RawMessage{}
 	for key, value := range map[string]json.RawMessage{"approvalPolicy": response.Approval, "approvalsReviewer": response.Reviewer, "sandboxPolicy": response.Sandbox} {
 		if len(value) > 0 && string(value) != "null" {
@@ -204,7 +205,8 @@ type durable struct {
 	Overrides map[string]json.RawMessage `json:"overrides,omitempty"`
 }
 
-// runTool runs an approved dynamic tool call and answers the app-server.
+// runTool runs an approved dynamic tool call and answers the app-server. An
+// empty request is a call that needed no approval, so nothing is resolved.
 func (s *session) runTool(native json.RawMessage, request, tool string, args json.RawMessage) {
 	if s.tools == nil {
 		s.replyTool(native, request, "managed commands unavailable", false)
@@ -219,10 +221,11 @@ func (s *session) runTool(native json.RawMessage, request, tool string, args jso
 
 func (s *session) replyTool(native json.RawMessage, request, text string, success bool) {
 	err := s.p.Reply(native, map[string]any{"success": success, "contentItems": []any{map[string]string{"type": "inputText", "text": text}}})
-	if err == nil {
-		s.emit(agent.Event{Type: "request_resolved", RequestID: request, Status: "response_written"})
-	} else {
+	switch {
+	case err != nil:
 		s.emit(agent.Event{Type: "failure", Status: "tool_reply_failed", Text: err.Error()})
+	case request != "":
+		s.emit(agent.Event{Type: "request_resolved", RequestID: request, Status: "response_written"})
 	}
 }
 
@@ -246,7 +249,7 @@ func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
 			return nil, err
 		}
 	}
-	s := &session{p: p, ref: o.Host.Attach.Reference, turn: state.Turn, model: state.Model, workflow: o.Workflow, settings: state.Settings, overrides: state.Overrides, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, responded: o.Host.Attach.Responded}
+	s := &session{p: p, ref: o.Host.Attach.Reference, turn: state.Turn, model: state.Model, workflow: o.Workflow, settings: state.Settings, overrides: state.Overrides, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, purpose: o.Purpose, responded: o.Host.Attach.Responded}
 	go s.read()
 	return s, nil
 }
@@ -416,7 +419,7 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 			if op.Decision == "accept" {
 				go s.runTool(p.message.ID, op.RequestID, p.tool, p.args)
 			} else {
-				go s.replyTool(p.message.ID, op.RequestID, "Command declined", false)
+				go s.replyTool(p.message.ID, op.RequestID, toolDeclined(p.tool), false)
 			}
 			r.Delivery = "submitted"
 			return r, nil
@@ -539,18 +542,23 @@ func (s *session) read() {
 				case "item/tool/requestUserInput", "tool/requestUserInput":
 					ev.Type = "question"
 				case "item/tool/call":
-					if p.Tool != "lazybox_command" {
+					if !toolOffered(s.purpose, p.Tool) {
 						_ = s.p.Reject(m.ID, "unknown dynamic tool")
 						return true
 					}
+					title := toolApproval(p.Tool)
 					switch {
+					case title == "":
+						// Only reads: there is nothing to approve.
+						go s.runTool(m.ID, "", p.Tool, p.Arguments)
+						return true
 					case !answered:
 					case response.Decision != "" && response.Decision != "accept":
 						// Declined: nothing ran, so the decline is simply repeated.
-						go s.replyTool(m.ID, id, "Command declined", false)
+						go s.replyTool(m.ID, id, toolDeclined(p.Tool), false)
 						return true
 					case agent.ToolReplaySafe(p.Tool, p.Arguments):
-						// Only inspects a command that outlived the Runner: run it again.
+						// Running it again cannot repeat an effect: run it again.
 						go s.runTool(m.ID, id, p.Tool, p.Arguments)
 						return true
 					default:
@@ -561,7 +569,7 @@ func (s *session) read() {
 						return true
 					}
 					ev.Type = "approval"
-					ev.Text = "Run managed command tool"
+					ev.Text = title
 				default:
 					_ = s.p.Reject(m.ID, "unsupported server request")
 					emit(agent.Event{Type: "unsupported_request", Text: m.Method, Data: m.Params})

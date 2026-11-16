@@ -200,8 +200,15 @@ proto through Codefly and Buf.
   task runs, background membership reconciliation, and distinct quota/context/
   local budget classifications.
 - Real installed SDK/app-server processes reach local HTTP gateway fixtures.
-  Claude assistant requests advertise no built-in/MCP tools. Codex assistant
-  requests advertise an empty tool catalog on the installed version; controlled native HTTP 401
+  Claude assistant requests advertise no built-in or ambient MCP tools: the
+  planning assistant none, the Help assistant exactly its two Lazybox settings
+  tools (the fixture inspects the conversation turn, not the SDK's tool-less
+  session-naming side request, which the earlier check had been reading). A
+  scripted local Messages endpoint drives the Help assistant through reading
+  settings without approval and proposing a change that waits for approval
+  under a YOLO Runner default and is applied only once allowed. Codex Help
+  requests advertise only the two settings dynamic tools on the installed
+  version, and no execution tool; controlled native HTTP 401
   responses exercise authentication classification. These fixtures use fake
   credentials and deliberately refuse inference.
 - Fake native sessions exercise same-execution account handoff, model and

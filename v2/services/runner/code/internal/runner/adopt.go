@@ -15,6 +15,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/rotation"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/settingstool"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
 )
@@ -23,7 +24,7 @@ import (
 // rotation around metering around the native adapter. Opening and adopting an
 // execution must build the identical stack.
 func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options accounts.Options, conversationID string) agent.Adapter {
-	id, collectionID, purpose, cwd := e.ID, e.CollectionID, e.Purpose, e.Cwd
+	id, collectionID, cwd := e.ID, e.CollectionID, e.Cwd
 	native := telemetry.Adapter{Native: b.Adapters[selected.Provider], Store: b.Telemetry, Prices: b.Prices, Gateway: b.Meter, Scope: telemetry.Scope{Workspace: collectionID, Conversation: conversationID, Execution: id, Provider: selected.Provider}}
 	return rotation.Adapter{Native: native, Profiles: b.Profiles(), Eligible: options.RotationProfiles, State: b.Accounts,
 		Resolve: func(p accounts.Profile, open agent.Open) (agent.Open, error) {
@@ -33,12 +34,7 @@ func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options 
 				return open, err
 			}
 			open.Env = append(next, b.executionEnv(id, collectionID)...)
-			pinned := append([]string{}, open.Env...)
-			if !agent.IsAssistant(purpose) {
-				open.Tools = func(ctx context.Context, name string, args json.RawMessage) (string, error) {
-					return b.toolWithEnv(ctx, e, name, args, pinned)
-				}
-			}
+			open.Tools = b.executionTools(e, append([]string{}, open.Env...))
 			return open, nil
 		}, Evidence: func() string {
 			ctx, cancel := context.WithTimeout(b.ctx, 5*time.Second)
@@ -71,13 +67,33 @@ func (b *Bench) executionEnv(id, collectionID string) []string {
 // session host so a Runner restart never stops its agent.
 func (b *Bench) sessionOpen(e *Execution, contextText, resume string) agent.Open {
 	open := agent.Open{ID: e.ID, Cwd: e.Cwd, Purpose: e.Purpose, Isolated: e.Profile.Isolation == "environment", Context: contextText, Model: e.Options.Model, Permission: e.Options.Permission, Workflow: e.Options.Workflow, Gateway: e.Options.Gateway, Profile: e.Profile.ID, Env: e.Env, Resume: resume, Host: &agent.Hosting{Root: b.Config.HostRoot}}
-	if !agent.IsAssistant(e.Purpose) {
-		env := e.Env
-		open.Tools = func(ctx context.Context, name string, args json.RawMessage) (string, error) {
-			return b.toolWithEnv(ctx, e, name, args, env)
-		}
-	}
+	open.Tools = b.executionTools(e, e.Env)
 	return open
+}
+
+// executionTools is the Runner tool boundary of one execution. A coding agent
+// gets managed commands, run with env. The help assistant gets only the
+// settings tools: it may read Lazybox's settings and propose a change, which its
+// provider puts to the user before the Runner applies it. Other assistants get
+// no tools at all.
+func (b *Bench) executionTools(e *Execution, env []string) func(context.Context, string, json.RawMessage) (string, error) {
+	switch {
+	case e.Purpose == "help":
+		return func(ctx context.Context, name string, args json.RawMessage) (string, error) {
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
+			if !agent.SettingsTool(name) {
+				return "", agent.ErrUnsupported
+			}
+			return settingstool.Handle(b.Preferences, name, args)
+		}
+	case agent.IsAssistant(e.Purpose):
+		return nil
+	}
+	return func(ctx context.Context, name string, args json.RawMessage) (string, error) {
+		return b.toolWithEnv(ctx, e, name, args, env)
+	}
 }
 
 func (b *Bench) attachmentPath(id string) string {

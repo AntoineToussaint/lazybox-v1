@@ -28,6 +28,7 @@
     "test:github": "node scripts/test-github.mjs",
     "test:attachments": "node scripts/test-attachments.mjs",
     "test:settings": "node scripts/test-settings.mjs",
+    "test:settings-approval": "node scripts/test-settings-approval.mjs",
     "test:empty-workspace": "node scripts/test-empty-workspace.mjs",
     "test:repositories": "node scripts/test-repository-discovery.mjs",
     "test:github-token": "node scripts/test-github-token.mjs",

@@ -5,6 +5,7 @@ import { Decision, type AgentEvent, type CommandStatus } from '@lazybox/protocol
 import type { ViewStateStore } from '@lazybox/platform';
 import { readConsoleState, writeConsoleState } from './view-state';
 import { reportSummary } from './command-runs';
+import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
 
 export function RequestCard({ request, api, session, onError }: { request: AgentEvent; api: RunnerClient; session: string; onError: (s: string) => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -24,9 +25,10 @@ export function RequestCard({ request, api, session, onError }: { request: Agent
     try { await api.apply({ sessionId: session, operationId: crypto.randomUUID(), operation: { case: 'answer', value: { requestId: request.requestId, answers: Object.fromEntries(Object.entries(answers).map(([key, value]) => [key, { values: [value] }])) } } }); }
     catch (e) { onError(String(e)); setWaiting(false); }
   };
-  return <article className="request"><div className="eyebrow">{request.type === 'question' ? 'Agent question' : 'Approval required'}</div><h3>{request.text || 'Your response is needed'}</h3>
+  const settings = request.type !== 'question' && isSettingsUpdate(data.tool);
+  return <article className="request"><div className="eyebrow">{request.type === 'question' ? 'Agent question' : 'Approval required'}</div><h3>{settings ? 'Change Lazybox settings' : request.text || 'Your response is needed'}</h3>
     {description && <div className="approval-description"><RichContent text={description}/></div>}
-    {command ? <CodeBlock text={command} language="bash" label="Command"/> : request.type!=='question' && <CodeBlock text={JSON.stringify(input,null,2)} language="json" label="Requested input"/>}
+    {settings ? <SettingsProposal input={input} api={api}/> : command ? <CodeBlock text={command} language="bash" label="Command"/> : request.type!=='question' && <CodeBlock text={JSON.stringify(input,null,2)} language="json" label="Requested input"/>}
     <details className="request-metadata"><summary>Request details</summary><CodeBlock text={JSON.stringify(data,null,2)} language="json"/><small className="mono">{request.requestId}</small></details>
     {request.type === 'question' ? <form onSubmit={answer}>{questions.map((q, i) => {
       const key = q.id || q.question; return <label key={key || i}>{q.question || q.header}

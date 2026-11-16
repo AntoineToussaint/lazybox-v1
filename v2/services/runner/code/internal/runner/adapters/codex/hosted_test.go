@@ -55,7 +55,13 @@ func fixtureAppServer() {
 				send(map[string]any{"id": 42, "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "command": "rm -rf build"}})
 				continue
 			}
-			send(map[string]any{"id": 41, "method": "item/tool/call", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "tool": "lazybox_command", "arguments": toolArguments()}})
+			tool := "lazybox_command"
+			if name := os.Getenv("FIXTURE_TOOL_NAME"); name != "" {
+				tool = name
+			}
+			send(map[string]any{"id": 41, "method": "item/tool/call", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "tool": tool, "arguments": toolArguments()}})
+		case "config/read":
+			send(map[string]any{"id": m.ID, "result": map[string]any{"config": map[string]any{}}})
 		case "":
 			if string(m.ID) == "42" {
 				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": "decision=" + m.Result.Decision}})
