@@ -3,12 +3,12 @@ import type { ReviewComment, Session } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { errorText } from './PullRequestFlow';
 import { Icon } from './Icons';
-import { dispositionLabel, freshnessLabel, groupByFile, isPending, linesLabel, matchesFilter, reviewMessage, trayFilters, type TrayFilter } from './review-model';
+import { dispositionLabel, freshnessLabel, groupByFile, isPending, linesLabel, matchesFilter, reviewMessage, trayFilters, type TrayFilter, reviewExcerpt } from './review-model';
 import type { WorkspaceReviewState } from './useWorkspaceReview';
 import './review.css';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const excerpt = (body: string) => { const text = body.replace(/[`*_>#]/g, '').replace(/\s+/g, ' ').trim(); return text.length > 140 ? text.slice(0, 139) + '…' : text; };
+const excerpt = reviewExcerpt;
 
 /** The workspace's open coding conversations, the current one first. */
 function useConversations(workspaceId: string, current?: Session) {

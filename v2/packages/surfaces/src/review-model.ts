@@ -183,3 +183,18 @@ export function reviewMessage(comments: ReviewComment[]): string {
   parts.push('When you are done, say which comments you addressed and how, and which you did not and why.');
   return parts.join('\n\n');
 }
+
+/**
+ * A comment as one plain line, for lists: Markdown's marks are dropped only
+ * where they are marks. An underscore or asterisk inside a word is the word
+ * (`CACHE_MAX_ENTRIES`, `a*b`), not emphasis.
+ */
+export function reviewExcerpt(body: string, limit = 140): string {
+  const text = body
+    .replace(/`/g, '')
+    .replace(/^[ \t]{0,3}(?:>+|#{1,6})[ \t]?/gm, '')
+    .replace(/(^|[^\w*_])(\*\*|__)(?=\S)([^\n]+?)(?<=\S)\2(?!\w|\.\w)/g, '$1$3')
+    .replace(/(^|[^\w*])([*_])(?=[^\s*_])([^\n*_]+?)(?<=[^\s*_])\2(?![\w*]|\.\w)/g, '$1$3')
+    .replace(/\s+/g, ' ').trim();
+  return text.length > limit ? text.slice(0, limit - 1) + '…' : text;
+}

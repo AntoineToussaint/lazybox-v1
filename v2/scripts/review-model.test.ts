@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { ReviewCommentSchema } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diffLabel, dispositionLabel, freshnessLabel, groupByFile, isLine, matchesFilter, parseDiff, placeComment, reviewMessage, selectionTarget, type DiffLine } from '../packages/surfaces/src/review-model.ts';
+import { diffLabel, dispositionLabel, freshnessLabel, groupByFile, isLine, matchesFilter, parseDiff, placeComment, reviewExcerpt, reviewMessage, selectionTarget, type DiffLine } from '../packages/surfaces/src/review-model.ts';
 
 const DIFF = `diff --git a/src/handler.go b/src/handler.go
 index 1111111..2222222 100644
@@ -101,4 +101,13 @@ test('a review becomes one message with file:line, the quoted lines and the diff
   assert.match(text, /When you are done, say which comments you addressed/);
   assert.match(reviewMessage([comment({ snippet: ['a ``` b'] })]), /````go\na ``` b\n````/);
   assert.match(reviewMessage([comment()]), /^Please address this review comment/);
+});
+
+test('a comment excerpt drops Markdown marks, never the characters of a name', () => {
+  assert.equal(reviewExcerpt('Raise `CACHE_MAX_ENTRIES` to 500'), 'Raise CACHE_MAX_ENTRIES to 500');
+  assert.equal(reviewExcerpt('CACHE_MAX_ENTRIES and snake_case_name stay'), 'CACHE_MAX_ENTRIES and snake_case_name stay');
+  assert.equal(reviewExcerpt('This is **really** _not_ *fine*, see __init__.py'), 'This is really not fine, see __init__.py');
+  assert.equal(reviewExcerpt('> quoted\n## Heading\n\ntext  with   spaces'), 'quoted Heading text with spaces');
+  assert.equal(reviewExcerpt('a*b*c and 2 * 3 * 4'), 'a*b*c and 2 * 3 * 4');
+  assert.equal(reviewExcerpt('x'.repeat(200)).length, 140);
 });
