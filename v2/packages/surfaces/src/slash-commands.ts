@@ -247,6 +247,8 @@ export type SlashContext = {
   detail: string;
   /** More than one subscription of this provider: switching means something. */
   subscriptions: number;
+  /** Who can review this conversation's work, the default first (review-model.ts reviewerChoices). */
+  reviewers?: readonly { key: string; label: string }[];
 };
 
 const unless = (...reasons: (string | false | undefined)[]) => reasons.find(Boolean) || undefined;
@@ -266,7 +268,11 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
     { key: 'lazybox:clear', name: 'clear', group: 'lazybox', icon: 'plus', description: 'New conversation in this workspace (this one is kept)', aliases: ['new'], disabled: unless(!ctx.workspace && 'Only in a workspace'), keywords: 'reset fresh start' },
     { key: 'lazybox:cost', name: 'cost', group: 'lazybox', icon: 'activity', description: 'Token cost of this conversation', aliases: ['usage'], keywords: 'tokens price money spend' },
     { key: 'lazybox:context', name: 'context', group: 'lazybox', icon: 'activity', description: 'How full the context window is', keywords: 'tokens window memory' },
-    { key: 'lazybox:review', name: 'review', group: 'lazybox', icon: 'eye', description: 'Open the review tray of this workspace', disabled: unless(!ctx.workspace && 'Only in a workspace'), keywords: 'diff changes comments' },
+    // `/review` has the default reviewer review this conversation's changes; `/review claude` names one; `/review tray` opens the tray.
+    { key: 'lazybox:review', name: 'review', group: 'lazybox', icon: 'review', argumentHint: reviewHint(ctx), description: ctx.reviewers?.length ? `${ctx.reviewers[0].label} reviews this conversation’s changes, read-only` : 'Open the review tray of this workspace', freeArgument: true,
+      choices: [...(ctx.reviewers || []).map((reviewer, index) => ({ value: reviewer.key, label: `Review with ${reviewer.label}`, detail: index === 0 ? 'Default reviewer · a read-only conversation; findings land in the Review tray' : 'A read-only conversation; findings land in the Review tray', keywords: reviewer.label.toLowerCase() })),
+        { value: 'tray', label: 'Open the review tray', detail: 'Comments and findings of this workspace', keywords: 'comments findings diff' }],
+      disabled: unless(!ctx.workspace && 'Only in a workspace'), keywords: 'diff changes comments codex claude second opinion findings' },
     { key: 'lazybox:artifact', name: 'artifact', group: 'lazybox', icon: 'artifact', description: `Track ${agentName}'s last message as an artifact`, disabled: unless(!ctx.workspace && 'Only in a workspace', !ctx.agentMessage && `${agentName} has not said anything yet`), keywords: 'document report save' },
     { key: 'lazybox:mission', name: 'mission', group: 'lazybox', icon: 'target', description: 'Open missions', aliases: ['missions'], keywords: 'tasks goals orchestrate' },
     { key: 'lazybox:run', name: 'run', group: 'lazybox', icon: 'play', description: `Run the last command block ${agentName} wrote`, disabled: unless(!ctx.coding && 'Assistants have no commands to run', !ctx.shellBlock && 'No command block to run yet'), keywords: 'shell bash script execute' },
@@ -275,6 +281,18 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
     { key: 'lazybox:rename', name: 'rename', group: 'lazybox', icon: 'pencil', argumentHint: '<title>', needsArgument: true, description: 'Rename this conversation', aliases: ['title'], disabled: unless(!ctx.live && !ctx.resumable && 'The conversation is still connecting') },
     { key: 'lazybox:help', name: 'help', group: 'lazybox', icon: 'keyboard', description: 'Keyboard shortcuts', aliases: ['shortcuts', 'keys'] },
   ];
+}
+function reviewHint(ctx: SlashContext): string {
+  const names = [...new Set((ctx.reviewers || []).filter(r => !r.key.startsWith('profile:')).map(r => r.key))];
+  return names.length ? `[${[...names, 'tray'].join('|')}]` : '';
+}
+/** The reviewer `/review <word>` names: a provider, a subscription's label, or the default with no word. */
+export function reviewerFor<T extends { key: string; label: string }>(reviewers: readonly T[], args: string): T | 'tray' | undefined {
+  const word = args.trim().toLowerCase();
+  if (!word) return reviewers[0];
+  if (word === 'tray' || word === 'comments') return 'tray';
+  return reviewers.find(r => r.key.toLowerCase() === word || r.label.toLowerCase() === word || `profile:${word}` === r.key.toLowerCase())
+    || reviewers.find(r => !r.key.startsWith('profile:') && r.label.toLowerCase().startsWith(word));
 }
 /** A listed model is the session's: by id, by the id an alias resolves to, or by its name. */
 export function sameModel(model: ProviderModel, current: string): boolean {

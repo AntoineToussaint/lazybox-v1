@@ -1,4 +1,4 @@
-import type { ReviewComment } from '@lazybox/protocol';
+import type { ReviewComment, ReviewRun } from '@lazybox/protocol';
 
 /** Inline review comments: the pure half. Parsing a diff into commentable
  * lines, turning a selection into an anchor, placing saved comments back in
@@ -116,27 +116,101 @@ export function freshnessLabel(c: ReviewComment): string {
   }
 }
 
-export type Disposition = 'open' | 'sent' | 'resolved' | 'wont_fix';
+/** proposed: a reviewer agent's finding not triaged yet; accepting it makes
+ * it open (pending, to send). dismissed: turned down, with the reason as note. */
+export type Disposition = 'open' | 'sent' | 'resolved' | 'wont_fix' | 'proposed' | 'dismissed';
 export function dispositionLabel(c: ReviewComment): string {
   switch (c.disposition) {
     case 'sent': return c.sentToTitle ? `Sent to “${c.sentToTitle}”` : 'Sent to the agent';
     case 'resolved': return c.resolvedBy ? `Resolved by ${short(c.resolvedBy)}` : 'Resolved';
     case 'wont_fix': return 'Won’t fix';
-    default: return 'Pending';
+    case 'proposed': return 'To triage';
+    case 'dismissed': return 'Dismissed';
+    default: return isFinding(c) ? 'Accepted' : 'Pending';
   }
 }
 export const isPending = (c: ReviewComment) => c.disposition === 'open' || !c.disposition;
-export const isSettled = (c: ReviewComment) => c.disposition === 'resolved' || c.disposition === 'wont_fix';
+export const isProposed = (c: ReviewComment) => c.disposition === 'proposed';
+export const isSettled = (c: ReviewComment) => c.disposition === 'resolved' || c.disposition === 'wont_fix' || c.disposition === 'dismissed';
 
-export type TrayFilter = 'pending' | 'sent' | 'settled' | 'all';
+export type TrayFilter = 'proposed' | 'pending' | 'sent' | 'settled' | 'all';
 export const trayFilters: { value: TrayFilter; label: string }[] = [
-  { value: 'pending', label: 'Pending' }, { value: 'sent', label: 'Sent' }, { value: 'settled', label: 'Done' }, { value: 'all', label: 'All' },
+  { value: 'proposed', label: 'To triage' }, { value: 'pending', label: 'Pending' }, { value: 'sent', label: 'Sent' }, { value: 'settled', label: 'Done' }, { value: 'all', label: 'All' },
 ];
 export function matchesFilter(c: ReviewComment, filter: TrayFilter) {
+  if (filter === 'proposed') return isProposed(c);
   if (filter === 'pending') return isPending(c);
   if (filter === 'sent') return c.disposition === 'sent';
   if (filter === 'settled') return isSettled(c);
   return true;
+}
+
+// ---- Agent findings ------------------------------------------------------
+
+/** A reviewer agent's finding, as opposed to a person's comment. */
+export const isFinding = (c: Pick<ReviewComment, 'author'>) => c.author === 'agent';
+export type Severity = 'blocker' | 'major' | 'minor' | 'nit';
+export const severities: { value: Severity; label: string }[] = [
+  { value: 'blocker', label: 'Blocker' }, { value: 'major', label: 'Major' }, { value: 'minor', label: 'Minor' }, { value: 'nit', label: 'Nit' },
+];
+const severityWords: Record<string, Severity> = { blocker: 'blocker', blocking: 'blocker', critical: 'blocker', high: 'blocker', p0: 'blocker', major: 'major', medium: 'major', important: 'major', p1: 'major', minor: 'minor', low: 'minor', p2: 'minor', nit: 'nit', nitpick: 'nit', trivial: 'nit', info: 'nit', style: 'nit' };
+/** The Runner's severity words (reviews.ParseSeverity); undefined for a word it refuses. */
+export function parseSeverity(text: string): Severity | undefined { return Object.hasOwn(severityWords, text.trim().toLowerCase()) ? severityWords[text.trim().toLowerCase()] : undefined; }
+export const severityLabel = (severity: string) => severities.find(s => s.value === severity)?.label || '';
+export const severityRank = (severity: string) => { const i = severities.findIndex(s => s.value === severity); return i < 0 ? severities.length : i; };
+/** Who wrote it, for a chip: "from Codex", or nothing for the person's own. */
+export const authorLabel = (c: Pick<ReviewComment, 'author' | 'authorLabel'>) => isFinding(c) ? `from ${c.authorLabel || 'the reviewer'}` : '';
+
+/** Authors present in a review, the person first: filter choices. */
+export function reviewAuthors(comments: readonly ReviewComment[]): { value: string; label: string }[] {
+  const agents = [...new Set(comments.filter(isFinding).map(c => c.authorLabel || 'Reviewer'))].sort();
+  return [{ value: '', label: 'Everyone' }, ...(comments.some(c => !isFinding(c)) ? [{ value: 'you', label: 'You' }] : []), ...agents.map(label => ({ value: label, label }))];
+}
+export type ReviewQuery = { filter: TrayFilter; author: string; severity: string };
+/** The tray's three filters together: state, who wrote it, how severe. */
+export function matchesQuery(c: ReviewComment, query: ReviewQuery) {
+  if (!matchesFilter(c, query.filter)) return false;
+  if (query.author === 'you' && isFinding(c)) return false;
+  if (query.author && query.author !== 'you' && (!isFinding(c) || (c.authorLabel || 'Reviewer') !== query.author)) return false;
+  if (query.severity && c.severity !== query.severity) return false;
+  return true;
+}
+
+/** Live findings of a review by severity, in words: "2 blockers, 3 minor". */
+export function countsSummary(run: Pick<ReviewRun, 'blockers' | 'majors' | 'minors' | 'nits'>): string {
+  const parts: string[] = [];
+  const add = (n: number, one: string, many: string) => { if (n === 1) parts.push(`1 ${one}`); else if (n > 1) parts.push(`${n} ${many}`); };
+  add(run.blockers, 'blocker', 'blockers'); add(run.majors, 'major', 'major'); add(run.minors, 'minor', 'minor'); add(run.nits, 'nit', 'nits');
+  return parts.length ? parts.join(', ') : 'no findings';
+}
+const lowerFirst = (text: string) => text.startsWith('PR ') ? text : text.charAt(0).toLowerCase() + text.slice(1);
+/** What a review did, in one line for its card: "Codex reviewed turn 3 · 2 blockers, 3 minor". */
+export function runSummary(run: Pick<ReviewRun, 'state' | 'reviewerLabel' | 'scopeLabel' | 'blockers' | 'majors' | 'minors' | 'nits' | 'detail'>): string {
+  const scope = lowerFirst(run.scopeLabel || 'the changes');
+  if (run.state === 'running') return `${run.reviewerLabel} is reviewing ${scope}${run.blockers + run.majors + run.minors + run.nits ? ` · ${countsSummary(run)} so far` : ''}`;
+  if (run.state === 'failed') return run.detail || `${run.reviewerLabel} could not review ${scope}`;
+  return `${run.reviewerLabel} reviewed ${scope} · ${countsSummary(run)}`;
+}
+
+/** A reviewer to pick: a provider (its default subscription) or one subscription. */
+export type ReviewerChoice = { key: string; label: string; provider: string; profileId: string };
+const providerName = (provider: string) => provider === 'codex' ? 'Codex' : provider === 'claude' ? 'Claude' : provider;
+/**
+ * Who can review: each provider with a subscription, then each subscription
+ * when a provider has more than one. The default comes first: the setting's
+ * subscription, else the other provider than the author's.
+ */
+export function reviewerChoices(profiles: readonly { id: string; provider: string; label?: string }[], authorProvider: string, settingReviewer = ''): ReviewerChoice[] {
+  const providers = (['codex', 'claude'] as const).filter(provider => profiles.some(p => p.provider === provider));
+  const choices: ReviewerChoice[] = providers.map(provider => ({ key: provider, label: providerName(provider), provider, profileId: '' }));
+  for (const provider of providers) {
+    const own = profiles.filter(p => p.provider === provider);
+    if (own.length > 1) choices.push(...own.map(p => ({ key: `profile:${p.id}`, label: `${providerName(provider)} · ${p.label || p.id}`, provider, profileId: p.id })));
+  }
+  const configured = profiles.find(p => p.id === settingReviewer && (p.provider === 'codex' || p.provider === 'claude'));
+  const preferred = configured ? choices.find(c => c.profileId === configured.id) || { key: `profile:${configured.id}`, label: `${providerName(configured.provider)} · ${configured.label || configured.id}`, provider: configured.provider, profileId: configured.id }
+    : choices.find(c => c.key === (authorProvider === 'codex' ? 'claude' : 'codex')) || choices[0];
+  return preferred ? [preferred, ...choices.filter(c => c.key !== preferred.key)] : choices;
 }
 
 /** Comments by file (workspace order: member, then path), each file's by line. */
@@ -178,7 +252,9 @@ export function reviewMessage(comments: ReviewComment[]): string {
     const quoted = c.snippet.join('\n'), f = fence(quoted);
     const facts = [diffLabel(c)];
     if (c.freshness === 'outdated') facts.push('outdated: these lines have changed since');
-    parts.push([`### ${index + 1}. ${where(c)}`, `_${facts.join(' · ')}_`, `${f}${languageOf(c.path)}\n${quoted}\n${f}`, c.body.trim()].join('\n\n'));
+    // A reviewer's finding goes as filed: its severity, title and id, never paraphrased.
+    const finding = isFinding(c) ? [`**${severityLabel(c.severity) || 'Finding'}: ${c.title}** (finding ${c.id}, ${authorLabel(c)})`] : [];
+    parts.push([`### ${index + 1}. ${where(c)}`, ...finding, `_${facts.join(' · ')}_`, `${f}${languageOf(c.path)}\n${quoted}\n${f}`, c.body.trim()].join('\n\n'));
   });
   parts.push('When you are done, say which comments you addressed and how, and which you did not and why.');
   return parts.join('\n\n');

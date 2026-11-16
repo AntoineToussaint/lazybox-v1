@@ -40,7 +40,7 @@ export const trustMeaning: Record<string, string> = {
   accepted: 'You accepted it.',
 };
 export const flagLabel: Record<string, string> = {
-  stale: 'Checks are on an older commit', failing: 'Last run failed', ci_failing: 'Checks failed', no_evidence: 'No evidence',
+  stale: 'Checks are on an older commit', failing: 'Last run failed', ci_failing: 'Checks failed', no_evidence: 'No evidence', blockers: 'Review found blockers',
 };
 
 /** Tasks arranged in columns, in the order the Runner gave them; the done column puts canceled last. */
@@ -87,6 +87,8 @@ export function evidenceChip(e: MissionEvidence): { mark: string; label: string;
   if (e.kind === 'pr') {
     return { mark, label: `PR #${e.number}${e.head ? ' · ' + short(e.head) : ''}`, tone, title: [`${e.repository}#${e.number} (${e.state})`, e.detail].filter(Boolean).join('\n') };
   }
+  // An agent review: failing while it has open blockers.
+  if (e.kind === 'review') return { mark, label: [e.title || 'Agent review', e.detail].filter(Boolean).join(' · '), tone, title: [e.title, e.outcome === 'fail' ? 'Open blockers keep this task from verified.' : e.outcome === 'pending' ? 'The reviewer is still working.' : 'No open blockers.', e.ref].filter(Boolean).join('\n') };
   if (e.kind === 'commit') return { mark: '•', label: `${e.member ? e.member + ' ' : ''}${short(e.head)}`, tone: 'neutral', title: e.title };
   return { mark, label: e.title || e.ref, tone, title: e.ref };
 }

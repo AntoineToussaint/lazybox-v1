@@ -57,16 +57,32 @@ func (b *Bench) checkpointRepositories(ctx context.Context, e *Execution) []code
 	return []codecheckpoints.Repository{{Member: filepath.Base(top), Path: top}}
 }
 
-// watchTurns checkpoints e's workspace before each turn and after it ends.
-// Assistant conversations never change code and are not checkpointed.
+// watchTurns checkpoints e's workspace before each turn and after it ends,
+// then lets reviews follow the turn (review_runs.go). Assistant
+// conversations never change code and are not followed.
 func (b *Bench) watchTurns(e *Execution) {
 	live, ok := e.Engine.(*engine.Engine)
-	if !ok || b.Checkpoints == nil || agent.IsAssistant(e.Purpose) {
+	if !ok || agent.IsAssistant(e.Purpose) || (b.Checkpoints == nil && b.Reviews == nil) {
 		return
 	}
 	conversation := conversationOf(e)
-	live.SetTurnHooks(engine.TurnHooks{
-		Before: func(op agent.Operation) {
+	hooks := engine.TurnHooks{
+		After: func(operation string, ended time.Time) {
+			if b.Checkpoints != nil {
+				b.checkpoint(func(ctx context.Context) error {
+					repos := b.checkpointRepositories(ctx, e)
+					if len(repos) == 0 {
+						return nil
+					}
+					return b.Checkpoints.EndTurn(ctx, conversation, repos, operation, ended)
+				})
+			}
+			// After the checkpoint: a review asks what the turn changed.
+			b.reviewTurnEnded(e, operation)
+		},
+	}
+	if b.Checkpoints != nil {
+		hooks.Before = func(op agent.Operation) {
 			b.checkpoint(func(ctx context.Context) error {
 				repos := b.checkpointRepositories(ctx, e)
 				if len(repos) == 0 {
@@ -75,17 +91,9 @@ func (b *Bench) watchTurns(e *Execution) {
 				_, err := b.Checkpoints.BeginTurn(ctx, conversation, repos, op.ID, op.Text)
 				return err
 			})
-		},
-		After: func(operation string, ended time.Time) {
-			b.checkpoint(func(ctx context.Context) error {
-				repos := b.checkpointRepositories(ctx, e)
-				if len(repos) == 0 {
-					return nil
-				}
-				return b.Checkpoints.EndTurn(ctx, conversation, repos, operation, ended)
-			})
-		},
-	})
+		}
+	}
+	live.SetTurnHooks(hooks)
 }
 
 // checkpoint runs one bounded checkpoint unless the Runner is shutting down,

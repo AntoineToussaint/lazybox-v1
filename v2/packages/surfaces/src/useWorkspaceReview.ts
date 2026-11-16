@@ -54,6 +54,8 @@ class ReviewSource {
 }
 const sources = new Map<string, ReviewSource>();
 const sourceFor = (workspaceId: string) => { let source = sources.get(workspaceId); if (!source) { source = new ReviewSource(workspaceId); sources.set(workspaceId, source); } return source; };
+/** Read a workspace's review again now, in every panel showing it (a review just started). */
+export function refreshWorkspaceReview(workspaceId: string) { void sources.get(workspaceId)?.load(); }
 
 export function useWorkspaceReview(workspaceId: string) {
   const { api } = useRunner();
@@ -71,8 +73,9 @@ export function useWorkspaceReview(workspaceId: string) {
     add: (request: Omit<AddReviewCommentRequest, 'collectionId' | '$typeName' | '$unknown'>) => source.change(client => client.addReviewComment({ ...request, collectionId })),
     edit: (id: string, body: string) => source.change(client => client.editReviewComment({ collectionId, id, body })),
     remove: (id: string) => source.change(client => client.deleteReviewComment({ collectionId, id })),
-    setDisposition: (ids: string[], disposition: string, to?: { sessionId: string; sessionTitle: string }) =>
-      source.change(client => client.setReviewDisposition({ collectionId, ids, disposition, sessionId: to?.sessionId || '', sessionTitle: to?.sessionTitle || '' })),
+    /** `note` is a dismissal's reason. */
+    setDisposition: (ids: string[], disposition: string, to?: { sessionId: string; sessionTitle: string }, note = '') =>
+      source.change(client => client.setReviewDisposition({ collectionId, ids, disposition, sessionId: to?.sessionId || '', sessionTitle: to?.sessionTitle || '', note })),
     setAutoResolve: (enabled: boolean) => source.change(client => client.setReviewAutoResolve({ collectionId, enabled })),
   }), [snapshot, source, collectionId]);
 }

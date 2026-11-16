@@ -248,6 +248,105 @@ reading included.
 Not implemented: publishing comments to GitHub as a pull request review,
 comments in the Editor (it has no diff view), and replies within a thread.
 
+## Agent review
+
+Another agent reviews a conversation's work in one click, read-only, and its
+findings land in the same Review tray as your comments. It is the first,
+person-triggered step of the reviewer loop ([ORCHESTRATION.md](ORCHESTRATION.md),
+slice 2).
+
+**Where to start one.** Each starts a review of the *author* conversation's
+work (the page's conversation; when the page shows a review conversation, the
+one it reviews — a review is never itself reviewed):
+
+| Entry point | Reviews |
+| --- | --- |
+| Changes header **Review with Codex ▾** | what the page compares: the workspace's changes since it started, uncommitted only, vs a branch, or one agent turn |
+| A turn's ⋯ menu (and its messages' context menu) **Review this turn with Codex / with Claude** | exactly what that turn changed (its checkpoints) |
+| The PR card **Review the PR with Codex ▾** | the pull request, from where it left its base |
+| The Changes file list's context menu **Review the changes with Codex / with Claude** | the page's comparison |
+| ⌘K **Review changes with Codex / with Claude** | the workspace's changes since it started |
+| The message box **`/review [codex\|claude]`** (`/review` alone: the default reviewer; `/review tray` opens the tray) | the workspace's changes since it started; nothing is sent to the agent |
+
+The default reviewer is **Settings → Agents & workspaces → Review by another
+agent → Default reviewer**: a subscription, or (the default) the other
+provider than the author's, so Codex reviews Claude's work and Claude reviews
+Codex's. The ▾ lists every signed-in agent and, for a provider with several,
+each subscription. With only one provider signed in, a fresh conversation of
+that provider reviews, and the review says so.
+
+**What starting does** (`StartReview`, owner only). The Runner opens a
+conversation in the same workspace with permission **read-only** (Codex's
+read-only sandbox; Claude's plan mode), titled `Review · <scope> · Codex`
+(`Turn 3`, `Changes vs main`, `PR #12`), linked to the source conversation,
+and sends it a brief generated from what it already records:
+
+- the goal: the source conversation's first message (prompt log, else its
+  first checkpointed turn) and the workspace's latest *plan* artifact;
+- the scope and how to read it: `git -C <repo> diff <before> <after>` for a
+  turn's checkpoint commits, `git diff <base>` / `merge-base` for changes,
+  `diff origin/<base>...HEAD` for a pull request (with its number, title, URL);
+- the files in scope with their status;
+- the source's `lazybox run` reports (command, exit status, full-output path);
+- how to report (below), that it is read-only, and to end with a summary.
+
+The brief is a template (**Review brief** in the same settings; Reset returns
+to the built-in one, stored as empty so it improves with Lazybox).
+Placeholders: `{{goal}}`, `{{plan}}`, `{{scope}}`, `{{diff}}`, `{{files}}`,
+`{{evidence}}`, `{{author}}`, `{{reviewer}}`, `{{conversation}}`,
+`{{report}}`; a template without `{{report}}` still gets the reporting
+instructions at its end, or no finding would arrive. The brief is a message
+Lazybox sent (prompt source `review`), shown in the reviewer conversation,
+which is a normal conversation you can talk to.
+
+**How findings arrive.** The reviewer files each finding with
+`lazybox review add --file <repo>/<path> --line N[-M] --severity
+blocker|major|minor|nit --title … --body …` ([CLI](services/runner/code/cmd/lazybox/README.md)).
+The Runner reads the lines from the file as it is, so a finding is a review
+comment anchored like yours (current, moved, outdated), written by that agent
+(`from Codex`), with a severity (V1's words: critical/high are blockers,
+medium is major, low is minor; an unknown word is refused, never demoted) and
+a title. The same file, line and title (or `--key`) again updates that
+finding instead of adding one. `lazybox review list` shows what it filed.
+`AddReviewFinding` and `ListReviewFindings` are on the agent allowlist only
+for the caller's own execution, and the Runner refuses an execution that is
+not the reviewer of a review in its own workspace; the review, workspace and
+author come from the execution, never the request.
+
+**Triage.** A new finding is **To triage** (disposition `proposed`), never
+sent as is. In the tray (filters by state, author and severity) and on its
+card in the diff: **Accept** makes it pending; **Dismiss** asks why and keeps
+the reason (`dismissed`); **Ask Codex** opens the reviewer conversation with
+a follow-up about that finding started in its message box. **Send N comments
+to the agent** sends accepted findings and your pending comments to the
+author's message box as one message (the author is preselected), each finding
+exactly as filed: its severity, title, id and author, the quoted lines and the
+body. Nothing is sent for you.
+
+**Following it.** The tray lists the workspace's reviews, live
+(`Codex is reviewing turn 3 · 1 blocker so far`). The author's conversation
+gets a card where the review started (`review_started`): live while it runs,
+then `Codex reviewed turn 3 · 2 blockers, 3 minor` with **Open review** (the
+tray, on that review's findings) and **Open conversation**. A review is done
+when the reviewer's turn ends (`review_finished`); one whose conversation
+ended or failed first says so.
+
+**Missions.** When the author conversation is an attempt on a mission task,
+the review is evidence on that task (`review:<id>`, kind `review`): pending
+while it runs, then failing while blockers are open (flag `blockers`), which
+keeps the task from *verified* even with green checks.
+
+**Automatic reviews.** **Review every turn that changes files** (off by
+default) starts a review of each turn that ended with changes, unless one of
+that conversation is running.
+
+Reviews are kept with the workspace's comments (`<state>/reviews/<workspace>.json`),
+so they and their findings survive Runner restarts. Not verified against real
+providers: whether Claude's plan mode lets the reviewer run `lazybox review add`
+without an approval prompt (it may ask once), and whether Codex's read-only
+sandbox reaches the Runner (the brief points it at Lazybox's command tool when
+it does not).
+
 ## Scope and evidence
 
 Implemented: personal-token and App connection lifecycles, App-token refresh,

@@ -36,11 +36,22 @@ const (
 	Sent     Disposition = "sent"
 	Resolved Disposition = "resolved"
 	WontFix  Disposition = "wont_fix"
+	// Proposed is a reviewer agent's finding the person has not triaged yet:
+	// accepting it makes it Open (pending, to send); it is never sent as is.
+	Proposed Disposition = "proposed"
+	// Dismissed is a finding the person turned down, with their reason in Note.
+	Dismissed Disposition = "dismissed"
 )
 
 func (d Disposition) valid() bool {
-	return d == Open || d == Sent || d == Resolved || d == WontFix
+	return d == Open || d == Sent || d == Resolved || d == WontFix || d == Proposed || d == Dismissed
 }
+
+// Authors of a comment.
+const (
+	AuthorPerson = ""
+	AuthorAgent  = "agent"
+)
 
 // Comment is one inline review comment.
 type Comment struct {
@@ -77,13 +88,27 @@ type Comment struct {
 	// the comment on its own; Note says why, for the person to read.
 	ResolvedBy string `json:"resolvedBy,omitempty"`
 	Note       string `json:"note,omitempty"`
+
+	// A reviewer agent's finding: who filed it (Author is AuthorAgent; the
+	// label is how people name the agent, the session its conversation), how
+	// severe it is, its one-line title, the review it belongs to and its
+	// stable key there. A person's comment leaves them empty.
+	Author        string `json:"author,omitempty"`
+	AuthorLabel   string `json:"authorLabel,omitempty"`
+	AuthorSession string `json:"authorSession,omitempty"`
+	Severity      string `json:"severity,omitempty"`
+	Title         string `json:"title,omitempty"`
+	ReviewID      string `json:"reviewId,omitempty"`
+	Key           string `json:"key,omitempty"`
 }
 
-// Review is one workspace's comments and its preference.
+// Review is one workspace's comments, its agent reviews and its preference.
 type Review struct {
 	// AutoResolve resolves a sent comment when a later commit changes its lines.
 	AutoResolve bool      `json:"autoResolve"`
 	Comments    []Comment `json:"comments"`
+	// Runs are the workspace's agent reviews, oldest first.
+	Runs []Run `json:"runs,omitempty"`
 }
 
 // Handover records a set of comments put in a conversation's message box.
@@ -111,6 +136,9 @@ var (
 type Store struct {
 	mu  sync.Mutex
 	dir string
+	// sessions maps a conversation's ids to the workspaces whose reviews it
+	// takes part in (runs.go); nil until first used.
+	sessions map[string][]string
 	// Now is the clock; tests replace it.
 	Now func() time.Time
 }
@@ -287,6 +315,12 @@ func (s *Store) Edit(workspace, id, body string) (Review, error) {
 	})
 }
 
+// Update applies change to a workspace's review and persists it, for the
+// agent review records (runs.go).
+func (s *Store) Update(workspace string, change func(*Review) error) (Review, error) {
+	return s.update(workspace, change)
+}
+
 // Delete removes a comment.
 func (s *Store) Delete(workspace, id string) (Review, error) {
 	return s.update(workspace, func(r *Review) error {
@@ -298,12 +332,20 @@ func (s *Store) Delete(workspace, id string) (Review, error) {
 	})
 }
 
-// SetDisposition moves comments to open, sent, resolved or won't fix. Sent
-// records the handover; open clears it, so a comment taken back is pending
-// again. Unknown ids fail the whole change.
-func (s *Store) SetDisposition(workspace string, ids []string, d Disposition, to Handover) (Review, error) {
-	if !d.valid() {
-		return Review{}, errors.New("disposition must be open, sent, resolved or wont_fix")
+// SetDisposition moves comments to open, sent, resolved, won't fix or
+// dismissed. Sent records the handover; open clears it, so a comment taken
+// back is pending again (accepting a proposed finding is moving it to open).
+// Dismissed keeps the reason as the note. Unknown ids fail the whole change.
+func (s *Store) SetDisposition(workspace string, ids []string, d Disposition, to Handover, note ...string) (Review, error) {
+	if !d.valid() || d == Proposed {
+		return Review{}, errors.New("disposition must be open, sent, resolved, wont_fix or dismissed")
+	}
+	reason := ""
+	if len(note) > 0 {
+		reason = strings.TrimSpace(note[0])
+	}
+	if len(reason) > 2000 {
+		return Review{}, errors.New("a reason is limited to 2000 bytes")
 	}
 	if len(ids) == 0 {
 		return Review{}, errors.New("no review comments chosen")
@@ -319,6 +361,9 @@ func (s *Store) SetDisposition(workspace string, ids []string, d Disposition, to
 				return err
 			}
 			c.Disposition, c.UpdatedAt, c.ResolvedBy, c.Note = d, now, "", ""
+			if d == Dismissed {
+				c.Note = reason
+			}
 			switch d {
 			case Sent:
 				c.SentTo, c.SentToTitle, c.SentHead, c.SentAt = to.Session, to.Title, to.Heads[c.Member], now

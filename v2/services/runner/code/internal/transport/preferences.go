@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/preferences"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	petname "github.com/dustinkirkland/golang-petname"
@@ -14,7 +15,8 @@ import (
 
 func (s *Service) GetRunnerSettings(context.Context, *pb.InfoRequest) (*pb.RunnerSettings, error) {
 	d, rates := s.Bench.Preferences.SnapshotRates()
-	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, SuggestedName: petname.Generate(3, "-")}
+	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, SuggestedName: petname.Generate(3, "-"),
+		Review: &pb.ReviewSettings{Reviewer: d.Review.Reviewer, Template: d.Review.Template, AutoStart: d.Review.AutoStart, DefaultTemplate: reviews.DefaultTemplate}}
 	for key, r := range rates {
 		provider, model, _ := strings.Cut(key, "/")
 		_, custom := d.Prices[key]
@@ -32,7 +34,13 @@ func settingsError(err error) error {
 	return rpcError(err)
 }
 func (s *Service) SaveRunnerSettings(ctx context.Context, r *pb.RunnerSettings) (*pb.RunnerSettings, error) {
-	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors})
+	// A client that does not know the review settings keeps them.
+	review := s.Bench.Preferences.Snapshot().Review
+	if r.Review != nil {
+		review = preferences.Review{Reviewer: r.Review.Reviewer, Template: strings.TrimSpace(r.Review.Template), AutoStart: r.Review.AutoStart}
+	}
+	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors,
+		Review: review})
 	if err != nil {
 		return nil, settingsError(err)
 	}

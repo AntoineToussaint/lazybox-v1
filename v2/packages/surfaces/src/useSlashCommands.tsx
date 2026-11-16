@@ -1,3 +1,4 @@
+import { reviewerFor } from './slash-commands';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
 import type { Artifact, Session, Snippet } from '@lazybox/protocol';
@@ -6,6 +7,8 @@ import { runAction, useActions, type ActionId } from './actions';
 import { openArtifact } from './artifact-events';
 import { TrackArtifactDialog, UpdateArtifactDialog } from './ArtifactDialogs';
 import { requestReviewTray } from './ChangesPanel';
+import { useReviewLauncher } from './review-client';
+import { useWorkspaceReview } from './useWorkspaceReview';
 import { showMenuNotice } from './ContextMenu';
 import type { VimMode } from './composer-vim';
 import { conversationArtifacts, trackable } from './MessageArtifactActions';
@@ -91,6 +94,12 @@ export function useSlashCommands(o: Options) {
     return () => { controller.abort(); if (loadedFor.current === sessionID) loadedFor.current = ''; };
   }, [typingCommand, o.enabled, sessionID, api, session?.conversationId]);
 
+  // `/review`: another agent reviews this conversation's work (or, from a
+  // review conversation, the work it reviews: a review is never reviewed).
+  const runs = useWorkspaceReview(workspaceId).review?.runs;
+  const asReviewer = session && runs?.find(run => run.reviewerSessionId === session.id);
+  const reviewLauncher = useReviewLauncher(workspaceId, asReviewer ? { id: asReviewer.sourceSessionId, profileId: '', provider: asReviewer.sourceProvider } : session);
+  useEffect(() => { if (reviewLauncher.error) { latest.current.onError(`Could not start the review: ${reviewLauncher.error}`); reviewLauncher.setError(''); } }, [reviewLauncher.error]);
   const live = !!session && !session.closed;
   const lastAgentMessage = useMemo(() => [...o.conversation].reverse().find(trackable), [o.conversation]);
   const context: SlashContext = {
@@ -98,6 +107,7 @@ export function useSlashCommands(o: Options) {
     permission: session?.permission || '', planWorkflow: session?.workflow === 'plan', livePermission: !!session?.capabilities?.livePermission,
     model: o.model, liveModel: !!session?.capabilities?.liveModel, resumable: !!session?.capabilities?.resume, models: catalog.models,
     agentMessage: !!lastAgentMessage, shellBlock: o.shellBlock, compact: provider === 'claude', detail: o.detail, subscriptions: o.subscriptions,
+    reviewers: workspaceId && !reviewLauncher.unavailable ? reviewLauncher.choices : [],
   };
   const lazybox = lazyboxCommands(context);
   const commands: SlashCommand[] = [...lazybox, ...providerCommands(catalog, lazybox, o.canCompose ? undefined : 'The conversation cannot take a message now'), ...snippetCommands(snippets.rows, snippets.next)];
@@ -173,7 +183,8 @@ export function useSlashCommands(o: Options) {
     const args = rawArgs.trim();
     const { actions, onError } = latest.current;
     if (command.disabled) { notice(command.disabled); return; }
-    if (!args && (command.choices?.length || command.needsArgument)) { borrow(`/${command.name} `); return; }
+    // `/review` alone starts the default reviewer: one Enter, not a menu.
+    if (!args && (command.choices?.length || command.needsArgument) && !(command.name === 'review' && reviewLauncher.choices.length)) { borrow(`/${command.name} `); return; }
     finish();
     switch (command.name) {
       case 'model': void switchModel(resolveModel(args, latest.current.catalog.models)); break;
@@ -191,7 +202,14 @@ export function useSlashCommands(o: Options) {
       case 'cost': case 'context':
         if (!openUsage(latest.current.sessionID, command.name)) notice('The usage of this conversation shows in its header');
         break;
-      case 'review': requestReviewTray(workspaceId); if (!runAction('changes.show')) notice('Open the Changes panel to see the review tray'); break;
+      case 'review': {
+        const reviewer = reviewerFor(reviewLauncher.choices, args);
+        if (reviewer === 'tray' || (!reviewer && !args)) { requestReviewTray(workspaceId); if (!runAction('changes.show')) notice('Open the Changes panel to see the review tray'); break; }
+        if (!reviewer) { onError(`“${args}” is not a reviewer: ${reviewLauncher.choices.filter(c => !c.profileId).map(c => c.label.toLowerCase()).join(', ') || 'no agent is signed in'}.`); break; }
+        notice(`Starting ${reviewer.label}’s review…`);
+        void reviewLauncher.start({ scope: 'changes' }, reviewer);
+        break;
+      }
       case 'artifact': void startTracking(); break;
       case 'mission': if (!runAction('missions.open')) notice('Missions open in the main window'); break;
       case 'run': if (!runAction('code.run-last')) notice('No command block to run yet'); break;

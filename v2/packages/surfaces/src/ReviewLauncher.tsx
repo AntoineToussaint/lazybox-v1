@@ -1,0 +1,78 @@
+import { useMemo } from 'react';
+import type { ReviewRun } from '@lazybox/protocol';
+import { ActionMenu } from './ActionMenu';
+import { ActionMenuItems } from './ActionMenuItems';
+import { Icon } from './Icons';
+import { LiveIndicator } from './LiveIndicator';
+import type { MenuItem } from './context-menu-model';
+import { showConversation, showReview, type ReviewLauncher, type ReviewScope } from './review-client';
+import { countsSummary, runSummary } from './review-model';
+import { useWorkspaceReview } from './useWorkspaceReview';
+import type { ReviewNote } from './transcript-model';
+import './review.css';
+import './review-agents.css';
+
+/** "Review … with Codex", then "… with Claude", as menu items: a turn's ⋯ menu, the file list's context menu. */
+export function reviewMenuItems(launcher: ReviewLauncher, scope: ReviewScope, what: string): MenuItem[] {
+  if (launcher.unavailable || !launcher.choices.length) return [];
+  // The default reviewer, then each other agent; a specific subscription is
+  // the Changes page's ▾ menu's, not every menu's.
+  const [first, ...rest] = launcher.choices;
+  return [first, ...rest.filter(choice => !choice.profileId && choice.provider !== first.provider)].map(choice =>
+    ({ label: `Review ${what} with ${choice.label}`, icon: 'review', disabled: !!launcher.busy && 'A review is starting', run: () => void launcher.start(scope, choice) }));
+}
+
+/**
+ * "Review with Codex ▾": one click reviews with the default reviewer (the
+ * other provider than the author's, or the setting's subscription); the ▾
+ * lists every reviewer that is signed in.
+ */
+export function ReviewWithButton({ launcher, scope, label = 'Review with', className = '' }: { launcher: ReviewLauncher; scope: ReviewScope; label?: string; className?: string }) {
+  const [first, ...rest] = launcher.choices;
+  if (!first) return null;
+  const busy = !!launcher.busy;
+  const items: MenuItem[] = launcher.choices.map((choice, index) => ({ label: choice.label, icon: 'review', note: index === 0 ? 'Default' : undefined, run: () => void launcher.start(scope, choice) }));
+  return <span className={`review-with ${className}`} role="group" aria-label="Review with another agent">
+    <button type="button" disabled={busy || !!launcher.unavailable} title={launcher.unavailable || `${first.label} reviews it in a new read-only conversation; its findings land in the Review tray`} onClick={() => void launcher.start(scope, first)}>
+      <Icon name="review" size={14}/>{busy ? `Starting ${launcher.choices.find(c => c.key === launcher.busy)?.label || 'the review'}…` : `${label} ${first.label}`}
+    </button>
+    {rest.length > 0 && !launcher.unavailable && <ActionMenu className="review-with-more" label="Choose the reviewer" summary={<Icon name="chevron" size={12}/>}>
+      <ActionMenuItems icons items={items}/>
+    </ActionMenu>}
+  </span>;
+}
+
+/** The reviews of a workspace's runs by id, from its review (polled). */
+export function useReviewRun(workspaceId: string, reviewId: string): ReviewRun | undefined {
+  const review = useWorkspaceReview(workspaceId);
+  return useMemo(() => review.review?.runs.find(run => run.id === reviewId), [review.review, reviewId]);
+}
+
+export type ReviewCardData = ReviewNote;
+
+/**
+ * A review in the reviewed conversation: "Codex is reviewing turn 3", live
+ * while it runs, then "Codex reviewed turn 3 · 2 blockers, 3 minor", with
+ * the review (its findings in the tray) and the reviewer's conversation one
+ * click away.
+ */
+export function ReviewCard({ data }: { data: ReviewCardData }) {
+  const live = useReviewRun(data.workspace, data.review);
+  const run = live || { state: data.finished ? 'done' : 'running', reviewerLabel: data.reviewerLabel, scopeLabel: data.scopeLabel, blockers: data.blockers || 0, majors: data.majors || 0, minors: data.minors || 0, nits: data.nits || 0, detail: '' };
+  const running = run.state === 'running', failed = run.state === 'failed';
+  const findings = run.blockers + run.majors + run.minors + run.nits;
+  return <div className={`review-card is-${run.state}${run.blockers ? ' has-blockers' : ''}`} role="group" aria-label={`${run.reviewerLabel} review`} data-review={data.review}>
+    <span className="review-card-icon" aria-hidden="true">{running ? <LiveIndicator tone="busy"/> : <Icon name={failed ? 'alert' : run.blockers ? 'alert' : 'check'} size={14}/>}</span>
+    <span className="review-card-text" role="status" aria-live="polite">{runSummary(run)}</span>
+    {!running && !failed && findings > 0 && <span className="review-card-counts" aria-hidden="true">
+      {run.blockers > 0 && <span className="review-severity sev-blocker">{run.blockers}</span>}
+      {run.majors > 0 && <span className="review-severity sev-major">{run.majors}</span>}
+      {run.minors > 0 && <span className="review-severity sev-minor">{run.minors}</span>}
+      {run.nits > 0 && <span className="review-severity sev-nit">{run.nits}</span>}
+    </span>}
+    <span className="review-card-actions">
+      <button type="button" className={!running && findings ? 'primary' : ''} title={findings ? `Triage ${countsSummary(run)} in the Review tray` : 'Open the Review tray'} onClick={() => showReview({ collectionId: data.workspace, reviewId: data.review })}>Open review</button>
+      <button type="button" title={`Open ${run.reviewerLabel}'s review conversation: ask it about a finding`} onClick={() => showConversation({ collectionId: data.workspace, sessionId: data.reviewerSession })}>Open conversation</button>
+    </span>
+  </div>;
+}

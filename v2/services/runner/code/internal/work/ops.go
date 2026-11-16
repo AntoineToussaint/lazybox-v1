@@ -252,7 +252,7 @@ func (s *Store) Record(origin Origin, actor Actor, ev Evidence) (int, error) {
 }
 
 func sameEvidence(a, b Evidence) bool {
-	return a.Outcome == b.Outcome && a.Head == b.Head && a.State == b.State && a.Detail == b.Detail
+	return a.Outcome == b.Outcome && a.Head == b.Head && a.State == b.State && a.Detail == b.Detail && a.Blockers == b.Blockers && a.Findings == b.Findings
 }
 
 // EndAttempts ends every live attempt on a conversation (it was deleted).

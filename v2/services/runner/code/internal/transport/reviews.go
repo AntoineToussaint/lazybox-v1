@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitinspect"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"google.golang.org/grpc/codes"
@@ -93,13 +94,27 @@ func wireReviewComment(c reviews.Comment, a reviews.Anchor) *pb.ReviewComment {
 	return &pb.ReviewComment{Id: c.ID, Member: c.Member, Path: c.Path, Side: c.Side, StartLine: uint32(c.StartLine), EndLine: uint32(c.EndLine), Snippet: c.Snippet, Hash: c.Hash, Body: c.Body,
 		Head: c.Head, View: c.View, Base: c.Base, CreatedAtUnix: c.CreatedAt, UpdatedAtUnix: c.UpdatedAt, Disposition: string(c.Disposition),
 		SentTo: c.SentTo, SentToTitle: c.SentToTitle, SentAtUnix: c.SentAt, SentHead: c.SentHead, ResolvedBy: c.ResolvedBy, Note: c.Note,
-		Freshness: string(a.Freshness), CurrentStartLine: uint32(a.StartLine), CurrentEndLine: uint32(a.EndLine), FreshnessReason: a.Reason}
+		Freshness: string(a.Freshness), CurrentStartLine: uint32(a.StartLine), CurrentEndLine: uint32(a.EndLine), FreshnessReason: a.Reason,
+		Author: c.Author, AuthorLabel: c.AuthorLabel, AuthorSessionId: c.AuthorSession, Severity: c.Severity, Title: c.Title, ReviewId: c.ReviewID, FindingKey: c.Key}
+}
+
+// wireReviewRun is a review as it stands now, with its live findings counted.
+func (s *Service) wireReviewRun(review reviews.Review, run reviews.Run, workspace string) *pb.ReviewRun {
+	run = s.Bench.ReviewRunView(run)
+	counts := reviews.CountFindings(review, run.ID)
+	return &pb.ReviewRun{Id: run.ID, CollectionId: workspace, ReviewerSessionId: run.ReviewerSession, ReviewerTitle: run.ReviewerTitle, ReviewerLabel: run.ReviewerLabel, ReviewerProvider: run.ReviewerProvider, ReviewerProfileId: run.ReviewerProfile,
+		SourceSessionId: run.SourceSession, SourceTitle: run.SourceTitle, SourceLabel: run.SourceLabel, Scope: run.Scope, ScopeLabel: run.ScopeLabel, Turn: uint32(run.Turn), Compare: run.Compare, PullRequestUrl: run.PullRequestURL,
+		State: run.State, Detail: run.Detail, CreatedAtUnix: run.CreatedAt, UpdatedAtUnix: run.UpdatedAt,
+		Blockers: uint32(counts.Blockers), Majors: uint32(counts.Majors), Minors: uint32(counts.Minors), Nits: uint32(counts.Nits), MissionId: run.Mission, TaskId: run.Task, SourceProvider: run.SourceProvider}
 }
 
 // review anchors every comment against the working trees as they are now.
 func (s *Service) review(ctx context.Context, store *reviews.Store, workspace string, review reviews.Review) *pb.WorkspaceReview {
 	roots := s.memberRoots(workspace)
 	out := &pb.WorkspaceReview{AutoResolve: review.AutoResolve}
+	for i := len(review.Runs) - 1; i >= 0; i-- {
+		out.Runs = append(out.Runs, s.wireReviewRun(review, review.Runs[i], workspace))
+	}
 	for _, c := range review.Comments {
 		anchor := reviews.Anchor{Freshness: reviews.Unknown}
 		root, err := roots.root(ctx, c.Member)
@@ -213,7 +228,7 @@ func (s *Service) SetReviewDisposition(ctx context.Context, r *pb.SetReviewDispo
 			}
 		}
 	}
-	review, err := store.SetDisposition(r.CollectionId, r.Ids, reviews.Disposition(r.Disposition), to)
+	review, err := store.SetDisposition(r.CollectionId, r.Ids, reviews.Disposition(r.Disposition), to, r.Note)
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -230,4 +245,65 @@ func (s *Service) SetReviewAutoResolve(ctx context.Context, r *pb.SetReviewAutoR
 		return nil, rpcError(err)
 	}
 	return s.review(ctx, store, r.CollectionId, review), nil
+}
+
+// StartReview opens a read-only reviewer conversation on a scope of a
+// conversation's work and sends it the brief (runner.StartReview). A pull
+// request is read through the PR loop first, so the brief names it.
+func (s *Service) StartReview(ctx context.Context, r *pb.StartReviewRequest) (*pb.StartReviewResponse, error) {
+	if _, err := s.reviewStore(r.CollectionId); err != nil {
+		return nil, err
+	}
+	req := runner.ReviewRequest{Workspace: r.CollectionId, Source: r.SourceSessionId, Scope: r.Scope, Compare: r.Compare, Turn: int(r.Turn), Member: r.Member, Profile: r.ProfileId, Provider: r.Provider}
+	if r.Scope == reviews.ScopePR {
+		pr, err := s.GetPullRequest(ctx, &pb.GetPullRequestRequest{CollectionId: r.CollectionId, Member: r.Member})
+		if err != nil {
+			return nil, err
+		}
+		if !pr.Found {
+			return nil, grpcError(codes.FailedPrecondition, errors.New("this branch has no pull request to review"))
+		}
+		req.PullRequest = &runner.ReviewPullRequest{Number: pr.Number, URL: pr.Url, Title: pr.Title, Base: pr.Base, Head: pr.Branch}
+	}
+	e, run, err := s.Bench.StartReview(ctx, req)
+	if err != nil && e == nil {
+		return nil, rpcError(err)
+	}
+	// A review whose brief could not be sent is recorded as failed, and shown.
+	review, _ := s.Bench.Reviews.Load(e.CollectionID)
+	out := &pb.StartReviewResponse{Run: s.wireReviewRun(review, run, e.CollectionID)}
+	if out.Session, err = s.sessionView(ctx, e); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AddReviewFinding files a reviewer agent's finding (`lazybox review add`).
+func (s *Service) AddReviewFinding(ctx context.Context, r *pb.AddReviewFindingRequest) (*pb.ReviewFinding, error) {
+	c, updated, _, err := s.Bench.AddReviewFinding(ctx, r.SessionId, runner.FindingRequest{File: r.File, StartLine: int(r.StartLine), EndLine: int(r.EndLine), Severity: r.Severity, Title: r.Title, Body: r.Body, Key: r.Key})
+	if err != nil {
+		if errors.Is(err, reviews.ErrSeverity) {
+			return nil, grpcError(codes.InvalidArgument, err)
+		}
+		if errors.Is(err, runner.ErrNotReviewer) {
+			return nil, grpcError(codes.PermissionDenied, err)
+		}
+		return nil, rpcError(err)
+	}
+	return &pb.ReviewFinding{Finding: wireReviewComment(c, reviews.Anchor{Freshness: reviews.Current, StartLine: c.StartLine, EndLine: c.EndLine}), Updated: updated}, nil
+}
+
+// ListReviewFindings is the review an execution takes part in and its
+// findings, anchored as they are now (`lazybox review list`).
+func (s *Service) ListReviewFindings(ctx context.Context, r *pb.ListReviewFindingsRequest) (*pb.ReviewFindings, error) {
+	run, findings, workspace, err := s.Bench.ReviewFindingsOf(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	review, err := s.Bench.Reviews.Load(workspace)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	all := s.review(ctx, s.Bench.Reviews, workspace, reviews.Review{AutoResolve: review.AutoResolve, Comments: findings})
+	return &pb.ReviewFindings{Run: s.wireReviewRun(review, run, workspace), Findings: all.Comments}, nil
 }

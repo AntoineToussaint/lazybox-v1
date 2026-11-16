@@ -40,6 +40,7 @@
     { "id": "command-palette", "scope": "ui", "script": "test:command-palette" },
     { "id": "pull-request", "scope": "ui", "script": "test:pull-request" },
     { "id": "review-comments", "scope": "ui", "script": "test:review-comments" },
+    { "id": "agent-review", "scope": "ui", "script": "test:agent-review" },
     { "id": "processes", "scope": "ui", "script": "test:processes" },
     { "id": "transcript-performance", "scope": "ui", "script": "test:transcript-performance" },
     { "id": "mermaid-viewer", "scope": "ui", "script": "test:mermaid-viewer" },

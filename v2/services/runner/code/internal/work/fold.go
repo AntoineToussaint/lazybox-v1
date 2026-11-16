@@ -432,7 +432,7 @@ func (s *State) foldTask(e Event) error {
 		t.Reports = append(t.Reports, Report{Seq: e.Seq, At: e.At, Summary: p.Summary, Actor: e.Actor, Evidence: append([]string(nil), e.Evidence...)})
 	case EvidenceRecorded:
 		p, _ := decode[Evidence](e)
-		if p.Ref == "" || (p.Kind != EvidenceRun && p.Kind != EvidenceCommit && p.Kind != EvidencePR) {
+		if p.Ref == "" || (p.Kind != EvidenceRun && p.Kind != EvidenceCommit && p.Kind != EvidencePR && p.Kind != EvidenceReview) {
 			return refuse("evidence needs a kind and a reference")
 		}
 		t.Evidence = append(t.Evidence, Recorded{Seq: e.Seq, At: e.At, Actor: e.Actor, Evidence: p})

@@ -61,6 +61,8 @@ Open the parts of the workspace in front.
 | New workspace | `]] w` | `]] w` |
 | New conversation | `]] c` | `]] c` |
 | Review changes | `]] d` | `]] d` |
+| Review changes with Codex | — | — |
+| Review changes with Claude | — | — |
 | Browse files | `]] e` | `]] e` |
 | Open a terminal | — | — |
 | Show artifacts | `]] a` | `]] a` |

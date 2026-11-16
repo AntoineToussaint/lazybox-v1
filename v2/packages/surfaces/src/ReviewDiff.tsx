@@ -154,7 +154,7 @@ export function ReviewDiff({ workspaceId, member, path, text, view, base, focus,
     return <>
       {composerHere && <div className="review-inline"><ReviewComposer initial={draft.current} onDraft={text => { draft.current = text; }} label={`Comment on ${linesLabel(target.side, target.startLine, target.endLine).toLowerCase()}`} submitLabel="Add comment" onCancel={cancel} onSubmit={save}/>
         <small className="review-hint">{linesLabel(target.side, target.startLine, target.endLine)} · Shift-click another line to change the range</small></div>}
-      {threads && <div className="review-inline">{threads.map(comment => <ReviewThread key={comment.id} comment={comment} review={review} focused={focus?.id === comment.id} focusNonce={focus?.nonce}/>)}</div>}
+      {threads && <div className="review-inline">{threads.map(comment => <ReviewThread key={comment.id} workspaceId={workspaceId} comment={comment} review={review} focused={focus?.id === comment.id} focusNonce={focus?.nonce}/>)}</div>}
     </>;
   };
   const foldRow = (fold: Fold) => <div role="row" className="review-row is-fold">
@@ -183,7 +183,7 @@ export function ReviewDiff({ workspaceId, member, path, text, view, base, focus,
     {review.error && review.loaded && !review.review && <p className="review-muted" role="status">Review comments unavailable: {review.error}</p>}
     {unplaced.length > 0 && <section className="review-elsewhere" aria-label="Comments not on lines in this diff">
       <h4>{unplaced.length === 1 ? '1 comment' : `${unplaced.length} comments`} on lines not in this diff</h4>
-      {unplaced.map(comment => <ReviewThread key={comment.id} comment={comment} review={review} quote focused={focus?.id === comment.id} focusNonce={focus?.nonce}/>)}
+      {unplaced.map(comment => <ReviewThread key={comment.id} workspaceId={workspaceId} comment={comment} review={review} quote focused={focus?.id === comment.id} focusNonce={focus?.nonce}/>)}
     </section>}
     {expandError && <p className="review-error" role="alert">{expandError}</p>}
     <div className={`review-diff is-${mode}`} role="grid" aria-label="File diff" aria-multiselectable="true">

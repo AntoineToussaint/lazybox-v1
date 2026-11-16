@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ModelPrice, RunnerSettings } from '@lazybox/protocol';
+import type { ModelPrice, ReviewSettings, RunnerSettings } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { SettingsGroup, SettingsHeader, SettingsRow, settingsError } from './settings-parts';
+import './review-agents.css';
 import './pricing.css';
 
 export function useRunnerSettings(){
@@ -18,10 +19,10 @@ function SettingsLoading({ error, what }: { error: string; what: string }) {
   return error ? <div className="settings-error" role="alert">{error} <button type="button" onClick={announce}>Try again</button></div> : <p className="settings-empty" role="status">Loading {what}…</p>;
 }
 
-const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors]);
+const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors, s.review?.reviewer || '', s.review?.template || '', !!s.review?.autoStart]);
 
 export function AgentSettings() {
-  const { api } = useRunner();
+  const { api, info } = useRunner();
   const { settings, setSettings, error, setError } = useRunnerSettings();
   const [busy, setBusy] = useState(false), [saved, setSaved] = useState(false);
   const [baseline, setBaseline] = useState('');
@@ -29,6 +30,10 @@ export function AgentSettings() {
   if (!settings) return <><SettingsHeader title="Agents & workspaces"/><SettingsLoading error={error} what="agent settings"/></>;
   const dirty = !!baseline && editable(settings) !== baseline;
   const change = (patch: Partial<RunnerSettings>) => { setSettings({ ...settings, ...patch }); setSaved(false); };
+  const review: ReviewSettings = settings.review || { $typeName: 'lazybox.bench.v1.ReviewSettings', reviewer: '', template: '', autoStart: false, defaultTemplate: '' };
+  // The built-in template is stored as none, so a later release's improvements reach it.
+  const changeReview = (patch: Partial<ReviewSettings>) => { const next = { ...review, ...patch }; if (next.template.trim() === review.defaultTemplate.trim()) next.template = ''; change({ review: next }); };
+  const reviewers = (info?.profiles || []).filter(p => p.provider === 'claude' || p.provider === 'codex');
   return <form className="runner-preferences agent-settings" onSubmit={async event => {
     event.preventDefault(); setBusy(true); setSaved(false); setError('');
     try { const next = await api.saveRunnerSettings(settings); setSettings(next); setBaseline(editable(next)); announce(); setSaved(true); }
@@ -53,6 +58,24 @@ export function AgentSettings() {
       <SettingsRow stacked label="Lazybox context for every new agent" htmlFor="setting-context"><textarea id="setting-context" rows={6} maxLength={32768} value={settings.context} onChange={e => change({ context: e.target.value })}/></SettingsRow>
       <SettingsRow stacked label="Additional Claude context" htmlFor="setting-claude-context"><textarea id="setting-claude-context" rows={3} maxLength={16384} placeholder="Only for Claude agents" value={settings.claudeContext} onChange={e => change({ claudeContext: e.target.value })}/></SettingsRow>
       <SettingsRow stacked label="Additional Codex context" htmlFor="setting-codex-context"><textarea id="setting-codex-context" rows={3} maxLength={16384} placeholder="Only for Codex agents" value={settings.codexContext} onChange={e => change({ codexContext: e.target.value })}/></SettingsRow>
+    </SettingsGroup>
+    <SettingsGroup title="Review by another agent" description="Review with… on the Changes page, a turn’s ⋯ menu and a pull request opens a read-only conversation on another agent, briefed with the goal, the diff and what ran. Its findings land in the Review tray for you to accept or dismiss.">
+      <SettingsRow label="Default reviewer" htmlFor="setting-reviewer" description="Who reviews with one click. The other provider gives a second opinion with a different model; the menu beside the button offers every subscription.">
+        <select id="setting-reviewer" value={review.reviewer} onChange={e => changeReview({ reviewer: e.target.value })}>
+          <option value="">The other provider than the author’s</option>
+          {reviewers.map(p => <option key={p.id} value={p.id}>{p.provider === 'codex' ? 'Codex' : 'Claude'} · {p.label || p.id}</option>)}
+        </select>
+      </SettingsRow>
+      <SettingsRow label="Review every turn that changes files" htmlFor="setting-review-auto" description="When an agent’s turn ends with changes, the default reviewer reviews that turn on its own. Off by default: each review is a conversation and costs tokens.">
+        <input id="setting-review-auto" type="checkbox" checked={review.autoStart} onChange={e => changeReview({ autoStart: e.target.checked })}/>
+      </SettingsRow>
+      <SettingsRow stacked label="Review brief" htmlFor="setting-review-template" description={<>What the reviewer is told. {'{{goal}}'}, {'{{plan}}'}, {'{{scope}}'}, {'{{diff}}'}, {'{{files}}'}, {'{{evidence}}'}, {'{{author}}'}, {'{{reviewer}}'} and {'{{conversation}}'} are filled in; {'{{report}}'} is how findings reach Lazybox and is added at the end if you leave it out.</>}>
+        <textarea id="setting-review-template" rows={10} maxLength={32768} spellCheck={false} value={review.template || review.defaultTemplate} onChange={e => changeReview({ template: e.target.value })}/>
+      </SettingsRow>
+      <div className="settings-inline-actions">
+        <button type="button" disabled={!review.template} onClick={() => changeReview({ template: '' })}>Reset the brief to the built-in one</button>
+        {review.template ? <small>Your own brief. Reset, then save, to follow the built-in one again.</small> : <small>The built-in brief; it improves with Lazybox.</small>}
+      </div>
     </SettingsGroup>
     <div className="settings-savebar">
       {error ? <p className="settings-inline-error" role="alert">{error} <button type="button" className="link" onClick={() => { setBaseline(''); announce(); }}>Reload settings</button></p>

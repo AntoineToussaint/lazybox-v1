@@ -9,7 +9,7 @@ import type { ViewTarget } from './workspace-model';
 import { ReviewDiff, type ReviewFocus } from './ReviewDiff';
 import { ReviewTray } from './ReviewTray';
 import { useWorkspaceReview } from './useWorkspaceReview';
-import { isPending, type ReviewView } from './review-model';
+import { isPending, isProposed, type ReviewView } from './review-model';
 import { Icon } from './Icons';
 import { contextMenu } from './ContextMenu';
 import type { MenuItem } from './context-menu-model';
@@ -17,6 +17,8 @@ import { isMac } from './workbench';
 import { TurnChangesView } from './TurnChangesView';
 import { parseTurnCompare, turnCompare, useRequestedTurn, useTurnCheckpoints } from './turn-checkpoints';
 import { contentKey, type DiffMode } from './diff-layout';
+import { useReviewLauncher, useReviewTrayRequests, type ReviewLauncher, type ReviewScope } from './review-client';
+import { reviewMenuItems, ReviewWithButton } from './ReviewLauncher';
 import { diffKeyTarget, fileKey, moveToHunk, useDiffMode, useNarrow, useViewedFiles } from './useDiffPreferences';
 
 type Selection = { member: string; path: string; committed: boolean };
@@ -63,18 +65,29 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
     onShowSession?.({ collectionId: workspaceId, sessionId: to.id, commandId: '' });
   };
   const review = useWorkspaceReview(workspaceId);
-  const pending = review.comments.filter(isPending).length;
+  const pending = review.comments.filter(isPending).length + review.comments.filter(isProposed).length;
+  const runs = review.review?.runs || [];
   const [trayChoice, setTrayChoice] = useState<boolean | undefined>(() => trays.get(workspaceId));
-  // The tray shows itself once there are comments, unless the person closed it.
-  const trayOpen = trayChoice ?? review.comments.length > 0;
+  // The tray shows itself once there are comments or reviews, unless the person closed it.
+  const trayOpen = trayChoice ?? (review.comments.length > 0 || runs.length > 0);
   const showTray = (open: boolean) => { trays.set(workspaceId, open); setTrayChoice(open); };
   useEffect(() => { const listener = (event: Event) => { if ((event as CustomEvent<string>).detail === workspaceId) setTrayChoice(true); }; window.addEventListener(REVIEW_EVENT, listener); return () => window.removeEventListener(REVIEW_EVENT, listener); }, [workspaceId]);
+  // A review's card asked for its findings: the tray opens on them.
+  const [focusReview, setFocusReview] = useState('');
+  useReviewTrayRequests(workspaceId, request => { showTray(true); setFocusReview(request.reviewId || ''); });
   const [focus, setFocus] = useState<ReviewFocus>();
   const fileLinks = useFileOpener(workspaceId, viewState);
   const [repos, setRepos] = useState<RepositoryChanges[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [revision, setRevision] = useState(0);
   const [compare, setCompare] = useState<string>(START), [selection, setSelection] = useState<Selection>(), [staged, setStaged] = useState(false), [savedDiff, setDiff] = useState<{ key: string; value: WorkspaceDiff }>(), [diffError, setDiffError] = useState('');
   // One agent turn's changes, asked for from its marker in the conversation.
   const turnView = parseTurnCompare(compare);
+  // Review with another agent: the work of the page's conversation (the
+  // author, when the page shows its reviewer), on what this page compares.
+  const asReviewer = conversation && runs.find(run => run.reviewerSessionId === conversation.id);
+  const author = turnView && turnView.sessionId !== (asReviewer?.sourceSessionId || conversation?.id) ? { id: turnView.sessionId, profileId: '', provider: '' }
+    : asReviewer ? { id: asReviewer.sourceSessionId, profileId: '', provider: asReviewer.sourceProvider } : conversation;
+  const launcher = useReviewLauncher(workspaceId, author);
+  const reviewScope: ReviewScope = turnView ? { scope: 'turn', turn: turnView.turn } : { scope: 'changes', compare: compare === UNCOMMITTED ? ':uncommitted' : compare === START ? '' : compare };
   const turns = useTurnCheckpoints(api, sessionId, false, !!sessionId);
   useRequestedTurn(workspaceId, request => { setCompare(turnCompare(request.sessionId, request.turn)); setSelection(undefined); });
   useEffect(() => {
@@ -188,16 +201,19 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
     'separator',
     ...fileItems(member, file.path),
     'separator',
+    ...reviewMenuItems(launcher, reviewScope, 'the changes'),
+    'separator',
     { label: 'Refresh changes', icon: 'refresh', run: refresh },
   ];
   return <section className="changes-panel" aria-label="Workspace changes" onKeyDown={keys}>
-    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)}/>
+    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)} launcher={launcher} reviewScope={reviewScope}/>
+    {launcher.error && <p className="error review-start-error" role="alert"><span>{launcher.error}</span><button aria-label="Dismiss" onClick={() => launcher.setError('')}>×</button></p>}
     {turnView ? <TurnChangesView key={compare} sessionId={turnView.sessionId} turn={turnView.turn}/> : <>
     {error && <p className="error" role="alert">{error}</p>}
     {notice && <p className="changes-notice" role="status"><span>{notice}</span><button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></p>}
     <div className={`changes-columns${trayOpen ? ' with-review' : ''}`}>
       <nav aria-label="Changed files">
-        {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent} isViewed={viewed.isViewed} onViewed={markViewed} menu={rowItems}/>)}
+        {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} launcher={launcher} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent} isViewed={viewed.isViewed} onViewed={markViewed} menu={rowItems}/>)}
       </nav>
       <div className="diff-view" ref={setDiffPane} onContextMenu={selection ? contextMenu('diff', () => fileItems(selection.member, selection.path), { member: selection.member, path: selection.path }) : undefined}>
         {selection
@@ -219,14 +235,14 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
           </>
           : <div className="diff-empty"><h3>{loading ? 'Reading changes…' : 'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}
       </div>
-      {trayOpen && <ReviewTray workspaceId={workspaceId} review={review} conversation={conversation} onJump={jump} onSend={(text, to) => sendToAgent(text, to)} onClose={() => showTray(false)}/>}
+      {trayOpen && <ReviewTray workspaceId={workspaceId} review={review} conversation={conversation} focusReview={focusReview} onJump={jump} onSend={(text, to) => sendToAgent(text, to)} onClose={() => showTray(false)}/>}
     </div></>}
     {fileLinks.element}
   </section>;
 }
 
 /** What changed in total, what it is compared with, the review tray, and a refresh. */
-function ChangesHeader({ summary, compare, repos, sessionId, turns, onCompare, onRefresh, pending, trayOpen, onToggleTray }: { summary: string; compare: string; repos: RepositoryChanges[]; sessionId: string; turns: TurnCheckpoint[]; onCompare(compare: string): void; onRefresh(): void; pending: number; trayOpen: boolean; onToggleTray(): void }) {
+function ChangesHeader({ summary, compare, repos, sessionId, turns, onCompare, onRefresh, pending, trayOpen, onToggleTray, launcher, reviewScope }: { summary: string; compare: string; repos: RepositoryChanges[]; sessionId: string; turns: TurnCheckpoint[]; onCompare(compare: string): void; onRefresh(): void; pending: number; trayOpen: boolean; onToggleTray(): void; launcher: ReviewLauncher; reviewScope: ReviewScope }) {
   const turnView = parseTurnCompare(compare);
   // The followed conversation's finished turns, newest first; a turn asked for from another conversation too.
   const turnChoices = turns.filter(turn => turn.endedAtUnixMillis).reverse();
@@ -250,14 +266,16 @@ function ChangesHeader({ summary, compare, repos, sessionId, turns, onCompare, o
         {turnChoices.map(turn => <option key={turn.turn} value={turnCompare(sessionId, turn.turn)}>Turn {turn.turn}{turn.prompt ? ` · ${turn.prompt.slice(0, 48)}` : ''}{turn.files ? '' : ' (no changes)'}</option>)}
       </optgroup>}
     </select></label>
+    <ReviewWithButton launcher={launcher} scope={reviewScope}/>
     <button className="changes-review-toggle" aria-pressed={trayOpen} aria-label={`Review comments${pending ? `, ${pending} pending` : ''}`} onClick={onToggleTray}><Icon name="chat" size={14}/>Review{pending > 0 && <span aria-hidden="true">{pending}</span>}</button>
     {!turnView && <button onClick={onRefresh}>Refresh changes</button>}
   </header>;
 }
 
 /** One repository: its PR loop, then its committed and uncommitted files. */
-function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, onChoose, onChanged, onSendToAgent, isViewed, onViewed, menu }: {
+function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, launcher, onChoose, onChanged, onSendToAgent, isViewed, onViewed, menu }: {
   menu?(member: string, file: ChangedFile, committed: boolean): MenuItem[];
+  launcher?: ReviewLauncher;
   workspaceId: string;
   repo: RepositoryChanges;
   compare: string;
@@ -283,7 +301,7 @@ function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, 
   };
   return <section>
     <h3>{repo.member}<small>{repo.branch === 'HEAD' ? 'Detached HEAD' : repo.branch} · {repo.head.slice(0, 8)}</small></h3>
-    <RepositoryShip workspaceId={workspaceId} repo={repo} conversation={conversation} onChanged={onChanged} onSendToAgent={onSendToAgent}/>
+    <RepositoryShip workspaceId={workspaceId} repo={repo} conversation={conversation} launcher={launcher} onChanged={onChanged} onSendToAgent={onSendToAgent}/>
     {repo.error ? <p role="alert" className="error">{repo.error}</p> : <>
       {!showCommitted ? null : repo.committedError ? <p className="module-empty" role="status">Branch changes unavailable: {repo.committedError}</p> : repo.committed.length > 0 && <div className="changes-group">
         <h4>{compare === START ? 'Committed on this branch' : `Committed vs ${compare}`}</h4>

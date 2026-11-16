@@ -150,6 +150,22 @@ service RunnerService {
   rpc DeleteReviewComment(DeleteReviewCommentRequest) returns (WorkspaceReview);
   rpc SetReviewDisposition(SetReviewDispositionRequest) returns (WorkspaceReview);
   rpc SetReviewAutoResolve(SetReviewAutoResolveRequest) returns (WorkspaceReview);
+  // Owner only. One-click cross-agent review (GITHUB.md, "Agent review"):
+  // opens a read-only conversation in the same workspace on another agent
+  // (by default the other provider than the source conversation's), titled
+  // "Review · <scope> · <agent>", linked to the source, and sends it a brief
+  // generated from the source's goal, the scope's diff and files, and the
+  // `lazybox run` evidence so far. Its findings land in the workspace's review.
+  rpc StartReview(StartReviewRequest) returns (StartReviewResponse);
+  // A reviewer's finding, from `lazybox review add`. An agent credential may
+  // call it only for its own execution, and only while that execution is the
+  // reviewer of a review in its own workspace: the Runner derives the
+  // workspace, review and author from the execution, never the request. A
+  // finding with the key of one already filed in that review updates it.
+  rpc AddReviewFinding(AddReviewFindingRequest) returns (ReviewFinding);
+  // The findings of the review an execution is the reviewer (or the author)
+  // of, from `lazybox review list`. The same agent rule as AddReviewFinding.
+  rpc ListReviewFindings(ListReviewFindingsRequest) returns (ReviewFindings);
   // Owner only. Every process the Runner hosts so it outlives the Runner
   // (agents, managed commands, terminals), held by this Runner or orphaned.
   rpc ListProcesses(ListProcessesRequest) returns (ProcessInventory);
@@ -318,6 +334,19 @@ message RunnerSettings { uint64 revision = 1; string naming = 2; string permissi
   // MCP servers, such as Claude Docs, Gmail or Notion). Off by default: plans
   // and documents stay in Lazybox artifacts. Running sessions keep theirs.
   bool claude_ai_connectors = 11;
+  // Agent review (GITHUB.md, "Agent review").
+  ReviewSettings review = 12;
+}
+message ReviewSettings {
+  // The default reviewer: "" for the other provider than the conversation
+  // under review, else a subscription (profile id).
+  string reviewer = 1;
+  // The brief template; "" is the built-in one (default_template).
+  string template = 2;
+  // Start a review when an agent's turn ends with changes. Off by default.
+  bool auto_start = 3;
+  // Read only: the built-in template, for "Reset".
+  string default_template = 4;
 }
 message SetModelPriceRequest { uint64 revision = 1; ModelPrice price = 2; bool remove = 3; }
 message ListThemesRequest {}
@@ -853,7 +882,8 @@ message Message {
   PromptSource source = 4;
 }
 message PromptSource {
-  // typed, snippet, console, inbox, mission or handoff.
+  // typed, snippet, console, inbox, mission, handoff or review (a review
+  // brief, findings or a re-review sent by Lazybox).
   string kind = 1;
   string snippet_key = 2;
   // console: the run whose compact view was sent.
@@ -1474,6 +1504,60 @@ message ReviewComment {
   uint32 current_start_line = 23;
   uint32 current_end_line = 24;
   string freshness_reason = 25;
+  // Who wrote it: "" for the person, "agent" for a reviewer agent's finding.
+  string author = 26;
+  // A finding's reviewer, as people name it ("Codex"), and its conversation.
+  string author_label = 27;
+  string author_session_id = 28;
+  // A finding's severity: "blocker", "major", "minor" or "nit"; "" for a
+  // person's comment.
+  string severity = 29;
+  // A finding's one-line title.
+  string title = 30;
+  // The agent review the finding belongs to (ReviewRun.id).
+  string review_id = 31;
+  // The finding's stable key in its review: filing it again updates it.
+  string finding_key = 32;
+}
+// One agent review: a reviewer conversation started on a scope of another
+// conversation's work, and what it found.
+message ReviewRun {
+  string id = 1;
+  string collection_id = 2;
+  // The read-only reviewer conversation, its title and the agent's name.
+  string reviewer_session_id = 3;
+  string reviewer_title = 4;
+  string reviewer_label = 5;
+  string reviewer_provider = 6;
+  string reviewer_profile_id = 7;
+  // The conversation whose work is reviewed ("the author").
+  string source_session_id = 8;
+  string source_title = 9;
+  string source_label = 10;
+  // "changes" (a branch or uncommitted diff), "turn" (one agent turn's
+  // checkpoints) or "pr" (a pull request); its label, as in the title.
+  string scope = 11;
+  string scope_label = 12;
+  uint32 turn = 13;
+  string compare = 14;
+  string pull_request_url = 15;
+  // "running" while the reviewer works, "done" once it ended its turn,
+  // "failed" when it could not.
+  string state = 16;
+  // A sentence about the state, for the person.
+  string detail = 17;
+  int64 created_at_unix = 18;
+  int64 updated_at_unix = 19;
+  // Findings by severity, open ones only.
+  uint32 blockers = 20;
+  uint32 majors = 21;
+  uint32 minors = 22;
+  uint32 nits = 23;
+  // The mission task the source conversation is an attempt on, if any.
+  string mission_id = 24;
+  string task_id = 25;
+  // The author's provider ("claude" or "codex").
+  string source_provider = 26;
 }
 message WorkspaceReview {
   repeated ReviewComment comments = 1;
@@ -1481,6 +1565,55 @@ message WorkspaceReview {
   bool auto_resolve = 2;
   // The comment an add created.
   string added_id = 3;
+  // The workspace's agent reviews, newest first.
+  repeated ReviewRun runs = 4;
+}
+message StartReviewRequest {
+  string collection_id = 1;
+  // The conversation whose work is reviewed.
+  string source_session_id = 2;
+  // "changes", "turn" or "pr".
+  string scope = 3;
+  // changes: the ref the branch is compared with ("" is the workspace start,
+  // ":uncommitted" uncommitted work only).
+  string compare = 4;
+  // turn: the source conversation's turn number.
+  uint32 turn = 5;
+  // pr: the workspace repository whose pull request is reviewed.
+  string member = 6;
+  // The reviewer: a subscription (profile id), else a provider ("claude" or
+  // "codex"), else the default reviewer setting (the other provider).
+  string profile_id = 7;
+  string provider = 8;
+}
+message StartReviewResponse {
+  ReviewRun run = 1;
+  Session session = 2;
+}
+message AddReviewFindingRequest {
+  // The reviewer's own execution.
+  string session_id = 1;
+  // "member/path", relative to the workspace root, or a path in the only member.
+  string file = 2;
+  uint32 start_line = 3;
+  uint32 end_line = 4;
+  // blocker, major, minor or nit (also critical, high, medium, low, info).
+  string severity = 5;
+  string title = 6;
+  // Markdown: what is wrong and what to do about it.
+  string body = 7;
+  // A stable key; empty derives one from the file, line and title.
+  string key = 8;
+}
+message ReviewFinding {
+  ReviewComment finding = 1;
+  // True when the key matched a finding already filed, which was updated.
+  bool updated = 2;
+}
+message ListReviewFindingsRequest { string session_id = 1; }
+message ReviewFindings {
+  ReviewRun run = 1;
+  repeated ReviewComment findings = 2;
 }
 message ListReviewCommentsRequest { string collection_id = 1; }
 message AddReviewCommentRequest {
@@ -1503,6 +1636,8 @@ message SetReviewDispositionRequest {
   // With "sent": the conversation whose message box received them.
   string session_id = 4;
   string session_title = 5;
+  // With "dismissed": why, for the record.
+  string note = 6;
 }
 message SetReviewAutoResolveRequest { string collection_id = 1; bool enabled = 2; }
 message TurnCheckpointsRequest { string session_id = 1; }
@@ -1855,7 +1990,7 @@ message MissionTask {
   string evidence_trust = 7;
   // One sentence: why this status, and what backs it.
   string reason = 8;
-  // stale, failing, ci_failing, no_evidence.
+  // stale, failing, ci_failing, no_evidence, blockers (an agent review has open blockers).
   repeated string flags = 9;
   // The human gate waiting for a decision (awaiting acceptance), or empty.
   string gate = 10;
@@ -1886,7 +2021,7 @@ message MissionAttempt {
 }
 message MissionEvidence {
   string ref = 1;
-  // run, commit or pr.
+  // run, commit, pr or review (an agent review: failing while blockers are open).
   string kind = 2;
   string title = 3;
   // pass, fail, pending or unknown.

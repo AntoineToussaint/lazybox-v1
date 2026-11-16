@@ -37,9 +37,12 @@ type AgentCredentials interface {
 // agentRPCs is everything an agent credential may call: what `lazybox run`
 // and `lazybox log` need to publish one console, only for its own execution;
 // what `lazybox artifact` needs to list, read and publish the artifacts of
-// its own execution's workspace; and what `lazybox workspace` needs to list
+// its own execution's workspace; what `lazybox workspace` needs to list
 // that workspace's repositories and ask the person to add one (never to add
-// it). Every other RPC, including any added later, is the owner's.
+// it); and what `lazybox review` needs for a reviewer to file and list its
+// own review's findings (the Runner derives the review, its workspace and the
+// author from the execution, and refuses one that reviews nothing). Every
+// other RPC, including any added later, is the owner's.
 var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any) bool{
 	pb.RunnerService_RegisterPipe_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.RegisterPipeRequest)
@@ -87,6 +90,14 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 	// workspace, which the Runner derives from the execution, never the request.
 	pb.RunnerService_RequestRepository_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.RequestRepositoryRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_AddReviewFinding_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.AddReviewFindingRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_ListReviewFindings_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.ListReviewFindingsRequest)
 		return ok && r.SessionId != "" && r.SessionId == who.session
 	},
 	pb.RunnerService_WaitRepositoryRequest_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
@@ -224,7 +235,7 @@ func authorize(ctx context.Context, owner string, agents AgentCredentials, metho
 	if allowed := agentRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {
 		return who, nil
 	}
-	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish and follow its own session's console output, list and stop its own commands, use its own workspace's artifacts, and ask the person to add a repository to its own workspace")
+	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish and follow its own session's console output, list and stop its own commands, use its own workspace's artifacts, ask the person to add a repository to its own workspace, and file findings of a review it is the reviewer of")
 }
 
 // LocalAuthority protects the experimental Runner's execution authority on

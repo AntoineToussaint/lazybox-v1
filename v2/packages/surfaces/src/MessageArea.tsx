@@ -51,7 +51,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   // Tool lines show paths relative to the conversation's folder, and open files.
   const latestPlan = useMemo(() => latestPlanId(conversation), [conversation]);
   const toolScope = useMemo(() => ({ root: session?.workingDirectory || '', onOpenFile, latestPlan, detail }), [session?.workingDirectory, onOpenFile, latestPlan, detail]);
-  const checkpoints = useMemo(() => coding ? { sessionId: sessionID, workspaceId: session!.collectionId, busy: !!session!.busy } : undefined, [coding, sessionID, session?.collectionId, session?.busy]);
+  const checkpoints = useMemo(() => coding ? { sessionId: sessionID, workspaceId: session!.collectionId, busy: !!session!.busy, provider: session!.provider, profileId: session!.profileId } : undefined, [coding, sessionID, session?.collectionId, session?.busy, session?.provider, session?.profileId]);
   return <>
     <div className="messages-frame">
       <PromptNavigator messages={conversation} paneRef={scroll.paneRef} onReveal={scroll.revealMessage}/>

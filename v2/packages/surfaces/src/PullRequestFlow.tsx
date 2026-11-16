@@ -8,6 +8,8 @@ import { useRunner } from './RunnerContext';
 import { conversationReader } from './transcript-cache';
 import { checkState, checksSummary, commitPaths, defaultCommitMessage, defaultPullRequest, draftRequest, extractDraft, failingChecks, failingChecksMessage, mergeBlocker, nextStep, splitPullRequestDraft, type DraftKind } from './pull-request-model';
 import './pull-request.css';
+import type { ReviewLauncher } from './review-client';
+import { ReviewWithButton } from './ReviewLauncher';
 
 /** The PR loop for one workspace repository: commit, push, open a pull
  * request, follow its checks and reviews, send failures to the agent, merge.
@@ -173,7 +175,7 @@ const REVIEW_LABEL: Record<string, string> = { approved: 'Approved', changes_req
 const MERGE_METHODS = [['squash', 'Squash and merge'], ['merge', 'Create a merge commit'], ['rebase', 'Rebase and merge']] as const;
 const readMethod = () => { try { return localStorage.getItem('lazybox:merge-method') || 'squash'; } catch { return 'squash'; } };
 
-function PullRequestCard({ workspaceId, member, pr, fix, onSendChecks, onMerged, onRefresh }: { workspaceId: string; member: string; pr: PullRequestStatus; fix: boolean; onSendChecks(): void; onMerged(pr: PullRequestStatus): void; onRefresh(): void }) {
+function PullRequestCard({ workspaceId, member, pr, fix, launcher, onSendChecks, onMerged, onRefresh }: { workspaceId: string; member: string; pr: PullRequestStatus; fix: boolean; launcher?: ReviewLauncher; onSendChecks(): void; onMerged(pr: PullRequestStatus): void; onRefresh(): void }) {
   const { api } = useRunner();
   const [method, setMethod] = useState(readMethod);
   const [confirming, setConfirming] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -195,6 +197,7 @@ function PullRequestCard({ workspaceId, member, pr, fix, onSendChecks, onMerged,
       {pr.checks.length > 0 ? <ul>{pr.checks.map((check, index) => <CheckRow key={check.name + index} check={check}/>)}</ul> : <p className="ship-muted">No CI checks reported for this commit.</p>}
     </details>}
     {pr.state === 'open' && <div className="ship-pr-actions">
+      {launcher && <ReviewWithButton launcher={launcher} scope={{ scope: 'pr', member }} label="Review the PR with"/>}
       {failing.length > 0 && <button type="button" className={fix ? 'primary' : ''} onClick={onSendChecks} title="Puts the failing checks and their log links in the conversation's message box for you to send"><Icon name="chat" size={14}/>Send {failing.length === 1 ? 'failing check' : `${failing.length} failing checks`} to the agent</button>}
       {confirming ? <span className="ship-confirm" role="group" aria-label="Confirm merge">
         <span>{MERGE_METHODS.find(([value]) => value === method)?.[1]} #{String(pr.number)} into {pr.base}?</span>
@@ -210,7 +213,7 @@ function PullRequestCard({ workspaceId, member, pr, fix, onSendChecks, onMerged,
 }
 
 /** The action bar and pull request card above one repository's file list. */
-export function RepositoryShip({ workspaceId, repo, conversation, onChanged: changed, onSendToAgent }: { workspaceId: string; repo: RepositoryChanges; conversation?: Session; onChanged(): void; onSendToAgent(text: string): void }) {
+export function RepositoryShip({ workspaceId, repo, conversation, launcher, onChanged: changed, onSendToAgent }: { workspaceId: string; repo: RepositoryChanges; conversation?: Session; launcher?: ReviewLauncher; onChanged(): void; onSendToAgent(text: string): void }) {
   const { api } = useRunner();
   // A commit, push or merge also changes the sidebar's git line.
   const onChanged = () => { changed(); nudgeGitSummaries(api); };
@@ -263,7 +266,7 @@ export function RepositoryShip({ workspaceId, repo, conversation, onChanged: cha
     {quiet && repo.upstream && !pr?.found && <p className="ship-muted"><Icon name="check" size={12}/>Up to date with {repo.upstream}</p>}
     {repo.githubRepository && pr?.unavailable && <p className="ship-muted">{pr.unavailable}</p>}
     {prError && <p className="ship-muted ship-warning" role="status">Pull request status unavailable: {prError}</p>}
-    {pr?.found && <PullRequestCard workspaceId={workspaceId} member={repo.member} pr={pr} fix={step === "fix"} onSendChecks={sendChecks} onRefresh={() => setPrRevision(value => value + 1)} onMerged={value => { setPr(value); setNotice(`Merged #${value.number} into ${value.base}`); onChanged(); }}/>}
+    {pr?.found && <PullRequestCard workspaceId={workspaceId} member={repo.member} pr={pr} fix={step === "fix"} launcher={launcher} onSendChecks={sendChecks} onRefresh={() => setPrRevision(value => value + 1)} onMerged={value => { setPr(value); setNotice(`Merged #${value.number} into ${value.base}`); onChanged(); }}/>}
     {(notice || error) && <p role={error ? 'alert' : 'status'} className={error ? 'ship-error' : 'ship-notice'}>{error || notice}</p>}
     {dialog === 'commit' && <CommitDialog workspaceId={workspaceId} repo={repo} conversation={conversation} onClose={() => setDialog('')} onDone={text => { setDialog(''); setNotice(text); onChanged(); setPrRevision(value => value + 1); }}/>}
     {dialog === 'create' && <CreatePullRequestDialog workspaceId={workspaceId} repo={repo} conversation={conversation} defaultBranch={pr?.defaultBranch || repo.defaultBranch.replace(/^origin\//, '')} onClose={() => setDialog('')} onCreated={(value, text) => { setDialog(''); setPr(value); setNotice(text); onChanged(); }}/>}

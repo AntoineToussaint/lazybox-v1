@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ReviewComment } from '@lazybox/protocol';
 import { RichContent } from './RichContent';
 import { errorText } from './PullRequestFlow';
-import { diffLabel, dispositionLabel, freshnessLabel, isPending, linesLabel, short } from './review-model';
+import { authorLabel, diffLabel, dispositionLabel, freshnessLabel, isFinding, isPending, isProposed, linesLabel, severityLabel, short } from './review-model';
+import { askReviewer, FindingActions } from './ReviewTray';
 import type { WorkspaceReviewState } from './useWorkspaceReview';
 import { isMac } from './workbench';
 
@@ -37,14 +38,19 @@ export function QuotedLines({ comment }: { comment: ReviewComment }) {
 
 /** One comment as a thread card in the diff: where and on what it was made,
  * whether its lines are still there, its text, and what became of it. */
-export function ReviewThread({ comment, review, quote = false, focused = false, focusNonce = 0 }: { comment: ReviewComment; review: WorkspaceReviewState; quote?: boolean; focused?: boolean; focusNonce?: number }) {
+export function ReviewThread({ workspaceId = '', comment, review, quote = false, focused = false, focusNonce = 0 }: { workspaceId?: string; comment: ReviewComment; review: WorkspaceReviewState; quote?: boolean; focused?: boolean; focusNonce?: number }) {
   const [editing, setEditing] = useState(false), [confirmDelete, setConfirmDelete] = useState(false), [error, setError] = useState('');
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [focused, focusNonce]);
   const act = (run: () => Promise<unknown>) => { setError(''); void run().catch(e => setError(errorText(e))); };
-  const fresh = freshnessLabel(comment);
-  const label = `Comment on ${linesLabel(comment.side, comment.startLine, comment.endLine).toLowerCase()}`;
-  return <article ref={ref} id={`review-thread-${comment.id}`} className={`review-thread is-${comment.disposition || 'open'} fresh-${comment.freshness || 'unknown'}${focused ? ' is-focused' : ''}`} aria-label={label}>
+  const fresh = freshnessLabel(comment), finding = isFinding(comment);
+  const label = finding ? `${severityLabel(comment.severity)} finding on ${linesLabel(comment.side, comment.startLine, comment.endLine).toLowerCase()}` : `Comment on ${linesLabel(comment.side, comment.startLine, comment.endLine).toLowerCase()}`;
+  return <article ref={ref} id={`review-thread-${comment.id}`} className={`review-thread is-${comment.disposition || 'open'} fresh-${comment.freshness || 'unknown'}${focused ? ' is-focused' : ''}${finding ? ` is-finding sev-${comment.severity}` : ''}`} aria-label={label}>
+    {finding && <div className="review-finding-head">
+      <span className={`review-severity sev-${comment.severity}`}>{severityLabel(comment.severity)}</span>
+      <strong>{comment.title}</strong>
+      <span className="review-chip is-author">{authorLabel(comment)}</span>
+    </div>}
     <header>
       <strong>{linesLabel(comment.side, comment.startLine, comment.endLine)}</strong>
       <small title={`Made on ${comment.head || 'a repository without commits'}`}>{diffLabel(comment)}</small>
@@ -56,8 +62,9 @@ export function ReviewThread({ comment, review, quote = false, focused = false, 
     {editing
       ? <ReviewComposer label="Edit comment" initial={comment.body} submitLabel="Save" onCancel={() => setEditing(false)} onSubmit={async text => { await review.edit(comment.id, text); setEditing(false); }}/>
       : <RichContent text={comment.body}/>}
-    {comment.note && <p className="review-muted">{comment.note}</p>}
+    {comment.note && <p className="review-muted">{comment.disposition === 'dismissed' ? `Dismissed: ${comment.note}` : comment.note}</p>}
     {error && <p className="review-error" role="alert">{error}</p>}
+    {!editing && finding && (isProposed(comment) || isPending(comment)) && <FindingActions comment={comment} review={review} onAsk={c => askReviewer(workspaceId, c)}/>}
     {!editing && <footer>
       {confirmDelete
         ? <span role="group" aria-label="Confirm delete">Delete this comment?<button className="danger" autoFocus onClick={() => act(() => review.remove(comment.id))}>Delete</button><button onClick={() => setConfirmDelete(false)}>Keep</button></span>
@@ -69,7 +76,7 @@ export function ReviewThread({ comment, review, quote = false, focused = false, 
             <button onClick={() => act(() => review.setDisposition([comment.id], 'wont_fix'))}>Won’t fix</button>
             <button onClick={() => act(() => review.setDisposition([comment.id], 'resolved'))}>Resolve</button>
           </>}
-          {!isPending(comment) && <button onClick={() => act(() => review.setDisposition([comment.id], 'open'))} title={comment.disposition === 'sent' ? 'Back to pending, to send again' : 'Back to pending'}>Reopen</button>}
+          {!isPending(comment) && !isProposed(comment) && <button onClick={() => act(() => review.setDisposition([comment.id], 'open'))} title={comment.disposition === 'sent' ? 'Back to pending, to send again' : 'Back to pending'}>Reopen</button>}
         </>}
     </footer>}
   </article>;

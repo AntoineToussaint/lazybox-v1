@@ -70,6 +70,9 @@ const tail = [
   { id: 'workspace.new', title: 'New workspace', group: 'Workspace', icon: 'plus', keys: '] ] w', scope: 'global', keywords: 'create add repositories', menu: { section: 'File', title: 'New Workspace…' } },
   { id: 'conversation.new', title: 'New conversation', group: 'Workspace', icon: 'chat', keys: '] ] c', scope: 'global', keywords: 'start agent session chat', menu: { section: 'File', title: 'New Conversation…' } },
   { id: 'changes.show', title: 'Review changes', group: 'Workspace', icon: 'branch', keys: '] ] d', scope: 'global', keywords: 'diff git commit pull request' },
+  // Another agent reviews the workspace's changes, read-only (ReviewActions.tsx).
+  { id: 'review.codex', title: 'Review changes with Codex', group: 'Workspace', icon: 'review', keys: '', scope: 'global', keywords: 'agent cross review findings second opinion codex' },
+  { id: 'review.claude', title: 'Review changes with Claude', group: 'Workspace', icon: 'review', keys: '', scope: 'global', keywords: 'agent cross review findings second opinion claude' },
   { id: 'files.explorer', title: 'Browse files', group: 'Workspace', icon: 'folder', keys: '] ] e', scope: 'global', keywords: 'explorer tree' },
   { id: 'terminal.open', title: 'Open a terminal', group: 'Workspace', icon: 'terminal', keys: '', scope: 'global', keywords: 'shell console' },
   { id: 'artifacts.open', title: 'Show artifacts', group: 'Workspace', icon: 'artifact', keys: '] ] a', scope: 'global', keywords: 'documents reports' },

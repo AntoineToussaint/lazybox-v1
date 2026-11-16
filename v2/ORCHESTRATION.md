@@ -689,6 +689,39 @@ Assigning does not create a task workspace; the person picks one. Pull
 requests are reread only while a board is open. A log is never compacted
 (64 MiB per mission). Mission exports for the Hub are not built.
 
+### The reviewer, person-triggered (first step of slice 2)
+
+The *reviewer* role of §3 exists today as one click ([GITHUB.md, "Agent
+review"](GITHUB.md#agent-review)): a person starts it on a conversation's
+changes, one turn or its pull request; the Runner opens a read-only
+conversation on the other provider (the role's `other_than_worker`), gives it
+`context: [brief, diff]` (the goal, the scope's diff and files, the run
+evidence), and its findings are V1's — severity, `file:line`, quoted lines,
+pinned to the head they were read on, with freshness — filed through a scoped
+verb (`lazybox review add`, the `finding.file` scope in all but name). The
+person triages them (accept, dismiss with a reason) and sends accepted ones to
+the author; silence is not a disposition. On a mission task the review is
+`review:` evidence: pending while it runs, failing while blockers are open,
+which keeps the task from *verified*.
+
+Kept within slice 1's APIs: no grant table (the agent allowlist admits
+`AddReviewFinding` and `ListReviewFindings` for the caller's own execution,
+and the Runner admits only the reviewer of a review in its own workspace), no
+`finding.filed` event (findings live in the workspace's review store; the
+mission log records the review's outcome as evidence), and the reviewer is
+started by a person, not by a rule.
+
+How slice 2 automates it, with the process file unchanged: the reviewed-team
+rule `{on: verdict.recorded, if: "task.assertions.all(…)", do: {start: reviewer}}`
+and solo pair's `triggers: [{on: gate.requested, if: "gate.id == 'reviewed'", mode: manual}]`
+call the same start (provider `other_than_worker`, permission `read_only`,
+`instructions: {snippet: deepreview}` as the brief's template); the grant
+table gives the reviewer execution `finding.file`, which `lazybox review add`
+becomes; each finding is also a `finding.filed` event on the task, and the
+person's accept or dismiss a `finding.disposed`; a rule on `finding.filed`
+with `finding.severity == 'blocker'` sends the author `fixall`. Nothing in the
+person-triggered path is replaced: a rule starts what the click starts.
+
 ### Risks and failure modes
 
 | Failure (source) | Design answer |

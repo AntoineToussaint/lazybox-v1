@@ -315,6 +315,15 @@ const (
 	// RunnerServiceSetReviewAutoResolveProcedure is the fully-qualified name of the RunnerService's
 	// SetReviewAutoResolve RPC.
 	RunnerServiceSetReviewAutoResolveProcedure = "/lazybox.bench.v1.RunnerService/SetReviewAutoResolve"
+	// RunnerServiceStartReviewProcedure is the fully-qualified name of the RunnerService's StartReview
+	// RPC.
+	RunnerServiceStartReviewProcedure = "/lazybox.bench.v1.RunnerService/StartReview"
+	// RunnerServiceAddReviewFindingProcedure is the fully-qualified name of the RunnerService's
+	// AddReviewFinding RPC.
+	RunnerServiceAddReviewFindingProcedure = "/lazybox.bench.v1.RunnerService/AddReviewFinding"
+	// RunnerServiceListReviewFindingsProcedure is the fully-qualified name of the RunnerService's
+	// ListReviewFindings RPC.
+	RunnerServiceListReviewFindingsProcedure = "/lazybox.bench.v1.RunnerService/ListReviewFindings"
 	// RunnerServiceListProcessesProcedure is the fully-qualified name of the RunnerService's
 	// ListProcesses RPC.
 	RunnerServiceListProcessesProcedure = "/lazybox.bench.v1.RunnerService/ListProcesses"
@@ -635,6 +644,22 @@ type RunnerServiceClient interface {
 	DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. One-click cross-agent review (GITHUB.md, "Agent review"):
+	// opens a read-only conversation in the same workspace on another agent
+	// (by default the other provider than the source conversation's), titled
+	// "Review · <scope> · <agent>", linked to the source, and sends it a brief
+	// generated from the source's goal, the scope's diff and files, and the
+	// `lazybox run` evidence so far. Its findings land in the workspace's review.
+	StartReview(context.Context, *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error)
+	// A reviewer's finding, from `lazybox review add`. An agent credential may
+	// call it only for its own execution, and only while that execution is the
+	// reviewer of a review in its own workspace: the Runner derives the
+	// workspace, review and author from the execution, never the request. A
+	// finding with the key of one already filed in that review updates it.
+	AddReviewFinding(context.Context, *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// The findings of the review an execution is the reviewer (or the author)
+	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
+	ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
@@ -1368,6 +1393,24 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("SetReviewAutoResolve")),
 			connect.WithClientOptions(opts...),
 		),
+		startReview: connect.NewClient[gen.StartReviewRequest, gen.StartReviewResponse](
+			httpClient,
+			baseURL+RunnerServiceStartReviewProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StartReview")),
+			connect.WithClientOptions(opts...),
+		),
+		addReviewFinding: connect.NewClient[gen.AddReviewFindingRequest, gen.ReviewFinding](
+			httpClient,
+			baseURL+RunnerServiceAddReviewFindingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AddReviewFinding")),
+			connect.WithClientOptions(opts...),
+		),
+		listReviewFindings: connect.NewClient[gen.ListReviewFindingsRequest, gen.ReviewFindings](
+			httpClient,
+			baseURL+RunnerServiceListReviewFindingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListReviewFindings")),
+			connect.WithClientOptions(opts...),
+		),
 		listProcesses: connect.NewClient[gen.ListProcessesRequest, gen.ProcessInventory](
 			httpClient,
 			baseURL+RunnerServiceListProcessesProcedure,
@@ -1810,6 +1853,9 @@ type runnerServiceClient struct {
 	deleteReviewComment          *connect.Client[gen.DeleteReviewCommentRequest, gen.WorkspaceReview]
 	setReviewDisposition         *connect.Client[gen.SetReviewDispositionRequest, gen.WorkspaceReview]
 	setReviewAutoResolve         *connect.Client[gen.SetReviewAutoResolveRequest, gen.WorkspaceReview]
+	startReview                  *connect.Client[gen.StartReviewRequest, gen.StartReviewResponse]
+	addReviewFinding             *connect.Client[gen.AddReviewFindingRequest, gen.ReviewFinding]
+	listReviewFindings           *connect.Client[gen.ListReviewFindingsRequest, gen.ReviewFindings]
 	listProcesses                *connect.Client[gen.ListProcessesRequest, gen.ProcessInventory]
 	stopProcess                  *connect.Client[gen.StopProcessRequest, gen.ProcessInventory]
 	cleanUpOrphanProcesses       *connect.Client[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse]
@@ -2344,6 +2390,21 @@ func (c *runnerServiceClient) SetReviewAutoResolve(ctx context.Context, req *con
 	return c.setReviewAutoResolve.CallUnary(ctx, req)
 }
 
+// StartReview calls lazybox.bench.v1.RunnerService.StartReview.
+func (c *runnerServiceClient) StartReview(ctx context.Context, req *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error) {
+	return c.startReview.CallUnary(ctx, req)
+}
+
+// AddReviewFinding calls lazybox.bench.v1.RunnerService.AddReviewFinding.
+func (c *runnerServiceClient) AddReviewFinding(ctx context.Context, req *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return c.addReviewFinding.CallUnary(ctx, req)
+}
+
+// ListReviewFindings calls lazybox.bench.v1.RunnerService.ListReviewFindings.
+func (c *runnerServiceClient) ListReviewFindings(ctx context.Context, req *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error) {
+	return c.listReviewFindings.CallUnary(ctx, req)
+}
+
 // ListProcesses calls lazybox.bench.v1.RunnerService.ListProcesses.
 func (c *runnerServiceClient) ListProcesses(ctx context.Context, req *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {
 	return c.listProcesses.CallUnary(ctx, req)
@@ -2777,6 +2838,22 @@ type RunnerServiceHandler interface {
 	DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. One-click cross-agent review (GITHUB.md, "Agent review"):
+	// opens a read-only conversation in the same workspace on another agent
+	// (by default the other provider than the source conversation's), titled
+	// "Review · <scope> · <agent>", linked to the source, and sends it a brief
+	// generated from the source's goal, the scope's diff and files, and the
+	// `lazybox run` evidence so far. Its findings land in the workspace's review.
+	StartReview(context.Context, *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error)
+	// A reviewer's finding, from `lazybox review add`. An agent credential may
+	// call it only for its own execution, and only while that execution is the
+	// reviewer of a review in its own workspace: the Runner derives the
+	// workspace, review and author from the execution, never the request. A
+	// finding with the key of one already filed in that review updates it.
+	AddReviewFinding(context.Context, *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// The findings of the review an execution is the reviewer (or the author)
+	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
+	ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
@@ -3506,6 +3583,24 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("SetReviewAutoResolve")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceStartReviewHandler := connect.NewUnaryHandler(
+		RunnerServiceStartReviewProcedure,
+		svc.StartReview,
+		connect.WithSchema(runnerServiceMethods.ByName("StartReview")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAddReviewFindingHandler := connect.NewUnaryHandler(
+		RunnerServiceAddReviewFindingProcedure,
+		svc.AddReviewFinding,
+		connect.WithSchema(runnerServiceMethods.ByName("AddReviewFinding")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListReviewFindingsHandler := connect.NewUnaryHandler(
+		RunnerServiceListReviewFindingsProcedure,
+		svc.ListReviewFindings,
+		connect.WithSchema(runnerServiceMethods.ByName("ListReviewFindings")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListProcessesHandler := connect.NewUnaryHandler(
 		RunnerServiceListProcessesProcedure,
 		svc.ListProcesses,
@@ -4040,6 +4135,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSetReviewDispositionHandler.ServeHTTP(w, r)
 		case RunnerServiceSetReviewAutoResolveProcedure:
 			runnerServiceSetReviewAutoResolveHandler.ServeHTTP(w, r)
+		case RunnerServiceStartReviewProcedure:
+			runnerServiceStartReviewHandler.ServeHTTP(w, r)
+		case RunnerServiceAddReviewFindingProcedure:
+			runnerServiceAddReviewFindingHandler.ServeHTTP(w, r)
+		case RunnerServiceListReviewFindingsProcedure:
+			runnerServiceListReviewFindingsHandler.ServeHTTP(w, r)
 		case RunnerServiceListProcessesProcedure:
 			runnerServiceListProcessesHandler.ServeHTTP(w, r)
 		case RunnerServiceStopProcessProcedure:
@@ -4541,6 +4642,18 @@ func (UnimplementedRunnerServiceHandler) SetReviewDisposition(context.Context, *
 
 func (UnimplementedRunnerServiceHandler) SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetReviewAutoResolve is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StartReview(context.Context, *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StartReview is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AddReviewFinding(context.Context, *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AddReviewFinding is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListReviewFindings is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {

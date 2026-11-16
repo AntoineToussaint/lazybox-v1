@@ -56,7 +56,7 @@ try{
  const agentMessage=chat.locator('article.message.message_delta').filter({hasText:'The parser fails'});
  await expect(agentMessage).toBeVisible();
  await open(agentMessage.locator('p').first(),{position:{x:4,y:6}});
- assert.deepEqual((await labels()).slice(0,6),['Quote in reply','Copy message','Copy as Markdown','Jump to prompt','Show changes in this turn','Revert to before this turn…']);
+ assert.deepEqual((await labels()).slice(0,8),['Quote in reply','Copy message','Copy as Markdown','Jump to prompt','Show changes in this turn','Review this turn with Codex','Review this turn with Claude','Revert to before this turn…']);
  assert.ok((await labels()).includes('Track as artifact…'),'the artifacts feature contributes to the message menu');
  await page.screenshot({path:'.cache/context-menu-message.png'});
  await item('Copy as Markdown').click();await expect(menu).toHaveCount(0);
@@ -255,10 +255,10 @@ try{
  // An agent turn: its checkpoint actions, from the message or from the turn's marker.
  // Its ⋯ menu lists the same actions.
  await chat.getByRole('group',{name:'Turn 1 checkpoint'}).getByLabel('Turn 1 actions',{exact:true}).click();
- await expect(chat.getByRole('group',{name:'Turn 1 checkpoint'}).locator('.action-popover button')).toHaveText(['Show changes in this turn','Revert to before this turn…']);
+ await expect(chat.getByRole('group',{name:'Turn 1 checkpoint'}).locator('.action-popover button')).toHaveText(['Show changes in this turn','Review this turn with Codex','Review this turn with Claude','Revert to before this turn…']);
  await page.keyboard.press('Escape');
  await open(chat.getByRole('group',{name:'Turn 1 checkpoint'}));
- assert.deepEqual((await labels()).slice(0,2),['Show changes in this turn','Revert to before this turn…']);
+ assert.deepEqual((await labels()).slice(0,4),['Show changes in this turn','Review this turn with Codex','Review this turn with Claude','Revert to before this turn…']);
  await item('Show changes in this turn').click();
  await expect(page.getByRole('region',{name:'Workspace changes'})).toContainText('Agent turn 1');
 

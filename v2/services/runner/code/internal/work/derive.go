@@ -36,6 +36,7 @@ const (
 	FlagFailing    = "failing"     // the latest lazybox run failed
 	FlagCIFailing  = "ci_failing"  // checks failed on the latest head
 	FlagNoEvidence = "no_evidence" // nothing ran and no check reported
+	FlagBlockers   = "blockers"    // the latest agent review has open blockers
 )
 
 // Liveness of a conversation that is an attempt, as the Runner observes it.
@@ -205,7 +206,7 @@ func judge(t *Task) (trust string, flags []string, reason string) {
 		return TrustClaimed, []string{FlagNoEvidence}, "no run or check recorded"
 	}
 	newest := map[string]string{} // member → newest head the Runner saw
-	var run *Recorded
+	var run, review *Recorded
 	prs := map[string]*Recorded{} // repository → latest pull request evidence
 	order := []string{}
 	for i := range t.Evidence {
@@ -222,6 +223,8 @@ func judge(t *Task) (trust string, flags []string, reason string) {
 			if r.Member != "" && r.Head != "" {
 				newest[r.Member] = r.Head
 			}
+		case EvidenceReview:
+			review = r
 		case EvidencePR:
 			if r.Member != "" && r.Head != "" && r.Outcome == OutcomePass {
 				// A passing PR head is the head the checks ran on; a later run
@@ -259,15 +262,26 @@ func judge(t *Task) (trust string, flags []string, reason string) {
 	if run != nil && run.Outcome == OutcomeFail {
 		flags = append(flags, FlagFailing)
 	}
+	// Open blockers from the latest agent review keep the work from verified:
+	// checks passing on code a reviewer found wrong do not vouch for it.
+	blocked := review != nil && review.Outcome == OutcomeFail
+	if blocked {
+		flags = append(flags, FlagBlockers)
+	}
 	switch {
-	case verified != nil && ciFailing == nil:
+	case verified != nil && ciFailing == nil && !blocked:
 		return TrustVerified, flags, "checks passed on " + prName(verified)
 	case run != nil && run.Outcome == OutcomePass:
 		reason = "last run passed: " + runName(run)
 		if stale != nil {
 			reason += "; checks passed on an older head of " + prName(stale)
 		}
+		if blocked {
+			reason += "; " + reviewName(review)
+		}
 		return TrustObserved, flags, reason
+	case verified != nil && blocked:
+		return TrustObserved, flags, "checks passed on " + prName(verified) + "; " + reviewName(review)
 	case ciFailing != nil:
 		return TrustClaimed, flags, "checks failed on " + prName(ciFailing)
 	case run != nil:
@@ -276,6 +290,10 @@ func judge(t *Task) (trust string, flags []string, reason string) {
 		return TrustClaimed, flags, "checks passed on an older head of " + prName(stale)
 	}
 	return TrustClaimed, append(flags, FlagNoEvidence), "no passing run or check recorded"
+}
+
+func reviewName(r *Recorded) string {
+	return firstNonEmpty(r.Title, "an agent review") + " has open blockers" + suffix(r.Detail)
 }
 
 func runName(r *Recorded) string {

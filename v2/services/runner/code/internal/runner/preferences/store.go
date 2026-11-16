@@ -32,6 +32,19 @@ type Data struct {
 	// ClaudeAIConnectors lets new Claude sessions load the person's claude.ai
 	// connectors. Off by default, so documents stay in Lazybox artifacts.
 	ClaudeAIConnectors bool `json:"claudeAiConnectors,omitempty"`
+
+	// Review is agent review (GITHUB.md, "Agent review").
+	Review Review `json:"review,omitzero"`
+}
+
+// Review is how agent reviews start: the default reviewer ("" the other
+// provider than the reviewed conversation's, else a profile id), the brief
+// template ("" the built-in one) and whether a turn that changed files starts
+// one on its own.
+type Review struct {
+	Reviewer  string `json:"reviewer,omitempty"`
+	Template  string `json:"template,omitempty"`
+	AutoStart bool   `json:"autoStart,omitempty"`
 }
 type Store struct {
 	mu   sync.RWMutex
@@ -72,6 +85,12 @@ func validate(d Data) error {
 	}
 	if len(d.Context)+len(d.ClaudeContext)+len(d.CodexContext) > 64<<10 {
 		return errors.New("agent context exceeds 64 KiB")
+	}
+	if len(d.Review.Reviewer) > 128 || strings.ContainsAny(d.Review.Reviewer, " \t\r\n") {
+		return errors.New("invalid default reviewer")
+	}
+	if len(d.Review.Template) > 32<<10 {
+		return errors.New("the review brief template is limited to 32 KiB")
 	}
 	if len(d.RotationExcluded) > 256 {
 		return errors.New("at most 256 subscriptions excluded from switching")

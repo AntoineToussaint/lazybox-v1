@@ -115,6 +115,9 @@ const (
 	RunnerService_DeleteReviewComment_FullMethodName          = "/lazybox.bench.v1.RunnerService/DeleteReviewComment"
 	RunnerService_SetReviewDisposition_FullMethodName         = "/lazybox.bench.v1.RunnerService/SetReviewDisposition"
 	RunnerService_SetReviewAutoResolve_FullMethodName         = "/lazybox.bench.v1.RunnerService/SetReviewAutoResolve"
+	RunnerService_StartReview_FullMethodName                  = "/lazybox.bench.v1.RunnerService/StartReview"
+	RunnerService_AddReviewFinding_FullMethodName             = "/lazybox.bench.v1.RunnerService/AddReviewFinding"
+	RunnerService_ListReviewFindings_FullMethodName           = "/lazybox.bench.v1.RunnerService/ListReviewFindings"
 	RunnerService_ListProcesses_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListProcesses"
 	RunnerService_StopProcess_FullMethodName                  = "/lazybox.bench.v1.RunnerService/StopProcess"
 	RunnerService_CleanUpOrphanProcesses_FullMethodName       = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
@@ -324,6 +327,22 @@ type RunnerServiceClient interface {
 	DeleteReviewComment(ctx context.Context, in *DeleteReviewCommentRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
 	SetReviewDisposition(ctx context.Context, in *SetReviewDispositionRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
 	SetReviewAutoResolve(ctx context.Context, in *SetReviewAutoResolveRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	// Owner only. One-click cross-agent review (GITHUB.md, "Agent review"):
+	// opens a read-only conversation in the same workspace on another agent
+	// (by default the other provider than the source conversation's), titled
+	// "Review · <scope> · <agent>", linked to the source, and sends it a brief
+	// generated from the source's goal, the scope's diff and files, and the
+	// `lazybox run` evidence so far. Its findings land in the workspace's review.
+	StartReview(ctx context.Context, in *StartReviewRequest, opts ...grpc.CallOption) (*StartReviewResponse, error)
+	// A reviewer's finding, from `lazybox review add`. An agent credential may
+	// call it only for its own execution, and only while that execution is the
+	// reviewer of a review in its own workspace: the Runner derives the
+	// workspace, review and author from the execution, never the request. A
+	// finding with the key of one already filed in that review updates it.
+	AddReviewFinding(ctx context.Context, in *AddReviewFindingRequest, opts ...grpc.CallOption) (*ReviewFinding, error)
+	// The findings of the review an execution is the reviewer (or the author)
+	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
+	ListReviewFindings(ctx context.Context, in *ListReviewFindingsRequest, opts ...grpc.CallOption) (*ReviewFindings, error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error)
@@ -1470,6 +1489,36 @@ func (c *runnerServiceClient) SetReviewAutoResolve(ctx context.Context, in *SetR
 	return out, nil
 }
 
+func (c *runnerServiceClient) StartReview(ctx context.Context, in *StartReviewRequest, opts ...grpc.CallOption) (*StartReviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartReviewResponse)
+	err := c.cc.Invoke(ctx, RunnerService_StartReview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) AddReviewFinding(ctx context.Context, in *AddReviewFindingRequest, opts ...grpc.CallOption) (*ReviewFinding, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReviewFinding)
+	err := c.cc.Invoke(ctx, RunnerService_AddReviewFinding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListReviewFindings(ctx context.Context, in *ListReviewFindingsRequest, opts ...grpc.CallOption) (*ReviewFindings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReviewFindings)
+	err := c.cc.Invoke(ctx, RunnerService_ListReviewFindings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProcessInventory)
@@ -2208,6 +2257,22 @@ type RunnerServiceServer interface {
 	DeleteReviewComment(context.Context, *DeleteReviewCommentRequest) (*WorkspaceReview, error)
 	SetReviewDisposition(context.Context, *SetReviewDispositionRequest) (*WorkspaceReview, error)
 	SetReviewAutoResolve(context.Context, *SetReviewAutoResolveRequest) (*WorkspaceReview, error)
+	// Owner only. One-click cross-agent review (GITHUB.md, "Agent review"):
+	// opens a read-only conversation in the same workspace on another agent
+	// (by default the other provider than the source conversation's), titled
+	// "Review · <scope> · <agent>", linked to the source, and sends it a brief
+	// generated from the source's goal, the scope's diff and files, and the
+	// `lazybox run` evidence so far. Its findings land in the workspace's review.
+	StartReview(context.Context, *StartReviewRequest) (*StartReviewResponse, error)
+	// A reviewer's finding, from `lazybox review add`. An agent credential may
+	// call it only for its own execution, and only while that execution is the
+	// reviewer of a review in its own workspace: the Runner derives the
+	// workspace, review and author from the execution, never the request. A
+	// finding with the key of one already filed in that review updates it.
+	AddReviewFinding(context.Context, *AddReviewFindingRequest) (*ReviewFinding, error)
+	// The findings of the review an execution is the reviewer (or the author)
+	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
+	ListReviewFindings(context.Context, *ListReviewFindingsRequest) (*ReviewFindings, error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error)
@@ -2652,6 +2717,15 @@ func (UnimplementedRunnerServiceServer) SetReviewDisposition(context.Context, *S
 }
 func (UnimplementedRunnerServiceServer) SetReviewAutoResolve(context.Context, *SetReviewAutoResolveRequest) (*WorkspaceReview, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetReviewAutoResolve not implemented")
+}
+func (UnimplementedRunnerServiceServer) StartReview(context.Context, *StartReviewRequest) (*StartReviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartReview not implemented")
+}
+func (UnimplementedRunnerServiceServer) AddReviewFinding(context.Context, *AddReviewFindingRequest) (*ReviewFinding, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddReviewFinding not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListReviewFindings(context.Context, *ListReviewFindingsRequest) (*ReviewFindings, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListReviewFindings not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProcesses not implemented")
@@ -4527,6 +4601,60 @@ func _RunnerService_SetReviewAutoResolve_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_StartReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).StartReview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_StartReview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).StartReview(ctx, req.(*StartReviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_AddReviewFinding_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddReviewFindingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).AddReviewFinding(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_AddReviewFinding_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).AddReviewFinding(ctx, req.(*AddReviewFindingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListReviewFindings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListReviewFindingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListReviewFindings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListReviewFindings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListReviewFindings(ctx, req.(*ListReviewFindingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListProcesses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListProcessesRequest)
 	if err := dec(in); err != nil {
@@ -5909,6 +6037,18 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetReviewAutoResolve",
 			Handler:    _RunnerService_SetReviewAutoResolve_Handler,
+		},
+		{
+			MethodName: "StartReview",
+			Handler:    _RunnerService_StartReview_Handler,
+		},
+		{
+			MethodName: "AddReviewFinding",
+			Handler:    _RunnerService_AddReviewFinding_Handler,
+		},
+		{
+			MethodName: "ListReviewFindings",
+			Handler:    _RunnerService_ListReviewFindings_Handler,
 		},
 		{
 			MethodName: "ListProcesses",

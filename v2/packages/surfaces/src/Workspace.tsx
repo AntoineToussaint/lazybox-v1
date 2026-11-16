@@ -52,6 +52,8 @@ import { bindings } from './actions';
 import { provideLayoutCommands, type LayoutCommand } from './layout-commands';
 import { applyTemplate, builtinPresets, DEFAULT_PRESET, parseSavedLayouts, templateOf, type LayoutPreset } from './layout-presets';
 import { requestAsk } from './help-requests';
+import { ReviewActions } from './ReviewActions';
+import { useConversationRequests, useReviewHost } from './review-client';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -227,6 +229,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   // "Show changes in this turn" in a conversation of this workspace opens its Changes page.
   useTurnChangesHost(workspaceID, showChanges);
+  // A review started anywhere shows its reviewer conversation; "Open review" its findings.
+  useConversationRequests(workspaceID, request => showSession({ collectionId: request.collectionId, sessionId: request.sessionId, commandId: '' }));
+  useReviewHost(workspaceID, showChanges);
   // The edge a person last docked each kind of panel at is a personal preference,
   // shared by every workspace and window: a terminal they moved left opens left.
   const dockKey = (kind: string) => `${viewState?.root || viewState?.key}:dock:${kind}`;
@@ -598,6 +603,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     <Onboarding viewState={viewState} collections={collections} collectionsLoaded={catalogLoaded} automatic={!fixedWorkspaceId} onOpenSettings={tab => { if (fixedWorkspaceId) return; setSettingsTab(tab); setSettings(true); }}/>
     {quickOpen && workbench && <QuickOpen key={workbench.workspaceId} workbench={workbench} onClose={() => setQuickOpen(false)}/>}
     {quickLook && workspaceID && <FilePreview key={`${workspaceID}:${quickLook.path}`} workspaceId={workspaceID} reference={quickLook} viewState={viewState} onClose={() => setQuickLook(undefined)}/>}
+    {workspaceID && <ReviewActions workspaceId={workspaceID} sessionId={page.selection.collectionId === workspaceID ? page.selection.sessionId : ''}/>}
     <PowerLayer workspaceId={workspaceID} selection={{ collectionId: page.selection.collectionId || workspaceID, sessionId: page.selection.sessionId }} primary={!fixedWorkspaceId} host={host} viewState={viewState}
       onSelect={target => select({ ...target, commandId: '' })} onShowSession={target => showSession({ ...target, commandId: '' })}
       onShowPanel={(kind, target) => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : showPanelFor(kind, { ...target, commandId: '' })}

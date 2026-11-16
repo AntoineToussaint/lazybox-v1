@@ -11,7 +11,17 @@ import { commandLine, emptyCatalog, mergeCatalog, parseSlash, COMMAND_NAME, type
  * `tools`: a run of the main agent's tool calls, one line each in the
  * conversation. `answered`: how a question or approval was answered.
  */
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string; tools?: ToolEntry[]; answered?: AnswerNote; /** A message that ran one of the agent's slash commands: shown as one compact line. */ command?: boolean };
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string; tools?: ToolEntry[]; answered?: AnswerNote; /** A message that ran one of the agent's slash commands: shown as one compact line. */ command?: boolean; review?: ReviewNote };
+/** An agent review of this conversation's work (the Runner's review_started /
+ * review_finished events): its card follows the review live; the counts here
+ * are what the last event said, for when the review record is gone. */
+export type ReviewNote = { review: string; workspace: string; reviewerSession: string; reviewerLabel: string; scopeLabel: string; blockers: number; majors: number; minors: number; nits: number; finished: boolean };
+function reviewNote(data: Record<string, unknown>, finished: boolean): ReviewNote | undefined {
+  const text = (key: string) => typeof data[key] === 'string' ? data[key] as string : '';
+  const count = (key: string) => typeof data[key] === 'number' ? data[key] as number : 0;
+  if (!text('review') || !text('reviewerSession')) return;
+  return { review: text('review'), workspace: text('workspace'), reviewerSession: text('reviewerSession'), reviewerLabel: text('reviewerLabel') || 'Reviewer', scopeLabel: text('scopeLabel'), blockers: count('blockers'), majors: count('majors'), minors: count('minors'), nits: count('nits'), finished };
+}
 /** `requests`: what each question or approval asked, to say how it was answered. */
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote>; /** The agent's slash commands and models (`command_catalog`). */ catalog: CommandCatalog };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {}, catalog: emptyCatalog() });
@@ -103,6 +113,18 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       continue;
     }
     if (event.type === 'turn_ended' || event.type === 'session_closed') settleTools(messages ?? state.messages, replaceAt, owned);
+    // A review of this conversation's work: one card, where the review started.
+    if (event.type === 'review_started' || event.type === 'review_finished') {
+      const note = reviewNote(providerData(event.providerDataJson), event.type === 'review_finished');
+      if (note) {
+        const current = messages ?? state.messages, id = `review:${note.review}`;
+        const index = current.findIndex(message => message.id === id);
+        if (index >= 0) replaceAt(index, { ...current[index], text: event.text, review: { ...note, finished: note.finished || !!current[index].review?.finished } });
+        else add({ id, type: 'review', text: event.text, turnId: event.turnId, review: note });
+      }
+      next.appendToLast = false;
+      continue;
+    }
     const notice = runnerNotice(record);
     if (notice) {
       add({ id: record.cursor.toString(), type: 'notice', text: notice, turnId: event.turnId });

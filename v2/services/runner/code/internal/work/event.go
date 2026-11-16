@@ -159,6 +159,9 @@ const (
 	EvidenceRun    = "run"
 	EvidenceCommit = "commit"
 	EvidencePR     = "pr"
+	// EvidenceReview is an agent review of the attempt's work
+	// (review:<review>@<round>): its outcome fails while blockers are open.
+	EvidenceReview = "review"
 
 	OutcomePass    = "pass"
 	OutcomeFail    = "fail"
@@ -193,6 +196,9 @@ type Evidence struct {
 	URL        string            `json:"url,omitempty"`
 	OutputPath string            `json:"output_path,omitempty"`
 	Detail     string            `json:"detail,omitempty"`
+	// Review: the open findings by severity when it was recorded.
+	Blockers int `json:"blockers,omitempty"`
+	Findings int `json:"findings,omitempty"`
 }
 
 // Subjects.
