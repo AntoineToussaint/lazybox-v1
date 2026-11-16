@@ -419,25 +419,48 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 			if op.Decision == "accept" {
 				go s.runTool(p.message.ID, op.RequestID, p.tool, p.args)
 			} else {
-				go s.replyTool(p.message.ID, op.RequestID, toolDeclined(p.tool), false)
+				declined := toolDeclined(p.tool)
+				if op.Reason != "" {
+					declined += " The user said: " + op.Reason
+				}
+				go s.replyTool(p.message.ID, op.RequestID, declined, false)
 			}
 			r.Delivery = "submitted"
 			return r, nil
 		}
-		response, err := nativeResponse(p.message.Method, op)
+		response, err := nativeResponse(p.message.Method, p.message.Params, op)
 		if err != nil {
+			s.mu.Lock()
+			p.answered = false
+			s.requests[op.RequestID] = p
+			s.mu.Unlock()
 			return r, err
 		}
-		err = s.p.Reply(p.message.ID, response)
+		if err = s.p.Reply(p.message.ID, response); err != nil {
+			return r, err
+		}
 		r.Delivery = "submitted"
-		return r, err
+		if op.Kind == agent.Approve && op.Decision == "decline" && op.Reason != "" {
+			// The native decline has no text: the reason reaches the agent in
+			// the same turn, as the user's own words.
+			var scope struct {
+				ThreadID string `json:"threadId"`
+				TurnID   string `json:"turnId"`
+			}
+			_ = json.Unmarshal(p.message.Params, &scope)
+			steer := map[string]any{"threadId": scope.ThreadID, "expectedTurnId": scope.TurnID, "input": []any{map[string]any{"type": "text", "text": declineNote(p.message.Method, p.message.Params, op.Reason)}}}
+			if _, err = s.p.Call(ctx, "turn/steer", steer); err != nil {
+				r.Error = "declined; the reason could not be delivered: " + err.Error()
+			}
+		}
+		return r, nil
 	default:
 		return r, agent.ErrUnsupported
 	}
 }
 
 // nativeResponse is the app-server reply to a native approval or question.
-func nativeResponse(method string, op agent.Operation) (any, error) {
+func nativeResponse(method string, params json.RawMessage, op agent.Operation) (any, error) {
 	if op.Kind == agent.Answer {
 		answers := map[string]any{}
 		for k, v := range op.Answers {
@@ -451,7 +474,11 @@ func nativeResponse(method string, op agent.Operation) (any, error) {
 		}
 		return map[string]any{"permissions": map[string]any{}}, nil
 	}
-	return map[string]any{"decision": op.Decision}, nil
+	decision, err := approvalDecision(method, params, op)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"decision": decision}, nil
 }
 
 func requestID(raw json.RawMessage) string {
@@ -539,6 +566,7 @@ func (s *session) read() {
 				case "item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval":
 					ev.Type = "approval"
 					ev.Text = m.Method
+					ev.Data = withAlways(m.Method, m.Params)
 				case "item/tool/requestUserInput", "tool/requestUserInput":
 					ev.Type = "question"
 				case "item/tool/call":
@@ -578,7 +606,7 @@ func (s *session) read() {
 				if answered && p.Tool == "" && (response.Kind == agent.Answer || response.Decision != "") {
 					// The app-server acts only once it has the reply, so the
 					// user's recorded response is given again rather than asked anew.
-					if reply, err := nativeResponse(m.Method, response); err == nil && s.p.Reply(m.ID, reply) == nil {
+					if reply, err := nativeResponse(m.Method, m.Params, response); err == nil && s.p.Reply(m.ID, reply) == nil {
 						return true
 					}
 				}

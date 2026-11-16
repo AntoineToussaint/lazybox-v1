@@ -16,6 +16,8 @@ func TestToolItemsNormalizeAtProviderBoundary(t *testing.T) {
 		{`{"item":{"id":"cmd","type":"commandExecution","aggregatedOutput":"fixture","exitCode":0}}`, true, `"status":"completed"`},
 		{`{"item":{"id":"cmd","type":"commandExecution","exitCode":1}}`, true, `"status":"failed"`},
 		{`{"item":{"id":"mcp","type":"mcpToolCall","tool":"read","error":{"message":"failed"}}}`, true, `"status":"failed"`},
+		// A command line says how it ended, how long it took, where, and what it read.
+		{`{"item":{"id":"cmd","type":"commandExecution","command":"cat a.go","cwd":"/w","exitCode":0,"durationMs":4200,"commandActions":[{"type":"read","command":"cat a.go","name":"a.go","path":"/w/a.go"}]}}`, true, `"actions":[{"type":"read","command":"cat a.go","name":"a.go","path":"/w/a.go"}],"cwd":"/w","durationMs":4200,"exitCode":0`},
 	} {
 		got, err := normalizedToolCall(json.RawMessage(tc.raw), tc.done)
 		if err != nil || !strings.Contains(string(got), tc.want) || !strings.Contains(string(got), `"type":"tool_call"`) {

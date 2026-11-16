@@ -154,14 +154,20 @@ const (
 var PermissionModes = map[string]bool{"ask": true, "read-only": true, "yolo": true}
 
 type Operation struct {
-	ID        string              `json:"id"`
-	Kind      Kind                `json:"kind"`
-	Text      string              `json:"text,omitempty"`
-	Images    []Image             `json:"images,omitempty"`
-	Files     []File              `json:"files,omitempty"`
-	RequestID string              `json:"requestId,omitempty"`
-	Decision  string              `json:"decision,omitempty"`
-	Answers   map[string][]string `json:"answers,omitempty"`
+	ID        string  `json:"id"`
+	Kind      Kind    `json:"kind"`
+	Text      string  `json:"text,omitempty"`
+	Images    []Image `json:"images,omitempty"`
+	Files     []File  `json:"files,omitempty"`
+	RequestID string  `json:"requestId,omitempty"`
+	Decision  string  `json:"decision,omitempty"`
+	// Always, with an accepting Decision, names one of the "always allow"
+	// choices the request offered (its data's `always` list): the provider's
+	// own way to stop asking within that scope. Empty allows once.
+	Always string `json:"always,omitempty"`
+	// Reason, with a declining Decision, is the user's why; the agent is told.
+	Reason  string              `json:"reason,omitempty"`
+	Answers map[string][]string `json:"answers,omitempty"`
 	// Context is an update to the session's instructions, delivered with this
 	// message but kept out of the user's text and transcript.
 	Context string `json:"context,omitempty"`

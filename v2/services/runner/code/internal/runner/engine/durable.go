@@ -284,6 +284,8 @@ func scanJournal(ctx context.Context, spool *journal.Journal) (journalScan, erro
 			Kind        agent.Kind          `json:"kind"`
 			Receipt     agent.Receipt       `json:"receipt"`
 			Decision    string              `json:"decision"`
+			Always      string              `json:"always"`
+			Reason      string              `json:"reason"`
 			Answers     map[string][]string `json:"answers"`
 			Operation   struct {
 				Files []agent.File `json:"files"`
@@ -302,7 +304,7 @@ func scanJournal(ctx context.Context, spool *journal.Journal) (journalScan, erro
 			}
 			s.kinds[v.OperationID] = v.Kind
 			if (v.Kind == agent.Answer || v.Kind == agent.Approve) && v.RequestID != "" {
-				s.responded[v.RequestID] = agent.Operation{Kind: v.Kind, RequestID: v.RequestID, Decision: v.Decision, Answers: v.Answers}
+				s.responded[v.RequestID] = agent.Operation{Kind: v.Kind, RequestID: v.RequestID, Decision: v.Decision, Always: v.Always, Reason: v.Reason, Answers: v.Answers}
 			}
 			if v.Kind == agent.Message || v.Kind == agent.Steer {
 				s.said = append(s.said, utterance{operation: v.OperationID, text: "\nUSER: " + agent.Prompt(agent.Operation{Text: v.Text, Files: v.Operation.Files}) + "\n"})

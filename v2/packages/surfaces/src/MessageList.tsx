@@ -13,6 +13,8 @@ import { switchedLine } from './subscription-model';
 import { useCheckpointUI, type CheckpointScope } from './TurnCheckpoints';
 import { MessageArtifactActions } from './MessageArtifactActions';
 import { SubagentCard } from './SubagentCard';
+import { ToolLines } from './ToolLine';
+import { AnsweredLine } from './RequestCards';
 
 const ownName = (id: string) => id;
 
@@ -20,6 +22,8 @@ type MessageMenu = (context: ContextMenuContext<MessageMenuDetail>) => MenuItem[
 const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile, nameFor = ownName, sessionId = '', menu }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; nameFor?(id: string): string; sessionId?: string; menu?: MessageMenu }) {
   if (m.type === 'switched' && m.switched) return <div className="subscription-switched" role="note"><span>{switchedLine(m.switched, nameFor)}</span></div>;
   if (m.type === 'subagent' && m.agentId) return <div className="subagent-anchor" data-message-id={m.id}><SubagentCard id={m.agentId}/></div>;
+  if (m.type === 'tools') return m.tools ? <ToolLines entries={m.tools}/> : null;
+  if (m.type === 'answered' && m.answered) return <AnsweredLine note={m.answered}/>;
   if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
   return <article className={'message ' + m.type} data-message-id={m.id} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>

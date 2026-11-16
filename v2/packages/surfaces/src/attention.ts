@@ -109,7 +109,7 @@ export function deriveAttention(session: Session, seenAt = 0): Attention {
   if (!session.closed && (session.pending.length || session.status === 'waiting_input' || session.status === 'waiting_approval')) {
     const first = session.pending[0];
     const question = first ? first.type === 'question' : session.status === 'waiting_input';
-    return { ...base, state: 'needs-input', unread: true, reason: question ? 'Question' : 'Approval', line: first ? requestSummary(first) : message };
+    return { ...base, state: 'needs-input', unread: true, reason: (question ? 'Question' : 'Approval') + (session.pending.length > 1 ? ` · ${session.pending.length} waiting` : ''), line: first ? requestSummary(first) : message };
   }
   const fault = session.fault && session.fault !== 'native_exit_unconfirmed';
   if (fault || session.status === 'failed' || interruptedByRestart(session)) {
@@ -198,7 +198,7 @@ export function noticeFor(previous: Attention | undefined, next: Attention, pref
   if (next.state === 'needs-input') {
     const fresh = next.requests.filter(id => !previous.requests.includes(id));
     if (!preferences.needsInput || (previous.state === 'needs-input' && !fresh.length) || (!fresh.length && next.at <= previous.at)) return undefined;
-    return { ...target, kind: 'needs-input', title: `${next.reason === 'Question' ? 'Question' : 'Approval needed'} · ${title}`, body: where + (next.line || 'The agent is waiting for you') };
+    return { ...target, kind: 'needs-input', title: `${next.reason.startsWith('Question') ? 'Question' : 'Approval needed'} · ${title}`, body: where + (next.line || 'The agent is waiting for you') };
   }
   if (next.state === 'failed') {
     if (!preferences.failed || previous.state === 'failed') return undefined;

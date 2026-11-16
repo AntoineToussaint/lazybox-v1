@@ -217,7 +217,7 @@ test('a background command is not a sub-agent: no card, a short name, the output
     record(20, { type: 'tool_activity', data: call('toolu_read', 'BashOutput', 'running', { input: { bash_id: 'bash_7' } }) }),
     record(30, { type: 'tool_activity', data: { type: 'tool_call', id: 'toolu_read', status: 'completed', output: '12 passed, 1 failed' } }),
   );
-  assert.deepEqual(t.messages.map(m => m.type), [], 'no card in the conversation');
+  assert.deepEqual(t.messages.filter(m => m.type === 'subagent'), [], 'no card in the conversation');
   const command = t.subagents.byId['claude-tool:toolu_bg'];
   assert.equal(command.kind, 'command');
   assert.equal(command.name, 'pytest tests/test_mcp.py');

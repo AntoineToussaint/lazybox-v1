@@ -8,6 +8,7 @@ import { readQuota } from './usage.js';
 import { NativeStatus } from './status.js';
 import { contextSnapshot } from './context.js';
 import { SettingsApprovals, settingsServer, settingsServerName, updateSettingsTool } from './settings.js';
+import { alwaysChoices, covers, decide, offered, type Grant } from './permissions.js';
 
 type Request = { id?: string; method?: string; params?: any; result?: any; error?: any };
 let session: Query | undefined;
@@ -18,7 +19,9 @@ let interrupted = false;
 let permission = '';
 let inputWake: (() => void) | undefined;
 const messages: SDKUserMessage[] = [];
-const requests = new Map<string, { resolve: (value: PermissionResult) => void; input: Record<string, unknown>; kind: string; name: string }>();
+const requests = new Map<string, { resolve: (value: PermissionResult) => void; input: Record<string, unknown>; kind: string; name: string; choices: ReturnType<typeof alwaysChoices> }>();
+// "Always allow" grants this worker enforces itself, for this conversation (see permissions.ts).
+const grants: Grant[] = [];
 const tools = new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }>();
 const settingsApprovals = new SettingsApprovals();
 const send = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
@@ -57,7 +60,11 @@ async function open(options: any) {
     canUseTool: async (name, original, context): Promise<PermissionResult> => {
       const kind = name === 'AskUserQuestion' ? 'question' : 'approval';
       // YOLO never covers Lazybox settings changes: those always ask the user.
-      if (kind === 'approval' && permission === 'yolo' && !name.startsWith(`mcp__${settingsServerName}__`)) return { behavior: 'allow', updatedInput: original };
+      const settingsTool = name.startsWith(`mcp__${settingsServerName}__`);
+      if (kind === 'approval' && permission === 'yolo' && !settingsTool) return { behavior: 'allow', updatedInput: original };
+      // The person said "always" for this earlier in the conversation.
+      if (kind === 'approval' && !settingsTool && grants.some(grant => covers(grant, name, original))) return { behavior: 'allow', updatedInput: original, decisionClassification: 'user_permanent' };
+      const choices = kind === 'approval' ? alwaysChoices(name, original, { suggestions: context.suggestions, suppressAlwaysAllowRule: context.suppressAlwaysAllowRule, settingsTool }) : [];
       const id = context.requestId;
       if (!id) throw new Error('SDK omitted the native permission request id');
       if (requests.size >= 64) throw new Error('Pending request limit exceeded');
@@ -67,8 +74,10 @@ async function open(options: any) {
           requests.delete(id); event({type:'activity',status:result.behavior==='allow'?'tool':'working',name:result.behavior==='allow'?name:undefined,sessionId:reference,agentId:context.agentID?`claude-agent:${context.agentID}`:undefined}); event({ type: 'request_resolved', requestId: id, status: 'callback_resolved', sessionId: reference }); resolve(result);
         };
         const abort = () => finish({ behavior: 'deny', message: 'Request canceled by provider' });
-        requests.set(id, { resolve: finish, input: original, kind, name });
-        event({ type: kind, requestId: id, sessionId: reference, agentId: context.agentID ? `claude-agent:${context.agentID}` : undefined, parentAgentId: context.agentID ? 'root' : undefined, text: name, data: { tool: name, input: original, toolUseId: context.toolUseID } });
+        requests.set(id, { resolve: finish, input: original, kind, name, choices });
+        // Claude's own words for the ask, when it gives them, and the "always" choices it supports.
+        const words = { title: context.title, displayName: context.displayName, description: context.description, decisionReason: context.decisionReason, blockedPath: context.blockedPath, defaultToNo: context.defaultToNo || undefined };
+        event({ type: kind, requestId: id, sessionId: reference, agentId: context.agentID ? `claude-agent:${context.agentID}` : undefined, parentAgentId: context.agentID ? 'root' : undefined, text: name, data: { tool: name, input: original, toolUseId: context.toolUseID, ...(kind === 'approval' ? words : {}), ...(choices.length ? { always: offered(choices) } : {}) } });
         context.signal.addEventListener('abort', abort, { once: true });
         if (context.signal.aborted) abort();
       });
@@ -153,8 +162,10 @@ async function handle(request: Request) {
           pending.resolve({ behavior: 'allow', updatedInput: { ...pending.input, answers } });
         } else {
           // The user's approval of a settings update is what lets that exact update run.
+          const { result, grant } = decide(pending.name, pending.input, pending.choices, p);
           if (p.decision === 'accept' && pending.name === updateSettingsTool) settingsApprovals.grant(pending.input);
-          pending.resolve(p.decision === 'accept' ? { behavior: 'allow', updatedInput: pending.input } : { behavior: 'deny', message: 'Declined by operator' });
+          if (grant) grants.push(grant);
+          pending.resolve(result);
         }
         reply(request.id, { delivery: 'submitted' }); break;
       }

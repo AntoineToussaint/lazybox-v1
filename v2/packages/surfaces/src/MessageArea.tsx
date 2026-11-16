@@ -8,6 +8,7 @@ import { MessageScopeProvider } from './MessageArtifactActions';
 import { useRevealRequests } from './artifact-events';
 import { PromptNavigator } from './PromptNavigator';
 import { RequestCard } from './session-parts';
+import { ToolLineContext } from './ToolLine';
 import { faultSentence } from './subscription-model';
 import type { useChatScroll } from './useChatScroll';
 import type { useTranscript } from './useTranscript';
@@ -44,6 +45,8 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   useRevealRequests(sessionID, !transcript.loading && conversation.length > 0, scroll.revealMessage);
   // Coding turns are checkpointed: each gets a marker to show or revert its changes.
   const coding = !!session && (!session.purpose || session.purpose === 'coding');
+  // Tool lines show paths relative to the conversation's folder, and open files.
+  const toolScope = useMemo(() => ({ root: session?.workingDirectory || '', onOpenFile }), [session?.workingDirectory, onOpenFile]);
   const checkpoints = useMemo(() => coding ? { sessionId: sessionID, workspaceId: session!.collectionId, busy: !!session!.busy } : undefined, [coding, sessionID, session?.collectionId, session?.busy]);
   return <>
     <div className="messages-frame">
@@ -52,9 +55,9 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
         <div className="messages-content" ref={scroll.contentRef}>
           {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
           {!transcript.loading && !transcript.error && !spoken && <EmptyConversation agentName={agentName}/>}
-          <MessageScopeProvider scope={artifactScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints} sessionId={sessionID} onReveal={scroll.revealMessage}/></MessageScopeProvider>
+          <MessageScopeProvider scope={artifactScope}><ToolLineContext.Provider value={toolScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints} sessionId={sessionID} onReveal={scroll.revealMessage}/></ToolLineContext.Provider></MessageScopeProvider>
           {session?.fault && !limited && <div className="error" role="alert">{faultSentence(session.fault)}</div>}
-          <PendingRequests api={api} session={session} sessionID={sessionID} onError={onError}/>
+          <PendingRequests api={api} session={session} sessionID={sessionID} agentName={agentName} onError={onError}/>
           {subscription}
         </div>
       </div>
@@ -68,6 +71,7 @@ function EmptyConversation({ agentName }: { agentName: string }) {
 }
 
 /** Questions and approvals the agent waits on, answered in place. */
-function PendingRequests({ api, session, sessionID, onError }: { api: RunnerClient; session?: Session; sessionID: string; onError(message: string): void }) {
-  return <>{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={onError}/>)}</>;
+function PendingRequests({ api, session, sessionID, agentName, onError }: { api: RunnerClient; session?: Session; sessionID: string; agentName: string; onError(message: string): void }) {
+  const count = session?.pending.length || 0;
+  return <>{session?.pending.map((p, index) => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={onError} root={session.workingDirectory} agentName={agentName} position={{ index, count }}/>)}</>;
 }

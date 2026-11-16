@@ -32,9 +32,14 @@ func fixtureAppServer() {
 		var m struct {
 			ID     json.RawMessage `json:"id"`
 			Method string          `json:"method"`
+			Params struct {
+				Input []struct {
+					Text string `json:"text"`
+				} `json:"input"`
+			} `json:"params"`
 			Result struct {
-				Decision     string `json:"decision"`
-				Success      bool   `json:"success"`
+				Decision     json.RawMessage `json:"decision"`
+				Success      bool            `json:"success"`
 				ContentItems []struct {
 					Text string `json:"text"`
 				} `json:"contentItems"`
@@ -52,7 +57,7 @@ func fixtureAppServer() {
 			send(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]string{"id": "turn-1"}}})
 			send(map[string]any{"method": "turn/started", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1"}}})
 			if os.Getenv("FIXTURE_NATIVE_APPROVAL") != "" {
-				send(map[string]any{"id": 42, "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "command": "rm -rf build"}})
+				send(map[string]any{"id": 42, "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "command": "rm -rf build", "proposedExecpolicyAmendment": []string{"rm", "-rf"}}})
 				continue
 			}
 			tool := "lazybox_command"
@@ -60,12 +65,21 @@ func fixtureAppServer() {
 				tool = name
 			}
 			send(map[string]any{"id": 41, "method": "item/tool/call", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "tool": tool, "arguments": toolArguments()}})
+		case "turn/steer":
+			send(map[string]any{"id": m.ID, "result": map[string]any{"turnId": "turn-1"}})
+			if len(m.Params.Input) > 0 {
+				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": "steer=" + m.Params.Input[0].Text}})
+			}
 		case "config/read":
 			send(map[string]any{"id": m.ID, "result": map[string]any{"config": map[string]any{}}})
 		case "":
 			if string(m.ID) == "42" {
-				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": "decision=" + m.Result.Decision}})
-				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
+				decision := string(m.Result.Decision)
+				_ = json.Unmarshal(m.Result.Decision, &decision)
+				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": "decision=" + decision}})
+				if os.Getenv("FIXTURE_KEEP_TURN") == "" {
+					send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
+				}
 			}
 			if string(m.ID) == "41" {
 				text := ""

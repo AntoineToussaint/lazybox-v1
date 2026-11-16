@@ -111,7 +111,8 @@ export function liveStatus(session: Session | undefined, now: number, events?: r
   if (session.closed) return fixed('saved', 'Saved');
   if (session.pending.length || session.status === 'waiting_input' || session.status === 'waiting_approval') {
     const question = session.pending[0] ? session.pending[0].type === 'question' : session.status === 'waiting_input';
-    return fixed('waiting', question ? 'Waiting for your answer' : 'Waiting for approval');
+    const more = session.pending.length > 1 ? ` · ${session.pending.length} waiting` : '';
+    return fixed('waiting', (question ? 'Waiting for your answer' : 'Waiting for approval') + more);
   }
   // A subscription limit is a decision for the person, not a failure.
   const limit = limitStatus(session, now);

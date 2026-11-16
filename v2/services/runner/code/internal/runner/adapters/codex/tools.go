@@ -61,9 +61,11 @@ func toolDeclined(name string) string {
 func normalizedToolCall(raw json.RawMessage, completed bool) (json.RawMessage, error) {
 	var p struct {
 		Item struct {
-			ID, Type, Tool, Status                                              string
+			ID, Type, Tool, Status, Cwd                                         string
 			Arguments, Command, Query, Changes, Result, AggregatedOutput, Error json.RawMessage
+			CommandActions                                                      json.RawMessage
 			ExitCode                                                            *int
+			DurationMs                                                          *int64
 		}
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
@@ -133,5 +135,20 @@ func normalizedToolCall(raw json.RawMessage, completed bool) (json.RawMessage, e
 		Input, Output          json.RawMessage
 	}{Type: "tool_call", ID: i.ID, Name: name, Status: status, Input: input, Output: first(i.Result, i.AggregatedOutput, i.Error)}
 	// Keep the JSON vocabulary identical across adapters.
-	return json.Marshal(map[string]any{"type": out.Type, "id": out.ID, "name": out.Name, "status": out.Status, "input": out.Input, "output": out.Output})
+	call := map[string]any{"type": out.Type, "id": out.ID, "name": out.Name, "status": out.Status, "input": out.Input, "output": out.Output}
+	// What a transcript line says of a command: how it ended, how long it
+	// took, where it ran, and what Codex parsed it as (a read, a search).
+	if i.ExitCode != nil {
+		call["exitCode"] = *i.ExitCode
+	}
+	if i.DurationMs != nil {
+		call["durationMs"] = *i.DurationMs
+	}
+	if i.Cwd != "" {
+		call["cwd"] = i.Cwd
+	}
+	if len(i.CommandActions) > 0 && string(i.CommandActions) != "null" && string(i.CommandActions) != "[]" && len(i.CommandActions) <= 4096 {
+		call["actions"] = i.CommandActions
+	}
+	return json.Marshal(call)
 }

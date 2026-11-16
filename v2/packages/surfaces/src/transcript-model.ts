@@ -2,11 +2,18 @@ import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
 import { failureSentence, isLimitState, switchNote, type SwitchNote } from './subscription-model';
 import { emptySubagents, SubagentFold, subagentRelevant, type Subagents } from './subagent-model';
+import { applyToolPayload, hiddenTool, type ToolEntry } from './tool-lines';
+import { answerNote, requestNote, type AnswerNote, type RequestNote } from './request-model';
 
-/** `agentId` names the sub-agent whose card a `subagent` message is. */
-export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string };
-export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents };
-export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents() });
+/**
+ * `agentId` names the sub-agent whose card a `subagent` message is.
+ * `tools`: a run of the main agent's tool calls, one line each in the
+ * conversation. `answered`: how a question or approval was answered.
+ */
+export type TranscriptMessage = { id: string; type: string; text: string; turnId: string; files?: { name: string; size: number; mediaType?: string; path?: string }[]; count?: number; switched?: SwitchNote; operationId?: string; agentId?: string; tools?: ToolEntry[]; answered?: AnswerNote };
+/** `requests`: what each question or approval asked, to say how it was answered. */
+export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote> };
+export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {} });
 
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
 export function appendTranscript(state: Transcript, record: JournalEvent): Transcript {
@@ -34,6 +41,8 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
   const replaceLast = (message: TranscriptMessage) => { const m = list(); m[m.length - 1] = message; owned.add(message); };
   const add = (message: TranscriptMessage) => { list().push(message); owned.add(message); };
   let subagents: SubagentFold | undefined;
+  const replaceAt = (index: number, message: TranscriptMessage) => { list()[index] = message; owned.add(message); };
+  let requests: Record<string, RequestNote> | undefined;
   for (const record of fresh) {
     next.cursor = record.cursor;
     const event = record.event;
@@ -57,6 +66,24 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       else add({ id: record.cursor.toString(), type: 'reattached', text: '', turnId: event.turnId, count: 1 });
       continue;
     }
+    if (event.type === 'question' || event.type === 'approval') {
+      const note = event.requestId ? requestNote(event.type, providerData(event.providerDataJson), event.text) : undefined;
+      if (note) (requests ??= { ...state.requests })[event.requestId] = note;
+    }
+    // A question's answer, an "always allow" or a decline: one quiet line.
+    if (event.type === 'operation_accepted' && event.requestId) {
+      const response = providerData(event.providerDataJson).response;
+      const answered = response ? answerNote((requests ?? state.requests)[event.requestId], response) : undefined;
+      if (answered) add({ id: record.cursor.toString(), type: 'answered', text: '', turnId: event.turnId, answered });
+      next.appendToLast = false;
+      continue;
+    }
+    if (event.type === 'tool_activity') {
+      foldTool(messages ?? state.messages, record, list, replaceAt, add, owned);
+      next.appendToLast = false;
+      continue;
+    }
+    if (event.type === 'turn_ended' || event.type === 'session_closed') settleTools(messages ?? state.messages, replaceAt, owned);
     const notice = runnerNotice(record);
     if (notice) {
       add({ id: record.cursor.toString(), type: 'notice', text: notice, turnId: event.turnId });
@@ -88,6 +115,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
   }
   if (messages) next.messages = messages;
   if (subagents) next.subagents = subagents.result();
+  if (requests) next.requests = requests;
   if (activity.length) {
     // Bound only what is retained: a long replay drops most activity anyway.
     const room = ACTIVITY - activity.length;
@@ -97,6 +125,45 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
   }
   next.recent = fresh.length >= RECENT ? fresh.slice(-RECENT) : [...state.recent, ...fresh].slice(-RECENT);
   return next;
+}
+/** How far back a tool result looks for its call: past the calls of a long parallel run. */
+const TOOL_LOOKBACK = 24;
+function foldTool(messages: TranscriptMessage[], record: JournalEvent, list: () => TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, add: (message: TranscriptMessage) => void, owned: Set<TranscriptMessage>) {
+  const event = record.event!;
+  const payload = providerData(event.providerDataJson);
+  const id = payload.type === 'tool_result' ? payload.tool_use_id : payload.id;
+  if (typeof id !== 'string' || !id) return;
+  const parsed = Date.parse(record.capturedAt), at = Number.isFinite(parsed) ? parsed : undefined;
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - TOOL_LOOKBACK); i--) {
+    const message = messages[i];
+    if (message.type === 'operation_accepted') break;
+    const index = message.tools?.findIndex(t => t.id === id) ?? -1;
+    if (index < 0) continue;
+    const entry = applyToolPayload(message.tools![index], payload, at);
+    if (!entry) return;
+    if (owned.has(message)) message.tools![index] = entry;
+    else { const tools = [...message.tools!]; tools[index] = entry; replaceAt(i, { ...message, tools }); }
+    return;
+  }
+  // A call starts with its name; a hidden one (a question, a sub-agent's card) gets no line.
+  if (typeof payload.name !== 'string' && payload.type !== 'tool_use') return;
+  const entry = applyToolPayload(undefined, payload, at);
+  if (!entry || hiddenTool(entry.name)) return;
+  const current = list(), last = current.at(-1);
+  if (last?.type === 'tools' && last.turnId === event.turnId) {
+    if (owned.has(last)) last.tools!.push(entry);
+    else replaceAt(current.length - 1, { ...last, tools: [...last.tools!, entry] });
+  } else add({ id: record.cursor.toString(), type: 'tools', text: '', turnId: event.turnId, tools: [entry] });
+}
+/** At a turn's end a call still running never reported its result. */
+function settleTools(messages: TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, owned: Set<TranscriptMessage>) {
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - TOOL_LOOKBACK); i--) {
+    const message = messages[i];
+    if (message.type === 'operation_accepted') break;
+    if (!message.tools?.some(t => t.status === 'running')) continue;
+    const tools = message.tools.map(t => t.status === 'running' ? { ...t, status: 'unknown' as const } : t);
+    if (owned.has(message)) message.tools = tools; else replaceAt(i, { ...message, tools });
+  }
 }
 const ACTIVITY_TYPES = new Set(['tool_catalog', 'tool_activity', 'turn_ended', 'failure', 'session_closed']);
 const BOUNDARY_TYPES = new Set(['turn_started', 'turn_ended', 'session_closed', 'approval', 'question', 'request_resolved']);

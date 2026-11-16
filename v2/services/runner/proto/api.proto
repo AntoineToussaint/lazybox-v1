@@ -660,6 +660,12 @@ enum Decision {
 message Approval {
   string request_id = 1;
   Decision decision = 2;
+  // With DECISION_ACCEPT: the id of one of the "always allow" choices the
+  // request offered (its provider data's `always` list), so the provider stops
+  // asking for the same thing within that choice's scope. Empty allows once.
+  string always = 3;
+  // With DECISION_DECLINE: why, in the user's words; the agent is told.
+  string reason = 4;
 }
 message ApplyRequest {
   string session_id = 1;

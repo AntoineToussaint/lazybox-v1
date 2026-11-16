@@ -221,6 +221,9 @@ func validate(op agent.Operation, c agent.Capabilities) error {
 		if op.RequestID == "" || (op.Decision != "accept" && op.Decision != "decline" && op.Decision != "cancel") {
 			return errors.New("invalid approval")
 		}
+		if (op.Always != "" && op.Decision != "accept") || (op.Reason != "" && op.Decision == "accept") || len(op.Always) > 256 || len(op.Reason) > 4096 {
+			return errors.New("invalid approval: always goes with accept, a reason with decline")
+		}
 	default:
 		return agent.ErrUnsupported
 	}
@@ -305,8 +308,19 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	if op.AgentID != "" {
 		record["agentId"] = op.AgentID
 	}
+	if op.Always != "" {
+		record["always"] = op.Always
+	}
+	if op.Reason != "" {
+		record["reason"] = op.Reason
+	}
 	if len(op.Answers) > 0 {
 		record["answers"] = op.Answers
+	}
+	// Clients read the response from the event's data: the conversation
+	// shows what was answered, and which "always" was granted.
+	if op.Kind == agent.Answer || op.Kind == agent.Approve {
+		record["data"] = map[string]any{"files": op.Files, "response": map[string]any{"kind": op.Kind, "decision": op.Decision, "always": op.Always, "reason": op.Reason, "answers": op.Answers}}
 	}
 	if !e.appendLocked(record) {
 		e.mu.Unlock()

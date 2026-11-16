@@ -352,6 +352,7 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 	case *pb.ApplyRequest_Approval:
 		op.Kind = agent.Approve
 		op.RequestID = o.Approval.RequestId
+		op.Always, op.Reason = o.Approval.Always, o.Approval.Reason
 		switch o.Approval.Decision {
 		case pb.Decision_DECISION_ACCEPT:
 			op.Decision = "accept"

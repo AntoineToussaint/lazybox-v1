@@ -130,6 +130,26 @@ application assistants remain read-only regardless of the coding default, and
 the Help assistant's settings updates always ask, even under a YOLO default.
 Permission flags affect the launched process, never persisted CLI configuration.
 
+Approvals answer with the provider's own scopes. A request's data carries an
+`always` list (`id`, `scope`, `label`, `detail`) and `Approval.always` sends
+one id back: Claude's are its `canUseTool` suggestions returned as
+`updatedPermissions` at destination `session` ("this conversation") or
+`localSettings` (the worktree's `.claude/settings.local.json`, "this
+workspace"); Codex's are `acceptForSession`, the exec-policy amendment it
+proposed (`acceptWithExecpolicyAmendment`, which Codex keeps for later
+conversations) and proposed network hosts. Lazybox's `ask` permission adds a
+tool-wide `ask` rule for Bash and the managed command tool, which outranks
+allow rules and suppresses Claude's suggestions; for those two tools the
+worker offers "this exact command" and "commands starting with …" for the
+conversation and enforces them itself, conservatively (a command that chains,
+pipes or redirects asks again). An id the request did not offer is refused
+and the request stays open. `Approval.reason` goes with a decline: Claude gets
+it as the deny message; Codex's decline has no text, so the reason follows as
+a steer of the same turn. The `operation_accepted` event of an answer or
+approval carries the response in its data (`response`: kind, decision,
+always, reason, answers), which the conversation shows as one line. Settings
+updates and YOLO are unchanged: the first always asks, the second never does.
+
 
 `Session.status` and `Session.agents` expose provider-derived activity.
 `done` means a completed turn; `closed` means the conversation was ended.

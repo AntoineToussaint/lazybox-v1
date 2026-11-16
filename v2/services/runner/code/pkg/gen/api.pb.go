@@ -6252,9 +6252,15 @@ func (x *Answer) GetAnswers() map[string]*Answers {
 }
 
 type Approval struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Decision      Decision               `protobuf:"varint,2,opt,name=decision,proto3,enum=lazybox.bench.v1.Decision" json:"decision,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Decision  Decision               `protobuf:"varint,2,opt,name=decision,proto3,enum=lazybox.bench.v1.Decision" json:"decision,omitempty"`
+	// With DECISION_ACCEPT: the id of one of the "always allow" choices the
+	// request offered (its provider data's `always` list), so the provider stops
+	// asking for the same thing within that choice's scope. Empty allows once.
+	Always string `protobuf:"bytes,3,opt,name=always,proto3" json:"always,omitempty"`
+	// With DECISION_DECLINE: why, in the user's words; the agent is told.
+	Reason        string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6301,6 +6307,20 @@ func (x *Approval) GetDecision() Decision {
 		return x.Decision
 	}
 	return Decision_DECISION_UNSPECIFIED
+}
+
+func (x *Approval) GetAlways() string {
+	if x != nil {
+		return x.Always
+	}
+	return ""
+}
+
+func (x *Approval) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
 }
 
 type ApplyRequest struct {
@@ -19803,11 +19823,13 @@ const file_api_proto_rawDesc = "" +
 	"\aanswers\x18\x02 \x03(\v2%.lazybox.bench.v1.Answer.AnswersEntryR\aanswers\x1aU\n" +
 	"\fAnswersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.lazybox.bench.v1.AnswersR\x05value:\x028\x01\"a\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.lazybox.bench.v1.AnswersR\x05value:\x028\x01\"\x91\x01\n" +
 	"\bApproval\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x126\n" +
-	"\bdecision\x18\x02 \x01(\x0e2\x1a.lazybox.bench.v1.DecisionR\bdecision\"\xf0\x03\n" +
+	"\bdecision\x18\x02 \x01(\x0e2\x1a.lazybox.bench.v1.DecisionR\bdecision\x12\x16\n" +
+	"\x06always\x18\x03 \x01(\tR\x06always\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"\xf0\x03\n" +
 	"\fApplyRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +

@@ -1,44 +1,17 @@
-import { CodeBlock, RichContent } from './RichContent';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { follow, providerData, type RunnerClient } from '@lazybox/client-core';
-import { Decision, type AgentEvent, type CommandStatus } from '@lazybox/protocol';
+import { useEffect, useRef, useState } from 'react';
+import { AgentRequestCard, type RequestCardProps } from './RequestCards';
+import { follow, type RunnerClient } from '@lazybox/client-core';
+import type { CommandStatus } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { readConsoleState, writeConsoleState } from './view-state';
 import { composeRunMessage, formatBytes, isRuntimeRun, isWorkspaceRun, reportSummary } from './command-runs';
-import { isSettingsUpdate, SettingsProposal } from './SettingsProposal';
 import { AnsiText, stripAnsi } from './ansi';
 import { Icon } from './Icons';
 import { contextMenu, copyText, showMenuNotice } from './ContextMenu';
 
-export function RequestCard({ request, api, session, onError }: { request: AgentEvent; api: RunnerClient; session: string; onError: (s: string) => void }) {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [waiting, setWaiting] = useState(false);
-  const data = providerData(request.providerDataJson);
-  const input = data.input || data.arguments || data;
-  const description = typeof input.description === 'string' ? input.description : typeof data.reason === 'string' ? data.reason : '';
-  const command = typeof input.command === 'string' ? input.command : Array.isArray(input.command) ? input.command.join(' ') : Array.isArray(input.argv) ? input.argv.join(' ') : '';
-  const questions: any[] = data.questions || data.input?.questions || [];
-  const decide = async (decision: Decision) => {
-    setWaiting(true);
-    try { await api.apply({ sessionId: session, operationId: crypto.randomUUID(), operation: { case: 'approval', value: { requestId: request.requestId, decision } } }); }
-    catch (e) { onError(String(e)); setWaiting(false); }
-  };
-  const answer = async (event: FormEvent) => {
-    event.preventDefault(); setWaiting(true);
-    try { await api.apply({ sessionId: session, operationId: crypto.randomUUID(), operation: { case: 'answer', value: { requestId: request.requestId, answers: Object.fromEntries(Object.entries(answers).map(([key, value]) => [key, { values: [value] }])) } } }); }
-    catch (e) { onError(String(e)); setWaiting(false); }
-  };
-  const settings = request.type !== 'question' && isSettingsUpdate(data.tool);
-  return <article className="request"><div className="eyebrow">{request.type === 'question' ? 'Agent question' : 'Approval required'}</div><h3>{settings ? 'Change Lazybox settings' : request.text || 'Your response is needed'}</h3>
-    {description && <div className="approval-description"><RichContent text={description}/></div>}
-    {settings ? <SettingsProposal input={input} api={api}/> : command ? <CodeBlock text={command} language="bash" label="Command"/> : request.type!=='question' && <CodeBlock text={JSON.stringify(input,null,2)} language="json" label="Requested input"/>}
-    <details className="request-metadata"><summary>Request details</summary><CodeBlock text={JSON.stringify(data,null,2)} language="json"/><small className="mono">{request.requestId}</small></details>
-    {request.type === 'question' ? <form onSubmit={answer}>{questions.map((q, i) => {
-      const key = q.id || q.question; return <label key={key || i}>{q.question || q.header}
-        {q.options?.length > 0 && <small>{q.options.map((o: any) => o.label).join(' / ')}</small>}
-        <input required value={answers[key] || ''} onChange={e => setAnswers({ ...answers, [key]: e.target.value })}/></label>;
-    })}<button disabled={waiting || !questions.length}>Send answer</button></form> : <div className="row"><button disabled={waiting} onClick={() => void decide(Decision.DECLINE)}>Decline</button><button className="primary" disabled={waiting || request.text === 'item/permissions/requestApproval'} onClick={() => void decide(Decision.ACCEPT)}>Allow once</button></div>}
-  </article>;
+/** A question or approval the agent waits on (RequestCards.tsx). */
+export function RequestCard(props: RequestCardProps) {
+  return <AgentRequestCard {...props}/>;
 }
 
 /** onSendToAgent adds text to the viewed conversation's message and returns

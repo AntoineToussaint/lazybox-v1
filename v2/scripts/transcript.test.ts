@@ -113,7 +113,8 @@ test('folding a batch equals folding its records one by one',()=>{
   assert.deepEqual(batched.activity.map(r=>r.cursor),one.activity.map(r=>r.cursor));
   assert.equal(batched.activityTruncated,one.activityTruncated);assert.equal(batched.cursor,one.cursor);assert.equal(batched.reportedModel,one.reportedModel);assert.equal(batched.appendToLast,one.appendToLast);
  }
- assert.equal(one.messages.length,60);assert.match(one.messages.at(-1)!.text,/ANSWER_END_29$/);assert.equal(one.reportedModel,'claude-fixture-model');
+ // Each turn: the prompt, its tool calls as one run of lines, the answer.
+ assert.equal(one.messages.length,90);assert.equal(one.messages.filter(m=>m.type==='tools').length,30);assert.match(one.messages.at(-1)!.text,/ANSWER_END_29$/);assert.equal(one.reportedModel,'claude-fixture-model');
 });
 test('a fold never changes the state it extends, and skips records it already has',()=>{
  const records=wireRecords([{type:'operation_accepted',text:'q'},{type:'message_delta',text:'a',turnId:'t'},{type:'message_delta',text:'b',turnId:'t'}]);
@@ -138,7 +139,7 @@ test('a reader publishes a replay burst once, not once per record',async()=>{
  const stop=reader.subscribe(()=>{published++;});
  await new Promise(resolve=>setTimeout(resolve,100));stop();
  const state=reader.getSnapshot();
- assert.equal(state.cursor,BigInt(records.length));assert.equal(state.messages.length,40);assert.equal(state.status,'Complete');assert.equal(state.loading,false);
+ assert.equal(state.cursor,BigInt(records.length));assert.equal(state.messages.length,60);assert.equal(state.status,'Complete');assert.equal(state.loading,false);
  assert.ok(published<=4,`${records.length} records published ${published} times`);
 });
 test('a replay is held until it reaches the retained history, reporting progress meanwhile',async()=>{
@@ -155,5 +156,5 @@ test('a replay is held until it reaches the retained history, reporting progress
  release();await new Promise(resolve=>setTimeout(resolve,100));
  const state=reader.getSnapshot();stop();
  assert.equal(state.replay,undefined);assert.equal(state.loading,false);assert.equal(state.messages.at(-1)!.text,'LIVE');
- assert.equal(seen.filter(s=>s.messages>0)[0].messages,13,'the first published conversation is the whole history');
+ assert.equal(seen.filter(s=>s.messages>0)[0].messages,19,'the first published conversation is the whole history');
 });
