@@ -7,6 +7,7 @@ import { CollectionPanel } from './CollectionPanel';
 import { CommandPanel } from './CommandPanel';
 import { ConversationList } from './ConversationList';
 import { EditorArea } from './EditorArea';
+import { ArtifactsPanel } from './ArtifactsPanel';
 import { FileExplorer } from './FileExplorer';
 import { ProcessesPanel } from './ProcessesPanel';
 import { ActionsPanel } from './ActionsPanel';
@@ -83,6 +84,7 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   preview: { title: 'Preview', icon: 'eye', Component: ({ workspaceId }) => <PreviewPanel key={workspaceId} workspaceId={workspaceId}/> },
   files: { title: 'Files', icon: 'folder', Component: ({ workspaceId, collections }) => <FileExplorer workspaceId={workspaceId} collections={collections}/> },
   editor: { title: 'Editor', icon: 'file', Component: ({ workspaceId, viewState }) => <EditorArea workspaceId={workspaceId} viewState={viewState}/> },
+  artifacts: { title: 'Artifacts', icon: 'artifact', Component: ({ workspaceId, collections, viewState, target, onShowSession }) => <ArtifactsPanel workspaceId={workspaceId} collections={collections} viewState={viewState} target={target} onShowSession={onShowSession}/> },
 };
 
 /** Panels the page itself is made of: they are rearranged, not shown from the page menu. */

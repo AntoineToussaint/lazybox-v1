@@ -3,10 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
-import { AgentWindow, WindowControls, WindowErrorBoundary, Workspace, useRunnerLocator } from '@lazybox/surfaces';
+import { AgentWindow, ArtifactWindow, WindowControls, WindowErrorBoundary, Workspace, useRunnerLocator } from '@lazybox/surfaces';
 import type { AttentionDestination, AttentionHost, SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 
-type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console'; notice: string; viewState: Record<string,string> };
+type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console' | 'artifact'; notice: string; viewState: Record<string,string> };
 const fetchRunner: typeof globalThis.fetch = (input, init) => nativeFetch(input, { ...init, maxRedirections: 0 });
 
 /**
@@ -65,6 +65,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
     copySignInCode: code => invoke<void>('copy_sign_in_code', { code }),
     openChat: target => invoke<void>('open_chat', target),
     dockChat: panelId => invoke<void>('dock_chat', { panelId }),
+    openArtifact: target => invoke<void>('open_artifact', target),
   }), [followRestart, notifies]);
   const saveSelection = useCallback((target: { collectionId: string; sessionId: string; commandId: string }) => host.saveTarget({ ...target, commandsOpen: false }), [host]);
   const openViewer = useCallback((sessionId: string, commandId: string) => invoke<void>('open_console', { sessionId, commandId }), []);
@@ -77,7 +78,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
   return <div className="desktop-root">
     {bootstrap.kind !== 'workspace' && <WindowControls applicationName={bootstrap.applicationName} onWorkspace={() => void action(host.reopenAgent)} onReopenClosed={() => void action(host.reopenClosed)} onReconnect={() => void action(host.reconnect)}/>}
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-    {bootstrap.kind === 'workspace' ? <Workspace
+    {bootstrap.kind === 'artifact' ? <ArtifactWindow connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner, renew }} collectionId={bootstrap.target.collectionId || ''} artifactId={bootstrap.target.artifactId || ''}/> : bootstrap.kind === 'workspace' ? <Workspace
       fixedWorkspaceId={bootstrap.fixedWorkspaceId || undefined}
       connection={{ baseUrl: bootstrap.url, token: bootstrap.token, fetch: fetchRunner, renew }}
       viewState={viewState} host={workspaceHost} onTargetChange={saveSelection} onOpenViewer={openViewer}

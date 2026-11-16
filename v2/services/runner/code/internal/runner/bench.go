@@ -18,6 +18,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/claude"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/codex"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/artifacts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/attachments"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/codecheckpoints"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/collections"
@@ -103,6 +104,11 @@ type Config struct {
 	Processes ProcessHosting `json:"processes,omitempty"`
 	// CodeCheckpoints bounds the per-turn file checkpoints; zero values select defaults.
 	CodeCheckpoints codecheckpoints.Limits `json:"codeCheckpoints,omitempty"`
+	// ArtifactPoll is how often tracked artifact files are checked; a change
+	// becomes a version once it has been stable for ArtifactDebounce. Zero
+	// selects 2s for both.
+	ArtifactPoll     time.Duration `json:"-"`
+	ArtifactDebounce time.Duration `json:"-"`
 }
 
 type Execution struct {
@@ -147,17 +153,20 @@ type Bench struct {
 	Terminals           *terminals.Manager
 	Attachments         *attachments.Store
 	Collections         *collections.Manager
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	items               map[string]*Execution
-	opening             int
-	closed              bool
-	pending             map[string]bool
-	starts              sync.WaitGroup
-	closeOnce           sync.Once
-	closeErr            error
-	trimming            atomic.Bool
-	trims               sync.WaitGroup
+	// Artifacts holds each workspace's versioned documents (artifacts.go).
+	Artifacts *artifacts.Store
+	watchers  sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
+	items     map[string]*Execution
+	opening   int
+	closed    bool
+	pending   map[string]bool
+	starts    sync.WaitGroup
+	closeOnce sync.Once
+	closeErr  error
+	trimming  atomic.Bool
+	trims     sync.WaitGroup
 	// Adapters is an injection boundary for deterministic conformance tests.
 	Adapters map[string]agent.Adapter
 	// agentKey derives each execution's scoped credential (agent_credentials.go).
@@ -386,6 +395,11 @@ func New(cfg Config) (*Bench, error) {
 		_ = b.Detach()
 		return nil, err
 	}
+	if b.Artifacts, err = artifacts.Open(filepath.Join(cfg.State, "artifacts")); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	b.watchArtifacts()
 	b.Telemetry, err = telemetry.Open(filepath.Join(cfg.State, "telemetry.db"))
 	if err == nil {
 		b.Meter, err = telemetry.StartGateway(b.Telemetry, b.Prices, cfg.MeterUpstreams)
@@ -883,6 +897,7 @@ func (b *Bench) shutdown(detach bool) error {
 		b.starts.Wait()
 		b.trims.Wait()
 		b.checkpointing.Wait()
+		b.watchers.Wait()
 		for _, e := range b.List() {
 			// A no-op for a detached engine: its agent is the next Runner's.
 			b.closeErr = errors.Join(b.closeErr, e.Engine.Close())

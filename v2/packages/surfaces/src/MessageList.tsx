@@ -8,6 +8,7 @@ import type { TranscriptMessage } from './transcript-model';
 import type { ReplayProgress } from './transcript-cache';
 import { switchedLine } from './subscription-model';
 import { useCheckpointUI, type CheckpointScope } from './TurnCheckpoints';
+import { MessageArtifactActions } from './MessageArtifactActions';
 
 const ownName = (id: string) => id;
 
@@ -18,6 +19,7 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>
     <RichContent text={m.text} onOpenFile={onOpenFile}/>
     {m.files?.length ? <SentAttachments files={m.files}/> : null}
+    <MessageArtifactActions message={m}/>
   </article>;
 });
 

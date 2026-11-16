@@ -2,6 +2,8 @@ import { LeaderMenu } from './LeaderMenu';
 import { WorkspaceNavigator } from './WorkspaceNavigator';
 import { useKeyboardAction, useKeyboardNavigation } from './keyboard';
 import { RepositoryHostContext } from './RepositoryBrowser';
+import { ArtifactHostContext } from './ArtifactPage';
+import { useOpenArtifactRequests } from './artifact-events';
 import { WorkspaceRepositories } from './WorkspaceRepositories';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -42,7 +44,9 @@ export function Workspace(props: Props) {
   return <RunnerProvider connection={props.connection} expectRestart={props.host?.expectRunnerRestart}>
     <AttentionScope root={props.viewState?.root} host={props.host}>
       <RepositoryHostContext.Provider value={props.host || {}}>
-        <WorkspaceView {...props}/>
+        <ArtifactHostContext.Provider value={props.host || {}}>
+          <WorkspaceView {...props}/>
+        </ArtifactHostContext.Provider>
       </RepositoryHostContext.Provider>
     </AttentionScope>
   </RunnerProvider>;
@@ -219,6 +223,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   }, [workbench]);
   useKeyboardAction('files.find', () => { if (workbench) setQuickOpen(true); });
   useKeyboardAction('files.explorer', () => { if (workbench) focusFiles(); });
+  // An artifact asked for (tracked from a message or a file) is shown in the Artifacts panel.
+  useOpenArtifactRequests(workspaceID, () => void showModule('artifacts'));
+  useKeyboardAction('artifacts.open', () => { if (workspaceID) showModule('artifacts'); });
   /** Show this workspace's terminal: the open panel, or one docked beside the work. It starts a shell only when none is running. */
   const showTerminal = () => { if (workspaceID && showModule('terminal')) requestTerminal(workspaceID); };
   // A panel asked for in another workspace is shown once that workspace's page is.

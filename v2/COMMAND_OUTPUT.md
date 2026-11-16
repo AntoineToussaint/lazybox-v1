@@ -102,7 +102,8 @@ outside a session); the Runner deletes and bounds that directory too.
 **Every coding agent is told about it.** The Runner appends a fixed briefing
 (`internal/runner/command_output.go`) after the editable Settings → Agents
 text, and puts the CLI first on the agent's PATH. Being part of the binary, it
-changes with releases without a settings migration. The launcher builds the
+changes with releases without a settings migration. The same briefing tells agents to publish plans and reports with
+`lazybox artifact put` ([artifacts](ARTIFACTS.md)). The launcher builds the
 CLI from the Runner's own source; the Runner briefs agents only when the
 binary exists.
 

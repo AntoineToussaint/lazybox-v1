@@ -203,7 +203,10 @@ func TestAgentCredentialIsDeniedEveryRPCOffTheAllowlist(t *testing.T) {
 	for method := range agentRPCs {
 		allowed[method] = true
 	}
-	if len(allowed) != 3 || !allowed[pb.RunnerService_RegisterPipe_FullMethodName] || !allowed[pb.RunnerService_Publish_FullMethodName] || !allowed[pb.RunnerService_FinishPipe_FullMethodName] {
+	// Console publishing for its own execution, and its own workspace's
+	// artifacts (each rule tested in artifacts_test.go).
+	if len(allowed) != 6 || !allowed[pb.RunnerService_RegisterPipe_FullMethodName] || !allowed[pb.RunnerService_Publish_FullMethodName] || !allowed[pb.RunnerService_FinishPipe_FullMethodName] ||
+		!allowed[pb.RunnerService_ListArtifacts_FullMethodName] || !allowed[pb.RunnerService_GetArtifact_FullMethodName] || !allowed[pb.RunnerService_PutArtifact_FullMethodName] {
 		t.Fatalf("agent allowlist changed; review it deliberately: %v", allowed)
 	}
 	checked := 0

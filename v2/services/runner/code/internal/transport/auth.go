@@ -28,11 +28,15 @@ type AgentCredentials interface {
 	TerminalScope(token string) (terminal, workspace string, err error)
 	// CommandTerminal returns the terminal that registered a workspace run.
 	CommandTerminal(commandID string) (string, error)
+	// SessionWorkspace returns the workspace an execution works in, or "".
+	SessionWorkspace(session string) (string, error)
 }
 
 // agentRPCs is everything an agent credential may call: what `lazybox run`
-// and `lazybox log` need to publish one console, and only for its own
-// execution. Every other RPC, including any added later, is the owner's.
+// and `lazybox log` need to publish one console, only for its own execution,
+// and what `lazybox artifact` needs to list, read and publish the artifacts of
+// its own execution's workspace. Every other RPC, including any added later,
+// is the owner's.
 var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any) bool{
 	pb.RunnerService_RegisterPipe_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.RegisterPipeRequest)
@@ -46,6 +50,28 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 		r, ok := req.(*pb.FinishPipeRequest)
 		return ok && ownsCommand(agents, who.session, r.CommandId)
 	},
+	pb.RunnerService_ListArtifacts_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.ListArtifactsRequest)
+		return ok && inOwnWorkspace(agents, who.session, r.CollectionId)
+	},
+	pb.RunnerService_GetArtifact_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.GetArtifactRequest)
+		return ok && inOwnWorkspace(agents, who.session, r.CollectionId)
+	},
+	pb.RunnerService_PutArtifact_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.PutArtifactRequest)
+		return ok && inOwnWorkspace(agents, who.session, r.CollectionId)
+	},
+}
+
+// inOwnWorkspace admits a workspace only when it is the one the execution
+// works in; an execution outside any workspace has no artifacts.
+func inOwnWorkspace(agents AgentCredentials, session, workspace string) bool {
+	if workspace == "" {
+		return false
+	}
+	own, err := agents.SessionWorkspace(session)
+	return err == nil && own == workspace
 }
 
 // terminalRPCs is everything a terminal credential may call: open a run in
@@ -145,7 +171,7 @@ func authorize(ctx context.Context, owner string, agents AgentCredentials, metho
 	if allowed := agentRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {
 		return who, nil
 	}
-	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish its own session's console output")
+	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish its own session's console output and use its own workspace's artifacts")
 }
 
 // LocalAuthority protects the experimental Runner's execution authority on

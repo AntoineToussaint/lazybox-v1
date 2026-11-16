@@ -393,6 +393,8 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
         "Workspace"
     } else if label.starts_with("chat-") {
         "Chat"
+    } else if label.starts_with("artifact-") {
+        "Artifact"
     } else {
         "Console"
     };
@@ -486,6 +488,8 @@ pub fn runner_bootstrap(
         },
         kind: if window.label() == "main" || window.label().starts_with("workspace-") {
             "workspace"
+        } else if window.label().starts_with("artifact-") {
+            "artifact"
         } else if !surface.target.panel_id.is_empty() {
             "chat"
         } else {
@@ -540,6 +544,21 @@ pub fn open_chat(
         return Err(error);
     }
     Ok(())
+}
+#[tauri::command]
+pub fn open_artifact(
+    app: tauri::AppHandle,
+    collection_id: String,
+    artifact_id: String,
+) -> Result<(), String> {
+    let label = mutate(&app, |layout| {
+        layout.artifact(Target {
+            collection_id,
+            artifact_id,
+            ..Target::default()
+        })
+    })?;
+    open(&app, &label)
 }
 #[tauri::command]
 pub fn open_workspace(app: tauri::AppHandle, collection_id: String) -> Result<(), String> {

@@ -384,6 +384,30 @@ const (
 	// RunnerServiceListPromptHistoryProcedure is the fully-qualified name of the RunnerService's
 	// ListPromptHistory RPC.
 	RunnerServiceListPromptHistoryProcedure = "/lazybox.bench.v1.RunnerService/ListPromptHistory"
+	// RunnerServiceListArtifactsProcedure is the fully-qualified name of the RunnerService's
+	// ListArtifacts RPC.
+	RunnerServiceListArtifactsProcedure = "/lazybox.bench.v1.RunnerService/ListArtifacts"
+	// RunnerServiceGetArtifactProcedure is the fully-qualified name of the RunnerService's GetArtifact
+	// RPC.
+	RunnerServiceGetArtifactProcedure = "/lazybox.bench.v1.RunnerService/GetArtifact"
+	// RunnerServicePutArtifactProcedure is the fully-qualified name of the RunnerService's PutArtifact
+	// RPC.
+	RunnerServicePutArtifactProcedure = "/lazybox.bench.v1.RunnerService/PutArtifact"
+	// RunnerServiceTrackArtifactFileProcedure is the fully-qualified name of the RunnerService's
+	// TrackArtifactFile RPC.
+	RunnerServiceTrackArtifactFileProcedure = "/lazybox.bench.v1.RunnerService/TrackArtifactFile"
+	// RunnerServiceUpdateArtifactProcedure is the fully-qualified name of the RunnerService's
+	// UpdateArtifact RPC.
+	RunnerServiceUpdateArtifactProcedure = "/lazybox.bench.v1.RunnerService/UpdateArtifact"
+	// RunnerServiceDeleteArtifactProcedure is the fully-qualified name of the RunnerService's
+	// DeleteArtifact RPC.
+	RunnerServiceDeleteArtifactProcedure = "/lazybox.bench.v1.RunnerService/DeleteArtifact"
+	// RunnerServiceSaveArtifactToRepositoryProcedure is the fully-qualified name of the RunnerService's
+	// SaveArtifactToRepository RPC.
+	RunnerServiceSaveArtifactToRepositoryProcedure = "/lazybox.bench.v1.RunnerService/SaveArtifactToRepository"
+	// RunnerServiceCreateArtifactIssueProcedure is the fully-qualified name of the RunnerService's
+	// CreateArtifactIssue RPC.
+	RunnerServiceCreateArtifactIssueProcedure = "/lazybox.bench.v1.RunnerService/CreateArtifactIssue"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -568,6 +592,28 @@ type RunnerServiceClient interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
+	// Artifacts: versioned documents (plans, reports, specs, notes) of one
+	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
+	// read and put artifacts of its own execution's workspace only
+	// (`lazybox artifact`); everything else here is the owner's.
+	ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error)
+	GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Creates an artifact, or appends a version to one. The author is who called
+	// (a person, or the agent whose credential it is), never what the request says.
+	PutArtifact(context.Context, *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Tracks a workspace text file: the artifact's first version is
+	// the file, and the Runner records a version whenever the file changes on
+	// disk. Tracking a file that is already tracked returns that artifact.
+	TrackArtifactFile(context.Context, *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Rename, change kind, or stop following the tracked file.
+	UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error)
+	// Owner only. Writes the artifact's latest version into a workspace
+	// repository; never stages or commits.
+	SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error)
+	// Owner only. Opens a GitHub issue with the artifact as its body, in a
+	// workspace repository's GitHub project, through the GitHub connection.
+	CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1289,6 +1335,54 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
 			connect.WithClientOptions(opts...),
 		),
+		listArtifacts: connect.NewClient[gen.ListArtifactsRequest, gen.ListArtifactsResponse](
+			httpClient,
+			baseURL+RunnerServiceListArtifactsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListArtifacts")),
+			connect.WithClientOptions(opts...),
+		),
+		getArtifact: connect.NewClient[gen.GetArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceGetArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		putArtifact: connect.NewClient[gen.PutArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServicePutArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PutArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		trackArtifactFile: connect.NewClient[gen.TrackArtifactFileRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceTrackArtifactFileProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("TrackArtifactFile")),
+			connect.WithClientOptions(opts...),
+		),
+		updateArtifact: connect.NewClient[gen.UpdateArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceUpdateArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteArtifact: connect.NewClient[gen.DeleteArtifactRequest, gen.DeleteArtifactResponse](
+			httpClient,
+			baseURL+RunnerServiceDeleteArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DeleteArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		saveArtifactToRepository: connect.NewClient[gen.SaveArtifactToRepositoryRequest, gen.SaveArtifactToRepositoryResponse](
+			httpClient,
+			baseURL+RunnerServiceSaveArtifactToRepositoryProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SaveArtifactToRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		createArtifactIssue: connect.NewClient[gen.CreateArtifactIssueRequest, gen.CreateArtifactIssueResponse](
+			httpClient,
+			baseURL+RunnerServiceCreateArtifactIssueProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreateArtifactIssue")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1412,6 +1506,14 @@ type runnerServiceClient struct {
 	createMission                *connect.Client[gen.CreateMissionRequest, gen.Mission]
 	updateMission                *connect.Client[gen.UpdateMissionRequest, gen.Mission]
 	listPromptHistory            *connect.Client[gen.ListPromptHistoryRequest, gen.PromptHistory]
+	listArtifacts                *connect.Client[gen.ListArtifactsRequest, gen.ListArtifactsResponse]
+	getArtifact                  *connect.Client[gen.GetArtifactRequest, gen.Artifact]
+	putArtifact                  *connect.Client[gen.PutArtifactRequest, gen.Artifact]
+	trackArtifactFile            *connect.Client[gen.TrackArtifactFileRequest, gen.Artifact]
+	updateArtifact               *connect.Client[gen.UpdateArtifactRequest, gen.Artifact]
+	deleteArtifact               *connect.Client[gen.DeleteArtifactRequest, gen.DeleteArtifactResponse]
+	saveArtifactToRepository     *connect.Client[gen.SaveArtifactToRepositoryRequest, gen.SaveArtifactToRepositoryResponse]
+	createArtifactIssue          *connect.Client[gen.CreateArtifactIssueRequest, gen.CreateArtifactIssueResponse]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -2004,6 +2106,46 @@ func (c *runnerServiceClient) ListPromptHistory(ctx context.Context, req *connec
 	return c.listPromptHistory.CallUnary(ctx, req)
 }
 
+// ListArtifacts calls lazybox.bench.v1.RunnerService.ListArtifacts.
+func (c *runnerServiceClient) ListArtifacts(ctx context.Context, req *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {
+	return c.listArtifacts.CallUnary(ctx, req)
+}
+
+// GetArtifact calls lazybox.bench.v1.RunnerService.GetArtifact.
+func (c *runnerServiceClient) GetArtifact(ctx context.Context, req *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.getArtifact.CallUnary(ctx, req)
+}
+
+// PutArtifact calls lazybox.bench.v1.RunnerService.PutArtifact.
+func (c *runnerServiceClient) PutArtifact(ctx context.Context, req *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.putArtifact.CallUnary(ctx, req)
+}
+
+// TrackArtifactFile calls lazybox.bench.v1.RunnerService.TrackArtifactFile.
+func (c *runnerServiceClient) TrackArtifactFile(ctx context.Context, req *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.trackArtifactFile.CallUnary(ctx, req)
+}
+
+// UpdateArtifact calls lazybox.bench.v1.RunnerService.UpdateArtifact.
+func (c *runnerServiceClient) UpdateArtifact(ctx context.Context, req *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.updateArtifact.CallUnary(ctx, req)
+}
+
+// DeleteArtifact calls lazybox.bench.v1.RunnerService.DeleteArtifact.
+func (c *runnerServiceClient) DeleteArtifact(ctx context.Context, req *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error) {
+	return c.deleteArtifact.CallUnary(ctx, req)
+}
+
+// SaveArtifactToRepository calls lazybox.bench.v1.RunnerService.SaveArtifactToRepository.
+func (c *runnerServiceClient) SaveArtifactToRepository(ctx context.Context, req *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error) {
+	return c.saveArtifactToRepository.CallUnary(ctx, req)
+}
+
+// CreateArtifactIssue calls lazybox.bench.v1.RunnerService.CreateArtifactIssue.
+func (c *runnerServiceClient) CreateArtifactIssue(ctx context.Context, req *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error) {
+	return c.createArtifactIssue.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -2186,6 +2328,28 @@ type RunnerServiceHandler interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
+	// Artifacts: versioned documents (plans, reports, specs, notes) of one
+	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
+	// read and put artifacts of its own execution's workspace only
+	// (`lazybox artifact`); everything else here is the owner's.
+	ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error)
+	GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Creates an artifact, or appends a version to one. The author is who called
+	// (a person, or the agent whose credential it is), never what the request says.
+	PutArtifact(context.Context, *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Tracks a workspace text file: the artifact's first version is
+	// the file, and the Runner records a version whenever the file changes on
+	// disk. Tracking a file that is already tracked returns that artifact.
+	TrackArtifactFile(context.Context, *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Rename, change kind, or stop following the tracked file.
+	UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error)
+	// Owner only. Writes the artifact's latest version into a workspace
+	// repository; never stages or commits.
+	SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error)
+	// Owner only. Opens a GitHub issue with the artifact as its body, in a
+	// workspace repository's GitHub project, through the GitHub connection.
+	CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2903,6 +3067,54 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListArtifactsHandler := connect.NewUnaryHandler(
+		RunnerServiceListArtifactsProcedure,
+		svc.ListArtifacts,
+		connect.WithSchema(runnerServiceMethods.ByName("ListArtifacts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceGetArtifactProcedure,
+		svc.GetArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("GetArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePutArtifactHandler := connect.NewUnaryHandler(
+		RunnerServicePutArtifactProcedure,
+		svc.PutArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("PutArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceTrackArtifactFileHandler := connect.NewUnaryHandler(
+		RunnerServiceTrackArtifactFileProcedure,
+		svc.TrackArtifactFile,
+		connect.WithSchema(runnerServiceMethods.ByName("TrackArtifactFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateArtifactProcedure,
+		svc.UpdateArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDeleteArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceDeleteArtifactProcedure,
+		svc.DeleteArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("DeleteArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSaveArtifactToRepositoryHandler := connect.NewUnaryHandler(
+		RunnerServiceSaveArtifactToRepositoryProcedure,
+		svc.SaveArtifactToRepository,
+		connect.WithSchema(runnerServiceMethods.ByName("SaveArtifactToRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreateArtifactIssueHandler := connect.NewUnaryHandler(
+		RunnerServiceCreateArtifactIssueProcedure,
+		svc.CreateArtifactIssue,
+		connect.WithSchema(runnerServiceMethods.ByName("CreateArtifactIssue")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -3141,6 +3353,22 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceUpdateMissionHandler.ServeHTTP(w, r)
 		case RunnerServiceListPromptHistoryProcedure:
 			runnerServiceListPromptHistoryHandler.ServeHTTP(w, r)
+		case RunnerServiceListArtifactsProcedure:
+			runnerServiceListArtifactsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetArtifactProcedure:
+			runnerServiceGetArtifactHandler.ServeHTTP(w, r)
+		case RunnerServicePutArtifactProcedure:
+			runnerServicePutArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceTrackArtifactFileProcedure:
+			runnerServiceTrackArtifactFileHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateArtifactProcedure:
+			runnerServiceUpdateArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceDeleteArtifactProcedure:
+			runnerServiceDeleteArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceSaveArtifactToRepositoryProcedure:
+			runnerServiceSaveArtifactToRepositoryHandler.ServeHTTP(w, r)
+		case RunnerServiceCreateArtifactIssueProcedure:
+			runnerServiceCreateArtifactIssueHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -3620,4 +3848,36 @@ func (UnimplementedRunnerServiceHandler) UpdateMission(context.Context, *connect
 
 func (UnimplementedRunnerServiceHandler) ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListPromptHistory is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListArtifacts is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PutArtifact(context.Context, *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PutArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) TrackArtifactFile(context.Context, *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.TrackArtifactFile is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeleteArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveArtifactToRepository is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreateArtifactIssue is not implemented"))
 }

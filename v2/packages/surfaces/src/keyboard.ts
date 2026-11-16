@@ -24,6 +24,7 @@ export const keyboardActions = [
   { id: "inbox.open", label: "Inbox", scope: "global", keys: "] ] i" },
   { id: "files.find", label: "Go to file", scope: "global", keys: "] ] f" },
   { id: "files.explorer", label: "Files", scope: "global", keys: "] ] e" },
+  { id: "artifacts.open", label: "Artifacts", scope: "global", keys: "] ] a" },
   {
     id: "navigation.next",
     label: "Next entry",

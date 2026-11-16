@@ -47,6 +47,15 @@ export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTa
       if (!child) throw new Error('The chat window was blocked by the browser');
       windows.set(target.panelId, child); child.focus();
     },
+    async openArtifact(target) {
+      const url = new URL(location.href);
+      url.search = new URLSearchParams({ view: 'artifact', collection: target.collectionId, artifact: target.artifactId }).toString();
+      url.hash = new URLSearchParams({ token }).toString();
+      // Named per artifact: opening it again focuses the window it already has.
+      const opened = window.open(url, `artifact-${target.artifactId}`);
+      if (!opened) throw new Error('The artifact window was blocked by the browser');
+      opened.focus();
+    },
     async dockChat(panelId) {
       if (await request('dock', { panelId })) return;
       const child = windows.get(panelId);

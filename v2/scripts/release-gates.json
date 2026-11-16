@@ -42,6 +42,7 @@
     { "id": "processes", "scope": "ui", "script": "test:processes" },
     { "id": "transcript-performance", "scope": "ui", "script": "test:transcript-performance" },
     { "id": "mermaid-viewer", "scope": "ui", "script": "test:mermaid-viewer" },
+    { "id": "artifacts", "scope": "ui", "script": "test:artifacts" },
     { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" },
     { "id": "prompt-navigation", "scope": "ui", "script": "test:prompt-navigation" },
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },

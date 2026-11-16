@@ -65,8 +65,8 @@ func run() error {
 	global := flag.NewFlagSet("lazybox", flag.ContinueOnError)
 	endpointPath := global.String("endpoint", os.Getenv("LAZYBOX_V2_ENDPOINT"), "endpoint.json printed by the V2 runner")
 	global.Usage = func() {
-		fmt.Fprintln(os.Stderr, "In a Lazybox workspace terminal no flag is needed: `cmd 2>&1 | lazybox log [--title CMD] [--to CONVERSATION]` or `lazybox run [--to CONVERSATION] -- cmd`.")
-		fmt.Fprintln(os.Stderr, "Usage: lazybox --endpoint FILE <account-login|assistant|info|repositories|create-collection|collections|collection|archive-collection|reconcile-collection|open|send|interrupt|approve|answer|events|close|continue|exec|read|wait|cancel|output|log|run|process> [options]")
+		fmt.Fprintln(os.Stderr, "In a Lazybox workspace terminal no flag is needed: `cmd 2>&1 | lazybox log [--title CMD] [--to CONVERSATION]` or `lazybox run [--to CONVERSATION] -- cmd`. Agents publish plans and reports with `lazybox artifact put FILE --title T`.")
+		fmt.Fprintln(os.Stderr, "Usage: lazybox --endpoint FILE <account-login|assistant|info|repositories|create-collection|collections|collection|archive-collection|reconcile-collection|open|send|interrupt|approve|answer|events|close|continue|exec|read|wait|cancel|output|log|run|process|artifact> [options]")
 		global.PrintDefaults()
 	}
 	if err := global.Parse(os.Args[1:]); err != nil {
@@ -115,6 +115,11 @@ func run() error {
 			}
 			return genconnect.NewRunnerServiceClient(newHTTPClient(address.Token), address.URL), nil
 		})
+	}
+	if args[0] == "artifact" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return artifactVerb(ctx, *endpointPath, args[1:], os.Stdin, os.Stdout, os.Stderr)
 	}
 	if *endpointPath == "" {
 		return preserveOnFailure(args[0], errors.New("--endpoint or LAZYBOX_V2_ENDPOINT is required; no V1 state is used"), os.Stdin, os.Stdout)

@@ -8,6 +8,7 @@ import { CodeEditor, EditorSkeleton, preloadEditor } from './editor-loader';
 import { canSplit, editorGroups, tabHints, type EditorGroup, type EditorNode } from './editor-model';
 import { useVimPreferences } from './keyboard';
 import { isDirty, modKey, parentFolder, shortcut, useWorkbench, useWorkbenchState, type Workbench, type WorkbenchState } from './workbench';
+import { trackFile, trackableFile } from './FileArtifactActions';
 import './files.css';
 
 const TAB = 'application/x-lazybox-tab', PATH = 'application/x-lazybox-path';
@@ -95,6 +96,7 @@ function SplitHandle({ node, onResize }: { node: Extract<EditorNode, { type: 'sp
 
 function Group({ workbench, state, group, vim, index, numbered }: { workbench: Workbench; state: WorkbenchState; group: EditorGroup; vim: boolean; index: number; numbered: boolean }) {
  const [dropAt, setDropAt] = useState<number | null>(null);
+ const [trackNote, setTrackNote] = useState('');
  const strip = useRef<HTMLDivElement>(null);
  const hints = useMemo(() => tabHints(group.tabs), [group.tabs]);
  const focused = state.layout.focused === group.id;
@@ -158,6 +160,7 @@ function Group({ workbench, state, group, vim, index, numbered }: { workbench: W
      <button disabled={!active} onClick={() => active && workbench.shiftTab(-1, group.id)}><span>Move tab left</span><small>{shortcut('Mod+Alt+Shift+←')}</small></button>
      <button disabled={!active} onClick={() => active && workbench.shiftTab(1, group.id)}><span>Move tab right</span><small>{shortcut('Mod+Alt+Shift+→')}</small></button>
      <button disabled={!active} onClick={() => active && workbench.reveal(active)}><span>Reveal in Files</span></button>
+     {active && trackableFile(active) && <button onClick={() => void trackFile(workbench.api, workbench.workspaceId, active).then(setTrackNote)}><span>Track as artifact</span></button>}
      <button disabled={!active} onClick={() => active && workbench.host.quickLook(active)}><span>Quick look</span></button>
      <button disabled={group.tabs.length < 2} onClick={() => workbench.closeTabs(group.id, 'others')}><span>Close other tabs</span></button>
      <button disabled={!group.tabs.length} onClick={() => workbench.closeTabs(group.id, 'saved')}><span>Close saved tabs</span></button>
@@ -166,6 +169,7 @@ function Group({ workbench, state, group, vim, index, numbered }: { workbench: W
     </ActionMenu>
    </div>
   </div>
+  {trackNote && <p className="tree-status file-artifact-notice" role="status">{trackNote}<button type="button" className="link-button" onClick={() => setTrackNote('')}>Dismiss</button></p>}
   {active ? <Document key={active} workbench={workbench} state={state} group={group.id} path={active} vim={vim}/> : <div className="editor-empty is-group"><p>Drop a tab here, or open a file.</p><button onClick={() => { workbench.focusGroup(group.id); workbench.host.quickOpen(); }}>Go to file<kbd>{shortcut('Mod+P')}</kbd></button></div>}
  </section>;
 }

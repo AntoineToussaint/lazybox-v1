@@ -5,6 +5,7 @@ import { Icon } from './Icons';
 import { preloadEditor } from './editor-loader';
 import { activePath } from './editor-model';
 import { isDirty, modKey, parentFolder, shortcut, useWorkbench, useWorkbenchState, type Workbench } from './workbench';
+import { useFileContextMenu } from './FileArtifactActions';
 import './files.css';
 
 type Row = { kind: 'entry'; path: string; name: string; directory: boolean; depth: number; repository: boolean } | { kind: 'status'; path: string; depth: number; text: string; error?: boolean };
@@ -125,6 +126,7 @@ function Explorer({ workbench, members: names }: { workbench: Workbench; members
    case '*': if (row) { event.preventDefault(); for (const sibling of state.folders[parentFolder(row.path)]?.entries || []) if (sibling.directory) workbench.expand(sibling.path); } break;
   }
  };
+ const fileMenu = useFileContextMenu(workbench);
  return <div className="file-explorer">
   <div className="explorer-toolbar">
    <button className="explorer-find" onClick={() => workbench.host.quickOpen()} title="Find a file by name"><Icon name="search" size={14}/><span>Go to file…</span><kbd>{shortcut('Mod+P')}</kbd></button>
@@ -132,7 +134,7 @@ function Explorer({ workbench, members: names }: { workbench: Workbench; members
    <button className="icon-button" aria-label="Collapse folders" title="Collapse all folders" disabled={!state.expanded.length} onClick={() => workbench.collapseAll()}><Icon name="collapse" size={15}/></button>
    <button className="icon-button" aria-label="Refresh files" title="Refresh files" onClick={() => workbench.refreshFolders()}><Icon name="refresh" size={15}/></button>
   </div>
-  <div ref={tree} className="file-tree" role="tree" aria-label="Workspace files" onKeyDown={keydown}>
+  <div ref={tree} className="file-tree" role="tree" aria-label="Workspace files" onKeyDown={event => { fileMenu.onKeyDown(event); if (!event.defaultPrevented) keydown(event); }} onContextMenu={fileMenu.onContextMenu}>
    {rows.map(row => row.kind === 'status'
     ? <div key={`status:${row.path}:${row.text}`} className={'tree-status' + (row.error ? ' is-error' : '')} style={{ paddingLeft: 30 + row.depth * 14 }} role={row.error ? 'alert' : undefined}>{row.text}{row.error && <button onClick={() => void workbench.loadFolder(row.path)}>Retry</button>}</div>
     : <div key={row.path} data-path={row.path} role="treeitem" aria-level={row.depth + 1} aria-expanded={row.directory ? expanded.has(row.path) : undefined} aria-selected={row.path === state.selected} aria-current={!row.directory && row.path === active ? 'true' : undefined} tabIndex={row.path === cursor ? 0 : -1}
@@ -145,5 +147,6 @@ function Explorer({ workbench, members: names }: { workbench: Workbench; members
       {dirty.has(row.path) && <span className="tree-dirty" title="Unsaved changes" aria-label="Unsaved changes"/>}
      </div>)}
   </div>
+  {fileMenu.element}
  </div>;
 }

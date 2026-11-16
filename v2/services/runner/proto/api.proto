@@ -184,6 +184,28 @@ service RunnerService {
   // Owner only. Sent prompts, newest first, from the Runner's prompt log, with
   // the snippet chain a conversation offers next.
   rpc ListPromptHistory(ListPromptHistoryRequest) returns (PromptHistory);
+  // Artifacts: versioned documents (plans, reports, specs, notes) of one
+  // workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
+  // read and put artifacts of its own execution's workspace only
+  // (`lazybox artifact`); everything else here is the owner's.
+  rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
+  rpc GetArtifact(GetArtifactRequest) returns (Artifact);
+  // Creates an artifact, or appends a version to one. The author is who called
+  // (a person, or the agent whose credential it is), never what the request says.
+  rpc PutArtifact(PutArtifactRequest) returns (Artifact);
+  // Owner only. Tracks a workspace text file: the artifact's first version is
+  // the file, and the Runner records a version whenever the file changes on
+  // disk. Tracking a file that is already tracked returns that artifact.
+  rpc TrackArtifactFile(TrackArtifactFileRequest) returns (Artifact);
+  // Owner only. Rename, change kind, or stop following the tracked file.
+  rpc UpdateArtifact(UpdateArtifactRequest) returns (Artifact);
+  rpc DeleteArtifact(DeleteArtifactRequest) returns (DeleteArtifactResponse);
+  // Owner only. Writes the artifact's latest version into a workspace
+  // repository; never stages or commits.
+  rpc SaveArtifactToRepository(SaveArtifactToRepositoryRequest) returns (SaveArtifactToRepositoryResponse);
+  // Owner only. Opens a GitHub issue with the artifact as its body, in a
+  // workspace repository's GitHub project, through the GitHub connection.
+  rpc CreateArtifactIssue(CreateArtifactIssueRequest) returns (CreateArtifactIssueResponse);
 }
 
 message InfoRequest {}
@@ -1595,4 +1617,144 @@ message PromptHistory {
   repeated string next_snippets = 3;
   // With collection_id: the workspace's last distinct snippets, newest first.
   repeated string recent_snippets = 4;
+}
+// Who wrote one version of an artifact.
+message ArtifactAuthor {
+  // "person" (the owner, from the app), "agent" (an execution's credential,
+  // `lazybox artifact put`) or "file" (the tracked file changed on disk, by
+  // whoever changed it).
+  string kind = 1;
+  // The execution, for an agent.
+  string session_id = 2;
+}
+// Where one version's content came from.
+message ArtifactSource {
+  // "message" (a conversation message), "file" (a workspace file), "agent"
+  // (published by an agent) or "edit" (written in the app).
+  string kind = 1;
+  // A message: the execution and its conversation, the message's journal
+  // cursor and turn.
+  string session_id = 2;
+  string conversation_id = 3;
+  string message_id = 4;
+  string turn_id = 5;
+  // A file: its workspace path ("member/path").
+  string path = 6;
+}
+// A reference from an artifact to work it belongs to. Reserved for missions
+// and tasks (ORCHESTRATION.md, slice 1): until the Runner has them, a link of
+// any kind is refused.
+message ArtifactLink {
+  // "mission" or "task".
+  string kind = 1;
+  string id = 2;
+  // "brief" or "evidence".
+  string role = 3;
+}
+message ArtifactVersion {
+  uint32 number = 1;
+  int64 created_at_unix_millis = 2;
+  ArtifactAuthor author = 3;
+  ArtifactSource source = 4;
+  // sha256 of the content, hex.
+  string digest = 5;
+  uint64 size = 6;
+}
+message Artifact {
+  string id = 1;
+  string collection_id = 2;
+  string title = 3;
+  // plan, report, spec, notes or other.
+  string kind = 4;
+  // markdown (mermaid fences render as diagrams).
+  string format = 5;
+  int64 created_at_unix_millis = 6;
+  int64 updated_at_unix_millis = 7;
+  // Every version, oldest first (headers only).
+  repeated ArtifactVersion versions = 8;
+  // The requested version's content (GetArtifact, PutArtifact); empty in lists.
+  string content = 9;
+  // The version content belongs to.
+  uint32 content_version = 10;
+  // The conversation the artifact was first taken from, if any: "Update from
+  // this message" is offered on that conversation's later messages.
+  string origin_session_id = 11;
+  string origin_conversation_id = 12;
+  // The workspace file the Runner follows, if any ("member/path").
+  string tracked_path = 13;
+  // Why the tracked file could not be followed lately (removed, too large,
+  // not text); empty while it is followed.
+  string tracking_problem = 14;
+  repeated ArtifactLink links = 15;
+}
+message ListArtifactsRequest { string collection_id = 1; }
+message ListArtifactsResponse { repeated Artifact artifacts = 1; }
+message GetArtifactRequest {
+  string collection_id = 1;
+  string artifact_id = 2;
+  // 0 is the latest version.
+  uint32 version = 3;
+}
+message PutArtifactRequest {
+  string collection_id = 1;
+  // Empty creates an artifact; otherwise a version is added to this one.
+  string artifact_id = 2;
+  // Required to create; on an update, empty keeps the title.
+  string title = 3;
+  // Empty is "other" on create, and keeps the kind on an update.
+  string kind = 4;
+  string content = 5;
+  // Ignored for an agent credential (its source is always its own execution).
+  ArtifactSource source = 6;
+  // On an update: the version the writer saw. The Runner refuses the write if
+  // a newer version exists, so a reviewed diff is the diff that is saved. 0
+  // skips the check.
+  uint32 expected_version = 7;
+  repeated ArtifactLink links = 8;
+}
+message TrackArtifactFileRequest {
+  string collection_id = 1;
+  // Workspace path ("member/path").
+  string path = 2;
+  // Empty takes the file's first heading, else its name.
+  string title = 3;
+  string kind = 4;
+}
+message UpdateArtifactRequest {
+  string collection_id = 1;
+  string artifact_id = 2;
+  // Empty keeps the title; likewise kind.
+  string title = 3;
+  string kind = 4;
+  // Stop recording versions from the tracked file; its versions are kept.
+  bool stop_tracking = 5;
+}
+message DeleteArtifactRequest { string collection_id = 1; string artifact_id = 2; }
+message DeleteArtifactResponse {}
+message SaveArtifactToRepositoryRequest {
+  string collection_id = 1;
+  string artifact_id = 2;
+  // Workspace path ("member/path") of a Markdown file.
+  string path = 3;
+  // Replacing an existing file requires the version the person saw
+  // (WorkspaceFile.version); empty only creates a new file.
+  string expected_file_version = 4;
+  // Then follow that file: later edits on disk become versions.
+  bool track = 5;
+}
+message SaveArtifactToRepositoryResponse {
+  string path = 1;
+  Artifact artifact = 2;
+}
+message CreateArtifactIssueRequest {
+  string collection_id = 1;
+  string artifact_id = 2;
+  // The workspace repository whose GitHub project receives the issue.
+  string member = 3;
+  // Empty is the artifact's title.
+  string title = 4;
+}
+message CreateArtifactIssueResponse {
+  int64 number = 1;
+  string url = 2;
 }

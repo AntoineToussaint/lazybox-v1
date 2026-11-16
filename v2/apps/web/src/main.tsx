@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AgentWindow, RemoteApp, Workspace, WindowErrorBoundary } from '@lazybox/surfaces';
+import { AgentWindow, ArtifactWindow, RemoteApp, Workspace, WindowErrorBoundary } from '@lazybox/surfaces';
 import { browserWorkspaceHost } from './browser-host';
 
 // A paired phone (REMOTE.md): served by the Runner's device gateway, it never
@@ -22,7 +22,7 @@ const panelScope=`${scope}:workspace:${initial.get('collection') || 'home'}`;
 const viewState = { key: mode === 'chat' ? `${panelScope}:panel:${panelId}` : mode === 'workspace' ? `${scope}:main` : scope, scope: mode==='chat'?panelScope:scope, root: scope, getItem: (key: string) => storage.getItem(key), setItem: (key: string, value: string) => storage.setItem(key, value) };
 // Only the main workspace view notifies; a workspace window or a chat window would repeat it.
 const host = browserWorkspaceHost(scope, token, mode === 'chat' ? { panelId, sessionId: initial.get('session') || '', collectionId: initial.get('collection') || '' } : undefined, mode === 'workspace' && !initial.get('workspaceWindow'));
-createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}>{mode === 'workspace' ? <Workspace fixedWorkspaceId={initial.get('workspaceWindow') ? initial.get('collection') || undefined : undefined} connection={{ baseUrl: location.origin, token }} viewState={viewState} host={host} initialTarget={{ collectionId: initial.get('collection') || '', sessionId: initial.get('session') || '', commandId: '' }}/>: <AgentWindow
+createRoot(document.getElementById('root')!).render(<React.StrictMode><WindowErrorBoundary development={import.meta.env.DEV}>{mode === 'artifact' ? <ArtifactWindow connection={{ baseUrl: location.origin, token }} collectionId={initial.get('collection') || ''} artifactId={initial.get('artifact') || ''}/> : mode === 'workspace' ? <Workspace fixedWorkspaceId={initial.get('workspaceWindow') ? initial.get('collection') || undefined : undefined} connection={{ baseUrl: location.origin, token }} viewState={viewState} host={host} initialTarget={{ collectionId: initial.get('collection') || '', sessionId: initial.get('session') || '', commandId: '' }}/>: <AgentWindow
   connection={{ baseUrl: location.origin, token }}
   agent="claude"
   collectionId={initial.get('collection') || undefined}

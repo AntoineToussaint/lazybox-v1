@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 
 const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-process.json', import.meta.url), 'utf8'));
 import { createMissionFake } from './missions-fake.mjs';
+import { artifactFixture } from './artifacts.mjs';
 
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
 const stream = values => Buffer.concat([...values.map(value => frame(value)), frame({}, 2)]);
@@ -33,6 +34,7 @@ export async function startRunnerFixture() {
     const match=from=>{const positions=[];let j=0;for(let i=from;i<lower.length&&j<q.length;i++)if(lower[i]===q[j]){positions.push(i);j++;}return j===q.length?positions:null;};
     const inName=q.includes('/')?null:match(base);const positions=inName||match(0);if(!positions)return null;return {path,positions,score:(inName?100:0)-path.length};};
   const eventStreams=new Map();
+  const artifactStore=artifactFixture({workspaceFiles,mutations});
   // Messages a conversation accepted while at a subscription limit, by operation.
   const waitingMessages=new WeakMap();
   // A saved conversation's journal is finite: after `complete()` the stream ends
@@ -300,6 +302,7 @@ actions:
     if (device && method === 'Apply' && body.permission) { remote.deviceDenied.push('Apply:permission'); res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'permission_denied', message: 'this device is not allowed to do that' })); return; }
     const json = value => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(device && method === 'Info' ? { ...value, profiles: value.profiles.map(({ id, provider, label, managed, isolation }) => ({ id, provider, label, managed, isolation })), pendingEnrollments: [], gateways: [], restartAvailable: false } : value)); };
     const error = (code, message) => { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code, message })); };
+    if (method.includes('Artifact')) { if (artifactStore.handle(method, body, json, error) === false) error('unimplemented', `Unsupported fixture RPC ${method}`); return; }
     switch (method) {
       case 'GetRunnerSettings': return json(runnerSettings);
       case 'SaveRunnerSettings': {
@@ -675,7 +678,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { artifacts: artifactStore, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     get url() { return url; }, get token() { return token; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

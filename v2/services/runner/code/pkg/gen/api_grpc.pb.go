@@ -138,6 +138,14 @@ const (
 	RunnerService_CreateMission_FullMethodName                = "/lazybox.bench.v1.RunnerService/CreateMission"
 	RunnerService_UpdateMission_FullMethodName                = "/lazybox.bench.v1.RunnerService/UpdateMission"
 	RunnerService_ListPromptHistory_FullMethodName            = "/lazybox.bench.v1.RunnerService/ListPromptHistory"
+	RunnerService_ListArtifacts_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListArtifacts"
+	RunnerService_GetArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/GetArtifact"
+	RunnerService_PutArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/PutArtifact"
+	RunnerService_TrackArtifactFile_FullMethodName            = "/lazybox.bench.v1.RunnerService/TrackArtifactFile"
+	RunnerService_UpdateArtifact_FullMethodName               = "/lazybox.bench.v1.RunnerService/UpdateArtifact"
+	RunnerService_DeleteArtifact_FullMethodName               = "/lazybox.bench.v1.RunnerService/DeleteArtifact"
+	RunnerService_SaveArtifactToRepository_FullMethodName     = "/lazybox.bench.v1.RunnerService/SaveArtifactToRepository"
+	RunnerService_CreateArtifactIssue_FullMethodName          = "/lazybox.bench.v1.RunnerService/CreateArtifactIssue"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -324,6 +332,28 @@ type RunnerServiceClient interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(ctx context.Context, in *ListPromptHistoryRequest, opts ...grpc.CallOption) (*PromptHistory, error)
+	// Artifacts: versioned documents (plans, reports, specs, notes) of one
+	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
+	// read and put artifacts of its own execution's workspace only
+	// (`lazybox artifact`); everything else here is the owner's.
+	ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error)
+	GetArtifact(ctx context.Context, in *GetArtifactRequest, opts ...grpc.CallOption) (*Artifact, error)
+	// Creates an artifact, or appends a version to one. The author is who called
+	// (a person, or the agent whose credential it is), never what the request says.
+	PutArtifact(ctx context.Context, in *PutArtifactRequest, opts ...grpc.CallOption) (*Artifact, error)
+	// Owner only. Tracks a workspace text file: the artifact's first version is
+	// the file, and the Runner records a version whenever the file changes on
+	// disk. Tracking a file that is already tracked returns that artifact.
+	TrackArtifactFile(ctx context.Context, in *TrackArtifactFileRequest, opts ...grpc.CallOption) (*Artifact, error)
+	// Owner only. Rename, change kind, or stop following the tracked file.
+	UpdateArtifact(ctx context.Context, in *UpdateArtifactRequest, opts ...grpc.CallOption) (*Artifact, error)
+	DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error)
+	// Owner only. Writes the artifact's latest version into a workspace
+	// repository; never stages or commits.
+	SaveArtifactToRepository(ctx context.Context, in *SaveArtifactToRepositoryRequest, opts ...grpc.CallOption) (*SaveArtifactToRepositoryResponse, error)
+	// Owner only. Opens a GitHub issue with the artifact as its body, in a
+	// workspace repository's GitHub project, through the GitHub connection.
+	CreateArtifactIssue(ctx context.Context, in *CreateArtifactIssueRequest, opts ...grpc.CallOption) (*CreateArtifactIssueResponse, error)
 }
 
 type runnerServiceClient struct {
@@ -1550,6 +1580,86 @@ func (c *runnerServiceClient) ListPromptHistory(ctx context.Context, in *ListPro
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListArtifactsResponse)
+	err := c.cc.Invoke(ctx, RunnerService_ListArtifacts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetArtifact(ctx context.Context, in *GetArtifactRequest, opts ...grpc.CallOption) (*Artifact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Artifact)
+	err := c.cc.Invoke(ctx, RunnerService_GetArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) PutArtifact(ctx context.Context, in *PutArtifactRequest, opts ...grpc.CallOption) (*Artifact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Artifact)
+	err := c.cc.Invoke(ctx, RunnerService_PutArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) TrackArtifactFile(ctx context.Context, in *TrackArtifactFileRequest, opts ...grpc.CallOption) (*Artifact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Artifact)
+	err := c.cc.Invoke(ctx, RunnerService_TrackArtifactFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) UpdateArtifact(ctx context.Context, in *UpdateArtifactRequest, opts ...grpc.CallOption) (*Artifact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Artifact)
+	err := c.cc.Invoke(ctx, RunnerService_UpdateArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteArtifactResponse)
+	err := c.cc.Invoke(ctx, RunnerService_DeleteArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SaveArtifactToRepository(ctx context.Context, in *SaveArtifactToRepositoryRequest, opts ...grpc.CallOption) (*SaveArtifactToRepositoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveArtifactToRepositoryResponse)
+	err := c.cc.Invoke(ctx, RunnerService_SaveArtifactToRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) CreateArtifactIssue(ctx context.Context, in *CreateArtifactIssueRequest, opts ...grpc.CallOption) (*CreateArtifactIssueResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateArtifactIssueResponse)
+	err := c.cc.Invoke(ctx, RunnerService_CreateArtifactIssue_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -1734,6 +1844,28 @@ type RunnerServiceServer interface {
 	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
 	// the snippet chain a conversation offers next.
 	ListPromptHistory(context.Context, *ListPromptHistoryRequest) (*PromptHistory, error)
+	// Artifacts: versioned documents (plans, reports, specs, notes) of one
+	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
+	// read and put artifacts of its own execution's workspace only
+	// (`lazybox artifact`); everything else here is the owner's.
+	ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error)
+	GetArtifact(context.Context, *GetArtifactRequest) (*Artifact, error)
+	// Creates an artifact, or appends a version to one. The author is who called
+	// (a person, or the agent whose credential it is), never what the request says.
+	PutArtifact(context.Context, *PutArtifactRequest) (*Artifact, error)
+	// Owner only. Tracks a workspace text file: the artifact's first version is
+	// the file, and the Runner records a version whenever the file changes on
+	// disk. Tracking a file that is already tracked returns that artifact.
+	TrackArtifactFile(context.Context, *TrackArtifactFileRequest) (*Artifact, error)
+	// Owner only. Rename, change kind, or stop following the tracked file.
+	UpdateArtifact(context.Context, *UpdateArtifactRequest) (*Artifact, error)
+	DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error)
+	// Owner only. Writes the artifact's latest version into a workspace
+	// repository; never stages or commits.
+	SaveArtifactToRepository(context.Context, *SaveArtifactToRepositoryRequest) (*SaveArtifactToRepositoryResponse, error)
+	// Owner only. Opens a GitHub issue with the artifact as its body, in a
+	// workspace repository's GitHub project, through the GitHub connection.
+	CreateArtifactIssue(context.Context, *CreateArtifactIssueRequest) (*CreateArtifactIssueResponse, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -2097,6 +2229,30 @@ func (UnimplementedRunnerServiceServer) UpdateMission(context.Context, *UpdateMi
 }
 func (UnimplementedRunnerServiceServer) ListPromptHistory(context.Context, *ListPromptHistoryRequest) (*PromptHistory, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPromptHistory not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListArtifacts not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetArtifact(context.Context, *GetArtifactRequest) (*Artifact, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetArtifact not implemented")
+}
+func (UnimplementedRunnerServiceServer) PutArtifact(context.Context, *PutArtifactRequest) (*Artifact, error) {
+	return nil, status.Error(codes.Unimplemented, "method PutArtifact not implemented")
+}
+func (UnimplementedRunnerServiceServer) TrackArtifactFile(context.Context, *TrackArtifactFileRequest) (*Artifact, error) {
+	return nil, status.Error(codes.Unimplemented, "method TrackArtifactFile not implemented")
+}
+func (UnimplementedRunnerServiceServer) UpdateArtifact(context.Context, *UpdateArtifactRequest) (*Artifact, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateArtifact not implemented")
+}
+func (UnimplementedRunnerServiceServer) DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteArtifact not implemented")
+}
+func (UnimplementedRunnerServiceServer) SaveArtifactToRepository(context.Context, *SaveArtifactToRepositoryRequest) (*SaveArtifactToRepositoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveArtifactToRepository not implemented")
+}
+func (UnimplementedRunnerServiceServer) CreateArtifactIssue(context.Context, *CreateArtifactIssueRequest) (*CreateArtifactIssueResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateArtifactIssue not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -4215,6 +4371,150 @@ func _RunnerService_ListPromptHistory_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListArtifactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListArtifacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListArtifacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListArtifacts(ctx, req.(*ListArtifactsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetArtifact(ctx, req.(*GetArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_PutArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).PutArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_PutArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).PutArtifact(ctx, req.(*PutArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_TrackArtifactFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TrackArtifactFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).TrackArtifactFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_TrackArtifactFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).TrackArtifactFile(ctx, req.(*TrackArtifactFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_UpdateArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).UpdateArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_UpdateArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).UpdateArtifact(ctx, req.(*UpdateArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_DeleteArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).DeleteArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_DeleteArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).DeleteArtifact(ctx, req.(*DeleteArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SaveArtifactToRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveArtifactToRepositoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SaveArtifactToRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SaveArtifactToRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SaveArtifactToRepository(ctx, req.(*SaveArtifactToRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_CreateArtifactIssue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateArtifactIssueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CreateArtifactIssue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CreateArtifactIssue_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CreateArtifactIssue(ctx, req.(*CreateArtifactIssueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -4677,6 +4977,38 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPromptHistory",
 			Handler:    _RunnerService_ListPromptHistory_Handler,
+		},
+		{
+			MethodName: "ListArtifacts",
+			Handler:    _RunnerService_ListArtifacts_Handler,
+		},
+		{
+			MethodName: "GetArtifact",
+			Handler:    _RunnerService_GetArtifact_Handler,
+		},
+		{
+			MethodName: "PutArtifact",
+			Handler:    _RunnerService_PutArtifact_Handler,
+		},
+		{
+			MethodName: "TrackArtifactFile",
+			Handler:    _RunnerService_TrackArtifactFile_Handler,
+		},
+		{
+			MethodName: "UpdateArtifact",
+			Handler:    _RunnerService_UpdateArtifact_Handler,
+		},
+		{
+			MethodName: "DeleteArtifact",
+			Handler:    _RunnerService_DeleteArtifact_Handler,
+		},
+		{
+			MethodName: "SaveArtifactToRepository",
+			Handler:    _RunnerService_SaveArtifactToRepository_Handler,
+		},
+		{
+			MethodName: "CreateArtifactIssue",
+			Handler:    _RunnerService_CreateArtifactIssue_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

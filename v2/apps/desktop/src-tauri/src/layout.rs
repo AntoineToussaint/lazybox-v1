@@ -18,6 +18,8 @@ pub struct Target {
     pub commands_open: bool,
     pub collection_id: String,
     pub panel_id: String,
+    /// An artifact page in its own window (with its workspace's collection_id).
+    pub artifact_id: String,
 }
 
 pub fn valid_id(id: &str) -> bool {
@@ -35,6 +37,11 @@ impl Target {
                 && (!valid_id(&self.panel_id) || self.session_id.is_empty()))
             || (!self.command_id.is_empty()
                 && (!valid_id(&self.command_id) || self.session_id.is_empty()))
+            || (!self.artifact_id.is_empty()
+                && (!valid_id(&self.artifact_id)
+                    || self.collection_id.is_empty()
+                    || !self.panel_id.is_empty()
+                    || !self.command_id.is_empty()))
         {
             return Err("Invalid session or command identity".into());
         }
@@ -74,6 +81,44 @@ impl Default for Layout {
             sequence: 0,
             surfaces: BTreeMap::from([("main".into(), main)]),
         }
+    }
+}
+
+#[cfg(test)]
+mod artifact_tests {
+    use super::*;
+    #[test]
+    fn artifact_window_is_one_per_artifact_and_keeps_its_identity() {
+        let mut layout = Layout::default();
+        let target = Target {
+            collection_id: "feature-one".into(),
+            artifact_id: "ARTIFACT1".into(),
+            ..Target::default()
+        };
+        let label = layout.artifact(target.clone()).expect("artifact");
+        assert_eq!(label, "artifact-ARTIFACT1");
+        assert_eq!(layout.artifact(target.clone()).expect("reuse"), label);
+        let mut other = target.clone();
+        other.collection_id = "another".into();
+        assert!(layout.artifact(other).is_err());
+        let mut moved = target.clone();
+        moved.artifact_id = "ARTIFACT2".into();
+        assert!(layout.save_target(&label, moved).is_err());
+        assert!(
+            layout
+                .artifact(Target {
+                    artifact_id: "../x".into(),
+                    collection_id: "feature-one".into(),
+                    ..Target::default()
+                })
+                .is_err()
+        );
+        layout.validate().expect("valid layout");
+        let restored: Layout =
+            serde_json::from_str(&serde_json::to_string(&layout).expect("serialize"))
+                .expect("restore");
+        restored.validate().expect("valid restored layout");
+        assert_eq!(restored.surfaces[&label].target.artifact_id, "ARTIFACT1");
     }
 }
 
@@ -133,7 +178,12 @@ impl Layout {
                 _ if label.starts_with("chat-") => {
                     !surface.target.panel_id.is_empty()
                         && surface.target.command_id.is_empty()
+                        && surface.target.artifact_id.is_empty()
                         && label == &format!("chat-{}", surface.target.panel_id)
+                }
+                _ if label.starts_with("artifact-") => {
+                    !surface.target.artifact_id.is_empty()
+                        && label == &format!("artifact-{}", surface.target.artifact_id)
                 }
                 _ => false,
             };
@@ -169,7 +219,8 @@ impl Layout {
             && (target.session_id != current.target.session_id
                 || target.command_id != current.target.command_id
                 || target.collection_id != current.target.collection_id
-                || target.panel_id != current.target.panel_id)
+                || target.panel_id != current.target.panel_id
+                || target.artifact_id != current.target.artifact_id)
         {
             return Err("A detached viewer cannot change its execution identity".into());
         }
@@ -222,6 +273,42 @@ impl Layout {
                 return Err("Dock the existing chat before changing its target".into());
             }
             self.touch(&label)?.target = target;
+            return Ok(label);
+        }
+        if self.surfaces.len() >= MAX_SURFACES {
+            let oldest = self
+                .surfaces
+                .values()
+                .filter(|s| !s.open && s.label != "main")
+                .min_by_key(|s| s.changed)
+                .map(|s| s.label.clone())
+                .ok_or("Saved window limit reached")?;
+            self.surfaces.remove(&oldest);
+        }
+        self.surfaces.insert(
+            label.clone(),
+            Surface {
+                label: label.clone(),
+                target,
+                open: false,
+                changed: self.sequence,
+                geometry: None,
+                maximized: false,
+            },
+        );
+        Ok(label)
+    }
+    /// The window of one artifact: opening it again reuses that window.
+    pub fn artifact(&mut self, target: Target) -> Result<String, String> {
+        target.validate()?;
+        if target.artifact_id.is_empty() || target.collection_id.is_empty() {
+            return Err("Artifact and workspace identities required".into());
+        }
+        let label = format!("artifact-{}", target.artifact_id);
+        if let Some(existing) = self.surfaces.get(&label) {
+            if existing.target.collection_id != target.collection_id {
+                return Err("Artifact belongs to another workspace".into());
+            }
             return Ok(label);
         }
         if self.surfaces.len() >= MAX_SURFACES {

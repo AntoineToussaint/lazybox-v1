@@ -4,6 +4,8 @@ import type { Session } from '@lazybox/protocol';
 import type { OpenModifiers } from './file-links';
 import type { FileLink } from './file-reference';
 import { ConversationLoading, MessageList } from './MessageList';
+import { MessageScopeProvider } from './MessageArtifactActions';
+import { useRevealRequests } from './artifact-events';
 import { PromptNavigator } from './PromptNavigator';
 import { RequestCard } from './session-parts';
 import { faultSentence } from './subscription-model';
@@ -37,6 +39,9 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   subscription?: ReactNode;
 }) {
   const conversation = transcript.messages;
+  // Artifact actions on agent messages, and "Open source message" from an artifact.
+  const artifactScope = useMemo(() => session?.collectionId ? { collectionId: session.collectionId, sessionId: sessionID, conversationId: session.conversationId } : undefined, [session?.collectionId, session?.conversationId, sessionID]);
+  useRevealRequests(sessionID, !transcript.loading && conversation.length > 0, scroll.revealMessage);
   // Coding turns are checkpointed: each gets a marker to show or revert its changes.
   const coding = !!session && (!session.purpose || session.purpose === 'coding');
   const checkpoints = useMemo(() => coding ? { sessionId: sessionID, workspaceId: session!.collectionId, busy: !!session!.busy } : undefined, [coding, sessionID, session?.collectionId, session?.busy]);
@@ -47,7 +52,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
         <div className="messages-content" ref={scroll.contentRef}>
           {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
           {!transcript.loading && !transcript.error && !spoken && <EmptyConversation agentName={agentName}/>}
-          <MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints}/>
+          <MessageScopeProvider scope={artifactScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints}/></MessageScopeProvider>
           {session?.fault && !limited && <div className="error" role="alert">{faultSentence(session.fault)}</div>}
           <PendingRequests api={api} session={session} sessionID={sessionID} onError={onError}/>
           {subscription}
