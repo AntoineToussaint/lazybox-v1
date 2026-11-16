@@ -20,6 +20,9 @@ test('file links preserve line anchors and reject executable schemes',()=>{
  assert.deepEqual(fileReference('README.md#L2'),{path:'README.md',line:2});
  assert.deepEqual(fileReference('/workspace/api/a%20b.ts:5:2'),{path:'/workspace/api/a b.ts',line:5});
  for(const value of ['javascript:alert(1)','https://example.com/a.md','data:text/plain,a','not a file'])assert.equal(fileReference(value),undefined);
+ // Inline code: a dotted name is a file only when it ends like one; a path or a line number says so itself.
+ for(const value of ['rate.limit','console.log','v1.2','user.name','e.g','Object.keys'])assert.equal(fileReference(value,'automatic'),undefined,value);
+ for(const value of ['app.ts','README.md','README','go.mod','package.json','main.go:12','src/rate.limit','build.gradle'])assert.ok(fileReference(value,'automatic'),value);
 });
 
 import {ConversationReader,conversationReader,continueConversation} from '../packages/surfaces/src/transcript-cache.ts';
