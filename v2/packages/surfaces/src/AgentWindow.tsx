@@ -33,7 +33,7 @@ import './chat-header.css';
 import { sessionStatus, statusLabel, accountLabel, awaitingFirstMessage } from './agent-status';
 import { appendToDraft, composeRunMessage, useComposerOffers, useSharedRuns } from './command-runs';
 import { SubscriptionControls } from './SubscriptionSwitch';
-import { faultSentence, sessionLimit, subscriptionName } from './subscription-model';
+import { faultSentence, sessionLimit, subscriptionName, turnFault } from './subscription-model';
 
 const PERMISSION_CHOICES: [string, string][] = [['ask', 'Ask for approval'], ['read-only', 'Read only'], ['yolo', 'YOLO']];
 
@@ -89,7 +89,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       else{const next=message+(message&&!message.endsWith('\n')?'\n':'')+snippet.body;setMessage(next);persistDraft(next,files,missingFiles);requestAnimationFrame(()=>composer.current?.focus());}
     },error=>setError(String(error)));
   });
-  useKeyboardAction('chat.send',()=>{const focused=document.activeElement as HTMLTextAreaElement;if(focused===composer.current&&canSend)focused.form?.requestSubmit();});
+  useKeyboardAction('chat.send',()=>{const focused=document.activeElement as HTMLTextAreaElement;if(focused===composer.current&&(canSend||missingFiles.length>0))focused.form?.requestSubmit();});
   const [remembered] = useState(() => {const choices=readLaunchChoices(viewState);return agent&&agent!==choices.provider ? {} : choices;});
   const {settings: runnerSettings, loading: settingsLoading} = useRunnerSettings();
   const [provider, setProvider] = useState<string>(agent || remembered.provider || 'claude');
@@ -155,10 +155,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const canAttach = !!session?.capabilities?.files && !!info?.attachmentLimits && canCompose && !sending;
   // At a subscription limit a message waits and is sent once the conversation continues.
   const limited = !!sessionLimit(session);
-  const canSend = canCompose && (!session?.fault || canResumeOnSend || limited) && !sending && missingFiles.length === 0 && (!!message.trim() || files.length > 0);
+  // After a provider error ends a turn, the next message continues the conversation.
+  const continuesAfterError = !!session && !session.closed && turnFault(session.fault);
+  const canSend = canCompose && (!session?.fault || canResumeOnSend || limited || continuesAfterError) && !sending && missingFiles.length === 0 && (!!message.trim() || files.length > 0);
   const vimEditing = useVimPreferences(viewState).composer;
   const reservedKeys = useMemo(() => leaderKeys(keymap), [keymap]);
-  const vim = useComposerVim({ textarea: composer, enabled: vimEditing, value: message, resetKey: sessionID, reserved: reservedKeys, onSend: () => { if (canSend) composer.current?.form?.requestSubmit(); } });
+  const vim = useComposerVim({ textarea: composer, enabled: vimEditing, value: message, resetKey: sessionID, reserved: reservedKeys, onSend: () => { if (canSend || missingFiles.length > 0) composer.current?.form?.requestSubmit(); } });
 
   useEffect(() => {
     try {
@@ -254,7 +256,9 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const send = async (event?: FormEvent, snippetText?:string) => {
     event?.preventDefault();
     const text=snippetText??message;
-    if(sendingRef.current||!(snippetText?canCompose&&(!session?.fault||limited)&&!sending&&!message.trim()&&!files.length&&!missingFiles.length:canSend))return false;
+    // Never swallow Enter: say what is in the way.
+    if(!snippetText&&!sendingRef.current&&!sending&&missingFiles.length&&(message.trim()||files.length)){setError(`Attach ${missingFiles.length===1?missingFiles[0].name:'the files'} again, or remove ${missingFiles.length===1?'it':'them'}, to send.`);return false;}
+    if(sendingRef.current||!(snippetText?canCompose&&(!session?.fault||limited||continuesAfterError)&&!sending&&!message.trim()&&!files.length&&!missingFiles.length:canSend))return false;
     sendingRef.current = true; setSending(true); setError(''); jumpToLatest();
     const signal = lifetime.current!.signal;
     try {
@@ -490,7 +494,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       {!transcript.error && !disconnected && live.tone === 'busy' && session && !session.closed && <div className="live-activity" data-tone="busy" aria-hidden="true"><LiveIndicator tone="busy"/>{live.text}</div>}
       <form className="composer" onSubmit={send}>
         {files.length > 0 && <ul className="attached-files" aria-label="Attached files">{files.map((file, i) => <li key={i}><span>{file.name} <small>{Math.ceil(file.size / 1024)} KiB</small></span><button type="button" aria-label={`Remove ${file.name}`} disabled={sending} onClick={() => { const next = files.filter((_, index) => index !== i); setFiles(next); setUncertainSend(''); persistDraft(message, next, missingFiles); }}>×</button></li>)}</ul>}
-        {missingFiles.length > 0 && <div className="restore-files"><p>Reattach or remove these files before sending:</p>{missingFiles.map((file, i) => <button key={i} type="button" onClick={() => { const next = missingFiles.filter((_, index) => index !== i); setMissingFiles(next); setUncertainSend(''); persistDraft(message, files, next); }}>Remove {file.name}</button>)}</div>}
+        {missingFiles.length > 0 && <div className="restore-files" role="group" aria-label="Files to attach again"><p>The window reloaded, so {missingFiles.length === 1 ? 'this file needs' : 'these files need'} to be attached again (or removed) before sending:</p><ul>{missingFiles.map((file, i) => <li key={i}><span>{file.name}</span><button type="button" onClick={() => { const next = missingFiles.filter((_, index) => index !== i); setMissingFiles(next); setUncertainSend(''); setError(''); persistDraft(message, files, next); }}>Remove {file.name}</button></li>)}</ul><div className="restore-files-actions">{canAttach && <button type="button" className="primary" onClick={() => fileInput.current?.click()}>Attach again…</button>}<button type="button" onClick={() => { setMissingFiles([]); setUncertainSend(''); setError(''); persistDraft(message, files, []); requestAnimationFrame(() => composer.current?.focus()); }}>{missingFiles.length === 1 ? 'Send without it' : 'Send without them'}</button></div></div>}
         {uncertainSend && !sending && <small className="composer-hint">The previous send was not confirmed. Retrying the unchanged message checks the same operation.</small>}
         {handedOver && <p className="composer-handover" role="status">{handedOver}<button type="button" aria-label="Dismiss" onClick={() => setHandedOver('')}>×</button></p>}
         <textarea ref={composer} data-agent-composer aria-label="Message" placeholder={limited ? `Message ${agentName}… (sent when the conversation continues)` : `Message ${agentName}…`} value={message} onChange={e => { recall.current = null; setMessage(e.target.value); setUncertainSend(''); sendAttempt.current = null; persistDraft(e.target.value, files, missingFiles); }} disabled={!canCompose || sending}

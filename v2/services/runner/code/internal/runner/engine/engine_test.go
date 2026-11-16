@@ -153,3 +153,45 @@ func TestViewerCancellationDoesNotCancelExecution(t *testing.T) {
 		t.Fatal("viewer closed execution")
 	}
 }
+
+// A provider error ends one turn; the person's next message continues the
+// conversation instead of leaving it unable to send anything.
+func TestNextMessageContinuesAfterAProviderErrorEndsATurn(t *testing.T) {
+	e, s := bench(t, false)
+	ctx := contextFor(t)
+	if _, err := e.Apply(ctx, agent.Operation{ID: "first", Kind: agent.Message, Text: "look at this image"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = applied(t, s)
+	s.Events <- agent.Event{Type: "failure", Status: "provider_error", Text: "Could not process image"}
+	s.Events <- agent.Event{Type: "turn_ended", Status: "failed"}
+	await(t, e, "turn_ended")
+	if e.Snapshot().Fault == "" {
+		t.Fatal("the provider error was not recorded")
+	}
+	if _, err := e.Apply(ctx, agent.Operation{ID: "interrupt", Kind: agent.Interrupt}); err == nil {
+		t.Fatal("only a message may continue after a provider error")
+	}
+	if _, err := e.Apply(ctx, agent.Operation{ID: "second", Kind: agent.Message, Text: "try again without it"}); err != nil {
+		t.Fatalf("next message refused after a provider error: %v", err)
+	}
+	if op := applied(t, s); op.ID != "second" {
+		t.Fatalf("delivered %q", op.ID)
+	}
+	if fault := e.Snapshot().Fault; fault != "" {
+		t.Fatalf("fault kept after continuing: %q", fault)
+	}
+}
+
+func TestRunnerFaultsStillRefuseMessages(t *testing.T) {
+	for _, fault := range []string{"provider delivery failed; reconcile before continuing", "event capture failed: disk", "native_exit_unconfirmed", "provider startup failed"} {
+		if agent.TurnFault(fault) {
+			t.Fatalf("%q treated as a turn fault", fault)
+		}
+	}
+	for _, fault := range []string{"provider_error", "provider_failure", "sdk_error", "invalid_request"} {
+		if !agent.TurnFault(fault) {
+			t.Fatalf("%q not treated as a turn fault", fault)
+		}
+	}
+}

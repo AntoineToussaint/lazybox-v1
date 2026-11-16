@@ -43,7 +43,8 @@
     { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" },
     { "id": "prompt-navigation", "scope": "ui", "script": "test:prompt-navigation" },
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },
-    { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" }
+    { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" },
+    { "id": "send-recovery", "scope": "ui", "script": "test:send-recovery" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

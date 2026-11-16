@@ -112,11 +112,11 @@ try {
   await expect(page.getByRole('alert')).toContainText('fixture delivery failure');
   await page.reload();
   await expect(composer).toHaveValue('unsent follow-up');
-  await expect(page.getByText('Reattach or remove these files before sending:')).toBeVisible();
+  await expect(page.getByRole('group',{name:'Files to attach again'})).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '+ Attach files', exact: true })).toBeEnabled();
   await picker.setInputFiles(draftPath);
-  await expect(page.getByText('Reattach or remove these files before sending:')).toHaveCount(0);
+  await expect(page.getByRole('group',{name:'Files to attach again'})).toHaveCount(0);
   await composer.press('Enter');
   await expect.poll(() => submissions.length).toBe(5);
   assert.equal(submissions[4].operationId, submissions[3].operationId, 'reopening an uncertain send must retain its operation identity');

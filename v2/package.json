@@ -61,6 +61,7 @@
     "test:mermaid-viewer": "node scripts/test-mermaid-viewer.mjs",
     "test:file-navigation": "node scripts/test-file-navigation.mjs",
     "test:prompt-navigation": "node scripts/test-prompt-navigation.mjs",
+    "test:send-recovery": "node scripts/test-send-recovery.mjs",
     "test:chat-polish": "node scripts/test-chat-polish.mjs",
     "test:subscription-switch": "node scripts/test-subscription-switch.mjs"
   },

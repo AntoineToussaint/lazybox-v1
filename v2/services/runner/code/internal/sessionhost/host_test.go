@@ -553,7 +553,7 @@ func TestProbeDoesNotSupersedeTheAttachedClient(t *testing.T) {
 }
 
 // Held is this process's own, immediate view of which hosts it is a client of.
-func TestHeldFollowsThisProcesssConnection(t *testing.T) {
+func TestHeldFollowsThisProcessConnection(t *testing.T) {
 	dir := root(t)
 	c, _ := started(t, dir)
 	id := c.ID()

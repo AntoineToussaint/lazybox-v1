@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
 )
@@ -248,6 +249,22 @@ type ProfileSwitcher interface {
 
 // LimitFault reports whether a session fault is an account limit a profile
 // switch (or a reset) resolves, rather than a fault to reconcile.
+// TurnFault reports whether a fault came from the provider ending one turn with
+// an error (an API error, an image it could not read, an overloaded service),
+// as opposed to the Runner losing track of the provider. After a turn fault
+// the conversation is intact: the person's next message continues it.
+func TurnFault(fault string) bool {
+	if fault == "" || LimitFault(fault) {
+		return false
+	}
+	for _, runner := range []string{"provider delivery failed", "event capture failed", "provider stream ended", "invalid or excessive pending provider requests", "native_exit_unconfirmed", "provider startup failed"} {
+		if strings.HasPrefix(fault, runner) {
+			return false
+		}
+	}
+	return true
+}
+
 func LimitFault(fault string) bool {
 	return fault == "exhausted" || fault == "throttled" || fault == "auth_required" || fault == "billing_error"
 }

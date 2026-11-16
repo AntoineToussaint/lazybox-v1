@@ -139,6 +139,16 @@ export function failureSentence(status = '', text = ''): string {
   return codeSentences[body] || codeSentences[status] || 'The agent stopped after an error from the provider.';
 }
 
+/**
+ * A fault from the provider ending one turn with an error (an API error, an
+ * image it could not read). The conversation is intact and the next message
+ * continues it. Mirrors agent.TurnFault in the Runner.
+ */
+export function turnFault(fault = ''): boolean {
+  if (!fault || isLimitState(fault)) return false;
+  return !['provider delivery failed', 'event capture failed', 'provider stream ended', 'invalid or excessive pending provider requests', 'native_exit_unconfirmed', 'provider startup failed'].some(prefix => fault.startsWith(prefix));
+}
+
 /** Why a conversation needs attention, for a fault that is not a subscription limit. */
 export function faultSentence(fault: string): string {
   if (!fault) return '';

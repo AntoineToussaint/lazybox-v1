@@ -224,7 +224,9 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	// A message sent while a subscription is at its limit waits in the queue:
 	// it is delivered, once, when the conversation continues on another
 	// subscription or after the reset.
-	if e.state.Closed || (e.state.Fault != "" && !(op.Kind == agent.Message && agent.LimitFault(e.state.Fault))) {
+	// After a provider error ends a turn, the next message continues the
+	// conversation (and clears the error); nothing else may run before it.
+	if e.state.Closed || (e.state.Fault != "" && !(op.Kind == agent.Message && (agent.LimitFault(e.state.Fault) || agent.TurnFault(e.state.Fault)))) {
 		e.mu.Unlock()
 		return agent.Receipt{}, errors.New("session is closed or faulted")
 	}
@@ -271,6 +273,9 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	}
 	e.ops[op.ID] = accepted{fingerprint: fingerprint, receipt: r}
 	if op.Kind == agent.Message {
+		if agent.TurnFault(e.state.Fault) {
+			e.state.Fault = ""
+		}
 		e.queue = append(e.queue, op)
 		e.persistDurableLocked()
 		e.mu.Unlock()
