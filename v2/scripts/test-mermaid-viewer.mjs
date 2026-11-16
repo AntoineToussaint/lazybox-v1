@@ -118,6 +118,8 @@ try{
  await expect.poll(()=>fullImage.evaluate(img=>img.getBoundingClientRect().left)).toBeLessThan(fx-100);
  await page.keyboard.press('Escape');await expect(full).toHaveCount(0);
  await expect(figure.getByRole('button',{name:'Open full screen'})).toBeFocused();
+ // Focusing the full-screen viewer must not scroll the dock to a hidden panel parked below it.
+ assert.equal(await page.evaluate(()=>document.querySelector('.dock-container')?.scrollTop??0),0,'full screen scrolled the dock');
  // Enter on the focused viewer opens full screen too.
  await viewer.focus();await page.keyboard.press('Enter');await expect(full).toBeVisible();
  await full.getByRole('button',{name:'Close full screen'}).click();await expect(full).toHaveCount(0);

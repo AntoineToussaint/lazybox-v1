@@ -45,7 +45,9 @@
   --dv-paneview-header-border-color: var(--line-subtle);
 }
 .dock-layout{position:relative;flex:1;min-height:0;min-width:0;display:flex;overflow:hidden}
-.dock-container{flex:1;min-width:0;min-height:0;position:relative;overflow:hidden}
+/* Clip, never scroll: dockview parks hidden panels' overlays below the dock, and
+   overflow:hidden would let a focus() or scrollIntoView scroll the whole dock to them. */
+.dock-container{flex:1;min-width:0;min-height:0;position:relative;overflow:hidden;overflow:clip}
 .dock-container>.dv-shell,.dock-container>.dv-dockview{height:100%}
 .dock-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .dock-empty>*{pointer-events:auto}
