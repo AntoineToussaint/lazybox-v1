@@ -96,7 +96,7 @@ The [agent-and-console test bench](FIRST_DELIVERABLE.md) is runnable. Its remain
 Run `make -C v2 check` to validate the implementation. See [Source structure](STRUCTURE.md#current-commands) for command scope and current limitations.
 
 The workspace sidebar collapses a single conversation into its workspace entry.
-Vim/tmux-style bindings are configurable in Settings → Shortcuts; `]]` leaves the
+Key bindings (Vim-style, a `Ctrl+b` prefix, or arrows) are configurable in Settings → Shortcuts; `]]` leaves the
 composer and `]]s` opens snippets by default. The snippet picker reuses V1's
 canonical catalog through the read-only `lazybox-snippets` adapter. See
 [workspace navigation and snippets](WORKSPACES.md#compact-navigation-and-keyboard-controls).

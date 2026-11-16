@@ -31,7 +31,7 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
             Custom / current
           </option>
           <option value="vim">Vim · ]] and h j k l</option>
-          <option value="tmux">tmux · Ctrl+b and arrows</option>
+          <option value="tmux">Ctrl+b prefix · arrow keys</option>
           <option value="arrows">Arrow keys · ]] leader</option>
         </select>
       </label>

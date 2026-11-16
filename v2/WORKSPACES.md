@@ -350,12 +350,15 @@ the row menu distinguishes deleting the conversation from deleting the workspace
 The sidebar loads one paginated history index independently of selection, merging
 live execution updates and retaining its last complete history on refresh failure.
 
-Settings → Shortcuts offers Vim, tmux and arrow presets and editable bindings.
+Settings → Shortcuts offers three key presets (Vim-style `]]` and `h j k l`, a
+`Ctrl+b` prefix with arrow keys, and arrow keys) and editable bindings.
 Space separates a sequence; `Ctrl+b` denotes a chord. The default `] ]` leaves the
 composer for navigation, `] ] s` opens snippets, `] ] c` opens a new conversation,
 and `] ] w` creates a workspace. In navigation, `j/k` move, `h` focuses the parent
-workspace, and `l` opens the entry and focuses its composer. The tmux preset uses
-`Ctrl+b` followed by arrows or `s/c/w`. A pending hierarchy shows available actions.
+workspace, and `l` opens the entry and focuses its composer. The `Ctrl+b` preset
+uses `Ctrl+b` followed by arrows or `s/c/w`. After the prefix, a menu card lists
+every next key. Settings → Shortcuts also adds your own entries to that menu: one
+key sends a snippet, or inserts it when a draft is already there.
 A single `]` remains draft text. IME composition and ordinary form fields are not
 navigation targets. Bindings are client preferences persisted through the host's
 view-state store; they do not change the Runner's permissions or agent settings.
