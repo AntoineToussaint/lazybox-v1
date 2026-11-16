@@ -285,7 +285,7 @@ func TestShutdownCancelsOpeningAgentBeforeReleasingWorktreeRoot(t *testing.T) {
 
 func TestCollectionGeneratedClientsShareNativeGRPCImplementation(t *testing.T) {
 	s, _ := collectionService(t)
-	server := grpc.NewServer(LocalAuthority("collection-fixture")...)
+	server := grpc.NewServer(LocalAuthority("collection-fixture", nil)...)
 	pb.RegisterRunnerServiceServer(server, s)
 	listener := bufconn.Listen(1 << 20)
 	go func() { _ = server.Serve(listener) }()

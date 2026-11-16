@@ -33,7 +33,7 @@ func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options 
 			if err != nil {
 				return open, err
 			}
-			open.Env = append(next, b.executionEnv(id, collectionID)...)
+			open.Env = b.executionEnv(next, id, collectionID)
 			open.Tools = b.executionTools(e, append([]string{}, open.Env...))
 			return open, nil
 		}, Evidence: func() string {
@@ -53,14 +53,6 @@ func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options 
 			data, _ := json.Marshal(facts)
 			return string(data)
 		}}
-}
-
-func (b *Bench) executionEnv(id, collectionID string) []string {
-	env := b.withCLI([]string{"LAZYBOX_V2_ENDPOINT=" + b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID=" + id, b.outputEnv(id)})
-	if collectionID != "" {
-		env = append(env, "LAZYBOX_V2_COLLECTION_ID="+collectionID)
-	}
-	return env
 }
 
 // sessionOpen resolves the native open request. Every execution runs under a
@@ -207,7 +199,11 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 	if err != nil {
 		return err
 	}
-	env = append(env, b.executionEnv(r.ID, r.CollectionID)...)
+	env = b.executionEnv(env, r.ID, r.CollectionID)
+	// This Runner's URL may differ from the one the agent's file names.
+	if err = b.writeAgentEndpoint(r.ID); err != nil {
+		return err
+	}
 	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget)
 	if err != nil {
 		return err

@@ -8,7 +8,8 @@ workspaces work, two providers run with live approvals, cost is metered, and
 command output now reaches the human in full and the agent in compact form.
 But there is no task model, no review record, no PR flow, no notifications, no
 runtime isolation beyond worktrees, no remote or phone access, and one live
-security hole: **an agent can approve its own permission requests.**
+security hole: **an agent can approve its own permission requests** (since
+fixed; see *In flight today*).
 
 The market moved fast in 2026. The frontier tools (Conductor, Claude Code
 agent view, Codex app, Cursor 3, Copilot app, Devin, herdr) have converged on
@@ -98,8 +99,10 @@ names what to reuse from V1 and which tool sets the bar.
 
 ### In flight today (parallel branches)
 
-- Agent self-approval: per-session scoped token so agents can publish console
-  output but never approve, answer or delete. **Release blocker.**
+- ~~Agent self-approval~~ **Fixed (F1):** each execution gets a scoped
+  credential that can publish only its own console; every other RPC is denied
+  to it ([agent credentials](../../RESOURCE_OWNERSHIP.md#agent-credentials)).
+  Agents started before the fix keep the owner path until they end.
 - Runner reachable from the LAN: bind loopback; failing release gate
   (agent-stop timing under one CPU); stale launcher text.
 - Interactive workspace shell (PTY panel).
@@ -165,8 +168,10 @@ names what to reuse from V1 and which tool sets the bar.
 - Dense TSX: `AgentWindow.tsx` (one 2.7k-character line), `Workspace.tsx`,
   `ChangesPanel.tsx`. Split into components before features 1–4 land on them.
 - No component tests; UI coverage is Playwright scripts against a fake Runner.
-- Audit probes from 2026-11-09 are kept as `.go.txt` and never run; make the
-  authority probe a release gate once the scoped token lands.
+- Audit probes from 2026-11-09 are kept as `.go.txt` and never run. The
+  authority probe now runs as `TestAuditAgentCredentialCannotApproveOrAnswer`
+  (`internal/transport/auth_test.go`) in `make test-go`; the dependency probe
+  is still a `.go.txt`.
 - Naming drift: API still says Collection; `internal/hub` scaffold conflicts
   with decision C17; stale claims in the 2026-11-09 audit README.
 - `.cache/environments/releases` holds full source copies that are easy to

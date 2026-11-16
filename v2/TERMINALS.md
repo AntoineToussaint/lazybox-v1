@@ -19,10 +19,10 @@ into a terminal.
 - A reload, another window, or a Runner restart re-attaches to the same shell
   and shows its recent output.
 
-Inside the shell, `lazybox` CLI commands find the Runner through
-`LAZYBOX_V2_ENDPOINT` and the workspace through `LAZYBOX_V2_COLLECTION_ID`, the
-same variables an agent gets. There is no session ID: commands that act on an
-agent session (`exec`, `send`, …) need `--session`.
+The shell gets the workspace through `LAZYBOX_V2_COLLECTION_ID` but no Runner
+endpoint: anything started in it, such as an agent CLI run by hand, would
+otherwise inherit the owner's authority over the Runner. To use the `lazybox`
+CLI from the shell, pass `--endpoint` explicitly.
 
 ## How it works
 
@@ -48,8 +48,8 @@ Login shell       session leader, the terminal as its controlling terminal
   service wiring: every inherited `LAZYBOX_V2_*`, every `CODEFLY*` (including
   Codefly's scoped auth secret), the launching terminal's identity
   (`TERM_PROGRAM`, …), `PWD`, `OLDPWD`, `SHLVL` and `CLAUDECODE`. It adds
-  `TERM=xterm-256color`, `COLORTERM=truecolor`, `LAZYBOX_V2_ENDPOINT` and
-  `LAZYBOX_V2_COLLECTION_ID`. Credentials a managed account profile injects for
+  `TERM=xterm-256color`, `COLORTERM=truecolor` and `LAZYBOX_V2_COLLECTION_ID`,
+  never `LAZYBOX_V2_ENDPOINT`. Credentials a managed account profile injects for
   agents are never added.
 - `OpenTerminal` takes a request key: a retried request returns the shell it
   already started instead of starting a second one.

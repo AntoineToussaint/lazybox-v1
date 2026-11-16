@@ -51,8 +51,11 @@ type Config struct {
 	SubscriptionState string                `json:"subscriptionState,omitempty"`
 	GitHubApp         *githubconnection.App `json:"githubApp,omitempty"`
 	SessionStore      sessionstore.Store    `json:"-"`
-	Endpoint          string                `json:"-"`
-	State             string                `json:"-"`
+	// Address is the URL agents' CLI reaches this Runner at. Each execution
+	// gets its own endpoint file with it and a credential scoped to that
+	// execution; agents never see the owner's endpoint file or bearer.
+	Address string `json:"-"`
+	State   string `json:"-"`
 	// HostRoot holds the session hosts that keep agents alive across Runner
 	// restarts. Empty selects <State>/hosts.
 	HostRoot string `json:"-"`
@@ -142,6 +145,8 @@ type Bench struct {
 	trims               sync.WaitGroup
 	// Adapters is an injection boundary for deterministic conformance tests.
 	Adapters map[string]agent.Adapter
+	// agentKey derives each execution's scoped credential (agent_credentials.go).
+	agentKey []byte
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -230,6 +235,10 @@ func New(cfg Config) (*Bench, error) {
 	if err := os.MkdirAll(filepath.Join(cfg.State, "sessions"), 0700); err != nil {
 		return nil, err
 	}
+	agentKey, err := loadAgentKey(filepath.Join(cfg.State, "agent-credential.key"))
+	if err != nil {
+		return nil, err
+	}
 	// Commands a previous Runner left running are re-attached here, before any
 	// execution can start or inspect one.
 	manager, err := commands.NewHosted(filepath.Join(cfg.State, "commands"), cfg.CommandBudget, cfg.MaxLiveCommands, cfg.CommandHostRoot)
@@ -271,7 +280,7 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary}}}
+	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary}}}
 	// Shells a previous Runner left running are re-attached here, like commands.
 	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals}); err != nil {
 		_ = b.Detach()
@@ -591,12 +600,18 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 			return nil, errors.New("gateway credential environment reference unavailable")
 		}
 	}
-	env = b.withCLI(env)
-	env = append(env, "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint)
-	env = append(env, "LAZYBOX_V2_SESSION_ID="+id, b.outputEnv(id))
-	if collectionID != "" {
-		env = append(env, "LAZYBOX_V2_COLLECTION_ID="+collectionID)
+	env = b.executionEnv(env, id, collectionID)
+	if err = b.writeAgentEndpoint(id); err != nil {
+		return nil, err
 	}
+	defer func() {
+		b.mu.Lock()
+		attached := b.items[id] != nil
+		b.mu.Unlock()
+		if !attached {
+			_ = b.removeAgentEndpoint(id)
+		}
+	}()
 	if workID == "" {
 		workID = id
 	}
@@ -690,10 +705,7 @@ func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []str
 					if err != nil {
 						return nil, err
 					}
-					env = append(b.withCLI(env), "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID="+e.ID, b.outputEnv(e.ID))
-					if e.CollectionID != "" {
-						env = append(env, "LAZYBOX_V2_COLLECTION_ID="+e.CollectionID)
-					}
+					env = b.executionEnv(env, e.ID, e.CollectionID)
 				}
 			}
 		}

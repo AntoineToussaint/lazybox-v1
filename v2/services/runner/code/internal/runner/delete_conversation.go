@@ -112,6 +112,10 @@ func (b *Bench) purgeConversation(ids []string) error {
 		if err := b.removeOutput(id); err != nil {
 			return err
 		}
+		// The deletion record already revokes the credential; drop its copy too.
+		if err := b.removeAgentEndpoint(id); err != nil {
+			return err
+		}
 	}
 	return nil
 }

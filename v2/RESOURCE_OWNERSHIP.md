@@ -39,6 +39,39 @@ starting kills the program too, never leaving it outside the group. It does not
 make a lost process reconnectable. Historical conversation recovery remains conservative and does
 not automatically replay messages, approvals or provider effects.
 
+## Agent credentials
+
+The owner's `endpoint.json` holds the bearer that can do anything: approve,
+answer, send, delete, change settings. No agent or managed command is given it.
+Each execution instead gets `<state>/agent-endpoints/<execution id>.json`
+(mode 0600: the Runner URL and a credential bound to that execution), named by
+`LAZYBOX_V2_ENDPOINT`. Any `LAZYBOX_V2_*` the Runner itself inherited is
+dropped from agent and command environments, so an owner endpoint exported in
+the Runner's shell does not leak through either.
+
+The transport (`internal/transport/auth.go`) accepts that credential for three
+RPCs only, the ones `lazybox run` and `lazybox log` publish a console with:
+`RegisterPipe` for its own execution, and `Publish` and `FinishPipe` for pipes
+that execution owns. Every other RPC, including any added later, answers
+`PermissionDenied`; a test walks the generated service description to keep
+that exhaustive. Comparisons are constant-time, and the credential never
+appears in an error, journal or response.
+
+The credential is an HMAC-SHA256 of the execution id under
+`<state>/agent-credential.key`, created once and never replaced. It needs no
+storage, so an agent that outlives its Runner keeps working: the next Runner
+rewrites the file with its own URL when it re-attaches the execution. Deleting
+the conversation revokes it (the deletion record is checked on every call) and
+removes the file. A closed execution's credential can still finish a pipe it
+already opened, but cannot open a new one.
+
+This separates authority at the RPC boundary only. An agent runs as the same
+OS user and can read the owner's file directly; that needs process isolation,
+which the Runner does not claim. An agent started before this change keeps the
+owner path in its own environment until it ends: re-attaching cannot change a
+running process's environment, though commands the Runner starts for it get
+the scoped file. Continue or restart such a conversation to drop it.
+
 ## Admission configuration
 
 The private Runner JSON configuration accepts:

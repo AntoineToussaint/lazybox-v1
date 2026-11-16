@@ -81,7 +81,7 @@ Optional `connection.fetch` supplies a platform transport: Tauri provides the of
 
 Codefly binds temporary ports and injects endpoint carriers. The Runner resolves its Connect address through the Codefly SDK. No daemon address or port is inferred from V1 state.
 
-`BENCH_STATE` selects the isolated state directory; the Makefile default is `v2/.cache/bench`. `make run BENCH_STATE=/absolute/test-state` overrides it. Each Runner locks its state directory and writes an owner-only `endpoint.json` containing its actual URL and bearer. With no configured state, the service creates a fresh OS temporary directory. Stopping the Runner ends owned processes; it retains evidence files. Remove a test directory only after its Runner has stopped and its evidence is no longer needed.
+`BENCH_STATE` selects the isolated state directory; the Makefile default is `v2/.cache/bench`. `make run BENCH_STATE=/absolute/test-state` overrides it. Each Runner locks its state directory and writes an owner-only `endpoint.json` containing its actual URL and bearer. Agents never receive that file: each execution gets its own endpoint file whose credential can only publish that execution's console (see [Agent credentials](RESOURCE_OWNERSHIP.md#agent-credentials)). With no configured state, the service creates a fresh OS temporary directory. Stopping the Runner ends owned processes; it retains evidence files. Remove a test directory only after its Runner has stopped and its evidence is no longer needed.
 
 The Runner's gRPC and Connect listeners answer on loopback only. Codefly decides the bind host: go-grpc `0.1.70` and later bind the host the service's own endpoint carrier names, `localhost` in a native run (`0.1.69` bound every interface). The Runner refuses to start if any listener's host is not loopback, including an empty one, which binds every interface (`listen.go`; `TestRunnerListenersAnswerOnlyOnLoopback` dials each port from this machine's non-loopback addresses). Application RPCs also require the private bearer on **both** protocols; health is public. This is an experimental local authority with no Hub enrollment or production TLS configuration.
 
@@ -178,7 +178,7 @@ set -o pipefail
 some-command 2>&1 | bin/lazybox log --session EXECUTION --title tests
 ```
 
-The pipe publisher echoes stdin and returns a visible failure if publication fails, including startup failure. Capture EOF does not establish the producer's exit status; use shell `pipefail` or managed execution when that status matters. Spawned managed commands inherit the endpoint file and execution identity so they can use this CLI without guessing a daemon path.
+The pipe publisher echoes stdin and returns a visible failure if publication fails, including startup failure. Capture EOF does not establish the producer's exit status; use shell `pipefail` or managed execution when that status matters. Agents and their managed commands get their execution's own endpoint file and identity so `lazybox run` and `lazybox log` work without guessing a daemon path. That credential publishes only that execution's console; `approve`, `answer`, `send`, `close` and every other verb need the owner's `endpoint.json`.
 
 ## Retention and failure behavior
 

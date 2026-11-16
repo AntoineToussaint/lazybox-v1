@@ -50,7 +50,7 @@ func shellSpec(t *testing.T, dir string) Spec {
 			t.Fatal(err)
 		}
 	}
-	env := Environment([]string{"PATH=/usr/bin:/bin", "HOME=" + home, "PS1=$ ", "ENV="}, "/state/endpoint.json", "workspace-1")
+	env := Environment([]string{"PATH=/usr/bin:/bin", "HOME=" + home, "PS1=$ ", "ENV="}, "workspace-1")
 	return Spec{CollectionID: "workspace-1", Cwd: workspace, Title: "Workspace", Shell: "/bin/sh", Env: env, Cols: 80, Rows: 24}
 }
 
@@ -292,8 +292,8 @@ func TestResolveConfinesTheDirectoryToTheWorkspace(t *testing.T) {
 }
 
 func TestEnvironmentKeepsTheUsersAndOnlyTheDocumentedRunnerVariables(t *testing.T) {
-	env := Environment([]string{"PATH=/usr/bin", "HOME=/home/me", "LAZYBOX_V2_STATE=/state", "LAZYBOX_V2_KEEP_AGENTS=1", "LAZYBOX_V2_ENDPOINT=/other", "CODEFLY_SCOPED_AUTH_SECRET=secret", "CODEFLY__SERVICE=runner", "TERM=dumb", "TERM_PROGRAM=iTerm.app", "CLAUDECODE=1", "PWD=/runner"}, "/state/endpoint.json", "workspace-1")
-	want := []string{"PATH=/usr/bin", "HOME=/home/me", "TERM=xterm-256color", "COLORTERM=truecolor", "LAZYBOX_V2_ENDPOINT=/state/endpoint.json", "LAZYBOX_V2_COLLECTION_ID=workspace-1"}
+	env := Environment([]string{"PATH=/usr/bin", "HOME=/home/me", "LAZYBOX_V2_STATE=/state", "LAZYBOX_V2_KEEP_AGENTS=1", "LAZYBOX_V2_ENDPOINT=/other", "CODEFLY_SCOPED_AUTH_SECRET=secret", "CODEFLY__SERVICE=runner", "TERM=dumb", "TERM_PROGRAM=iTerm.app", "CLAUDECODE=1", "PWD=/runner"}, "workspace-1")
+	want := []string{"PATH=/usr/bin", "HOME=/home/me", "TERM=xterm-256color", "COLORTERM=truecolor", "LAZYBOX_V2_COLLECTION_ID=workspace-1"}
 	if !slices.Equal(env, want) {
 		t.Fatalf("environment %q, want %q", env, want)
 	}

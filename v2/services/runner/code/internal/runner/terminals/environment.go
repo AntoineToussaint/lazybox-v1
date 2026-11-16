@@ -68,7 +68,9 @@ func Shell(preferred string) (string, error) {
 // PWD/OLDPWD/SHLVL, and CLAUDECODE (so an agent CLI started here is not
 // mistaken for a nested one). Account credentials a managed profile would
 // inject for an agent are never added.
-func Environment(inherited []string, endpoint, collectionID string) []string {
+// No Runner endpoint is given: anything the person starts in the shell, such as
+// an agent CLI, would inherit the owner's authority over the Runner.
+func Environment(inherited []string, collectionID string) []string {
 	drop := map[string]bool{"TERM": true, "COLORTERM": true, "TERM_PROGRAM": true, "TERM_PROGRAM_VERSION": true, "TERM_SESSION_ID": true, "PWD": true, "OLDPWD": true, "SHLVL": true, "CLAUDECODE": true}
 	env := make([]string, 0, len(inherited)+4)
 	for _, entry := range inherited {
@@ -79,9 +81,6 @@ func Environment(inherited []string, endpoint, collectionID string) []string {
 		env = append(env, entry)
 	}
 	env = append(env, "TERM=xterm-256color", "COLORTERM=truecolor")
-	if endpoint != "" {
-		env = append(env, "LAZYBOX_V2_ENDPOINT="+endpoint)
-	}
 	if collectionID != "" {
 		env = append(env, "LAZYBOX_V2_COLLECTION_ID="+collectionID)
 	}

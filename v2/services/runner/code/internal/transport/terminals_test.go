@@ -20,7 +20,6 @@ func TestTerminalRPCsRunAShellInsideTheWorkspaceOnly(t *testing.T) {
 	t.Setenv("LAZYBOX_V2_STATE", "/runner/private/state")
 	s, _ := collectionService(t)
 	collection := createTestCollection(t, s)
-	s.Bench.Config.Endpoint = filepath.Join(s.Bench.Config.State, "endpoint.json")
 	ctx := context.Background()
 
 	for _, directory := range []string{"..", "../..", "/etc", "missing"} {
@@ -52,7 +51,7 @@ func TestTerminalRPCsRunAShellInsideTheWorkspaceOnly(t *testing.T) {
 		t.Fatalf("listed %+v %v", listed, err)
 	}
 
-	if _, err = s.WriteTerminal(ctx, &pb.WriteTerminalRequest{TerminalId: opened.Id, Data: []byte("echo \"[$PWD|$LAZYBOX_V2_COLLECTION_ID|${LAZYBOX_V2_ENDPOINT##*/}|${LAZYBOX_V2_STATE:-unset}]\"\n")}); err != nil {
+	if _, err = s.WriteTerminal(ctx, &pb.WriteTerminalRequest{TerminalId: opened.Id, Data: []byte("echo \"[$PWD|$LAZYBOX_V2_COLLECTION_ID|${LAZYBOX_V2_ENDPOINT:-none}|${LAZYBOX_V2_STATE:-unset}]\"\n")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.ResizeTerminal(ctx, &pb.ResizeTerminalRequest{TerminalId: opened.Id, Cols: 132, Rows: 50}); err != nil {
@@ -66,7 +65,7 @@ func TestTerminalRPCsRunAShellInsideTheWorkspaceOnly(t *testing.T) {
 	wait, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var output strings.Builder
-	for after := uint64(0); !strings.Contains(output.String(), "["+member+"|"+collection.Id+"|endpoint.json|unset]"); {
+	for after := uint64(0); !strings.Contains(output.String(), "["+member+"|"+collection.Id+"|none|unset]"); {
 		data, offset, _, err := terminal.Next(wait, after)
 		if err != nil {
 			t.Fatalf("%v; output %q", err, output.String())

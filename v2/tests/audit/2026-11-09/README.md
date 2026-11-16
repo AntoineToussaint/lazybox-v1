@@ -3,6 +3,12 @@
 These are **failing acceptance probes**, not fixes. They are kept outside the
 main Go module because the audited workflow code is an unapplied candidate.
 
+The authority finding (F1) also holds for the Runner in the main module, whose
+agents could approve through `Apply`. There it is fixed and checked by
+`TestAuditAgentCredentialCannotApproveOrAnswer` in
+`services/runner/code/internal/transport/auth_test.go`. The probe here is
+kept unchanged for the workflow candidate.
+
 From the repository root:
 
 ```sh

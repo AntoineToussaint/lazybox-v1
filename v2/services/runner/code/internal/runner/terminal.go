@@ -43,6 +43,6 @@ func (b *Bench) OpenTerminal(collectionID, directory string, cols, rows uint16, 
 	if directory != "" {
 		title += " / " + directory
 	}
-	env := terminals.Environment(os.Environ(), b.Config.Endpoint, collectionID)
+	env := terminals.Environment(os.Environ(), collectionID)
 	return b.Terminals.Start(terminals.Spec{CollectionID: collectionID, Directory: directory, Cwd: cwd, Title: title, Shell: shell, Env: env, Cols: cols, Rows: rows}, requestKey)
 }

@@ -80,12 +80,14 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 	if root := os.Getenv("LAZYBOX_V2_WORKTREE_ROOT"); root != "" {
 		cfg.WorktreeRoot = root
 	}
-	cfg.Endpoint = filepath.Join(cfg.State, "endpoint.json")
+	// The owner's endpoint file. Agents get their own (runner.Bench.AgentEndpoint).
+	endpoint := filepath.Join(cfg.State, "endpoint.json")
 	instance, err := codefly.For(ctx).API(standards.CONNECT).ResolveNetworkInstance()
 	if err != nil {
 		lock.Close()
 		return nil, err
 	}
+	cfg.Address = instance.Address
 	bench, err := runner.New(cfg)
 	if err != nil {
 		lock.Close()
@@ -110,7 +112,7 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 			}
 			err = errors.Join(err, file.Close())
 			if err == nil {
-				err = os.Rename(file.Name(), cfg.Endpoint)
+				err = os.Rename(file.Name(), endpoint)
 			}
 		}
 	}
@@ -135,9 +137,9 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 		shutdown = bench.Detach
 	}
 	config.Service = &transport.Service{Bench: bench}
-	config.GRPCServerOptions = append(config.GRPCServerOptions, transport.LocalAuthority(token)...)
+	config.GRPCServerOptions = append(config.GRPCServerOptions, transport.LocalAuthority(token, bench)...)
 	config.MaxMessageBytes = 36 << 20
-	fmt.Printf("V2 Runner endpoint file: %s\n", cfg.Endpoint)
+	fmt.Printf("V2 Runner endpoint file: %s\n", endpoint)
 	// Stop or detach the engines before Codefly drains streams on shutdown. Merely
 	// closing a viewer cancels its subscription and does not reach this service lifetime.
 	go func() { <-ctx.Done(); _ = shutdown() }()
