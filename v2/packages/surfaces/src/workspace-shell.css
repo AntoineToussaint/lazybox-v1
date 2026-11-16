@@ -71,7 +71,7 @@
   .workspace-shell:not(.layout-editing) .page-layout .workspace-panel{display:none}.workspace-shell .page-layout .split-handle{display:none}
   .workspace-shell:not(.layout-editing) .page-layout .workspace-panel[data-mobile-active=true]{display:flex;flex:1;min-height:0;height:100%;border:0}
   .workspace-shell .embedded-chat .messages{padding:16px;min-height:0}
-  .workspace-shell .embedded-chat .message p{font-size:14px;line-height:1.65}
+  .workspace-shell .embedded-chat .message p{font-size:var(--chat-font-size,14px);line-height:var(--chat-line-height,1.5)}
   .workspace-shell .embedded-chat .composer{margin:0 10px max(10px,env(safe-area-inset-bottom));padding:10px;border-radius:10px}
   .workspace-shell .embedded-chat .composer textarea{font-size:16px;min-height:42px;resize:none;max-height:25dvh}
   .workspace-shell .embedded-chat .keyboard-hint{display:none}

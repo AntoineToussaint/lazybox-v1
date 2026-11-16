@@ -1,9 +1,9 @@
-.rich-content{min-width:0;line-height:1.65;overflow-wrap:anywhere;white-space:normal}
+.rich-content{min-width:0;line-height:var(--chat-line-height,1.5);overflow-wrap:anywhere;white-space:normal}
 .rich-content>:first-child{margin-top:0}.rich-content>:last-child{margin-bottom:0}
-.rich-content p{white-space:normal!important;line-height:1.65;margin:0 0 12px}
-.rich-content h1,.rich-content h2,.rich-content h3{line-height:1.35;margin:22px 0 10px;font-weight:650;color:#ededf4}
+.rich-content p{white-space:normal!important;line-height:var(--chat-line-height,1.5);margin:0 0 var(--chat-paragraph-gap,8px)}
+.rich-content h1,.rich-content h2,.rich-content h3{line-height:1.3;margin:calc(var(--chat-paragraph-gap,8px) * 2) 0 var(--chat-paragraph-gap,8px);font-weight:650;color:#ededf4}
 .rich-content h1{font-size:1.55em}.rich-content h2{font-size:1.3em}.rich-content h3{font-size:1.1em}
-.rich-content ul,.rich-content ol{padding-left:25px;margin:10px 0}.rich-content li{margin:5px 0}.rich-content li p{margin:0}
+.rich-content ul,.rich-content ol{padding-left:22px;margin:var(--chat-paragraph-gap,8px) 0}.rich-content li{margin:calc(var(--chat-paragraph-gap,8px) / 3) 0}.rich-content li p{margin:0}
 .rich-content blockquote{border-left:3px solid #79708e;margin:14px 0;padding:4px 16px;color:#b6b2c5}
 .rich-content a{color:#c5b5fa;text-decoration:underline;text-underline-offset:3px}.content-reference{color:#b5adc9}
 .rich-content :not(pre)>code{background:#2a2934;border-radius:4px;padding:2px 5px;font-size:.9em;color:#e0d5f7}

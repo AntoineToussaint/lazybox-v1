@@ -117,7 +117,7 @@
 .embedded-chat .single-session{min-height:0;flex:1}
 .embedded-chat .messages{padding:30px 30px 24px;min-height:80px}
 .embedded-chat .message{max-width:none;margin:0;padding:14px 0 20px}
-.embedded-chat .message p{font-size:14px;line-height:1.8;color:#c9cad5;margin:0}
+.embedded-chat .message p{font-size:var(--chat-font-size,14px);line-height:var(--chat-line-height,1.5);color:#c9cad5;margin:0}
 .embedded-chat .message.message_delta>.eyebrow{display:none}
 .embedded-chat .message.notice{padding:6px 14px;margin:0 0 14px;border-left:2px solid #5d6a7c}
 .embedded-chat .message.notice p{font-size:12px;line-height:1.6;color:#9aa3b2}
