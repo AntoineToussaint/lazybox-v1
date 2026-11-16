@@ -5,6 +5,8 @@ loops, and proves correctness with checks rather than with a person reading
 every line. This page says how one would work on Lazybox V2: which parts
 exist, which the [roadmap](audits/2026-11-16/README.md) already plans, and
 what is new. It is a design for discussion, not an implemented feature.
+The underlying model and its configuration are in
+[Orchestration](ORCHESTRATION.md).
 
 ## What the practitioners do (November 2026)
 
@@ -119,19 +121,16 @@ One run setting, not a separate product:
 
 ## Data model
 
-- **Run:** brief, autonomy level, budget, status computed from tasks (like
-  V1's epic resolver, never stored).
+The mission, goal, task and attempt records, the typed event log they are
+derived from, roles as configuration and the `.lazybox/process.yaml` presets
+(including one per autonomy level) are specified in
+[Orchestration](ORCHESTRATION.md). Only the factory-specific records stay
+here:
+
 - **Spec** and **Contract:** versioned documents; an **Assertion** has an
   id, a check, required evidence and the tasks that claim it.
-- **Scenario:** holdout story, stored with the run outside every worktree.
-- **Task:** a node in the graph; owner session, repo, branch, claimed
-  assertions, dependencies, lifecycle (declared, as in V1 `core/src/work.rs`).
-- **Evidence:** a `lazybox run` record — command, exit status, commit, output
-  reference — or a CI check, attached to an assertion.
-- **Verdict:** assertion × verifier session → pass / fail / cannot-check, with
-  evidence.
-- **Ledger:** append-only events for all of the above, so a run resumes after
-  a restart and a person can audit it.
+- **Scenario:** holdout story, stored with the run outside every worktree,
+  readable only by verifiers.
 
 ## Holdouts: honest about enforcement
 
@@ -168,9 +167,8 @@ workspace:
 
 1. **Run and contract.** A run page: brief, contract (editable table of
    assertions), scenarios, approve. Stored in Runner state with a ledger.
-2. **Coordinator tools.** Generalize the settings MCP into a Lazybox MCP for
-   the coordinator: create a task, start a worker session on a new branch,
-   wait for it, read its evidence, submit for verification.
+2. **Coordinator tools.** The Lazybox MCP and its scoped credentials, as in
+   [Orchestration §5](ORCHESTRATION.md#5-on-lazybox-v2).
 3. **Evidence capture.** Record each `lazybox run` per session with commit and
    exit status (the console work in flight records most of this).
 4. **Verifier role.** On submit, start a read-only session on the other
