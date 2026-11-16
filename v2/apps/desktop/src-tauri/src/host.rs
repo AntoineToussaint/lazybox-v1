@@ -206,8 +206,10 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let allowed = serde_json::json!({ "url": format!("{}{RPC_PATH}*", connection.url) });
     app.add_capability(
         CapabilityBuilder::new("local-runner")
-            .windows(["main", "workspace-*", "console-*", "chat-*"])
+            .windows(["main", "workspace-*", "console-*", "chat-*", "artifact-*"])
             .permission("core:default")
+            // The zoom hotkeys (Cmd+= / Cmd+- / Cmd+0) set the webview zoom.
+            .permission("core:webview:allow-set-webview-zoom")
             .permission_scoped(
                 "http:default",
                 vec![allowed],
@@ -401,6 +403,8 @@ pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     let window = match WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         // Route file drops to the shared chat attachment flow (HTML5 File API).
         .disable_drag_drop_handler()
+        // Cmd+= / Cmd+- / Cmd+0 zoom the page, like any Mac app.
+        .zoom_hotkeys_enabled(true)
         .title(format!("{name} — {kind}"))
         .visible(false)
         .inner_size(placement.width, placement.height)
@@ -628,7 +632,7 @@ fn adopt(window: &WebviewWindow, current: &mut Bootstrap, next: Bootstrap) -> Re
                     "reconnected-{:x}",
                     Sha256::digest(next.url.as_bytes())
                 ))
-                .windows(["main", "workspace-*", "console-*", "chat-*"])
+                .windows(["main", "workspace-*", "console-*", "chat-*", "artifact-*"])
                 .permission_scoped(
                     "http:default",
                     vec![serde_json::json!({"url":format!("{}{RPC_PATH}*",next.url)})],
