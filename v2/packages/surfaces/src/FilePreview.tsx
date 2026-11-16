@@ -1,5 +1,5 @@
 import { DirectoryListing, PathCrumbs, parentPath } from './DirectoryListing';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import {ConnectError} from '@lazybox/client-core';
 import type { WorkspaceFile } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
@@ -8,8 +8,8 @@ import { RichContent } from './RichContent';
 import type { FileLink } from './file-reference';
 import type { ViewStateStore } from '@lazybox/platform';
 import { useVimPreferences } from './keyboard';
-
-const CodeEditor = lazy(() => import('./CodeEditor'));
+import { CodeEditor, EditorSkeleton, preloadEditor } from './editor-loader';
+import { useWorkbench } from './workbench';
 
 export function FilePreview({workspaceId, reference, viewState, onClose}:{workspaceId:string;reference:FileLink;viewState?:ViewStateStore;onClose():void}) {
  const {api}=useRunner();
@@ -21,6 +21,8 @@ export function FilePreview({workspaceId, reference, viewState, onClose}:{worksp
  const [source,setSource]=useState(!!reference.line),[maximized,setMaximized]=useState(false);
  const [discard,setDiscard]=useState<'close'|'reload'|'cancel'>();
  const dirty=!!file&&draft!==file.text;
+ const workbench=useWorkbench(),editorHere=!!workbench&&workbench.workspaceId===workspaceId;
+ useEffect(()=>{void preloadEditor();},[]);
  const load=async(signal:AbortSignal)=>{
   setLoading(true);setError('');setFile(undefined);setEditing(false);
   try{const value=await api.readWorkspaceFile({collectionId:workspaceId,path},{signal,timeoutMs:10000});if(!signal.aborted){setFile(value);setDraft(value.text);}}
@@ -53,15 +55,17 @@ export function FilePreview({workspaceId, reference, viewState, onClose}:{worksp
   <div className="file-preview-toolbar"><span>{editing?(dirty?'Unsaved changes':'Saved'):file?.directory?'Workspace folder':'Workspace file'}{reference.line?` · Line ${reference.line}`:''}</span><div className="file-window-actions">
    {!file?.directory&&markdown&&!editing&&<button disabled={loading} onClick={()=>setSource(value=>!value)}>{source?'Preview Markdown':'View source'}</button>}
    {editing?<><button disabled={saving} onClick={()=>act('cancel')}>Done editing</button><button className="primary" disabled={saving||!dirty} onClick={()=>void save()}>{saving?'Saving…':'Save'}</button></>:file&&!file.binary&&!file.truncated&&file.version&&<button className="primary" disabled={loading} onClick={()=>{setSource(true);setEditing(true);}}>Edit file</button>}
+   {editorHere&&file&&!file.directory&&<button disabled={saving||dirty} title={dirty?'Save or discard edits first':'Open in the Editor panel, with tabs and splits'} onClick={()=>{onClose();workbench.open(file.path,{line:reference.line,focus:true});}}>Open in editor</button>}
+   {editorHere&&file?.directory&&<button disabled={saving} onClick={()=>{onClose();workbench.reveal(file.path);}}>Show in Files</button>}
    {file&&file.path!=='.'&&<button disabled={saving||loading||dirty} title={dirty?'Save or discard edits before navigating':undefined} onClick={()=>setPath(parentPath(file.path))}>Parent folder</button>}
    <button disabled={saving||loading} onClick={()=>act('reload')}>{file?.directory?'Refresh folder':'Refresh file'}</button>
   </div></div>
   {discard&&<div className="file-unsaved" role="alert"><span>Discard your unsaved changes?</span><button onClick={()=>setDiscard(undefined)}>Keep editing</button><button onClick={()=>act(discard,true)}>Discard changes</button></div>}
   {error&&<div className="error" role="alert">{error}{dirty&&<p>Your edits are still here. Refresh to load the current file before editing again.</p>}</div>}
   <div className={'file-preview-content'+(showSource?' source-view':'')}>
-   {loading&&!file?<p role="status">Loading…</p>:file?.directory?<DirectoryListing path={file.path} entries={file.entries} truncated={file.truncated} onOpen={setPath}/>:file?.binary?<p>Binary file · text preview unavailable.</p>:file&&<>
+   {loading&&!file?<EditorSkeleton label="Opening file"/>:file?.directory?<DirectoryListing path={file.path} entries={file.entries} truncated={file.truncated} onOpen={setPath}/>:file?.binary?<p>Binary file · text preview unavailable.</p>:file&&<>
     {file.truncated&&<p role="status">Preview limited to 1 MiB. Editing is unavailable.</p>}
-    {showSource?<Suspense fallback={<p role="status">Loading editor…</p>}><CodeEditor path={file.path} value={draft} readOnly={!editing||saving||loading} line={reference.line} vim={vim} onChange={setDraft} onSave={save} onQuit={force=>act('close',force)}/></Suspense>:<RichContent text={file.text}/>}
+    {showSource?<Suspense fallback={<EditorSkeleton/>}><CodeEditor path={file.path} value={draft} readOnly={!editing||saving||loading} line={reference.line} vim={vim} onChange={setDraft} onSave={save} onQuit={force=>act('close',force)}/></Suspense>:<RichContent text={file.text}/>}
    </>}
   </div>
  </DraggableDialog>;

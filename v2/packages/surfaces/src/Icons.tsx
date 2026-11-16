@@ -47,6 +47,12 @@ const paths: Record<string, string[]> = {
   zoomOut: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14', 'm20 20-4-4', 'M8 11h6'],
   fit: ['M4 9V4h5', 'M20 9V4h-5', 'M4 15v5h5', 'M20 15v5h-5', 'M9 9h6v6H9z'],
   expand: ['M15 3h6v6', 'M9 21H3v-6', 'm21 3-7 7', 'm3 21 7-7'],
+  search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14', 'm20 20-4-4'],
+  target: ['M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6', 'M12 2v3', 'M12 19v3', 'M2 12h3', 'M19 12h3'],
+  collapse: ['M4 5h16v14H4z', 'M8 12h8'],
+  repository: ['M5 4h11l3 3v13H5z', 'M9 4v6l2-1.5L13 10V4', 'M8 15h8'],
+  'split-right': ['M3 4h18v16H3z', 'M12 4v16'],
+  'split-down': ['M3 4h18v16H3z', 'M3 12h18'],
   sparkle: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2 2', 'm16 16 2 2', 'm6 18 2-2', 'm16 8 2-2'],
 };
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

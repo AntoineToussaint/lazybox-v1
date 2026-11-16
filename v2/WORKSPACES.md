@@ -251,12 +251,48 @@ They never masquerade as a new, empty conversation.
 Chat cost totals include all execution attempts in the conversation. Context uses
 the latest reported snapshot per agent; workspace cost aggregation remains separate.
 
-Local Markdown links and inline `path:line` references open a read-only file preview.
-The Runner resolves absolute or workspace-relative paths inside the selected workspace;
-a single-repository workspace also accepts repository-relative paths. Preview is
-bounded to 1 MiB, rejects traversal and escaping symlinks, and reports binary or
-missing files explicitly. Markdown can be rendered or read as source, and line
-references highlight their target. **Open file** in Changes uses the same preview.
+Local Markdown links and inline `path:line` references open in the **Editor**
+panel (a folder opens in **Files**); Alt/Option-click opens the quick-look window
+instead and Cmd/Ctrl-click opens beside the current file. Before opening, the
+Runner resolves what the agent wrote (`ResolveWorkspacePath`): the path as given,
+then each shorter tail of it at the workspace root and under every repository
+(so `scripts/x.json`, `./scripts/x.json` and an absolute path from another
+checkout all find `api/scripts/x.json`), then a path-suffix match, then the file
+name. Several matches open a chooser, nearest first; only a reference that names
+nothing in the workspace is reported. Resolution never reads outside the
+workspace: traversal is reduced to a lookup by tail and every candidate is opened
+through `os.Root`, so a symlink out of the workspace never matches. Previews are
+bounded to 1 MiB and report binary files explicitly. **Open file** in Changes
+opens the changed path as is, without resolution.
+
+**Files** is a tree of the workspace with its repositories at the top, folders
+loaded as they are opened, file-type icons, and unsaved files marked. ↑/↓ (j/k)
+move, →/← (l/h) open and close folders or step in and out, Enter opens a file
+and focuses it, Space opens a preview, `*` opens sibling folders, `/` starts
+**Go to file**. The active file is revealed as tabs change. Opened folders are
+remembered per workspace; shown folders refresh on focus and every 12 seconds.
+
+**Go to file** (Cmd/Ctrl+P, `]] f`, or the Files search box) is a fuzzy finder over
+every file in the workspace's repositories. `SearchWorkspaceFiles` ranks on the
+Runner over an index of `git ls-files --cached --others --exclude-standard` per
+repository, so ignored files are left out; the index is bounded (200,000 paths,
+10 s) and cached for 10 s, and results that are not regular files inside the
+workspace are dropped. An empty query lists recently opened files; `name:42`
+opens at line 42; Cmd/Ctrl+Enter opens beside, Alt+Enter quick-looks.
+
+The **Editor** panel holds files in tabs, in up to four groups split right or
+down (buttons on each group, Cmd/Ctrl+\ and Cmd/Ctrl+Alt+\). A single click
+opens a preview tab (italic) that the next one replaces; a double click, an edit
+or Enter keeps it. Tabs show an unsaved dot, reorder by drag or
+Cmd/Ctrl+Alt+Shift+←/→, move between groups by drag, cycle with Cmd/Ctrl+Alt+←/→,
+and close with ×, middle click or Alt+W; closing an unsaved file asks to save,
+discard or cancel. Cmd/Ctrl+Alt+1…4 focuses a group. Two groups on one file share
+its text with separate cursors; each remembers its place in every file. Groups,
+tabs, order and recent files persist per workspace; drafts live for the window
+and a page close with unsaved edits asks first. Visible files poll the Runner
+every 4 seconds: a clean file takes the new disk version, an edited one shows
+**Use disk version** / **Keep mine** rather than losing either. Files and the
+editor dock together to the right of the conversation.
 
 Sidebar filtering is scoped on the Runner before pagination, and continuations
 retain the original creation order. Native personal views use the persistent
@@ -359,8 +395,13 @@ one reconnects after its cursor. Provider execution remains owned by the Runner;
 this cache does not launch, resume or keep an agent process alive. Restarting the
 application still reads durable Runner history.
 
-File references open a tall, draggable, resizable surface with Markdown preview
-and a locally bundled Monaco editor. Editing is explicit. Save compares the loaded
+Quick look (Alt/Option-click a file reference, or from an editor group's menu)
+opens a tall, draggable, resizable surface with Markdown preview and the same
+locally bundled Monaco editor; **Open in editor** moves it to a tab. Detached
+chat windows, which have no editor panel, open every reference here. Monaco
+starts loading when the Files or Editor panel mounts or a file link is pointed
+at; a slow load shows a quiet outline after 300 ms, never a loading label.
+Editing in quick look is explicit. Save compares the loaded
 revision with the file on the Runner and rejects a changed file while retaining
 the draft. Lazybox edits serialize per workspace manager and use a same-directory
 atomic replacement with existing mode bits; external writers do not participate

@@ -63,6 +63,8 @@ const (
 	RunnerService_ReadWorkspaceDiff_FullMethodName            = "/lazybox.bench.v1.RunnerService/ReadWorkspaceDiff"
 	RunnerService_ReadWorkspaceFile_FullMethodName            = "/lazybox.bench.v1.RunnerService/ReadWorkspaceFile"
 	RunnerService_SaveWorkspaceFile_FullMethodName            = "/lazybox.bench.v1.RunnerService/SaveWorkspaceFile"
+	RunnerService_SearchWorkspaceFiles_FullMethodName         = "/lazybox.bench.v1.RunnerService/SearchWorkspaceFiles"
+	RunnerService_ResolveWorkspacePath_FullMethodName         = "/lazybox.bench.v1.RunnerService/ResolveWorkspacePath"
 	RunnerService_ListHistory_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ListHistory"
 	RunnerService_ResumeSession_FullMethodName                = "/lazybox.bench.v1.RunnerService/ResumeSession"
 	RunnerService_RestartWithPermission_FullMethodName        = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
@@ -149,6 +151,8 @@ type RunnerServiceClient interface {
 	ReadWorkspaceDiff(ctx context.Context, in *WorkspaceDiffRequest, opts ...grpc.CallOption) (*WorkspaceDiff, error)
 	ReadWorkspaceFile(ctx context.Context, in *WorkspaceFileRequest, opts ...grpc.CallOption) (*WorkspaceFile, error)
 	SaveWorkspaceFile(ctx context.Context, in *SaveWorkspaceFileRequest, opts ...grpc.CallOption) (*WorkspaceFile, error)
+	SearchWorkspaceFiles(ctx context.Context, in *SearchWorkspaceFilesRequest, opts ...grpc.CallOption) (*WorkspaceFileSearch, error)
+	ResolveWorkspacePath(ctx context.Context, in *ResolveWorkspacePathRequest, opts ...grpc.CallOption) (*WorkspacePathResolution, error)
 	ListHistory(ctx context.Context, in *ListHistoryRequest, opts ...grpc.CallOption) (*ListHistoryResponse, error)
 	ResumeSession(ctx context.Context, in *ResumeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	// Continues the conversation in a new agent started with another permission
@@ -651,6 +655,26 @@ func (c *runnerServiceClient) SaveWorkspaceFile(ctx context.Context, in *SaveWor
 	return out, nil
 }
 
+func (c *runnerServiceClient) SearchWorkspaceFiles(ctx context.Context, in *SearchWorkspaceFilesRequest, opts ...grpc.CallOption) (*WorkspaceFileSearch, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceFileSearch)
+	err := c.cc.Invoke(ctx, RunnerService_SearchWorkspaceFiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ResolveWorkspacePath(ctx context.Context, in *ResolveWorkspacePathRequest, opts ...grpc.CallOption) (*WorkspacePathResolution, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspacePathResolution)
+	err := c.cc.Invoke(ctx, RunnerService_ResolveWorkspacePath_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListHistory(ctx context.Context, in *ListHistoryRequest, opts ...grpc.CallOption) (*ListHistoryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListHistoryResponse)
@@ -1095,6 +1119,8 @@ type RunnerServiceServer interface {
 	ReadWorkspaceDiff(context.Context, *WorkspaceDiffRequest) (*WorkspaceDiff, error)
 	ReadWorkspaceFile(context.Context, *WorkspaceFileRequest) (*WorkspaceFile, error)
 	SaveWorkspaceFile(context.Context, *SaveWorkspaceFileRequest) (*WorkspaceFile, error)
+	SearchWorkspaceFiles(context.Context, *SearchWorkspaceFilesRequest) (*WorkspaceFileSearch, error)
+	ResolveWorkspacePath(context.Context, *ResolveWorkspacePathRequest) (*WorkspacePathResolution, error)
 	ListHistory(context.Context, *ListHistoryRequest) (*ListHistoryResponse, error)
 	ResumeSession(context.Context, *ResumeSessionRequest) (*SessionResponse, error)
 	// Continues the conversation in a new agent started with another permission
@@ -1286,6 +1312,12 @@ func (UnimplementedRunnerServiceServer) ReadWorkspaceFile(context.Context, *Work
 }
 func (UnimplementedRunnerServiceServer) SaveWorkspaceFile(context.Context, *SaveWorkspaceFileRequest) (*WorkspaceFile, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveWorkspaceFile not implemented")
+}
+func (UnimplementedRunnerServiceServer) SearchWorkspaceFiles(context.Context, *SearchWorkspaceFilesRequest) (*WorkspaceFileSearch, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchWorkspaceFiles not implemented")
+}
+func (UnimplementedRunnerServiceServer) ResolveWorkspacePath(context.Context, *ResolveWorkspacePathRequest) (*WorkspacePathResolution, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveWorkspacePath not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListHistory(context.Context, *ListHistoryRequest) (*ListHistoryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListHistory not implemented")
@@ -2186,6 +2218,42 @@ func _RunnerService_SaveWorkspaceFile_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_SearchWorkspaceFiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchWorkspaceFilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SearchWorkspaceFiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SearchWorkspaceFiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SearchWorkspaceFiles(ctx, req.(*SearchWorkspaceFilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ResolveWorkspacePath_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveWorkspacePathRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ResolveWorkspacePath(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ResolveWorkspacePath_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ResolveWorkspacePath(ctx, req.(*ResolveWorkspacePathRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListHistoryRequest)
 	if err := dec(in); err != nil {
@@ -3005,6 +3073,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SaveWorkspaceFile",
 			Handler:    _RunnerService_SaveWorkspaceFile_Handler,
+		},
+		{
+			MethodName: "SearchWorkspaceFiles",
+			Handler:    _RunnerService_SearchWorkspaceFiles_Handler,
+		},
+		{
+			MethodName: "ResolveWorkspacePath",
+			Handler:    _RunnerService_ResolveWorkspacePath_Handler,
 		},
 		{
 			MethodName: "ListHistory",

@@ -11,6 +11,14 @@ import HtmlWorker from 'monaco-editor/language/html/html.worker.js?worker';
 globalThis.MonacoEnvironment = { getWorker: (_id, label) => label === 'json' ? new JsonWorker() : ['typescript','javascript'].includes(label) ? new TsWorker() : ['css','scss','less'].includes(label) ? new CssWorker() : ['html','handlebars','razor'].includes(label) ? new HtmlWorker() : new EditorWorker() };
 monaco.editor.defineTheme('lazybox', { base: 'vs-dark', inherit: true, rules: [], colors: { 'editor.background':'#1b1c22', 'editorLineNumber.foreground':'#666976', 'editor.lineHighlightBackground':'#252630', 'editor.selectionBackground':'#50496a' } });
 
+/** Replace a model's text as one undoable edit, keeping the cursor where it can
+ * be: a file reloaded from disk is not a new document. */
+function replaceText(model:monaco.editor.ITextModel,value:string){
+ model.pushStackElement();
+ model.pushEditOperations([],[{range:model.getFullModelRange(),text:value}],()=>null);
+ model.pushStackElement();
+}
+
 // monaco-vim's ex commands are global; each one finds its editor's handlers here.
 type VimAdapter = { editor: monaco.editor.ICodeEditor; on(event: string, handler: (...args: never[]) => void): void; openNotification(text: string): void; dispose(): void };
 type ExHandlers = { write(thenQuit: boolean): void; quit(force: boolean): void };
@@ -26,24 +34,60 @@ function defineExCommands(VimMode: unknown) {
  vim.defineEx('quit', 'q', (cm, params) => exHandlers.get(cm.editor)?.quit(params.argString?.trim() === '!'));
 }
 
+// Editors showing the same workspace file share one model, so two editor
+// groups on one file stay in step with independent cursors. Counted, so the
+// model goes with its last editor.
+const shared=new Map<string,{model:monaco.editor.ITextModel;users:number}>();
+function acquireModel(key:string|undefined,path:string,value:string){
+ if(!key){const model=monaco.editor.createModel(value,undefined,monaco.Uri.parse(`inmemory://workspace/${crypto.randomUUID()}/${path}`));return {model,release:()=>model.dispose()};}
+ let entry=shared.get(key);
+ if(!entry||entry.model.isDisposed()){entry={model:monaco.editor.createModel(value,undefined,monaco.Uri.parse(`inmemory://shared/${encodeURIComponent(key)}/${path}`)),users:0};shared.set(key,entry);}
+ entry.users++;
+ const held=entry;
+ return {model:held.model,release:()=>{if(--held.users===0){held.model.dispose();if(shared.get(key)===held)shared.delete(key);}}};
+}
+
+// Where each view of a file was (cursor, scroll, folds), so switching tabs or
+// reopening a file returns to the same place; and the last reveal it applied.
+const viewStates=new Map<string,monaco.editor.ICodeEditorViewState>();
+const applied=new Map<string,number>();
+
+export type Reveal={line?:number;nonce:number};
 /** `onSave` resolves to false when the file was not saved. With `vim`, Esc
  * belongs to the editor (Vim users press it reflexively to be sure they are in
  * normal mode), and :q closes through the dialog's unsaved-changes guard. */
-export default function CodeEditor({path,value,readOnly,line,vim=false,onChange,onSave,onQuit}:{path:string;value:string;readOnly:boolean;line?:number;vim?:boolean;onChange(value:string):void;onSave():unknown;onQuit?(force:boolean):void}) {
+export default function CodeEditor({path,value,readOnly,line,vim=false,modelKey,viewKey,reveal,onChange,onSave,onQuit,onFocus}:{path:string;value:string;readOnly:boolean;line?:number;vim?:boolean;/** Share the text model with other editors of this key. */modelKey?:string;/** With modelKey: remember this view's place in the file (an editor group's id). */viewKey?:string;/** Put the cursor on a line, or just focus, once per nonce. */reveal?:Reveal;onChange(value:string):void;onSave():unknown;onQuit?(force:boolean):void;onFocus?():void}) {
  const container=useRef<HTMLDivElement>(null),status=useRef<HTMLDivElement>(null),instance=useRef<monaco.editor.IStandaloneCodeEditor>(null);
- const change=useRef(onChange),save=useRef(onSave),quit=useRef(onQuit),locked=useRef(readOnly);change.current=onChange;save.current=onSave;quit.current=onQuit;locked.current=readOnly;
+ const change=useRef(onChange),save=useRef(onSave),quit=useRef(onQuit),locked=useRef(readOnly),focused=useRef(onFocus);change.current=onChange;save.current=onSave;quit.current=onQuit;locked.current=readOnly;focused.current=onFocus;
  const vimActive=useRef(false);
  const [vimError,setVimError]=useState('');
  useEffect(()=>{
-  const uri=monaco.Uri.parse(`inmemory://workspace/${crypto.randomUUID()}/${path}`);
-  const model=monaco.editor.createModel(value,undefined,uri);
+  const {model,release}=acquireModel(modelKey,path,value);
+  if(model.getValue()!==value)replaceText(model,value);
   const editor=monaco.editor.create(container.current!,{model,theme:'lazybox',readOnly,automaticLayout:true,minimap:{enabled:false},fontSize:13,lineHeight:21,padding:{top:14,bottom:14},scrollBeyondLastLine:false,wordWrap:'off',renderLineHighlight:'line',tabSize:2,ariaLabel:'File source editor',fixedOverflowWidgets:true});
   instance.current=editor;
+  const view=modelKey&&viewKey?modelKey+'|'+viewKey:'';
   const subscription=editor.onDidChangeModelContent(()=>change.current(editor.getValue()));
-  editor.addCommand(monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS,()=>save.current());
+  // An action, not addCommand: Monaco routes addCommand to the newest editor
+  // when several are open, so a save would land in the wrong group.
+  const saving=editor.addAction({id:'lazybox.save',label:'Save file',keybindings:[monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS],run:()=>{save.current();}});
+  const focus=editor.onDidFocusEditorText(()=>focused.current?.());
+  const remembered=view?viewStates.get(view):undefined;
+  if(remembered)editor.restoreViewState(remembered);
   if(line){editor.setPosition({lineNumber:line,column:1});editor.revealLineInCenter(line);}
-  return()=>{subscription.dispose();editor.dispose();model.dispose();instance.current=null;};
- },[path]);
+  return()=>{if(view){const state=editor.saveViewState();if(state)viewStates.set(view,state);}subscription.dispose();saving.dispose();focus.dispose();editor.dispose();release();instance.current=null;};
+ },[path,modelKey,viewKey]);
+ useEffect(()=>{
+  const editor=instance.current;if(!editor||!reveal)return;
+  const view=(modelKey||path)+'|'+(viewKey||'');
+  if(applied.get(view)===reveal.nonce)return;
+  // Recorded after this commit: React's development double mount re-creates
+  // the editor straight away, and the second editor must still get the reveal.
+  // A later remount (switching back to the tab) must not.
+  setTimeout(()=>applied.set(view,reveal.nonce),0);
+  if(reveal.line){editor.setPosition({lineNumber:reveal.line,column:1});editor.revealLineInCenter(reveal.line);}
+  editor.focus();
+ },[reveal?.nonce,path,modelKey,viewKey]);
  useEffect(()=>{
   const editor=instance.current;if(!vim||!editor)return;
   let adapter:VimAdapter|undefined,disposed=false;setVimError('');
@@ -71,8 +115,8 @@ export default function CodeEditor({path,value,readOnly,line,vim=false,onChange,
    });
   },error=>{if(!disposed)setVimError(`Vim editing could not load: ${String(error)}`);});
   return()=>{disposed=true;vimActive.current=false;exHandlers.delete(editor);if(adapter){adapter.dispose();editor.updateOptions({editContext:true});}};
- },[vim,path]);
- useEffect(()=>{if(instance.current&&instance.current.getValue()!==value)instance.current.setValue(value);},[value]);
+ },[vim,path,modelKey,viewKey]);
+ useEffect(()=>{const model=instance.current?.getModel();if(model&&model.getValue()!==value)replaceText(model,value);},[value]);
  useEffect(()=>{instance.current?.updateOptions({readOnly});},[readOnly]);
  // Cancelling the keydown keeps the dialog open; Vim and Monaco's own
  // widgets (suggest, find) still receive the Escape.

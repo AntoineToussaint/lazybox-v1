@@ -15,7 +15,12 @@ const families: [RegExp, string][] = [
  [/\.(css|scss|less|html?)$/i, 'style'],
  [/(\.(sh|zsh|bash|fish)|^makefile|^dockerfile.*|^justfile)$/i, 'shell'],
 ];
-const family = (name: string) => families.find(([pattern]) => pattern.test(name))?.[1] || 'other';
+export const fileFamily = (name: string) => families.find(([pattern]) => pattern.test(name))?.[1] || 'other';
+const family = fileFamily;
+/** A file's icon in its family colour, the same in folder listings, the file tree and tabs. */
+export function FileIcon({ name, directory = false, size = 15 }: { name: string; directory?: boolean; size?: number }) {
+ return <span className={'entry-icon file-icon ' + (directory ? 'is-folder' : 'file-' + fileFamily(name))}><Icon name={directory ? 'folder' : 'file'} size={size}/></span>;
+}
 
 /** Folder contents with a parent row, icons and keyboard navigation:
  * ↑/↓ or j/k move, Enter, → or l open, Backspace, ← or h go to the parent. */

@@ -70,10 +70,16 @@ export const dockSides: readonly DockSide[] = ['left', 'right', 'top', 'bottom']
 export const isDockSide = (value: unknown): value is DockSide => dockSides.includes(value as DockSide);
 /** The workspace list and the conversation are what a page is for: they never close; other panels dock around them. */
 export const closable = (panel: Panel) => panel.kind !== 'collections' && panel.kind !== 'chat' && !panel.detached;
-/** Where a panel of this kind goes the first time it is shown: a terminal beside the work, output below it. */
+/** Where a panel of this kind goes the first time it is shown. Files and the editor go right of the conversation, where the two pair up. */
 export const defaultDock = (kind: string): DockSide => kind === 'console' ? 'bottom' : kind === 'sessions' ? 'left' : 'right';
 /** The share of the content area a docked panel takes: a terminal wants columns, the rest stay secondary. */
-export const dockShare = (kind: string, side: DockSide) => kind === 'terminal' && (side === 'left' || side === 'right') ? 0.4 : 0.3;
+export const dockShare = (kind: string, side: DockSide) => {
+  const across = side === 'left' || side === 'right';
+  // An editor beside the conversation gets the larger half: code wants columns.
+  if (kind === 'editor') return across ? 0.55 : 0.5;
+  if (kind === 'files') return across ? 0.24 : 0.3;
+  return kind === 'terminal' && across ? 0.4 : 0.3;
+};
 const round = (value: number) => Math.round(Math.min(0.85, Math.max(0.15, value)) * 100) / 100;
 /** The page's content area: a lone workspace list beside everything else stays at the page edge. */
 export function contentIndex(node: LayoutNode, moving: Pick<Panel, 'kind'>): 0 | 1 | -1 {
@@ -83,12 +89,15 @@ export function contentIndex(node: LayoutNode, moving: Pick<Panel, 'kind'>): 0 |
 }
 /** Put a panel at one edge of the page's content area, taking `share` of it. */
 export function insertDocked(node: LayoutNode, panel: Panel, side: DockSide, share = dockShare(panel.kind, side)): LayoutNode {
-  const index = contentIndex(node, panel);
+  return insertNode(node, { type: 'panel', panel }, panel, side, share);
+}
+function insertNode(node: LayoutNode, leaf: LayoutNode, moving: Pick<Panel, 'kind'>, side: DockSide, share: number): LayoutNode {
+  const index = contentIndex(node, moving);
   if (index !== -1 && node.type === 'split') {
     const [first, second] = node.children;
-    return { ...node, children: index === 0 ? [insertDocked(first, panel, side, share), second] : [first, insertDocked(second, panel, side, share)] };
+    return { ...node, children: index === 0 ? [insertNode(first, leaf, moving, side, share), second] : [first, insertNode(second, leaf, moving, side, share)] };
   }
-  const leaf: LayoutNode = { type: 'panel', panel }, first = side === 'left' || side === 'top';
+  const first = side === 'left' || side === 'top';
   return { type: 'split', direction: side === 'left' || side === 'right' ? 'row' : 'column', ratio: round(first ? share : 1 - share), children: first ? [leaf, node] : [node, leaf] };
 }
 /** Move an existing panel to an edge of the content area, shown; the only panel stays put. */
@@ -109,6 +118,19 @@ export function showPanel(node: LayoutNode, kind: string, side: DockSide, newID:
   if (existing) return { layout: mapPanels(node, panel => panel.id === existing.id ? { ...panel, collapsed: false } : panel), id: existing.id, added: false };
   const id = newID();
   return { layout: insertDocked(node, { id, kind, binding: { mode: 'follow' }, detached: false }, side), id, added: true };
+}
+/** Files and the editor work as a pair: showing one beside the other puts the
+ * two together, Files on the left, docked where an editor goes. Otherwise this
+ * is showPanel. */
+export function showCodePanel(node: LayoutNode, kind: 'files' | 'editor', side: DockSide, newID: () => string): { layout: LayoutNode; id: string; added: boolean } {
+  const partner = panels(node).find(panel => panel.kind === (kind === 'files' ? 'editor' : 'files') && !panel.detached);
+  if (!partner || panels(node).some(panel => panel.kind === kind && !panel.detached)) return showPanel(node, kind, side, newID);
+  const rest = removePanel(node, partner.id);
+  if (!rest) return showPanel(node, kind, side, newID);
+  const id = newID(), panel: Panel = { id, kind, binding: { mode: 'follow' }, detached: false };
+  const files = kind === 'files' ? panel : { ...partner, collapsed: false }, editor = kind === 'editor' ? panel : { ...partner, collapsed: false };
+  const pair: LayoutNode = { type: 'split', direction: 'row', ratio: 0.3, children: [{ type: 'panel', panel: files }, { type: 'panel', panel: editor }] };
+  return { layout: insertNode(rest, pair, panel, 'right', 0.62), id, added: true };
 }
 const visibleChats = (node: LayoutNode) => panels(node).filter(panel => panel.kind === 'chat' && !panel.detached);
 /** One visible chat panel per conversation: a pinned panel showing what a following panel

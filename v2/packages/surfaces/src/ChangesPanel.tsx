@@ -1,4 +1,4 @@
-import { FilePreview } from './FilePreview';
+import { useFileOpener } from './file-links';
 import { CodeBlock } from './RichContent';
 import { useEffect, useState } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -40,7 +40,7 @@ export function ChangesPanel({workspaceId,viewState,sessionId='',onShowSession}:
   notices.set(workspaceId,said);setNotice(said);
   onShowSession?.({collectionId:workspaceId,sessionId:conversation.id,commandId:''});
  };
- const [preview,setPreview]=useState<string>();
+ const fileLinks=useFileOpener(workspaceId,viewState);
  const [repos,setRepos]=useState<RepositoryChanges[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
  const [compare,setCompare]=useState<string>(START),[selection,setSelection]=useState<Selection>(),[staged,setStaged]=useState(false),[savedDiff,setDiff]=useState<{key:string;value:WorkspaceDiff}>(),[diffError,setDiffError]=useState('');
  useEffect(()=>{
@@ -103,8 +103,8 @@ export function ChangesPanel({workspaceId,viewState,sessionId='',onShowSession}:
     {!repo.files.length&&(!showCommitted||!repo.committed.length)&&!repo.committedError&&<p className="module-empty">{compare===UNCOMMITTED?'No uncommitted changes':compare===START?'No changes since the workspace started':`No changes vs ${compare}`}</p>}
    </>}
   </section>)}</nav>
-   <div className="diff-view">{selection?<><header><strong>{selection.member}/{selection.path}</strong><button onClick={()=>setPreview(`${selection.member}/${selection.path}`)}>Open file</button>{!selection.committed&&<label><input type="checkbox" checked={staged} onChange={event=>setStaged(event.target.checked)}/> Staged</label>}</header><div className="diff-comparison">{selection.committed?(compare===START?'Workspace start → latest commit':`${compare} (merge base) → latest commit`):staged?'Last commit → staged':'Staged → working tree (uncommitted)'}</div>{diffError?<p role="alert" className="error">{diffError}</p>:!diff?<p role="status">Loading diff…</p>:<>{diff.truncated&&<p role="status">Preview limited to 1 MiB.</p>}{diff.binary?<p>Binary file · text preview unavailable</p>:diff.text?<CodeBlock text={diff.text} language="diff" label="File diff"/>:<p className="module-empty">No {selection.committed?'branch':staged?'staged':'unstaged'} diff for this file. Refresh if the agent has changed it.</p>}</>}</>:<div className="diff-empty"><h3>{loading?'Reading changes…':'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}</div>
+   <div className="diff-view">{selection?<><header><strong>{selection.member}/{selection.path}</strong><button title="Open in the editor · Alt-click for a quick look" onClick={event=>void fileLinks.open({path:`${selection.member}/${selection.path}`},event,{exact:true})}>Open file</button>{!selection.committed&&<label><input type="checkbox" checked={staged} onChange={event=>setStaged(event.target.checked)}/> Staged</label>}</header><div className="diff-comparison">{selection.committed?(compare===START?'Workspace start → latest commit':`${compare} (merge base) → latest commit`):staged?'Last commit → staged':'Staged → working tree (uncommitted)'}</div>{diffError?<p role="alert" className="error">{diffError}</p>:!diff?<p role="status">Loading diff…</p>:<>{diff.truncated&&<p role="status">Preview limited to 1 MiB.</p>}{diff.binary?<p>Binary file · text preview unavailable</p>:diff.text?<CodeBlock text={diff.text} language="diff" label="File diff"/>:<p className="module-empty">No {selection.committed?'branch':staged?'staged':'unstaged'} diff for this file. Refresh if the agent has changed it.</p>}</>}</>:<div className="diff-empty"><h3>{loading?'Reading changes…':'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}</div>
   </div>
- {preview&&<FilePreview workspaceId={workspaceId} reference={{path:preview}} viewState={viewState} onClose={()=>setPreview(undefined)}/>}
+ {fileLinks.element}
  </section>;
 }

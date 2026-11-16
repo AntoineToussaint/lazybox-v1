@@ -8,14 +8,14 @@ import {continueConversation} from './transcript-cache';
 import {useChatScroll} from './useChatScroll';
 import {sessionModelLabel,sessionAccountLabel} from './conversation-model';
 import { DeleteConversationDialog } from './DeleteConversationDialog';
-import { FilePreview } from './FilePreview';
+import { useFileOpener, type OpenModifiers } from './file-links';
 import type { FileLink } from './file-reference';
 import { useTranscript } from './useTranscript';
 import { activityLabel } from './activity';
 import { ConversationLoading, MessageList } from './MessageList';
 import { useRunnerSettings } from './RunnerSettings';
 import { TelemetryPanel } from './TelemetryPanel';
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { type CommandStatus, type Session } from '@lazybox/protocol';
 import { Console, RequestCard } from './session-parts';
 import type { SurfaceTarget, ViewStateStore } from '@lazybox/platform';
@@ -120,7 +120,10 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const [dragging, setDragging] = useState(false);
   const [renaming,setRenaming]=useState(false),[conversationName,setConversationName]=useState(''),[savingName,setSavingName]=useState(false);
   const [deleting,setDeleting]=useState(false);
-  const [previewFile,setPreviewFile] = useState<FileLink>();
+  const fileLinks = useFileOpener(session?.collectionId, viewState);
+  // Stable, so the memoized messages do not re-render when the opener does.
+  const openFileRef = useRef(fileLinks.open); openFileRef.current = fileLinks.open;
+  const openFile = useCallback((reference: FileLink, how: OpenModifiers) => void openFileRef.current(reference, how), []);
   const [resuming,setResuming]=useState(false);
   const [processesStopped,setProcessesStopped]=useState(false);
   const openingRef = useRef(false);
@@ -371,14 +374,14 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       {dragging && <div className="file-drop-hint" role="status">Drop files to attach</div>}
       {session?.closed&&<div className="resume-bar"><span>{'Saved conversation'}</span>{session.resumeBlocked?<p>{session.resumeBlocked}</p>:canResumeOnSend?<small>Send a message to continue with this conversation’s saved account and permissions.</small>:<>{session.recoveryRequired&&<label><input type="checkbox" checked={processesStopped} onChange={event=>setProcessesStopped(event.target.checked)}/>I have stopped or reconciled the previous agent and its commands.</label>}<button disabled={resuming||!session.providerReference||!session.capabilities?.resume||(session.recoveryRequired&&!processesStopped)} onClick={()=>void resumeSession()}>{resuming?'Resuming…':'Resume conversation'}</button></>}</div>}
       {deleting&&session&&<DeleteConversationDialog session={session} onClose={()=>setDeleting(false)} onDeleted={()=>{setDeleting(false);newSession();}}/>}
-    {previewFile && session?.collectionId && <FilePreview workspaceId={session.collectionId} reference={previewFile} viewState={viewState} onClose={()=>setPreviewFile(undefined)}/>}
+    {fileLinks.element}
       {sessionID && <div className="agent-inspection-bar"><TelemetryPanel executionId={sessionID} conversationId={session?.conversationId} compact/><ToolActivity events={transcript.activity} truncated={transcript.activityTruncated}/></div>}
       {session?.account && ['auth_required', 'exhausted', 'throttled', 'billing_error', 'context_full', 'budget_exceeded'].includes(session.account.state) && <div className="account-notice" role="status">{accountLabel(session.account.state)}{session.account.resetAt > 0n ? ` · resets ${new Date(Number(session.account.resetAt) * 1000).toLocaleString()}` : ''}</div>}
     {session && session.agents.length > 1 && <details className="agent-activity"><summary>Agent activity ({session.agents.length - 1})</summary><ul>{session.agents.filter(a => a.id !== 'root').map(a => <li key={a.id} data-parent={a.parentId}><span>{a.name || 'Sub-agent'}</span><small>{statusLabel(a.status)}</small></li>)}</ul>{session.activityTruncated && <small>Additional activity was omitted.</small>}</details>}
       {transcript.error && <div className="transcript-notice error" role="alert"><span>Conversation could not be loaded. {transcript.error}</span><button onClick={transcript.retry}>Retry conversation</button></div>}
       <div className="messages" ref={scroll.paneRef} onScroll={scroll.onScroll}><div className="messages-content" ref={scroll.contentRef}>
       {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
-      {!transcript.loading && !transcript.error && !conversation.length && <div className="empty"><span>READY TO WORK</span><h2>What are we building?</h2><p>Send {agentName} a message to get started.</p></div>}{session?.fault && <div className="error" role="alert">{session.fault}</div>}<MessageList messages={conversation} visible={visibleMessages} agentName={agentName} onOpenFile={session?.collectionId ? setPreviewFile : undefined} onShowEarlier={scroll.showEarlier}/>{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={setError}/>)}</div></div>
+      {!transcript.loading && !transcript.error && !conversation.length && <div className="empty"><span>READY TO WORK</span><h2>What are we building?</h2><p>Send {agentName} a message to get started.</p></div>}{session?.fault && <div className="error" role="alert">{session.fault}</div>}<MessageList messages={conversation} visible={visibleMessages} agentName={agentName} onOpenFile={session?.collectionId ? openFile : undefined} onShowEarlier={scroll.showEarlier}/>{session?.pending.map(p => <RequestCard key={p.requestId} request={p} api={api} session={sessionID} onError={setError}/>)}</div></div>
       {!followingLatest && conversation.length > 0 && <button className="jump-to-latest" onClick={jumpToLatest}>Jump to latest</button>}
       {!transcript.error && (activity||stream.startsWith('Disconnected')||stream==='Reconnecting')&&<div className="live-activity" role="status"><i/>{stream.startsWith('Disconnected')||stream==='Reconnecting'?'Connection interrupted · reconnecting…':activity}</div>}
       <form className="composer" onSubmit={send}>

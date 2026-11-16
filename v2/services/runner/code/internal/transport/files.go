@@ -38,3 +38,35 @@ func (s *Service) SaveWorkspaceFile(ctx context.Context, r *pb.SaveWorkspaceFile
 	}
 	return &pb.WorkspaceFile{Path: file.Path, Text: file.Text, Truncated: file.Truncated, Binary: file.Binary, Version: file.Version}, nil
 }
+
+func (s *Service) SearchWorkspaceFiles(ctx context.Context, r *pb.SearchWorkspaceFilesRequest) (*pb.WorkspaceFileSearch, error) {
+	manager, err := s.collectionStore()
+	if err != nil {
+		return nil, err
+	}
+	matches, truncated, indexed, err := manager.SearchFiles(ctx, r.CollectionId, r.Query, int(r.Limit))
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	out := &pb.WorkspaceFileSearch{Truncated: truncated, Indexed: uint32(indexed)}
+	for _, match := range matches {
+		out.Matches = append(out.Matches, &pb.WorkspaceFileMatch{Path: match.Path, Positions: match.Positions})
+	}
+	return out, nil
+}
+
+func (s *Service) ResolveWorkspacePath(ctx context.Context, r *pb.ResolveWorkspacePathRequest) (*pb.WorkspacePathResolution, error) {
+	manager, err := s.collectionStore()
+	if err != nil {
+		return nil, err
+	}
+	matches, exact, truncated, err := manager.ResolvePath(ctx, r.CollectionId, r.Path)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	out := &pb.WorkspacePathResolution{Exact: exact, Truncated: truncated}
+	for _, match := range matches {
+		out.Matches = append(out.Matches, &pb.WorkspacePathMatch{Path: match.Path, Directory: match.Directory})
+	}
+	return out, nil
+}

@@ -141,7 +141,7 @@ try {
     await page.screenshot({ path: `/tmp/lazybox-vim-composer-${engine.name()}.png` });
 
     // Monaco: Vim keys, a status line, :w saves, :q goes through the unsaved-changes guard.
-    await page.getByRole('button', { name: 'README', exact: true }).click();
+    await page.getByRole('button', { name: 'README', exact: true }).click({ modifiers: ['Alt'] });
     const dialog = page.getByRole('dialog', { name: 'File preview', exact: true });
     await dialog.getByRole('button', { name: 'Edit file', exact: true }).click();
     const status = dialog.getByLabel('Vim status');
@@ -177,7 +177,7 @@ try {
 
     // Esc belongs to the editor even in idle normal mode; :q closes a clean file at once,
     // and Esc outside the editor still closes the dialog.
-    await page.getByRole('button', { name: 'README', exact: true }).click();
+    await page.getByRole('button', { name: 'README', exact: true }).click({ modifiers: ['Alt'] });
     await dialog.getByRole('button', { name: 'Edit file', exact: true }).click();
     await expect(status).toContainText('NORMAL');
     await dialog.locator('.view-lines').click();
@@ -187,7 +187,7 @@ try {
     await page.keyboard.type(':q');
     await page.keyboard.press('Enter');
     await expect(dialog).toHaveCount(0);
-    await page.getByRole('button', { name: 'README', exact: true }).click();
+    await page.getByRole('button', { name: 'README', exact: true }).click({ modifiers: ['Alt'] });
     await expect(dialog.getByRole('button', { name: 'Close file preview' })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);

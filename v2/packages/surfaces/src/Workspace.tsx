@@ -1,7 +1,7 @@
 import { ActionMenu } from './ActionMenu';
 import { LeaderMenu } from './LeaderMenu';
 import { WorkspaceNavigator } from './WorkspaceNavigator';
-import {useKeyboardNavigation} from './keyboard';
+import {useKeyboardAction, useKeyboardNavigation} from './keyboard';
 import {RepositoryHostContext} from './RepositoryBrowser';
 import {conversationReader} from './transcript-cache';
 import { WorkspaceRepositories } from './WorkspaceRepositories';
@@ -21,7 +21,7 @@ import { CommandPanel } from './CommandPanel';
 import { useCommandRuns } from './command-runs';
 import { TerminalPanel, requestTerminal } from './TerminalPanel';
 import { mergeConversations } from './conversation-model';
-import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, closable, contentIndex, defaultDock, dockPanel, dockedSide, dockSides, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnChat, type DockSide, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, closable, contentIndex, defaultDock, dockPanel, dockedSide, dockSides, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnChat, showCodePanel, type DockSide, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { Icon } from './Icons';
@@ -30,6 +30,12 @@ import { SettingsPage, type SettingsTab } from './SettingsPage';
 import { RestartNotice, RunnerIndicator } from './RunnerControl';
 import { AttentionCenter } from './Inbox';
 import { AttentionScope } from './useAttention';
+import { FileExplorer } from './FileExplorer';
+import { EditorArea } from './EditorArea';
+import { QuickOpen } from './QuickOpen';
+import { FilePreview } from './FilePreview';
+import type { FileLink } from './file-reference';
+import { Workbench, WorkbenchContext, modKey, shortcut } from './workbench';
 
 export type ModuleProps = { workspaceId: string; chooseRepositoryFolder?(): Promise<string | null>; target: ViewTarget; onTarget(target: ViewTarget): void; collections: Collection[]; error: string; loaded?: boolean; refresh(): void; viewState?: ViewStateStore; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onOpenChat?(): void; onNewConversation?(workspaceId: string): void; onShowSession?(target: ViewTarget): void; onShowPanel?(kind: string, target?: ViewTarget): void };
 export type PanelModule = { title: string; icon?: string; Component: ComponentType<ModuleProps> };
@@ -55,6 +61,8 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   usage: { title: 'Usage & cost', icon: 'sliders', Component: ({workspaceId}) => <TelemetryPanel workspaceId={workspaceId}/> },
   sessions: { title: 'Sessions', icon: 'history', Component: ({workspaceId,target,onTarget}) => <ConversationList collectionId={workspaceId} target={target} onTarget={onTarget}/> },
   processes: { title: 'Processes', icon: 'processes', Component: ({workspaceId,onShowSession,onShowPanel}) => <ProcessesPanel workspaceId={workspaceId} onShowSession={onShowSession} onShowPanel={onShowPanel}/> },
+  files: { title: 'Files', icon: 'folder', Component: ({workspaceId,collections}) => <FileExplorer workspaceId={workspaceId} collections={collections}/> },
+  editor: { title: 'Editor', icon: 'file', Component: ({workspaceId,viewState}) => <EditorArea workspaceId={workspaceId} viewState={viewState}/> },
 };
 /** Panels the page itself is made of: they are rearranged, not shown from the page menu. */
 const pagePanels = new Set(['collections', 'chat', 'changes']);
@@ -90,6 +98,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const sessionDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (newSession) sessionDialog.current?.showModal(); else sessionDialog.current?.close(); }, [newSession]);
   const [module, setModule] = useState<string>('console'), [pending, setPending] = useState<string>('');
+  // The workspace's open files and folders: one per workspace for the window's
+  // lifetime, so unsaved edits survive switching workspaces and closing panels.
+  const workbench = useMemo(() => workspaceID ? Workbench.for(api, workspaceID, viewState) : undefined, [api, workspaceID, viewState]);
+  useEffect(() => workbench?.attach(), [workbench]);
+  const [quickOpen, setQuickOpen] = useState(false), [quickLook, setQuickLook] = useState<FileLink>();
   const current = useRef(layout); current.current = layout;
   const stores = useMemo(() => new Map<string, ViewStateStore>(), [viewState,workspaceID]);
   // One element per displayed panel, created once: React renders each panel into its own
@@ -212,11 +225,34 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const showModule = (kind: string) => {
     const live = livePage();
     if (!panels(live.layout).some(panel => panel.kind === kind && !panel.detached) && panels(live.layout).length >= 12) { setError(`This page already has 12 panels; close one to add ${sentence(registry[kind]?.title || kind)}.`); return ''; }
-    const shown = showPanel(live.layout, kind, rememberedDock(kind), () => crypto.randomUUID());
+    const shown = kind === 'files' || kind === 'editor' ? showCodePanel(live.layout, kind, rememberedDock(kind), () => crypto.randomUUID()) : showPanel(live.layout, kind, rememberedDock(kind), () => crypto.randomUUID());
     if (!changePage({ ...live, layout: shown.layout })) return '';
     setSettings(false); setMobilePanelId(shown.id);
     return shown.id;
   };
+  /** Bring the Files or Editor panel into view: shown as it is, or docked with its partner. */
+  const showCode = (kind: 'files' | 'editor') => {
+    const existing = panels(livePage().layout).find(panel => panel.kind === kind && !panel.detached);
+    if (existing && !existing.collapsed && !settings) { setMobilePanelId(existing.id); return existing.id; }
+    return showModule(kind);
+  };
+  useEffect(() => {
+    if (!workbench) return;
+    workbench.host = { showEditor: () => void showCode('editor'), showFiles: () => void showCode('files'), quickOpen: () => setQuickOpen(true), quickLook: (path, line) => setQuickLook({ path, line }) };
+  });
+  const focusFiles = () => { if (showCode('files')) workbench?.focusTree(); };
+  // Go to file is the editor's own shortcut, wherever focus is, as in any editor.
+  useEffect(() => {
+    if (!workbench) return;
+    const keydown = (event: KeyboardEvent) => {
+      if (!modKey(event) || event.altKey || event.shiftKey || event.code !== 'KeyP' || event.defaultPrevented || document.querySelector('dialog[open]')) return;
+      event.preventDefault(); event.stopPropagation(); setQuickOpen(true);
+    };
+    window.addEventListener('keydown', keydown, true);
+    return () => window.removeEventListener('keydown', keydown, true);
+  }, [workbench]);
+  useKeyboardAction('files.find', () => { if (workbench) setQuickOpen(true); });
+  useKeyboardAction('files.explorer', () => { if (workbench) focusFiles(); });
   /** Show this workspace's terminal: the open panel, or one docked beside the work. It starts a shell only when none is running. */
   const showTerminal = () => { if (workspaceID && showModule('terminal')) requestTerminal(workspaceID); };
   // A panel asked for in another workspace is shown once that workspace's page is.
@@ -409,7 +445,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   // Panels this page could show but does not (or shows collapsed), offered from the page menu.
   const hiddenModules = Object.entries(registry).filter(([kind]) => !pagePanels.has(kind) && !panels(page.layout).some(panel => panel.kind === kind && !panel.detached && !panel.collapsed));
   const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) ||mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
-  return <main className={`workspace-shell${editing ? ' layout-editing' : ''}`}><LeaderMenu hint={keyboardHint}/>
+  return <WorkbenchContext.Provider value={workbench}><main className={`workspace-shell${editing ? ' layout-editing' : ''}`}><LeaderMenu hint={keyboardHint}/>
     <header className="workspace-header">
       <button className="mobile-navigation-button icon-button" aria-label="Open workspace navigator" aria-expanded={navigatorOpen} onClick={() => setNavigatorOpen(true)}><Icon name="sidebar"/></button>
       <div className="workspace-brand"><span className="brand-mark">l<span>↗</span></span><strong>lazybox</strong></div>
@@ -417,6 +453,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       <div className="workspace-header-actions">
         <AttentionCenter collections={collections} selection={page.selection} viewState={viewState} onOpen={target => { setSettings(false); showSession(target); }}/>
         <button className="toolbar-action" disabled={!workspaceID} aria-label="Review changes" title="Review changes" onClick={showChanges}><Icon name="branch"/><span>Changes</span></button>
+        <button className="toolbar-action" disabled={!workspaceID} aria-label="Browse files" title={`Browse files · Go to file ${shortcut('Mod+P')}`} onClick={focusFiles}><Icon name="folder"/><span>Files</span></button>
         <button className="toolbar-action" disabled={!terminalReady} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={showTerminal}><Icon name="terminal"/><span>Terminal</span></button>
         <button className="toolbar-action new-conversation-action" disabled={!info || !!pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={() => beginConversation()}><Icon name="plus"/><span>New conversation</span></button>
         <RunnerIndicator onOpen={fixedWorkspaceId ? undefined : () => { setSettingsTab('runner'); setSettings(true); }}/>
@@ -454,8 +491,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     </div>
     {!settings && shownPanels.map(panel => createPortal(renderPanel(panel), hostFor(slots.get(panel.id)!), slots.get(panel.id)))}
     </>}
+    {quickOpen && workbench && <QuickOpen key={workbench.workspaceId} workbench={workbench} onClose={() => setQuickOpen(false)}/>}
+    {quickLook && workspaceID && <FilePreview key={`${workspaceID}:${quickLook.path}`} workspaceId={workspaceID} reference={quickLook} viewState={viewState} onClose={() => setQuickLook(undefined)}/>}
     {navigatorOpen && <WorkspaceNavigator target={page.selection} onTarget={target => target.sessionId ? showSession(target) : select(target)} collections={collections} error={catalogError} loaded={catalogLoaded} refresh={refreshCatalog} chooseRepositoryFolder={host?.chooseRepositoryFolder} onNewConversation={beginConversation} onClose={() => setNavigatorOpen(false)}/>}
-  </main>;
+  </main></WorkbenchContext.Provider>;
 }
 
 /** Where the layout wants a panel: its stable host element is moved in, not re-rendered. */

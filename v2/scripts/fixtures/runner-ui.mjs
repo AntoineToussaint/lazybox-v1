@@ -13,6 +13,19 @@ export async function startRunnerFixture() {
   let token = randomUUID(), url = '';
   const calls = [], mutations = [];
   const workspaceFiles=new Map();
+  // Every workspace member holds the same small tree, so the Files panel, Go
+  // to file and link resolution have folders and names to work with. Paths
+  // outside it still read as a generic file, as before.
+  const memberTree=['README.md','package.json','config.toml','src/main.go','src/routes.ts','src/components/App.tsx','scripts/build.sh'];
+  const uniqueFiles={api:['scripts/undeclared-routes.json']};
+  const treeFiles=collectionId=>{const collection=collections.find(c=>c.id===collectionId);return (collection?.members||[]).flatMap(m=>[...memberTree,...(uniqueFiles[m.spec.name]||[])].map(path=>m.spec.name+'/'+path));};
+  const treeFolders=collectionId=>{const out=new Set(['.']);for(const file of treeFiles(collectionId)){const parts=file.split('/');for(let i=1;i<parts.length;i++)out.add(parts.slice(0,i).join('/'));}return out;};
+  const listFolder=(collectionId,folder)=>{const files=treeFiles(collectionId),folders=treeFolders(collectionId),prefix=folder==='.'?'':folder+'/',seen=new Map();
+    for(const path of [...folders,...files]){if(path==='.'||!path.startsWith(prefix))continue;const name=path.slice(prefix.length).split('/')[0];const full=prefix+name;if(!seen.has(full))seen.set(full,{name,path:full,directory:folders.has(full)});}
+    return [...seen.values()].sort((a,b)=>a.directory!==b.directory?(a.directory?-1:1):a.name.localeCompare(b.name));};
+  const fuzzy=(path,query)=>{const lower=path.toLowerCase(),q=query.toLowerCase().replace(/\s+/g,'');const base=path.lastIndexOf('/')+1;
+    const match=from=>{const positions=[];let j=0;for(let i=from;i<lower.length&&j<q.length;i++)if(lower[i]===q[j]){positions.push(i);j++;}return j===q.length?positions:null;};
+    const inName=q.includes('/')?null:match(base);const positions=inName||match(0);if(!positions)return null;return {path,positions,score:(inName?100:0)-path.length};};
   const eventStreams=new Map();
   // A saved conversation's journal is finite: after `complete()` the stream ends
   // like the Runner's does at EOF, instead of staying open for live events.
@@ -168,7 +181,15 @@ export async function startRunnerFixture() {
        let collection=requests.get(body.requestKey);if(!collection){if(body.collectionId){collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Missing workspace');collection.members.push(...members.map(spec=>({spec,path:collection.root+'/'+spec.name,ready:true})));}else{const id='created-'+collections.length;collection={id,name:body.name,root:'/fixture/collections/'+id,state:'ready',members:members.map(spec=>({spec,path:'/fixture/collections/'+id+'/'+spec.name,ready:true}))};collections.push(collection);}requests.set(body.requestKey,collection);}values.push({message:'Ready',collection});res.writeHead(200,{'Content-Type':'application/connect+json'});res.end(stream(values));return;
       }
       case 'ListRepositories': return json({ repositories: library });
-      case 'ReadWorkspaceFile': {const key=body.collectionId+'/'+body.path; if(!workspaceFiles.has(key))workspaceFiles.set(key,{path:body.path,text:'# File preview\nA retained file.\n',version:'v1',binary:false,truncated:false});return json(workspaceFiles.get(key));}
+      case 'ResolveWorkspacePath': {const files=treeFiles(body.collectionId),folders=treeFolders(body.collectionId),path=String(body.path||'').replace(/^\.\//,'');const members=collections.find(c=>c.id===body.collectionId)?.members.map(m=>m.spec.name)||[];
+        const exists=p=>files.includes(p)||folders.has(p),match=p=>({path:p,directory:folders.has(p)});
+        if(/missing/.test(path))return json({matches:[]});
+        if(exists(path))return json({matches:[match(path)],exact:true});
+        const under=members.map(m=>m+'/'+path).filter(exists);if(under.length)return json({matches:under.map(match),exact:true});
+        const name=path.split('/').pop();const named=files.filter(p=>p.split('/').pop()===name);if(named.length)return json({matches:named.map(match)});
+        return json({matches:[{path,directory:false}],exact:true});}
+      case 'SearchWorkspaceFiles': {const files=treeFiles(body.collectionId);const found=body.query?files.map(p=>fuzzy(p,body.query)).filter(Boolean).sort((a,b)=>b.score-a.score||a.path.localeCompare(b.path)).slice(0,body.limit||50):[];return json({matches:found.map(({path,positions})=>({path,positions})),indexed:files.length});}
+      case 'ReadWorkspaceFile': {const key=body.collectionId+'/'+body.path; if(treeFolders(body.collectionId).has(body.path))return json({path:body.path,directory:true,entries:listFolder(body.collectionId,body.path)}); if(!workspaceFiles.has(key))workspaceFiles.set(key,{path:body.path,text:'# File preview\nA retained file.\n',version:'v1',binary:false,truncated:false});return json(workspaceFiles.get(key));}
       case 'SaveWorkspaceFile': {const key=body.collectionId+'/'+body.path,file=workspaceFiles.get(key);if(file.version!==body.expectedVersion)return error('aborted','File changed on the Runner');Object.assign(file,{text:body.text,version:crypto.randomUUID()});mutations.push({method,body});return json(file);}
       case 'DeleteConversation': {const session=sessions.find(s=>s.id===body.sessionId);if(session&&!session.closed&&!body.stopSessions)return error('failed_precondition','Agent running');if(session)sessions.splice(sessions.indexOf(session),1);mutations.push({method,body});return json({});}
       case 'ResumeSession': {

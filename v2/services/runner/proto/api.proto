@@ -47,6 +47,8 @@ service RunnerService {
   rpc ReadWorkspaceDiff(WorkspaceDiffRequest) returns (WorkspaceDiff);
   rpc ReadWorkspaceFile(WorkspaceFileRequest) returns (WorkspaceFile);
   rpc SaveWorkspaceFile(SaveWorkspaceFileRequest) returns (WorkspaceFile);
+  rpc SearchWorkspaceFiles(SearchWorkspaceFilesRequest) returns (WorkspaceFileSearch);
+  rpc ResolveWorkspacePath(ResolveWorkspacePathRequest) returns (WorkspacePathResolution);
   rpc ListHistory(ListHistoryRequest) returns (ListHistoryResponse);
   rpc ResumeSession(ResumeSessionRequest) returns (SessionResponse);
   // Continues the conversation in a new agent started with another permission
@@ -773,6 +775,20 @@ message WorkspaceDirectoryEntry { string name = 1; string path = 2; bool directo
 message WorkspaceFile { string path = 1; string text = 2; bool truncated = 3; bool binary = 4; string version = 5; bool directory = 6; repeated WorkspaceDirectoryEntry entries = 7; }
 
 message SaveWorkspaceFileRequest { string collection_id = 1; string path = 2; string text = 3; string expected_version = 4; }
+
+// A fuzzy file finder over the workspace's repositories. Files Git ignores are
+// left out; the index is bounded and positions index the matched characters of
+// path in UTF-16 code units.
+message SearchWorkspaceFilesRequest { string collection_id = 1; string query = 2; uint32 limit = 3; }
+message WorkspaceFileMatch { string path = 1; repeated uint32 positions = 2; }
+message WorkspaceFileSearch { repeated WorkspaceFileMatch matches = 1; bool truncated = 2; uint32 indexed = 3; }
+
+// Where a file reference an agent wrote points: the path as given, under each
+// repository, then by path suffix and file name. Several matches are a choice
+// for the person, not an error.
+message ResolveWorkspacePathRequest { string collection_id = 1; string path = 2; }
+message WorkspacePathMatch { string path = 1; bool directory = 2; }
+message WorkspacePathResolution { repeated WorkspacePathMatch matches = 1; bool exact = 2; bool truncated = 3; }
 
 message DeleteConversationRequest { string session_id = 1; bool stop_sessions = 2; }
 message DeleteConversationResponse {}

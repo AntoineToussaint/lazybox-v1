@@ -27,6 +27,14 @@ func TestWorkspaceReviewAndConversationNamingTransport(t *testing.T) {
 	if _, err = s.ReadWorkspaceFile(ctx, &pb.WorkspaceFileRequest{CollectionId: c.ID, Path: "../outside"}); err == nil {
 		t.Fatal("preview accepted traversal")
 	}
+	resolved, err := s.ResolveWorkspacePath(ctx, &pb.ResolveWorkspacePathRequest{CollectionId: c.ID, Path: "hello.txt"})
+	if err != nil || len(resolved.Matches) != 1 || resolved.Matches[0].Path != "api/hello.txt" || resolved.Matches[0].Directory || !resolved.Exact {
+		t.Fatal(resolved, err)
+	}
+	found, err := s.SearchWorkspaceFiles(ctx, &pb.SearchWorkspaceFilesRequest{CollectionId: c.ID, Query: "hel", Limit: 5})
+	if err != nil || len(found.Matches) != 1 || found.Matches[0].Path != "api/hello.txt" || len(found.Matches[0].Positions) != 3 || found.Indexed == 0 {
+		t.Fatal(found, err)
+	}
 	changes, err := s.ListWorkspaceChanges(ctx, &pb.WorkspaceChangesRequest{CollectionId: c.ID})
 	if err != nil || len(changes.Repositories) != 1 || len(changes.Repositories[0].Files) != 1 || changes.Repositories[0].Files[0].Path != "hello.txt" {
 		t.Fatal(changes, err)

@@ -60,7 +60,7 @@ try {
  channel.push({type:'message_delta',text:'Open [the file](api/README.md#L2) or `api/README.md:2`.'});
  await page.locator('.workspace-row').filter({hasText:'Alpha renamed'}).locator('button').first().click();
  await page.getByRole('navigation',{name:'Workspace conversations'}).getByRole('button',{name:/Conversation alpha-session/}).click();
- await page.getByRole('button',{name:'the file',exact:true}).click();
+ await page.getByRole('button',{name:'the file',exact:true}).click({modifiers:['Alt']});
  const preview=page.getByRole('dialog',{name:'File preview',exact:true});await expect(preview).toContainText('A retained file.');await expect(preview.locator('.monaco-editor')).toBeVisible();assert.ok((await preview.boundingBox()).height>700,'file surface must use the available height');
  assert.equal(fixture.calls.filter(call=>call.method==='ReadWorkspaceFile').at(-1).body.path,'api/README.md');await page.screenshot({path:'/tmp/lazybox-file-preview.png'});await page.getByRole('button',{name:'Close file preview'}).click();
  await page.getByRole('navigation',{name:'Workspace conversations'}).getByRole('button',{name:/Saved conversation/}).click();

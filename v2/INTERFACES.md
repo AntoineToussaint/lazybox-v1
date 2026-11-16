@@ -16,6 +16,11 @@ members through the collection owner. The injected `gitinspect.Inspector`
 boundary performs bounded, read-only local inspection. Requests carry workspace,
 member and relative changed-file identity, never a caller-selected absolute root.
 Per-repository errors, binary previews and truncation remain explicit on the wire.
+`SearchWorkspaceFiles` and `ResolveWorkspacePath` work on a workspace's files the
+same way: a bounded, briefly cached index of what `git ls-files` shows in each
+member (ignored files excluded) and existence checks through `os.Root`, so neither
+returns a path outside the workspace. Resolution returns every match of an
+ambiguous reference for the client to offer as a choice.
 The PR loop's writes (`CommitWorkspaceChanges`, `PushWorkspaceBranch`) resolve
 members the same way and go through `gitpublish`, the only package that writes a
 member's history; pull requests go through `github.PullRequests`. See

@@ -1,4 +1,6 @@
 import { fileReference, type FileLink } from './file-reference';
+import { preloadEditor } from './editor-loader';
+import { isMac } from './workbench';
 import { Children, isValidElement, memo, useMemo, useState, type ReactNode } from 'react';
 import { MermaidDiagram } from './MermaidDiagram';
 import Markdown from 'react-markdown';
@@ -38,12 +40,14 @@ const components={
  // Do not load external images from model output just by viewing a message.
  img:({alt}:{alt?:string})=><span className="content-reference">{alt||'Image reference'}</span>,
 };
+const fileTitle=`Open file · ${isMac?'⌥':'Alt+'}click for a quick look · ${isMac?'⌘':'Ctrl+'}click to open beside`;
 /** All agent-authored prose uses this renderer, including help and planning.
  * Raw HTML is never interpreted; code and diagram source remain copyable. */
-export const RichContent=memo(function RichContent({text,onOpenFile}:{text:string;onOpenFile?(reference:FileLink):void}) {
+/** `onOpenFile` gets the click's modifiers: Alt asks for a quick look, Cmd/Ctrl for the file beside the current one. */
+export const RichContent=memo(function RichContent({text,onOpenFile}:{text:string;onOpenFile?(reference:FileLink,how:{altKey:boolean;metaKey:boolean;ctrlKey:boolean}):void}) {
  const rawJSON=useMemo(()=>{if(text.length>200000||!/^\s*[\[{]/.test(text))return false;try{JSON.parse(text);return true;}catch{return false;}},[text]);
  return <div className="rich-content">{rawJSON?<CodeBlock text={text} language="json"/>:<Markdown remarkPlugins={[remarkGfm]} components={{...components,
- a:({href,children})=>{const file=href&&fileReference(href);return file&&onOpenFile?<button className="file-reference" onClick={()=>onOpenFile(file)}>{children}</button>:components.a({href,children});},
- code:({children,className})=>{const file=!className&&typeof children==='string'?fileReference(children,'automatic'):undefined;return file&&onOpenFile?<button className="file-reference inline-file" onClick={()=>onOpenFile(file)}>{children}</button>:<code className={className}>{children}</code>;}
+ a:({href,children})=>{const file=href&&fileReference(href);return file&&onOpenFile?<button className="file-reference" title={fileTitle} onPointerEnter={preloadEditor} onClick={event=>onOpenFile(file,event)}>{children}</button>:components.a({href,children});},
+ code:({children,className})=>{const file=!className&&typeof children==='string'?fileReference(children,'automatic'):undefined;return file&&onOpenFile?<button className="file-reference inline-file" title={fileTitle} onPointerEnter={preloadEditor} onClick={event=>onOpenFile(file,event)}>{children}</button>:<code className={className}>{children}</code>;}
  }}>{text}</Markdown>}</div>;
 });

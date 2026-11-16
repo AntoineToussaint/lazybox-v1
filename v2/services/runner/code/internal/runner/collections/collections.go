@@ -89,6 +89,8 @@ type Manager struct {
 	// adopted holds owners whose live agents this Runner re-attached: their
 	// ownership is certain even though a previous Runner recorded it.
 	adopted map[string]bool
+	// files caches each workspace's file index for search and link resolution.
+	files indexCache
 }
 
 func New(root string, repositories []Repository) (*Manager, error) {

@@ -1,3 +1,4 @@
+import type { OpenModifiers } from './file-links';
 import { memo } from 'react';
 import { RichContent } from './RichContent';
 import './message-list.css';
@@ -5,7 +6,7 @@ import type { FileLink } from './file-reference';
 import type { TranscriptMessage } from './transcript-model';
 import type { ReplayProgress } from './transcript-cache';
 
-const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink): void }) {
+const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void }) {
   if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
   return <article className={'message ' + m.type}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Provider failure' : m.type === 'notice' ? 'Runner' : agentName}</span>
@@ -20,7 +21,7 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile 
  * is added as the reader scrolls toward it. A render of the window that hosts
  * it (a keystroke in the composer) does not touch the rows.
  */
-export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink): void; onShowEarlier(): void }) {
+export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; onShowEarlier(): void }) {
   const hidden = Math.max(0, messages.length - visible);
   return <>
     {hidden > 0 && <button type="button" className="show-earlier" onClick={onShowEarlier}>Show earlier messages <small>{hidden.toLocaleString()} more</small></button>}

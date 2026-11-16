@@ -22,7 +22,7 @@ try{
  await page.locator('.workspace-row').filter({hasText:'Beta release'}).locator('button').first().click();await page.locator('.workspace-row').filter({hasText:'Renamed'}).locator('button').first().click();
  await expect(page.locator('.messages')).toContainText('Open');await expect(message).toHaveValue('Retain this draft');
  await expect.poll(()=>fixture.calls.filter(call=>call.method==='WatchEvents'&&call.body.sessionId==='alpha-session').at(-1)?.body.after).toBe('1');
- await page.screenshot({path:'/tmp/lazybox-navigation-verified.png'});await page.getByRole('button',{name:'README',exact:true}).click();const dialog=page.getByRole('dialog',{name:'File preview',exact:true});
+ await page.screenshot({path:'/tmp/lazybox-navigation-verified.png'});await page.getByRole('button',{name:'README',exact:true}).click({modifiers:['Alt']});const dialog=page.getByRole('dialog',{name:'File preview',exact:true});
  await expect(dialog).toContainText('A retained file.');assert.ok((await dialog.boundingBox()).height>700);
  await dialog.getByRole('button',{name:'Edit file',exact:true}).click();const editor=dialog.getByRole('textbox',{name:'File source editor',exact:true});await expect(editor).toBeVisible();await editor.focus();await page.keyboard.press('ControlOrMeta+a');await page.keyboard.insertText('edited from Monaco\n');
  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toContainText('Saved');assert.equal(fixture.workspaceFiles.get('alpha/api/README.md').text,'edited from Monaco\n');

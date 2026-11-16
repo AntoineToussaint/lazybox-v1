@@ -161,6 +161,12 @@ const (
 	// RunnerServiceSaveWorkspaceFileProcedure is the fully-qualified name of the RunnerService's
 	// SaveWorkspaceFile RPC.
 	RunnerServiceSaveWorkspaceFileProcedure = "/lazybox.bench.v1.RunnerService/SaveWorkspaceFile"
+	// RunnerServiceSearchWorkspaceFilesProcedure is the fully-qualified name of the RunnerService's
+	// SearchWorkspaceFiles RPC.
+	RunnerServiceSearchWorkspaceFilesProcedure = "/lazybox.bench.v1.RunnerService/SearchWorkspaceFiles"
+	// RunnerServiceResolveWorkspacePathProcedure is the fully-qualified name of the RunnerService's
+	// ResolveWorkspacePath RPC.
+	RunnerServiceResolveWorkspacePathProcedure = "/lazybox.bench.v1.RunnerService/ResolveWorkspacePath"
 	// RunnerServiceListHistoryProcedure is the fully-qualified name of the RunnerService's ListHistory
 	// RPC.
 	RunnerServiceListHistoryProcedure = "/lazybox.bench.v1.RunnerService/ListHistory"
@@ -317,6 +323,8 @@ type RunnerServiceClient interface {
 	ReadWorkspaceDiff(context.Context, *connect.Request[gen.WorkspaceDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
 	ReadWorkspaceFile(context.Context, *connect.Request[gen.WorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
 	SaveWorkspaceFile(context.Context, *connect.Request[gen.SaveWorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
+	SearchWorkspaceFiles(context.Context, *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error)
+	ResolveWorkspacePath(context.Context, *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error)
 	ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error)
 	ResumeSession(context.Context, *connect.Request[gen.ResumeSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	// Continues the conversation in a new agent started with another permission
@@ -641,6 +649,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceFile")),
 			connect.WithClientOptions(opts...),
 		),
+		searchWorkspaceFiles: connect.NewClient[gen.SearchWorkspaceFilesRequest, gen.WorkspaceFileSearch](
+			httpClient,
+			baseURL+RunnerServiceSearchWorkspaceFilesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SearchWorkspaceFiles")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveWorkspacePath: connect.NewClient[gen.ResolveWorkspacePathRequest, gen.WorkspacePathResolution](
+			httpClient,
+			baseURL+RunnerServiceResolveWorkspacePathProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ResolveWorkspacePath")),
+			connect.WithClientOptions(opts...),
+		),
 		listHistory: connect.NewClient[gen.ListHistoryRequest, gen.ListHistoryResponse](
 			httpClient,
 			baseURL+RunnerServiceListHistoryProcedure,
@@ -911,6 +931,8 @@ type runnerServiceClient struct {
 	readWorkspaceDiff            *connect.Client[gen.WorkspaceDiffRequest, gen.WorkspaceDiff]
 	readWorkspaceFile            *connect.Client[gen.WorkspaceFileRequest, gen.WorkspaceFile]
 	saveWorkspaceFile            *connect.Client[gen.SaveWorkspaceFileRequest, gen.WorkspaceFile]
+	searchWorkspaceFiles         *connect.Client[gen.SearchWorkspaceFilesRequest, gen.WorkspaceFileSearch]
+	resolveWorkspacePath         *connect.Client[gen.ResolveWorkspacePathRequest, gen.WorkspacePathResolution]
 	listHistory                  *connect.Client[gen.ListHistoryRequest, gen.ListHistoryResponse]
 	resumeSession                *connect.Client[gen.ResumeSessionRequest, gen.SessionResponse]
 	restartWithPermission        *connect.Client[gen.RestartWithPermissionRequest, gen.SessionResponse]
@@ -1165,6 +1187,16 @@ func (c *runnerServiceClient) SaveWorkspaceFile(ctx context.Context, req *connec
 	return c.saveWorkspaceFile.CallUnary(ctx, req)
 }
 
+// SearchWorkspaceFiles calls lazybox.bench.v1.RunnerService.SearchWorkspaceFiles.
+func (c *runnerServiceClient) SearchWorkspaceFiles(ctx context.Context, req *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error) {
+	return c.searchWorkspaceFiles.CallUnary(ctx, req)
+}
+
+// ResolveWorkspacePath calls lazybox.bench.v1.RunnerService.ResolveWorkspacePath.
+func (c *runnerServiceClient) ResolveWorkspacePath(ctx context.Context, req *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error) {
+	return c.resolveWorkspacePath.CallUnary(ctx, req)
+}
+
 // ListHistory calls lazybox.bench.v1.RunnerService.ListHistory.
 func (c *runnerServiceClient) ListHistory(ctx context.Context, req *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error) {
 	return c.listHistory.CallUnary(ctx, req)
@@ -1395,6 +1427,8 @@ type RunnerServiceHandler interface {
 	ReadWorkspaceDiff(context.Context, *connect.Request[gen.WorkspaceDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
 	ReadWorkspaceFile(context.Context, *connect.Request[gen.WorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
 	SaveWorkspaceFile(context.Context, *connect.Request[gen.SaveWorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
+	SearchWorkspaceFiles(context.Context, *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error)
+	ResolveWorkspacePath(context.Context, *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error)
 	ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error)
 	ResumeSession(context.Context, *connect.Request[gen.ResumeSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	// Continues the conversation in a new agent started with another permission
@@ -1715,6 +1749,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceSearchWorkspaceFilesHandler := connect.NewUnaryHandler(
+		RunnerServiceSearchWorkspaceFilesProcedure,
+		svc.SearchWorkspaceFiles,
+		connect.WithSchema(runnerServiceMethods.ByName("SearchWorkspaceFiles")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceResolveWorkspacePathHandler := connect.NewUnaryHandler(
+		RunnerServiceResolveWorkspacePathProcedure,
+		svc.ResolveWorkspacePath,
+		connect.WithSchema(runnerServiceMethods.ByName("ResolveWorkspacePath")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListHistoryHandler := connect.NewUnaryHandler(
 		RunnerServiceListHistoryProcedure,
 		svc.ListHistory,
@@ -2025,6 +2071,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceReadWorkspaceFileHandler.ServeHTTP(w, r)
 		case RunnerServiceSaveWorkspaceFileProcedure:
 			runnerServiceSaveWorkspaceFileHandler.ServeHTTP(w, r)
+		case RunnerServiceSearchWorkspaceFilesProcedure:
+			runnerServiceSearchWorkspaceFilesHandler.ServeHTTP(w, r)
+		case RunnerServiceResolveWorkspacePathProcedure:
+			runnerServiceResolveWorkspacePathHandler.ServeHTTP(w, r)
 		case RunnerServiceListHistoryProcedure:
 			runnerServiceListHistoryHandler.ServeHTTP(w, r)
 		case RunnerServiceResumeSessionProcedure:
@@ -2278,6 +2328,14 @@ func (UnimplementedRunnerServiceHandler) ReadWorkspaceFile(context.Context, *con
 
 func (UnimplementedRunnerServiceHandler) SaveWorkspaceFile(context.Context, *connect.Request[gen.SaveWorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveWorkspaceFile is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SearchWorkspaceFiles(context.Context, *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SearchWorkspaceFiles is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ResolveWorkspacePath(context.Context, *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResolveWorkspacePath is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error) {
