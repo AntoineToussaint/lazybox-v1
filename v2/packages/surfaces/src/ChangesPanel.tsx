@@ -1,5 +1,5 @@
 import { useFileOpener } from './file-links';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import type { ChangedFile, RepositoryChanges, ReviewComment, Session, TurnCheckpoint, WorkspaceDiff } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
@@ -16,6 +16,8 @@ import type { MenuItem } from './context-menu-model';
 import { isMac } from './workbench';
 import { TurnChangesView } from './TurnChangesView';
 import { parseTurnCompare, turnCompare, useRequestedTurn, useTurnCheckpoints } from './turn-checkpoints';
+import { contentKey, type DiffMode } from './diff-layout';
+import { diffKeyTarget, fileKey, moveToHunk, useDiffMode, useNarrow, useViewedFiles } from './useDiffPreferences';
 
 type Selection = { member: string; path: string; committed: boolean };
 
@@ -112,9 +114,50 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
     setSelection({ member: comment.member, path: comment.path, committed }); setStaged(!committed && comment.view === 'staged');
     setFocus(previous => ({ id: comment.id, nonce: (previous?.nonce || 0) + 1 }));
   };
+  // Unified or side by side (unified whatever the choice when the pane is too narrow), and files marked viewed.
+  const [diffMode, setDiffMode] = useDiffMode(viewState);
+  const [diffPane, setDiffPane] = useState<HTMLElement | null>(null);
+  const narrow = useNarrow(diffPane);
+  const shownMode: DiffMode = narrow ? 'unified' : diffMode;
+  const viewed = useViewedFiles(workspaceId, viewState);
+  const diffContent = diff && !diff.binary ? contentKey(diff.text) : '';
+  const selectedKey = selection ? fileKey(selection.member, selection.path, selection.committed) : '';
+  useEffect(() => { if (selectedKey && diffContent) viewed.reconcile(selectedKey, diffContent); }, [selectedKey, diffContent]);
   if (!workspaceId) return <p className="module-empty">Choose a workspace to review its changes.</p>;
   const selectedRepo = selection && repos.find(repo => repo.member === selection.member);
   const showCommitted = compare !== UNCOMMITTED;
+  // Every file in the list, in its order: n/p move between hunks, Shift+N/P between these.
+  const listed = repos.flatMap(repo => [...(showCommitted && !repo.committedError ? repo.committed.map(file => ({ member: repo.member, file, committed: true })) : []), ...repo.files.map(file => ({ member: repo.member, file, committed: false }))]);
+  const listedKeys = listed.map(entry => fileKey(entry.member, entry.file.path, entry.committed));
+  const position = listedKeys.indexOf(selectedKey);
+  const moveFile = (step: number, unviewed = false) => {
+    for (let i = position + step; i >= 0 && i < listed.length; i += step) {
+      if (unviewed && viewed.isViewed(listedKeys[i])) continue;
+      choose(listed[i].member, listed[i].file, listed[i].committed);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`.changes-panel nav [data-file-key="${CSS.escape(listedKeys[i])}"]`)?.focus({ preventScroll: false }));
+      return;
+    }
+  };
+  const readNewSide = async (member: string, path: string) => {
+    const file = await api.readWorkspaceFile({ collectionId: workspaceId, path: `${member}/${path}` }, { timeoutMs: 10000 });
+    if (file.directory || file.binary || file.truncated) throw new Error('This file is too large to show its unchanged lines here. Open it to read them.');
+    return file.text;
+  };
+  const markViewed = (key: string, on: boolean) => viewed.set(key, on, key === selectedKey ? diffContent : '');
+  const keys = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (!diffKeyTarget(event) || turnView) return;
+    const root = event.currentTarget;
+    if (event.key === 'n' || event.key === 'p') { event.preventDefault(); moveToHunk(root, event.key === 'n' ? 1 : -1); }
+    else if (event.key === 'N' || event.key === 'P') { event.preventDefault(); moveFile(event.key === 'N' ? 1 : -1); }
+    else if (event.key === 'v' && selectedKey) {
+      event.preventDefault();
+      const on = !viewed.isViewed(selectedKey);
+      markViewed(selectedKey, on);
+      // Marking a file viewed moves on to the next one still to review.
+      if (on) moveFile(1, true);
+    }
+    else if (event.key === 's' && selection && !narrow) { event.preventDefault(); setDiffMode(diffMode === 'split' ? 'unified' : 'split'); }
+  };
   const committed = showCommitted ? repos.reduce((sum, repo) => sum + repo.committed.length, 0) : 0, uncommitted = repos.reduce((sum, repo) => sum + repo.files.length, 0);
   const turnPrompt = turnView && turnView.sessionId === sessionId ? turns.byNumber.get(turnView.turn)?.prompt || '' : '';
   const summary = turnView ? `Agent turn ${turnView.turn}${turnPrompt ? ` · “${turnPrompt}”` : ''}` : loading ? 'Reading changes…' : !committed && !uncommitted ? 'No changes yet' : [committed && `${plural(committed, 'file')} changed ${compare === START ? 'on the branch' : 'vs ' + compare}`, uncommitted && `${uncommitted} uncommitted`].filter(Boolean).join(' · ');
@@ -139,26 +182,32 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
     'separator',
     { label: 'Refresh changes', icon: 'refresh', run: refresh },
   ];
-  return <section className="changes-panel" aria-label="Workspace changes">
+  return <section className="changes-panel" aria-label="Workspace changes" onKeyDown={keys}>
     <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)}/>
     {turnView ? <TurnChangesView key={compare} sessionId={turnView.sessionId} turn={turnView.turn}/> : <>
     {error && <p className="error" role="alert">{error}</p>}
     {notice && <p className="changes-notice" role="status"><span>{notice}</span><button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></p>}
     <div className={`changes-columns${trayOpen ? ' with-review' : ''}`}>
       <nav aria-label="Changed files">
-        {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent} menu={rowItems}/>)}
+        {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent} isViewed={viewed.isViewed} onViewed={markViewed} menu={rowItems}/>)}
       </nav>
-      <div className="diff-view" onContextMenu={selection ? contextMenu('diff', () => fileItems(selection.member, selection.path), { member: selection.member, path: selection.path }) : undefined}>
+      <div className="diff-view" ref={setDiffPane} onContextMenu={selection ? contextMenu('diff', () => fileItems(selection.member, selection.path), { member: selection.member, path: selection.path }) : undefined}>
         {selection
           ? <>
             <header>
               <strong>{selection.member}/{selection.path}</strong>
               <button title="Open in the editor · Alt-click for a quick look" onClick={event => void fileLinks.open({ path: `${selection.member}/${selection.path}` }, event, { exact: true })}>Open file</button>
               {!selection.committed && <label><input type="checkbox" checked={staged} onChange={event => setStaged(event.target.checked)}/> Staged</label>}
+              <label className="diff-viewed" title="Mark this file reviewed (v) · it is unmarked if its diff changes"><input type="checkbox" checked={viewed.isViewed(selectedKey)} onChange={event => markViewed(selectedKey, event.target.checked)}/> Viewed</label>
+              {listed.length > 0 && <span className="changes-viewed-count" role="status">{viewed.count(listedKeys)} of {listed.length} viewed</span>}
+              <DiffModeToggle mode={diffMode} narrow={narrow} onMode={setDiffMode}/>
             </header>
             <div className="diff-comparison">{selection.committed ? (compare === START ? 'Workspace start → latest commit' : `${compare} (merge base) → latest commit`) : staged ? 'Last commit → staged' : 'Staged → working tree (uncommitted)'}</div>
+            <div className="diff-keys" aria-hidden="true"><kbd>n</kbd> <kbd>p</kbd> hunks · <kbd>⇧N</kbd> <kbd>⇧P</kbd> files · <kbd>v</kbd> viewed · <kbd>s</kbd> split</div>
             <DiffBody diff={diff} error={diffError} empty={selection.committed ? 'branch' : staged ? 'staged' : 'unstaged'}
-              review={{ workspaceId, member: selection.member, path: selection.path, view: selection.committed ? 'branch' : staged ? 'staged' : 'uncommitted', base: selection.committed ? selectedRepo?.base || '' : '', focus }}/>
+              review={{ workspaceId, member: selection.member, path: selection.path, view: selection.committed ? 'branch' : staged ? 'staged' : 'uncommitted', base: selection.committed ? selectedRepo?.base || '' : '', focus, mode: shownMode,
+                // More unchanged lines come from the working file: only when it is this diff's new side.
+                loadFile: (selection.committed ? !selectedRepo?.files.some(file => file.path === selection.path) : !staged) ? () => readNewSide(selection.member, selection.path) : undefined }}/>
           </>
           : <div className="diff-empty"><h3>{loading ? 'Reading changes…' : 'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}
       </div>
@@ -199,7 +248,7 @@ function ChangesHeader({ summary, compare, repos, sessionId, turns, onCompare, o
 }
 
 /** One repository: its PR loop, then its committed and uncommitted files. */
-function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, onChoose, onChanged, onSendToAgent, menu }: {
+function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, onChoose, onChanged, onSendToAgent, isViewed, onViewed, menu }: {
   menu?(member: string, file: ChangedFile, committed: boolean): MenuItem[];
   workspaceId: string;
   repo: RepositoryChanges;
@@ -209,13 +258,21 @@ function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, 
   onChoose(member: string, file: ChangedFile, committed: boolean): void;
   onChanged(): void;
   onSendToAgent(text: string): void;
+  isViewed(key: string): boolean;
+  onViewed(key: string, viewed: boolean): void;
 }) {
   const showCommitted = compare !== UNCOMMITTED;
-  const fileButton = (file: ChangedFile, isCommitted: boolean) => <button key={(isCommitted ? 'c:' : 'u:') + file.path} className={selection?.member === repo.member && selection.path === file.path && selection.committed === isCommitted ? 'selected' : ''} onClick={() => onChoose(repo.member, file, isCommitted)}
-    onContextMenu={menu && contextMenu('changed-file', () => menu(repo.member, file, isCommitted), { member: repo.member, path: file.path, committed: isCommitted })}>
-    <code title={isCommitted ? 'Change since the workspace started' : 'Index / working tree status'}>{isCommitted ? file.indexStatus : file.indexStatus + file.worktreeStatus}</code>
-    <span>{file.path}{file.originalPath && <small>from {file.originalPath}</small>}</span>
-  </button>;
+  const fileButton = (file: ChangedFile, isCommitted: boolean) => {
+    const key = fileKey(repo.member, file.path, isCommitted), seen = isViewed(key);
+    return <div key={key} className={`changes-file${seen ? ' is-viewed' : ''}`}>
+      <button data-file-key={key} className={selection?.member === repo.member && selection.path === file.path && selection.committed === isCommitted ? 'selected' : ''} onClick={() => onChoose(repo.member, file, isCommitted)}
+        onContextMenu={menu && contextMenu('changed-file', () => menu(repo.member, file, isCommitted), { member: repo.member, path: file.path, committed: isCommitted })}>
+        <code title={isCommitted ? 'Change since the workspace started' : 'Index / working tree status'}>{isCommitted ? file.indexStatus : file.indexStatus + file.worktreeStatus}</code>
+        <span>{file.path}{file.originalPath && <small>from {file.originalPath}</small>}</span>
+      </button>
+      <input type="checkbox" aria-label={`Viewed ${file.path}`} title="Viewed" checked={seen} onChange={event => onViewed(key, event.target.checked)}/>
+    </div>;
+  };
   return <section>
     <h3>{repo.member}<small>{repo.branch === 'HEAD' ? 'Detached HEAD' : repo.branch} · {repo.head.slice(0, 8)}</small></h3>
     <RepositoryShip workspaceId={workspaceId} repo={repo} conversation={conversation} onChanged={onChanged} onSendToAgent={onSendToAgent}/>
@@ -239,7 +296,17 @@ function RepositoryFiles({ workspaceId, repo, compare, selection, conversation, 
   </section>;
 }
 
-type DiffReview = { workspaceId: string; member: string; path: string; view: ReviewView; base: string; focus?: ReviewFocus };
+/** Unified or side by side. A pane too narrow for two columns shows unified and says so. */
+function DiffModeToggle({ mode, narrow, onMode }: { mode: DiffMode; narrow: boolean; onMode(mode: DiffMode): void }) {
+  return <>
+    <div className="diff-mode" role="group" aria-label="Diff layout">
+      {(['unified', 'split'] as const).map(value => <button key={value} type="button" aria-pressed={mode === value} title={value === 'split' ? `Side by side (s)${narrow ? ' · shown when the pane is wider' : ''}` : 'One column (s)'} onClick={() => onMode(value)}>{value === 'split' ? 'Split' : 'Unified'}</button>)}
+    </div>
+    {narrow && mode === 'split' && <small className="diff-mode-note" role="status">Unified while the pane is narrow</small>}
+  </>;
+}
+
+type DiffReview = { workspaceId: string; member: string; path: string; view: ReviewView; base: string; focus?: ReviewFocus; mode: DiffMode; loadFile?(): Promise<string> };
 /** The selected file's diff, open to review comments, or why there is none. */
 function DiffBody({ diff, error, empty, review }: { diff?: WorkspaceDiff; error: string; empty: 'branch' | 'staged' | 'unstaged'; review: DiffReview }) {
   if (error) return <p role="alert" className="error">{error}</p>;

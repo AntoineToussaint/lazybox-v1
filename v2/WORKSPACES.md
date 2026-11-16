@@ -261,6 +261,20 @@ follow its checks, send failing checks to the conversation, and merge. See
 kept per workspace on the Runner and sent to a conversation as one message;
 see [review comments](GITHUB.md#review-comments).
 
+A diff reads **unified or split** (side by side; the choice is remembered for
+every window of the Runner, and a pane narrower than 700px shows unified until
+it is wider). Both mark the words that changed between a removed line and its
+replacement, fold long unchanged runs, and count the unchanged lines between
+hunks; where the diff's new side is the working file (uncommitted changes, or a
+branch file with no uncommitted edits) a click shows them, read from that file
+and refused if it no longer matches the diff. Comments work the same in both:
+removed lines from the left, everything else from the right. Each file has a
+**Viewed** box, kept per workspace in the client's preferences for this Runner
+(not on the Runner) with the diff it was ticked on: a file whose diff has changed is unticked when it is next shown.
+Keys in the Changes page: `n`/`p` next and previous hunk, `Shift+N`/`Shift+P`
+next and previous file, `v` toggles Viewed (and moves on to the next file still
+to review), `s` switches unified and split.
+
 ### Per-turn checkpoints and revert
 
 Before each agent turn starts, and again when it ends, the Runner saves every

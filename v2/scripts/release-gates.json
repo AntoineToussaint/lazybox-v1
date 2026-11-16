@@ -62,7 +62,8 @@
     { "id": "context-menus", "scope": "ui", "script": "test:context-menus" },
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
     { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },
-    { "id": "onboarding", "scope": "ui", "script": "test:onboarding" }
+    { "id": "onboarding", "scope": "ui", "script": "test:onboarding" },
+    { "id": "split-diff", "scope": "ui", "script": "test:split-diff" }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }
