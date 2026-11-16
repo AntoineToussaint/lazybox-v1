@@ -100,6 +100,10 @@
 
 /* The tray beside the composer. */
 .subagent-tray{position:relative;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 24px;font-size:calc(12px * var(--text-scale));flex-shrink:0;color:var(--attention-working,var(--running));font-variant-numeric:tabular-nums}
+/* Short of room (a narrow chat), the tray wraps: "All N" never runs past the bar's edge. */
+.subagent-tray{flex-wrap:wrap;row-gap:4px}
+.subagent-tray>.subagent-chips{flex:1 1 90px}
+.subagent-tray>.subagent-tray-all{margin-left:auto}
 .subagent-tray-root{display:inline-flex;align-items:center;gap:8px;flex:none;white-space:nowrap}
 .subagent-tray-count{flex:none;color:var(--text-subtle);white-space:nowrap}
 .subagent-tray-root+.subagent-tray-count::before{content:'·';margin-right:10px;color:var(--text-disabled)}

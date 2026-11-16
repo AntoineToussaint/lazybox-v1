@@ -50,7 +50,8 @@
 .chat-heading-actions .tool-activity-toolbar>button:hover{background:var(--surface-active);color:var(--text)}
 .chat-heading-actions .tool-activity-toolbar>button[data-empty]{display:none}
 .chat-heading-actions .tool-activity-toolbar>button[data-running]{color:var(--attention-working,var(--running))}
-.chat-heading-actions .tool-activity-toolbar>button[data-failed]:not([data-running]) .tool-activity-count{color:var(--attention-failed,var(--danger))}
+/* A count is not an alarm: it stays neutral. Only what failed is red, and it says so ("3 failed"). */
+.chat-heading-actions .tool-activity-toolbar>button .tool-activity-failed{margin:0 0 0 2px;padding-left:7px;border-left:1px solid var(--line);color:var(--attention-failed,var(--danger));white-space:nowrap}
 .chat-heading-actions .tool-activity-count{margin:0}
 /* A slim chat keeps the counts; their words stay in the tooltip and the accessible name. */
 .chat-heading[data-narrow] .tool-activity-noun,.chat-heading[data-narrow] .background-work-noun{display:none}
