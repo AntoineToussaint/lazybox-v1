@@ -56,8 +56,11 @@ type Config struct {
 	HostRoot string `json:"-"`
 	// CommandHostRoot holds the session hosts of managed commands, which
 	// outlive the Runner too. Empty selects <State>/command-hosts.
-	CommandHostRoot string                   `json:"-"`
-	Worker          string                   `json:"worker"`
+	CommandHostRoot string `json:"-"`
+	Worker          string `json:"worker"`
+	// CLIDir holds the lazybox CLI. It is put first on every agent's PATH and
+	// enables the command-output briefing. Empty leaves both off.
+	CLIDir          string                   `json:"-"`
 	CodexBinary     string                   `json:"codexBinary,omitempty"`
 	ClaudeBinary    string                   `json:"claudeBinary,omitempty"`
 	Profiles        []accounts.Profile       `json:"profiles"`
@@ -472,14 +475,14 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	}
 	if parent == nil {
 		prefs := b.Preferences.Snapshot()
-		extra := prefs.ClaudeContext
-		if selected.Provider == "codex" {
-			extra = prefs.CodexContext
-		}
+		shared := b.sharedInstructions(selected.Provider, purpose)
 		if options.Instructions == "" {
 			options.Instructions = b.Config.Defaults.Instructions
 		}
-		contextText += "\n" + prefs.Context + "\n" + extra + "\n" + options.Instructions
+		contextText += "\n" + shared.settings + "\n" + shared.provider + "\n" + options.Instructions
+		if shared.briefing != "" {
+			contextText += "\n" + shared.briefing
+		}
 		if options.Workflow == "" {
 			options.Workflow = b.Config.Defaults.Workflow
 		}
@@ -538,6 +541,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 			return nil, errors.New("gateway credential environment reference unavailable")
 		}
 	}
+	env = b.withCLI(env)
 	env = append(env, "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint)
 	env = append(env, "LAZYBOX_V2_SESSION_ID="+id)
 	if collectionID != "" {
@@ -557,6 +561,10 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	}
 	adapter := b.sessionAdapter(e, selected, options, conversationID)
 	record := sessionstore.Record{ID: id, ConversationID: conversationID, Previous: previous, WorkID: workID, CollectionID: collectionID, Cwd: cwd, Purpose: purpose, Context: contextText, ProfileID: profile, Provider: selected.Provider, ProfileBinding: profileBinding(selected), Options: options, GatewayID: b.GatewayID(e), Title: filepath.Base(cwd), CreatedAt: time.Now().UTC(), Snapshot: engine.Snapshot{ID: id, Profile: profile, Purpose: purpose, Reference: resume}}
+	if parent != nil {
+		// A successor continues the conversation, including updates it already received.
+		record.Instructions = parent.Instructions
+	}
 	record.ProfileBindings = map[string]string{}
 	for _, p := range b.Profiles() {
 		record.ProfileBindings[p.ID] = profileBinding(p)
@@ -632,7 +640,7 @@ func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []str
 					if err != nil {
 						return nil, err
 					}
-					env = append(env, "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID="+e.ID)
+					env = append(b.withCLI(env), "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID="+e.ID)
 					if e.CollectionID != "" {
 						env = append(env, "LAZYBOX_V2_COLLECTION_ID="+e.CollectionID)
 					}

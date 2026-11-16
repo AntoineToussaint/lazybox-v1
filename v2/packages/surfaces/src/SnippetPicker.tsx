@@ -1,3 +1,4 @@
+import { readPreference, writePreference } from "./view-state";
 import { useEffect, useRef, useState } from "react";
 import type { Snippet } from "@lazybox/protocol";
 import type { ViewStateStore } from "@lazybox/platform";
@@ -25,13 +26,13 @@ export function SnippetPicker({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true);
-  const favoritesKey = "lazybox:favorite-snippets:v2";
-  const [favorites,setFavorites]=useState<string[]>(()=>{try{const value=JSON.parse(store?.getItem(favoritesKey)||'[]');return Array.isArray(value)?value.filter(v=>typeof v==='string'):[];}catch{return [];}});
+  const favoritesKey = "favorite-snippets:v2";
+  const [favorites,setFavorites]=useState<string[]>(()=>{try{const value=JSON.parse(readPreference(store, favoritesKey)||'[]');return Array.isArray(value)?value.filter(v=>typeof v==='string'):[];}catch{return [];}});
   const [favoritesOnly,setFavoritesOnly]=useState(false);
-  const recentKey = "lazybox:recent-snippets:v2";
+  const recentKey = "recent-snippets:v2";
   const [recent] = useState<string[]>(() => {
     try {
-      return JSON.parse(store?.getItem(recentKey) || "[]");
+      return JSON.parse(readPreference(store, recentKey) || "[]");
     } catch {
       return [];
     }
@@ -86,7 +87,8 @@ export function SnippetPicker({
     setBusy(true);
     try {
       if (await onSend(selected.body)) {
-        store?.setItem(
+        writePreference(
+          store,
           recentKey,
           JSON.stringify(
             [selected.key, ...recent.filter((k) => k !== selected.key)].slice(
@@ -182,7 +184,7 @@ export function SnippetPicker({
               <small>
                 {selected.origin} · {selected.category}
               </small>
-              <button className="snippet-favorite" aria-pressed={favorites.includes(selected.key)} onClick={()=>{const next=favorites.includes(selected.key)?favorites.filter(k=>k!==selected.key):[...favorites,selected.key];try{store?.setItem(favoritesKey,JSON.stringify(next));setFavorites(next);}catch(e){setError(`Could not save favorites: ${String(e)}`);}}}>{favorites.includes(selected.key)?'★ Favorite':'☆ Add to favorites'}</button>
+              <button className="snippet-favorite" aria-pressed={favorites.includes(selected.key)} onClick={()=>{const next=favorites.includes(selected.key)?favorites.filter(k=>k!==selected.key):[...favorites,selected.key];try{writePreference(store,favoritesKey,JSON.stringify(next));setFavorites(next);}catch(e){setError(`Could not save favorites: ${String(e)}`);}}}>{favorites.includes(selected.key)?'★ Favorite':'☆ Add to favorites'}</button>
               <RichContent text={selected.body} />
             </>
           )}

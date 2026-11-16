@@ -148,6 +148,27 @@ func (s *SQLite) Get(ctx context.Context, id string) (Record, error) {
 func (s *SQLite) Successor(ctx context.Context, id string) (Record, error) {
 	return decode(s.db.QueryRowContext(ctx, selectedRecord+" WHERE a.previous=?", id))
 }
+func (s *SQLite) Amend(ctx context.Context, id string, change func(*Record)) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	r, err := decode(tx.QueryRowContext(ctx, "SELECT body FROM attempts WHERE id=?", id))
+	if err != nil {
+		return err
+	}
+	change(&r)
+	r.UpdatedAt = time.Now().UTC()
+	body, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "UPDATE attempts SET body=? WHERE id=?", body, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 func (s *SQLite) SaveState(ctx context.Context, id string, state engine.Snapshot, settings json.RawMessage) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

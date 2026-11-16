@@ -69,10 +69,26 @@ export function clonePage(page: WorkspacePage, newID: () => string): WorkspacePa
 }
 
 /** Detached windows remain in saved layout, but do not reserve an empty pane. */
-export function visibleLayout(node:LayoutNode):LayoutNode|null{
- if(node.type==='panel')return node.panel.detached?null:node;
- const first=visibleLayout(node.children[0]),second=visibleLayout(node.children[1]);
+export function visibleLayout(node:LayoutNode,keep=''):LayoutNode|null{
+ if(node.type==='panel')return node.panel.detached&&node.panel.id!==keep?null:node;
+ const first=visibleLayout(node.children[0],keep),second=visibleLayout(node.children[1],keep);
  return first&&second?{...node,children:[first,second]}:first||second;
+}
+const chrome=(panel:Panel)=>panel.kind==='collections'||panel.kind==='console';
+/** The main window's layout: when every content panel is detached, the first one stays
+ * in place as a "in its own window" card so the workspace list does not fill the page. */
+export function mainLayout(node:LayoutNode):LayoutNode|null{
+ const shown=visibleLayout(node);
+ if(shown&&!panels(shown).every(chrome))return shown;
+ const placeholder=panels(node).find(panel=>panel.detached&&!chrome(panel));
+ return placeholder?visibleLayout(node,placeholder.id):shown;
+}
+export function pinnedTarget(panel:Panel):{collectionId:string;sessionId:string}{
+ return panel.binding.mode==='pinned'?{collectionId:panel.binding.target.collectionId,sessionId:panel.binding.target.sessionId}:{collectionId:'',sessionId:''};
+}
+/** A detached panel already showing this conversation, so selecting it focuses that window. */
+export function detachedFor(node:LayoutNode,selection:ViewTarget):Panel|undefined{
+ return panels(node).find(panel=>panel.detached&&panel.kind==='chat'&&panel.binding.mode==='pinned'&&!!selection.sessionId&&panel.binding.target.sessionId===selection.sessionId);
 }
 
 /** Remove the retired built-in Monitor page without resetting other saved pages. */

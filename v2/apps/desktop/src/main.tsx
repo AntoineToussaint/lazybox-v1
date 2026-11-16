@@ -6,7 +6,7 @@ import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import { AgentWindow, Workspace } from '@lazybox/surfaces';
 import type { SurfaceHost, SurfaceTarget, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 
-type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console'; notice: string; viewState: Record<string,string> };
+type Bootstrap = { url: string; token: string; workingDirectory: string; target: SurfaceTarget; viewKey: string; viewScope: string; viewRoot: string; applicationName: string; fixedWorkspaceId: string; kind: 'workspace' | 'chat' | 'console'; notice: string; viewState: Record<string,string> };
 const fetchRunner: typeof globalThis.fetch = (input, init) => nativeFetch(input, { ...init, maxRedirections: 0 });
 
 function DesktopWindow({ bootstrap }: { bootstrap: Bootstrap }) {
@@ -19,14 +19,14 @@ function DesktopWindow({ bootstrap }: { bootstrap: Bootstrap }) {
   }), []);
   const retained = useRef(new Map(Object.entries(bootstrap.viewState)));
   const pendingWrites = useRef(Promise.resolve());
-  const viewState = useMemo<ViewStateStore>(() => ({ key: bootstrap.viewKey, scope: bootstrap.viewScope,
+  const viewState = useMemo<ViewStateStore>(() => ({ key: bootstrap.viewKey, scope: bootstrap.viewScope, root: bootstrap.viewRoot,
     getItem: key => retained.current.get(key) ?? localStorage.getItem(key),
     setItem: (key, value) => {
       if (value.length > 256 * 1024) throw new Error('Saved view is too large');
       retained.current.set(key, value);
       pendingWrites.current = pendingWrites.current.then(() => invoke<void>('save_view_state', { key, value })).catch(error => setError(`Could not save this window: ${String(error)}`));
     },
-  }), [bootstrap.viewKey, bootstrap.viewScope]);
+  }), [bootstrap.viewKey, bootstrap.viewScope, bootstrap.viewRoot]);
   const saveTarget = useCallback((target: SurfaceTarget) => host.saveTarget(target), [host]);
   const workspaceHost = useMemo<WorkspaceHost>(() => ({
     reconnect: () => invoke<void>('reconnect_view'),

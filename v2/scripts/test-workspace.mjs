@@ -53,6 +53,33 @@ try {
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   assert.equal(fixture.calls.filter(value => value.method === 'WatchEvents').length, journalCalls, 'catalog refresh must not restart a chat subscription');
 
+  // Panels resize by dragging the divider or with arrow keys, outside layout editing.
+  const divider = page.getByRole('separator', { name: 'Resize split root', exact: true });
+  const before = Number(await divider.getAttribute('aria-valuenow')), grip = await divider.boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
+  await page.mouse.move(grip.x + 200, grip.y + grip.height / 2, { steps: 5 }); await page.mouse.up();
+  await expect.poll(async () => Number(await divider.getAttribute('aria-valuenow'))).toBeGreaterThan(before);
+  const dragged = Number(await divider.getAttribute('aria-valuenow'));
+  await divider.focus(); await page.keyboard.press('ArrowLeft');
+  await expect(divider).toHaveAttribute('aria-valuenow', String(dragged - 2));
+  // The session menu closes when clicking outside it.
+  await chat.getByLabel('Session actions', { exact: true }).click();
+  await expect(chat.getByRole('button', { name: 'End session', exact: true })).toBeVisible();
+  await page.locator('.workspace-brand').click();
+  await expect(chat.getByRole('button', { name: 'End session', exact: true })).toBeHidden();
+  // A running session's permission mode changes from the same menu.
+  await chat.getByLabel('Session actions', { exact: true }).click();
+  const permissions = chat.getByRole('group', { name: 'Permissions', exact: true });
+  await expect(permissions.getByRole('button', { name: 'Ask for approval', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await permissions.getByRole('button', { name: 'YOLO', exact: true }).click();
+  await expect.poll(() => fixture.mutations.find(m => m.method === 'Apply' && m.body.permission)?.body.permission.mode).toBe('yolo');
+  await chat.getByLabel('Session actions', { exact: true }).click();
+  await expect(permissions.getByRole('button', { name: 'YOLO', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.workspace-brand').click();
+  // Later assertions count execution starts; this deliberate change is not one.
+  fixture.mutations.splice(fixture.mutations.findIndex(m => m.method === 'Apply' && m.body.permission), 1);
+  await expect(chat.getByText('Lazybox instructions changed since this conversation started.', { exact: false })).toBeVisible();
+
   await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Customize page', exact: true }).click();
   await chat.getByRole('button', { name: 'Pin view', exact: true }).click();
   await session.selectOption('alpha-second');
@@ -92,7 +119,9 @@ try {
   let popupPromise = page.waitForEvent('popup');
   await chat.getByRole('button', { name: 'Open chat window ↗', exact: true }).click();
   let popup = await popupPromise;
-  await expect(chat).toHaveCount(0);
+  // The only content panel stays as a card, so the workspace list does not fill the page.
+  await expect(chat.getByRole('heading', { name: 'Chat is in its own window', exact: true })).toBeVisible();
+  await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0);
   await expect(page.locator('.detached-tabs')).toBeVisible();
   await expect(popup.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await popup.getByRole('textbox', { name: 'Message', exact: true }).fill('draft from detached chat');
@@ -105,7 +134,9 @@ try {
   await page.close();
   await expect(popup.getByRole('textbox', { name: 'Message', exact: true })).toBeEnabled();
   page = await context.newPage(); await page.goto(url); chat = page.locator('[data-panel-id="alpha-work-chat"]');
-  await expect(chat).toHaveCount(0);
+  // The only content panel stays as a card, so the workspace list does not fill the page.
+  await expect(chat.getByRole('heading', { name: 'Chat is in its own window', exact: true })).toBeVisible();
+  await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0);
   await expect(page.locator('.detached-tabs')).toBeVisible();
   await page.locator('.detached-tabs').getByRole('button', { name: /Chat in separate window/ }).click();
   await expect(popup.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');

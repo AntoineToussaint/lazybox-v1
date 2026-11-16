@@ -7,7 +7,9 @@ require (
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/vanguard v0.4.0
 	github.com/codefly-dev/core v0.19.7-0.20261025185759-e501458995d0
+	github.com/codefly-dev/gortk v0.2.0
 	github.com/codefly-dev/sdk-go v0.4.0
+	github.com/dustinkirkland/golang-petname v0.0.0-20261016130456-fdd95a3d0543
 	github.com/google/go-github/v93 v93.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0
 	github.com/rs/cors v1.11.1
@@ -15,6 +17,7 @@ require (
 	golang.org/x/net v0.60.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.61.0
 )
 
@@ -26,7 +29,6 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/dustinkirkland/golang-petname v0.0.0-20261016130456-fdd95a3d0543 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect
 	github.com/go-openapi/jsonpointer v1.0.1 // indirect
@@ -61,7 +63,6 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
-	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/libc v1.79.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect

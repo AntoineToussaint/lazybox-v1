@@ -46,6 +46,7 @@ pub struct WindowBootstrap {
     target: Target,
     view_key: String,
     view_scope: String,
+    view_root: String,
     application_name: String,
     kind: &'static str,
     fixed_workspace_id: String,
@@ -446,6 +447,7 @@ pub fn runner_bootstrap(
                 surface.target.panel_id
             )
         },
+        view_root: host.authority.clone(),
         view_scope: if surface.target.panel_id.is_empty() {
             host.authority.clone()
         } else {

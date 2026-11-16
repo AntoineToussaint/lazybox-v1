@@ -42,8 +42,9 @@
 .tool-activity-dialog>footer{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex:none;padding:12px 24px;border-top:1px solid #30323b;color:#787e8c;font-size:10px}
 .available-tools{font-size:10px;max-width:60%;margin:0;color:#9499a8}
 .available-tools summary{cursor:pointer}
-.available-tools ul{columns:2;list-style:none;padding:0;font:10px/1.6 var(--font-mono);max-height:100px;overflow:auto}
-.available-tools li{overflow-wrap:anywhere}
+.tool-activity-dialog>footer:has(.available-tools[open]){flex-wrap:wrap}.available-tools[open]{flex:1 0 100%;max-width:none;order:-1}
+.available-tools ul{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 20px;list-style:none;margin:10px 0 0;padding:0;font:10px/1.7 var(--font-mono);max-height:180px;overflow:hidden auto}
+.available-tools li{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agent-inspection-bar{display:flex;align-items:center;flex:none;border-bottom:1px solid #30303a}
 .agent-inspection-bar .telemetry-panel.compact{border:0;min-width:0}
 .agent-inspection-bar .tool-activity-toolbar{border:0;margin-left:auto;padding-right:20px}

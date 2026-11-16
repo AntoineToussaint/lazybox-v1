@@ -16,7 +16,7 @@ import { ConversationList } from './ConversationList';
 import { CollectionPanel } from './CollectionPanel';
 import { CommandPanel } from './CommandPanel';
 import { mergeConversations } from './conversation-model';
-import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, visibleLayout, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, mainLayout, detachedFor, pinnedTarget, type LayoutNode, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { Icon } from './Icons';
@@ -138,6 +138,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     setMobilePanelId('');
     if(selection.collectionId!==workspaceID){select(selection);setSettings(false);setNewSession(false);return;}
     const live = current.current.pages.find(value => value.id === page.id)!;
+    const open = detachedFor(live.layout, selection);
+    if (open && host) { if (changePage({ ...live, selection })) { setSettings(false); setNewSession(false); } void host.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
     const hasChat = panels(live.layout).some(p => p.kind === 'chat' && p.binding.mode === 'follow' && !p.detached);
     const nextLayout: LayoutNode = hasChat ? mapPanels(live.layout, p => p.kind === 'chat' && p.binding.mode === 'follow' ? { ...p, collapsed: false } : p) : { type: 'split', direction: 'row', ratio: 0.5, children: [live.layout, { type: 'panel', panel: { id: crypto.randomUUID(), kind: 'chat', binding: { mode: 'follow' }, detached: false } }] };
     if (changePage({ ...live, selection, layout: nextLayout })) { setSettings(false); setNewSession(false); }
@@ -161,6 +163,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (!host || pending) return;
     const target = resolveTarget(panel, page.selection);
     if (!target.sessionId) return;
+    const open = detachedFor(page.layout, target);
+    if (open) { try { await host.openChat({ panelId: open.id, ...pinnedTarget(open) }); } catch (error) { setError(String(error)); } return; }
     setPending(panel.id);
     try {
       if (!changePanel(panel.id, panel => ({ ...panel, binding: { mode: 'pinned', target: { ...target } }, detached: true }))) return;
@@ -184,6 +188,35 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     };
     changePage({ ...page, layout: update(page.layout, path) });
   };
+  // Drag resizes the two cells in place and saves the ratio once on release,
+  // so a drag does not re-render the workspace on every pointer move.
+  const splitHandle = (node: Extract<LayoutNode, { type: 'split' }>, path: number[]) => {
+    const row = node.direction === 'row', clamp = (value: number) => Math.round(Math.min(0.85, Math.max(0.15, value)) * 100) / 100;
+    const save = (ratio: number) => resize(path, value => ({ ...value, ratio: clamp(ratio) }));
+    return <div key="handle" className="split-handle" role="separator" tabIndex={0} aria-orientation={row ? 'vertical' : 'horizontal'} aria-label={`Resize split ${path.join('-') || 'root'}`} aria-valuemin={15} aria-valuemax={85} aria-valuenow={Math.round(node.ratio * 100)}
+      onKeyDown={event => {
+        const step = { ArrowLeft: -0.02, ArrowUp: -0.02, ArrowRight: 0.02, ArrowDown: 0.02 }[event.key];
+        if (step === undefined) return; event.preventDefault(); save(node.ratio + step);
+      }}
+      onPointerDown={event => {
+        if (event.button !== 0) return;
+        const handle = event.currentTarget, first = handle.previousElementSibling as HTMLElement, second = handle.nextElementSibling as HTMLElement;
+        const start = first.getBoundingClientRect(), end = second.getBoundingClientRect();
+        const from = row ? start.left : start.top, span = (row ? end.right : end.bottom) - from;
+        if (span <= 0) return;
+        event.preventDefault(); handle.setPointerCapture(event.pointerId); handle.dataset.dragging = 'true';
+        let ratio = node.ratio;
+        const move = (next: PointerEvent) => {
+          ratio = clamp(((row ? next.clientX : next.clientY) - from) / span);
+          first.style.flex = `${ratio} 1 0`; second.style.flex = `${1 - ratio} 1 0`;
+        };
+        const stop = () => {
+          handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', stop); handle.removeEventListener('pointercancel', stop);
+          delete handle.dataset.dragging; save(ratio);
+        };
+        handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', stop); handle.addEventListener('pointercancel', stop);
+      }}/>;
+  };
   const renderNode = (node: LayoutNode, path: number[] = []): ReactNode => {
     if (node.type === 'split') return <div className={`layout-split split-${node.direction}`}>
       {editing && <div className="split-controls"><label>Direction<select aria-label={`Direction split ${path.join('-') || 'root'}`} value={node.direction} onChange={event => resize(path, node => ({ ...node, direction: event.target.value as 'row' | 'column' }))}><option value="row">Side by side</option><option value="column">Stacked</option></select></label><label>Size<input aria-label={`Resize split ${path.join('-') || 'root'}`} type="range" min={15} max={85} value={Math.round(node.ratio * 100)} onChange={event => resize(path, node => ({ ...node, ratio: Number(event.target.value) / 100 }))}/></label></div>}
@@ -191,7 +224,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         const sibling = node.children[index ? 0 : 1];
         const collapsed = child.type === 'panel' && child.panel.collapsed && !editing;
         const siblingCollapsed = sibling.type === 'panel' && sibling.panel.collapsed && !editing;
-        return <div key={index} className="layout-cell" style={{ minWidth: node.direction === 'row' && child.type === 'panel' && child.panel.kind === 'collections' && !collapsed ? 240 : undefined, flex: collapsed ? `0 0 ${node.direction === 'column' ? 42 : 44}px` : `${siblingCollapsed ? 1 : index ? 1 - node.ratio : node.ratio} 1 0` }}>{renderNode(child, [...path, index])}</div>;
+        const cell = <div key={index} className="layout-cell" style={{ minWidth: node.direction === 'row' && child.type === 'panel' && child.panel.kind === 'collections' && !collapsed ? 240 : undefined, flex: collapsed ? `0 0 ${node.direction === 'column' ? 42 : 44}px` : `${siblingCollapsed ? 1 : index ? 1 - node.ratio : node.ratio} 1 0` }}>{renderNode(child, [...path, index])}</div>;
+        return index === 1 && !collapsed && !siblingCollapsed ? [splitHandle(node, path), cell] : cell;
       })}
     </div>;
     const panel = node.panel, definition = Object.hasOwn(registry, panel.kind) ? registry[panel.kind] : undefined, target = resolveTarget(panel, page.selection);
@@ -205,7 +239,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       {(!panel.collapsed || editing) && <div className="module-body">{panel.detached ? <div className="module-empty detached-message"><Icon name="external" size={24}/><h3>Chat is in its own window</h3><p>Your conversation continues there.</p><button disabled={!host || !!pending} onClick={() => void detach(panel)}>Open chat window ↗</button><button disabled={!host || !!pending} onClick={() => void dock(panel)}>Bring chat back here</button></div> : definition ? <definition.Component workspaceId={workspaceID} chooseRepositoryFolder={host?.chooseRepositoryFolder} target={target} onTarget={panel.kind==='collections' ? target => target.sessionId ? showSession(target) : onTarget(target) : onTarget} collections={collections} error={catalogError} refresh={refreshCatalog} onNewConversation={beginConversation} viewState={store} onOpenViewer={onOpenViewer} onOpenChat={panel.kind === 'chat' && host && target.sessionId ? () => void detach(panel) : undefined}/> : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}</div>}
     </section>;
   };
-  const displayedLayout = editing ? page.layout : visibleLayout(page.layout);
+  const displayedLayout = editing ? page.layout : mainLayout(page.layout);
   const mobilePanels = panels(displayedLayout || page.layout).filter(panel => panel.kind !== 'collections');
   const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) || mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
   return <main className={`workspace-shell${editing ? ' layout-editing' : ''}`}>{keyboardHint&&<div className="keyboard-sequence-hint" role="status">{keyboardHint}</div>}

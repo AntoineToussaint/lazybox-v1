@@ -164,6 +164,16 @@ func validate(op agent.Operation, c agent.Capabilities) error {
 		if op.Kind == agent.Steer && !c.Steer {
 			return agent.ErrUnsupported
 		}
+		if len(op.Context) > 128<<10 {
+			return errors.New("instruction update exceeds limits")
+		}
+	case agent.Permission:
+		if !c.LivePermission {
+			return agent.ErrUnsupported
+		}
+		if !agent.PermissionModes[op.Permission] {
+			return errors.New("permission must be ask, read-only or yolo")
+		}
 	case agent.Interrupt:
 	case agent.Answer:
 		if !c.Questions {
@@ -193,7 +203,11 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	}
 	e.opMu.Lock()
 	defer e.opMu.Unlock()
-	b, _ := json.Marshal(op)
+	// The attached instruction update is decided by the Runner, not the client,
+	// so a client retrying the same operation is recognized without it.
+	identity := op
+	identity.Context = ""
+	b, _ := json.Marshal(identity)
 	fingerprint := sha256.Sum256(b)
 	e.mu.Lock()
 	if old, ok := e.ops[op.ID]; ok {

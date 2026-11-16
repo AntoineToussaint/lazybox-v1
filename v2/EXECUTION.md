@@ -34,6 +34,8 @@ Agent output can be bounded without losing access to the underlying evidence: re
 
 ## Capturing a pipe and owning a process
 
+What the agent and the human each receive from a command, and the `lazybox run` wrapper, are in [command output](COMMAND_OUTPUT.md).
+
 **Pipe capture** receives bytes from an existing producer. Its default must preserve the agent-facing stream and report publication failures visibly. Once stdout and stderr have been merged upstream, the capture cannot reconstruct their separate identities. End of the input stream establishes capture EOF, not the upstream command's exit status. Shell pipeline success cannot stand in for that status.
 
 **Runner-owned command execution** starts the process, records its command metadata, captures output, reports the actual exit status or signal, and provides wait, read, and cancel operations. Agent harness tools can call this surface through the supported extension mechanism. The adapter must prove that permission policy, working directory, environment, and cancellation semantics survive the integration.

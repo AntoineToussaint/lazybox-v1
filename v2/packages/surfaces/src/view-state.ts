@@ -32,6 +32,20 @@ export function writeConsoleState(store: ViewStateStore | undefined, command: st
   store?.setItem(`${store.key}:console:${command}`, JSON.stringify(state));
 }
 
+/** App-wide preferences (keymap, snippet lists) are shared by every window of one Runner.
+ * Hosts only accept keys under the Runner authority, so a fixed global name would be rejected. */
+export function preferenceKey(store: ViewStateStore, name: string): string {
+  return `${store.root || (store.scope || store.key).split(':')[0]}:${name}`;
+}
+/** Reads a preference, falling back to the fixed key older builds used. */
+export function readPreference(store: ViewStateStore | undefined, name: string): string | null {
+  if (!store) return localStorage.getItem(`lazybox:${name}`);
+  return store.getItem(preferenceKey(store, name)) ?? store.getItem(`lazybox:${name}`);
+}
+export function writePreference(store: ViewStateStore | undefined, name: string, value: string): void {
+  if (store) store.setItem(preferenceKey(store, name), value); else localStorage.setItem(`lazybox:${name}`, value);
+}
+
 export type LaunchChoices = { provider: string; profile: string; model: string; gateway: string };
 export function readLaunchChoices(store?: ViewStateStore): Partial<LaunchChoices> {
   if (!store) return {};

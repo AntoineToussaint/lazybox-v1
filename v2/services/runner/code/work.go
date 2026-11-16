@@ -68,6 +68,12 @@ func configureRunner(ctx context.Context, config *adapters.Configuration) (Clean
 	if worker := os.Getenv("LAZYBOX_V2_WORKER"); worker != "" {
 		cfg.Worker = worker
 	}
+	if dir := os.Getenv("LAZYBOX_V2_CLI_DIR"); dir != "" {
+		// Only brief agents about a CLI they can actually run (older releases have none).
+		if info, err := os.Stat(filepath.Join(dir, "lazybox")); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
+			cfg.CLIDir = dir
+		}
+	}
 	if root := os.Getenv("LAZYBOX_V2_WORKTREE_ROOT"); root != "" {
 		cfg.WorktreeRoot = root
 	}

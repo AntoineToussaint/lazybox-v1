@@ -82,6 +82,11 @@ async function buildSnippetAdapter(source) {
   await run('cargo', ['build', '-p', 'lazybox-config', '--bin', 'lazybox-snippets'], workspace, {...buildEnv, CARGO_TARGET_DIR:target});
   return join(target, 'debug', 'lazybox-snippets');
 }
+// The CLI agents call (`lazybox run`) is built from the same source as the Runner.
+async function buildCLI(source, directory) {
+  await run('go', ['build', '-o', join(directory, 'lazybox'), './cmd/lazybox'], join(source, 'services/runner/code'));
+  return directory;
+}
 async function buildDesktop(source, paths, target) {
   await run('npm', ['run', 'build:ui', '-w', '@lazybox/desktop'], source);
   await run(join(source, 'node_modules/.bin/tauri'), ['build', '--debug', '--bundles', 'app', '--config', JSON.stringify({ identifier: paths.identifier, productName: paths.productName })], join(source, 'apps/desktop'), { ...buildEnv, CARGO_TARGET_DIR: target });
@@ -168,6 +173,7 @@ async function stageCandidate(environmentRoot) {
   await copySource(root, source);
   await mkdir(join(source,'resources'),{recursive:true});
   await cp(snippetAdapter,join(source,'resources','lazybox-snippets'));
+  await buildCLI(source, join(source, 'resources', 'bin'));
   await freezeRunnerReload(source);
   const before = await digestTree(source);
   await run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], source);
@@ -212,7 +218,7 @@ async function launch(environmentRoot, channel) {
   try {
     const subscriptionState = await sharedSubscriptionState(environmentRoot);
     if (subscriptionState) await checkSubscriptionSelection(environmentRoot, subscriptionState);
-    let source = root, app, snippetAdapter;
+    let source = root, app, snippetAdapter, cliDir;
     if (channel === 'working') {
       const { serviceStatus } = await import('./runner-service.mjs');
       if ((await serviceStatus(environmentRoot)).installed) throw new Error('Working is managed by Codefly. Use make working-client to attach, or runner-service-stop/uninstall before using the terminal launcher.');
@@ -220,8 +226,10 @@ async function launch(environmentRoot, channel) {
       catch { throw new Error('No working release is pinned. Run make stage, then make promote RELEASE=<id>.'); }
       ({ source, app } = await readValidatedRelease(environmentRoot, id));
       snippetAdapter=join(source,'resources','lazybox-snippets');
+      cliDir=join(source,'resources','bin');
     } else {
       snippetAdapter=await buildSnippetAdapter(source);
+      cliDir=await buildCLI(source, join(paths.directory, 'bin'));
       await run('make', ['deps', 'build-worker'], source);
       ui = await startDesktopDevServer(source);
       worker = spawn(join(source, 'node_modules/.bin/tsc'), ['-p', 'workers/claude-sdk', '--watch', '--preserveWatchOutput'], { cwd: source, env: buildEnv, stdio: 'inherit', detached: true });
@@ -231,7 +239,7 @@ async function launch(environmentRoot, channel) {
     try { await writeFile(paths.config, JSON.stringify({ profiles: [] }, null, 2), { flag: 'wx', mode: 0o600 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
     // Both roots are resolved from the selected environment. Codefly allocates
     // independent ports; neither channel borrows another channel's endpoint.
-    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState });
+    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState, cliDir });
     let previousToken = ''; try { previousToken = JSON.parse(await readFile(paths.endpoint, 'utf8')).token; } catch { /* first launch */ }
     runner = spawnProcessGroup('codefly', args, { cwd: source, env: buildEnv, stdio: 'inherit' });
     let exited = false, failure;

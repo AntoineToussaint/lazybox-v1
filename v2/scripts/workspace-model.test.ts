@@ -3,7 +3,7 @@ import { SessionSchema } from '@lazybox/protocol';
 import { mergeConversations } from '../packages/surfaces/src/conversation-model.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, visibleLayout } from '../packages/surfaces/src/workspace-model.ts';
+import { retireMonitor, clonePage, defaultLayout, emptyTarget, mapPanels, movePanel, panels, parseLayout, removePanel, resolveTarget, visibleLayout, mainLayout, detachedFor } from '../packages/surfaces/src/workspace-model.ts';
 
 test('one focused default page serializes without authentication or execution options', () => {
   const original = defaultLayout({ collectionId: 'alpha', sessionId: 'session', commandId: '' });
@@ -87,4 +87,14 @@ test('retiring Monitor preserves customized pages and their conversation referen
  layout.pages.push(monitor);layout.selectedPage='monitor';
  const migrated=retireMonitor(layout);assert.equal(migrated.pages.length,1);assert.equal(migrated.selectedPage,'work');assert.equal(migrated.pages[0].selection.sessionId,'s');
  monitor.name='My review';assert.equal(retireMonitor(layout).pages.length,2);
+});
+
+test('main window keeps a detached-chat card instead of stretching the workspace list', () => {
+  const layout = defaultLayout({ collectionId: 'w', sessionId: 's', commandId: '' }).pages[0].layout;
+  const pin = (panel: { kind: string; id: string }) => panel.kind === 'chat' ? { ...panel, detached: true, binding: { mode: 'pinned' as const, target: { collectionId: 'w', sessionId: 's', commandId: '' } } } : panel;
+  const detached = mapPanels(layout, pin as never);
+  assert.deepEqual(panels(mainLayout(detached)!).map(panel => panel.kind), ['collections', 'chat', 'console']);
+  assert.equal(detachedFor(detached, { collectionId: 'w', sessionId: 's', commandId: '' })?.kind, 'chat');
+  assert.equal(detachedFor(detached, { collectionId: 'w', sessionId: 'other', commandId: '' }), undefined);
+  assert.deepEqual(mainLayout(mapPanels(detached, panel => ({ ...panel, detached: false }))), mapPanels(detached, panel => ({ ...panel, detached: false })));
 });

@@ -147,7 +147,7 @@ func (s *session) Commit(ev agent.Event) {
 func (s *session) Detach() error     { return s.p.Detach() }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
 func (s *session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
+	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, LivePermission: true, ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
 }
 func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, error) {
 	r := agent.Receipt{ID: op.ID}

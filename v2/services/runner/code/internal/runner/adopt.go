@@ -60,7 +60,7 @@ func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options 
 }
 
 func (b *Bench) executionEnv(id, collectionID string) []string {
-	env := []string{"LAZYBOX_V2_ENDPOINT=" + b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID=" + id}
+	env := b.withCLI([]string{"LAZYBOX_V2_ENDPOINT=" + b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID=" + id})
 	if collectionID != "" {
 		env = append(env, "LAZYBOX_V2_COLLECTION_ID="+collectionID)
 	}

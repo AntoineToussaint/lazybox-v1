@@ -27,6 +27,9 @@ type Record struct {
 	Snapshot                                                         engine.Snapshot
 	ProviderSettings                                                 json.RawMessage
 	ResumeBlocked                                                    string
+	// Instructions is the last shared-instructions update delivered to this
+	// conversation after it started; Context holds what it started with.
+	Instructions string `json:",omitempty"`
 }
 
 // Store commits the identity before provider startup and the observed state
@@ -43,6 +46,8 @@ type Store interface {
 	Rename(context.Context, string, string) error
 	Create(context.Context, Record) error
 	SaveState(context.Context, string, engine.Snapshot, json.RawMessage) error
+	// Amend changes one attempt's record atomically.
+	Amend(context.Context, string, func(*Record)) error
 	Get(context.Context, string) (Record, error)
 	List(context.Context, int, int) ([]Record, error)
 	Successor(context.Context, string) (Record, error)

@@ -213,6 +213,10 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 		op.RequestID = native
 	}
 	receipt, err := s.current.Apply(ctx, op)
+	if err == nil && op.Kind == agent.Permission {
+		// A later subscription attempt starts in the mode now in force.
+		s.open.Permission = op.Permission
+	}
 	if err == nil && (op.Kind == agent.Message || op.Kind == agent.Steer) {
 		s.remember("\nUSER: " + agent.Prompt(op) + "\n")
 	}

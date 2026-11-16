@@ -165,6 +165,12 @@ Agent operations accept `--id` for idempotent retries. Queue acceptance, submiss
 
 `exec --wait` returns the actual observed nonzero process status. A background command returns its ID immediately. Managed commands capture stdout/stderr channels and cancel their process group. This implementation targets macOS/Linux, not Windows or interactive PTYs.
 
+To run a command so that the console shows all of it and the agent gets a compact, failure-first view with the real exit status (see [command output](COMMAND_OUTPUT.md)):
+
+```sh
+bin/lazybox run -- go test ./...
+```
+
 To publish an existing pipe while keeping its output visible to the agent:
 
 ```sh

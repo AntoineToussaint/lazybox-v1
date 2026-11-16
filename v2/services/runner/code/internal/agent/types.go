@@ -19,6 +19,8 @@ type Capabilities struct {
 	PendingResume    bool   `json:"pendingResume"`
 	ProfileIsolation string `json:"profileIsolation"`
 	Subagents        bool   `json:"subagents"`
+	// LivePermission: the permission mode can change while the session runs.
+	LivePermission bool `json:"livePermission,omitempty"`
 }
 
 // Open contains resolved execution configuration. Env is private child-process
@@ -110,7 +112,13 @@ const (
 	Interrupt Kind = "interrupt"
 	Answer    Kind = "answer"
 	Approve   Kind = "approve"
+	// Permission changes the running session's permission mode.
+	Permission Kind = "permission"
 )
+
+// PermissionModes are the modes a running session can switch to. Inherit
+// (the provider's own settings) is only a starting choice.
+var PermissionModes = map[string]bool{"ask": true, "read-only": true, "yolo": true}
 
 type Operation struct {
 	ID        string              `json:"id"`
@@ -121,6 +129,11 @@ type Operation struct {
 	RequestID string              `json:"requestId,omitempty"`
 	Decision  string              `json:"decision,omitempty"`
 	Answers   map[string][]string `json:"answers,omitempty"`
+	// Context is an update to the session's instructions, delivered with this
+	// message but kept out of the user's text and transcript.
+	Context string `json:"context,omitempty"`
+	// Permission is the new mode of a Permission operation.
+	Permission string `json:"permission,omitempty"`
 }
 
 // Delivery is "acknowledged" only if the provider actually replied. A pipe

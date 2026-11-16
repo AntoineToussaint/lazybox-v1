@@ -6,6 +6,8 @@ export type ViewStateStore = {
   key: string;
   /** Resolved authority scope shared by panels moved between native windows. */
   scope?: string;
+  /** Runner authority every window shares; app-wide preferences are saved under it. */
+  root?: string;
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 };

@@ -7,8 +7,11 @@ explicit connection; responses never return access or refresh tokens.
 ## Connect without installing an App
 
 1. Open **Settings → Repositories → Connections & folders → Connect with a personal token**.
-2. Enter a personal access token you created on GitHub. The Runner validates
-   your identity before saving it. The form clears the token after submission.
+2. Follow the steps in the form. **Create a token on GitHub** opens a classic
+   token already set to the `repo` scope. For SSO organizations, click
+   **Configure SSO** on that token and authorize each organization. Paste the
+   token; the output of `gh auth token` also works. The Runner validates your
+   identity before saving it. The form clears the token after submission.
 3. Open **New workspace**, select repositories directly, and create it. Browsing
    discovers metadata; the Runner prepares sources only when creating or extending
    a workspace. There is no separate import or library-selection step.

@@ -2,7 +2,7 @@ import { join } from 'node:path';
 
 // Both terminal and native-service launch paths use the same Codefly contract.
 // Values are resolved filesystem locators, never credentials or allocated ports.
-export function runnerArguments({ paths, source, snippetAdapter, snippetDirectory, subscriptionState }) {
+export function runnerArguments({ paths, source, snippetAdapter, snippetDirectory, subscriptionState, cliDir }) {
   const args = ['run', 'service', 'runner', '--runtime-context', 'native', '--temporary-ports', '--headless'];
   const settings = {
     LAZYBOX_V2_STATE: paths.state,
@@ -13,6 +13,8 @@ export function runnerArguments({ paths, source, snippetAdapter, snippetDirector
     LAZYBOX_V2_KEEP_AGENTS: '1',
     ...(snippetAdapter ? { LAZYBOX_V2_SNIPPET_COMMAND: snippetAdapter, LAZYBOX_V2_SNIPPET_DIRECTORY: snippetDirectory } : {}),
     ...(subscriptionState ? { LAZYBOX_V2_SUBSCRIPTION_STATE: subscriptionState } : {}),
+    // Agents find `lazybox run` here; the Runner puts it first on their PATH.
+    ...(cliDir ? { LAZYBOX_V2_CLI_DIR: cliDir } : {}),
   };
   for (const [key, value] of Object.entries(settings)) args.push('--set', `runner:${key}=${value}`);
   return args;

@@ -14,12 +14,14 @@ import (
 type Adapter struct {
 	Session *Session
 	Steer   bool
+	// LivePermission lets sessions change permission mode while running.
+	LivePermission bool
 	// Durable, when set, makes sessions re-attachable with this state.
 	Durable json.RawMessage
 }
 
 func (a *Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) {
-	a.Session = &Session{Events: make(chan agent.Event, 128), Applied: make(chan agent.Operation, 128), Ref: o.Resume, Open: o, Steer: a.Steer, detached: make(chan struct{})}
+	a.Session = &Session{Events: make(chan agent.Event, 128), Applied: make(chan agent.Operation, 128), Ref: o.Resume, Open: o, Steer: a.Steer, LivePermission: a.LivePermission, detached: make(chan struct{})}
 	if a.Durable != nil {
 		a.Session.State = a.Durable
 	}
@@ -33,13 +35,14 @@ func (a *Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error)
 }
 
 type Session struct {
-	mu      sync.Mutex
-	Events  chan agent.Event
-	Applied chan agent.Operation
-	Ref     string
-	Open    agent.Open
-	Steer   bool
-	Closed  bool
+	mu             sync.Mutex
+	Events         chan agent.Event
+	Applied        chan agent.Operation
+	Ref            string
+	Open           agent.Open
+	Steer          bool
+	LivePermission bool
+	Closed         bool
 	// State is the fake's DurableState; nil means it cannot outlive a Runner.
 	State     json.RawMessage
 	Detached  bool
@@ -77,7 +80,7 @@ func (s *Session) Commits() []uint64 {
 
 func (s *Session) Reference() string { return s.Ref }
 func (s *Session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Steer: s.Steer}
+	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Steer: s.Steer, LivePermission: s.LivePermission}
 }
 func (s *Session) Apply(ctx context.Context, o agent.Operation) (agent.Receipt, error) {
 	s.Applied <- o

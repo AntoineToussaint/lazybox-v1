@@ -1,3 +1,4 @@
+import { readPreference, writePreference } from "./view-state";
 import { useEffect, useRef, useState } from "react";
 import type { ViewStateStore } from "@lazybox/platform";
 export const keyboardActions = [
@@ -93,11 +94,11 @@ export function validateKeymap(map: Keymap): string {
         return `${a.label} conflicts with ${b.label}.`;
   return "";
 }
-const storageKey = "lazybox:keyboard:v2";
+const storageKey = "keyboard:v2";
 export function readKeymap(store?: ViewStateStore): Keymap {
   try {
     const raw = JSON.parse(
-      (store?.getItem(storageKey) ?? localStorage.getItem(storageKey)) ||
+      readPreference(store, storageKey) ||
         "null",
     );
     const map = { ...keyboardPreset(), ...raw };
@@ -111,8 +112,7 @@ export function saveKeymap(map: Keymap, store?: ViewStateStore) {
   const error = validateKeymap(map);
   if (error) throw Error(error);
   map=normalizeKeymap(map);
-  if (store) store.setItem(storageKey, JSON.stringify(map));
-  else localStorage.setItem(storageKey, JSON.stringify(map));
+  writePreference(store, storageKey, JSON.stringify(map));
   window.dispatchEvent(new Event("lazybox-keymap"));
 }
 export function invokeAction(id: Action) {

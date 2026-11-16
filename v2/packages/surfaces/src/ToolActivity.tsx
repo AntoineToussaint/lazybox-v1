@@ -45,6 +45,6 @@ export function ToolActivity({events,truncated=false}:{events:JournalEvent[];tru
   {unknown>0&&<p className="activity-note">{unknown} {unknown===1?'call has':'calls have'} no saved result. Completion and duration are unknown.</p>}
   <div className="activity-column-head" aria-hidden="true"><span>Action</span><span>Observed</span><span>Elapsed</span></div>
   <div className="tool-call-list">{truncated&&<p className="tool-empty">Showing the latest 1,024 retained activity events.</p>}{!filtered.length&&<p className="tool-empty">{calls.length?'No matching actions.':'No tool calls reported yet.'}</p>}{filtered.slice(0,limit).map(call=><CallRow key={call.id} call={call} now={now}/>)}{filtered.length>limit&&<button className="activity-more" onClick={()=>setLimit(n=>n+100)}>Show earlier calls ({filtered.length-limit})</button>}</div>
-  <footer><span>Timing uses Runner observations.</span><details className="available-tools"><summary>Tool inventory{available.length?` · ${available.length}`:''}</summary>{available.length?<ul>{available.map(t=><li key={t}>{t}</li>)}</ul>:<p>No inventory reported for this execution.</p>}</details></footer>
+  <footer><span>Timing uses Runner observations.</span><details className="available-tools"><summary>Tool inventory{available.length?` · ${available.length}`:''}</summary>{available.length?<ul>{available.map(t=><li key={t} title={t}>{t}</li>)}</ul>:<p>No inventory reported for this execution.</p>}</details></footer>
  </DraggableDialog>}</div>;
 }

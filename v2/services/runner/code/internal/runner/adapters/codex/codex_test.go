@@ -86,3 +86,33 @@ func TestYOLOIsExplicitAndContextIsNativeDeveloperInstructions(t *testing.T) {
 		t.Fatal("inherit overrode approvals", p)
 	}
 }
+
+func TestLivePermissionChangesApplyToFollowingTurns(t *testing.T) {
+	s := &session{}
+	if !s.Capabilities().LivePermission {
+		t.Fatal("Codex turns accept new approval and sandbox policies")
+	}
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "p", Kind: agent.Permission, Permission: "yolo"}); err != nil {
+		t.Fatal(err)
+	}
+	if string(s.overrides["approvalPolicy"]) != `"never"` || string(s.overrides["sandboxPolicy"]) != `{"type":"dangerFullAccess"}` {
+		t.Fatalf("YOLO policies not kept for turn/start: %s", s.overrides)
+	}
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "q", Kind: agent.Permission, Permission: "read-only"}); err != nil {
+		t.Fatal(err)
+	}
+	if string(s.overrides["sandboxPolicy"]) != `{"type":"readOnly"}` {
+		t.Fatalf("later change must replace the earlier one: %s", s.overrides)
+	}
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "r", Kind: agent.Permission, Permission: "inherit"}); err == nil {
+		t.Fatal("unknown mode accepted")
+	}
+}
+
+func TestInstructionUpdateIsItsOwnInputAheadOfTheMessage(t *testing.T) {
+	items := inputs(agent.Operation{Kind: agent.Message, Text: "hello", Context: "new instructions"})
+	data, _ := json.Marshal(items)
+	if string(data) != `[{"text":"new instructions","type":"text"},{"text":"hello","type":"text"}]` {
+		t.Fatalf("%s", data)
+	}
+}

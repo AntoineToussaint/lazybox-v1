@@ -225,6 +225,8 @@ message Capabilities {
   string profile_isolation = 7;
   bool files = 8;
   bool subagents = 9;
+  // The permission mode can change while the session runs.
+  bool live_permission = 10;
 }
 message AgentEvent {
   string type = 1;
@@ -273,6 +275,12 @@ message Session {
   string provider = 28;
   string model = 29;
   bool model_reported = 30;
+  // Current permission mode: inherit (empty), ask, read-only or yolo.
+  string permission = 31;
+  string workflow = 32;
+  // The shared agent instructions changed since this session received them;
+  // the update is delivered with the next message.
+  bool instructions_pending = 33;
 }
 
 message Repository {
@@ -379,7 +387,12 @@ message ApplyRequest {
     Interrupt interrupt = 5;
     Answer answer = 6;
     Approval approval = 7;
+    Permission permission = 8;
   }
+}
+// Changes a running session's permission mode: ask, read-only or yolo.
+message Permission {
+  string mode = 1;
 }
 message Receipt {
   string operation_id = 1;

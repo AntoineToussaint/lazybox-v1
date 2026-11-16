@@ -275,6 +275,14 @@ func (s *session) Detach() error {
 	return err
 }
 
+// turnPolicies are the turn/start overrides for each permission mode, matching
+// the thread-level policies threadParams uses at start.
+var turnPolicies = map[string]map[string]json.RawMessage{
+	"yolo":      {"approvalPolicy": json.RawMessage(`"never"`), "sandboxPolicy": json.RawMessage(`{"type":"dangerFullAccess"}`), "approvalsReviewer": json.RawMessage(`"user"`)},
+	"ask":       {"approvalPolicy": json.RawMessage(`"untrusted"`), "sandboxPolicy": json.RawMessage(`{"type":"workspaceWrite"}`), "approvalsReviewer": json.RawMessage(`"user"`)},
+	"read-only": {"approvalPolicy": json.RawMessage(`"never"`), "sandboxPolicy": json.RawMessage(`{"type":"readOnly"}`), "approvalsReviewer": json.RawMessage(`"user"`)},
+}
+
 func threadParams(o agent.Open) map[string]any {
 	params := map[string]any{"cwd": o.Cwd}
 	// Omitted policies let app-server resolve the user's saved configuration
@@ -301,7 +309,7 @@ func (s *session) SessionSettings() json.RawMessage {
 }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
 func (s *session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: s.workflow == "plan", Approvals: true, Steer: true, Resume: true, Subagents: true, ProfileIsolation: "environment; cross-account resume unverified"}
+	return agent.Capabilities{Images: true, Files: true, Questions: s.workflow == "plan", Approvals: true, Steer: true, Resume: true, Subagents: true, LivePermission: true, ProfileIsolation: "environment; cross-account resume unverified"}
 }
 func (s *session) emit(ev agent.Event) bool {
 	select {
@@ -313,6 +321,11 @@ func (s *session) emit(ev agent.Event) bool {
 }
 func inputs(op agent.Operation) []any {
 	items := []any{}
+	// turn/start has no out-of-band context field, so an instruction update is
+	// its own input item ahead of the user's text.
+	if op.Context != "" {
+		items = append(items, map[string]any{"type": "text", "text": op.Context})
+	}
 	if text := agent.Prompt(op); text != "" {
 		items = append(items, map[string]any{"type": "text", "text": text})
 	}
@@ -367,6 +380,23 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 			s.mu.Unlock()
 			r.ProviderID = response.Turn.ID
 		}
+		return r, nil
+	case agent.Permission:
+		policy, ok := turnPolicies[op.Permission]
+		if !ok {
+			return r, errors.New("permission must be ask, read-only or yolo")
+		}
+		// turn/start applies these "to this turn and subsequent turns"; keeping
+		// them in the overrides also carries them across a Runner restart.
+		s.mu.Lock()
+		if s.overrides == nil {
+			s.overrides = map[string]json.RawMessage{}
+		}
+		for key, value := range policy {
+			s.overrides[key] = value
+		}
+		s.mu.Unlock()
+		r.Delivery = "accepted"
 		return r, nil
 	case agent.Answer, agent.Approve:
 		s.mu.Lock()

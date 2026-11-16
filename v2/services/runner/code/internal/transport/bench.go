@@ -71,8 +71,9 @@ func wireEvent(e agent.Event) *pb.AgentEvent {
 func wireSession(e *runner.Execution) *pb.Session {
 	s := e.Engine.Snapshot()
 	c := s.Capabilities
-	w := &pb.Session{Id: s.ID, ProfileId: s.Profile, ProviderReference: s.Reference, GatewayId: s.GatewayID, Busy: s.Busy, Closed: s.Closed, Fault: s.Fault, Queued: uint32(s.Queued), WorkId: e.WorkID, PreviousExecutionId: e.Previous, CollectionId: e.CollectionID, WorkingDirectory: e.Cwd, Purpose: e.Purpose, Status: string(s.Status), Account: wireAccount(s.Account), ActivityTruncated: s.ActivityTruncated, RotationProfileIds: e.Options.RotationProfiles, Capabilities: &pb.Capabilities{Images: c.Images, Files: c.Files, Questions: c.Questions, Approvals: c.Approvals, Steer: c.Steer, Resume: c.Resume, PendingResume: c.PendingResume, ProfileIsolation: c.ProfileIsolation, Subagents: c.Subagents}}
+	w := &pb.Session{Id: s.ID, ProfileId: s.Profile, ProviderReference: s.Reference, GatewayId: s.GatewayID, Busy: s.Busy, Closed: s.Closed, Fault: s.Fault, Queued: uint32(s.Queued), WorkId: e.WorkID, PreviousExecutionId: e.Previous, CollectionId: e.CollectionID, WorkingDirectory: e.Cwd, Purpose: e.Purpose, Status: string(s.Status), Account: wireAccount(s.Account), ActivityTruncated: s.ActivityTruncated, RotationProfileIds: e.Options.RotationProfiles, Capabilities: &pb.Capabilities{Images: c.Images, Files: c.Files, Questions: c.Questions, Approvals: c.Approvals, Steer: c.Steer, Resume: c.Resume, PendingResume: c.PendingResume, ProfileIsolation: c.ProfileIsolation, Subagents: c.Subagents, LivePermission: c.LivePermission}}
 	w.ConversationId = e.Saved.ConversationID
+	w.Permission, w.Workflow = e.Options.Permission, e.Options.Workflow
 	w.Title = s.Title
 	if w.Title == "" {
 		w.Title = e.Saved.Title
@@ -237,12 +238,22 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 		}
 		return nil
 	}
+	update := ""
 	switch o := p.Operation.(type) {
 	case *pb.ApplyRequest_Message:
 		op.Kind = agent.Message
 		if err := message(o.Message); err != nil {
 			return nil, rpcError(err)
 		}
+		// Changed shared instructions travel with the next message.
+		update = s.Bench.InstructionsUpdate(e)
+		op.Context = update
+	case *pb.ApplyRequest_Permission:
+		receipt, err := s.Bench.SetPermission(ctx, e, p.OperationId, o.Permission.GetMode())
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &pb.Receipt{OperationId: receipt.ID, Delivery: receipt.Delivery, ProviderId: receipt.ProviderID, Error: receipt.Error}, nil
 	case *pb.ApplyRequest_Steer:
 		op.Kind = agent.Steer
 		if err := message(o.Steer); err != nil {
@@ -274,6 +285,11 @@ func (s *Service) Apply(ctx context.Context, r *pb.ApplyRequest) (*pb.Receipt, e
 	receipt, err := e.Engine.Apply(ctx, op)
 	if err != nil {
 		return nil, rpcError(err)
+	}
+	if update != "" {
+		// The message, and the update with it, is accepted. If recording that
+		// fails, the update is sent again with the next message: harmless.
+		_ = s.Bench.InstructionsDelivered(ctx, e, update)
 	}
 	return &pb.Receipt{OperationId: receipt.ID, Delivery: receipt.Delivery, ProviderId: receipt.ProviderID, Error: receipt.Error}, nil
 }
@@ -558,6 +574,7 @@ func (s *Service) sessionView(ctx context.Context, e *runner.Execution) (*pb.Ses
 		return nil, rpcError(err)
 	}
 	view := wireSession(e)
+	view.InstructionsPending = !view.Closed && s.Bench.InstructionsUpdate(e) != ""
 	view.Provider = e.Profile.Provider
 	view.Model = e.Options.Model
 	if s.Bench.Telemetry != nil {

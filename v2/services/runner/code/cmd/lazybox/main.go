@@ -1,4 +1,5 @@
-// lazybox is the V2 local test client and transparent log publisher.
+// lazybox is the V2 local test client, transparent log publisher, and the
+// `run` wrapper agents use for noisy commands (see run.go).
 package main
 
 import (
@@ -62,7 +63,7 @@ func run() error {
 	global := flag.NewFlagSet("lazybox", flag.ContinueOnError)
 	endpointPath := global.String("endpoint", os.Getenv("LAZYBOX_V2_ENDPOINT"), "endpoint.json printed by the V2 runner")
 	global.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: lazybox --endpoint FILE <account-login|assistant|info|repositories|create-collection|collections|collection|archive-collection|reconcile-collection|open|send|interrupt|approve|answer|events|close|continue|exec|read|wait|cancel|output|log> [options]")
+		fmt.Fprintln(os.Stderr, "Usage: lazybox --endpoint FILE <account-login|assistant|info|repositories|create-collection|collections|collection|archive-collection|reconcile-collection|open|send|interrupt|approve|answer|events|close|continue|exec|read|wait|cancel|output|log|run> [options]")
 		global.PrintDefaults()
 	}
 	if err := global.Parse(os.Args[1:]); err != nil {
@@ -95,6 +96,11 @@ func run() error {
 		}
 		fmt.Fprintf(os.Stdout, "\nEnrolled %s (%s). Restart the Runner to load this profile.\n", p.ID, p.Provider)
 		return nil
+	}
+	if args[0] == "run" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runVerb(ctx, *endpointPath, args[1:], os.Stdout, os.Stderr)
 	}
 	if *endpointPath == "" {
 		return preserveOnFailure(args[0], errors.New("--endpoint or LAZYBOX_V2_ENDPOINT is required; no V1 state is used"), os.Stdin, os.Stdout)

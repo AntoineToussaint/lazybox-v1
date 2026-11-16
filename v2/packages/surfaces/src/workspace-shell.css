@@ -68,7 +68,7 @@
   .workspace-shell .mobile-panel-switcher [aria-pressed=true]{background:var(--nav-selected);color:var(--text)}
   .workspace-shell:not(.layout-editing) .page-layout{overflow:hidden;display:flex;flex-direction:column;min-height:0}
   .workspace-shell:not(.layout-editing) .page-layout .layout-split,.workspace-shell:not(.layout-editing) .page-layout .layout-cell{display:contents}
-  .workspace-shell:not(.layout-editing) .page-layout .workspace-panel{display:none}
+  .workspace-shell:not(.layout-editing) .page-layout .workspace-panel{display:none}.workspace-shell .page-layout .split-handle{display:none}
   .workspace-shell:not(.layout-editing) .page-layout .workspace-panel[data-mobile-active=true]{display:flex;flex:1;min-height:0;height:100%;border:0}
   .workspace-shell .embedded-chat .messages{padding:16px;min-height:0}
   .workspace-shell .embedded-chat .message p{font-size:14px;line-height:1.65}
