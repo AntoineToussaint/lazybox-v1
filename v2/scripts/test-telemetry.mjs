@@ -28,7 +28,10 @@ try{
  await expect(panel.getByRole('note').filter({hasText:'Not priced'}).locator('li')).toHaveText('fixture: No price1 request');await expect(panel).not.toContainText('+ unpriced');
  await expect(panel).toContainText('1 request did not report all of its usage.');
  await page.keyboard.press('Escape');await expect(panel).not.toBeVisible();await expect(trigger).toBeFocused();
- await page.setViewportSize({width:420,height:850});await trigger.click();await expect(panel).toBeVisible();const bounds=await panel.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=420);await page.screenshot({path:'.cache/telemetry-context-narrow.png'});await page.keyboard.press('Escape');await page.setViewportSize({width:1500,height:1100});
+ await page.setViewportSize({width:420,height:850});
+ // At phone width the header folds the meter into its ⋯ details (chat-header R11/R12): open that first.
+ if (!(await trigger.isVisible())) await page.getByRole('button',{name:/^More details/}).click();
+ await trigger.click();await expect(panel).toBeVisible();const bounds=await panel.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=420);await page.screenshot({path:'.cache/telemetry-context-narrow.png'});await page.keyboard.press('Escape');await page.setViewportSize({width:1500,height:1100});
  await page.route('**/Info',route=>route.fulfill({status:503,json:{code:'unavailable',message:'Fixture Runner restarting'}}));
  await expect(page.getByText('Runner disconnected.',{exact:true})).toBeVisible({timeout:10000});await expect(page.getByRole('button',{name:'Retry now',exact:true})).toBeVisible();
  await expect(page.getByText('Could not load saved conversations.',{exact:true})).toHaveCount(0);

@@ -47,9 +47,9 @@ try{
  await page.emulateMedia({reducedMotion:'no-preference'});
 
  // The inbox says the same thing for a working conversation.
- await page.getByRole('button',{name:/^Inbox/}).click();const inbox=page.getByRole('dialog',{name:'Inbox'});
- await expect(inbox.locator('.inbox-item[data-state=working]').first()).toContainText(/Running a command/);
- await inbox.getByRole('button',{name:'Close inbox'}).click();
+ // The Inbox is the docked Agents panel now (audit R1): its working row says the same.
+ await page.getByRole('button',{name:/^Inbox/}).click();const agentsPanel=page.locator('.agents-panel');
+ await expect(agentsPanel.locator('li[data-state=working]').first()).toContainText(/Running a command/);
 
  // Rename in place: Enter saves.
  await header.getByRole('button',{name:'Rename conversation',exact:true}).click();
