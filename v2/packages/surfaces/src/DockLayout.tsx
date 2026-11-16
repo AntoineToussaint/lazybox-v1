@@ -9,6 +9,9 @@ import { refreshNativeWebViews } from './native-web-view';
 import { EMPTY_CONTENT, fromDockview, groupStates, needsEmptyContent, paramsOf, PANEL_COMPONENT, sameSizes, structureKey, TAB_COMPONENT, toDockview, type Overlay, type PanelParams } from './dock-bridge';
 import { clampSidebar, SIDEBAR_MAX, SIDEBAR_MIN } from './PanelLayout';
 import { fitWidth, groups, isSidebar, minWidthOf, sidebarAt, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
+import type { LayoutDirection } from './actions';
+import { groupRects, neighbourIn, resizeEdge, resizeStep, shareOf, tabAt } from './dock-keyboard';
+import './dock-keyboard.css';
 
 type Arranged = Pick<WorkspacePage, 'layout' | 'floating' | 'popouts'>;
 /** What a group's header actions and menus need to know about it. */
@@ -44,6 +47,21 @@ export type DockHandle = {
   groupOf(panelID: string): GroupView | undefined;
   /** Brings a panel's tab to the front without moving focus into it. */
   focusTab(panelID: string): void;
+  // From the keyboard (dock-keyboard.ts). Each shows the focus ring and says what happened to a screen reader.
+  /** Focus moves to the neighbouring group; while one is maximized, the zoom moves with it. */
+  focusDirection(direction: LayoutDirection): void;
+  /** The docked group beside the active one in a direction, if any. */
+  neighbour(direction: LayoutDirection): string | undefined;
+  /** Moves the active group's edge (tmux style); `repeat` while the key is held, which speeds it up. */
+  resize(direction: LayoutDirection, repeat: boolean): void;
+  /** Tab `slot` (1–8, 9 the last) of the active group to the front, with the focus. */
+  selectTab(slot: number): void;
+  /** A panel shown because the person navigated to it: while a group is maximized, the zoom moves to its group. */
+  reveal(panelID: string): void;
+  /** Says it to a screen reader (politely), and shows the focus ring; `edge` nudges the ring that way (nothing there). */
+  announce(text: string, edge?: LayoutDirection): void;
+  /** Leaves maximize, if a group is maximized. */
+  restore(): void;
 };
 type Props = {
   page: WorkspacePage;
@@ -63,6 +81,8 @@ type Props = {
   /** A minimized group's tab was clicked. */
   onRestore(groupID: string): void;
   renderActions(group: GroupView, handle: DockHandle): ReactNode;
+  /** Right after a group's tabs: its `+` (a new conversation, or any panel opened here). */
+  renderAdd?(group: GroupView, handle: DockHandle): ReactNode;
   /** A key pressed in a popped-out group's window (its document is not this one: the page's keys do not see it). */
   onPopoutKey?(event: KeyboardEvent, groupID: string): void;
   popoutUrl: string;
@@ -123,6 +143,28 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const closes = useRef(new Map<string, HTMLButtonElement>());
   const size = useRef({ width: 0, height: 0 });
   const [actionHosts, setActionHosts] = useState(() => new Map<string, HTMLElement>());
+  /** Where each group's `+` is drawn, right after its tabs. */
+  const [addHosts, setAddHosts] = useState(() => new Map<string, HTMLElement>());
+  const layoutRoot = useRef<HTMLDivElement>(null);
+  /** The ring around the active group: shown while the person works the dock from the keyboard, gone at the first click. */
+  const [ring, setRing] = useState(false);
+  const [bumped, setBumped] = useState<{ edge: LayoutDirection; at: number }>();
+  /** What the last keyboard action did, for a screen reader (the zero-width tail makes a repeat heard again). */
+  const [said, setSaid] = useState('');
+  /** The group the last focus move left, so the opposite arrow comes back to it. */
+  const cameFrom = useRef<{ group: string; direction: LayoutDirection }>(undefined);
+  /** The element each panel last had the focus on. */
+  const lastFocus = useRef(new Map<string, HTMLElement>());
+  /** Consecutive held-key resizes, which speed up. */
+  const streak = useRef(0);
+  /** While a resize key is held, what it did is said once it settles. */
+  const held = useRef(0);
+  // The first click anywhere puts the ring away: the pointer shows where the person is.
+  useEffect(() => {
+    const away = () => setRing(false);
+    window.addEventListener('pointerdown', away, true);
+    return () => { window.removeEventListener('pointerdown', away, true); clearTimeout(held.current); };
+  }, []);
   /** Where the empty content area (`EMPTY_CONTENT`) draws the page's empty state. */
   const [emptyHost, setEmptyHost] = useState<HTMLElement>();
   const [, setVersion] = useState(0);
@@ -195,6 +237,9 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     if (!fits()) return;
     const before = applied.current, current = read()!;
     const popped = current.popouts.length > 0 || target.popouts.length > 0;
+    // A maximized group stays maximized through any change of the arrangement (a rebuild, a
+    // tab brought forward in another group): only the person, or navigation, moves the zoom.
+    const zoomed = dock.hasMaximizedGroup() ? dock.groups.find(group => group.api.isMaximized())?.id : undefined;
     if (structureKey(current) !== structureKey(target) || (!popped && !sameSizes(current.layout, target.layout))) {
       // A rebuild with the same panels keeps their content where it is; a window
       // of its own would close, so then only what changed is done in place.
@@ -202,7 +247,10 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
         // A rebuild hides the panels' overlays for a frame, which drops the focus inside
         // one: whatever had it (a message box being typed in) gets it back once drawn.
         const focused = document.activeElement instanceof HTMLElement && document.activeElement.closest('.dock-panel-content') ? document.activeElement : undefined;
+        // The active group (the target of keyboard commands) stays the active one, too.
+        const activeGroup = dock.activeGroup?.id;
         silently(() => dock.fromJSON(toDockview(target, geometry()), { reuseExistingPanels: true }));
+        silently(() => { const group = activeGroup ? dock.getGroup(activeGroup) : undefined; if (group && dock.activeGroup !== group) group.api.setActive(); });
         if (focused && document.activeElement !== focused) focusWhenShown(focused, { preventScroll: true });
       }
       else incremental(dock, target);
@@ -220,6 +268,10 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
       for (const [id, group] of states) {
         const live = dock.getGroup(id);
         if (live && live.activePanel?.id !== group.active) dock.getPanel(group.active)?.api.setActive();
+      }
+      if (zoomed && !dock.hasMaximizedGroup()) {
+        const group = dock.getGroup(zoomed);
+        if (group?.activePanel && group.api.location.type === 'grid' && dock.groups.filter(value => value.api.location.type === 'grid').length > 1) dock.maximizeGroup(group.activePanel);
       }
     });
     // A panel kept by id whose kind changed (an imported layout) shows its new host.
@@ -331,6 +383,8 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
         // dockview's drop targets, which would cancel it.
         for (const type of ['dragenter', 'dragover', 'dragleave', 'drop']) content.addEventListener(type, event => event.stopPropagation());
         content.addEventListener('focusin', activate);
+        // Where the person was in it, so coming back by keyboard lands there again.
+        content.addEventListener('focusin', event => { if (event.target instanceof HTMLElement) lastFocus.current.set(id, event.target); });
         contents.current.set(id, content);
         return {
           element: content,
@@ -386,6 +440,16 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
           dispose: () => setActionHosts(hosts => { if (hosts.get(group.id) !== actions) return hosts; const next = new Map(hosts); next.delete(group.id); return next; }),
         };
       },
+      createLeftHeaderActionComponent: group => {
+        const add = document.createElement('div');
+        add.className = 'dock-group-add';
+        add.dataset.group = group.id;
+        return {
+          element: add,
+          init: () => setAddHosts(hosts => new Map(hosts).set(group.id, add)),
+          dispose: () => setAddHosts(hosts => { if (hosts.get(group.id) !== add) return hosts; const next = new Map(hosts); next.delete(group.id); return next; }),
+        };
+      },
     });
     api.current = dock;
     // A rearrangement is reported on the next frame; a resize once it settles,
@@ -436,7 +500,9 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     });
     const subscriptions = [webOnly, dock.onWillDragPanel(dragging(true)), dock.onWillDragGroup(dragging(true)), dock.onDidDrop(dragging(false)), dock.onDidLayoutChange(dragging(false)),
       { dispose: () => { element.removeEventListener('keydown', tabKey); element.removeEventListener('pointerdown', pressed, true); window.removeEventListener('pointerup', lifted, true); clearTimeout(released); } },
-      dock.onDidLayoutChange(event => report([...event.reasons].every(reason => reason === 'geometry') ? 200 : 0)), dock.onDidMaximizedGroupChange(() => { bump(); refreshNativeWebViews(); }), dock.onDidActiveGroupChange(bump), dock.onDidAddPopoutGroup(event => { bump(); refreshNativeWebViews(); listenInPopout(event.window); }), dock.onDidRemovePopoutGroup(() => { bump(); refreshNativeWebViews(); })];
+      dock.onDidLayoutChange(event => report([...event.reasons].every(reason => reason === 'geometry') ? 200 : 0)), dock.onDidMaximizedGroupChange(() => { bump(); refreshNativeWebViews(); }), dock.onDidActiveGroupChange(bump), dock.onDidAddPopoutGroup(event => { bump(); refreshNativeWebViews(); listenInPopout(event.window); forgetFocus(event.group); }), dock.onDidRemovePopoutGroup(event => { bump(); refreshNativeWebViews(); forgetFocus(event.group); })];
+    // A panel that changed windows does not get the focus back where it was: that place belonged to the other window (Monaco keeps the window it was in).
+    function forgetFocus(group: DockviewGroupPanel | undefined) { for (const panel of group?.panels || []) lastFocus.current.delete(panel.id); }
     // Keys pressed in a popped-out window go to `onPopoutKey`, with the group that window holds.
     function listenInPopout(popout: Window | undefined) {
       popout?.addEventListener('keydown', event => {
@@ -489,6 +555,38 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     };
   };
   const panelOf = (panelID?: string): IDockviewPanel | undefined => panelID ? api.current?.getPanel(panelID) : api.current?.activePanel;
+  const gridGroups = (dock: DockviewApi) => dock.groups.filter(group => group.api.location.type === 'grid' && !group.panels.some(panel => panel.id === EMPTY_CONTENT));
+  /**
+   * A panel to the front of its group, and its group the active one. While a
+   * group is maximized the zoom moves with it, so navigation never drops the
+   * person out of a maximized panel (dockview would restore the layout).
+   */
+  const activate = (panel: IDockviewPanel) => {
+    const dock = api.current!, zoomed = dock.hasMaximizedGroup();
+    panel.api.setActive();
+    if (zoomed && !dock.hasMaximizedGroup() && panel.group.api.location.type === 'grid' && gridGroups(dock).length > 1) dock.maximizeGroup(panel);
+  };
+  /** Focus into a panel: where the person last was in it, else its message box, else its first field or control. */
+  const focusInto = (panel: IDockviewPanel) => requestAnimationFrame(() => {
+    const host = latest.current.hostFor(panelFrom(panel.id, panel.params));
+    const last = lastFocus.current.get(panel.id);
+    // Not an element of a window that has closed since (a group popped out and put back), and not
+    // the code editor's own input: Monaco tracks its focus with the window it was first shown in,
+    // which a popped-out editor has left (focusing it from here throws). Its tabs take the focus instead.
+    const usable = (element: HTMLElement) => element.isConnected && element.ownerDocument === host.ownerDocument && !!element.ownerDocument.defaultView && host.contains(element) && !element.closest('.monaco-editor') && element.getClientRects().length > 0 && !(element as HTMLButtonElement).disabled;
+    if (last && usable(last)) { last.focus({ preventScroll: true }); return; }
+    (host.querySelector<HTMLElement>('[data-agent-composer]:not(:disabled)') || host.querySelector<HTMLElement>('textarea:not(:disabled), [tabindex="0"], button:not(:disabled), input:not(:disabled)'))?.focus({ preventScroll: true });
+  });
+  const titleIn = (group: { activePanel?: { title?: string } }) => group.activePanel?.title || 'panel';
+  const announce = (text: string, edge?: LayoutDirection) => {
+    setRing(true);
+    // Said again even when it is the same words (a second press at the same edge).
+    setSaid(previous => previous.replace(/​$/, '') === text ? text + (previous.endsWith('​') ? '' : '​') : text);
+    if (edge) setBumped({ edge, at: Date.now() });
+  };
+  /** Each docked group's place, from the saved arrangement (a maximized group hides the others on screen). */
+  const rects = () => groupRects(latest.current.page.layout, { width: size.current.width, height: size.current.height, sidebarWidth: latest.current.sidebarWidth, header: TAB_BAR });
+  const words: Record<LayoutDirection, string> = { left: 'to the left', right: 'to the right', up: 'above', down: 'below' };
   const handle: DockHandle = {
     toggleMaximize: panelID => {
       const dock = api.current, panel = panelOf(panelID);
@@ -506,10 +604,12 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     cycleGroups: step => {
       const dock = api.current;
       if (!dock || !dock.groups.length) return;
-      const order = dock.groups.filter(group => !group.panels.some(panel => panel.id === EMPTY_CONTENT)), index = order.findIndex(group => group === dock.activeGroup);
+      // While a group is maximized, only the docked groups take turns (the zoom moves along).
+      const order = dock.groups.filter(group => !group.panels.some(panel => panel.id === EMPTY_CONTENT) && (!dock.hasMaximizedGroup() || group.api.location.type === 'grid')), index = order.findIndex(group => group === dock.activeGroup);
       const next = order[(index + step + order.length) % order.length];
-      next.api.setActive();
-      if (next.activePanel) handle.focusPanel(next.activePanel.id);
+      if (!next) return;
+      if (next.activePanel) handle.focusPanel(next.activePanel.id); else next.api.setActive();
+      if (order.length > 1) announce(`${titleIn(next)}, group ${order.indexOf(next) + 1} of ${order.length}${dock.hasMaximizedGroup() ? ', maximized' : ''}`);
     },
     popout: async panelID => {
       const dock = api.current, panel = panelOf(panelID);
@@ -558,25 +658,130 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     focusPanel: panelID => {
       const panel = api.current?.getPanel(panelID);
       if (!panel) return;
-      panel.api.setActive();
-      requestAnimationFrame(() => {
-        const host = latest.current.hostFor(panelFrom(panel.id, panel.params));
-        host.querySelector<HTMLElement>('textarea:not(:disabled), [tabindex="0"], button:not(:disabled), input:not(:disabled)')?.focus({ preventScroll: true });
-      });
+      activate(panel);
+      focusInto(panel);
     },
     groupOf: panelID => { const panel = api.current?.getPanel(panelID); return panel ? view(panel.group) : undefined; },
     focusTab: panelID => { const panel = api.current?.getPanel(panelID); if (panel && panel.group.activePanel !== panel) panel.api.setActive(); },
+    neighbour: direction => {
+      const from = api.current?.activeGroup;
+      if (!from || from.api.location.type !== 'grid') return undefined;
+      const back = cameFrom.current && { left: 'right', right: 'left', up: 'down', down: 'up' }[cameFrom.current.direction] === direction ? cameFrom.current.group : undefined;
+      return neighbourIn(rects(), from.id, direction, back);
+    },
+    focusDirection: direction => {
+      const dock = api.current, from = dock?.activeGroup;
+      if (!dock || !from) return;
+      if (from.api.location.type !== 'grid') { announce(`${titleIn(from)} is ${from.api.location.type === 'floating' ? 'floating' : 'in its own window'}: Ctrl+Tab moves between groups`, direction); return; }
+      const id = handle.neighbour(direction), next = id ? dock.getGroup(id) : undefined;
+      if (!next?.activePanel) { announce(`No panel group ${words[direction]} ${titleIn(from)}`, direction); return; }
+      cameFrom.current = { group: from.id, direction };
+      // A minimized group opens as it is reached (its tab bar has nothing to focus).
+      const saved = groupStates(latest.current.page).get(next.id);
+      if (saved?.minimized) latest.current.onRestore(next.id);
+      const zoomed = dock.hasMaximizedGroup();
+      handle.focusPanel(next.activePanel.id);
+      announce(`${titleIn(next)}${next.panels.length > 1 ? `, tab ${next.panels.indexOf(next.activePanel) + 1} of ${next.panels.length}` : ''}${zoomed ? ', maximized' : ''}`);
+    },
+    resize: (direction, repeat) => {
+      const dock = api.current, group = dock?.activeGroup;
+      if (!dock || !group) return;
+      if (group.api.location.type !== 'grid') { announce(`${titleIn(group)} is not docked: drag its edges to resize it`, direction); return; }
+      if (dock.hasMaximizedGroup()) { announce(`${titleIn(group)} is maximized: restore the layout to resize it`, direction); return; }
+      streak.current = repeat ? streak.current + 1 : 0;
+      const step = resizeStep(repeat, streak.current), page = latest.current.page;
+      const result = resizeEdge(page.layout, group.id, direction, step);
+      // Held down, the key is announced once it settles, not on every step.
+      const say = (text: string, edge?: LayoutDirection) => { clearTimeout(held.current); if (repeat) held.current = window.setTimeout(() => announce(text, edge), 300); else announce(text, edge); setRing(true); };
+      if (result.kind === 'sidebar') {
+        const width = clampSidebar(latest.current.sidebarWidth + result.sign * Math.max(8, Math.round(step * size.current.width)));
+        if (width === latest.current.sidebarWidth) { say(`The sidebar is as ${result.sign > 0 ? 'wide' : 'narrow'} as it goes, ${width} pixels`, direction); return; }
+        latest.current.onSidebarWidth(width);
+        say(`Workspaces sidebar, ${width} pixels wide`);
+        return;
+      }
+      if (result.kind === 'none') { say(`${titleIn(group)} cannot grow or shrink ${words[direction]}`, direction); return; }
+      const before = result.axis === 'width' ? group.api.width : group.api.height;
+      if (page.popouts.length) {
+        // A group in a window of its own would close in a rebuild: dockview resizes in place (its neighbours share the change).
+        const extent = result.axis === 'width' ? group.api.width : group.api.height, total = result.axis === 'width' ? size.current.width : size.current.height;
+        const grow = result.share >= (shareOf(page.layout, group.id, result.axis) ?? 0);
+        group.api.setSize(result.axis === 'width' ? { width: Math.round(extent + (grow ? 1 : -1) * step * total) } : { height: Math.round(extent + (grow ? 1 : -1) * step * total) });
+      } else latest.current.onArrange({ layout: result.layout, floating: page.floating, popouts: page.popouts });
+      // Said as it is once laid out: dockview keeps every panel at its minimum size.
+      requestAnimationFrame(() => {
+        const now = dock.getGroup(group.id), after = now ? (result.axis === 'width' ? now.api.width : now.api.height) : before;
+        const total = result.axis === 'width' ? size.current.width : size.current.height;
+        if (Math.abs(after - before) < 2) say(`${titleIn(now ?? group)} cannot move that edge further ${words[direction]}`, direction);
+        else say(`${titleIn(now ?? group)}, ${Math.round(100 * after / Math.max(1, total))}% of the ${result.axis}`);
+      });
+    },
+    selectTab: slot => {
+      const dock = api.current, group = dock?.activeGroup;
+      if (!dock || !group) return;
+      const index = tabAt(group.panels.length, slot);
+      if (index === undefined) { announce(`${titleIn(group)} has ${group.panels.length} tab${group.panels.length === 1 ? '' : 's'}`); return; }
+      const panel = group.panels[index];
+      if (groupStates(latest.current.page).get(group.id)?.minimized) latest.current.onRestore(group.id);
+      handle.focusPanel(panel.id);
+      announce(`Tab ${index + 1} of ${group.panels.length}: ${panel.title || 'panel'}`);
+    },
+    reveal: panelID => {
+      const dock = api.current, panel = dock?.getPanel(panelID);
+      if (!dock || !panel || !dock.hasMaximizedGroup() || panel.group.api.isMaximized()) return;
+      activate(panel);
+    },
+    announce,
+    restore: () => { if (api.current?.hasMaximizedGroup()) api.current.exitMaximizedGroup(); },
   };
   useImperativeHandle(ref, () => handle);
 
   const dock = api.current, empty = !props.page.layout && !props.page.floating.length && !props.page.popouts.length;
-  return <div className="dock-layout">
+  return <div ref={layoutRoot} className="dock-layout">
     <div ref={container} className="dock-container"/>
     {empty && <div className="dock-empty">{props.empty}</div>}
     {emptyHost && needsEmptyContent(props.page) && createPortal(props.empty, emptyHost)}
     {dock && [...actionHosts].map(([id, element]) => { const group = dock.getGroup(id); return group ? createPortal(props.renderActions(view(group as DockviewGroupPanel), handle), element, id) : null; })}
+    {dock && props.renderAdd && [...addHosts].map(([id, element]) => { const group = dock.getGroup(id); return group ? createPortal(props.renderAdd!(view(group as DockviewGroupPanel), handle), element, `add-${id}`) : null; })}
+    {dock && ring && <FocusRing dock={dock} root={layoutRoot} bumped={bumped}/>}
+    <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="dock-announcer">{said}</div>
   </div>;
 });
+
+/**
+ * The ring around the active group while the dock is worked from the
+ * keyboard. It glides to the group focus moved to, follows a resize, and
+ * nudges toward an edge that has nothing beyond it.
+ */
+function FocusRing({ dock, root, bumped }: { dock: DockviewApi; root: React.RefObject<HTMLDivElement | null>; bumped?: { edge: LayoutDirection; at: number } }) {
+  const ring = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState<LayoutDirection>();
+  useEffect(() => {
+    if (!bumped || Date.now() - bumped.at > 400) return;
+    // Off first, so a second nudge the same way plays again.
+    setEdge(undefined);
+    const frame = requestAnimationFrame(() => setEdge(bumped.edge));
+    const timer = setTimeout(() => setEdge(undefined), 300);
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
+  }, [bumped]);
+  useLayoutEffect(() => {
+    const place = () => {
+      const group = dock.activeGroup, element = ring.current, box = root.current?.getBoundingClientRect();
+      if (!element || !box) return;
+      if (!group || group.api.location.type === 'popout' || group.panels.some(panel => panel.id === EMPTY_CONTENT)) { element.hidden = true; return; }
+      const rect = group.element.getBoundingClientRect();
+      element.hidden = !rect.width || !rect.height;
+      Object.assign(element.style, { left: `${rect.left - box.left}px`, top: `${rect.top - box.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+    };
+    place();
+    // dockview lays out after this render (a rebuild, a resize): measured again once it has.
+    const frame = requestAnimationFrame(place);
+    const subscriptions = [dock.onDidLayoutChange(() => requestAnimationFrame(place)), dock.onDidActiveGroupChange(() => requestAnimationFrame(place)), dock.onDidMaximizedGroupChange(() => requestAnimationFrame(place))];
+    window.addEventListener('resize', place);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', place); for (const subscription of subscriptions) subscription.dispose(); };
+  });
+  return <div ref={ring} className="dock-focus-ring" data-bump={edge} aria-hidden="true"/>;
+}
 
 /** The group nearest a new one in the saved tree that dockview already has, and which side of it the new one goes. */
 function neighbour(root: LayoutNode | null, groupID: string, existing: Set<string>): { group: string; direction: 'left' | 'right' | 'above' | 'below' } | undefined {

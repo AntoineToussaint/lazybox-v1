@@ -12,7 +12,7 @@ import {
   type VimPreferences,
 } from "./keyboard";
 import { Icon } from "./Icons";
-import { actionGroups, isMac } from "./actions";
+import { actionDefinition, actionGroups, isMac } from "./actions";
 import { SettingsGroup, SettingsHeader, SettingsRow } from "./settings-parts";
 
 export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
@@ -58,10 +58,11 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
         {actionGroups.map((group) => (
           <SettingsGroup key={group} title={group}>
             {keyboardActions.filter((a) => a.group === group).map((a) => (
-              <SettingsRow key={a.id} label={a.label} htmlFor={`shortcut-${a.id}`}>
+              <SettingsRow key={a.id} label={a.label} htmlFor={`shortcut-${a.id}`} description={actionDefinition(a.id)?.fixed ? "Cannot be changed, so it always works: it puts back the default layout and these defaults, with Undo." : undefined}>
                 <input
                   id={`shortcut-${a.id}`}
                   className="shortcut-input"
+                  readOnly={!!actionDefinition(a.id)?.fixed}
                   aria-label={a.label}
                   placeholder="No shortcut"
                   spellCheck={false}

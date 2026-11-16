@@ -164,3 +164,48 @@ export function GroupActions({ group, handle, commands, keys }: { group: GroupVi
     </ActionMenu>
   </>;
 }
+
+/** What a group's `+` offers: a new conversation, and every kind of panel opened in that group. */
+export type AddCommands = {
+  title(panel: Panel): string;
+  /** A conversation started from here shows in this group. */
+  newConversation(groupID: string): void;
+  /** Why a conversation cannot start now, or '' when it can. */
+  whyNoConversation(): string;
+  /** `]] c`, as the person's keys show it. */
+  newConversationKeys?: string;
+  /** ⌘T (this menu for the active group), as the person's keys show it. */
+  addKeys?: string;
+  registry: Readonly<Record<string, PanelModule>>;
+  /** Kinds the + does not offer (the sidebar's). */
+  hidden: ReadonlySet<string>;
+  /** Where a kind is now: in this group, elsewhere on the page, or not shown. */
+  where(kind: string, groupID: string): 'here' | 'elsewhere' | 'none';
+  disabled(kind: string): string;
+  openHere(groupID: string, kind: string): void;
+};
+/**
+ * The `+` right after a group's tabs (and `] ] t` for the active group): a new
+ * conversation first, then any panel, opened here as this group's front tab.
+ * A panel shown elsewhere moves here; Web opens a new one.
+ */
+export function GroupAdd({ group, commands }: { group: GroupView; commands: AddCommands }) {
+  const front = group.active ? commands.title(group.active) : 'this';
+  const why = commands.whyNoConversation();
+  return <ActionMenu className="dock-add-menu" label={`New tab in the ${front} group`} title={`New conversation, or open a panel here${commands.addKeys ? ` (${commands.addKeys})` : ''}`} summary={<Icon name="plus" size={14}/>}>
+    <small className="action-menu-heading">New tab here</small>
+    <button type="button" className="dock-add-primary" disabled={!!why} title={why || undefined} onClick={() => commands.newConversation(group.id)}>
+      <Icon name="chat"/><span>New conversation…</span>{commands.newConversationKeys && <kbd>{commands.newConversationKeys}</kbd>}
+    </button>
+    <hr/>
+    {Object.entries(commands.registry).filter(([kind]) => !commands.hidden.has(kind)).map(([kind, module]) => {
+      const where = module.multiple ? 'none' : commands.where(kind, group.id), reason = commands.disabled(kind);
+      return <button key={kind} type="button" disabled={where === 'here' || !!reason} title={reason || undefined}
+        aria-label={where === 'here' ? `${module.title} (already here)` : where === 'elsewhere' ? `Move ${module.title} here` : module.multiple ? `New ${module.title} panel here` : `Open ${module.title} here`}
+        onClick={() => commands.openHere(group.id, kind)}>
+        <Icon name={module.icon || 'file'}/><span>{module.multiple ? `New ${module.title} panel` : module.title}</span>
+        {where !== 'none' && <small>{where === 'here' ? 'Here' : 'Move here'}</small>}
+      </button>;
+    })}
+  </ActionMenu>;
+}

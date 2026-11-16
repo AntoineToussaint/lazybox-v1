@@ -14,6 +14,15 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.5] - 2026-11-17 · Panels from the keyboard
+
+- **Move between panels with arrows** ⌥⌘ and an arrow moves the focus to the panel group on that side; a ring shows where you are, and a screen reader says it. ⌥⇧⌘ and an arrow moves the panel into that group, or swaps two panels, and ⌃⌘ and an arrow moves the group's edge (held down, it keeps going, faster).
+- **Tabs by number** ⌃1 to ⌃8 bring a tab of the group you are in to the front, and ⌃9 the last one; ⌘1 to ⌘9 still go to workspaces.
+- **A + on every group** The + after a group's tabs (or ⌘T) starts a conversation that shows in that group, or opens any panel there.
+- **Maximized stays maximized** While a panel is maximized, moving the focus, ⌘J, ⌘] and opening a conversation keep it maximized and show the new one.
+- **One key to get back** ⌃⌥⇧Esc puts back the default layout and the default shortcuts at once, with Undo; it is the one shortcut that cannot be changed.
+- **Split beside, fixed** ⌘\ on a panel that shares its group now splits it out at once, and on a lone panel the panel you pick opens beside it.
+
 ## [2026-11-17.4] - 2026-11-17 · Your phone tells you, and you answer from the Inbox
 
 - **Notifications on your phone** Turn them on in the phone's Inbox and it tells you when an agent asks a question, waits for approval or fails, even with Lazybox closed. Choose the kinds, set quiet hours, send a test; a tap opens the conversation, ready to answer. On an iPhone, add Lazybox to the Home Screen first (iOS 16.4 or later); the phone shows how.

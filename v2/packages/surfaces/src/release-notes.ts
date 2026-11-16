@@ -9,6 +9,19 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.5',
+    date: '2026-11-17',
+    title: 'Panels from the keyboard',
+    items: [
+      { title: 'Move between panels with arrows', body: '⌥⌘ and an arrow moves the focus to the panel group on that side; a ring shows where you are, and a screen reader says it. ⌥⇧⌘ and an arrow moves the panel into that group, or swaps two panels, and ⌃⌘ and an arrow moves the group\'s edge (held down, it keeps going, faster).' },
+      { title: 'Tabs by number', body: '⌃1 to ⌃8 bring a tab of the group you are in to the front, and ⌃9 the last one; ⌘1 to ⌘9 still go to workspaces.' },
+      { title: 'A + on every group', body: 'The + after a group\'s tabs (or ⌘T) starts a conversation that shows in that group, or opens any panel there.' },
+      { title: 'Maximized stays maximized', body: 'While a panel is maximized, moving the focus, ⌘J, ⌘] and opening a conversation keep it maximized and show the new one.' },
+      { title: 'One key to get back', body: '⌃⌥⇧Esc puts back the default layout and the default shortcuts at once, with Undo; it is the one shortcut that cannot be changed.' },
+      { title: 'Split beside, fixed', body: '⌘\\ on a panel that shares its group now splits it out at once, and on a lone panel the panel you pick opens beside it.' },
+    ],
+  },
+  {
     id: '2026-11-17.4',
     date: '2026-11-17',
     title: 'Your phone tells you, and you answer from the Inbox',

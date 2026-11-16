@@ -18,11 +18,40 @@ From the panel's own header — no edit mode needed:
 | Resize it | Drag the divider between panels. |
 | Close it | **×**. Bring it back from **Page actions (⋯) → Show panel**. |
 
+The **+** right after a group's tabs (or `⌘T` for the active group) starts a
+conversation in that group, or opens any panel there as its front tab; a panel
+already shown elsewhere on the page moves there.
+
 Lazybox remembers the edge you last used for each kind of panel: a terminal you
 moved left opens on the left next time, in every workspace. The workspace list
 and the conversation are what the page is for, so they stay; everything else
 docks around them. On a phone, panels show one at a time from the panel
 switcher.
+
+## From the keyboard
+
+Everything above works without the mouse. The *active group* is the one you
+last clicked or focused; while you use these keys a ring shows it, and a screen
+reader hears where the focus went.
+
+| To… | Press |
+| --- | --- |
+| Focus the group to the left, right, above or below | `⌥⌘` + arrow |
+| Move the active panel into that group (or swap two lone panels) | `⌥⇧⌘` + arrow — with no group that way, a tab splits out to that side |
+| Move the active group's edge that way | `⌃⌘` + arrow — 5 % a press, faster held down; the sidebar's edge sets its width |
+| Bring a tab of the active group to the front | `⌃1`–`⌃8`, `⌃9` for the last |
+| Split the active panel | `⌘\` — a lone panel asks what goes beside it |
+| Maximize or restore it | `⇧⌘M` |
+| Cycle through the groups | `⌃⇥`, `⌃⇧⇥` |
+
+A maximized panel stays maximized: moving the focus takes the zoom along, and
+`⌘J`, `⌘]` or opening a conversation shows it maximized. In the file editor,
+`⌥⌘←` / `⌥⌘→` stay its own tab keys, and in code `⌥⌘↑` / `⌥⌘↓` add a cursor.
+
+**Lost?** `⌃⌥⇧Esc` puts back the default layout *and* the default keys at once,
+with **Undo** in the corner. It is the one shortcut you cannot change. Every key
+here can be changed in Settings → Shortcuts; the full list, with the Windows and
+Linux keys, is in [Keyboard shortcuts](../reference/keyboard-shortcuts.md#layout).
 
 ## Pages
 

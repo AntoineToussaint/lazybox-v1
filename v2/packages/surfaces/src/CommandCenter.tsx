@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
-import { actionDefinition, actionEnabled, canonicalKey, chordFromEvent, runAction, useActions, type ActionId } from './actions';
+import { actionDefinition, actionEnabled, canonicalKey, chordFromEvent, isMac, runAction, useActions, type ActionId } from './actions';
 import { conversationKey, isWorkConversation } from './attention';
 import { CommandPalette, needsYou } from './CommandPalette';
 import { mergeConversations } from './conversation-model';
 import { Icon } from './Icons';
-import { chordBindings, useKeymap, type Keymap } from './keyboard';
+import { chordBindings, ownedByFocus, useKeymap, type Keymap } from './keyboard';
 import { useRunner } from './RunnerContext';
 import { ShortcutsOverlay } from './ShortcutsOverlay';
 import { dismissToast, showToast, useToasts, type Toast } from './toasts';
@@ -35,21 +35,23 @@ export type CommandNavigator = {
 
 /** In Monaco these chords are the editor's own (comment, indent, find, multi-cursor…). */
 const editorKeys = new Set(['k', '/', '[', ']', 'd', 'f', 'h', 'g', 'l', 'u', 'i', 'a', 'c', 'v', 'x', 'z', 'y', 's', 'e', 'Enter']);
-/** Actions that make sense held down. */
+/** Actions that make sense held down (and those the registry marks `repeat`, such as resizing). */
 const repeatable = new Set<string>(['conversation.next', 'conversation.previous', 'attention.next', 'attention.previous']);
 
 /**
  * Chords of the keymap (⌘K, ⌘J, ⌘1…) fire from anywhere in the window, text
  * fields included, except where a chord belongs to what has focus: the file
  * editor keeps its own (⌘K, ⌘/ …) and a terminal keeps Ctrl chords, which the
- * shell uses. Sequences (`] ] i`) and bare keys (`?`) stay with the keyboard
- * dispatcher in keyboard.ts, outside text fields.
+ * shell uses; the file editor keeps ⌘⌥← / ⌘⌥→ for its tabs (`ownedByFocus`).
+ * Off a Mac, Alt with a digit or an arrow is a chord too (`isChord`).
+ * Sequences (`] ] i`) and bare keys (`?`) stay with the keyboard dispatcher in
+ * keyboard.ts, outside text fields.
  */
 export function useChordKeys(keymap: Keymap) {
   useEffect(() => {
     const chords = chordBindings(keymap);
     const keydown = (event: KeyboardEvent) => {
-      if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey)) return;
+      if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey || (event.altKey && !isMac))) return;
       const binding = canonicalKey(chordFromEvent(event));
       const id = chords.get(binding);
       if (!id) return;
@@ -58,10 +60,11 @@ export function useChordKeys(keymap: Keymap) {
       const key = binding.split('+').at(-1) || '';
       if (target?.closest('.monaco-editor') && !binding.includes('Shift+') && editorKeys.has(key)) return;
       if (target?.closest('.xterm') && !binding.includes('Meta+') && !binding.includes('Shift+')) return;
+      if (ownedByFocus(binding, target)) return;
       if (!actionEnabled(id)) return;
       event.preventDefault(); event.stopPropagation();
-      if (event.repeat && !repeatable.has(id)) return;
-      runAction(id, undefined, 'keys');
+      if (event.repeat && !repeatable.has(id) && !actionDefinition(id)?.repeat) return;
+      runAction(id, event.repeat ? { repeat: true } : undefined, 'keys');
     };
     window.addEventListener('keydown', keydown, true);
     return () => window.removeEventListener('keydown', keydown, true);
@@ -146,6 +149,7 @@ function ToastCard({ toast }: { toast: Toast }) {
     <span className={`toast-icon attention-icon attention-${toast.tone}`} aria-hidden="true"><Icon name={toneIcon[toast.tone]} size={15}/></span>
     {toast.action ? <button type="button" className="toast-main" onClick={open}><strong>{toast.title}</strong>{toast.body && <span>{toast.body}</span>}</button>
       : <div className="toast-main"><strong>{toast.title}</strong>{toast.body && <span>{toast.body}</span>}</div>}
+    {toast.button && <button type="button" className="toast-button" onClick={() => { dismissToast(toast.id); toast.button!.run(); }}>{toast.button.label}</button>}
     {toast.hint && <kbd className="toast-hint" title="Next conversation that needs you">{toast.hint}</kbd>}
     <button type="button" className="icon-button toast-close" aria-label="Dismiss" onClick={() => dismissToast(toast.id)}><Icon name="close" size={13}/></button>
   </article>;

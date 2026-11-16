@@ -18,7 +18,10 @@ below are its **defaults**; the in-app overlay (`?`) always shows *your* keys.
   add your own entries to that menu (one key sends or inserts a snippet), and
   [your actions](configuration.md#actionsyaml-your-actions-and-hooks) can take a
   key there too.
-- On Windows and Linux, read `Ctrl` for `⌘`.
+- On Windows and Linux, read `Ctrl` for `⌘` (the tables give both).
+- **Lost?** `⌃⌥⇧Esc` (Ctrl+Alt+Shift+Esc) puts back the default layout *and*
+  the default keys in one step, with **Undo** in the corner. It is the one
+  shortcut you cannot change, so it always works.
 
 ![The shortcuts overlay (?): every action with your keys](../images/shortcuts.webp)
 
@@ -75,7 +78,7 @@ Open the parts of the workspace in front.
 
 ## Layout
 
-
+Act on the active panel group: the one you last clicked or focused, ringed while you use these keys. With the arrows, `⌥⌘` moves the focus to the neighbouring group; `⌥⇧⌘` moves the active panel into it, or swaps the two when the panel is alone in its group (with no group that way, a tab splits out to that side); `⌃⌘` moves the group's edge that way, 5 % a press and faster held down (at the sidebar, its one width changes). `⌃1`–`⌃8` bring a tab of the group to the front and `⌃9` the last one; `⌘1`–`⌘9` stay *Go to workspace*. The **+** after a group's tabs (or `⌘T`) starts a conversation there or opens any panel there. While a panel is maximized, moving the focus, `⌘J`, `⌘]` and opening a conversation keep it maximized and show the new one. Two exceptions keep code-editor habits: in the file editor `⌥⌘←` / `⌥⌘→` (with `⇧`, to move) are its own tabs, and in code `⌥⌘↑` / `⌥⌘↓` add a cursor. On Windows and Linux, where Ctrl stands for both ⌘ and ⌃, the keys differ: see the right-hand column.
 
 | Action | macOS | Windows / Linux |
 | --- | --- | --- |
@@ -93,6 +96,21 @@ Open the parts of the workspace in front.
 | Show a panel… | — | — |
 | Change the layout… | — | — |
 | Reset the layout to default | — | — |
+| Focus the panel group to the left | `⌥⌘←` | `Ctrl+Alt+←` |
+| Focus the panel group to the right | `⌥⌘→` | `Ctrl+Alt+→` |
+| Focus the panel group above | `⌥⌘↑` | `Ctrl+Alt+↑` |
+| Focus the panel group below | `⌥⌘↓` | `Ctrl+Alt+↓` |
+| Move the active panel left | `⌥⇧⌘←` | `Ctrl+Alt+Shift+←` |
+| Move the active panel right | `⌥⇧⌘→` | `Ctrl+Alt+Shift+→` |
+| Move the active panel up | `⌥⇧⌘↑` | `Ctrl+Alt+Shift+↑` |
+| Move the active panel down | `⌥⇧⌘↓` | `Ctrl+Alt+Shift+↓` |
+| Resize: move the active group’s edge left | `⌃⌘←` | `Alt+Shift+←` |
+| Resize: move the active group’s edge right | `⌃⌘→` | `Alt+Shift+→` |
+| Resize: move the active group’s edge up | `⌃⌘↑` | `Alt+Shift+↑` |
+| Resize: move the active group’s edge down | `⌃⌘↓` | `Alt+Shift+↓` |
+| New tab in the active group… | `⌘T` | `Ctrl+T` |
+| Reset the layout and shortcuts | `⌃⌥⇧Esc` (cannot be changed) | `Ctrl+Alt+Shift+Esc` (cannot be changed) |
+| Go to tab 1…9 | `⌃1` … `⌃9` | `Alt+1` … `Alt+9` |
 
 ## Conversation
 

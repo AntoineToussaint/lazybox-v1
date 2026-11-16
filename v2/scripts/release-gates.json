@@ -86,6 +86,7 @@
     { "id": "code-run", "scope": "ui", "script": "test:code-run" },
     { "id": "docking", "scope": "ui", "script": "test:docking" },
     { "id": "reattach", "scope": "ui", "script": "test:reattach" },
+    { "id": "layout-keyboard", "scope": "ui", "script": "test:layout-keyboard" },
     { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" }
   ],
   "external": [

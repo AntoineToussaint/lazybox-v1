@@ -1,7 +1,7 @@
 import { readPreference, writePreference } from "./view-state";
 import { useEffect, useRef, useState } from "react";
 import type { ViewStateStore } from "@lazybox/platform";
-import { actionDefinition, actionDefinitions, bindings, canonicalBinding, isChord, isMac, joinBindings, resolveMod, runAction, useAction, type ActionId } from "./actions";
+import { actionDefinition, actionDefinitions, bindings, canonicalBinding, canonicalKey, defaultKeys, isChord, isMac, joinBindings, resolveMod, runAction, useAction, type ActionId } from "./actions";
 /** Every keyboard action, from the action registry (actions.ts). */
 export const keyboardActions = actionDefinitions.map((definition) => ({ id: definition.id as Action, label: definition.title as string, scope: definition.scope as string, keys: definition.keys as string, group: definition.group as string }));
 export type Action = ActionId;
@@ -9,7 +9,7 @@ export type Keymap = Record<Action, string>;
 const tmuxNavigation: Partial<Record<Action, string>> = { "navigation.next": "ArrowDown", "navigation.previous": "ArrowUp", "navigation.parent": "ArrowLeft", "navigation.open": "ArrowRight" };
 /** A full keymap from a preset: Vim (`]]` and h j k l), arrows, or a tmux-style Ctrl+b prefix. */
 export function keyboardPreset(preset = "vim", mac = isMac): Keymap {
-  const map = Object.fromEntries(actionDefinitions.map((a) => [a.id, resolveMod(a.keys, mac)])) as Keymap;
+  const map = Object.fromEntries(actionDefinitions.map((a) => [a.id, defaultKeys(a, mac)])) as Keymap;
   if (preset === "arrows") Object.assign(map, tmuxNavigation);
   if (preset === "tmux")
     for (const id of Object.keys(map) as Action[]) {
@@ -48,14 +48,29 @@ export function validateKeymap(map: Keymap): string {
     }
   return "";
 }
+/**
+ * The actions that cannot be rebound (the reset chord) take their default
+ * keys, and no other action keeps those keys: whatever a keymap holds, the
+ * way back still works.
+ */
+export function withFixedKeys(map: Keymap, mac = isMac): Keymap {
+  const fixed = keyboardActions.filter((a) => actionDefinition(a.id)?.fixed);
+  if (!fixed.length) return map;
+  const next = { ...map };
+  const taken = new Set<string>();
+  for (const a of fixed) { next[a.id] = defaultKeys(actionDefinition(a.id)!, mac); for (const binding of bindings(next[a.id])) taken.add(canonicalBinding(binding)); }
+  for (const a of keyboardActions) if (!actionDefinition(a.id)?.fixed) next[a.id] = joinBindings(bindings(next[a.id]).filter((binding) => !taken.has(canonicalBinding(binding))));
+  return next;
+}
 const storageKey = "keyboard:v2";
 /**
  * Keymaps saved before the action registry (no version) hold only the first
  * thirteen actions; version 2 predates `] ] v` (activity detail) and `] ] b` (web panel);
  * version 3 predates `] ] r` (run the last command block); version 4 predates the
- * voice keys (⌥Space, ⌥⇧Space).
+ * voice keys (⌥Space, ⌥⇧Space); version 5 predates the panel-group keys (⌘⌥ arrows,
+ * ⌘⌥⇧ arrows, ⌃⌘ arrows, ⌃1–9, ⌘T) and the reset chord.
  */
-const keymapVersion = 5;
+const keymapVersion = 6;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
@@ -73,7 +88,7 @@ export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac
       map[a.id] = joinBindings(bindings(saved[a.id] as string).map(canonicalBinding));
       kept.add(a.id);
     }
-  if (!kept.size || version >= keymapVersion) return map;
+  if (!kept.size || version >= keymapVersion) return withFixedKeys(map, mac);
   const leader = map["navigation.exit"];
   const menuKeys = new Set(menu.map((entry) => canonicalBinding(`${leader} ${entry.key}`)));
   const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
@@ -83,7 +98,7 @@ export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac
       const clash = menuKeys.has(binding) || keyboardActions.some((other) => other.id !== action.id && overlaps(action, other) && bindings(map[other.id]).some((value) => canonicalBinding(value) === binding));
       if (!clash && !bindings(map[action.id]).includes(binding)) map[action.id] = joinBindings([...bindings(map[action.id]), binding]);
     }
-  return map;
+  return withFixedKeys(map, mac);
 }
 export function readKeymap(store?: ViewStateStore): Keymap {
   try {
@@ -94,14 +109,41 @@ export function readKeymap(store?: ViewStateStore): Keymap {
   }
 }
 function normalizeKeymap(map: Keymap): Keymap {
-  return Object.fromEntries(keyboardActions.map((a) => [a.id, joinBindings(bindings(map[a.id]).map(canonicalBinding))])) as Keymap;
+  return withFixedKeys(Object.fromEntries(keyboardActions.map((a) => [a.id, joinBindings(bindings(map[a.id]).map(canonicalBinding))])) as Keymap);
 }
 export function saveKeymap(map: Keymap, store?: ViewStateStore) {
-  const error = validateKeymap(map);
+  const error = validateKeymap(withFixedKeys(map));
   if (error) throw Error(error);
   map = normalizeKeymap(map);
   writePreference(store, storageKey, JSON.stringify({ ...map, __version: keymapVersion }));
   window.dispatchEvent(new Event("lazybox-keymap"));
+}
+/**
+ * Every shortcut back to its default (the reset chord). Returns the undo,
+ * which puts back exactly what was saved.
+ */
+export function resetKeymap(store?: ViewStateStore): () => void {
+  const saved = readPreference(store, storageKey);
+  writePreference(store, storageKey, JSON.stringify({ ...keyboardPreset(), __version: keymapVersion }));
+  window.dispatchEvent(new Event("lazybox-keymap"));
+  return () => {
+    writePreference(store, storageKey, saved ?? JSON.stringify({ ...keyboardPreset(), __version: keymapVersion }));
+    window.dispatchEvent(new Event("lazybox-keymap"));
+  };
+}
+/**
+ * Whether the element with focus owns this chord, so the keymap leaves it
+ * alone: the file editor's ⌘⌥← / ⌘⌥→ (with ⇧ to move) step through its own
+ * tabs, and in the code view ⌘⌥↑ / ⌘⌥↓ (Ctrl+Alt or Alt+Shift elsewhere) add a
+ * cursor or copy the line, as in every code editor.
+ */
+export function ownedByFocus(binding: string, target: Pick<Element, "closest"> | null): boolean {
+  if (!target) return false;
+  const parts = canonicalKey(binding).split("+"), name = parts.at(-1) || "";
+  const mod = parts.includes("Meta") || parts.includes("Ctrl"), alt = parts.includes("Alt");
+  if (alt && mod && (name === "ArrowLeft" || name === "ArrowRight") && target.closest(".editor-area")) return true;
+  if (alt && (name === "ArrowUp" || name === "ArrowDown") && target.closest(".monaco-editor")) return true;
+  return false;
 }
 /** The keys of an action, one string per alternative. */
 export function actionKeys(map: Keymap, id: Action): string[] {

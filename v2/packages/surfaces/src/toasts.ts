@@ -12,6 +12,8 @@ export type Toast = {
   body?: string;
   /** Clicking the toast (or its button) does this. */
   action?: { label: string; run(): void };
+  /** A labelled button of its own beside the text (Undo), which also dismisses the toast. */
+  button?: { label: string; run(): void };
   /** Shown as a hint, such as the key that jumps to the next waiting agent. */
   hint?: string;
   /** Milliseconds before it leaves on its own; paused while hovered or focused. */

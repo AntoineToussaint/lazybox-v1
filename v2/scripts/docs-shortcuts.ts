@@ -11,7 +11,7 @@
 // to the components it names.
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { actionDefinitions, actionGroups, bindings, displayBinding, resolveMod, type ActionDefinition } from '../packages/surfaces/src/actions';
+import { actionDefinitions, actionGroups, bindings, defaultKeys, displayBinding, type ActionDefinition } from '../packages/surfaces/src/actions';
 
 export const shortcutsPage = fileURLToPath(new URL('../docs/reference/keyboard-shortcuts.md', import.meta.url));
 
@@ -22,7 +22,7 @@ function keyText(binding: string, mac: boolean): string {
   return '`' + text + '`';
 }
 function keysCell(definition: ActionDefinition, mac: boolean): string {
-  const resolved = bindings(resolveMod(definition.keys, mac));
+  const resolved = bindings(defaultKeys(definition, mac));
   return resolved.length ? resolved.map(binding => keyText(binding, mac)).join(' or ') : '—';
 }
 
@@ -30,6 +30,14 @@ const groupIntro: Record<string, string> = {
   'General': 'Work from anywhere in the window, including while a dialog is open for the palette and the shortcuts overlay.',
   'Go to': 'Move between conversations and workspaces. Chords with ⌘ (Ctrl) work even while you type in the message box.',
   'Workspace': 'Open the parts of the workspace in front.',
+  'Layout': [
+    'Act on the active panel group: the one you last clicked or focused, ringed while you use these keys.',
+    'With the arrows, `⌥⌘` moves the focus to the neighbouring group; `⌥⇧⌘` moves the active panel into it, or swaps the two when the panel is alone in its group (with no group that way, a tab splits out to that side); `⌃⌘` moves the group\'s edge that way, 5 % a press and faster held down (at the sidebar, its one width changes).',
+    '`⌃1`–`⌃8` bring a tab of the group to the front and `⌃9` the last one; `⌘1`–`⌘9` stay *Go to workspace*. The **+** after a group\'s tabs (or `⌘T`) starts a conversation there or opens any panel there.',
+    'While a panel is maximized, moving the focus, `⌘J`, `⌘]` and opening a conversation keep it maximized and show the new one.',
+    'Two exceptions keep code-editor habits: in the file editor `⌥⌘←` / `⌥⌘→` (with `⇧`, to move) are its own tabs, and in code `⌥⌘↑` / `⌥⌘↓` add a cursor.',
+    'On Windows and Linux, where Ctrl stands for both ⌘ and ⌃, the keys differ: see the right-hand column.',
+  ].join(' '),
   'Conversation': 'Act on the conversation you last clicked or focused.',
   'Voice': 'Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). See [Voice](../guides/voice.md).',
   'Sidebar': 'After `]]` puts the keyboard in the sidebar. The *Arrows* preset uses the arrow keys instead.',
@@ -60,7 +68,10 @@ export function renderShortcuts(): string {
     '  add your own entries to that menu (one key sends or inserts a snippet), and',
     '  [your actions](configuration.md#actionsyaml-your-actions-and-hooks) can take a',
     '  key there too.',
-    '- On Windows and Linux, read `Ctrl` for `⌘`.',
+    '- On Windows and Linux, read `Ctrl` for `⌘` (the tables give both).',
+    '- **Lost?** `⌃⌥⇧Esc` (Ctrl+Alt+Shift+Esc) puts back the default layout *and*',
+    '  the default keys in one step, with **Undo** in the corner. It is the one',
+    '  shortcut you cannot change, so it always works.',
     '',
     '![The shortcuts overlay (?): every action with your keys](../images/shortcuts.webp)',
     '',
@@ -81,7 +92,8 @@ export function renderShortcuts(): string {
         push(`| ${title} | ${range(true)} | ${range(false)} |`);
         continue;
       }
-      push(`| ${definition.title} | ${keysCell(definition, true)} | ${keysCell(definition, false)} |`);
+      const fixed = definition.fixed ? ' (cannot be changed)' : '';
+      push(`| ${definition.title} | ${keysCell(definition, true)}${fixed} | ${keysCell(definition, false)}${fixed} |`);
     }
     push('');
   }

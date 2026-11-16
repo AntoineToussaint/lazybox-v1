@@ -47,9 +47,21 @@ export type ActionDefinition = {
   hold?: boolean;
   /** Cannot be undone: voice asks before running it (VOICE.md). */
   destructive?: boolean;
+  /** The default keys on Windows and Linux, where they differ from `keys` (a Mac's ⌃ and ⌘ are both taken there by Ctrl). */
+  otherKeys?: string;
+  /**
+   * Cannot be rebound: the way back from any keymap and any layout. Its keys
+   * are always its defaults, and no other action may take them.
+   */
+  fixed?: boolean;
+  /** Held down, the key runs it again and again (resizing); other chords run once per press. */
+  repeat?: boolean;
 };
 
 const workspaceSlots = Array.from({ length: 9 }, (_, i) => i + 1);
+/** Where a direction's arrow is. */
+export type LayoutDirection = 'left' | 'right' | 'up' | 'down';
+export const layoutDirections: readonly LayoutDirection[] = ['left', 'right', 'up', 'down'];
 
 const head = [
   { id: 'palette.open', title: 'Command palette', group: 'General', icon: 'search', keys: 'Mod+k or Mod+Shift+p or ] ] p', scope: 'global', palette: false, overDialogs: true, keywords: 'commands actions search run', menu: { section: 'Go', title: 'Command Palette…' } },
@@ -97,6 +109,23 @@ const tail = [
   { id: 'layout.panels', title: 'Show a panel…', group: 'Layout', icon: 'panels', keys: '', scope: 'global', keywords: 'dock add open reopen panel' },
   { id: 'layout.presets', title: 'Change the layout…', group: 'Layout', icon: 'layout', keys: '', scope: 'global', keywords: 'dock preset arrangement save' },
   { id: 'layout.reset', title: 'Reset the layout to default', group: 'Layout', icon: 'refresh', keys: '', scope: 'global', keywords: 'dock preset chat focus' },
+  // Panel groups from the keyboard (DockLayout, dock-keyboard.ts). A Mac's ⌘ and ⌃ are both Ctrl
+  // elsewhere, so Windows and Linux get keys of their own (`otherKeys`); every one is rebindable.
+  { id: 'layout.focus-left', title: 'Focus the panel group to the left', group: 'Layout', icon: 'back', keys: 'Meta+Alt+ArrowLeft', otherKeys: 'Ctrl+Alt+ArrowLeft', scope: 'global', keywords: 'dock pane go navigate neighbour west' },
+  { id: 'layout.focus-right', title: 'Focus the panel group to the right', group: 'Layout', icon: 'chevronRight', keys: 'Meta+Alt+ArrowRight', otherKeys: 'Ctrl+Alt+ArrowRight', scope: 'global', keywords: 'dock pane go navigate neighbour east' },
+  { id: 'layout.focus-up', title: 'Focus the panel group above', group: 'Layout', icon: 'up', keys: 'Meta+Alt+ArrowUp', otherKeys: 'Ctrl+Alt+ArrowUp', scope: 'global', keywords: 'dock pane go navigate neighbour north' },
+  { id: 'layout.focus-down', title: 'Focus the panel group below', group: 'Layout', icon: 'chevron', keys: 'Meta+Alt+ArrowDown', otherKeys: 'Ctrl+Alt+ArrowDown', scope: 'global', keywords: 'dock pane go navigate neighbour south' },
+  { id: 'layout.move-left', title: 'Move the active panel left', group: 'Layout', icon: 'dock-left', keys: 'Meta+Alt+Shift+ArrowLeft', otherKeys: 'Ctrl+Alt+Shift+ArrowLeft', scope: 'global', keywords: 'dock pane swap neighbour group tab' },
+  { id: 'layout.move-right', title: 'Move the active panel right', group: 'Layout', icon: 'dock-right', keys: 'Meta+Alt+Shift+ArrowRight', otherKeys: 'Ctrl+Alt+Shift+ArrowRight', scope: 'global', keywords: 'dock pane swap neighbour group tab' },
+  { id: 'layout.move-up', title: 'Move the active panel up', group: 'Layout', icon: 'dock-top', keys: 'Meta+Alt+Shift+ArrowUp', otherKeys: 'Ctrl+Alt+Shift+ArrowUp', scope: 'global', keywords: 'dock pane swap neighbour group tab' },
+  { id: 'layout.move-down', title: 'Move the active panel down', group: 'Layout', icon: 'dock-bottom', keys: 'Meta+Alt+Shift+ArrowDown', otherKeys: 'Ctrl+Alt+Shift+ArrowDown', scope: 'global', keywords: 'dock pane swap neighbour group tab' },
+  { id: 'layout.resize-left', title: 'Resize: move the active group’s edge left', group: 'Layout', icon: 'back', keys: 'Ctrl+Meta+ArrowLeft', otherKeys: 'Alt+Shift+ArrowLeft', scope: 'global', repeat: true, keywords: 'dock pane size grow shrink wider narrower divider' },
+  { id: 'layout.resize-right', title: 'Resize: move the active group’s edge right', group: 'Layout', icon: 'chevronRight', keys: 'Ctrl+Meta+ArrowRight', otherKeys: 'Alt+Shift+ArrowRight', scope: 'global', repeat: true, keywords: 'dock pane size grow shrink wider narrower divider' },
+  { id: 'layout.resize-up', title: 'Resize: move the active group’s edge up', group: 'Layout', icon: 'up', keys: 'Ctrl+Meta+ArrowUp', otherKeys: 'Alt+Shift+ArrowUp', scope: 'global', repeat: true, keywords: 'dock pane size grow shrink taller shorter divider' },
+  { id: 'layout.resize-down', title: 'Resize: move the active group’s edge down', group: 'Layout', icon: 'chevron', keys: 'Ctrl+Meta+ArrowDown', otherKeys: 'Alt+Shift+ArrowDown', scope: 'global', repeat: true, keywords: 'dock pane size grow shrink taller shorter divider' },
+  { id: 'layout.add', title: 'New tab in the active group…', group: 'Layout', icon: 'plus', keys: 'Mod+t', scope: 'global', keywords: 'dock pane plus add open new conversation panel tab here' },
+  // The escape hatch: one chord, which cannot be rebound, restores the default layout and keys (with Undo).
+  { id: 'layout.reset-all', title: 'Reset the layout and shortcuts', group: 'Layout', icon: 'refresh', keys: 'Ctrl+Alt+Shift+Escape', scope: 'global', fixed: true, overDialogs: true, keywords: 'escape hatch panic restore default keymap keys bindings layout undo stuck' },
   { id: 'snippets.open', title: 'Open snippets', group: 'Conversation', icon: 'snippets', keys: '] ] s', scope: 'global', keywords: 'prompt template' },
   { id: 'composer.focus', title: 'Focus the message box', group: 'Conversation', icon: 'chat', keys: '', scope: 'global', keywords: 'type write composer prompt' },
   // Activity detail of the conversation in front (activity-detail.ts).
@@ -137,8 +166,11 @@ const tail = [
   { id: 'help.docs', title: 'Documentation', group: 'General', icon: 'notes', keys: '', scope: 'global', keywords: 'docs manual guide help', menu: { section: 'Help', title: 'Lazybox Documentation' } },
 ] as const satisfies readonly ActionDefinition[];
 
-export type ActionId = (typeof head)[number]['id'] | (typeof tail)[number]['id'] | `workspace.select.${Slot}`;
-export const actionDefinitions: readonly (ActionDefinition & { id: ActionId })[] = [...head, ...slotDefinitions, ...tail];
+// ⌃1–⌃9 on a Mac (⌘1–⌘9 go to workspaces); Alt+1–Alt+9 elsewhere, where Ctrl+1–Ctrl+9 go to workspaces. 9 is the last tab, as in a browser.
+const tabDefinitions = workspaceSlots.map((n): ActionDefinition & { id: `layout.tab.${Slot}` } => ({ id: `layout.tab.${n as Slot}`, title: `Go to tab ${n}`, group: 'Layout', icon: 'panels', keys: `Ctrl+${n}`, otherKeys: `Alt+${n}`, scope: 'global', palette: false, series: 'layout.tab' }));
+
+export type ActionId = (typeof head)[number]['id'] | (typeof tail)[number]['id'] | `workspace.select.${Slot}` | `layout.tab.${Slot}`;
+export const actionDefinitions: readonly (ActionDefinition & { id: ActionId })[] = [...head, ...slotDefinitions, ...tail, ...tabDefinitions];
 export const actionGroups: readonly ActionGroup[] = ['General', 'Go to', 'Workspace', 'Layout', 'Conversation', 'Voice', 'Sidebar', 'Message box'];
 const byId = new Map<string, ActionDefinition>(actionDefinitions.map(definition => [definition.id, definition]));
 export function actionDefinition(id: string): ActionDefinition | undefined { return byId.get(id); }
@@ -167,10 +199,21 @@ export function canonicalBinding(binding: string): string { return binding.trim(
 export function resolveMod(value: string, mac = isMac): string {
   return joinBindings(bindings(value).map(binding => canonicalBinding(binding.replaceAll('Mod+', mac ? 'Meta+' : 'Ctrl+'))));
 }
-/** A chord is one key held with Ctrl or ⌘: it fires even from a text field. */
-export function isChord(binding: string): boolean {
+/** An action's default keys on a platform, `Mod+` resolved. */
+export function defaultKeys(definition: Pick<ActionDefinition, 'keys' | 'otherKeys'>, mac = isMac): string {
+  return resolveMod(mac ? definition.keys : definition.otherKeys ?? definition.keys, mac);
+}
+/**
+ * A chord is one key held with Ctrl or ⌘: it fires even from a text field.
+ * Off a Mac, Alt with a digit or an arrow is one too: there it types nothing
+ * (on a Mac, ⌥ with a digit types a character, so it stays a key you type).
+ */
+export function isChord(binding: string): boolean { return isChordOn(binding, isMac); }
+/** `isChord` for a given platform. */
+export function isChordOn(binding: string, mac: boolean): boolean {
   const keys = binding.trim().split(/\s+/);
-  return keys.length === 1 && /(?:^|\+)(?:Ctrl|Meta)\+/.test(keys[0]);
+  if (keys.length !== 1) return false;
+  return /(?:^|\+)(?:Ctrl|Meta)\+/.test(keys[0]) || (!mac && /^Alt\+(?:Shift\+)?(?:\d|Arrow(?:Up|Down|Left|Right))$/.test(canonicalKey(keys[0])));
 }
 const symbols: Record<string, string> = { ArrowDown: '↓', ArrowUp: '↑', ArrowLeft: '←', ArrowRight: '→', Enter: '↵', Escape: 'Esc', Backspace: '⌫', Delete: '⌦', Tab: '⇥', Space: 'Space', PageUp: 'Page Up', PageDown: 'Page Down' };
 /** How one key of a binding reads on screen: "Meta+Shift+p" → "⇧⌘P" on a Mac, "Ctrl+Shift+P" elsewhere. */
@@ -268,7 +311,7 @@ export function actionsFor(selector: { ids?: readonly ActionId[]; group?: Action
   const chosen = selector.ids ? selector.ids.map(id => byId.get(id)).filter((d): d is ActionDefinition => !!d) : actionDefinitions.filter(d => !selector.group || d.group === selector.group);
   return chosen.map(definition => ({
     id: definition.id as ActionId, title: definition.title, group: definition.group, icon: definition.icon,
-    keys: bindings(keymap ? keymap[definition.id] : resolveMod(definition.keys)),
+    keys: bindings(keymap ? keymap[definition.id] : defaultKeys(definition)),
     enabled: actionEnabled(definition.id), run: (argument?: unknown) => { runAction(definition.id, argument); },
   }));
 }

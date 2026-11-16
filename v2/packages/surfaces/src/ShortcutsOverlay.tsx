@@ -5,7 +5,7 @@ import { Icon } from './Icons';
 import type { Keymap } from './keyboard';
 import './command-center.css';
 
-type Row = { id: string; title: string; group: string; keys: string[][] };
+type Row = { id: string; title: string; group: string; keys: string[][]; /** Cannot be rebound (the reset chord). */ fixed?: boolean };
 
 /** Every action with its keys, grouped; a numbered series ("Go to workspace 1…9") is one row. */
 export function shortcutRows(keymap: Keymap): Row[] {
@@ -20,7 +20,7 @@ export function shortcutRows(keymap: Keymap): Row[] {
       const created = { id: definition.series, title: definition.title.replace(/\s*\d+$/, ' 1–9'), group: definition.group, keys: [first] };
       series.set(definition.series, created); rows.push(created); continue;
     }
-    rows.push({ id: definition.id, title: definition.title, group: definition.group, keys });
+    rows.push({ id: definition.id, title: definition.title, group: definition.group, keys, ...(definition.fixed ? { fixed: true } : {}) });
   }
   // A series reads as its first and last key: "⌘1 … ⌘9".
   for (const row of series.values()) row.keys = row.keys[0].length > 1 ? [[row.keys[0][0], '…', row.keys[0].at(-1)!]] : row.keys[0].length ? [row.keys[0]] : [];
@@ -45,6 +45,7 @@ export function ShortcutsOverlay({ keymap, onClose }: { keymap: Keymap; onClose(
   const shown = query.trim() ? rows.filter(row => fuzzyMatch(query, row.title) || row.keys.some(keys => keys.join(' ').toLowerCase().includes(query.trim().toLowerCase()))) : rows;
   const close = () => onClose();
   const customizable = actionEnabled('settings.open');
+  const escape = rows.find(row => row.fixed && row.keys.length);
   return <dialog ref={dialog} className="shortcuts-overlay" aria-labelledby="shortcuts-title" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
     <header>
       <h2 id="shortcuts-title"><Icon name="keyboard" size={16}/>Keyboard shortcuts</h2>
@@ -58,7 +59,7 @@ export function ShortcutsOverlay({ keymap, onClose }: { keymap: Keymap; onClose(
         return <section key={group} aria-labelledby={`shortcuts-${group}`}>
           <h3 id={`shortcuts-${group}`}>{group}</h3>
           <dl>{items.map(row => <div key={row.id} className="shortcut-row" data-action={row.id}>
-            <dt>{row.title}</dt>
+            <dt>{row.title}{row.fixed && <small className="shortcut-fixed" title="This shortcut cannot be changed, so it always works">always</small>}</dt>
             <dd>{row.keys.length ? row.keys.map((keys, i) => <span key={i} className="shortcut-keys">{i > 0 && <small>or</small>}{keys.map((key, k) => key === '…' ? <small key={k}>…</small> : <kbd key={k}>{key}</kbd>)}</span>) : <small className="shortcut-none">No shortcut</small>}</dd>
           </div>)}</dl>
         </section>;
@@ -66,7 +67,8 @@ export function ShortcutsOverlay({ keymap, onClose }: { keymap: Keymap; onClose(
       {!shown.length && <p className="command-palette-empty" role="status">No shortcut matches “{query}”.</p>}
     </div>
     <footer>
-      <span>Keys separated by a space are pressed one after another. Every action is also in the command palette.</span>
+      <span>Keys separated by a space are pressed one after another. Every action is also in the command palette.
+        {escape && <> Lost? <kbd>{escape.keys[0].join(' ')}</kbd> resets the layout and keys, with Undo.</>}</span>
       {customizable ? <button type="button" onClick={() => { restore.current = false; onClose(); runAction('settings.open', 'keyboard'); }}><Icon name="pencil" size={14}/>Customize…</button> : <small>Change shortcuts in Settings → Shortcuts, in the main window.</small>}
     </footer>
   </dialog>;
