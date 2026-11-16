@@ -18,6 +18,9 @@ export const releaseNotes: readonly Release[] = [
       { title: 'Messages read as theirs', body: 'A message between an orchestrator and its agent is an event from that agent, opening to exactly what was sent, with Open to go to it. An agent\'s header leads back to its orchestrator, and the board shows who started each task.' },
       { title: 'Approve the plan first', body: 'The orchestrator proposes its split (tasks, paths, order, estimate); you approve it once, with a $ cap and how many agents at once, on one sheet that flags paths two tasks would both change. It starts only the plan\'s tasks.' },
       { title: 'A budget that holds', body: 'Each agent reserves its estimate against the cap; past it, new agents pause and the board asks you to raise it. Every task shows what it cost against its estimate.' },
+      { title: 'The missions board as a page', body: '⌘K, Open the missions board: the columns side by side, and tabs for a Timeline of everything every agent did (one lane each, what each event reacts to one click away), the Messages between agents, and Leases.' },
+      { title: 'Overlaps seen as they happen', body: 'After every turn Lazybox compares what the mission\'s agents changed; two agents on the same file, or one inside another\'s exclusive lease (lazybox lease claim), flag both cards and tell the orchestrator. Nothing is blocked.' },
+      { title: 'Work sized to your review', body: 'While three tasks (or the grant\'s number) wait for your review, the orchestrator\'s new agents are held, and the board says so.' },
     ],
   },
   {

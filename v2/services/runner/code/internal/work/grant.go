@@ -101,6 +101,16 @@ type Ceiling struct {
 	// PlanRequired: no agent starts before the person approved a plan
 	// (plan.go); then only the approved plan's tasks start.
 	PlanRequired bool `json:"plan_required,omitempty"`
+	// ReviewLimit holds new agents while this many tasks wait for the
+	// person's review (lease.go); 0 is DefaultReviewLimit.
+	ReviewLimit int `json:"review_limit,omitempty"`
+}
+
+func (c Ceiling) reviewLimit() int {
+	if c.ReviewLimit <= 0 {
+		return DefaultReviewLimit
+	}
+	return c.ReviewLimit
 }
 
 // Within reports whether c asks for no more than limit, and says what is wider.
@@ -124,6 +134,9 @@ func (c Ceiling) Within(limit Ceiling) (bool, string) {
 	}
 	if limit.PlanRequired && !c.PlanRequired {
 		return false, "the right to start agents without an approved plan"
+	}
+	if c.reviewLimit() > limit.reviewLimit() {
+		return false, "more work waiting for review than its own"
 	}
 	return true, ""
 }
@@ -150,6 +163,9 @@ func (c Ceiling) validate() error {
 	}
 	if c.BudgetUSD < 0 || c.BudgetUSD > 10000 {
 		return refuse("a grant's budget is between $0 (no cap) and $10,000")
+	}
+	if c.ReviewLimit < 0 || c.ReviewLimit > MaxChildrenLimit {
+		return refuse("a grant holds new agents at between 1 and %d tasks waiting for review", MaxChildrenLimit)
 	}
 	return nil
 }

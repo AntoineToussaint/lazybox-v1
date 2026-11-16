@@ -57,6 +57,37 @@ estimate (*$2.10 / $4*). Costs are API-equivalent prices from Lazybox's
 usage records, not an invoice; agents already running are not stopped at
 the cap, only new ones.
 
+## The missions board
+
+⌘K → **Open the missions board** opens it as a page of its own (the expand
+button on the Missions panel does too). Under the mission, four tabs (←/→
+moves between them):
+
+- **Board**: the columns, the orchestrator with its agents, budget and
+  plan, and each task's cost and who started it.
+- **Timeline**: everything that happened, oldest first, one lane per actor
+  (you, the orchestrator, each agent, Lazybox). *after #12* on an event jumps
+  to the one it reacts to.
+- **Messages**: what the orchestrator and each agent said to each other,
+  one thread per pair.
+- **Leases**: the paths agents leased, and where their changes met.
+
+## Overlaps and leases
+
+After every turn, Lazybox compares what each of the mission's agents
+changed. When two changed the same file, or one changed a path another
+leased exclusively, both cards say **Overlaps “…”**, the Leases tab lists
+it, and the orchestrator is told so it can sequence them, merge or hand
+off. Nothing is blocked mid-edit. An agent leases paths with
+`lazybox lease claim search/lexer/ --exclusive`; another task's claim there
+is refused while it holds (two hours by default).
+
+## Work sized to your review
+
+When as many tasks wait for your review as the grant allows (3 by default),
+the orchestrator's new agents are held and the board says so. Accept or send
+back work and it carries on.
+
 ## What it can and cannot do
 
 | It can | It never can |
@@ -107,6 +138,7 @@ lazybox agents watch                   # follow them live
 lazybox agents stop <agent> [--end]
 lazybox agents send parent "…"          # from an agent it started
 lazybox agents report "what I did and how I checked it"
+lazybox lease claim <path> [--exclusive] [--ttl 2h] · release · ls
 lazybox mission plan -                  # YAML: summary; tasks with key, title, brief, role,
                                         # permission, workspace, paths, estimate_usd, after
 ```

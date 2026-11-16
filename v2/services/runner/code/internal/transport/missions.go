@@ -384,6 +384,14 @@ func (s *Service) wireMission(ctx context.Context, state *work.State, readErr er
 	for i := len(state.Plans) - 1; i >= 0; i-- {
 		out.Plans = append(out.Plans, wirePlan(state.Plans[i]))
 	}
+	for _, l := range state.LiveLeases(time.Now()) {
+		out.Leases = append(out.Leases, wireLease(state, l))
+	}
+	for i := len(state.Overlaps) - 1; i >= 0; i-- {
+		o := state.Overlaps[i]
+		out.Overlaps = append(out.Overlaps, &pb.MissionOverlap{TaskIds: o.Tasks, Paths: o.Paths, Kind: o.Kind, LeaseId: o.Lease})
+	}
+	out.AwaitingReview = uint32(state.AwaitingReview())
 	if full {
 		for i := len(state.Events) - 1; i >= 0 && len(out.Events) < 200; i-- {
 			out.Events = append(out.Events, wireMissionEvent(state, state.Events[i]))
@@ -419,7 +427,7 @@ func wireEvidence(r work.Recorded) *pb.MissionEvidence {
 }
 
 func wireMissionEvent(state *work.State, e work.Event) *pb.MissionEvent {
-	out := &pb.MissionEvent{Seq: e.Seq, AtUnixMillis: millis(e.At), Type: e.Type, Version: uint32(e.V), Subject: e.Subject, ActorKind: e.Actor.Kind, ActorRole: e.Actor.Role, ConversationId: e.Actor.Conversation, Known: work.Known(e), Evidence: e.Evidence}
+	out := &pb.MissionEvent{Seq: e.Seq, AtUnixMillis: millis(e.At), Type: e.Type, Version: uint32(e.V), Subject: e.Subject, ActorKind: e.Actor.Kind, ActorRole: e.Actor.Role, ConversationId: e.Actor.Conversation, Known: work.Known(e), Evidence: e.Evidence, Id: e.ID, CausedBy: e.CausedBy}
 	out.Summary = eventSummary(state, e)
 	if !out.Known {
 		out.RawJson = string(e.Payload)
@@ -520,6 +528,24 @@ func eventSummary(state *work.State, e work.Event) string {
 		return "The tree used 80% of its budget" + capSuffix(e)
 	case work.BudgetExhausted:
 		return "The tree reached its budget; new agents paused" + capSuffix(e)
+	case work.LeaseClaimed:
+		var l work.LeasePayload
+		_ = json.Unmarshal(e.Payload, &l)
+		return fmt.Sprintf("%s leased %s (%s)", task, l.Path, l.Mode)
+	case work.LeaseReleased:
+		return "A lease was released"
+	case work.OverlapDetected:
+		var o work.OverlapPayload
+		_ = json.Unmarshal(e.Payload, &o)
+		names := []string{}
+		for _, id := range o.Tasks {
+			if t := state.Task(id); t != nil {
+				names = append(names, "“"+t.Title+"”")
+			}
+		}
+		return "Overlap: " + strings.Join(names, " and ") + " both changed " + strings.Join(o.Paths, ", ")
+	case work.WIPHeld:
+		return "New agents held: work waits for your review"
 	case work.MessageSent:
 		var m work.MessagePayload
 		_ = json.Unmarshal(e.Payload, &m)

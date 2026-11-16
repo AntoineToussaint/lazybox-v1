@@ -75,6 +75,7 @@ Open the parts of the workspace in front.
 | Customize this page | — | — |
 | Layout configuration | — | — |
 | Show missions | — | — |
+| Open the missions board | — | — |
 
 ## Layout
 

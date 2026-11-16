@@ -170,6 +170,20 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 		r, ok := req.(*pb.ReportAgentTaskRequest)
 		return ok && r.SessionId != "" && r.SessionId == who.session
 	},
+	// Leases are the caller's own task's (or, for an orchestrator, its
+	// agents' tasks'): the Runner derives the task and the log checks it.
+	pb.RunnerService_ClaimLease_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.ClaimLeaseRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_ReleaseLease_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.ReleaseLeaseRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_ListLeases_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.LeasesRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
 	// A plan is proposed only by an orchestrator with a grant in force; only
 	// the person decides it (UpdateMission, owner only).
 	pb.RunnerService_ProposePlan_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {

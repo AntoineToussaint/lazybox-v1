@@ -21,6 +21,10 @@ continue on lines indented by two spaces.
 - **Messages read as theirs** A message between an orchestrator and its agent is an event from that agent, opening to exactly what was sent, with Open to go to it. An agent's header leads back to its orchestrator, and the board shows who started each task.
 - **Approve the plan first** The orchestrator proposes its split (tasks, paths, order, estimate); you approve it once, with a $ cap and how many agents at once, on one sheet that flags paths two tasks would both change. It starts only the plan's tasks.
 - **A budget that holds** Each agent reserves its estimate against the cap; past it, new agents pause and the board asks you to raise it. Every task shows what it cost against its estimate.
+- **The missions board as a page** ⌘K, Open the missions board: the columns side by side, and tabs for a Timeline of everything every agent did (one lane each, what each event reacts to one click away), the Messages between agents, and Leases.
+- **Overlaps seen as they happen** After every turn Lazybox compares what the mission's agents changed; two agents on the same file, or one inside another's exclusive lease (lazybox lease claim), flag both cards and tell the orchestrator. Nothing is blocked.
+- **Work sized to your review** While three tasks (or the grant's number) wait for your review, the orchestrator's new agents are held, and the board says so.
+
 ## [2026-11-17.5] - 2026-11-17 · Panels from the keyboard
 
 - **Move between panels with arrows** ⌥⌘ and an arrow moves the focus to the panel group on that side; a ring shows where you are, and a screen reader says it. ⌥⇧⌘ and an arrow moves the panel into that group, or swaps two panels, and ⌃⌘ and an arrow moves the group's edge (held down, it keeps going, faster).

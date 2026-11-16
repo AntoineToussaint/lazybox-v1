@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import { useActions } from './actions';
 import type { CommandNavigator } from './CommandCenter';
-import { useNavigationRequests } from './navigate-requests';
+import { showMissionsPage, useNavigationRequests } from './navigate-requests';
 import type { PanelModule } from './PanelRegistry';
 import type { Workbench } from './workbench';
 import type { ViewTarget } from './workspace-model';
@@ -47,6 +47,7 @@ export function useWorkspaceCommands(commands: Commands): CommandNavigator {
     'conversation.new': { run: () => c().newConversation(), enabled: () => c().canStartConversation },
     'changes.show': { run: () => c().showPanel('changes'), enabled: () => !!c().workspaceId },
     'missions.open': { run: () => c().showPanel('missions'), enabled: () => !!c().registry.missions },
+    'missions.page': { run: () => showMissionsPage(), enabled: () => !!c().registry.missions },
     'terminal.open':{ run: () => c().showPanel('terminal'), enabled: () => c().terminalReady },
     'workspace.window': { run: () => c().openWorkspaceWindow(), enabled: () => c().canOpenWorkspaceWindow },
     'page.customize': () => c().toggleEditing(),

@@ -286,6 +286,12 @@ service RunnerService {
   // approval (UpdateMission approve_plan, owner only) before any of them
   // starts when the grant requires a plan.
   rpc ProposePlan(ProposePlanRequest) returns (MissionPlan);
+  // Advisory path leases (`lazybox lease`): an agent leases paths for its own
+  // task (an orchestrator, for its agents' tasks). Nothing is blocked; an
+  // edit inside another task's exclusive lease is recorded as an overlap.
+  rpc ClaimLease(ClaimLeaseRequest) returns (MissionLeases);
+  rpc ReleaseLease(ReleaseLeaseRequest) returns (MissionLeases);
+  rpc ListLeases(LeasesRequest) returns (MissionLeases);
   // Artifacts: versioned documents (plans, reports, specs, notes) of one
   // workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
   // read and put artifacts of its own execution's workspace only
@@ -2438,6 +2444,39 @@ message MissionPlan {
   string conversation_id = 12;
   string proposed_by = 13;
 }
+message ClaimLeaseRequest {
+  string session_id = 1;
+  // The task (an orchestrator's agent's); empty: the caller's own.
+  string task_id = 2;
+  // Relative to the workspace: api/handler.go, or web/ for a folder.
+  string path = 3;
+  bool exclusive = 4;
+  uint32 ttl_seconds = 5;
+  string reason = 6;
+}
+message ReleaseLeaseRequest { string session_id = 1; string lease = 2; }
+message LeasesRequest { string session_id = 1; }
+message MissionLease {
+  string id = 1;
+  string task_id = 2;
+  string task_title = 3;
+  string path = 4;
+  // exclusive or shared.
+  string mode = 5;
+  string holder_conversation_id = 6;
+  int64 claimed_at_unix_millis = 7;
+  int64 expires_at_unix_millis = 8;
+  string reason = 9;
+}
+message MissionLeases { string mission_id = 1; repeated MissionLease leases = 2; MissionLease claimed = 3; }
+message MissionOverlap {
+  repeated string task_ids = 1;
+  repeated string paths = 2;
+  // files (both changed them) or lease (one changed what the other leased exclusively).
+  string kind = 3;
+  string lease_id = 4;
+  int64 at_unix_millis = 5;
+}
 message ProposePlanRequest {
   string session_id = 1;
   string operation_id = 2;
@@ -2464,6 +2503,8 @@ message OrchestratorCeiling {
   double budget_usd = 5;
   // No agent starts before the person approves a plan; then only its tasks.
   bool plan_required = 6;
+  // New agents are held while this many tasks wait for the person (0: 3).
+  uint32 review_limit = 7;
 }
 message GrantRevoke { string grant_id = 1; string reason = 2; }
 message MissionGrant {
@@ -2542,6 +2583,11 @@ message Mission {
   repeated MissionMessage messages = 19;
   // Orchestrators' plans, newest first.
   repeated MissionPlan plans = 20;
+  // Leases in force, and the overlaps the Runner observed, newest first.
+  repeated MissionLease leases = 21;
+  repeated MissionOverlap overlaps = 22;
+  // Tasks waiting for the person's review (at a gate).
+  uint32 awaiting_review = 23;
 }
 message MissionGoal { string id = 1; string title = 2; }
 message MissionTask {
@@ -2616,6 +2662,9 @@ message MissionEvent {
   bool known = 10;
   repeated string evidence = 11;
   string raw_json = 12;
+  // The event's id and the event it reacts to: the timeline's arrows.
+  string id = 13;
+  string caused_by = 14;
 }
 message ListPromptHistoryRequest {
   // Scope: one conversation, one workspace, or (both empty) every conversation.

@@ -166,6 +166,9 @@ const (
 	RunnerService_StopChildAgent_FullMethodName               = "/lazybox.bench.v1.RunnerService/StopChildAgent"
 	RunnerService_ReportAgentTask_FullMethodName              = "/lazybox.bench.v1.RunnerService/ReportAgentTask"
 	RunnerService_ProposePlan_FullMethodName                  = "/lazybox.bench.v1.RunnerService/ProposePlan"
+	RunnerService_ClaimLease_FullMethodName                   = "/lazybox.bench.v1.RunnerService/ClaimLease"
+	RunnerService_ReleaseLease_FullMethodName                 = "/lazybox.bench.v1.RunnerService/ReleaseLease"
+	RunnerService_ListLeases_FullMethodName                   = "/lazybox.bench.v1.RunnerService/ListLeases"
 	RunnerService_ListArtifacts_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListArtifacts"
 	RunnerService_GetArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/GetArtifact"
 	RunnerService_PutArtifact_FullMethodName                  = "/lazybox.bench.v1.RunnerService/PutArtifact"
@@ -481,6 +484,12 @@ type RunnerServiceClient interface {
 	// approval (UpdateMission approve_plan, owner only) before any of them
 	// starts when the grant requires a plan.
 	ProposePlan(ctx context.Context, in *ProposePlanRequest, opts ...grpc.CallOption) (*MissionPlan, error)
+	// Advisory path leases (`lazybox lease`): an agent leases paths for its own
+	// task (an orchestrator, for its agents' tasks). Nothing is blocked; an
+	// edit inside another task's exclusive lease is recorded as an overlap.
+	ClaimLease(ctx context.Context, in *ClaimLeaseRequest, opts ...grpc.CallOption) (*MissionLeases, error)
+	ReleaseLease(ctx context.Context, in *ReleaseLeaseRequest, opts ...grpc.CallOption) (*MissionLeases, error)
+	ListLeases(ctx context.Context, in *LeasesRequest, opts ...grpc.CallOption) (*MissionLeases, error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -2069,6 +2078,36 @@ func (c *runnerServiceClient) ProposePlan(ctx context.Context, in *ProposePlanRe
 	return out, nil
 }
 
+func (c *runnerServiceClient) ClaimLease(ctx context.Context, in *ClaimLeaseRequest, opts ...grpc.CallOption) (*MissionLeases, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MissionLeases)
+	err := c.cc.Invoke(ctx, RunnerService_ClaimLease_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ReleaseLease(ctx context.Context, in *ReleaseLeaseRequest, opts ...grpc.CallOption) (*MissionLeases, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MissionLeases)
+	err := c.cc.Invoke(ctx, RunnerService_ReleaseLease_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListLeases(ctx context.Context, in *LeasesRequest, opts ...grpc.CallOption) (*MissionLeases, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MissionLeases)
+	err := c.cc.Invoke(ctx, RunnerService_ListLeases_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListArtifactsResponse)
@@ -2643,6 +2682,12 @@ type RunnerServiceServer interface {
 	// approval (UpdateMission approve_plan, owner only) before any of them
 	// starts when the grant requires a plan.
 	ProposePlan(context.Context, *ProposePlanRequest) (*MissionPlan, error)
+	// Advisory path leases (`lazybox lease`): an agent leases paths for its own
+	// task (an orchestrator, for its agents' tasks). Nothing is blocked; an
+	// edit inside another task's exclusive lease is recorded as an overlap.
+	ClaimLease(context.Context, *ClaimLeaseRequest) (*MissionLeases, error)
+	ReleaseLease(context.Context, *ReleaseLeaseRequest) (*MissionLeases, error)
+	ListLeases(context.Context, *LeasesRequest) (*MissionLeases, error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -3172,6 +3217,15 @@ func (UnimplementedRunnerServiceServer) ReportAgentTask(context.Context, *Report
 }
 func (UnimplementedRunnerServiceServer) ProposePlan(context.Context, *ProposePlanRequest) (*MissionPlan, error) {
 	return nil, status.Error(codes.Unimplemented, "method ProposePlan not implemented")
+}
+func (UnimplementedRunnerServiceServer) ClaimLease(context.Context, *ClaimLeaseRequest) (*MissionLeases, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClaimLease not implemented")
+}
+func (UnimplementedRunnerServiceServer) ReleaseLease(context.Context, *ReleaseLeaseRequest) (*MissionLeases, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReleaseLease not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListLeases(context.Context, *LeasesRequest) (*MissionLeases, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListLeases not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListArtifacts not implemented")
@@ -5875,6 +5929,60 @@ func _RunnerService_ProposePlan_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ClaimLease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClaimLeaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ClaimLease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ClaimLease_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ClaimLease(ctx, req.(*ClaimLeaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ReleaseLease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseLeaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ReleaseLease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ReleaseLease_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ReleaseLease(ctx, req.(*ReleaseLeaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListLeases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LeasesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListLeases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListLeases_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListLeases(ctx, req.(*LeasesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListArtifactsRequest)
 	if err := dec(in); err != nil {
@@ -6921,6 +7029,18 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ProposePlan",
 			Handler:    _RunnerService_ProposePlan_Handler,
+		},
+		{
+			MethodName: "ClaimLease",
+			Handler:    _RunnerService_ClaimLease_Handler,
+		},
+		{
+			MethodName: "ReleaseLease",
+			Handler:    _RunnerService_ReleaseLease_Handler,
+		},
+		{
+			MethodName: "ListLeases",
+			Handler:    _RunnerService_ListLeases_Handler,
 		},
 		{
 			MethodName: "ListArtifacts",

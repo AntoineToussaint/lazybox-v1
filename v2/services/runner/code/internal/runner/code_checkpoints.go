@@ -84,8 +84,10 @@ func (b *Bench) watchTurns(e *Execution) {
 					return b.Checkpoints.EndTurn(ctx, conversation, repos, operation, ended)
 				})
 			}
-			// After the checkpoint: a review asks what the turn changed.
+			// After the checkpoint: a review asks what the turn changed, and
+			// a mission's attempts are checked for overlap (orchestrator_lease.go).
 			b.reviewTurnEnded(e, operation)
+			b.overlapTurnEnded(e)
 		},
 	}
 	if code && b.Checkpoints != nil {

@@ -814,9 +814,9 @@ their state, and revokes. A child's header leads to its orchestrator
 (`Session.lineage`, which the Agents panel can nest by). The board shows the
 orchestrator above the columns and, on each card, who started it as what.
 
-**Not yet** (in this slice). Plan approval and budgets are below; the
-Missions page with Messages and Timeline tabs, leases and live overlap, and
-review-capacity WIP are the next slices of sota-agents.md §6.14. A child's
+**Not yet** (in this slice). Plan approval and budgets, the Missions page
+with its Timeline, Messages and Leases tabs, live overlap and review
+capacity are below; the merge train is designed there, not built. A child's
 approvals reach the person's Inbox as before, without a lineage crumb yet.
 `ask` (a blocking question to a child) is `send` plus `wait --until idle`.
 Not verified with real Claude or Codex agents: the fake provider and the
@@ -864,6 +864,63 @@ board and the badge. Tests: `plan_test.go`, `plans_test.go`,
 turn-end pause in the metering gateway); an estimate is the orchestrator's
 own, not computed from model prices and history. Paths are declared, not
 leased: overlap is flagged in the plan only.
+
+### The missions board, leases, live overlap and review capacity (slices 2c, 3a as built)
+
+**The board is a page.** ⌘K *Open the missions board* (or the expand
+button on the Missions panel, or a badge card's mission link) opens it as a
+page of its own (`showMissionsPage`, `navigate-requests.ts`), where the four
+columns stand side by side. Tabs (←/→, Home/End): **Board**, **Timeline**,
+**Messages**, **Leases**.
+
+- **Timeline** (`MissionTimeline`): every event of the log oldest first, one
+  lane per actor (you, each orchestrator, each agent, Lazybox for rules,
+  checks and what it observed), a dot where each acted, and *after #n* on an
+  event whose `caused_by` is set, which highlights the event it reacts to.
+  `MissionEvent` now carries `id` and `caused_by`.
+- **Messages** (`MissionMessages`): `message.sent` as one thread per
+  parent–child pair, reports marked.
+- **Leases** (`MissionLeases`): leases in force and the overlaps observed.
+
+**Leases** (`internal/work/lease.go`) are advisory: `lease.claimed`
+(subject `lease:<id>`) names a task, a relative path (a trailing `/` is a
+folder), `exclusive` or `shared`, and a TTL (default 2 h, at most 24 h); it
+lapses by itself. An agent leases only for its own task, an orchestrator
+also for its agents' tasks. A claim that meets another task's live lease
+where either is exclusive is refused, naming the holder. CLI:
+`lazybox lease claim <path> [--exclusive] [--ttl] [--task] | release | ls`
+(`ClaimLease`, `ReleaseLease`, `ListLeases` on the agent allowlist, for the
+caller's own execution).
+
+**Live overlap.** After every turn's code checkpoint
+(`code_checkpoints.go` → `overlapTurnEnded`), the files the turn changed
+join what that conversation has changed (read back from its checkpoints
+after a restart, at most the last 40 turns). If the conversation is a live
+attempt, its files are intersected with every other live attempt of the
+same mission and with other tasks' exclusive leases; each hit is
+`overlap.detected` (actor `lazybox`, once per pair, kind and paths: `files`
+or `lease`). The orchestrators of the tasks are told (an `overlap_detected`
+event in their transcript and a turn carrying the same origin); the board
+flags both cards. Nothing is blocked.
+
+**Review capacity.** A grant's `review_limit` (default 3) holds new agents
+while that many tasks of the mission wait at the person's gate:
+`SpawnAgent` refuses with the count, records `wip.held` once per count, and
+the board says "N tasks wait for your review; new agents are held".
+
+**Not yet: the merge train** (sota-agents.md §6.5 step 3, ORCHESTRATION
+slice 3). Design, for the next slice: `integration.queued` when the person
+accepts a task whose evidence includes a PR (or by `lazybox mission merge
+<task>`); a Runner rule pops the queue in `merge_after` then acceptance
+order, rebases the task branch on the base through the PR loop, waits for
+its checks, merges with the process's method, runs `after_each_merge`, and
+records `integration.merged`; a red post-merge check bisects the merges
+since the last green base with the same loop, reverts the culprit
+(`integration.reverted`) and opens a fix task for it, assigned to its
+orchestrator. Workers never push the base; only the train merges. The
+board's Landing column and the timeline's lane for Lazybox show it. Not
+built here: it needs the PR loop to take a queue lock per repository, and a
+real repository with checks to verify, neither of which the fake Runner has.
 
 ### Risks and failure modes
 

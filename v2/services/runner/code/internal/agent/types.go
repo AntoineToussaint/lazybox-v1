@@ -285,9 +285,11 @@ const (
 	// An orchestrator's brief to an agent it started, a message between an
 	// orchestrator and its agent, and an agent's report to its orchestrator
 	// (runner/orchestrator.go).
-	OriginAgentBrief   = "agent_brief"
-	OriginAgentNote    = "agent_note"
-	OriginAgentReport  = "agent_report"
+	OriginAgentBrief  = "agent_brief"
+	OriginAgentNote   = "agent_note"
+	OriginAgentReport = "agent_report"
+	// Lazybox to an orchestrator: two of its agents changed the same files.
+	OriginOverlap      = "overlap_detected"
 	OriginContinuation = "continuation"
 )
 

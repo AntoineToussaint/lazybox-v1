@@ -89,6 +89,50 @@ func (s *Service) ProposePlan(ctx context.Context, r *pb.ProposePlanRequest) (*p
 	return wirePlan(plan), nil
 }
 
+func (s *Service) ClaimLease(ctx context.Context, r *pb.ClaimLeaseRequest) (*pb.MissionLeases, error) {
+	state, lease, err := s.Bench.ClaimLease(ctx, runner.LeaseRequest{Session: r.SessionId, Task: r.TaskId, Path: r.Path, Exclusive: r.Exclusive, TTL: time.Duration(r.TtlSeconds) * time.Second, Reason: r.Reason})
+	if err != nil {
+		return nil, agentError(err)
+	}
+	out := wireLeases(state, state.LiveLeases(time.Now()))
+	if lease != nil {
+		out.Claimed = wireLease(state, lease)
+	}
+	return out, nil
+}
+
+func (s *Service) ReleaseLease(ctx context.Context, r *pb.ReleaseLeaseRequest) (*pb.MissionLeases, error) {
+	state, err := s.Bench.ReleaseLease(ctx, r.SessionId, r.Lease)
+	if err != nil {
+		return nil, agentError(err)
+	}
+	return wireLeases(state, state.LiveLeases(time.Now())), nil
+}
+
+func (s *Service) ListLeases(ctx context.Context, r *pb.LeasesRequest) (*pb.MissionLeases, error) {
+	state, leases, err := s.Bench.Leases(ctx, r.SessionId)
+	if err != nil {
+		return nil, agentError(err)
+	}
+	return wireLeases(state, leases), nil
+}
+
+func wireLeases(state *work.State, leases []*work.Lease) *pb.MissionLeases {
+	out := &pb.MissionLeases{MissionId: state.ID}
+	for _, l := range leases {
+		out.Leases = append(out.Leases, wireLease(state, l))
+	}
+	return out
+}
+
+func wireLease(state *work.State, l *work.Lease) *pb.MissionLease {
+	out := &pb.MissionLease{Id: l.Lease, TaskId: l.Task, Path: l.Path, Mode: l.Mode, HolderConversationId: l.Holder.Conversation, ClaimedAtUnixMillis: millis(l.Claimed), ExpiresAtUnixMillis: millis(l.Expires()), Reason: l.Reason}
+	if t := state.Task(l.Task); t != nil {
+		out.TaskTitle = t.Title
+	}
+	return out
+}
+
 func wirePlan(p *work.Plan) *pb.MissionPlan {
 	out := &pb.MissionPlan{Id: p.Plan, GrantId: p.Grant, Summary: p.Summary, TotalUsd: p.TotalUSD(), State: p.State, CapUsd: p.CapUSD, Note: p.Note, ProposedAtUnixMillis: millis(p.Proposed), DecidedAtUnixMillis: millis(p.Decided), ConversationId: p.ProposedBy.Conversation, ProposedBy: p.ProposedBy.Kind}
 	for _, t := range p.Tasks {
@@ -115,13 +159,13 @@ func (s *Service) grant(ctx context.Context, mission, key string, g *pb.Orchestr
 	}
 	c := work.Ceiling{}
 	if g.Ceiling != nil {
-		c = work.Ceiling{Permission: g.Ceiling.Permission, Profiles: g.Ceiling.ProfileIds, MaxChildren: int(g.Ceiling.MaxChildren), Depth: int(g.Ceiling.Depth), BudgetUSD: g.Ceiling.BudgetUsd, PlanRequired: g.Ceiling.PlanRequired}
+		c = work.Ceiling{Permission: g.Ceiling.Permission, Profiles: g.Ceiling.ProfileIds, MaxChildren: int(g.Ceiling.MaxChildren), Depth: int(g.Ceiling.Depth), BudgetUSD: g.Ceiling.BudgetUsd, PlanRequired: g.Ceiling.PlanRequired, ReviewLimit: int(g.Ceiling.ReviewLimit)}
 	}
 	return s.Bench.Grant(ctx, runner.GrantRequest{Mission: mission, Session: g.SessionId, Operation: key, Ceiling: c})
 }
 
 func wireCeiling(c work.Ceiling) *pb.OrchestratorCeiling {
-	return &pb.OrchestratorCeiling{Permission: c.Permission, ProfileIds: c.Profiles, MaxChildren: uint32(c.MaxChildren), Depth: uint32(c.Depth), BudgetUsd: c.BudgetUSD, PlanRequired: c.PlanRequired}
+	return &pb.OrchestratorCeiling{Permission: c.Permission, ProfileIds: c.Profiles, MaxChildren: uint32(c.MaxChildren), Depth: uint32(c.Depth), BudgetUsd: c.BudgetUSD, PlanRequired: c.PlanRequired, ReviewLimit: uint32(c.ReviewLimit)}
 }
 
 func wireGrant(state *work.State, g *work.Grant, session string, budget runner.TreeBudget) *pb.MissionGrant {

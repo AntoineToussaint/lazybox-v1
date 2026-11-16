@@ -62,13 +62,15 @@ type orchestratorState struct {
 	changed chan struct{}
 	// notes are instructions waiting for a conversation's next message.
 	notes map[string]string
+	// touched is what each attempt's turns changed (orchestrator_lease.go).
+	touched *touched
 }
 
 func (b *Bench) orch() *orchestratorState {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.orchestrator == nil {
-		b.orchestrator = &orchestratorState{grants: map[string]*sync.Mutex{}, changed: make(chan struct{}), notes: map[string]string{}}
+		b.orchestrator = &orchestratorState{grants: map[string]*sync.Mutex{}, changed: make(chan struct{}), notes: map[string]string{}, touched: &touched{files: map[string]map[string]bool{}, seeded: map[string]bool{}}}
 	}
 	return b.orchestrator
 }
@@ -367,6 +369,9 @@ func (b *Bench) Spawn(ctx context.Context, r SpawnRequest) (LineageView, error) 
 		return LineageView{}, err
 	}
 	if err := b.checkBudget(ctx, state, g, estimate, parent); err != nil {
+		return LineageView{}, err
+	}
+	if err := b.checkReview(state, g, parent); err != nil {
 		return LineageView{}, err
 	}
 	// Capabilities only shrink: the narrower of what was asked, the grant's

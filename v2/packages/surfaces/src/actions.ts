@@ -151,6 +151,7 @@ const tail = [
   { id: 'chat.stop', title: 'Interrupt the agent', group: 'Conversation', icon: 'stop', keys: '', scope: 'global', keywords: '/stop cancel abort halt' },
   { id: 'chat.rename', title: 'Rename the conversation…', group: 'Conversation', icon: 'pencil', keys: '', scope: 'global', keywords: '/rename title name' },
   { id: 'missions.open', title: 'Show missions', group: 'Workspace', icon: 'target', keys: '', scope: 'global', palette: false, keywords: '/mission tasks goals orchestrate' },
+  { id: 'missions.page', title: 'Open the missions board', group: 'Workspace', icon: 'target', keys: '', scope: 'global', keywords: 'mission board timeline messages leases orchestrator agents plan' },
   // Voice (VOICE.md): dictation and spoken commands, held or toggled.
   { id: 'voice.dictate', title: 'Dictate', group: 'Voice', icon: 'mic', keys: 'Alt+Space', scope: 'global', hold: true, keywords: 'voice speech speak talk microphone dictation push to talk dictée micro parler' },
   { id: 'voice.command', title: 'Say a command', group: 'Voice', icon: 'mic', keys: 'Alt+Shift+Space', scope: 'global', hold: true, overDialogs: true, keywords: 'voice speech command palette speak talk microphone commande vocale' },

@@ -25,8 +25,12 @@ type State struct {
 	Grants   []*Grant
 	Messages []*Message
 	// Plans are orchestrators' proposals and the person's decisions (plan.go).
-	Plans  []*Plan
-	Events []Event
+	Plans []*Plan
+	// Leases and Overlaps: advisory path leases and the overlaps the Runner
+	// observed between tasks (lease.go).
+	Leases   []*Lease
+	Overlaps []OverlapPayload
+	Events   []Event
 	// Ignored counts events kept in the log but not folded: unknown types,
 	// newer versions, or (when replaying leniently) events this Runner would refuse.
 	Ignored int
@@ -187,14 +191,16 @@ func (s *State) terminal(t *Task) bool { return t.Canceled || s.Done(t) }
 // agentMay is every event an agent may be the actor of. A gate decision, an
 // acceptance, a cancellation, a brief change or evidence never is.
 var agentMay = map[string]bool{
-	TaskCreated:  true, // an orchestrator, with a grant in force
-	TaskAssigned: true, // an orchestrator starting its child (checkLineage)
-	AttemptEnded: true, // an orchestrator stopping its own child
-	TaskReported: true, // a child reporting its own task
-	GrantIssued:  true, // narrowed for its own child
-	GrantRevoked: true, // a grant it narrowed
-	MessageSent:  true, // to its parent or its own child
-	PlanProposed: true, // an orchestrator, for the person to approve
+	TaskCreated:   true, // an orchestrator, with a grant in force
+	TaskAssigned:  true, // an orchestrator starting its child (checkLineage)
+	AttemptEnded:  true, // an orchestrator stopping its own child
+	TaskReported:  true, // a child reporting its own task
+	GrantIssued:   true, // narrowed for its own child
+	GrantRevoked:  true, // a grant it narrowed
+	MessageSent:   true, // to its parent or its own child
+	PlanProposed:  true, // an orchestrator, for the person to approve
+	LeaseClaimed:  true, // for its own task, or (an orchestrator) its agents' tasks
+	LeaseReleased: true, // the same
 }
 
 // reviewVerdict is a reviewer's verdict, recorded by Lazybox from the review
@@ -305,6 +311,8 @@ func (s *State) fold(e Event) error {
 		return s.foldGrant(e)
 	case PlanProposed, PlanApproved, PlanRejected, BudgetRaised, BudgetWarning, BudgetExhausted:
 		return s.foldPlan(e)
+	case LeaseClaimed, LeaseReleased, OverlapDetected, WIPHeld:
+		return s.foldLease(e)
 	case MissionProcessPinned:
 		p, ok := decode[ProcessPayload](e)
 		if !ok {

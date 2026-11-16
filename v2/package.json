@@ -91,6 +91,7 @@
     "test:missions": "node scripts/test-missions.mjs",
     "test:orchestration": "node scripts/test-orchestration.mjs",
     "test:orchestration-plans": "node scripts/test-orchestration-plans.mjs",
+    "test:orchestration-board": "node scripts/test-orchestration-board.mjs",
     "test:subagents": "node scripts/test-subagents.mjs",
     "test:live-bar": "node scripts/test-live-bar.mjs",
     "test:polish-pass": "node scripts/test-polish-pass.mjs",

@@ -32,6 +32,19 @@ export function useNavigationRequests(root: string, enabled: boolean, show: (tar
   }, [root, enabled]);
 }
 
+const PAGE = 'lazybox-missions-page';
+/** Ask the workspace to show the missions board as a page of its own. */
+export function showMissionsPage() { window.dispatchEvent(new CustomEvent(PAGE)); }
+/** The workspace: open (or bring forward) the Missions page when asked. */
+export function useMissionsPageHost(show: () => void) {
+  const ref = useRef(show); ref.current = show;
+  useEffect(() => {
+    const listener = () => ref.current();
+    window.addEventListener(PAGE, listener);
+    return () => window.removeEventListener(PAGE, listener);
+  }, []);
+}
+
 const SELECT = 'lazybox-select-mission';
 let pendingMission = '';
 /** Ask the Missions panel to show a mission; kept until a panel takes it. */

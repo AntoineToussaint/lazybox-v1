@@ -1,4 +1,4 @@
-import type { Mission, MissionAttempt, MissionGrant, MissionPlan, MissionTask, PlanOverlap, PlanTask, Session } from '@lazybox/protocol';
+import type { Mission, MissionAttempt, MissionEvent, MissionGrant, MissionMessage, MissionPlan, MissionTask, PlanOverlap, PlanTask, Session } from '@lazybox/protocol';
 
 /**
  * The Orchestrator grant, as people see it (audits/2026-11-16/sota-agents.md
@@ -131,6 +131,54 @@ export function budgetLine(grant: Pick<MissionGrant, 'spentUsd' | 'reservedUsd' 
   return [`${usd(grant.spentUsd)} spent`, grant.reservedUsd > 0 ? `${usd(grant.reservedUsd)} reserved` : '', cap > 0 ? `${usd(cap)} cap` : 'no cap'].filter(Boolean).join(' · ');
 }
 
+/** One lane of the mission timeline: an actor. */
+export type Lane = { key: string; short: string; title: string; tone: 'person' | 'orchestrator' | 'agent' | 'system'; conversation?: string; match(e: MissionEvent): boolean };
+
+const initials = (title: string) => (title.match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+/** The timeline's lanes: you, each orchestrator, each agent, and Lazybox (its rules and checks). */
+export function lanesOf(mission: Mission, events: readonly MissionEvent[]): Lane[] {
+  const lanes: Lane[] = [{ key: 'you', short: 'You', title: 'You', tone: 'person', match: e => e.actorKind === 'human' }];
+  const seen = new Set<string>();
+  const add = (conversation: string, title: string, tone: Lane['tone']) => {
+    if (!conversation || seen.has(conversation)) return;
+    seen.add(conversation);
+    lanes.push({ key: conversation, short: initials(title), title, tone, conversation, match: e => e.conversationId === conversation && e.actorKind === 'agent' });
+  };
+  for (const g of mission.grants) add(g.conversationId, g.title || 'Orchestrator', 'orchestrator');
+  for (const t of mission.tasks) for (const a of t.attempts) if (a.parentConversationId) add(a.conversationId, a.title || t.title, 'agent');
+  for (const e of events) if (e.actorKind === 'agent') add(e.conversationId, 'Agent', 'agent');
+  lanes.push({ key: 'lazybox', short: 'LB', title: 'Lazybox: rules, checks and what it observed', tone: 'system', match: () => true });
+  return lanes;
+}
+
+export type Thread = { key: string; a: { conversation: string; label: string }; b: { conversation: string; label: string }; messages: MissionMessage[]; last: bigint };
+
+/** Messages between agents, one thread per pair (oldest first), the busiest-latest first. */
+export function messageThreads(messages: readonly MissionMessage[]): Thread[] {
+  const threads = new Map<string, Thread>();
+  for (const m of [...messages].sort((x, y) => Number(x.seq - y.seq))) {
+    const key = [m.fromConversationId, m.toConversationId].sort().join('|');
+    let t = threads.get(key);
+    if (!t) { t = { key, a: { conversation: m.fromConversationId, label: m.fromLabel || 'Agent' }, b: { conversation: m.toConversationId, label: m.toLabel || 'Agent' }, messages: [], last: 0n }; threads.set(key, t); }
+    t.messages.push(m); t.last = m.atUnixMillis;
+  }
+  return [...threads.values()].sort((x, y) => Number(y.last - x.last));
+}
+
+/** The other tasks a task overlapped with, and on which paths. */
+export function overlapsOfTask(mission: Mission, taskId: string): { other: string; paths: string[]; kind: string }[] {
+  return mission.overlaps.filter(o => o.taskIds.includes(taskId)).map(o => ({ other: mission.tasks.find(t => t.id === o.taskIds.find(id => id !== taskId))?.title || 'another task', paths: o.paths, kind: o.kind }));
+}
+
+/** New agents are held: as many tasks wait for the person as the live grant allows. */
+export function reviewHeld(mission: Mission): { waiting: number; limit: number } | undefined {
+  const g = mission.grants.find(v => v.live);
+  if (!g) return undefined;
+  const limit = g.ceiling?.reviewLimit || 3;
+  return mission.awaitingReview >= limit ? { waiting: mission.awaitingReview, limit } : undefined;
+}
+
 /** Lineage lines Lazybox records in a conversation (runner/orchestrator.go). */
-export const LINEAGE_EVENTS = new Set(['agent_spawned', 'agent_message', 'agent_stopped', 'orchestration_granted', 'orchestration_revoked', 'plan_proposed', 'plan_decided', 'budget_exhausted', 'budget_raised']);
-export const lineageIcon: Record<string, string> = { agent_spawned: 'subagent', agent_message: 'send', agent_stopped: 'stop', orchestration_granted: 'shield', orchestration_revoked: 'lock', plan_proposed: 'checklist', plan_decided: 'check', budget_exhausted: 'alert', budget_raised: 'card' };
+export const LINEAGE_EVENTS = new Set(['agent_spawned', 'agent_message', 'agent_stopped', 'orchestration_granted', 'orchestration_revoked', 'plan_proposed', 'plan_decided', 'budget_exhausted', 'budget_raised', 'overlap_detected', 'wip_held']);
+export const lineageIcon: Record<string, string> = { agent_spawned: 'subagent', agent_message: 'send', agent_stopped: 'stop', orchestration_granted: 'shield', orchestration_revoked: 'lock', plan_proposed: 'checklist', plan_decided: 'check', budget_exhausted: 'alert', budget_raised: 'card', overlap_detected: 'alert', wip_held: 'pending' };

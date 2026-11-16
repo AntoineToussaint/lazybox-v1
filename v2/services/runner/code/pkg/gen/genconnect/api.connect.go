@@ -467,6 +467,15 @@ const (
 	// RunnerServiceProposePlanProcedure is the fully-qualified name of the RunnerService's ProposePlan
 	// RPC.
 	RunnerServiceProposePlanProcedure = "/lazybox.bench.v1.RunnerService/ProposePlan"
+	// RunnerServiceClaimLeaseProcedure is the fully-qualified name of the RunnerService's ClaimLease
+	// RPC.
+	RunnerServiceClaimLeaseProcedure = "/lazybox.bench.v1.RunnerService/ClaimLease"
+	// RunnerServiceReleaseLeaseProcedure is the fully-qualified name of the RunnerService's
+	// ReleaseLease RPC.
+	RunnerServiceReleaseLeaseProcedure = "/lazybox.bench.v1.RunnerService/ReleaseLease"
+	// RunnerServiceListLeasesProcedure is the fully-qualified name of the RunnerService's ListLeases
+	// RPC.
+	RunnerServiceListLeasesProcedure = "/lazybox.bench.v1.RunnerService/ListLeases"
 	// RunnerServiceListArtifactsProcedure is the fully-qualified name of the RunnerService's
 	// ListArtifacts RPC.
 	RunnerServiceListArtifactsProcedure = "/lazybox.bench.v1.RunnerService/ListArtifacts"
@@ -833,6 +842,12 @@ type RunnerServiceClient interface {
 	// approval (UpdateMission approve_plan, owner only) before any of them
 	// starts when the grant requires a plan.
 	ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error)
+	// Advisory path leases (`lazybox lease`): an agent leases paths for its own
+	// task (an orchestrator, for its agents' tasks). Nothing is blocked; an
+	// edit inside another task's exclusive lease is recorded as an overlap.
+	ClaimLease(context.Context, *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ReleaseLease(context.Context, *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ListLeases(context.Context, *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -1804,6 +1819,24 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ProposePlan")),
 			connect.WithClientOptions(opts...),
 		),
+		claimLease: connect.NewClient[gen.ClaimLeaseRequest, gen.MissionLeases](
+			httpClient,
+			baseURL+RunnerServiceClaimLeaseProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ClaimLease")),
+			connect.WithClientOptions(opts...),
+		),
+		releaseLease: connect.NewClient[gen.ReleaseLeaseRequest, gen.MissionLeases](
+			httpClient,
+			baseURL+RunnerServiceReleaseLeaseProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReleaseLease")),
+			connect.WithClientOptions(opts...),
+		),
+		listLeases: connect.NewClient[gen.LeasesRequest, gen.MissionLeases](
+			httpClient,
+			baseURL+RunnerServiceListLeasesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListLeases")),
+			connect.WithClientOptions(opts...),
+		),
 		listArtifacts: connect.NewClient[gen.ListArtifactsRequest, gen.ListArtifactsResponse](
 			httpClient,
 			baseURL+RunnerServiceListArtifactsProcedure,
@@ -2117,6 +2150,9 @@ type runnerServiceClient struct {
 	stopChildAgent               *connect.Client[gen.StopChildAgentRequest, gen.AgentLineage]
 	reportAgentTask              *connect.Client[gen.ReportAgentTaskRequest, gen.AgentLineage]
 	proposePlan                  *connect.Client[gen.ProposePlanRequest, gen.MissionPlan]
+	claimLease                   *connect.Client[gen.ClaimLeaseRequest, gen.MissionLeases]
+	releaseLease                 *connect.Client[gen.ReleaseLeaseRequest, gen.MissionLeases]
+	listLeases                   *connect.Client[gen.LeasesRequest, gen.MissionLeases]
 	listArtifacts                *connect.Client[gen.ListArtifactsRequest, gen.ListArtifactsResponse]
 	getArtifact                  *connect.Client[gen.GetArtifactRequest, gen.Artifact]
 	putArtifact                  *connect.Client[gen.PutArtifactRequest, gen.Artifact]
@@ -2876,6 +2912,21 @@ func (c *runnerServiceClient) ProposePlan(ctx context.Context, req *connect.Requ
 	return c.proposePlan.CallUnary(ctx, req)
 }
 
+// ClaimLease calls lazybox.bench.v1.RunnerService.ClaimLease.
+func (c *runnerServiceClient) ClaimLease(ctx context.Context, req *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return c.claimLease.CallUnary(ctx, req)
+}
+
+// ReleaseLease calls lazybox.bench.v1.RunnerService.ReleaseLease.
+func (c *runnerServiceClient) ReleaseLease(ctx context.Context, req *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return c.releaseLease.CallUnary(ctx, req)
+}
+
+// ListLeases calls lazybox.bench.v1.RunnerService.ListLeases.
+func (c *runnerServiceClient) ListLeases(ctx context.Context, req *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return c.listLeases.CallUnary(ctx, req)
+}
+
 // ListArtifacts calls lazybox.bench.v1.RunnerService.ListArtifacts.
 func (c *runnerServiceClient) ListArtifacts(ctx context.Context, req *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {
 	return c.listArtifacts.CallUnary(ctx, req)
@@ -3295,6 +3346,12 @@ type RunnerServiceHandler interface {
 	// approval (UpdateMission approve_plan, owner only) before any of them
 	// starts when the grant requires a plan.
 	ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error)
+	// Advisory path leases (`lazybox lease`): an agent leases paths for its own
+	// task (an orchestrator, for its agents' tasks). Nothing is blocked; an
+	// edit inside another task's exclusive lease is recorded as an overlap.
+	ClaimLease(context.Context, *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ReleaseLease(context.Context, *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ListLeases(context.Context, *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error)
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
@@ -4262,6 +4319,24 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ProposePlan")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceClaimLeaseHandler := connect.NewUnaryHandler(
+		RunnerServiceClaimLeaseProcedure,
+		svc.ClaimLease,
+		connect.WithSchema(runnerServiceMethods.ByName("ClaimLease")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReleaseLeaseHandler := connect.NewUnaryHandler(
+		RunnerServiceReleaseLeaseProcedure,
+		svc.ReleaseLease,
+		connect.WithSchema(runnerServiceMethods.ByName("ReleaseLease")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListLeasesHandler := connect.NewUnaryHandler(
+		RunnerServiceListLeasesProcedure,
+		svc.ListLeases,
+		connect.WithSchema(runnerServiceMethods.ByName("ListLeases")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListArtifactsHandler := connect.NewUnaryHandler(
 		RunnerServiceListArtifactsProcedure,
 		svc.ListArtifacts,
@@ -4718,6 +4793,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceReportAgentTaskHandler.ServeHTTP(w, r)
 		case RunnerServiceProposePlanProcedure:
 			runnerServiceProposePlanHandler.ServeHTTP(w, r)
+		case RunnerServiceClaimLeaseProcedure:
+			runnerServiceClaimLeaseHandler.ServeHTTP(w, r)
+		case RunnerServiceReleaseLeaseProcedure:
+			runnerServiceReleaseLeaseHandler.ServeHTTP(w, r)
+		case RunnerServiceListLeasesProcedure:
+			runnerServiceListLeasesHandler.ServeHTTP(w, r)
 		case RunnerServiceListArtifactsProcedure:
 			runnerServiceListArtifactsHandler.ServeHTTP(w, r)
 		case RunnerServiceGetArtifactProcedure:
@@ -5363,6 +5444,18 @@ func (UnimplementedRunnerServiceHandler) ReportAgentTask(context.Context, *conne
 
 func (UnimplementedRunnerServiceHandler) ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ProposePlan is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ClaimLease(context.Context, *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ClaimLease is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReleaseLease(context.Context, *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReleaseLease is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListLeases(context.Context, *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListLeases is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { budgetLine, defaultCap, overlapsOf, pendingPlans, planOrder, ceilingLine, childState, defaultGrant, effectivePermission, grantOf, grantProblem, permissionChoices, profileLabel } from '../packages/surfaces/src/orchestration-model';
+import { budgetLine, defaultCap, lanesOf, messageThreads, overlapsOf, overlapsOfTask, pendingPlans, planOrder, reviewHeld, ceilingLine, childState, defaultGrant, effectivePermission, grantOf, grantProblem, permissionChoices, profileLabel } from '../packages/surfaces/src/orchestration-model';
 import { emptyTranscript, foldTranscript } from '../packages/surfaces/src/transcript-model';
 import { systemEventView } from '../packages/surfaces/src/system-events';
 
@@ -68,4 +68,25 @@ test('a plan reads in the order its tasks can start, with the paths two share', 
   assert.equal(budgetLine({ spentUsd: 0, reservedUsd: 0, ceiling: { budgetUsd: 0 } } as never), '$0 spent · no cap');
   const missions = [{ canceled: false, plans: [{ id: 'p1', state: 'proposed' }, { id: 'p0', state: 'approved' }] }, { canceled: true, plans: [{ id: 'p2', state: 'proposed' }] }] as never;
   assert.deepEqual(pendingPlans(missions).map(p => p.plan.id), ['p1']);
+});
+
+test('the timeline has a lane per actor; messages read as threads; holds and overlaps are said', () => {
+  const mission = {
+    grants: [{ id: 'g', live: true, conversationId: 'orch', title: 'Search lead', ceiling: { reviewLimit: 2 } }],
+    tasks: [{ id: 't1', title: 'Index', attempts: [{ conversationId: 'c1', parentConversationId: 'orch', title: '' }] }, { id: 't2', title: 'Rank results', attempts: [{ conversationId: 'c2', parentConversationId: 'orch', title: 'Rank results' }] }],
+    overlaps: [{ taskIds: ['t1', 't2'], paths: ['search/rank.go'], kind: 'files' }],
+    awaitingReview: 2,
+  } as never;
+  const event = (actorKind: string, conversationId = '') => ({ actorKind, conversationId }) as never;
+  const lanes = lanesOf(mission, [event('agent', 'stray')]);
+  assert.deepEqual(lanes.map(l => `${l.short}:${l.tone}`), ['You:person', 'SL:orchestrator', 'I:agent', 'RR:agent', 'A:agent', 'LB:system']);
+  assert.equal(lanes.findIndex(l => l.match(event('human'))), 0);
+  assert.equal(lanes.findIndex(l => l.match(event('agent', 'c2'))), 3);
+  assert.equal(lanes.findIndex(l => l.match(event('rule'))), 5);
+  const message = (seq: number, from: string, to: string, at: number) => ({ id: `m${seq}`, seq: BigInt(seq), fromConversationId: from, toConversationId: to, fromLabel: from, toLabel: to, atUnixMillis: BigInt(at) }) as never;
+  const threads = messageThreads([message(3, 'orch', 'c2', 30), message(1, 'orch', 'c1', 10), message(2, 'c1', 'orch', 20)]);
+  assert.deepEqual(threads.map(t => [t.a.conversation, t.b.conversation, t.messages.length]), [['orch', 'c2', 1], ['orch', 'c1', 2]]);
+  assert.deepEqual(overlapsOfTask(mission, 't2'), [{ other: 'Index', paths: ['search/rank.go'], kind: 'files' }]);
+  assert.deepEqual(reviewHeld(mission), { waiting: 2, limit: 2 });
+  assert.equal(reviewHeld({ ...(mission as object), awaitingReview: 1 } as never), undefined);
 });

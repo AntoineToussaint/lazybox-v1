@@ -58,6 +58,7 @@ import { requestAsk } from './help-requests';
 import { useProvideConversationOpeners } from './conversation-requests';
 import { ReviewActions } from './ReviewActions';
 import { useConversationRequests, useReviewHost } from './review-client';
+import { useMissionsPageHost } from './navigate-requests';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -235,6 +236,15 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const review: WorkspacePage = { id, name: 'Changes', selection: { ...page.selection, collectionId: workspaceID }, layout: { type: 'group', id: `g-${panel.id}`, panels: [panel], active: panel.id }, floating: [], popouts: [], detached: [] };
     if (commit({ ...current.current, selectedPage: id, pages: [...current.current.pages, review] })) setSettings(false);
   };
+  // The missions board is a page of its own: its columns, timeline and messages need the room.
+  const showMissionsPage = () => {
+    const existing = current.current.pages.find(value => shownPanels(value).some(panel => panel.kind === 'missions'));
+    if (existing) { commit({ ...current.current, selectedPage: existing.id }); setSettings(false); return; }
+    const id = crypto.randomUUID(), panel: Panel = { id: crypto.randomUUID(), kind: 'missions', binding: { mode: 'follow' }, detached: false };
+    const board: WorkspacePage = { id, name: 'Missions', selection: { ...page.selection, collectionId: workspaceID }, layout: { type: 'group', id: `g-${panel.id}`, panels: [panel], active: panel.id }, floating: [], popouts: [], detached: [] };
+    if (commit({ ...current.current, selectedPage: id, pages: [...current.current.pages, board] })) setSettings(false);
+  };
+  useMissionsPageHost(showMissionsPage);
   // "Show changes in this turn" in a conversation of this workspace opens its Changes page.
   useTurnChangesHost(workspaceID, showChanges);
   // A review started anywhere shows its reviewer conversation; "Open review" its findings.

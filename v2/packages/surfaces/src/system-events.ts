@@ -73,6 +73,7 @@ const KINDS: Record<string, Kind> = {
   agent_note: { icon: 'subagent', tone: 'ask', kind: 'Message from an agent', fallback: 'A message from another agent' },
   agent_report: { icon: 'check', tone: 'ok', kind: 'Report from an agent', fallback: 'An agent reported its task done' },
   plan_decided: { icon: 'checklist', tone: 'neutral', kind: 'Plan decision', fallback: 'The person decided the plan' },
+  overlap_detected: { icon: 'alert', tone: 'warn', kind: 'Agents overlap', fallback: 'Two of your agents changed the same files' },
   continuation: { icon: 'history', tone: 'neutral', kind: 'Continuation', fallback: 'Continued from a checkpoint' },
 };
 const UNKNOWN: Kind = { icon: 'sparkle', tone: 'neutral', kind: 'From Lazybox', fallback: 'A message from Lazybox' };

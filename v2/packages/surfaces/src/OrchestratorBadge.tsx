@@ -97,7 +97,7 @@ function OrchestratorCard({ mission, conversation, missionTitle, grantId, onClos
   return <div className="orchestrator-card" role="dialog" aria-label="Orchestrator grant" ref={cardRef} style={{ left: at.left, top: at.top }}>
     <header>
       <strong>Runs agents for</strong>
-      <button type="button" className="link-button" onClick={() => { selectMission(mission?.id || ''); runAction('missions.open'); onClose(); }}>{missionTitle}</button>
+      <button type="button" className="link-button" onClick={() => { selectMission(mission?.id || ''); runAction('missions.page'); onClose(); }}>{missionTitle}</button>
     </header>
     {grant && <p className="orchestrator-ceiling">{ceilingLine(grant)}</p>}
     {grant && (grant.spentUsd > 0 || (grant.ceiling?.budgetUsd || 0) > 0) && <p className={`orchestrator-budget${grant.budgetState ? ' budget-' + grant.budgetState : ''}`}>{budgetLine(grant)}{grant.budgetState === 'exhausted' ? ' · new agents paused' : ''}</p>}

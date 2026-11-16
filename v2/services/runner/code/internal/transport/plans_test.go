@@ -127,4 +127,33 @@ func TestOrchestratorPlanApprovalAndBudget(t *testing.T) {
 	}
 }
 
+// Work is sized to review: while as many tasks wait for the person as the
+// grant allows, new agents are held, said once, until the person decides.
+func TestOrchestratorHoldsNewAgentsWhileReviewIsFull(t *testing.T) {
+	o := newOrchestration(t)
+	ctx := timeout(t)
+	orch, owner := bearer(ctx, o.orchKey), bearer(ctx, ownerToken)
+	o.grant(t, &pb.OrchestratorCeiling{MaxChildren: 3, ReviewLimit: 1})
+	first := o.spawn(t, ctx, "Index the corpus")
+	firstExec, _ := o.bench.Get(first.SessionId)
+	if _, err := o.client.ReportAgentTask(bearer(ctx, agentToken(t, firstExec.Env)), &pb.ReportAgentTaskRequest{SessionId: first.SessionId, Summary: "indexed"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := o.client.SpawnAgent(orch, &pb.SpawnAgentRequest{SessionId: o.orch.ID, Title: "Rank results"})
+	if status.Code(err) != codes.FailedPrecondition || !strings.Contains(err.Error(), "1 task waits for the person's review") {
+		t.Fatalf("spawn while review is full: %v", err)
+	}
+	m, _ := o.client.GetMission(owner, &pb.GetMissionRequest{MissionId: o.mission})
+	if m.AwaitingReview != 1 {
+		t.Fatalf("awaiting review: %d", m.AwaitingReview)
+	}
+	if !journalHas(t, o.bench, o.orch, "wip_held", "New agents held: 1 task waits for your review") {
+		t.Fatal("the orchestrator's transcript does not say new agents are held")
+	}
+	if _, err = o.client.UpdateMission(owner, &pb.UpdateMissionRequest{MissionId: o.mission, Change: &pb.UpdateMissionRequest_Accept{Accept: &pb.GateDecision{TaskId: first.TaskId}}}); err != nil {
+		t.Fatal(err)
+	}
+	o.spawn(t, ctx, "Rank results")
+}
+
 func nanos(v int64) *int64 { return &v }

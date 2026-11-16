@@ -15,12 +15,14 @@ import { useMissionDetail, useMissions, type ChangeInput } from './useMissions';
 import { useMissionSelection } from './navigate-requests';
 import { GrantDialog } from './OrchestratorBadge';
 import { useOpenConversation } from './AgentMessages';
-import { budgetLine, ceilingLine, permissionLabel, usd } from './orchestration-model';
+import { budgetLine, ceilingLine, overlapsOfTask, permissionLabel, reviewHeld, usd } from './orchestration-model';
+import { MissionLeases, MissionMessages, MissionTabs, MissionTimeline, type MissionTab } from './MissionViews';
+import { showMissionsPage } from './navigate-requests';
 import { ReviewPlanButton } from './PlanSheet';
 import './missions.css';
 
 const message = (error: unknown) => ConnectError.from(error).rawMessage || String(error);
-const selectedKey = 'missions:selected', profileKey = 'missions:assign-profile';
+const selectedKey = 'missions:selected', profileKey = 'missions:assign-profile', tabKey = 'missions:tab';
 
 /**
  * The Missions panel: a mission's tasks on a board whose every status the
@@ -47,6 +49,7 @@ export function MissionsPanel({ workspaceId, collections, viewState, onShowSessi
       {creating && <strong className="missions-heading">New mission</strong>}
       <div className="missions-tools">
         {!creating && <button type="button" className="mission-new" onClick={() => setCreating(true)}><Icon name="plus" size={13}/> New mission</button>}
+        <button type="button" className="icon-button" aria-label="Open the missions board as a page" title="Open as a page: the board, timeline and messages with room" onClick={() => showMissionsPage()}><Icon name="maximize" size={14}/></button>
         <button type="button" className="icon-button" aria-label="Refresh missions" title="Refresh" onClick={() => void missions.refresh()}><Icon name="refresh" size={14}/></button>
       </div>
     </header>
@@ -87,6 +90,8 @@ function MissionBoard({ missionId, workspaceId, collections, viewState, onShowSe
   const missions = useMissions();
   const mission = useMissionDetail(missionId, missions.put);
   const [adding, setAdding] = useState(false);
+  const [tab, setTab] = useState<MissionTab>(() => (readPreference(viewState, tabKey) as MissionTab) || 'board');
+  const chooseTab = (next: MissionTab) => { setTab(next); try { writePreference(viewState, tabKey, next); } catch { /* a convenience */ } };
   const [notice, setNotice] = useState<ReactNode>('');
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState<{ kind: 'assign' | 'report' | 'reject' | 'cancel'; task: MissionTask }>();
@@ -120,6 +125,11 @@ function MissionBoard({ missionId, workspaceId, collections, viewState, onShowSe
     <OrchestratorStrip mission={mission} onNotice={setNotice} onError={setError} change={change}/>
     {notice && <p className="missions-notice" role="status">{notice}<button type="button" className="link-button" onClick={() => setNotice('')}>Dismiss</button></p>}
     {error && <p className="missions-error" role="alert">{error}<button type="button" className="link-button" onClick={() => setError('')}>Dismiss</button></p>}
+    <MissionTabs mission={mission} tab={tab} onTab={chooseTab}/>
+    {tab === 'timeline' && <div role="tabpanel" id="mission-view-timeline" aria-labelledby="mission-tab-timeline"><MissionTimeline mission={mission} now={now}/></div>}
+    {tab === 'messages' && <div role="tabpanel" id="mission-view-messages" aria-labelledby="mission-tab-messages"><MissionMessages mission={mission} now={now}/></div>}
+    {tab === 'leases' && <div role="tabpanel" id="mission-view-leases" aria-labelledby="mission-tab-leases"><MissionLeases mission={mission}/></div>}
+    {tab === 'board' && <div role="tabpanel" id="mission-view-board" aria-labelledby="mission-tab-board">
     {!mission.canceled && !mission.error && (adding
       ? <AddTask mission={mission} onClose={() => setAdding(false)} onAdd={async (title, brief, blockedBy) => { await change({ case: 'addTask', value: { title, brief, blockedBy, goalId: '' } }); }}/>
       : <button type="button" className="mission-add-task" onClick={() => setAdding(true)}><Icon name="plus" size={13}/> Add task</button>)}
@@ -127,7 +137,7 @@ function MissionBoard({ missionId, workspaceId, collections, viewState, onShowSe
       {columns.map(column => <section key={column.key} className={`mission-column column-${column.key}`} aria-labelledby={`column-${mission.id}-${column.key}`}>
         <h4 id={`column-${mission.id}-${column.key}`}>{column.title}<span>{board[column.key].length}</span></h4>
         {!board[column.key].length && <p className="mission-column-empty">{column.empty}</p>}
-        <ul>{board[column.key].map(task => <TaskCard key={task.id} task={task} goal={goals.get(task.goalId)} now={now} collections={collections} titles={mission.tasks} orchestrators={mission.grants}
+        <ul>{board[column.key].map(task => <TaskCard key={task.id} task={task} goal={goals.get(task.goalId)} now={now} collections={collections} titles={mission.tasks} orchestrators={mission.grants} overlaps={overlapsOfTask(mission, task.id)}
           onOpen={() => openConversation(task)} onEvidence={e => openEvidence(task, e)}
           onAssign={() => setDialog({ kind: 'assign', task })} onReport={() => setDialog({ kind: 'report', task })}
           onAccept={() => void change({ case: 'accept', value: { taskId: task.id, note: '' } }, `Accepted “${task.title}”.`).catch(() => {})}
@@ -136,6 +146,7 @@ function MissionBoard({ missionId, workspaceId, collections, viewState, onShowSe
       </section>)}
     </div>
     <MissionHistory mission={mission} now={now}/>
+    </div>}
     {dialog?.kind === 'assign' && <AssignDialog task={dialog.task} mission={mission} collections={collections} workspaceId={workspaceId} viewState={viewState} onClose={() => setDialog(undefined)}
       onAssign={async (input, newConversation) => {
         const result = await change({ case: 'assign', value: input });
@@ -174,9 +185,9 @@ function AddTask({ onAdd, onClose, mission }: { mission: Mission; onAdd(title: s
   </form>;
 }
 
-type CardProps = { task: MissionTask; goal?: string; now: number; collections: Collection[]; titles: MissionTask[]; orchestrators: Mission['grants']; onOpen(): void; onEvidence(e: MissionEvidence): void; onAssign(): void; onReport(): void; onAccept(): void; onReject(): void; onCancel(): void; onNotice(text: string): void; onError(text: string): void };
+type CardProps = { task: MissionTask; goal?: string; now: number; collections: Collection[]; titles: MissionTask[]; orchestrators: Mission['grants']; overlaps: ReturnType<typeof overlapsOfTask>; onOpen(): void; onEvidence(e: MissionEvidence): void; onAssign(): void; onReport(): void; onAccept(): void; onReject(): void; onCancel(): void; onNotice(text: string): void; onError(text: string): void };
 
-function TaskCard({ task, goal, now, collections, titles, orchestrators, onOpen, onEvidence, onAssign, onReport, onAccept, onReject, onCancel, onNotice, onError }: CardProps) {
+function TaskCard({ task, goal, now, collections, titles, orchestrators, overlaps, onOpen, onEvidence, onAssign, onReport, onAccept, onReject, onCancel, onNotice, onError }: CardProps) {
   const [expanded, setExpanded] = useState(false);
   const actions = taskActions(task);
   const attempt = task.attempt;
@@ -196,6 +207,7 @@ function TaskCard({ task, goal, now, collections, titles, orchestrators, onOpen,
       {task.trust !== task.evidenceTrust && task.status !== 'ready' && task.evidence.length > 0 && <span className="mission-evidence-trust" title={trustMeaning[task.evidenceTrust]}>evidence: {trustLabel[task.evidenceTrust]?.toLowerCase()}</span>}
       {task.flags.filter(f => f !== 'no_evidence' || task.trust === 'claimed').map(f => <span key={f} className={`mission-flag flag-${f}`}>{flagLabel[f] || f}</span>)}
       {goal && <span className="mission-goal">{goal}</span>}
+      {overlaps.map((o, i) => <span key={i} className="mission-flag flag-overlap" title={`${o.kind === 'lease' ? 'Changed inside an exclusive lease of' : 'Changed the same files as'} “${o.other}”: ${o.paths.join(', ')}`}><Icon name="alert" size={10}/> Overlaps “{o.other}”</span>)}
       {task.costUsd > 0 || task.estimateUsd > 0 ? <span className={`mission-cost${task.estimateUsd > 0 && task.costUsd > task.estimateUsd ? ' over' : ''}`} title={task.estimateUsd > 0 ? `Cost so far against the plan's estimate of ${usd(task.estimateUsd)}` : 'Cost so far'}>{usd(task.costUsd)}{task.estimateUsd > 0 ? ` / ${usd(task.estimateUsd)}` : ''}</span> : null}
       {attempt?.parentConversationId && <span className="mission-lineage" title={`Started by the orchestrator “${orchestrators.find(g => g.conversationId === attempt.parentConversationId)?.title || 'Orchestrator'}” as its ${attempt.role || 'worker'}, at ${permissionLabel[attempt.permission] || attempt.permission} on ${attempt.profileId}`}>
         <Icon name="subagent" size={11}/>{orchestrators.find(g => g.conversationId === attempt.parentConversationId)?.title || 'Orchestrator'}<small>{attempt.role || 'worker'}</small></span>}
@@ -252,6 +264,7 @@ function OrchestratorStrip({ mission, onNotice, onError, change }: { mission: Mi
       </div>)}
       {g.budgetState === 'exhausted' && <BudgetStop mission={mission} grantId={g.id} cap={g.ceiling?.budgetUsd || 0} spent={g.spentUsd} reserved={g.reservedUsd} change={change}/>}
     </div>)}
+    {(() => { const held = reviewHeld(mission); return held && live.length > 0 && <p className="missions-notice tone-warn mission-review-held" role="status"><Icon name="pending" size={13}/> {held.waiting === 1 ? '1 task waits' : `${held.waiting} tasks wait`} for your review; new agents are held until you accept or send back work.</p>; })()}
     {!live.length && <button type="button" className="mission-orchestrate" disabled={!candidates.length} title={candidates.length ? 'Let one of your conversations start and drive agents for this mission' : 'Open a conversation first'} onClick={() => setGranting(true)}><Icon name="subagent" size={13}/> Let a conversation run agents…</button>}
     {granting && <GrantDialog missionId={mission.id} candidates={candidates} onClose={() => setGranting(false)}/>}
   </div>;

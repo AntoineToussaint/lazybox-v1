@@ -12,16 +12,19 @@ export function createMissionFake({ sessions, collections, events }) {
   const ms = () => String(Date.now());
   const conversationOf = sessionId => { const s = sessions.find(v => v.id === sessionId); return s ? (s.conversationId || s.workId === s.collectionId && s.id || s.id) : sessionId; };
 
-  const append = (m, type, subject, payload, actorKind = 'human') => {
-    m.seq += 1; const at = ms();
-    m.events.unshift({ seq: String(m.seq), atUnixMillis: at, type, version: 1, subject, actorKind, actorRole: '', conversationId: '', summary: summary(m, type, payload), known: true, evidence: [], rawJson: '' });
+  // conversationId: the agent's, for the timeline's lanes; causedBy: the event this reacts to.
+  const append = (m, type, subject, payload, actorKind = 'human', { conversationId = '', causedBy = '' } = {}) => {
+    m.seq += 1; const at = ms(), eventId = `ev_${m.id}_${m.seq}`;
+    m.events.unshift({ seq: String(m.seq), atUnixMillis: at, type, version: 1, subject, actorKind, actorRole: '', conversationId, summary: summary(m, type, payload), known: true, evidence: [], rawJson: '', id: eventId, causedBy });
     m.updatedAtUnixMillis = at;
+    return eventId;
   };
   const taskName = (m, taskId) => { const t = m.tasks.find(v => v.id === taskId); return t ? `“${t.title}”` : ''; };
   const summary = (m, type, p) => ({
     'mission.created': `Mission created: ${p.title}`, 'mission.process_pinned': 'Runs the solo-pair process', 'task.created': `Task added: ${p.title}`,
     'task.assigned': `${taskName(m, p.task)} assigned to a conversation`, 'task.reported': `${taskName(m, p.task)} reported done${p.summary ? ': ' + p.summary : ''}`,
     'gate.requested': `Waiting for you to accept ${taskName(m, p.task)}`, 'gate.passed': `You accepted ${taskName(m, p.task)}`, 'gate.rejected': `You asked for changes on ${taskName(m, p.task)}${p.note ? ': ' + p.note : ''}`,
+    'message.sent': p.text, 'overlap.detected': p.text, 'grant.issued': `You let “${p.title}” run agents`, 'lease.claimed': 'A lease was claimed', 'plan.proposed': 'An orchestrator proposed a plan',
     'evidence.recorded': p.kind === 'run' ? `Ran ${p.title} · exit ${p.exitCode}` : `Pull request #${p.number} · checks ${p.outcome}`, 'task.canceled': `${taskName(m, p.task)} canceled`,
   }[type] || type);
 
@@ -69,7 +72,8 @@ export function createMissionFake({ sessions, collections, events }) {
   const pathsMeet = (a, b) => { const ta = a.replace(/\*+$/, ''), tb = b.replace(/\*+$/, ''); return ta === tb || (ta.endsWith('/') && tb.startsWith(ta)) || (tb.endsWith('/') && ta.startsWith(tb)); };
   const overlapsOf = tasks => { const out = []; tasks.forEach((a, i) => tasks.slice(i + 1).forEach(b => a.paths.forEach(pa => b.paths.forEach(pb => { if (!pathsMeet(pa, pb)) return; const path = pa.length >= pb.length ? pa : pb; const o = out.find(v => v.path === path); if (o) { for (const k of [a.key, b.key]) if (!o.keys.includes(k)) o.keys.push(k); } else out.push({ path, keys: [a.key, b.key] }); })))); return out; };
   const wirePlan = p => ({ ...p, totalUsd: p.tasks.reduce((n, t) => n + (t.estimateUsd || 0), 0), overlaps: overlapsOf(p.tasks) });
-  const wire = (m, full) => ({ id: m.id, title: m.title, brief: m.brief, process: 'solo-pair', processDigest: 'sha256:fixture', autonomy: 3, createdAtUnixMillis: m.createdAtUnixMillis, updatedAtUnixMillis: m.updatedAtUnixMillis, canceled: m.canceled, seq: String(m.seq), goals: [], tasks: m.tasks.map(t => derive(m, t)), events: full ? m.events.slice(0, 200) : [], error: '', ignored: 0, grants: m.grants.map(g => wireGrant(m, g)), messages: full ? m.messages.slice(0, 200) : [], plans: [...m.plans].reverse().map(wirePlan) });
+  const awaitingReview = m => m.tasks.filter(t => t.gate && !t.accepted && !t.canceled).length;
+  const wire = (m, full) => ({ id: m.id, title: m.title, brief: m.brief, process: 'solo-pair', processDigest: 'sha256:fixture', autonomy: 3, createdAtUnixMillis: m.createdAtUnixMillis, updatedAtUnixMillis: m.updatedAtUnixMillis, canceled: m.canceled, seq: String(m.seq), goals: [], tasks: m.tasks.map(t => derive(m, t)), events: full ? m.events.slice(0, 200) : [], error: '', ignored: 0, grants: m.grants.map(g => wireGrant(m, g)), messages: full ? m.messages.slice(0, 200) : [], plans: [...m.plans].reverse().map(wirePlan), leases: m.leases || [], overlaps: [...(m.overlaps || [])].reverse(), awaitingReview: awaitingReview(m) });
   const refuse = message => ({ error: { code: 'failed_precondition', message } });
 
   const create = (title, brief = '') => {
@@ -139,7 +143,7 @@ export function createMissionFake({ sessions, collections, events }) {
       const own = ['read-only', 'ask', 'yolo'].includes(session.permission) ? session.permission : 'ask', c = body.grant.ceiling || {};
       if (['read-only', 'ask', 'yolo'].indexOf(c.permission || own) > ['read-only', 'ask', 'yolo'].indexOf(own)) return refuse(`its agents cannot run at ${c.permission} while it runs at ${own}; raise its own permission first`);
       const g = { id: id('gr'), conversationId: conversationOf(session.id), sessionId: session.id, title: session.title || 'Orchestrator', parentGrantId: '', scopes: ['session.spawn', 'session.send', 'session.wait', 'session.stop', 'task.create'],
-        ceiling: { permission: c.permission || own, profileIds: c.profileIds?.length ? c.profileIds : [session.profileId], maxChildren: c.maxChildren || 3, depth: c.depth || 1, budgetUsd: c.budgetUsd || 0, planRequired: !!c.planRequired },
+        ceiling: { permission: c.permission || own, profileIds: c.profileIds?.length ? c.profileIds : [session.profileId], maxChildren: c.maxChildren || 3, depth: c.depth || 1, budgetUsd: c.budgetUsd || 0, planRequired: !!c.planRequired, reviewLimit: c.reviewLimit || 0 },
         issuedAtUnixMillis: ms(), revokedAtUnixMillis: '0', revokeReason: '', issuedBy: 'human', revokedBy: '', live: true };
       m.grants.push(g); createdId = g.id;
       session.lineage = { ...(session.lineage || {}), grantId: g.id, missionId: m.id, missionTitle: m.title, liveChildren: 0, maxChildren: g.ceiling.maxChildren, parentConversationId: session.lineage?.parentConversationId || '', parentTitle: session.lineage?.parentTitle || '', taskId: session.lineage?.taskId || '', role: session.lineage?.role || '' };
@@ -192,7 +196,7 @@ export function createMissionFake({ sessions, collections, events }) {
     sessions.push(session); events?.open(session.id);
     const t = addTask(m, title, brief); session.lineage.taskId = t.id;
     t.attempts.push({ id: id('a'), conversationId: session.id, sessionId: session.id, collectionId: session.collectionId, at: ms(), new: true, parentConversationId: conversation, grantId: g.id, role, permission, profileId });
-    append(m, 'task.assigned', 'task:' + t.id, { task: t.id }, 'agent');
+    append(m, 'task.assigned', 'task:' + t.id, { task: t.id }, 'agent', { conversationId: conversation });
     push(session.id, { type: 'operation_accepted', operationId: 'spawn-' + t.id, text: `${title}\n\n${brief || 'Objective: ' + title}\n\n(Task of the Lazybox mission “${m.title}”, from your orchestrator “${parent.title || 'Orchestrator'}”. Run tests and builds with \`lazybox run -- …\`. When done: \`lazybox agents report "…"\`.)`,
       data: { origin: { kind: 'agent_brief', summary: `Task from “${parent.title || 'Orchestrator'}”: ${title}`, detail: role, from: parent.title || 'Orchestrator', conversation, session: parent.id } } });
     push(parent.id, { type: 'agent_spawned', text: `Started “${title}” · ${role} · ${permission} · in this workspace`, data: { conversation: session.id, session: session.id, task: t.id, mission: m.id, role } });
@@ -205,7 +209,7 @@ export function createMissionFake({ sessions, collections, events }) {
     const relation = to.lineage?.parentConversationId === conversationOf(fromSessionId) ? 'parent' : 'child';
     const m = missions.find(v => v.id === (from.lineage?.missionId || to.lineage?.missionId));
     const msg = { id: id('msg'), seq: String(m.seq + 1), atUnixMillis: ms(), fromConversationId: conversationOf(fromSessionId), toConversationId: conversationOf(toSessionId), fromLabel: from.title || '', toLabel: to.title || '', kind, text };
-    m.messages.unshift(msg); append(m, 'message.sent', 'message:' + msg.id, {}, 'agent');
+    m.messages.unshift(msg); append(m, 'message.sent', 'message:' + msg.id, { text: `“${msg.fromLabel}” → “${msg.toLabel}”: ${text}` }, 'agent', { conversationId: conversationOf(fromSessionId) });
     const header = relation === 'parent' ? `[Lazybox] Your orchestrator “${from.title}” writes (an agent, not the person):` : kind === 'report' ? `[Lazybox] Your agent “${from.title}” reported its task done (the person reviews and accepts it):` : `[Lazybox] Your agent “${from.title}” writes:`;
     const origin = kind === 'report' ? { kind: 'agent_report', summary: `“${from.title}” reported: ${text}`, detail: 'report' } : { kind: 'agent_note', summary: `${from.title}: ${text}`, detail: relation === 'parent' ? 'orchestrator' : 'your agent' };
     push(toSessionId, { type: 'operation_accepted', operationId: 'agent-' + msg.id, text: `${header}\n\n${text.split('\n').map(l => '> ' + l).join('\n')}\n\nReply with \`lazybox agents send …\` if it needs an answer.`, data: { origin: { ...origin, from: from.title || '', conversation: conversationOf(fromSessionId), session: fromSessionId } } });
@@ -216,7 +220,7 @@ export function createMissionFake({ sessions, collections, events }) {
   const reportChild = (childSessionId, summary) => {
     const child = sessions.find(s => s.id === childSessionId), m = missions.find(v => v.id === child.lineage.missionId), t = m.tasks.find(v => v.id === child.lineage.taskId);
     Object.assign(t, { report: summary, reportedAt: ms(), gate: 'reviewed', rejected: false, reportedAfterAttempt: true, updated: ms() });
-    append(m, 'task.reported', 'task:' + t.id, { task: t.id, summary }, 'agent'); append(m, 'gate.requested', 'task:' + t.id, { task: t.id }, 'rule');
+    const reported = append(m, 'task.reported', 'task:' + t.id, { task: t.id, summary }, 'agent', { conversationId: childSessionId }); append(m, 'gate.requested', 'task:' + t.id, { task: t.id }, 'rule', { causedBy: reported });
     Object.assign(child, { busy: false, status: 'ready' });
     const parent = sessions.find(s => conversationOf(s.id) === child.lineage.parentConversationId);
     if (parent) agentMessage(childSessionId, parent.id, summary, 'report');
@@ -237,6 +241,18 @@ export function createMissionFake({ sessions, collections, events }) {
   /** What a grant's tree spent and reserved, as the Runner would measure it. */
   const setBudget = (grantId, { spentUsd = 0, reservedUsd = 0, budgetState = '' }) => {
     for (const m of missions) for (const g of m.grants) if (g.id === grantId) Object.assign(g, { spentUsd, reservedUsd, budgetState });
+  };
+  /** A lease an agent claimed (`lazybox lease claim`). */
+  const addLease = (missionId, { taskId, path, mode = 'shared', reason = '' }) => {
+    const m = missions.find(v => v.id === missionId), t = m.tasks.find(v => v.id === taskId);
+    (m.leases ||= []).push({ id: id('ls'), taskId, taskTitle: t.title, path, mode, holderConversationId: t.attempts.at(-1)?.conversationId || '', claimedAtUnixMillis: ms(), expiresAtUnixMillis: String(Date.now() + 2 * 3600_000), reason });
+    append(m, 'lease.claimed', 'lease:' + path, {}, 'agent', { conversationId: t.attempts.at(-1)?.conversationId || '' });
+  };
+  /** An overlap the Runner saw after a turn. */
+  const addOverlap = (missionId, { taskIds, paths, kind = 'files' }) => {
+    const m = missions.find(v => v.id === missionId);
+    (m.overlaps ||= []).push({ taskIds, paths, kind, leaseId: '', atUnixMillis: ms() });
+    append(m, 'overlap.detected', 'task:' + taskIds[0], { text: `Overlap: ${taskIds.map(i => taskName(m, i)).join(' and ')} both changed ${paths.join(', ')}` }, 'lazybox');
   };
   const setCost = (taskId, costUsd) => { for (const m of missions) for (const t of m.tasks) if (t.id === taskId) t.costUsd = costUsd; };
 
@@ -261,5 +277,5 @@ export function createMissionFake({ sessions, collections, events }) {
     if (snippet) source = { kind: 'snippet', snippetKey: snippet.key };
     prompts.unshift({ text, conversationId: conversationOf(body.sessionId), collectionId: session?.collectionId || '', sessionId: body.sessionId, atUnixMillis: ms(), source, next });
   };
-  return { handle, missions, prompts, create, addTask, assign, recordRun, recordPullRequest, recordApply, spawnChild, agentMessage, reportChild, proposePlan, setBudget, setCost };
+  return { handle, missions, prompts, create, addTask, assign, recordRun, recordPullRequest, recordApply, spawnChild, agentMessage, reportChild, proposePlan, setBudget, setCost, addLease, addOverlap };
 }

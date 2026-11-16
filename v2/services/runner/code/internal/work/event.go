@@ -45,6 +45,7 @@ var Versions = map[string]int{
 	PromptSubmitted: 1, SnippetSent: 1,
 	GrantIssued: 1, GrantRevoked: 1, MessageSent: 1,
 	PlanProposed: 1, PlanApproved: 1, PlanRejected: 1, BudgetRaised: 1, BudgetWarning: 1, BudgetExhausted: 1,
+	LeaseClaimed: 1, LeaseReleased: 1, OverlapDetected: 1, WIPHeld: 1,
 }
 
 // Known reports whether this Runner folds an event: a known type at a version
