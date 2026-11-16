@@ -100,6 +100,11 @@ type Comment struct {
 	Title         string `json:"title,omitempty"`
 	ReviewID      string `json:"reviewId,omitempty"`
 	Key           string `json:"key,omitempty"`
+	// The loop (loop.go): the round a finding was filed in, whether it was
+	// ever handed to the author, and how many later rounds found it still open.
+	Round           int  `json:"round,omitempty"`
+	Delivered       bool `json:"delivered,omitempty"`
+	StillOpenRounds int  `json:"stillOpenRounds,omitempty"`
 }
 
 // Review is one workspace's comments, its agent reviews and its preference.

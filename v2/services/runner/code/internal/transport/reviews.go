@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitinspect"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
@@ -95,17 +96,34 @@ func wireReviewComment(c reviews.Comment, a reviews.Anchor) *pb.ReviewComment {
 		Head: c.Head, View: c.View, Base: c.Base, CreatedAtUnix: c.CreatedAt, UpdatedAtUnix: c.UpdatedAt, Disposition: string(c.Disposition),
 		SentTo: c.SentTo, SentToTitle: c.SentToTitle, SentAtUnix: c.SentAt, SentHead: c.SentHead, ResolvedBy: c.ResolvedBy, Note: c.Note,
 		Freshness: string(a.Freshness), CurrentStartLine: uint32(a.StartLine), CurrentEndLine: uint32(a.EndLine), FreshnessReason: a.Reason,
-		Author: c.Author, AuthorLabel: c.AuthorLabel, AuthorSessionId: c.AuthorSession, Severity: c.Severity, Title: c.Title, ReviewId: c.ReviewID, FindingKey: c.Key}
+		Author: c.Author, AuthorLabel: c.AuthorLabel, AuthorSessionId: c.AuthorSession, Severity: c.Severity, Title: c.Title, ReviewId: c.ReviewID, FindingKey: c.Key,
+		Round: uint32(c.Round), StillOpenRounds: uint32(c.StillOpenRounds)}
 }
 
 // wireReviewRun is a review as it stands now, with its live findings counted.
 func (s *Service) wireReviewRun(review reviews.Review, run reviews.Run, workspace string) *pb.ReviewRun {
 	run = s.Bench.ReviewRunView(run)
 	counts := reviews.CountFindings(review, run.ID)
-	return &pb.ReviewRun{Id: run.ID, CollectionId: workspace, ReviewerSessionId: run.ReviewerSession, ReviewerTitle: run.ReviewerTitle, ReviewerLabel: run.ReviewerLabel, ReviewerProvider: run.ReviewerProvider, ReviewerProfileId: run.ReviewerProfile,
+	out := &pb.ReviewRun{Id: run.ID, CollectionId: workspace, ReviewerSessionId: run.ReviewerSession, ReviewerTitle: run.ReviewerTitle, ReviewerLabel: run.ReviewerLabel, ReviewerProvider: run.ReviewerProvider, ReviewerProfileId: run.ReviewerProfile,
 		SourceSessionId: run.SourceSession, SourceTitle: run.SourceTitle, SourceLabel: run.SourceLabel, Scope: run.Scope, ScopeLabel: run.ScopeLabel, Turn: uint32(run.Turn), Compare: run.Compare, PullRequestUrl: run.PullRequestURL,
 		State: run.State, Detail: run.Detail, CreatedAtUnix: run.CreatedAt, UpdatedAtUnix: run.UpdatedAt,
-		Blockers: uint32(counts.Blockers), Majors: uint32(counts.Majors), Minors: uint32(counts.Minors), Nits: uint32(counts.Nits), MissionId: run.Mission, TaskId: run.Task, SourceProvider: run.SourceProvider}
+		Blockers: uint32(counts.Blockers), Majors: uint32(counts.Majors), Minors: uint32(counts.Minors), Nits: uint32(counts.Nits), MissionId: run.Mission, TaskId: run.Task, SourceProvider: run.SourceProvider,
+		Loop: run.Loop, MaxRounds: uint32(run.MaxRounds), Round: uint32(run.Round), Phase: run.Phase, Paused: run.Paused, StopReason: run.StopReason}
+	if out.Loop == "" {
+		// A review from before the loop: one pass.
+		out.Loop, out.Round, out.MaxRounds = reviews.LoopOff, 1, 1
+		if out.Phase = reviews.PhaseDone; run.State == reviews.RunRunning {
+			out.Phase = reviews.PhaseReviewing
+		}
+	}
+	for _, r := range run.Rounds {
+		out.Rounds = append(out.Rounds, &pb.ReviewRound{Number: uint32(r.N), Trigger: r.Trigger, AuthorTurn: uint32(r.AuthorTurn), StartedAtUnix: r.StartedAt, EndedAtUnix: r.EndedAt,
+			Filed: uint32(r.Filed), Resolved: uint32(r.Resolved), StillOpen: uint32(r.StillOpen), Blockers: uint32(r.Blockers)})
+	}
+	for _, e := range run.Timeline {
+		out.Timeline = append(out.Timeline, &pb.ReviewTimelineEntry{AtUnix: e.At, Kind: e.Kind, Actor: e.Actor, Text: e.Text, FindingId: e.Finding, Round: uint32(e.Round)})
+	}
+	return out
 }
 
 // review anchors every comment against the working trees as they are now.
@@ -232,6 +250,13 @@ func (s *Service) SetReviewDisposition(ctx context.Context, r *pb.SetReviewDispo
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	if reviews.Disposition(r.Disposition) == reviews.Sent {
+		// Findings handed to the author: their review's loop waits for the fix.
+		s.Bench.ReviewFindingsSent(r.CollectionId, r.Ids, r.SessionTitle)
+		if review, err = store.Load(r.CollectionId); err != nil {
+			return nil, rpcError(err)
+		}
+	}
 	return s.review(ctx, store, r.CollectionId, review), nil
 }
 
@@ -306,4 +331,69 @@ func (s *Service) ListReviewFindings(ctx context.Context, r *pb.ListReviewFindin
 	}
 	all := s.review(ctx, s.Bench.Reviews, workspace, reviews.Review{AutoResolve: review.AutoResolve, Comments: findings})
 	return &pb.ReviewFindings{Run: s.wireReviewRun(review, run, workspace), Findings: all.Comments}, nil
+}
+
+// SetReviewFindingState is the reviewer's resolve or reopen of one of its
+// findings (`lazybox review resolve|reopen`).
+func (s *Service) SetReviewFindingState(ctx context.Context, r *pb.SetReviewFindingStateRequest) (*pb.ReviewFinding, error) {
+	c, err := s.Bench.ReviewVerdict(r.SessionId, r.FindingId, r.State, r.Note)
+	if err != nil {
+		if errors.Is(err, runner.ErrNotReviewer) {
+			return nil, grpcError(codes.PermissionDenied, err)
+		}
+		return nil, rpcError(err)
+	}
+	return &pb.ReviewFinding{Finding: wireReviewComment(c, reviews.Anchor{Freshness: reviews.Unknown})}, nil
+}
+
+// UpdateReviewRun is the person's control of a review's loop.
+func (s *Service) UpdateReviewRun(ctx context.Context, r *pb.UpdateReviewRunRequest) (*pb.WorkspaceReview, error) {
+	store, err := s.reviewStore(r.CollectionId)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = s.Bench.ControlReview(r.CollectionId, r.ReviewId, r.Action, r.Loop, int(r.MaxRounds)); err != nil {
+		return nil, rpcError(err)
+	}
+	review, err := store.Load(r.CollectionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return s.review(ctx, store, r.CollectionId, review), nil
+}
+
+func wireAsk(a reviews.Ask, review string) *pb.AgentAsk {
+	return &pb.AgentAsk{Id: a.ID, ReviewId: review, State: a.State, Question: a.Question, Answer: a.Answer, AskerLabel: a.FromLabel, AnswererLabel: a.ToLabel,
+		AskerSessionId: a.FromSession, AnswererSessionId: a.ToSession, CreatedAtUnix: a.CreatedAt, AnsweredAtUnix: a.AnsweredAt}
+}
+
+func askError(err error) error {
+	switch {
+	case errors.Is(err, reviews.ErrAskLimit):
+		return grpcError(codes.ResourceExhausted, err)
+	case errors.Is(err, reviews.ErrAskRefused):
+		return grpcError(codes.FailedPrecondition, err)
+	case errors.Is(err, runner.ErrNotInReview):
+		return grpcError(codes.PermissionDenied, err)
+	}
+	return rpcError(err)
+}
+
+// AskAgent carries a question between the author and the reviewer of one
+// review (`lazybox ask`).
+func (s *Service) AskAgent(ctx context.Context, r *pb.AskAgentRequest) (*pb.AgentAsk, error) {
+	a, err := s.Bench.AskAgent(ctx, runner.AskRequest{Session: r.SessionId, To: r.To, Question: r.Question, Wait: time.Duration(r.TimeoutSeconds) * time.Second})
+	if err != nil && a.ID == "" {
+		return nil, askError(err)
+	}
+	return wireAsk(a, ""), nil
+}
+
+// WaitAgentAsk waits for a question's reply; only its asker may.
+func (s *Service) WaitAgentAsk(ctx context.Context, r *pb.WaitAgentAskRequest) (*pb.AgentAsk, error) {
+	a, err := s.Bench.WaitAgentAsk(ctx, r.AskId, time.Duration(r.TimeoutSeconds)*time.Second)
+	if err != nil && a.ID == "" {
+		return nil, askError(err)
+	}
+	return wireAsk(a, ""), nil
 }

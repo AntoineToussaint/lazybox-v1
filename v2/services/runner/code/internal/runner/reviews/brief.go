@@ -51,6 +51,7 @@ File every finding with the Lazybox CLI, one call per finding. A finding only in
 - blocker: wrong or unsafe to merge · major: should be fixed before merging · minor: worth fixing · nit: taste.
 - Filing the same file, line and title again (or the same --key) updates that finding instead of adding another. ` + "`lazybox review list`" + ` shows what you filed.
 - If your shell cannot reach Lazybox (a sandbox without network), run the same command through Lazybox's command tool.
+- To ask the author about its intent, run ` + "`lazybox ask author \"<question>\"`" + `; its reply comes back to you. Ask only what the code cannot tell you.
 
 You are read-only: never edit files, commit, push or open pull requests. You may run read-only commands, such as the tests, with ` + "`lazybox run -- <command>`" + `.
 

@@ -6,6 +6,7 @@ import { Icon } from './Icons';
 import { LiveIndicator } from './LiveIndicator';
 import { composeInConversation } from './compose';
 import { showConversation } from './review-client';
+import { loopActive, loopLine, loopModes, loopNeedsYou } from './review-model';
 import { authorLabel, dispositionLabel, freshnessLabel, groupByFile, isFinding, isPending, isProposed, linesLabel, location, matchesFilter, matchesQuery, reviewAuthors, reviewExcerpt, reviewMessage, runSummary, severities, severityLabel, trayFilters, type ReviewQuery, type TrayFilter } from './review-model';
 import type { WorkspaceReviewState } from './useWorkspaceReview';
 import './review.css';
@@ -71,13 +72,45 @@ export function askReviewer(workspaceId: string, c: ReviewComment) {
 }
 
 /** The workspace's agent reviews, newest first: who is reviewing what, live. */
-function ReviewRuns({ runs, workspaceId, focus, onFocus }: { runs: readonly ReviewRun[]; workspaceId: string; focus: string; onFocus(run: ReviewRun): void }) {
+const clock = (unix: bigint) => new Date(Number(unix) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/** One review's loop: where it is, the person's controls, and its timeline. */
+function ReviewLoop({ run, workspaceId, review }: { run: ReviewRun; workspaceId: string; review: WorkspaceReviewState }) {
+  const [error, setError] = useState('');
+  const act = (action: string, loop = '', maxRounds = 0) => { setError(''); void review.updateRun(run.id, action, loop, maxRounds).catch(e => setError(errorText(e))); };
+  const line = loopLine(run), active = loopActive(run);
+  if (!line && !run.timeline.length) return null;
+  return <div className={`review-loop${loopNeedsYou(run) ? ' needs-you' : ''}`}>
+    {line && <span className="review-loop-line" role="status">{loopNeedsYou(run) && <Icon name="bell" size={12}/>}{line}</span>}
+    {active && <span className="review-loop-controls" role="group" aria-label={`${run.reviewerLabel} review loop`}>
+      <select aria-label="Between rounds" value={run.loop} onChange={event => act('loop', event.target.value, run.maxRounds)}>{loopModes.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select>
+      {run.paused
+        ? <button type="button" title="Re-review and send again when the author changes files" onClick={() => act('resume')}><Icon name="play" size={12}/>Resume</button>
+        : <button type="button" title="Hold the loop: no re-review or automatic send until you resume" onClick={() => act('pause')}><Icon name="pending" size={12}/>Pause</button>}
+      <button type="button" title="End the loop here; findings stay as they are" onClick={() => act('stop')}><Icon name="stop" size={12}/>Stop loop</button>
+      <button type="button" title={`End the loop and continue in ${run.sourceLabel || 'the author'}'s conversation yourself`} onClick={() => { act('take_over'); showConversation({ collectionId: workspaceId, sessionId: run.sourceSessionId }); }}>Take over</button>
+    </span>}
+    {run.timeline.length > 0 && <details className="review-timeline">
+      <summary>Timeline · {run.rounds.length === 1 ? '1 round' : `${run.rounds.length} rounds`}</summary>
+      <ol>{run.timeline.map((entry, index) => <li key={index} className={`is-${entry.kind}`}><time>{clock(entry.atUnix)}</time><b>{entry.actor}</b><span>{entry.text}</span></li>)}</ol>
+    </details>}
+    {error && <p className="review-error" role="alert">{error}</p>}
+  </div>;
+}
+
+/** The workspace's agent reviews, newest first: who is reviewing what, live, and each loop. */
+function ReviewRuns({ runs, workspaceId, review, focus, onFocus }: { runs: readonly ReviewRun[]; workspaceId: string; review: WorkspaceReviewState; focus: string; onFocus(run: ReviewRun): void }) {
   if (!runs.length) return null;
+  // What needs you first, then what is under way, then the rest; newest first within each.
+  const rank = (run: ReviewRun) => loopNeedsYou(run) ? 0 : run.state === 'running' || loopActive(run) ? 1 : 2;
   return <ul className="review-runs" aria-label="Agent reviews">
-    {runs.slice(0, 3).map(run => <li key={run.id} className={`is-${run.state}${focus === run.id ? ' is-focused' : ''}`}>
-      <span className="review-run-mark" aria-hidden="true">{run.state === 'running' ? <LiveIndicator tone="busy"/> : <Icon name={run.state === 'failed' || run.blockers ? 'alert' : 'check'} size={13}/>}</span>
-      <button type="button" className="review-run-summary" title="Show only this review's findings" onClick={() => onFocus(run)}>{runSummary(run)}</button>
-      <button type="button" className="review-icon" aria-label={`Open ${run.reviewerLabel}'s review conversation`} title="Open the review conversation" onClick={() => showConversation({ collectionId: workspaceId, sessionId: run.reviewerSessionId })}><Icon name="chat" size={13}/></button>
+    {[...runs].sort((a, b) => rank(a) - rank(b)).slice(0, 4).map(run => <li key={run.id} className={`is-${run.state}${focus === run.id ? ' is-focused' : ''}${loopNeedsYou(run) ? ' needs-you' : ''}`} aria-label={`${run.reviewerLabel} review of ${run.scopeLabel}`} data-review={run.id}>
+      <div className="review-run-head">
+        <span className="review-run-mark" aria-hidden="true">{run.state === 'running' ? <LiveIndicator tone="busy"/> : <Icon name={run.state === 'failed' || run.blockers ? 'alert' : 'check'} size={13}/>}</span>
+        <button type="button" className="review-run-summary" title="Show only this review's findings" onClick={() => onFocus(run)}>{runSummary(run)}</button>
+        <button type="button" className="review-icon" aria-label={`Open ${run.reviewerLabel}'s review conversation`} title="Open the review conversation" onClick={() => showConversation({ collectionId: workspaceId, sessionId: run.reviewerSessionId })}><Icon name="chat" size={13}/></button>
+      </div>
+      <ReviewLoop run={run} workspaceId={workspaceId} review={review}/>
     </li>)}
   </ul>;
 }
@@ -136,7 +169,7 @@ export function ReviewTray({ workspaceId, review, conversation, focusReview = ''
       <small>{summary}</small>
       <button className="review-icon" aria-label="Close review" title="Close review" onClick={onClose}><Icon name="close" size={14}/></button>
     </header>
-    <ReviewRuns runs={runs} workspaceId={workspaceId} focus={focusRun} onFocus={run => { setFocusRun(run.id); setQuery(q => ({ ...q, author: run.reviewerLabel, filter: 'all' })); }}/>
+    <ReviewRuns runs={runs} workspaceId={workspaceId} review={review} focus={focusRun} onFocus={run => { setFocusRun(run.id); setQuery(q => ({ ...q, author: run.reviewerLabel, filter: 'all' })); }}/>
     <div className="review-filters" role="group" aria-label="Show">
       {trayFilters.filter(f => f.value !== 'proposed' || counts.proposed || hasFindings).map(f => <button key={f.value} aria-pressed={query.filter === f.value} onClick={() => setQuery(q => ({ ...q, filter: f.value }))}>{f.label}<span>{counts[f.value]}</span></button>)}
     </div>

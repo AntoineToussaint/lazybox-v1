@@ -338,7 +338,71 @@ keeps the task from *verified* even with green checks.
 
 **Automatic reviews.** **Review every turn that changes files** (off by
 default) starts a review of each turn that ended with changes, unless one of
-that conversation is running.
+that conversation is running or its loop is still going.
+
+### The review loop
+
+A review does not end at its first pass: the two agents work it out through
+structured channels only, and you see every step.
+
+1. **Round 1.** The reviewer files findings (`lazybox review add`) and ends its
+   turn. The round closes with what it filed and how many blockers are open.
+2. **Findings reach the author** exactly as filed — severity, title, finding
+   id, the quoted lines, the body — never paraphrased: the Runner's message
+   (`reviews.FindingsMessage`) and the tray's (`review-model.ts reviewMessage`)
+   are pinned to one text by a shared golden file
+   (`internal/runner/reviews/testdata/findings-message.json`). How they get
+   there is the loop's mode, per review (the tray) and by default
+   (**Settings → Review by another agent → Between rounds**):
+   - **Ask me between rounds** (the default): you accept and send them from the
+     tray; nothing is sent for you.
+   - **Send findings automatically**: Lazybox sends the open ones (accepting
+     proposed ones) and marks them sent.
+   - **One pass**: no re-review.
+3. **The fix.** When the author's turn that began after the findings were sent
+   ends *with changes* (its checkpoints), the next round starts. A turn without
+   changes, or one that began earlier, does not count.
+4. **Re-review.** The reviewer gets only that turn's diff
+   (`git -C <repo> diff <before> <after>` of its checkpoints) and the findings
+   still open, each to settle: `lazybox review resolve <id> --note "…"` or
+   `lazybox review reopen <id> --note "…"` (back to pending, to send again).
+   Silence is not a disposition: a finding it leaves alone counts as still
+   open. New problems are new findings; open ones are not filed again.
+5. **It ends** — always with its reason on the review card, in the tray and in
+   the timeline: **Clean ✓** (no blocker open), **max rounds** (a blocker open
+   after the limit, 3 by default, 1–10), **stuck** (the same blocker still open
+   after two fixes), **error** (a message could not be delivered), or you
+   **stopped** or **took over**. Max rounds, stuck and error ask you: the tray
+   marks the review *needs you* and the author's conversation gets a
+   *Review needs you* line with **Open review**.
+
+**Questions between the agents.** `lazybox ask author "…"` (from the reviewer)
+and `lazybox ask reviewer "…"` (from the author) carry a question to the other
+conversation as a labelled message (`[Lazybox] Codex (reviewing your work)
+asks you: …`); the reply — that conversation's next turn — comes back to the
+asker's call (it waits up to `--timeout`, 90 s by default; `--no-wait`
+returns at once), or, once it no longer waits, as a message in its
+conversation. Both conversations show the exchange as labelled lines
+(*Codex asked Claude: …*, *Claude answered Codex: …*), and the review's
+timeline keeps it. Only the author and the reviewer of one review in the same
+workspace may ask each other (`AskAgent`, `WaitAgentAsk` on the agent
+allowlist for the caller's own execution; the other side comes from the
+review, never the request); one question per side at a time, none back while
+the other side waits on yours (each would wait on the other), twelve an hour.
+
+**Your controls** (tray, per review): **Between rounds** (the mode),
+**Pause** (no re-review or automatic send until **Resume**), **Stop loop**, and
+**Take over** (stops it and opens the author's conversation). The loop only
+sends messages: it never pushes, merges or edits, and every agent keeps the
+permission it started with. Its **Timeline** lists the rounds, findings,
+verdicts, questions and answers, who did what and when.
+
+**Durable.** The loop's state — mode, round, phase, rounds, timeline,
+questions — is on the review in `<state>/reviews/<workspace>.json`, written
+before the Runner acts on it; a restarted Runner re-attaches its agents' turn
+hooks and carries on (a turn already under way when it restarted counts as
+the round's, or answers the oldest question to that conversation).
+Re-review and findings messages have stable operation ids per round.
 
 Reviews are kept with the workspace's comments (`<state>/reviews/<workspace>.json`),
 so they and their findings survive Runner restarts. Not verified against real

@@ -711,6 +711,15 @@ and the Runner admits only the reviewer of a review in its own workspace), no
 mission log records the review's outcome as evidence), and the reviewer is
 started by a person, not by a rule.
 
+The loop after it is person-steered too ([GITHUB.md, "The review
+loop"](GITHUB.md#the-review-loop)): findings reach the author as filed, the
+author's fixing turn starts a re-review of that turn only, the reviewer
+resolves or reopens each finding, until no blocker is open, a round limit, or
+the same blocker still open after two fixes (then the person decides). The
+two agents may ask each other through `lazybox ask` — the `session.send`
+of §5 narrowed to one review's pair. Its rounds and timeline are kept on the
+review, not yet as mission events.
+
 How slice 2 automates it, with the process file unchanged: the reviewed-team
 rule `{on: verdict.recorded, if: "task.assertions.all(…)", do: {start: reviewer}}`
 and solo pair's `triggers: [{on: gate.requested, if: "gate.id == 'reviewed'", mode: manual}]`

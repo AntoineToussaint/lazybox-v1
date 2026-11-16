@@ -207,8 +207,9 @@ func TestAgentCredentialIsDeniedEveryRPCOffTheAllowlist(t *testing.T) {
 	// stopping its own commands (background_runs_test.go), its own
 	// workspace's artifacts (each rule tested in artifacts_test.go), and
 	// asking for a repository in its own workspace (repository_requests_test.go),
-	// and a reviewer filing and listing its own review's findings (review_runs_test.go).
-	if len(allowed) != 14 || !allowed[pb.RunnerService_AddReviewFinding_FullMethodName] || !allowed[pb.RunnerService_ListReviewFindings_FullMethodName] || !allowed[pb.RunnerService_RegisterPipe_FullMethodName] || !allowed[pb.RunnerService_Publish_FullMethodName] || !allowed[pb.RunnerService_FinishPipe_FullMethodName] ||
+	// and a reviewer filing, listing and settling its own review's findings, and the two agents
+	// of a review asking each other (review_runs_test.go, review_loop_test.go).
+	if len(allowed) != 17 || !allowed[pb.RunnerService_SetReviewFindingState_FullMethodName] || !allowed[pb.RunnerService_AskAgent_FullMethodName] || !allowed[pb.RunnerService_WaitAgentAsk_FullMethodName] || !allowed[pb.RunnerService_AddReviewFinding_FullMethodName] || !allowed[pb.RunnerService_ListReviewFindings_FullMethodName] || !allowed[pb.RunnerService_RegisterPipe_FullMethodName] || !allowed[pb.RunnerService_Publish_FullMethodName] || !allowed[pb.RunnerService_FinishPipe_FullMethodName] ||
 		!allowed[pb.RunnerService_FollowPipe_FullMethodName] || !allowed[pb.RunnerService_CancelCommand_FullMethodName] || !allowed[pb.RunnerService_ListCommands_FullMethodName] ||
 		!allowed[pb.RunnerService_ListArtifacts_FullMethodName] || !allowed[pb.RunnerService_GetArtifact_FullMethodName] || !allowed[pb.RunnerService_PutArtifact_FullMethodName] ||
 		!allowed[pb.RunnerService_ListWorkspaceRepositories_FullMethodName] || !allowed[pb.RunnerService_RequestRepository_FullMethodName] || !allowed[pb.RunnerService_WaitRepositoryRequest_FullMethodName] {

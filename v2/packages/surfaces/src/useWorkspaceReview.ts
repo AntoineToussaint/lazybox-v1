@@ -76,6 +76,8 @@ export function useWorkspaceReview(workspaceId: string) {
     /** `note` is a dismissal's reason. */
     setDisposition: (ids: string[], disposition: string, to?: { sessionId: string; sessionTitle: string }, note = '') =>
       source.change(client => client.setReviewDisposition({ collectionId, ids, disposition, sessionId: to?.sessionId || '', sessionTitle: to?.sessionTitle || '', note })),
+    /** A review's loop: pause, resume, stop, take_over, or loop (with its mode and rounds). */
+    updateRun: (reviewId: string, action: string, loop = '', maxRounds = 0) => source.change(client => client.updateReviewRun({ collectionId, reviewId, action, loop, maxRounds })),
     setAutoResolve: (enabled: boolean) => source.change(client => client.setReviewAutoResolve({ collectionId, enabled })),
   }), [snapshot, source, collectionId]);
 }

@@ -181,7 +181,7 @@ export function countsSummary(run: Pick<ReviewRun, 'blockers' | 'majors' | 'mino
   const parts: string[] = [];
   const add = (n: number, one: string, many: string) => { if (n === 1) parts.push(`1 ${one}`); else if (n > 1) parts.push(`${n} ${many}`); };
   add(run.blockers, 'blocker', 'blockers'); add(run.majors, 'major', 'major'); add(run.minors, 'minor', 'minor'); add(run.nits, 'nit', 'nits');
-  return parts.length ? parts.join(', ') : 'no findings';
+  return parts.length ? parts.join(', ') : 'no open findings';
 }
 const lowerFirst = (text: string) => text.startsWith('PR ') ? text : text.charAt(0).toLowerCase() + text.slice(1);
 /** What a review did, in one line for its card: "Codex reviewed turn 3 · 2 blockers, 3 minor". */
@@ -191,6 +191,37 @@ export function runSummary(run: Pick<ReviewRun, 'state' | 'reviewerLabel' | 'sco
   if (run.state === 'failed') return run.detail || `${run.reviewerLabel} could not review ${scope}`;
   return `${run.reviewerLabel} reviewed ${scope} · ${countsSummary(run)}`;
 }
+
+// ---- The review loop -------------------------------------------------------
+
+type LoopRun = Pick<ReviewRun, 'loop' | 'phase' | 'round' | 'maxRounds' | 'paused' | 'stopReason' | 'detail' | 'sourceLabel'>;
+const rounds = (n: number) => `${n} round${n === 1 ? '' : 's'}`;
+/** Where a review's loop is, in one line; '' for a one-pass review. */
+export function loopLine(run: LoopRun): string {
+  switch (run.stopReason) {
+    case 'clean': return `Clean ✓ after ${rounds(run.round)}`;
+    case 'max_rounds': return `Stopped at its ${rounds(run.maxRounds)} with a blocker open · needs you`;
+    case 'stuck': return 'Stuck: the same blocker is still open after two fixes · needs you';
+    case 'error': return `Stopped: ${run.detail || 'an error'} · needs you`;
+    case 'stopped': return 'You stopped the loop';
+    case 'taken_over': return 'You took over';
+  }
+  if (!run.loop || run.loop === 'off') return '';
+  const of = `Round ${run.round} of ${run.maxRounds}`, paused = run.paused ? ' · paused' : '';
+  switch (run.phase) {
+    case 'reviewing': return `${of} · ${run.round > 1 ? 're-reviewing the fix' : 'reviewing'}${paused}`;
+    case 'triage': return `${of} · ${run.loop === 'auto' && !run.paused ? 'sending findings' : 'waiting for you to send findings'}${paused}`;
+    case 'fixing': return `${of} · ${run.sourceLabel || 'the author'} is fixing${paused}`;
+  }
+  return '';
+}
+/** The loop asks the person: findings to send, or it stopped and needs a decision. */
+export const loopNeedsYou = (run: LoopRun) => ['max_rounds', 'stuck', 'error'].includes(run.stopReason) || (run.phase === 'triage' && !run.stopReason && (run.loop === 'ask' || run.paused));
+/** Whether the person can still steer the loop. */
+export const loopActive = (run: LoopRun) => !!run.loop && run.loop !== 'off' && !run.stopReason && run.phase !== 'done' && !!run.phase;
+export const loopModes: { value: string; label: string }[] = [
+  { value: 'ask', label: 'Ask me between rounds' }, { value: 'auto', label: 'Send findings automatically' }, { value: 'off', label: 'One pass, no re-review' },
+];
 
 /** A reviewer to pick: a provider (its default subscription) or one subscription. */
 export type ReviewerChoice = { key: string; label: string; provider: string; profileId: string };
@@ -256,6 +287,9 @@ export function reviewMessage(comments: ReviewComment[]): string {
     const finding = isFinding(c) ? [`**${severityLabel(c.severity) || 'Finding'}: ${c.title}** (finding ${c.id}, ${authorLabel(c)})`] : [];
     parts.push([`### ${index + 1}. ${where(c)}`, ...finding, `_${facts.join(' · ')}_`, `${f}${languageOf(c.path)}\n${quoted}\n${f}`, c.body.trim()].join('\n\n'));
   });
+  // Findings: who filed them, and how to ask it (the Runner's FindingsMessage says the same).
+  const labels = [...new Set(ordered.filter(isFinding).map(c => c.authorLabel).filter(Boolean))];
+  if (labels.length) parts.push(`The findings are ${labels.join(' and ')}’s, reviewing your work. To ask about one, run \`lazybox ask reviewer "<your question>"\`; the reply comes back to you.`);
   parts.push('When you are done, say which comments you addressed and how, and which you did not and why.');
   return parts.join('\n\n');
 }

@@ -209,8 +209,9 @@ func TestStartReviewBriefsAReadOnlyReviewerWhoseFindingsLandInTheTray(t *testing
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if !strings.Contains(tray.Runs[0].Detail, "Codex reviewed turn 1 · 1 major") {
-		t.Fatalf("detail: %q", tray.Runs[0].Detail)
+	// The blocker was dismissed: no blocker is open, so the loop ends clean.
+	if r := tray.Runs[0]; r.StopReason != "clean" || r.Detail != "Clean: no blocker open after 1 round." || r.Majors != 1 {
+		t.Fatalf("finished: %+v", r)
 	}
 	seen := events(t, f.bench, f.conversation.ID, "review_started", "review_finished")
 	if ev := seen["review_started"]; ev.RequestID != run.Id || ev.Text != "Codex is reviewing turn 1" {

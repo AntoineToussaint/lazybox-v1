@@ -17,7 +17,7 @@ import { ToolLines } from './ToolLine';
 import { turnActivity, type ActivityDetail, type ToolEntry, type TurnCache } from './tool-lines';
 import { AnsweredLine } from './RequestCards';
 import { Icon } from './Icons';
-import { ReviewCard } from './ReviewLauncher';
+import { ReviewAlert, ReviewCard, ReviewExchange } from './ReviewLauncher';
 import { InlineRuns, RunMessageContext } from './code-runs';
 
 const ownName = (id: string) => id;
@@ -31,6 +31,8 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   if (m.type === 'command') return <div className="command-line" role="note" data-message-id={m.id}><Icon name="check" size={12}/><span>{m.text}</span></div>;
   if (m.type === 'operation_accepted' && m.command) return <div className="command-line command-sent" role="note" data-message-id={m.id} title="You ran this command" onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}><Icon name="chevronRight" size={12}/><code>{m.text.trim()}</code></div>;
   if (m.type === 'review' && m.review) return <div className="review-card-anchor" data-message-id={m.id}><ReviewCard data={m.review}/></div>;
+  if (m.type === 'exchange') return <ReviewExchange text={m.text} id={m.id}/>;
+  if (m.type === 'review-alert') return <ReviewAlert text={m.text} id={m.id} note={m.review}/>;
   if (m.type === 'reattached') return <div className="runner-divider" role="note" title="The Runner restarted and re-attached to this agent. Nothing was interrupted.">Runner restarted{(m.count || 1) > 1 ? ` ${m.count}×` : ''} · nothing interrupted</div>;
   return <article className={'message ' + m.type} data-message-id={m.id} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : m.type === 'notice' ? 'Runner' : agentName}</span>

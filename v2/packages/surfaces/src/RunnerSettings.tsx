@@ -5,6 +5,7 @@ import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { SettingsGroup, SettingsHeader, SettingsRow, settingsError } from './settings-parts';
 import './review-agents.css';
+import { loopModes } from './review-model';
 import './pricing.css';
 
 export function useRunnerSettings(){
@@ -19,7 +20,7 @@ function SettingsLoading({ error, what }: { error: string; what: string }) {
   return error ? <div className="settings-error" role="alert">{error} <button type="button" onClick={announce}>Try again</button></div> : <p className="settings-empty" role="status">Loading {what}…</p>;
 }
 
-const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors, s.review?.reviewer || '', s.review?.template || '', !!s.review?.autoStart]);
+const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors, s.review?.reviewer || '', s.review?.template || '', !!s.review?.autoStart, s.review?.loop || '', s.review?.maxRounds || 0]);
 
 export function AgentSettings() {
   const { api, info } = useRunner();
@@ -30,7 +31,7 @@ export function AgentSettings() {
   if (!settings) return <><SettingsHeader title="Agents & workspaces"/><SettingsLoading error={error} what="agent settings"/></>;
   const dirty = !!baseline && editable(settings) !== baseline;
   const change = (patch: Partial<RunnerSettings>) => { setSettings({ ...settings, ...patch }); setSaved(false); };
-  const review: ReviewSettings = settings.review || { $typeName: 'lazybox.bench.v1.ReviewSettings', reviewer: '', template: '', autoStart: false, defaultTemplate: '' };
+  const review: ReviewSettings = settings.review || { $typeName: 'lazybox.bench.v1.ReviewSettings', reviewer: '', template: '', autoStart: false, defaultTemplate: '', loop: 'ask', maxRounds: 3 };
   // The built-in template is stored as none, so a later release's improvements reach it.
   const changeReview = (patch: Partial<ReviewSettings>) => { const next = { ...review, ...patch }; if (next.template.trim() === review.defaultTemplate.trim()) next.template = ''; change({ review: next }); };
   const reviewers = (info?.profiles || []).filter(p => p.provider === 'claude' || p.provider === 'codex');
@@ -65,6 +66,14 @@ export function AgentSettings() {
           <option value="">The other provider than the author’s</option>
           {reviewers.map(p => <option key={p.id} value={p.id}>{p.provider === 'codex' ? 'Codex' : 'Claude'} · {p.label || p.id}</option>)}
         </select>
+      </SettingsRow>
+      <SettingsRow label="Between rounds" htmlFor="setting-review-loop" description="After a review, its findings go to the author; when the author's turn then changes files, the reviewer re-reviews that change against its open findings, until no blocker is open. Ask me: you accept and send the findings each round. Automatically: Lazybox sends them. One pass: no re-review.">
+        <select id="setting-review-loop" value={review.loop || 'ask'} onChange={e => changeReview({ loop: e.target.value })}>
+          {loopModes.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+      </SettingsRow>
+      <SettingsRow label="Rounds before it asks you" htmlFor="setting-review-rounds" description="A loop with a blocker still open after this many rounds stops and asks you; so does the same blocker still open after two fixes.">
+        <input id="setting-review-rounds" type="number" min={1} max={10} value={review.maxRounds || 3} disabled={review.loop === 'off'} onChange={e => changeReview({ maxRounds: Math.max(1, Math.min(10, Number(e.target.value) || 3)) })}/>
       </SettingsRow>
       <SettingsRow label="Review every turn that changes files" htmlFor="setting-review-auto" description="When an agent’s turn ends with changes, the default reviewer reviews that turn on its own. Off by default: each review is a conversation and costs tokens.">
         <input id="setting-review-auto" type="checkbox" checked={review.autoStart} onChange={e => changeReview({ autoStart: e.target.checked })}/>

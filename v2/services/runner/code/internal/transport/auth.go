@@ -32,6 +32,9 @@ type AgentCredentials interface {
 	SessionWorkspace(session string) (string, error)
 	// RepositoryRequestSession returns the execution that asked for a repository.
 	RepositoryRequestSession(request string) (string, error)
+	// AskSession returns the execution that asked a question of the other
+	// agent of its review.
+	AskSession(ask string) (string, error)
 }
 
 // agentRPCs is everything an agent credential may call: what `lazybox run`
@@ -99,6 +102,25 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 	pb.RunnerService_ListReviewFindings_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.ListReviewFindingsRequest)
 		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_SetReviewFindingState_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.SetReviewFindingStateRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	// A question between the author and the reviewer of one review: the
+	// Runner admits only those two, in their workspace, and derives the
+	// other side from the review, never the request.
+	pb.RunnerService_AskAgent_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.AskAgentRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_WaitAgentAsk_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.WaitAgentAskRequest)
+		if !ok || r.AskId == "" {
+			return false
+		}
+		asker, err := agents.AskSession(r.AskId)
+		return err == nil && asker == who.session
 	},
 	pb.RunnerService_WaitRepositoryRequest_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.WaitRepositoryRequestRequest)

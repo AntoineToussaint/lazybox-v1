@@ -67,6 +67,20 @@ type Run struct {
 	Task      string `json:"task,omitempty"`
 	CreatedAt int64  `json:"createdAt"`
 	UpdatedAt int64  `json:"updatedAt"`
+
+	// The loop (loop.go): its mode and limit, the current round and phase,
+	// whether the person paused it, why it ended, its rounds and timeline,
+	// since when it waits for the author, and the agents' questions.
+	Loop        string  `json:"loop,omitempty"`
+	MaxRounds   int     `json:"maxRounds,omitempty"`
+	Round       int     `json:"round,omitempty"`
+	Phase       string  `json:"phase,omitempty"`
+	Paused      bool    `json:"paused,omitempty"`
+	StopReason  string  `json:"stopReason,omitempty"`
+	Rounds      []Round `json:"rounds,omitempty"`
+	Timeline    []Entry `json:"timeline,omitempty"`
+	FixingSince int64   `json:"fixingSince,omitempty"`
+	Asks        []Ask   `json:"asks,omitempty"`
 }
 
 // Counts are a review's findings by severity that are still to act on
@@ -76,7 +90,7 @@ type Counts struct{ Blockers, Majors, Minors, Nits int }
 // Total is every finding counted.
 func (c Counts) Total() int { return c.Blockers + c.Majors + c.Minors + c.Nits }
 
-// Summary is the counts in words: "2 blockers, 3 minor" or "no findings".
+// Summary is the counts in words: "2 blockers, 3 minor" or "no open findings".
 func (c Counts) Summary() string {
 	var parts []string
 	add := func(n int, one, many string) {
@@ -91,7 +105,7 @@ func (c Counts) Summary() string {
 	add(c.Minors, "minor", "minor")
 	add(c.Nits, "nit", "nits")
 	if len(parts) == 0 {
-		return "no findings"
+		return "no open findings"
 	}
 	return strings.Join(parts, ", ")
 }
@@ -395,9 +409,11 @@ func (s *Store) AddFinding(workspace string, c Comment) (out Comment, updated bo
 	}
 	now := s.Now().Unix()
 	_, err = s.update(workspace, func(r *Review) error {
-		if _, err := findRun(r, c.ReviewID); err != nil {
+		run, err := findRun(r, c.ReviewID)
+		if err != nil {
 			return err
 		}
+		round := max(run.Round, 1)
 		for i := range r.Comments {
 			old := &r.Comments[i]
 			if old.ReviewID == c.ReviewID && old.Key == c.Key {
@@ -418,8 +434,9 @@ func (s *Store) AddFinding(workspace string, c Comment) (out Comment, updated bo
 		out = Comment{ID: newID(), Member: c.Member, Path: c.Path, Side: SideNew, StartLine: c.StartLine, EndLine: c.StartLine + len(c.Snippet) - 1,
 			Snippet: slices.Clone(c.Snippet), Hash: Hash(c.Snippet), FileHash: c.FileHash, Body: body, Head: c.Head, View: draft.View, Base: c.Base,
 			CreatedAt: now, UpdatedAt: now, Disposition: disposition,
-			Author: AuthorAgent, AuthorLabel: c.AuthorLabel, AuthorSession: c.AuthorSession, Severity: c.Severity, Title: c.Title, ReviewID: c.ReviewID, Key: c.Key}
+			Author: AuthorAgent, AuthorLabel: c.AuthorLabel, AuthorSession: c.AuthorSession, Severity: c.Severity, Title: c.Title, ReviewID: c.ReviewID, Key: c.Key, Round: round}
 		r.Comments = append(r.Comments, out)
+		run.note(now, "filed", run.ReviewerLabel, fmt.Sprintf("%s: %s (%s/%s:%d)", severityWord(out.Severity), out.Title, out.Member, out.Path, out.StartLine), out.ID)
 		return nil
 	})
 	if err != nil {

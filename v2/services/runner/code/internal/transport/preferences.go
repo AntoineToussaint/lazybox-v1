@@ -16,7 +16,7 @@ import (
 func (s *Service) GetRunnerSettings(context.Context, *pb.InfoRequest) (*pb.RunnerSettings, error) {
 	d, rates := s.Bench.Preferences.SnapshotRates()
 	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, SuggestedName: petname.Generate(3, "-"),
-		Review: &pb.ReviewSettings{Reviewer: d.Review.Reviewer, Template: d.Review.Template, AutoStart: d.Review.AutoStart, DefaultTemplate: reviews.DefaultTemplate}}
+		Review: &pb.ReviewSettings{Reviewer: d.Review.Reviewer, Template: d.Review.Template, AutoStart: d.Review.AutoStart, DefaultTemplate: reviews.DefaultTemplate, Loop: firstNonEmptyString(d.Review.Loop, reviews.LoopAsk), MaxRounds: uint32(reviews.ClampRounds(d.Review.MaxRounds))}}
 	for key, r := range rates {
 		provider, model, _ := strings.Cut(key, "/")
 		_, custom := d.Prices[key]
@@ -37,7 +37,7 @@ func (s *Service) SaveRunnerSettings(ctx context.Context, r *pb.RunnerSettings) 
 	// A client that does not know the review settings keeps them.
 	review := s.Bench.Preferences.Snapshot().Review
 	if r.Review != nil {
-		review = preferences.Review{Reviewer: r.Review.Reviewer, Template: strings.TrimSpace(r.Review.Template), AutoStart: r.Review.AutoStart}
+		review = preferences.Review{Reviewer: r.Review.Reviewer, Template: strings.TrimSpace(r.Review.Template), AutoStart: r.Review.AutoStart, Loop: r.Review.Loop, MaxRounds: int(r.Review.MaxRounds)}
 	}
 	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors,
 		Review: review})
@@ -56,4 +56,13 @@ func (s *Service) SetModelPrice(ctx context.Context, r *pb.SetModelPriceRequest)
 		return nil, settingsError(err)
 	}
 	return s.GetRunnerSettings(ctx, &pb.InfoRequest{})
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

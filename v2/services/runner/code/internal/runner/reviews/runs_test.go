@@ -126,7 +126,7 @@ func TestFindingsAreFiledOnceByKeyAndCountedByLiveSeverity(t *testing.T) {
 	if c := CountFindings(review, run.ID); c != (Counts{Majors: 1, Minors: 1}) || len(Findings(review, run.ID)) != 3 {
 		t.Fatalf("after triage %+v", c)
 	}
-	if (Counts{}).Summary() != "no findings" || (Counts{Blockers: 2, Minors: 3}).Summary() != "2 blockers, 3 minor" {
+	if (Counts{}).Summary() != "no open findings" || (Counts{Blockers: 2, Minors: 3}).Summary() != "2 blockers, 3 minor" {
 		t.Fatal("summary wording")
 	}
 

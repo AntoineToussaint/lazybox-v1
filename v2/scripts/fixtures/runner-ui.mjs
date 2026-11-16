@@ -146,19 +146,67 @@ export async function startRunnerFixture() {
   const wireRun=(collectionId,run)=>({...run,collectionId,...runCounts(collectionId,run)});
   const providerOf=session=>session?.provider||profiles.find(p=>p.id===session?.profileId)?.provider||'claude';
   const providerName=provider=>provider==='codex'?'Codex':'Claude';
-  const reviewEvent=(type,collectionId,run)=>{const counts=runCounts(collectionId,run);const lower=run.scopeLabel.startsWith('PR ')?run.scopeLabel:run.scopeLabel[0].toLowerCase()+run.scopeLabel.slice(1);const summary=counts.blockers+counts.majors+counts.minors+counts.nits?[counts.blockers&&`${counts.blockers} blocker${counts.blockers>1?'s':''}`,counts.majors&&`${counts.majors} major`,counts.minors&&`${counts.minors} minor`,counts.nits&&`${counts.nits} nit${counts.nits>1?'s':''}`].filter(Boolean).join(', '):'no findings';
+  const reviewEvent=(type,collectionId,run)=>{const counts=runCounts(collectionId,run);const lower=run.scopeLabel.startsWith('PR ')?run.scopeLabel:run.scopeLabel[0].toLowerCase()+run.scopeLabel.slice(1);const summary=counts.blockers+counts.majors+counts.minors+counts.nits?[counts.blockers&&`${counts.blockers} blocker${counts.blockers>1?'s':''}`,counts.majors&&`${counts.majors} major`,counts.minors&&`${counts.minors} minor`,counts.nits&&`${counts.nits} nit${counts.nits>1?'s':''}`].filter(Boolean).join(', '):'no open findings';
     eventStreams.get(run.sourceSessionId)?.push({type,requestId:run.id,status:run.state,text:type==='review_started'?`${run.reviewerLabel} is reviewing ${lower}`:`${run.reviewerLabel} reviewed ${lower} · ${summary}`,providerDataJson:Buffer.from(JSON.stringify({review:run.id,workspace:collectionId,reviewerSession:run.reviewerSessionId,reviewerLabel:run.reviewerLabel,sourceSession:run.sourceSessionId,sourceLabel:run.sourceLabel,scope:run.scope,scopeLabel:run.scopeLabel,turn:run.turn,...counts})).toString('base64')});};
   const runOf=id=>{for(const [collectionId,r] of reviews){const run=r.runs.find(x=>x.id===id);if(run)return {collectionId,run};}throw new Error(`fixture review ${id} not found`);};
   /** `lazybox review add` from the reviewer: a proposed finding, idempotent by key. */
+  // The loop (GITHUB.md, "The review loop"), as the Runner runs it: rounds,
+  // still-open accounting, stop rules, the person's controls. Explicitly
+  // fake: a test plays the agents with authorFixed, resolveFinding,
+  // reopenFinding, finishReview and exchange.
+  const unix=()=>String(Math.floor(Date.now()/1000));
+  const loopNote=(run,kind,actor,text,finding='')=>run.timeline.push({atUnix:unix(),kind,actor,text,findingId:finding,round:run.round});
+  const plural=(n,one,many)=>n===1?`1 ${one}`:`${n} ${many}`;
+  const escalate=(collectionId,run,text)=>eventStreams.get(run.sourceSessionId)?.push({type:'review_escalated',requestId:run.id,status:run.stopReason,text,providerDataJson:Buffer.from(JSON.stringify({review:run.id,workspace:collectionId,reviewerSession:run.reviewerSessionId,reviewerLabel:run.reviewerLabel,sourceLabel:run.sourceLabel})).toString('base64')});
+  const stopLoop=(collectionId,run,reason,text,escalates)=>{Object.assign(run,{stopReason:reason,phase:'done',detail:text});loopNote(run,escalates?'escalated':'stopped','Lazybox',text);if(escalates)escalate(collectionId,run,text);};
+  const active=run=>!!run.phase&&run.phase!=='done'&&!run.stopReason;
+  const exchangeLine=(run,text)=>{for(const id of [run.reviewerSessionId,run.sourceSessionId])eventStreams.get(id)?.push({type:'review_exchange',requestId:run.id,text,providerDataJson:Buffer.from(JSON.stringify({review:run.id,reviewerSession:run.reviewerSessionId,sourceSession:run.sourceSessionId})).toString('base64')});};
+  /** `lazybox ask`: one agent asks, the other answers; both conversations show it. */
+  const exchange=(id,{from='reviewer',question,answer})=>{const {run}=runOf(id);const [asker,answerer]=from==='reviewer'?[run.reviewerLabel,run.sourceLabel]:[run.sourceLabel,run.reviewerLabel];
+    loopNote(run,'asked',asker,`${asker} asked ${answerer}: ${question}`);exchangeLine(run,`${asker} asked ${answerer}: ${question}`);
+    if(answer!==undefined){loopNote(run,'answered',answerer,`${answerer} answered ${asker}: ${answer}`);exchangeLine(run,`${answerer} answered ${asker}: ${answer}`);}};
+  const findingsSent=(collectionId,ids,by,to)=>{for(const run of reviewOf(collectionId).runs){const mine=reviewOf(collectionId).comments.filter(c=>c.reviewId===run.id&&ids.includes(c.id));if(!mine.length)continue;for(const c of mine)c.delivered=true;
+    loopNote(run,'sent',by,`Sent ${plural(mine.length,'finding','findings')} to ${to||run.sourceLabel}.`);
+    if(active(run)&&run.loop!=='off'&&run.phase!=='reviewing'){run.phase='fixing';loopNote(run,'fixing','Lazybox',`Waiting for ${run.sourceLabel} to change files; then ${run.reviewerLabel} re-reviews.`);}}};
+  /** The author's turn ended with changes after the findings were sent: the next round starts. */
+  const authorFixed=(id,turn=2,files=1)=>{const {collectionId,run}=runOf(id);if(!active(run)||run.phase!=='fixing')return run;
+    if(run.paused){loopNote(run,'fixing',run.sourceLabel,`Turn ${turn} changed ${plural(files,'file','files')}; the loop is paused, so no re-review.`);return run;}
+    run.round++;run.rounds.push({number:run.round,trigger:'author_turn',authorTurn:turn,startedAtUnix:unix()});Object.assign(run,{phase:'reviewing',state:'running'});
+    loopNote(run,'round_started','Lazybox',`Round ${run.round}: ${run.sourceLabel} changed ${plural(files,'file','files')} in turn ${turn}; ${run.reviewerLabel} re-reviews that turn against its open findings.`);
+    eventStreams.get(run.reviewerSessionId)?.push({type:'operation_accepted',operationId:`review-${run.id}-round-${run.round}`,text:`[Lazybox] Round ${run.round} of ${run.maxRounds}. ${run.sourceLabel} changed files in turn ${turn} after your findings. Re-review only that change, against your findings still open.`});
+    return run;};
+  /** `lazybox review resolve|reopen`. */
+  const verdict=(findingId,state,note='')=>{for(const [collectionId,r] of reviews){const c=r.comments.find(x=>x.id===findingId);if(!c)continue;const run=r.runs.find(x=>x.id===c.reviewId);
+    if(state==='resolved'){Object.assign(c,{disposition:'resolved',resolvedBy:'',note:`Resolved by ${run.reviewerLabel}${note?': '+note:''}`});loopNote(run,'resolved',run.reviewerLabel,`Resolved “${c.title}”${note?': '+note:''}`,c.id);}
+    else{Object.assign(c,{disposition:'open',sentTo:'',sentToTitle:'',sentAtUnix:'0',sentHead:'',note:`Still open (${run.reviewerLabel})${note?': '+note:''}`});loopNote(run,'reopened',run.reviewerLabel,`Still open: “${c.title}”${note?': '+note:''}`,c.id);}
+    return c;}throw new Error(`fixture finding ${findingId} not found`);};
+  const resolveFinding=(id,note)=>verdict(id,'resolved',note), reopenFinding=(id,note)=>verdict(id,'open',note);
   const fileFinding=(id,{member='api',path,startLine,endLine=startLine,snippet,severity,title,body='',key})=>{
     const {collectionId,run}=runOf(id),r=reviewOf(collectionId);key=key||`k-${path}:${startLine}:${title.toLowerCase()}`;
     const old=r.comments.find(c=>c.reviewId===run.id&&c.findingKey===key);const now=String(Math.floor(Date.now()/1000));
     if(old){Object.assign(old,{severity,title,body:body||title,startLine,endLine,snippet,updatedAtUnix:now});return old;}
     const c={id:'rc-'+randomUUID().slice(0,8),member,path,side:'new',startLine,endLine,snippet,hash:'fixture',body:body||title,head:shipState(collectionId,member).head,view:'uncommitted',base:'',createdAtUnix:now,updatedAtUnix:now,disposition:'proposed',
-      author:'agent',authorLabel:run.reviewerLabel,authorSessionId:run.reviewerSessionId,severity,title,reviewId:run.id,findingKey:key};
-    r.comments.push(c);return c;};
+      author:'agent',authorLabel:run.reviewerLabel,authorSessionId:run.reviewerSessionId,severity,title,reviewId:run.id,findingKey:key,round:run.round||1};
+    r.comments.push(c);loopNote(run,'filed',run.reviewerLabel,`${severity[0].toUpperCase()+severity.slice(1)}: ${title} (${member}/${path}:${startLine})`,c.id);return c;};
   /** The reviewer's turn ends: the review is done, and the author's conversation is told. */
-  const finishReview=id=>{const {collectionId,run}=runOf(id);run.state='done';run.updatedAtUnix=String(Math.floor(Date.now()/1000));reviewEvent('review_finished',collectionId,run);return run;};
+  const finishReview=id=>{const {collectionId,run}=runOf(id);run.state='done';run.updatedAtUnix=unix();
+    if(run.phase==='reviewing'){const r=reviewOf(collectionId),round=run.rounds.at(-1);let filed=0,stillOpen=0,blockers=0;
+      for(const c of r.comments.filter(c=>c.reviewId===run.id)){if(c.round===run.round)filed++;else if(c.round<run.round&&liveFinding(c)&&c.delivered){c.stillOpenRounds=(c.stillOpenRounds||0)+1;stillOpen++;}if(liveFinding(c)&&c.severity==='blocker')blockers++;}
+      const resolved=run.timeline.filter(e=>e.round===run.round&&e.kind==='resolved').length;Object.assign(round,{endedAtUnix:unix(),filed,resolved,stillOpen,blockers});
+      loopNote(run,'round_ended',run.reviewerLabel,run.round===1?`Round 1 ended: ${plural(filed,'finding','findings')}; ${plural(blockers,'blocker','blockers')} open.`:`Round ${run.round} ended: ${filed} filed, ${resolved} resolved, ${stillOpen} still open; ${plural(blockers,'blocker','blockers')} open.`);
+      const stuck=r.comments.find(c=>c.reviewId===run.id&&liveFinding(c)&&c.severity==='blocker'&&(c.stillOpenRounds||0)>=2);
+      if(stuck)stopLoop(collectionId,run,'stuck',`The blocker “${stuck.title}” (${stuck.id}) is still open after two fixes: decide how to proceed.`,true);
+      else if(!blockers){if(run.loop==='off')run.phase='done';else stopLoop(collectionId,run,'clean',`Clean: no blocker open after ${plural(run.round,'round','rounds')}.`,false);}
+      else if(run.loop==='off')run.phase='done';
+      else if(run.round>=run.maxRounds)stopLoop(collectionId,run,'max_rounds',`${plural(blockers,'blocker','blockers')} still open after ${plural(run.round,'round','rounds')}, the limit: decide how to proceed.`,true);
+      else if(run.loop==='auto'&&!run.paused){const ids=r.comments.filter(c=>c.reviewId===run.id&&['proposed','open'].includes(c.disposition)).map(c=>c.id);run.phase='triage';
+        for(const c of r.comments.filter(c=>ids.includes(c.id)))Object.assign(c,{disposition:'sent',sentTo:run.sourceSessionId,sentToTitle:run.sourceTitle,sentAtUnix:unix()});
+        eventStreams.get(run.sourceSessionId)?.push({type:'operation_accepted',operationId:`review-${run.id}-findings-${run.round}`,text:`Please address ${ids.length===1?'this review comment':`these ${ids.length} review comments`} on the workspace’s changes.`});
+        findingsSent(collectionId,ids,'Lazybox',run.sourceLabel);}
+      else if(!r.comments.some(c=>c.reviewId===run.id&&liveFinding(c)&&['proposed','open'].includes(c.disposition))&&r.comments.some(c=>c.reviewId===run.id&&liveFinding(c)&&c.disposition==='sent')){run.phase='fixing';loopNote(run,'fixing','Lazybox',`The findings were sent; waiting for ${run.sourceLabel} to change files, then ${run.reviewerLabel} re-reviews.`);}
+      else{run.phase='triage';loopNote(run,'triage','Lazybox','Waiting for you: accept the findings to send, dismiss the others.');}
+      if(!run.stopReason)run.detail=`${run.reviewerLabel} reviewed ${run.scopeLabel.toLowerCase()}.`;}
+    reviewEvent('review_finished',collectionId,run);return run;};
   const pullRequest=state=>state.pr?{...state.pr,githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:true}:{githubRepository:state.githubRepository,branch:state.branch,defaultBranch:'main',found:false,...(state.githubRepository?{}:{unavailable:'origin is not a GitHub repository; push works, pull requests need GitHub'})};
 
   // Per-turn code checkpoints by session: what each turn changed, what a revert
@@ -378,6 +426,19 @@ actions:
     if (method.includes('Artifact')) { if (artifactStore.handle(method, body, json, error) === false) error('unimplemented', `Unsupported fixture RPC ${method}`); return; }
     switch (method) {
       case 'GetRunnerSettings': return json({...runnerSettings,review:{reviewer:'',template:'',autoStart:false,...runnerSettings.review,defaultTemplate:'You are an independent reviewer ({{reviewer}}) of work {{author}} did.\n\n{{goal}}\n\n## What to review: {{scope}}\n\n{{diff}}\n\n{{report}}'}});
+      case 'UpdateReviewRun': {
+        mutations.push({method,body});const run=reviewOf(body.collectionId).runs.find(r=>r.id===body.reviewId);if(!run)return error('not_found','review not found');
+        const ended=()=>error('failed_precondition','this review\'s loop has ended');
+        switch(body.action){
+          case 'pause':if(!active(run))return ended();run.paused=true;loopNote(run,'paused','You','Paused: no re-review or automatic send until you resume.');break;
+          case 'resume':if(!active(run))return ended();run.paused=false;loopNote(run,'resumed','You','Resumed.');break;
+          case 'stop':if(active(run))stopLoop(body.collectionId,run,'stopped','You stopped the loop.',false);break;
+          case 'take_over':if(active(run))stopLoop(body.collectionId,run,'taken_over','You took over: the loop stopped; the conversations are yours.',false);break;
+          case 'loop':run.loop=body.loop||'ask';if(body.maxRounds)run.maxRounds=Math.max(run.round,Math.min(10,body.maxRounds));loopNote(run,'mode','You',`Loop: ${run.loop}, up to ${plural(run.maxRounds,'round','rounds')}.`);break;
+          default:return error('failed_precondition',`unknown review control ${body.action}`);
+        }
+        return json(reviewReply(body.collectionId));
+      }
       case 'StartReview': {
         mutations.push({method,body});
         const collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Workspace missing');
@@ -393,8 +454,10 @@ actions:
         const label=providerName(profile.provider),title=`Review · ${scopeLabel} · ${label}`;
         const reviewer={id:`review-${sessions.length}`,collectionId:collection.id,workId:collection.id,profileId:profile.id,provider:profile.provider,permission:'read-only',title,status:'running',busy:true,capabilities:{files:true},pending:[]};sessions.push(reviewer);
         const now=String(Math.floor(Date.now()/1000));
-        const run={id:'rv-'+randomUUID().slice(0,8),reviewerSessionId:reviewer.id,reviewerTitle:title,reviewerLabel:label,reviewerProvider:profile.provider,reviewerProfileId:profile.id,sourceSessionId:source.id,sourceTitle:source.title||'',sourceLabel:providerName(authorProvider),sourceProvider:authorProvider,scope,scopeLabel,turn:body.turn||0,compare:body.compare||'',state:'running',detail:`${label} is reviewing ${scopeLabel.toLowerCase()}.`,createdAtUnix:now,updatedAtUnix:now};
+        const loop=runnerSettings.review?.loop||'ask',maxRounds=Math.min(10,Math.max(1,runnerSettings.review?.maxRounds||3));
+        const run={loop,maxRounds,round:1,phase:'reviewing',paused:false,stopReason:'',rounds:[{number:1,trigger:'start',startedAtUnix:now}],timeline:[],id:'rv-'+randomUUID().slice(0,8),reviewerSessionId:reviewer.id,reviewerTitle:title,reviewerLabel:label,reviewerProvider:profile.provider,reviewerProfileId:profile.id,sourceSessionId:source.id,sourceTitle:source.title||'',sourceLabel:providerName(authorProvider),sourceProvider:authorProvider,scope,scopeLabel,turn:body.turn||0,compare:body.compare||'',state:'running',detail:`${label} is reviewing ${scopeLabel.toLowerCase()}.`,createdAtUnix:now,updatedAtUnix:now};
         reviewOf(collection.id).runs.push(run);
+        loopNote(run,'round_started','Lazybox',`Round 1: ${label} reviews ${scopeLabel.toLowerCase()} (${loop==='off'?'one pass':loop==='auto'?`up to ${maxRounds} rounds; findings go to ${run.sourceLabel} automatically`:`up to ${maxRounds} rounds; you send findings between rounds`}).`);
         reviewBriefs.set(reviewer.id,`You are an independent reviewer (${label}) of work ${run.sourceLabel} did in this workspace, in the conversation “${run.sourceTitle}”.\n\n## What to review: ${scopeLabel}\n\nlazybox review add --file <repository>/<path> --line <N> --severity blocker|major|minor|nit --title "…"`);
         // The brief is the reviewer's first message, journaled as the Runner does.
         openEvents(reviewer.id).push({type:'operation_accepted',text:reviewBriefs.get(reviewer.id),operationId:'review-brief-'+run.id});
@@ -609,6 +672,7 @@ actions:
       case 'SetReviewDisposition': {
         mutations.push({method,body});const r=reviewOf(body.collectionId);const chosen=r.comments.filter(c=>(body.ids||[]).includes(c.id));
         if(chosen.length!==(body.ids||[]).length)return error('not_found','review comment not found');
+        if(body.disposition==='sent')queueMicrotask(()=>findingsSent(body.collectionId,body.ids||[],'You',body.sessionTitle));
         for(const c of chosen){Object.assign(c,{disposition:body.disposition,resolvedBy:'',note:body.disposition==='dismissed'?(body.note||'').trim():''});if(body.disposition==='sent')Object.assign(c,{sentTo:body.sessionId,sentToTitle:body.sessionTitle||'',sentHead:shipState(body.collectionId,c.member).head,sentAtUnix:String(Math.floor(Date.now()/1000))});if(body.disposition==='open')Object.assign(c,{sentTo:'',sentToTitle:'',sentHead:'',sentAtUnix:'0'});}
         return json(reviewReply(body.collectionId));
       }
@@ -844,7 +908,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { reviewBriefs, fileFinding, finishReview, power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

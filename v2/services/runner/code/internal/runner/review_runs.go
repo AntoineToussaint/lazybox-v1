@@ -507,6 +507,16 @@ func (b *Bench) StartReview(ctx context.Context, req ReviewRequest) (*Execution,
 		}
 	}
 	run.BriefOperation = "review-brief-" + strings.TrimPrefix(e.ID, "e_")
+	// The loop: how findings reach the author between rounds, and its limit.
+	mode, rounds := reviews.LoopAsk, 0
+	if b.Preferences != nil {
+		prefs := b.Preferences.Snapshot().Review
+		if m, err := reviews.LoopMode(prefs.Loop); err == nil {
+			mode = m
+		}
+		rounds = prefs.MaxRounds
+	}
+	reviews.StartLoop(&run, mode, rounds, time.Now().Unix())
 	run, err = b.Reviews.CreateRun(workspace.ID, run)
 	if err != nil {
 		_ = e.Engine.Close()
@@ -620,12 +630,17 @@ func (b *Bench) reviewTurnEnded(e *Execution, operation string) {
 		return
 	}
 	matches := b.Reviews.RunsOf(e.ID, conversationOf(e))
+	// A turn that answered the other agent's question is that answer.
+	if b.answerAsk(e, operation, matches) {
+		return
+	}
 	for _, m := range matches {
 		if m.Role == reviews.RoleReviewer {
 			b.reviewerTurnEnded(m)
 			return
 		}
 	}
+	b.authorTurnEnded(e, operation, matches)
 	b.maybeAutoReview(e, operation, matches)
 }
 
@@ -637,14 +652,29 @@ func (b *Bench) reviewerTurnEnded(m reviews.Match) {
 	}
 	counts := reviews.CountFindings(review, m.Run.ID)
 	first := m.Run.State == reviews.RunRunning
-	run, err := b.Reviews.UpdateRun(m.Workspace, m.Run.ID, func(r *reviews.Run) error {
-		r.State = reviews.RunDone
-		r.Detail = r.ReviewerLabel + " reviewed " + lowerFirst(r.ScopeLabel) + " · " + counts.Summary() + "."
+	// The round the reviewer just finished, and what the loop does next.
+	var action reviews.Action
+	var run reviews.Run
+	_, err = b.Reviews.Update(m.Workspace, func(rv *reviews.Review) error {
+		var err error
+		if action, err = reviews.RoundEnded(rv, m.Run.ID, time.Now().Unix()); err != nil {
+			return err
+		}
+		for i := range rv.Runs {
+			if r := &rv.Runs[i]; r.ID == m.Run.ID {
+				r.State, r.UpdatedAt = reviews.RunDone, time.Now().Unix()
+				if r.StopReason == "" {
+					r.Detail = r.ReviewerLabel + " reviewed " + lowerFirst(r.ScopeLabel) + " · " + counts.Summary() + "."
+				}
+				run = *r
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return
 	}
+	defer b.reviewAct(m.Workspace, run, action)
 	if first {
 		if source, err := b.Get(run.SourceSession); err == nil {
 			b.recordReviewEvent(source, "review_finished", run, counts)
@@ -661,7 +691,7 @@ func (b *Bench) maybeAutoReview(e *Execution, operation string, matches []review
 		return
 	}
 	for _, m := range matches {
-		if m.Run.State == reviews.RunRunning {
+		if m.Run.State == reviews.RunRunning || (m.Role == reviews.RoleAuthor && m.Run.Active()) {
 			return
 		}
 	}

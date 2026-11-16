@@ -324,6 +324,17 @@ const (
 	// RunnerServiceListReviewFindingsProcedure is the fully-qualified name of the RunnerService's
 	// ListReviewFindings RPC.
 	RunnerServiceListReviewFindingsProcedure = "/lazybox.bench.v1.RunnerService/ListReviewFindings"
+	// RunnerServiceSetReviewFindingStateProcedure is the fully-qualified name of the RunnerService's
+	// SetReviewFindingState RPC.
+	RunnerServiceSetReviewFindingStateProcedure = "/lazybox.bench.v1.RunnerService/SetReviewFindingState"
+	// RunnerServiceUpdateReviewRunProcedure is the fully-qualified name of the RunnerService's
+	// UpdateReviewRun RPC.
+	RunnerServiceUpdateReviewRunProcedure = "/lazybox.bench.v1.RunnerService/UpdateReviewRun"
+	// RunnerServiceAskAgentProcedure is the fully-qualified name of the RunnerService's AskAgent RPC.
+	RunnerServiceAskAgentProcedure = "/lazybox.bench.v1.RunnerService/AskAgent"
+	// RunnerServiceWaitAgentAskProcedure is the fully-qualified name of the RunnerService's
+	// WaitAgentAsk RPC.
+	RunnerServiceWaitAgentAskProcedure = "/lazybox.bench.v1.RunnerService/WaitAgentAsk"
 	// RunnerServiceListProcessesProcedure is the fully-qualified name of the RunnerService's
 	// ListProcesses RPC.
 	RunnerServiceListProcessesProcedure = "/lazybox.bench.v1.RunnerService/ListProcesses"
@@ -660,6 +671,20 @@ type RunnerServiceClient interface {
 	// The findings of the review an execution is the reviewer (or the author)
 	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
 	ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error)
+	// The reviewer's verdict on one of its own findings in a later round
+	// (`lazybox review resolve|reopen <id> --note`): resolved, or still open.
+	// The same agent rule as AddReviewFinding; only findings of its own review.
+	SetReviewFindingState(context.Context, *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// Owner only. Controls a review's loop: pause, resume, stop, take over,
+	// and how findings reach the author between rounds.
+	UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// One agent asks the other a question (`lazybox ask author|reviewer`): an
+	// agent credential may ask only for its own execution, and only between the
+	// author and the reviewer of one review in the same workspace. The question
+	// goes to the other conversation as a labelled message; its reply comes back.
+	AskAgent(context.Context, *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error)
+	// Waits, at most timeout_seconds (bounded), for the reply. Only the asker.
+	WaitAgentAsk(context.Context, *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
@@ -1411,6 +1436,30 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListReviewFindings")),
 			connect.WithClientOptions(opts...),
 		),
+		setReviewFindingState: connect.NewClient[gen.SetReviewFindingStateRequest, gen.ReviewFinding](
+			httpClient,
+			baseURL+RunnerServiceSetReviewFindingStateProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetReviewFindingState")),
+			connect.WithClientOptions(opts...),
+		),
+		updateReviewRun: connect.NewClient[gen.UpdateReviewRunRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceUpdateReviewRunProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateReviewRun")),
+			connect.WithClientOptions(opts...),
+		),
+		askAgent: connect.NewClient[gen.AskAgentRequest, gen.AgentAsk](
+			httpClient,
+			baseURL+RunnerServiceAskAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AskAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		waitAgentAsk: connect.NewClient[gen.WaitAgentAskRequest, gen.AgentAsk](
+			httpClient,
+			baseURL+RunnerServiceWaitAgentAskProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitAgentAsk")),
+			connect.WithClientOptions(opts...),
+		),
 		listProcesses: connect.NewClient[gen.ListProcessesRequest, gen.ProcessInventory](
 			httpClient,
 			baseURL+RunnerServiceListProcessesProcedure,
@@ -1856,6 +1905,10 @@ type runnerServiceClient struct {
 	startReview                  *connect.Client[gen.StartReviewRequest, gen.StartReviewResponse]
 	addReviewFinding             *connect.Client[gen.AddReviewFindingRequest, gen.ReviewFinding]
 	listReviewFindings           *connect.Client[gen.ListReviewFindingsRequest, gen.ReviewFindings]
+	setReviewFindingState        *connect.Client[gen.SetReviewFindingStateRequest, gen.ReviewFinding]
+	updateReviewRun              *connect.Client[gen.UpdateReviewRunRequest, gen.WorkspaceReview]
+	askAgent                     *connect.Client[gen.AskAgentRequest, gen.AgentAsk]
+	waitAgentAsk                 *connect.Client[gen.WaitAgentAskRequest, gen.AgentAsk]
 	listProcesses                *connect.Client[gen.ListProcessesRequest, gen.ProcessInventory]
 	stopProcess                  *connect.Client[gen.StopProcessRequest, gen.ProcessInventory]
 	cleanUpOrphanProcesses       *connect.Client[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse]
@@ -2405,6 +2458,26 @@ func (c *runnerServiceClient) ListReviewFindings(ctx context.Context, req *conne
 	return c.listReviewFindings.CallUnary(ctx, req)
 }
 
+// SetReviewFindingState calls lazybox.bench.v1.RunnerService.SetReviewFindingState.
+func (c *runnerServiceClient) SetReviewFindingState(ctx context.Context, req *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return c.setReviewFindingState.CallUnary(ctx, req)
+}
+
+// UpdateReviewRun calls lazybox.bench.v1.RunnerService.UpdateReviewRun.
+func (c *runnerServiceClient) UpdateReviewRun(ctx context.Context, req *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.updateReviewRun.CallUnary(ctx, req)
+}
+
+// AskAgent calls lazybox.bench.v1.RunnerService.AskAgent.
+func (c *runnerServiceClient) AskAgent(ctx context.Context, req *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return c.askAgent.CallUnary(ctx, req)
+}
+
+// WaitAgentAsk calls lazybox.bench.v1.RunnerService.WaitAgentAsk.
+func (c *runnerServiceClient) WaitAgentAsk(ctx context.Context, req *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return c.waitAgentAsk.CallUnary(ctx, req)
+}
+
 // ListProcesses calls lazybox.bench.v1.RunnerService.ListProcesses.
 func (c *runnerServiceClient) ListProcesses(ctx context.Context, req *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {
 	return c.listProcesses.CallUnary(ctx, req)
@@ -2854,6 +2927,20 @@ type RunnerServiceHandler interface {
 	// The findings of the review an execution is the reviewer (or the author)
 	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
 	ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error)
+	// The reviewer's verdict on one of its own findings in a later round
+	// (`lazybox review resolve|reopen <id> --note`): resolved, or still open.
+	// The same agent rule as AddReviewFinding; only findings of its own review.
+	SetReviewFindingState(context.Context, *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// Owner only. Controls a review's loop: pause, resume, stop, take over,
+	// and how findings reach the author between rounds.
+	UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// One agent asks the other a question (`lazybox ask author|reviewer`): an
+	// agent credential may ask only for its own execution, and only between the
+	// author and the reviewer of one review in the same workspace. The question
+	// goes to the other conversation as a labelled message; its reply comes back.
+	AskAgent(context.Context, *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error)
+	// Waits, at most timeout_seconds (bounded), for the reply. Only the asker.
+	WaitAgentAsk(context.Context, *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
@@ -3601,6 +3688,30 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListReviewFindings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceSetReviewFindingStateHandler := connect.NewUnaryHandler(
+		RunnerServiceSetReviewFindingStateProcedure,
+		svc.SetReviewFindingState,
+		connect.WithSchema(runnerServiceMethods.ByName("SetReviewFindingState")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateReviewRunHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateReviewRunProcedure,
+		svc.UpdateReviewRun,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateReviewRun")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAskAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceAskAgentProcedure,
+		svc.AskAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("AskAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitAgentAskHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitAgentAskProcedure,
+		svc.WaitAgentAsk,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitAgentAsk")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListProcessesHandler := connect.NewUnaryHandler(
 		RunnerServiceListProcessesProcedure,
 		svc.ListProcesses,
@@ -4141,6 +4252,14 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceAddReviewFindingHandler.ServeHTTP(w, r)
 		case RunnerServiceListReviewFindingsProcedure:
 			runnerServiceListReviewFindingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSetReviewFindingStateProcedure:
+			runnerServiceSetReviewFindingStateHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateReviewRunProcedure:
+			runnerServiceUpdateReviewRunHandler.ServeHTTP(w, r)
+		case RunnerServiceAskAgentProcedure:
+			runnerServiceAskAgentHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitAgentAskProcedure:
+			runnerServiceWaitAgentAskHandler.ServeHTTP(w, r)
 		case RunnerServiceListProcessesProcedure:
 			runnerServiceListProcessesHandler.ServeHTTP(w, r)
 		case RunnerServiceStopProcessProcedure:
@@ -4654,6 +4773,22 @@ func (UnimplementedRunnerServiceHandler) AddReviewFinding(context.Context, *conn
 
 func (UnimplementedRunnerServiceHandler) ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListReviewFindings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetReviewFindingState(context.Context, *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetReviewFindingState is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateReviewRun is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AskAgent(context.Context, *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AskAgent is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitAgentAsk(context.Context, *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitAgentAsk is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {

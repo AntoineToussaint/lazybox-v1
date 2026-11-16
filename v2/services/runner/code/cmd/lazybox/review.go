@@ -19,18 +19,24 @@ import (
 
 const reviewUsage = `Usage:
   lazybox review add --file <repository>/<path> --line N[-M] --severity blocker|major|minor|nit --title "one line" [--body "details" | --body -] [--key KEY]
-  lazybox review list`
+  lazybox review list
+  lazybox review resolve <finding-id> --note "how it was fixed"
+  lazybox review reopen <finding-id> --note "what is still wrong"`
 
 func (c *cli) review(args []string) error {
 	if len(args) == 0 {
 		fmt.Fprintln(c.stderr, reviewUsage)
-		return fail(exitUsage, "lazybox review needs add or list")
+		return fail(exitUsage, "lazybox review needs add, list, resolve or reopen")
 	}
 	switch args[0] {
 	case "add":
 		return c.reviewAdd(args[1:])
 	case "list", "ls":
 		return c.reviewList(args[1:])
+	case "resolve":
+		return c.reviewVerdict(args[1:], "resolved")
+	case "reopen":
+		return c.reviewVerdict(args[1:], "open")
 	}
 	fmt.Fprintln(c.stderr, reviewUsage)
 	return fail(exitUsage, "unknown review command %q", args[0])
@@ -165,5 +171,40 @@ func (c *cli) reviewList(args []string) error {
 		}
 		c.out("  %s\t%-7s %s · %s · %s\n", finding.Id, finding.Severity, where, finding.Title, finding.Disposition)
 	}
+	return nil
+}
+
+// reviewVerdict is the reviewer's resolve or reopen of one of its findings,
+// in a later round of the loop.
+func (c *cli) reviewVerdict(args []string, state string) error {
+	f := c.flags("review")
+	note := f.String("note", "", "why: how it was fixed, or what is still wrong")
+	positional, err := c.parse(f, args)
+	if err != nil {
+		return err
+	}
+	if len(positional) != 1 {
+		return fail(exitUsage, "usage: lazybox review resolve|reopen <finding-id> --note \"why\" (lazybox review list shows the ids)")
+	}
+	session, err := c.reviewerSession()
+	if err != nil {
+		return err
+	}
+	cl, err := c.dial()
+	if err != nil {
+		return err
+	}
+	r, err := got(cl.SetReviewFindingState(c.ctx, connect.NewRequest(&pb.SetReviewFindingStateRequest{SessionId: session, FindingId: positional[0], State: state, Note: *note})))
+	if err != nil {
+		return err
+	}
+	if c.json {
+		return c.printProtoJSON(r)
+	}
+	word := "Resolved"
+	if state == "open" {
+		word = "Still open"
+	}
+	c.out("%s: %s %s · %s\n", word, r.Finding.Id, r.Finding.Severity, r.Finding.Title)
 	return nil
 }

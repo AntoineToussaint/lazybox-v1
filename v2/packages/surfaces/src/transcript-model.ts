@@ -125,6 +125,15 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       next.appendToLast = false;
       continue;
     }
+    // The two agents of a review asking each other ("Codex asked Claude: …"),
+    // and a loop that stopped to ask the person: one labelled line each.
+    if (event.type === 'review_exchange' || event.type === 'review_escalated') {
+      const data = providerData(event.providerDataJson);
+      const review = typeof data.review === 'string' ? data.review : '', workspace = typeof data.workspace === 'string' ? data.workspace : '';
+      add({ id: record.cursor.toString(), type: event.type === 'review_exchange' ? 'exchange' : 'review-alert', text: event.text, turnId: event.turnId, ...(review ? { review: { review, workspace, reviewerSession: typeof data.reviewerSession === 'string' ? data.reviewerSession : '', reviewerLabel: typeof data.reviewerLabel === 'string' ? data.reviewerLabel : '', scopeLabel: '', blockers: 0, majors: 0, minors: 0, nits: 0, finished: true } } : {}) });
+      next.appendToLast = false;
+      continue;
+    }
     const notice = runnerNotice(record);
     if (notice) {
       add({ id: record.cursor.toString(), type: 'notice', text: notice, turnId: event.turnId });

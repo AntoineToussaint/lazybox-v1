@@ -63,3 +63,35 @@
 .review-action-error{position:fixed;right:16px;bottom:16px;z-index:40;max-width:min(440px,calc(100vw - 32px));padding:8px 12px;border-radius:8px;border:1px solid var(--danger-line);background:var(--surface);color:var(--danger);font-size:calc(12px * var(--text-scale));box-shadow:0 6px 20px color-mix(in srgb,var(--shadow) calc(30% * var(--shadow-strength)),transparent)}
 .settings-inline-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0}
 .settings-inline-actions small{color:var(--text-muted)}
+
+/* The review loop: where it is, its controls, its timeline. */
+.review-runs li{flex-direction:column;align-items:stretch;flex-shrink:0}
+/* Reviews never crowd out the findings: they scroll in their own band. */
+.review-tray .review-runs{flex:0 1 auto;max-height:42%;overflow:auto;min-height:0}
+.review-tray .review-tray-list{min-height:120px}
+.review-run-head{display:flex;align-items:center;gap:6px;min-width:0}
+.review-runs li.needs-you{border-color:var(--warn)}
+.review-loop{display:flex;flex-direction:column;gap:4px;padding:0 4px 2px 22px}
+.review-loop-line{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
+.review-loop.needs-you .review-loop-line{color:var(--warn);font-weight:600}
+.review-loop-controls{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.review-tray .review-loop-controls button{padding:2px 8px;font-size:calc(11px * var(--text-scale))}
+.review-tray .review-loop-controls select{width:auto;min-width:0;padding:2px 6px;font-size:calc(11px * var(--text-scale))}
+.review-timeline summary{cursor:pointer;color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
+.review-timeline ol{list-style:none;margin:4px 0 0;padding:0 0 0 2px;display:flex;flex-direction:column;gap:3px;max-height:220px;overflow:auto;border-left:2px solid var(--line-subtle)}
+.review-timeline li{display:grid!important;grid-template-columns:auto auto 1fr;gap:6px;align-items:baseline;padding:0 0 0 8px!important;border:0!important;background:transparent!important;font-size:calc(11px * var(--text-scale));line-height:1.45}
+.review-timeline time{color:var(--text-disabled);font-variant-numeric:tabular-nums}
+.review-timeline b{color:var(--text-soft);font-weight:600}
+.review-timeline span{color:var(--text-tertiary);overflow-wrap:anywhere}
+.review-timeline li.is-escalated span,.review-timeline li.is-escalated b{color:var(--warn)}
+.review-timeline li.is-stopped span{color:var(--ok)}
+.review-card-loop{display:block;margin-top:2px;color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
+.review-card.needs-you{border-color:var(--warn)}
+.review-card.needs-you .review-card-loop{color:var(--warn);font-weight:600}
+
+.review-exchange{display:flex;align-items:baseline;gap:6px;margin:4px 0;padding:4px 10px;border-left:2px solid var(--accent-line);color:var(--text-tertiary);font-size:calc(12px * var(--text-scale));line-height:1.5}
+.review-exchange b{color:var(--text-soft);font-weight:600;white-space:nowrap}
+.review-exchange span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.review-alert{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;padding:6px 10px;border:1px solid var(--warn);border-radius:8px;background:var(--warn-bg-strong);color:var(--text);font-size:calc(12px * var(--text-scale))}
+.review-alert span{flex:1;min-width:12em}
+.review-alert button{padding:3px 10px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text-soft);cursor:pointer;width:auto;font-size:calc(12px * var(--text-scale))}

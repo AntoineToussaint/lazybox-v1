@@ -218,6 +218,8 @@ type Bench struct {
 	repositoryRequests *repositoryRequests
 	// Browser is every conversation's agent browser (browser.go, BROWSER.md).
 	Browser *browser.Manager
+	// reviewAsks wakes agents waiting for an answer (review_loop.go).
+	reviewAsks *reviewAsks
 }
 
 func New(cfg Config) (*Bench, error) {

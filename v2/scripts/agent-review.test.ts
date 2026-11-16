@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema, ReviewCommentSchema, ReviewRunSchema } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { loopLine, loopNeedsYou, loopActive } from '../packages/surfaces/src/review-model.ts';
 import { authorLabel, countsSummary, dispositionLabel, isPending, matchesFilter, matchesQuery, parseSeverity, reviewAuthors, reviewerChoices, reviewMessage, runSummary, severityRank } from '../packages/surfaces/src/review-model.ts';
 import { appendTranscript, emptyTranscript } from '../packages/surfaces/src/transcript-model.ts';
 import { reviewerFor } from '../packages/surfaces/src/slash-commands.ts';
@@ -65,7 +66,7 @@ test('a review in one line: running, done with its counts, failed with why', () 
   assert.equal(runSummary(run({ state: 'running' })), 'Codex is reviewing turn 3');
   assert.equal(runSummary(run({ state: 'running', blockers: 1 })), 'Codex is reviewing turn 3 · 1 blocker so far');
   assert.equal(runSummary(run({ blockers: 2, minors: 3 })), 'Codex reviewed turn 3 · 2 blockers, 3 minor');
-  assert.equal(runSummary(run({ scopeLabel: 'PR #12' })), 'Codex reviewed PR #12 · no findings');
+  assert.equal(runSummary(run({ scopeLabel: 'PR #12' })), 'Codex reviewed PR #12 · no open findings');
   assert.equal(runSummary(run({ state: 'failed', detail: 'The reviewer conversation ended before it finished.' })), 'The reviewer conversation ended before it finished.');
   assert.equal(countsSummary({ blockers: 0, majors: 1, minors: 0, nits: 2 }), '1 major, 2 nits');
 });
@@ -95,4 +96,28 @@ test('/review names its reviewer: none is the default, a provider, a subscriptio
   assert.equal(reviewerFor(reviewers, 'tray'), 'tray');
   assert.equal(reviewerFor(reviewers, 'gemini'), undefined);
   assert.equal(reviewerFor([], ''), undefined);
+});
+
+test('a loop in one line: its round, who it waits for, and why it stopped', () => {
+  const run = (fields: Record<string, unknown>) => create(ReviewRunSchema, { reviewerLabel: 'Codex', sourceLabel: 'Claude', scopeLabel: 'Turn 3', loop: 'ask', round: 1, maxRounds: 3, phase: 'reviewing', ...fields });
+  assert.equal(loopLine(run({})), 'Round 1 of 3 · reviewing');
+  assert.equal(loopLine(run({ round: 2 })), 'Round 2 of 3 · re-reviewing the fix');
+  assert.equal(loopLine(run({ phase: 'triage' })), 'Round 1 of 3 · waiting for you to send findings');
+  assert.equal(loopLine(run({ phase: 'triage', loop: 'auto' })), 'Round 1 of 3 · sending findings');
+  assert.equal(loopLine(run({ phase: 'fixing', paused: true })), 'Round 1 of 3 · Claude is fixing · paused');
+  assert.equal(loopLine(run({ stopReason: 'clean', round: 2, phase: 'done' })), 'Clean ✓ after 2 rounds');
+  assert.equal(loopLine(run({ stopReason: 'stuck', phase: 'done' })), 'Stuck: the same blocker is still open after two fixes · needs you');
+  assert.equal(loopLine(run({ stopReason: 'max_rounds', phase: 'done' })), 'Stopped at its 3 rounds with a blocker open · needs you');
+  assert.equal(loopLine(run({ loop: 'off', phase: 'done' })), '');
+  assert.ok(loopNeedsYou(run({ phase: 'triage' })) && loopNeedsYou(run({ stopReason: 'stuck' })) && !loopNeedsYou(run({ phase: 'triage', loop: 'auto' })) && !loopNeedsYou(run({ stopReason: 'clean' })));
+  assert.ok(loopActive(run({ phase: 'fixing' })) && !loopActive(run({ stopReason: 'stopped' })) && !loopActive(run({ loop: 'off' })));
+});
+
+test('the agents asking each other, and a loop asking you, are labelled lines', () => {
+  let state = emptyTranscript();
+  const data = new TextEncoder().encode(JSON.stringify({ review: 'rv-1', workspace: 'alpha', reviewerSession: 'review-1' }));
+  const add = (type: string, text: string) => { state = appendTranscript(state, create(JournalEventSchema, { cursor: state.cursor + 1n, event: { type, text, turnId: 't', providerDataJson: data } })); };
+  add('review_exchange', 'Codex asked Claude: Should Handle log?');
+  add('review_escalated', 'The blocker is still open after two fixes: decide how to proceed.');
+  assert.deepEqual(state.messages.map(m => [m.type, m.text, m.review?.review]), [['exchange', 'Codex asked Claude: Should Handle log?', 'rv-1'], ['review-alert', 'The blocker is still open after two fixes: decide how to proceed.', 'rv-1']]);
 });

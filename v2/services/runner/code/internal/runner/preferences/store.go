@@ -45,6 +45,10 @@ type Review struct {
 	Reviewer  string `json:"reviewer,omitempty"`
 	Template  string `json:"template,omitempty"`
 	AutoStart bool   `json:"autoStart,omitempty"`
+	// Loop is how findings reach the author between rounds: "ask" (the
+	// person sends them; "" too), "auto" or "off". MaxRounds: 0 is 3.
+	Loop      string `json:"loop,omitempty"`
+	MaxRounds int    `json:"maxRounds,omitempty"`
 }
 type Store struct {
 	mu   sync.RWMutex
@@ -88,6 +92,12 @@ func validate(d Data) error {
 	}
 	if len(d.Review.Reviewer) > 128 || strings.ContainsAny(d.Review.Reviewer, " \t\r\n") {
 		return errors.New("invalid default reviewer")
+	}
+	if d.Review.Loop != "" && d.Review.Loop != "ask" && d.Review.Loop != "auto" && d.Review.Loop != "off" {
+		return errors.New("the review loop is ask, auto or off")
+	}
+	if d.Review.MaxRounds < 0 || d.Review.MaxRounds > 10 {
+		return errors.New("a review loop runs 1 to 10 rounds")
 	}
 	if len(d.Review.Template) > 32<<10 {
 		return errors.New("the review brief template is limited to 32 KiB")

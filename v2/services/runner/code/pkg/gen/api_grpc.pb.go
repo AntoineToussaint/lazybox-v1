@@ -118,6 +118,10 @@ const (
 	RunnerService_StartReview_FullMethodName                  = "/lazybox.bench.v1.RunnerService/StartReview"
 	RunnerService_AddReviewFinding_FullMethodName             = "/lazybox.bench.v1.RunnerService/AddReviewFinding"
 	RunnerService_ListReviewFindings_FullMethodName           = "/lazybox.bench.v1.RunnerService/ListReviewFindings"
+	RunnerService_SetReviewFindingState_FullMethodName        = "/lazybox.bench.v1.RunnerService/SetReviewFindingState"
+	RunnerService_UpdateReviewRun_FullMethodName              = "/lazybox.bench.v1.RunnerService/UpdateReviewRun"
+	RunnerService_AskAgent_FullMethodName                     = "/lazybox.bench.v1.RunnerService/AskAgent"
+	RunnerService_WaitAgentAsk_FullMethodName                 = "/lazybox.bench.v1.RunnerService/WaitAgentAsk"
 	RunnerService_ListProcesses_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListProcesses"
 	RunnerService_StopProcess_FullMethodName                  = "/lazybox.bench.v1.RunnerService/StopProcess"
 	RunnerService_CleanUpOrphanProcesses_FullMethodName       = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
@@ -343,6 +347,20 @@ type RunnerServiceClient interface {
 	// The findings of the review an execution is the reviewer (or the author)
 	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
 	ListReviewFindings(ctx context.Context, in *ListReviewFindingsRequest, opts ...grpc.CallOption) (*ReviewFindings, error)
+	// The reviewer's verdict on one of its own findings in a later round
+	// (`lazybox review resolve|reopen <id> --note`): resolved, or still open.
+	// The same agent rule as AddReviewFinding; only findings of its own review.
+	SetReviewFindingState(ctx context.Context, in *SetReviewFindingStateRequest, opts ...grpc.CallOption) (*ReviewFinding, error)
+	// Owner only. Controls a review's loop: pause, resume, stop, take over,
+	// and how findings reach the author between rounds.
+	UpdateReviewRun(ctx context.Context, in *UpdateReviewRunRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	// One agent asks the other a question (`lazybox ask author|reviewer`): an
+	// agent credential may ask only for its own execution, and only between the
+	// author and the reviewer of one review in the same workspace. The question
+	// goes to the other conversation as a labelled message; its reply comes back.
+	AskAgent(ctx context.Context, in *AskAgentRequest, opts ...grpc.CallOption) (*AgentAsk, error)
+	// Waits, at most timeout_seconds (bounded), for the reply. Only the asker.
+	WaitAgentAsk(ctx context.Context, in *WaitAgentAskRequest, opts ...grpc.CallOption) (*AgentAsk, error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error)
@@ -1519,6 +1537,46 @@ func (c *runnerServiceClient) ListReviewFindings(ctx context.Context, in *ListRe
 	return out, nil
 }
 
+func (c *runnerServiceClient) SetReviewFindingState(ctx context.Context, in *SetReviewFindingStateRequest, opts ...grpc.CallOption) (*ReviewFinding, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReviewFinding)
+	err := c.cc.Invoke(ctx, RunnerService_SetReviewFindingState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) UpdateReviewRun(ctx context.Context, in *UpdateReviewRunRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_UpdateReviewRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) AskAgent(ctx context.Context, in *AskAgentRequest, opts ...grpc.CallOption) (*AgentAsk, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentAsk)
+	err := c.cc.Invoke(ctx, RunnerService_AskAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) WaitAgentAsk(ctx context.Context, in *WaitAgentAskRequest, opts ...grpc.CallOption) (*AgentAsk, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentAsk)
+	err := c.cc.Invoke(ctx, RunnerService_WaitAgentAsk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (*ProcessInventory, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProcessInventory)
@@ -2273,6 +2331,20 @@ type RunnerServiceServer interface {
 	// The findings of the review an execution is the reviewer (or the author)
 	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
 	ListReviewFindings(context.Context, *ListReviewFindingsRequest) (*ReviewFindings, error)
+	// The reviewer's verdict on one of its own findings in a later round
+	// (`lazybox review resolve|reopen <id> --note`): resolved, or still open.
+	// The same agent rule as AddReviewFinding; only findings of its own review.
+	SetReviewFindingState(context.Context, *SetReviewFindingStateRequest) (*ReviewFinding, error)
+	// Owner only. Controls a review's loop: pause, resume, stop, take over,
+	// and how findings reach the author between rounds.
+	UpdateReviewRun(context.Context, *UpdateReviewRunRequest) (*WorkspaceReview, error)
+	// One agent asks the other a question (`lazybox ask author|reviewer`): an
+	// agent credential may ask only for its own execution, and only between the
+	// author and the reviewer of one review in the same workspace. The question
+	// goes to the other conversation as a labelled message; its reply comes back.
+	AskAgent(context.Context, *AskAgentRequest) (*AgentAsk, error)
+	// Waits, at most timeout_seconds (bounded), for the reply. Only the asker.
+	WaitAgentAsk(context.Context, *WaitAgentAskRequest) (*AgentAsk, error)
 	// Owner only. Every process the Runner hosts so it outlives the Runner
 	// (agents, managed commands, terminals), held by this Runner or orphaned.
 	ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error)
@@ -2726,6 +2798,18 @@ func (UnimplementedRunnerServiceServer) AddReviewFinding(context.Context, *AddRe
 }
 func (UnimplementedRunnerServiceServer) ListReviewFindings(context.Context, *ListReviewFindingsRequest) (*ReviewFindings, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReviewFindings not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetReviewFindingState(context.Context, *SetReviewFindingStateRequest) (*ReviewFinding, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetReviewFindingState not implemented")
+}
+func (UnimplementedRunnerServiceServer) UpdateReviewRun(context.Context, *UpdateReviewRunRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateReviewRun not implemented")
+}
+func (UnimplementedRunnerServiceServer) AskAgent(context.Context, *AskAgentRequest) (*AgentAsk, error) {
+	return nil, status.Error(codes.Unimplemented, "method AskAgent not implemented")
+}
+func (UnimplementedRunnerServiceServer) WaitAgentAsk(context.Context, *WaitAgentAskRequest) (*AgentAsk, error) {
+	return nil, status.Error(codes.Unimplemented, "method WaitAgentAsk not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListProcesses(context.Context, *ListProcessesRequest) (*ProcessInventory, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProcesses not implemented")
@@ -4655,6 +4739,78 @@ func _RunnerService_ListReviewFindings_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_SetReviewFindingState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetReviewFindingStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetReviewFindingState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetReviewFindingState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetReviewFindingState(ctx, req.(*SetReviewFindingStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_UpdateReviewRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateReviewRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).UpdateReviewRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_UpdateReviewRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).UpdateReviewRun(ctx, req.(*UpdateReviewRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_AskAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AskAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).AskAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_AskAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).AskAgent(ctx, req.(*AskAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_WaitAgentAsk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WaitAgentAskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).WaitAgentAsk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_WaitAgentAsk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).WaitAgentAsk(ctx, req.(*WaitAgentAskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListProcesses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListProcessesRequest)
 	if err := dec(in); err != nil {
@@ -6049,6 +6205,22 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListReviewFindings",
 			Handler:    _RunnerService_ListReviewFindings_Handler,
+		},
+		{
+			MethodName: "SetReviewFindingState",
+			Handler:    _RunnerService_SetReviewFindingState_Handler,
+		},
+		{
+			MethodName: "UpdateReviewRun",
+			Handler:    _RunnerService_UpdateReviewRun_Handler,
+		},
+		{
+			MethodName: "AskAgent",
+			Handler:    _RunnerService_AskAgent_Handler,
+		},
+		{
+			MethodName: "WaitAgentAsk",
+			Handler:    _RunnerService_WaitAgentAsk_Handler,
 		},
 		{
 			MethodName: "ListProcesses",

@@ -166,6 +166,20 @@ service RunnerService {
   // The findings of the review an execution is the reviewer (or the author)
   // of, from `lazybox review list`. The same agent rule as AddReviewFinding.
   rpc ListReviewFindings(ListReviewFindingsRequest) returns (ReviewFindings);
+  // The reviewer's verdict on one of its own findings in a later round
+  // (`lazybox review resolve|reopen <id> --note`): resolved, or still open.
+  // The same agent rule as AddReviewFinding; only findings of its own review.
+  rpc SetReviewFindingState(SetReviewFindingStateRequest) returns (ReviewFinding);
+  // Owner only. Controls a review's loop: pause, resume, stop, take over,
+  // and how findings reach the author between rounds.
+  rpc UpdateReviewRun(UpdateReviewRunRequest) returns (WorkspaceReview);
+  // One agent asks the other a question (`lazybox ask author|reviewer`): an
+  // agent credential may ask only for its own execution, and only between the
+  // author and the reviewer of one review in the same workspace. The question
+  // goes to the other conversation as a labelled message; its reply comes back.
+  rpc AskAgent(AskAgentRequest) returns (AgentAsk);
+  // Waits, at most timeout_seconds (bounded), for the reply. Only the asker.
+  rpc WaitAgentAsk(WaitAgentAskRequest) returns (AgentAsk);
   // Owner only. Every process the Runner hosts so it outlives the Runner
   // (agents, managed commands, terminals), held by this Runner or orphaned.
   rpc ListProcesses(ListProcessesRequest) returns (ProcessInventory);
@@ -347,6 +361,11 @@ message ReviewSettings {
   bool auto_start = 3;
   // Read only: the built-in template, for "Reset".
   string default_template = 4;
+  // How a new review's findings reach the author between rounds: "ask" (you
+  // accept and send them; the default), "auto" or "off" (one pass).
+  string loop = 5;
+  // Rounds before a loop stops and asks you; 0 is 3.
+  uint32 max_rounds = 6;
 }
 message SetModelPriceRequest { uint64 revision = 1; ModelPrice price = 2; bool remove = 3; }
 message ListThemesRequest {}
@@ -1518,6 +1537,38 @@ message ReviewComment {
   string review_id = 31;
   // The finding's stable key in its review: filing it again updates it.
   string finding_key = 32;
+  // The review round it was filed in, and how many later rounds found it
+  // still open (two for a blocker stops the loop: it is stuck).
+  uint32 round = 33;
+  uint32 still_open_rounds = 34;
+}
+// One round of a review loop: the reviewer's pass, from the brief or a
+// re-review, and what it found.
+message ReviewRound {
+  uint32 number = 1;
+  // "start", or "author_turn" (the author's turn changed files after findings).
+  string trigger = 2;
+  // The author's turn this round re-reviews, if any.
+  uint32 author_turn = 3;
+  int64 started_at_unix = 4;
+  int64 ended_at_unix = 5;
+  uint32 filed = 6;
+  uint32 resolved = 7;
+  uint32 still_open = 8;
+  // Open blockers when the round ended.
+  uint32 blockers = 9;
+}
+// What happened in a review, in order: rounds, findings, who said what.
+message ReviewTimelineEntry {
+  int64 at_unix = 1;
+  // round_started, round_ended, filed, resolved, reopened, sent, fixing,
+  // asked, answered, paused, resumed, mode, stopped, escalated.
+  string kind = 2;
+  // Who: the reviewer's or author's name, "You" or "Lazybox".
+  string actor = 3;
+  string text = 4;
+  string finding_id = 5;
+  uint32 round = 6;
 }
 // One agent review: a reviewer conversation started on a scope of another
 // conversation's work, and what it found.
@@ -1558,6 +1609,21 @@ message ReviewRun {
   string task_id = 25;
   // The author's provider ("claude" or "codex").
   string source_provider = 26;
+  // The loop: "ask" (you send findings between rounds), "auto" (Lazybox
+  // sends them) or "off" (one pass). Re-reviews follow an author turn that
+  // changed files after findings were sent, up to max_rounds.
+  string loop = 27;
+  uint32 max_rounds = 28;
+  uint32 round = 29;
+  // reviewing (the reviewer works), triage (findings wait for you), fixing
+  // (findings sent; the author's turn), done.
+  string phase = 30;
+  bool paused = 31;
+  // Why the loop ended: clean, max_rounds, stuck, error, stopped, taken_over;
+  // "" while it runs.
+  string stop_reason = 32;
+  repeated ReviewRound rounds = 33;
+  repeated ReviewTimelineEntry timeline = 34;
 }
 message WorkspaceReview {
   repeated ReviewComment comments = 1;
@@ -1611,6 +1677,45 @@ message ReviewFinding {
   bool updated = 2;
 }
 message ListReviewFindingsRequest { string session_id = 1; }
+message SetReviewFindingStateRequest {
+  string session_id = 1;
+  string finding_id = 2;
+  // "resolved" or "open" (still open).
+  string state = 3;
+  string note = 4;
+}
+message UpdateReviewRunRequest {
+  string collection_id = 1;
+  string review_id = 2;
+  // pause, resume, stop, take_over or loop (with loop and max_rounds).
+  string action = 3;
+  string loop = 4;
+  uint32 max_rounds = 5;
+}
+message AskAgentRequest {
+  // The asking execution.
+  string session_id = 1;
+  // "author", "reviewer", or the other conversation's id.
+  string to = 2;
+  string question = 3;
+  // How long the call waits for the reply (bounded); 0 returns at once.
+  uint32 timeout_seconds = 4;
+}
+message WaitAgentAskRequest { string ask_id = 1; uint32 timeout_seconds = 2; }
+message AgentAsk {
+  string id = 1;
+  string review_id = 2;
+  // pending, answered or expired.
+  string state = 3;
+  string question = 4;
+  string answer = 5;
+  string asker_label = 6;
+  string answerer_label = 7;
+  string asker_session_id = 8;
+  string answerer_session_id = 9;
+  int64 created_at_unix = 10;
+  int64 answered_at_unix = 11;
+}
 message ReviewFindings {
   ReviewRun run = 1;
   repeated ReviewComment findings = 2;

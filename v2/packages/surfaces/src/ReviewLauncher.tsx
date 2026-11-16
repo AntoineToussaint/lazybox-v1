@@ -6,7 +6,7 @@ import { Icon } from './Icons';
 import { LiveIndicator } from './LiveIndicator';
 import type { MenuItem } from './context-menu-model';
 import { showConversation, showReview, type ReviewLauncher, type ReviewScope } from './review-client';
-import { countsSummary, runSummary } from './review-model';
+import { countsSummary, loopLine, loopNeedsYou, runSummary } from './review-model';
 import { useWorkspaceReview } from './useWorkspaceReview';
 import type { ReviewNote } from './transcript-model';
 import './review.css';
@@ -50,6 +50,23 @@ export function useReviewRun(workspaceId: string, reviewId: string): ReviewRun |
 
 export type ReviewCardData = ReviewNote;
 
+/** One line of the two agents talking: "Codex asked Claude: …", "Claude answered Codex: …". */
+export function ReviewExchange({ text, id }: { text: string; id: string }) {
+  const [, who = '', said = text] = /^(.+? (?:asked|answered) [^:]+): ([\s\S]*)$/.exec(text) || [];
+  return <div className="review-exchange" role="note" data-message-id={id}>
+    <Icon name="ask" size={12}/>
+    {who ? <><b>{who}:</b><span title={said}>{said}</span></> : <span>{text}</span>}
+  </div>;
+}
+
+/** A review loop that stopped to ask the person, with the way to its findings. */
+export function ReviewAlert({ text, id, note }: { text: string; id: string; note?: ReviewNote }) {
+  return <div className="review-alert" role="note" data-message-id={id}>
+    <Icon name="bell" size={13}/><span><b>Review needs you.</b> {text}</span>
+    {note?.workspace && <button type="button" onClick={() => showReview({ collectionId: note.workspace, reviewId: note.review })}>Open review</button>}
+  </div>;
+}
+
 /**
  * A review in the reviewed conversation: "Codex is reviewing turn 3", live
  * while it runs, then "Codex reviewed turn 3 · 2 blockers, 3 minor", with
@@ -58,12 +75,13 @@ export type ReviewCardData = ReviewNote;
  */
 export function ReviewCard({ data }: { data: ReviewCardData }) {
   const live = useReviewRun(data.workspace, data.review);
-  const run = live || { state: data.finished ? 'done' : 'running', reviewerLabel: data.reviewerLabel, scopeLabel: data.scopeLabel, blockers: data.blockers || 0, majors: data.majors || 0, minors: data.minors || 0, nits: data.nits || 0, detail: '' };
+  const run = live || { state: data.finished ? 'done' : 'running', reviewerLabel: data.reviewerLabel, scopeLabel: data.scopeLabel, blockers: data.blockers || 0, majors: data.majors || 0, minors: data.minors || 0, nits: data.nits || 0, detail: '', loop: '', phase: '', round: 1, maxRounds: 1, paused: false, stopReason: '', sourceLabel: '' };
+  const loop = loopLine(run), needsYou = loopNeedsYou(run);
   const running = run.state === 'running', failed = run.state === 'failed';
   const findings = run.blockers + run.majors + run.minors + run.nits;
-  return <div className={`review-card is-${run.state}${run.blockers ? ' has-blockers' : ''}`} role="group" aria-label={`${run.reviewerLabel} review`} data-review={data.review}>
+  return <div className={`review-card is-${run.state}${run.blockers ? ' has-blockers' : ''}${needsYou ? ' needs-you' : ''}`} role="group" aria-label={`${run.reviewerLabel} review`} data-review={data.review}>
     <span className="review-card-icon" aria-hidden="true">{running ? <LiveIndicator tone="busy"/> : <Icon name={failed ? 'alert' : run.blockers ? 'alert' : 'check'} size={14}/>}</span>
-    <span className="review-card-text" role="status" aria-live="polite">{runSummary(run)}</span>
+    <span className="review-card-text" role="status" aria-live="polite">{runSummary(run)}{loop && <small className="review-card-loop">{loop}</small>}</span>
     {!running && !failed && findings > 0 && <span className="review-card-counts" aria-hidden="true">
       {run.blockers > 0 && <span className="review-severity sev-blocker">{run.blockers}</span>}
       {run.majors > 0 && <span className="review-severity sev-major">{run.majors}</span>}
