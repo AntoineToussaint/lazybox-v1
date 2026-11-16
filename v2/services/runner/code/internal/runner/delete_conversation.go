@@ -108,6 +108,10 @@ func (b *Bench) purgeConversation(ids []string) error {
 		if err := b.Attachments.Delete(id); err != nil {
 			return err
 		}
+		// Full-output files hold the conversation's unredacted command output.
+		if err := b.removeOutput(id); err != nil {
+			return err
+		}
 	}
 	return nil
 }

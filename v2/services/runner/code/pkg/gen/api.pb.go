@@ -5784,9 +5784,11 @@ func (x *PublishRequest) GetData() []byte {
 }
 
 type FinishPipeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CommandId     string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
-	CaptureError  string                 `protobuf:"bytes,2,opt,name=capture_error,json=captureError,proto3" json:"capture_error,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	CommandId    string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	CaptureError string                 `protobuf:"bytes,2,opt,name=capture_error,json=captureError,proto3" json:"capture_error,omitempty"`
+	// What a `lazybox run` gave its agent. Absent for a plain pipe (`lazybox log`).
+	Report        *CommandReport `protobuf:"bytes,3,opt,name=report,proto3" json:"report,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5835,6 +5837,96 @@ func (x *FinishPipeRequest) GetCaptureError() string {
 	return ""
 }
 
+func (x *FinishPipeRequest) GetReport() *CommandReport {
+	if x != nil {
+		return x.Report
+	}
+	return nil
+}
+
+// CommandReport is what a `lazybox run` gave the agent compared with what the
+// command printed, so the console can label the run and telemetry can measure it.
+type CommandReport struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The command's own exit status, which a pipe's capture cannot observe.
+	ExitCode int32 `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// Everything the command printed, stdout and stderr.
+	OutputBytes uint64 `protobuf:"varint,2,opt,name=output_bytes,json=outputBytes,proto3" json:"output_bytes,omitempty"`
+	// The size of the view the agent received.
+	AgentBytes uint64 `protobuf:"varint,3,opt,name=agent_bytes,json=agentBytes,proto3" json:"agent_bytes,omitempty"`
+	// The gortk filter that built the view: "passthrough" when none matched, "raw" for --raw.
+	Filter string `protobuf:"bytes,4,opt,name=filter,proto3" json:"filter,omitempty"`
+	// The file holding the full output; empty when it could not be saved.
+	OutputPath    string `protobuf:"bytes,5,opt,name=output_path,json=outputPath,proto3" json:"output_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandReport) Reset() {
+	*x = CommandReport{}
+	mi := &file_api_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandReport) ProtoMessage() {}
+
+func (x *CommandReport) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandReport.ProtoReflect.Descriptor instead.
+func (*CommandReport) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *CommandReport) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *CommandReport) GetOutputBytes() uint64 {
+	if x != nil {
+		return x.OutputBytes
+	}
+	return 0
+}
+
+func (x *CommandReport) GetAgentBytes() uint64 {
+	if x != nil {
+		return x.AgentBytes
+	}
+	return 0
+}
+
+func (x *CommandReport) GetFilter() string {
+	if x != nil {
+		return x.Filter
+	}
+	return ""
+}
+
+func (x *CommandReport) GetOutputPath() string {
+	if x != nil {
+		return x.OutputPath
+	}
+	return ""
+}
+
 type CommandStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -5847,13 +5939,14 @@ type CommandStatus struct {
 	Signal        string                 `protobuf:"bytes,8,opt,name=signal,proto3" json:"signal,omitempty"`
 	CaptureError  string                 `protobuf:"bytes,9,opt,name=capture_error,json=captureError,proto3" json:"capture_error,omitempty"`
 	Argv          []string               `protobuf:"bytes,10,rep,name=argv,proto3" json:"argv,omitempty"`
+	Report        *CommandReport         `protobuf:"bytes,11,opt,name=report,proto3" json:"report,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CommandStatus) Reset() {
 	*x = CommandStatus{}
-	mi := &file_api_proto_msgTypes[79]
+	mi := &file_api_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5865,7 +5958,7 @@ func (x *CommandStatus) String() string {
 func (*CommandStatus) ProtoMessage() {}
 
 func (x *CommandStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[79]
+	mi := &file_api_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5878,7 +5971,7 @@ func (x *CommandStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandStatus.ProtoReflect.Descriptor instead.
 func (*CommandStatus) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{79}
+	return file_api_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *CommandStatus) GetId() string {
@@ -5951,6 +6044,13 @@ func (x *CommandStatus) GetArgv() []string {
 	return nil
 }
 
+func (x *CommandStatus) GetReport() *CommandReport {
+	if x != nil {
+		return x.Report
+	}
+	return nil
+}
+
 type ListCommandsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
@@ -5960,7 +6060,7 @@ type ListCommandsRequest struct {
 
 func (x *ListCommandsRequest) Reset() {
 	*x = ListCommandsRequest{}
-	mi := &file_api_proto_msgTypes[80]
+	mi := &file_api_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5972,7 +6072,7 @@ func (x *ListCommandsRequest) String() string {
 func (*ListCommandsRequest) ProtoMessage() {}
 
 func (x *ListCommandsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[80]
+	mi := &file_api_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5985,7 +6085,7 @@ func (x *ListCommandsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommandsRequest.ProtoReflect.Descriptor instead.
 func (*ListCommandsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{80}
+	return file_api_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *ListCommandsRequest) GetSessionId() string {
@@ -6004,7 +6104,7 @@ type ListCommandsResponse struct {
 
 func (x *ListCommandsResponse) Reset() {
 	*x = ListCommandsResponse{}
-	mi := &file_api_proto_msgTypes[81]
+	mi := &file_api_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6016,7 +6116,7 @@ func (x *ListCommandsResponse) String() string {
 func (*ListCommandsResponse) ProtoMessage() {}
 
 func (x *ListCommandsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[81]
+	mi := &file_api_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6029,7 +6129,7 @@ func (x *ListCommandsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommandsResponse.ProtoReflect.Descriptor instead.
 func (*ListCommandsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{81}
+	return file_api_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *ListCommandsResponse) GetCommands() []*CommandStatus {
@@ -6050,7 +6150,7 @@ type ReadCommandRequest struct {
 
 func (x *ReadCommandRequest) Reset() {
 	*x = ReadCommandRequest{}
-	mi := &file_api_proto_msgTypes[82]
+	mi := &file_api_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6062,7 +6162,7 @@ func (x *ReadCommandRequest) String() string {
 func (*ReadCommandRequest) ProtoMessage() {}
 
 func (x *ReadCommandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[82]
+	mi := &file_api_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6075,7 +6175,7 @@ func (x *ReadCommandRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadCommandRequest.ProtoReflect.Descriptor instead.
 func (*ReadCommandRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{82}
+	return file_api_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *ReadCommandRequest) GetCommandId() string {
@@ -6110,7 +6210,7 @@ type ReadCommandResponse struct {
 
 func (x *ReadCommandResponse) Reset() {
 	*x = ReadCommandResponse{}
-	mi := &file_api_proto_msgTypes[83]
+	mi := &file_api_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6122,7 +6222,7 @@ func (x *ReadCommandResponse) String() string {
 func (*ReadCommandResponse) ProtoMessage() {}
 
 func (x *ReadCommandResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[83]
+	mi := &file_api_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6135,7 +6235,7 @@ func (x *ReadCommandResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadCommandResponse.ProtoReflect.Descriptor instead.
 func (*ReadCommandResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{83}
+	return file_api_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *ReadCommandResponse) GetData() []byte {
@@ -6169,7 +6269,7 @@ type WatchOutputRequest struct {
 
 func (x *WatchOutputRequest) Reset() {
 	*x = WatchOutputRequest{}
-	mi := &file_api_proto_msgTypes[84]
+	mi := &file_api_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6181,7 +6281,7 @@ func (x *WatchOutputRequest) String() string {
 func (*WatchOutputRequest) ProtoMessage() {}
 
 func (x *WatchOutputRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[84]
+	mi := &file_api_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6194,7 +6294,7 @@ func (x *WatchOutputRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchOutputRequest.ProtoReflect.Descriptor instead.
 func (*WatchOutputRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{84}
+	return file_api_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *WatchOutputRequest) GetCommandId() string {
@@ -6226,7 +6326,7 @@ type OutputEvent struct {
 
 func (x *OutputEvent) Reset() {
 	*x = OutputEvent{}
-	mi := &file_api_proto_msgTypes[85]
+	mi := &file_api_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6238,7 +6338,7 @@ func (x *OutputEvent) String() string {
 func (*OutputEvent) ProtoMessage() {}
 
 func (x *OutputEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[85]
+	mi := &file_api_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6251,7 +6351,7 @@ func (x *OutputEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutputEvent.ProtoReflect.Descriptor instead.
 func (*OutputEvent) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{85}
+	return file_api_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *OutputEvent) GetCursor() uint64 {
@@ -6311,7 +6411,7 @@ type VersionRequest struct {
 
 func (x *VersionRequest) Reset() {
 	*x = VersionRequest{}
-	mi := &file_api_proto_msgTypes[86]
+	mi := &file_api_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6323,7 +6423,7 @@ func (x *VersionRequest) String() string {
 func (*VersionRequest) ProtoMessage() {}
 
 func (x *VersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[86]
+	mi := &file_api_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6336,7 +6436,7 @@ func (x *VersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionRequest.ProtoReflect.Descriptor instead.
 func (*VersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{86}
+	return file_api_proto_rawDescGZIP(), []int{87}
 }
 
 type VersionResponse struct {
@@ -6348,7 +6448,7 @@ type VersionResponse struct {
 
 func (x *VersionResponse) Reset() {
 	*x = VersionResponse{}
-	mi := &file_api_proto_msgTypes[87]
+	mi := &file_api_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6360,7 +6460,7 @@ func (x *VersionResponse) String() string {
 func (*VersionResponse) ProtoMessage() {}
 
 func (x *VersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[87]
+	mi := &file_api_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6373,7 +6473,7 @@ func (x *VersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionResponse.ProtoReflect.Descriptor instead.
 func (*VersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{87}
+	return file_api_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *VersionResponse) GetVersion() string {
@@ -6393,7 +6493,7 @@ type GetGitHubConnectionRequest struct {
 
 func (x *GetGitHubConnectionRequest) Reset() {
 	*x = GetGitHubConnectionRequest{}
-	mi := &file_api_proto_msgTypes[88]
+	mi := &file_api_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6405,7 +6505,7 @@ func (x *GetGitHubConnectionRequest) String() string {
 func (*GetGitHubConnectionRequest) ProtoMessage() {}
 
 func (x *GetGitHubConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[88]
+	mi := &file_api_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6418,7 +6518,7 @@ func (x *GetGitHubConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGitHubConnectionRequest.ProtoReflect.Descriptor instead.
 func (*GetGitHubConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{88}
+	return file_api_proto_rawDescGZIP(), []int{89}
 }
 
 type ListRepositoryDiscoveryRequest struct {
@@ -6429,7 +6529,7 @@ type ListRepositoryDiscoveryRequest struct {
 
 func (x *ListRepositoryDiscoveryRequest) Reset() {
 	*x = ListRepositoryDiscoveryRequest{}
-	mi := &file_api_proto_msgTypes[89]
+	mi := &file_api_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6441,7 +6541,7 @@ func (x *ListRepositoryDiscoveryRequest) String() string {
 func (*ListRepositoryDiscoveryRequest) ProtoMessage() {}
 
 func (x *ListRepositoryDiscoveryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[89]
+	mi := &file_api_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6454,7 +6554,7 @@ func (x *ListRepositoryDiscoveryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRepositoryDiscoveryRequest.ProtoReflect.Descriptor instead.
 func (*ListRepositoryDiscoveryRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{89}
+	return file_api_proto_rawDescGZIP(), []int{90}
 }
 
 type ScanRepositoryRootRequest struct {
@@ -6466,7 +6566,7 @@ type ScanRepositoryRootRequest struct {
 
 func (x *ScanRepositoryRootRequest) Reset() {
 	*x = ScanRepositoryRootRequest{}
-	mi := &file_api_proto_msgTypes[90]
+	mi := &file_api_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6478,7 +6578,7 @@ func (x *ScanRepositoryRootRequest) String() string {
 func (*ScanRepositoryRootRequest) ProtoMessage() {}
 
 func (x *ScanRepositoryRootRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[90]
+	mi := &file_api_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6491,7 +6591,7 @@ func (x *ScanRepositoryRootRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanRepositoryRootRequest.ProtoReflect.Descriptor instead.
 func (*ScanRepositoryRootRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{90}
+	return file_api_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *ScanRepositoryRootRequest) GetPath() string {
@@ -6512,7 +6612,7 @@ type DiscoveredRepository struct {
 
 func (x *DiscoveredRepository) Reset() {
 	*x = DiscoveredRepository{}
-	mi := &file_api_proto_msgTypes[91]
+	mi := &file_api_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6524,7 +6624,7 @@ func (x *DiscoveredRepository) String() string {
 func (*DiscoveredRepository) ProtoMessage() {}
 
 func (x *DiscoveredRepository) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[91]
+	mi := &file_api_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6537,7 +6637,7 @@ func (x *DiscoveredRepository) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoveredRepository.ProtoReflect.Descriptor instead.
 func (*DiscoveredRepository) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{91}
+	return file_api_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *DiscoveredRepository) GetPath() string {
@@ -6574,7 +6674,7 @@ type RepositorySearchRoot struct {
 
 func (x *RepositorySearchRoot) Reset() {
 	*x = RepositorySearchRoot{}
-	mi := &file_api_proto_msgTypes[92]
+	mi := &file_api_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6586,7 +6686,7 @@ func (x *RepositorySearchRoot) String() string {
 func (*RepositorySearchRoot) ProtoMessage() {}
 
 func (x *RepositorySearchRoot) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[92]
+	mi := &file_api_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6599,7 +6699,7 @@ func (x *RepositorySearchRoot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepositorySearchRoot.ProtoReflect.Descriptor instead.
 func (*RepositorySearchRoot) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{92}
+	return file_api_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *RepositorySearchRoot) GetPath() string {
@@ -6646,7 +6746,7 @@ type RepositoryDiscovery struct {
 
 func (x *RepositoryDiscovery) Reset() {
 	*x = RepositoryDiscovery{}
-	mi := &file_api_proto_msgTypes[93]
+	mi := &file_api_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6658,7 +6758,7 @@ func (x *RepositoryDiscovery) String() string {
 func (*RepositoryDiscovery) ProtoMessage() {}
 
 func (x *RepositoryDiscovery) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[93]
+	mi := &file_api_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6671,7 +6771,7 @@ func (x *RepositoryDiscovery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepositoryDiscovery.ProtoReflect.Descriptor instead.
 func (*RepositoryDiscovery) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{93}
+	return file_api_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *RepositoryDiscovery) GetRoots() []*RepositorySearchRoot {
@@ -6690,7 +6790,7 @@ type ConnectGitHubPersonalTokenRequest struct {
 
 func (x *ConnectGitHubPersonalTokenRequest) Reset() {
 	*x = ConnectGitHubPersonalTokenRequest{}
-	mi := &file_api_proto_msgTypes[94]
+	mi := &file_api_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6702,7 +6802,7 @@ func (x *ConnectGitHubPersonalTokenRequest) String() string {
 func (*ConnectGitHubPersonalTokenRequest) ProtoMessage() {}
 
 func (x *ConnectGitHubPersonalTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[94]
+	mi := &file_api_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6715,7 +6815,7 @@ func (x *ConnectGitHubPersonalTokenRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ConnectGitHubPersonalTokenRequest.ProtoReflect.Descriptor instead.
 func (*ConnectGitHubPersonalTokenRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{94}
+	return file_api_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *ConnectGitHubPersonalTokenRequest) GetToken() string {
@@ -6735,7 +6835,7 @@ type ConfigureGitHubAppRequest struct {
 
 func (x *ConfigureGitHubAppRequest) Reset() {
 	*x = ConfigureGitHubAppRequest{}
-	mi := &file_api_proto_msgTypes[95]
+	mi := &file_api_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6747,7 +6847,7 @@ func (x *ConfigureGitHubAppRequest) String() string {
 func (*ConfigureGitHubAppRequest) ProtoMessage() {}
 
 func (x *ConfigureGitHubAppRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[95]
+	mi := &file_api_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6760,7 +6860,7 @@ func (x *ConfigureGitHubAppRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigureGitHubAppRequest.ProtoReflect.Descriptor instead.
 func (*ConfigureGitHubAppRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{95}
+	return file_api_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *ConfigureGitHubAppRequest) GetClientId() string {
@@ -6794,7 +6894,7 @@ type GitHubConnection struct {
 
 func (x *GitHubConnection) Reset() {
 	*x = GitHubConnection{}
-	mi := &file_api_proto_msgTypes[96]
+	mi := &file_api_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6806,7 +6906,7 @@ func (x *GitHubConnection) String() string {
 func (*GitHubConnection) ProtoMessage() {}
 
 func (x *GitHubConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[96]
+	mi := &file_api_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6819,7 +6919,7 @@ func (x *GitHubConnection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubConnection.ProtoReflect.Descriptor instead.
 func (*GitHubConnection) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{96}
+	return file_api_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *GitHubConnection) GetState() string {
@@ -6894,7 +6994,7 @@ type BeginGitHubSignInRequest struct {
 
 func (x *BeginGitHubSignInRequest) Reset() {
 	*x = BeginGitHubSignInRequest{}
-	mi := &file_api_proto_msgTypes[97]
+	mi := &file_api_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6906,7 +7006,7 @@ func (x *BeginGitHubSignInRequest) String() string {
 func (*BeginGitHubSignInRequest) ProtoMessage() {}
 
 func (x *BeginGitHubSignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[97]
+	mi := &file_api_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6919,7 +7019,7 @@ func (x *BeginGitHubSignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginGitHubSignInRequest.ProtoReflect.Descriptor instead.
 func (*BeginGitHubSignInRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{97}
+	return file_api_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *BeginGitHubSignInRequest) GetRequestKey() string {
@@ -6938,7 +7038,7 @@ type GitHubSignInRequest struct {
 
 func (x *GitHubSignInRequest) Reset() {
 	*x = GitHubSignInRequest{}
-	mi := &file_api_proto_msgTypes[98]
+	mi := &file_api_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6950,7 +7050,7 @@ func (x *GitHubSignInRequest) String() string {
 func (*GitHubSignInRequest) ProtoMessage() {}
 
 func (x *GitHubSignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[98]
+	mi := &file_api_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6963,7 +7063,7 @@ func (x *GitHubSignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubSignInRequest.ProtoReflect.Descriptor instead.
 func (*GitHubSignInRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{98}
+	return file_api_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *GitHubSignInRequest) GetId() string {
@@ -6987,7 +7087,7 @@ type GitHubSignIn struct {
 
 func (x *GitHubSignIn) Reset() {
 	*x = GitHubSignIn{}
-	mi := &file_api_proto_msgTypes[99]
+	mi := &file_api_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6999,7 +7099,7 @@ func (x *GitHubSignIn) String() string {
 func (*GitHubSignIn) ProtoMessage() {}
 
 func (x *GitHubSignIn) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[99]
+	mi := &file_api_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7012,7 +7112,7 @@ func (x *GitHubSignIn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubSignIn.ProtoReflect.Descriptor instead.
 func (*GitHubSignIn) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{99}
+	return file_api_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *GitHubSignIn) GetId() string {
@@ -7066,7 +7166,7 @@ type ListGitHubInstallationsRequest struct {
 
 func (x *ListGitHubInstallationsRequest) Reset() {
 	*x = ListGitHubInstallationsRequest{}
-	mi := &file_api_proto_msgTypes[100]
+	mi := &file_api_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7078,7 +7178,7 @@ func (x *ListGitHubInstallationsRequest) String() string {
 func (*ListGitHubInstallationsRequest) ProtoMessage() {}
 
 func (x *ListGitHubInstallationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[100]
+	mi := &file_api_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7091,7 +7191,7 @@ func (x *ListGitHubInstallationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitHubInstallationsRequest.ProtoReflect.Descriptor instead.
 func (*ListGitHubInstallationsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{100}
+	return file_api_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *ListGitHubInstallationsRequest) GetPage() uint32 {
@@ -7112,7 +7212,7 @@ type GitHubInstallation struct {
 
 func (x *GitHubInstallation) Reset() {
 	*x = GitHubInstallation{}
-	mi := &file_api_proto_msgTypes[101]
+	mi := &file_api_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7124,7 +7224,7 @@ func (x *GitHubInstallation) String() string {
 func (*GitHubInstallation) ProtoMessage() {}
 
 func (x *GitHubInstallation) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[101]
+	mi := &file_api_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7137,7 +7237,7 @@ func (x *GitHubInstallation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubInstallation.ProtoReflect.Descriptor instead.
 func (*GitHubInstallation) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{101}
+	return file_api_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *GitHubInstallation) GetId() int64 {
@@ -7171,7 +7271,7 @@ type ListGitHubInstallationsResponse struct {
 
 func (x *ListGitHubInstallationsResponse) Reset() {
 	*x = ListGitHubInstallationsResponse{}
-	mi := &file_api_proto_msgTypes[102]
+	mi := &file_api_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7183,7 +7283,7 @@ func (x *ListGitHubInstallationsResponse) String() string {
 func (*ListGitHubInstallationsResponse) ProtoMessage() {}
 
 func (x *ListGitHubInstallationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[102]
+	mi := &file_api_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7196,7 +7296,7 @@ func (x *ListGitHubInstallationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitHubInstallationsResponse.ProtoReflect.Descriptor instead.
 func (*ListGitHubInstallationsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{102}
+	return file_api_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *ListGitHubInstallationsResponse) GetInstallations() []*GitHubInstallation {
@@ -7223,7 +7323,7 @@ type ListGitHubRepositoriesRequest struct {
 
 func (x *ListGitHubRepositoriesRequest) Reset() {
 	*x = ListGitHubRepositoriesRequest{}
-	mi := &file_api_proto_msgTypes[103]
+	mi := &file_api_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7235,7 +7335,7 @@ func (x *ListGitHubRepositoriesRequest) String() string {
 func (*ListGitHubRepositoriesRequest) ProtoMessage() {}
 
 func (x *ListGitHubRepositoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[103]
+	mi := &file_api_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7248,7 +7348,7 @@ func (x *ListGitHubRepositoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitHubRepositoriesRequest.ProtoReflect.Descriptor instead.
 func (*ListGitHubRepositoriesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{103}
+	return file_api_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *ListGitHubRepositoriesRequest) GetInstallationId() int64 {
@@ -7281,7 +7381,7 @@ type GitHubRepository struct {
 
 func (x *GitHubRepository) Reset() {
 	*x = GitHubRepository{}
-	mi := &file_api_proto_msgTypes[104]
+	mi := &file_api_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7293,7 +7393,7 @@ func (x *GitHubRepository) String() string {
 func (*GitHubRepository) ProtoMessage() {}
 
 func (x *GitHubRepository) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[104]
+	mi := &file_api_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7306,7 +7406,7 @@ func (x *GitHubRepository) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubRepository.ProtoReflect.Descriptor instead.
 func (*GitHubRepository) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{104}
+	return file_api_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *GitHubRepository) GetId() int64 {
@@ -7375,7 +7475,7 @@ type ListGitHubRepositoriesResponse struct {
 
 func (x *ListGitHubRepositoriesResponse) Reset() {
 	*x = ListGitHubRepositoriesResponse{}
-	mi := &file_api_proto_msgTypes[105]
+	mi := &file_api_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7387,7 +7487,7 @@ func (x *ListGitHubRepositoriesResponse) String() string {
 func (*ListGitHubRepositoriesResponse) ProtoMessage() {}
 
 func (x *ListGitHubRepositoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[105]
+	mi := &file_api_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7400,7 +7500,7 @@ func (x *ListGitHubRepositoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitHubRepositoriesResponse.ProtoReflect.Descriptor instead.
 func (*ListGitHubRepositoriesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{105}
+	return file_api_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *ListGitHubRepositoriesResponse) GetRepositories() []*GitHubRepository {
@@ -7426,7 +7526,7 @@ type ImportGitHubRepositoryRequest struct {
 
 func (x *ImportGitHubRepositoryRequest) Reset() {
 	*x = ImportGitHubRepositoryRequest{}
-	mi := &file_api_proto_msgTypes[106]
+	mi := &file_api_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7438,7 +7538,7 @@ func (x *ImportGitHubRepositoryRequest) String() string {
 func (*ImportGitHubRepositoryRequest) ProtoMessage() {}
 
 func (x *ImportGitHubRepositoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[106]
+	mi := &file_api_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7451,7 +7551,7 @@ func (x *ImportGitHubRepositoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportGitHubRepositoryRequest.ProtoReflect.Descriptor instead.
 func (*ImportGitHubRepositoryRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{106}
+	return file_api_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *ImportGitHubRepositoryRequest) GetRepositoryId() int64 {
@@ -7470,7 +7570,7 @@ type ImportGitHubRepositoryResponse struct {
 
 func (x *ImportGitHubRepositoryResponse) Reset() {
 	*x = ImportGitHubRepositoryResponse{}
-	mi := &file_api_proto_msgTypes[107]
+	mi := &file_api_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7482,7 +7582,7 @@ func (x *ImportGitHubRepositoryResponse) String() string {
 func (*ImportGitHubRepositoryResponse) ProtoMessage() {}
 
 func (x *ImportGitHubRepositoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[107]
+	mi := &file_api_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7495,7 +7595,7 @@ func (x *ImportGitHubRepositoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportGitHubRepositoryResponse.ProtoReflect.Descriptor instead.
 func (*ImportGitHubRepositoryResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{107}
+	return file_api_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *ImportGitHubRepositoryResponse) GetRepository() *Repository {
@@ -7515,7 +7615,7 @@ type ListGitHubItemsRequest struct {
 
 func (x *ListGitHubItemsRequest) Reset() {
 	*x = ListGitHubItemsRequest{}
-	mi := &file_api_proto_msgTypes[108]
+	mi := &file_api_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7527,7 +7627,7 @@ func (x *ListGitHubItemsRequest) String() string {
 func (*ListGitHubItemsRequest) ProtoMessage() {}
 
 func (x *ListGitHubItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[108]
+	mi := &file_api_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7540,7 +7640,7 @@ func (x *ListGitHubItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitHubItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListGitHubItemsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{108}
+	return file_api_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *ListGitHubItemsRequest) GetRepositoryId() int64 {
@@ -7573,7 +7673,7 @@ type GitHubItem struct {
 
 func (x *GitHubItem) Reset() {
 	*x = GitHubItem{}
-	mi := &file_api_proto_msgTypes[109]
+	mi := &file_api_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7585,7 +7685,7 @@ func (x *GitHubItem) String() string {
 func (*GitHubItem) ProtoMessage() {}
 
 func (x *GitHubItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[109]
+	mi := &file_api_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7598,7 +7698,7 @@ func (x *GitHubItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubItem.ProtoReflect.Descriptor instead.
 func (*GitHubItem) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{109}
+	return file_api_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *GitHubItem) GetId() int64 {
@@ -7667,7 +7767,7 @@ type ListGitHubItemsResponse struct {
 
 func (x *ListGitHubItemsResponse) Reset() {
 	*x = ListGitHubItemsResponse{}
-	mi := &file_api_proto_msgTypes[110]
+	mi := &file_api_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7679,7 +7779,7 @@ func (x *ListGitHubItemsResponse) String() string {
 func (*ListGitHubItemsResponse) ProtoMessage() {}
 
 func (x *ListGitHubItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[110]
+	mi := &file_api_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7692,7 +7792,7 @@ func (x *ListGitHubItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitHubItemsResponse.ProtoReflect.Descriptor instead.
 func (*ListGitHubItemsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{110}
+	return file_api_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *ListGitHubItemsResponse) GetItems() []*GitHubItem {
@@ -7721,7 +7821,7 @@ type WorkspaceDeletionPreview struct {
 
 func (x *WorkspaceDeletionPreview) Reset() {
 	*x = WorkspaceDeletionPreview{}
-	mi := &file_api_proto_msgTypes[111]
+	mi := &file_api_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7733,7 +7833,7 @@ func (x *WorkspaceDeletionPreview) String() string {
 func (*WorkspaceDeletionPreview) ProtoMessage() {}
 
 func (x *WorkspaceDeletionPreview) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[111]
+	mi := &file_api_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7746,7 +7846,7 @@ func (x *WorkspaceDeletionPreview) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceDeletionPreview.ProtoReflect.Descriptor instead.
 func (*WorkspaceDeletionPreview) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{111}
+	return file_api_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *WorkspaceDeletionPreview) GetActiveSessionIds() []string {
@@ -7789,7 +7889,7 @@ type DeleteWorkspaceRequest struct {
 
 func (x *DeleteWorkspaceRequest) Reset() {
 	*x = DeleteWorkspaceRequest{}
-	mi := &file_api_proto_msgTypes[112]
+	mi := &file_api_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7801,7 +7901,7 @@ func (x *DeleteWorkspaceRequest) String() string {
 func (*DeleteWorkspaceRequest) ProtoMessage() {}
 
 func (x *DeleteWorkspaceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[112]
+	mi := &file_api_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7814,7 +7914,7 @@ func (x *DeleteWorkspaceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWorkspaceRequest.ProtoReflect.Descriptor instead.
 func (*DeleteWorkspaceRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{112}
+	return file_api_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *DeleteWorkspaceRequest) GetCollectionId() string {
@@ -7856,7 +7956,7 @@ type WorkspaceFileRequest struct {
 
 func (x *WorkspaceFileRequest) Reset() {
 	*x = WorkspaceFileRequest{}
-	mi := &file_api_proto_msgTypes[113]
+	mi := &file_api_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7868,7 +7968,7 @@ func (x *WorkspaceFileRequest) String() string {
 func (*WorkspaceFileRequest) ProtoMessage() {}
 
 func (x *WorkspaceFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[113]
+	mi := &file_api_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7881,7 +7981,7 @@ func (x *WorkspaceFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceFileRequest.ProtoReflect.Descriptor instead.
 func (*WorkspaceFileRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{113}
+	return file_api_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *WorkspaceFileRequest) GetCollectionId() string {
@@ -7909,7 +8009,7 @@ type WorkspaceDirectoryEntry struct {
 
 func (x *WorkspaceDirectoryEntry) Reset() {
 	*x = WorkspaceDirectoryEntry{}
-	mi := &file_api_proto_msgTypes[114]
+	mi := &file_api_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7921,7 +8021,7 @@ func (x *WorkspaceDirectoryEntry) String() string {
 func (*WorkspaceDirectoryEntry) ProtoMessage() {}
 
 func (x *WorkspaceDirectoryEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[114]
+	mi := &file_api_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7934,7 +8034,7 @@ func (x *WorkspaceDirectoryEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceDirectoryEntry.ProtoReflect.Descriptor instead.
 func (*WorkspaceDirectoryEntry) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{114}
+	return file_api_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *WorkspaceDirectoryEntry) GetName() string {
@@ -7973,7 +8073,7 @@ type WorkspaceFile struct {
 
 func (x *WorkspaceFile) Reset() {
 	*x = WorkspaceFile{}
-	mi := &file_api_proto_msgTypes[115]
+	mi := &file_api_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7985,7 +8085,7 @@ func (x *WorkspaceFile) String() string {
 func (*WorkspaceFile) ProtoMessage() {}
 
 func (x *WorkspaceFile) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[115]
+	mi := &file_api_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7998,7 +8098,7 @@ func (x *WorkspaceFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceFile.ProtoReflect.Descriptor instead.
 func (*WorkspaceFile) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{115}
+	return file_api_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *WorkspaceFile) GetPath() string {
@@ -8062,7 +8162,7 @@ type SaveWorkspaceFileRequest struct {
 
 func (x *SaveWorkspaceFileRequest) Reset() {
 	*x = SaveWorkspaceFileRequest{}
-	mi := &file_api_proto_msgTypes[116]
+	mi := &file_api_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8074,7 +8174,7 @@ func (x *SaveWorkspaceFileRequest) String() string {
 func (*SaveWorkspaceFileRequest) ProtoMessage() {}
 
 func (x *SaveWorkspaceFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[116]
+	mi := &file_api_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8087,7 +8187,7 @@ func (x *SaveWorkspaceFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveWorkspaceFileRequest.ProtoReflect.Descriptor instead.
 func (*SaveWorkspaceFileRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{116}
+	return file_api_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *SaveWorkspaceFileRequest) GetCollectionId() string {
@@ -8128,7 +8228,7 @@ type DeleteConversationRequest struct {
 
 func (x *DeleteConversationRequest) Reset() {
 	*x = DeleteConversationRequest{}
-	mi := &file_api_proto_msgTypes[117]
+	mi := &file_api_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8140,7 +8240,7 @@ func (x *DeleteConversationRequest) String() string {
 func (*DeleteConversationRequest) ProtoMessage() {}
 
 func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[117]
+	mi := &file_api_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8153,7 +8253,7 @@ func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteConversationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteConversationRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{117}
+	return file_api_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *DeleteConversationRequest) GetSessionId() string {
@@ -8178,7 +8278,7 @@ type DeleteConversationResponse struct {
 
 func (x *DeleteConversationResponse) Reset() {
 	*x = DeleteConversationResponse{}
-	mi := &file_api_proto_msgTypes[118]
+	mi := &file_api_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8190,7 +8290,7 @@ func (x *DeleteConversationResponse) String() string {
 func (*DeleteConversationResponse) ProtoMessage() {}
 
 func (x *DeleteConversationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[118]
+	mi := &file_api_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8203,7 +8303,7 @@ func (x *DeleteConversationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteConversationResponse.ProtoReflect.Descriptor instead.
 func (*DeleteConversationResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{118}
+	return file_api_proto_rawDescGZIP(), []int{119}
 }
 
 type RemoveRepositoryRequest struct {
@@ -8216,7 +8316,7 @@ type RemoveRepositoryRequest struct {
 
 func (x *RemoveRepositoryRequest) Reset() {
 	*x = RemoveRepositoryRequest{}
-	mi := &file_api_proto_msgTypes[119]
+	mi := &file_api_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8228,7 +8328,7 @@ func (x *RemoveRepositoryRequest) String() string {
 func (*RemoveRepositoryRequest) ProtoMessage() {}
 
 func (x *RemoveRepositoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[119]
+	mi := &file_api_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8241,7 +8341,7 @@ func (x *RemoveRepositoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRepositoryRequest.ProtoReflect.Descriptor instead.
 func (*RemoveRepositoryRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{119}
+	return file_api_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *RemoveRepositoryRequest) GetRepositoryId() string {
@@ -8267,7 +8367,7 @@ type GetRepositoryCatalogRequest struct {
 
 func (x *GetRepositoryCatalogRequest) Reset() {
 	*x = GetRepositoryCatalogRequest{}
-	mi := &file_api_proto_msgTypes[120]
+	mi := &file_api_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8279,7 +8379,7 @@ func (x *GetRepositoryCatalogRequest) String() string {
 func (*GetRepositoryCatalogRequest) ProtoMessage() {}
 
 func (x *GetRepositoryCatalogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[120]
+	mi := &file_api_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8292,7 +8392,7 @@ func (x *GetRepositoryCatalogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRepositoryCatalogRequest.ProtoReflect.Descriptor instead.
 func (*GetRepositoryCatalogRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{120}
+	return file_api_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *GetRepositoryCatalogRequest) GetRefresh() bool {
@@ -8313,7 +8413,7 @@ type RepositoryCatalogEntry struct {
 
 func (x *RepositoryCatalogEntry) Reset() {
 	*x = RepositoryCatalogEntry{}
-	mi := &file_api_proto_msgTypes[121]
+	mi := &file_api_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8325,7 +8425,7 @@ func (x *RepositoryCatalogEntry) String() string {
 func (*RepositoryCatalogEntry) ProtoMessage() {}
 
 func (x *RepositoryCatalogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[121]
+	mi := &file_api_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8338,7 +8438,7 @@ func (x *RepositoryCatalogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepositoryCatalogEntry.ProtoReflect.Descriptor instead.
 func (*RepositoryCatalogEntry) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{121}
+	return file_api_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *RepositoryCatalogEntry) GetIdentity() string {
@@ -8374,7 +8474,7 @@ type RepositoryCatalogSource struct {
 
 func (x *RepositoryCatalogSource) Reset() {
 	*x = RepositoryCatalogSource{}
-	mi := &file_api_proto_msgTypes[122]
+	mi := &file_api_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8386,7 +8486,7 @@ func (x *RepositoryCatalogSource) String() string {
 func (*RepositoryCatalogSource) ProtoMessage() {}
 
 func (x *RepositoryCatalogSource) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[122]
+	mi := &file_api_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8399,7 +8499,7 @@ func (x *RepositoryCatalogSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepositoryCatalogSource.ProtoReflect.Descriptor instead.
 func (*RepositoryCatalogSource) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{122}
+	return file_api_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *RepositoryCatalogSource) GetId() string {
@@ -8441,7 +8541,7 @@ type RepositoryCatalog struct {
 
 func (x *RepositoryCatalog) Reset() {
 	*x = RepositoryCatalog{}
-	mi := &file_api_proto_msgTypes[123]
+	mi := &file_api_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8453,7 +8553,7 @@ func (x *RepositoryCatalog) String() string {
 func (*RepositoryCatalog) ProtoMessage() {}
 
 func (x *RepositoryCatalog) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[123]
+	mi := &file_api_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8466,7 +8566,7 @@ func (x *RepositoryCatalog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepositoryCatalog.ProtoReflect.Descriptor instead.
 func (*RepositoryCatalog) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{123}
+	return file_api_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *RepositoryCatalog) GetEntries() []*RepositoryCatalogEntry {
@@ -8502,7 +8602,7 @@ type PrepareWorkspaceRequest struct {
 
 func (x *PrepareWorkspaceRequest) Reset() {
 	*x = PrepareWorkspaceRequest{}
-	mi := &file_api_proto_msgTypes[124]
+	mi := &file_api_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8514,7 +8614,7 @@ func (x *PrepareWorkspaceRequest) String() string {
 func (*PrepareWorkspaceRequest) ProtoMessage() {}
 
 func (x *PrepareWorkspaceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[124]
+	mi := &file_api_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8527,7 +8627,7 @@ func (x *PrepareWorkspaceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareWorkspaceRequest.ProtoReflect.Descriptor instead.
 func (*PrepareWorkspaceRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{124}
+	return file_api_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *PrepareWorkspaceRequest) GetRequestKey() string {
@@ -8569,7 +8669,7 @@ type WorkspacePreparation struct {
 
 func (x *WorkspacePreparation) Reset() {
 	*x = WorkspacePreparation{}
-	mi := &file_api_proto_msgTypes[125]
+	mi := &file_api_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8581,7 +8681,7 @@ func (x *WorkspacePreparation) String() string {
 func (*WorkspacePreparation) ProtoMessage() {}
 
 func (x *WorkspacePreparation) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[125]
+	mi := &file_api_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8594,7 +8694,7 @@ func (x *WorkspacePreparation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspacePreparation.ProtoReflect.Descriptor instead.
 func (*WorkspacePreparation) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{125}
+	return file_api_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *WorkspacePreparation) GetIdentity() string {
@@ -8632,7 +8732,7 @@ type Snippet struct {
 
 func (x *Snippet) Reset() {
 	*x = Snippet{}
-	mi := &file_api_proto_msgTypes[126]
+	mi := &file_api_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8644,7 +8744,7 @@ func (x *Snippet) String() string {
 func (*Snippet) ProtoMessage() {}
 
 func (x *Snippet) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[126]
+	mi := &file_api_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8657,7 +8757,7 @@ func (x *Snippet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Snippet.ProtoReflect.Descriptor instead.
 func (*Snippet) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{126}
+	return file_api_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *Snippet) GetKey() string {
@@ -8711,7 +8811,7 @@ type SnippetCatalog struct {
 
 func (x *SnippetCatalog) Reset() {
 	*x = SnippetCatalog{}
-	mi := &file_api_proto_msgTypes[127]
+	mi := &file_api_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8723,7 +8823,7 @@ func (x *SnippetCatalog) String() string {
 func (*SnippetCatalog) ProtoMessage() {}
 
 func (x *SnippetCatalog) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[127]
+	mi := &file_api_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8736,7 +8836,7 @@ func (x *SnippetCatalog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnippetCatalog.ProtoReflect.Descriptor instead.
 func (*SnippetCatalog) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{127}
+	return file_api_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *SnippetCatalog) GetSnippets() []*Snippet {
@@ -9273,11 +9373,20 @@ const file_api_proto_rawDesc = "" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x12\n" +
-	"\x04data\x18\x03 \x01(\fR\x04data\"W\n" +
+	"\x04data\x18\x03 \x01(\fR\x04data\"\x90\x01\n" +
 	"\x11FinishPipeRequest\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12#\n" +
-	"\rcapture_error\x18\x02 \x01(\tR\fcaptureError\"\x95\x02\n" +
+	"\rcapture_error\x18\x02 \x01(\tR\fcaptureError\x127\n" +
+	"\x06report\x18\x03 \x01(\v2\x1f.lazybox.bench.v1.CommandReportR\x06report\"\xa9\x01\n" +
+	"\rCommandReport\x12\x1b\n" +
+	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12!\n" +
+	"\foutput_bytes\x18\x02 \x01(\x04R\voutputBytes\x12\x1f\n" +
+	"\vagent_bytes\x18\x03 \x01(\x04R\n" +
+	"agentBytes\x12\x16\n" +
+	"\x06filter\x18\x04 \x01(\tR\x06filter\x12\x1f\n" +
+	"\voutput_path\x18\x05 \x01(\tR\n" +
+	"outputPath\"\xce\x02\n" +
 	"\rCommandStatus\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -9290,7 +9399,8 @@ const file_api_proto_rawDesc = "" +
 	"\x06signal\x18\b \x01(\tR\x06signal\x12#\n" +
 	"\rcapture_error\x18\t \x01(\tR\fcaptureError\x12\x12\n" +
 	"\x04argv\x18\n" +
-	" \x03(\tR\x04argvB\f\n" +
+	" \x03(\tR\x04argv\x127\n" +
+	"\x06report\x18\v \x01(\v2\x1f.lazybox.bench.v1.CommandReportR\x06reportB\f\n" +
 	"\n" +
 	"_exit_code\"4\n" +
 	"\x13ListCommandsRequest\x12\x1d\n" +
@@ -9578,7 +9688,7 @@ func file_api_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 129)
+var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 130)
 var file_api_proto_goTypes = []any{
 	(Decision)(0),                             // 0: lazybox.bench.v1.Decision
 	(*InfoRequest)(nil),                       // 1: lazybox.bench.v1.InfoRequest
@@ -9660,56 +9770,57 @@ var file_api_proto_goTypes = []any{
 	(*RegisterPipeRequest)(nil),               // 77: lazybox.bench.v1.RegisterPipeRequest
 	(*PublishRequest)(nil),                    // 78: lazybox.bench.v1.PublishRequest
 	(*FinishPipeRequest)(nil),                 // 79: lazybox.bench.v1.FinishPipeRequest
-	(*CommandStatus)(nil),                     // 80: lazybox.bench.v1.CommandStatus
-	(*ListCommandsRequest)(nil),               // 81: lazybox.bench.v1.ListCommandsRequest
-	(*ListCommandsResponse)(nil),              // 82: lazybox.bench.v1.ListCommandsResponse
-	(*ReadCommandRequest)(nil),                // 83: lazybox.bench.v1.ReadCommandRequest
-	(*ReadCommandResponse)(nil),               // 84: lazybox.bench.v1.ReadCommandResponse
-	(*WatchOutputRequest)(nil),                // 85: lazybox.bench.v1.WatchOutputRequest
-	(*OutputEvent)(nil),                       // 86: lazybox.bench.v1.OutputEvent
-	(*VersionRequest)(nil),                    // 87: lazybox.bench.v1.VersionRequest
-	(*VersionResponse)(nil),                   // 88: lazybox.bench.v1.VersionResponse
-	(*GetGitHubConnectionRequest)(nil),        // 89: lazybox.bench.v1.GetGitHubConnectionRequest
-	(*ListRepositoryDiscoveryRequest)(nil),    // 90: lazybox.bench.v1.ListRepositoryDiscoveryRequest
-	(*ScanRepositoryRootRequest)(nil),         // 91: lazybox.bench.v1.ScanRepositoryRootRequest
-	(*DiscoveredRepository)(nil),              // 92: lazybox.bench.v1.DiscoveredRepository
-	(*RepositorySearchRoot)(nil),              // 93: lazybox.bench.v1.RepositorySearchRoot
-	(*RepositoryDiscovery)(nil),               // 94: lazybox.bench.v1.RepositoryDiscovery
-	(*ConnectGitHubPersonalTokenRequest)(nil), // 95: lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
-	(*ConfigureGitHubAppRequest)(nil),         // 96: lazybox.bench.v1.ConfigureGitHubAppRequest
-	(*GitHubConnection)(nil),                  // 97: lazybox.bench.v1.GitHubConnection
-	(*BeginGitHubSignInRequest)(nil),          // 98: lazybox.bench.v1.BeginGitHubSignInRequest
-	(*GitHubSignInRequest)(nil),               // 99: lazybox.bench.v1.GitHubSignInRequest
-	(*GitHubSignIn)(nil),                      // 100: lazybox.bench.v1.GitHubSignIn
-	(*ListGitHubInstallationsRequest)(nil),    // 101: lazybox.bench.v1.ListGitHubInstallationsRequest
-	(*GitHubInstallation)(nil),                // 102: lazybox.bench.v1.GitHubInstallation
-	(*ListGitHubInstallationsResponse)(nil),   // 103: lazybox.bench.v1.ListGitHubInstallationsResponse
-	(*ListGitHubRepositoriesRequest)(nil),     // 104: lazybox.bench.v1.ListGitHubRepositoriesRequest
-	(*GitHubRepository)(nil),                  // 105: lazybox.bench.v1.GitHubRepository
-	(*ListGitHubRepositoriesResponse)(nil),    // 106: lazybox.bench.v1.ListGitHubRepositoriesResponse
-	(*ImportGitHubRepositoryRequest)(nil),     // 107: lazybox.bench.v1.ImportGitHubRepositoryRequest
-	(*ImportGitHubRepositoryResponse)(nil),    // 108: lazybox.bench.v1.ImportGitHubRepositoryResponse
-	(*ListGitHubItemsRequest)(nil),            // 109: lazybox.bench.v1.ListGitHubItemsRequest
-	(*GitHubItem)(nil),                        // 110: lazybox.bench.v1.GitHubItem
-	(*ListGitHubItemsResponse)(nil),           // 111: lazybox.bench.v1.ListGitHubItemsResponse
-	(*WorkspaceDeletionPreview)(nil),          // 112: lazybox.bench.v1.WorkspaceDeletionPreview
-	(*DeleteWorkspaceRequest)(nil),            // 113: lazybox.bench.v1.DeleteWorkspaceRequest
-	(*WorkspaceFileRequest)(nil),              // 114: lazybox.bench.v1.WorkspaceFileRequest
-	(*WorkspaceDirectoryEntry)(nil),           // 115: lazybox.bench.v1.WorkspaceDirectoryEntry
-	(*WorkspaceFile)(nil),                     // 116: lazybox.bench.v1.WorkspaceFile
-	(*SaveWorkspaceFileRequest)(nil),          // 117: lazybox.bench.v1.SaveWorkspaceFileRequest
-	(*DeleteConversationRequest)(nil),         // 118: lazybox.bench.v1.DeleteConversationRequest
-	(*DeleteConversationResponse)(nil),        // 119: lazybox.bench.v1.DeleteConversationResponse
-	(*RemoveRepositoryRequest)(nil),           // 120: lazybox.bench.v1.RemoveRepositoryRequest
-	(*GetRepositoryCatalogRequest)(nil),       // 121: lazybox.bench.v1.GetRepositoryCatalogRequest
-	(*RepositoryCatalogEntry)(nil),            // 122: lazybox.bench.v1.RepositoryCatalogEntry
-	(*RepositoryCatalogSource)(nil),           // 123: lazybox.bench.v1.RepositoryCatalogSource
-	(*RepositoryCatalog)(nil),                 // 124: lazybox.bench.v1.RepositoryCatalog
-	(*PrepareWorkspaceRequest)(nil),           // 125: lazybox.bench.v1.PrepareWorkspaceRequest
-	(*WorkspacePreparation)(nil),              // 126: lazybox.bench.v1.WorkspacePreparation
-	(*Snippet)(nil),                           // 127: lazybox.bench.v1.Snippet
-	(*SnippetCatalog)(nil),                    // 128: lazybox.bench.v1.SnippetCatalog
-	nil,                                       // 129: lazybox.bench.v1.Answer.AnswersEntry
+	(*CommandReport)(nil),                     // 80: lazybox.bench.v1.CommandReport
+	(*CommandStatus)(nil),                     // 81: lazybox.bench.v1.CommandStatus
+	(*ListCommandsRequest)(nil),               // 82: lazybox.bench.v1.ListCommandsRequest
+	(*ListCommandsResponse)(nil),              // 83: lazybox.bench.v1.ListCommandsResponse
+	(*ReadCommandRequest)(nil),                // 84: lazybox.bench.v1.ReadCommandRequest
+	(*ReadCommandResponse)(nil),               // 85: lazybox.bench.v1.ReadCommandResponse
+	(*WatchOutputRequest)(nil),                // 86: lazybox.bench.v1.WatchOutputRequest
+	(*OutputEvent)(nil),                       // 87: lazybox.bench.v1.OutputEvent
+	(*VersionRequest)(nil),                    // 88: lazybox.bench.v1.VersionRequest
+	(*VersionResponse)(nil),                   // 89: lazybox.bench.v1.VersionResponse
+	(*GetGitHubConnectionRequest)(nil),        // 90: lazybox.bench.v1.GetGitHubConnectionRequest
+	(*ListRepositoryDiscoveryRequest)(nil),    // 91: lazybox.bench.v1.ListRepositoryDiscoveryRequest
+	(*ScanRepositoryRootRequest)(nil),         // 92: lazybox.bench.v1.ScanRepositoryRootRequest
+	(*DiscoveredRepository)(nil),              // 93: lazybox.bench.v1.DiscoveredRepository
+	(*RepositorySearchRoot)(nil),              // 94: lazybox.bench.v1.RepositorySearchRoot
+	(*RepositoryDiscovery)(nil),               // 95: lazybox.bench.v1.RepositoryDiscovery
+	(*ConnectGitHubPersonalTokenRequest)(nil), // 96: lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
+	(*ConfigureGitHubAppRequest)(nil),         // 97: lazybox.bench.v1.ConfigureGitHubAppRequest
+	(*GitHubConnection)(nil),                  // 98: lazybox.bench.v1.GitHubConnection
+	(*BeginGitHubSignInRequest)(nil),          // 99: lazybox.bench.v1.BeginGitHubSignInRequest
+	(*GitHubSignInRequest)(nil),               // 100: lazybox.bench.v1.GitHubSignInRequest
+	(*GitHubSignIn)(nil),                      // 101: lazybox.bench.v1.GitHubSignIn
+	(*ListGitHubInstallationsRequest)(nil),    // 102: lazybox.bench.v1.ListGitHubInstallationsRequest
+	(*GitHubInstallation)(nil),                // 103: lazybox.bench.v1.GitHubInstallation
+	(*ListGitHubInstallationsResponse)(nil),   // 104: lazybox.bench.v1.ListGitHubInstallationsResponse
+	(*ListGitHubRepositoriesRequest)(nil),     // 105: lazybox.bench.v1.ListGitHubRepositoriesRequest
+	(*GitHubRepository)(nil),                  // 106: lazybox.bench.v1.GitHubRepository
+	(*ListGitHubRepositoriesResponse)(nil),    // 107: lazybox.bench.v1.ListGitHubRepositoriesResponse
+	(*ImportGitHubRepositoryRequest)(nil),     // 108: lazybox.bench.v1.ImportGitHubRepositoryRequest
+	(*ImportGitHubRepositoryResponse)(nil),    // 109: lazybox.bench.v1.ImportGitHubRepositoryResponse
+	(*ListGitHubItemsRequest)(nil),            // 110: lazybox.bench.v1.ListGitHubItemsRequest
+	(*GitHubItem)(nil),                        // 111: lazybox.bench.v1.GitHubItem
+	(*ListGitHubItemsResponse)(nil),           // 112: lazybox.bench.v1.ListGitHubItemsResponse
+	(*WorkspaceDeletionPreview)(nil),          // 113: lazybox.bench.v1.WorkspaceDeletionPreview
+	(*DeleteWorkspaceRequest)(nil),            // 114: lazybox.bench.v1.DeleteWorkspaceRequest
+	(*WorkspaceFileRequest)(nil),              // 115: lazybox.bench.v1.WorkspaceFileRequest
+	(*WorkspaceDirectoryEntry)(nil),           // 116: lazybox.bench.v1.WorkspaceDirectoryEntry
+	(*WorkspaceFile)(nil),                     // 117: lazybox.bench.v1.WorkspaceFile
+	(*SaveWorkspaceFileRequest)(nil),          // 118: lazybox.bench.v1.SaveWorkspaceFileRequest
+	(*DeleteConversationRequest)(nil),         // 119: lazybox.bench.v1.DeleteConversationRequest
+	(*DeleteConversationResponse)(nil),        // 120: lazybox.bench.v1.DeleteConversationResponse
+	(*RemoveRepositoryRequest)(nil),           // 121: lazybox.bench.v1.RemoveRepositoryRequest
+	(*GetRepositoryCatalogRequest)(nil),       // 122: lazybox.bench.v1.GetRepositoryCatalogRequest
+	(*RepositoryCatalogEntry)(nil),            // 123: lazybox.bench.v1.RepositoryCatalogEntry
+	(*RepositoryCatalogSource)(nil),           // 124: lazybox.bench.v1.RepositoryCatalogSource
+	(*RepositoryCatalog)(nil),                 // 125: lazybox.bench.v1.RepositoryCatalog
+	(*PrepareWorkspaceRequest)(nil),           // 126: lazybox.bench.v1.PrepareWorkspaceRequest
+	(*WorkspacePreparation)(nil),              // 127: lazybox.bench.v1.WorkspacePreparation
+	(*Snippet)(nil),                           // 128: lazybox.bench.v1.Snippet
+	(*SnippetCatalog)(nil),                    // 129: lazybox.bench.v1.SnippetCatalog
+	nil,                                       // 130: lazybox.bench.v1.Answer.AnswersEntry
 }
 var file_api_proto_depIdxs = []int32{
 	2,   // 0: lazybox.bench.v1.RunnerSettings.prices:type_name -> lazybox.bench.v1.ModelPrice
@@ -9755,7 +9866,7 @@ var file_api_proto_depIdxs = []int32{
 	43,  // 40: lazybox.bench.v1.SessionResponse.session:type_name -> lazybox.bench.v1.Session
 	61,  // 41: lazybox.bench.v1.Message.images:type_name -> lazybox.bench.v1.Image
 	63,  // 42: lazybox.bench.v1.Message.attachments:type_name -> lazybox.bench.v1.FileAttachment
-	129, // 43: lazybox.bench.v1.Answer.answers:type_name -> lazybox.bench.v1.Answer.AnswersEntry
+	130, // 43: lazybox.bench.v1.Answer.answers:type_name -> lazybox.bench.v1.Answer.AnswersEntry
 	0,   // 44: lazybox.bench.v1.Approval.decision:type_name -> lazybox.bench.v1.Decision
 	62,  // 45: lazybox.bench.v1.ApplyRequest.message:type_name -> lazybox.bench.v1.Message
 	62,  // 46: lazybox.bench.v1.ApplyRequest.steer:type_name -> lazybox.bench.v1.Message
@@ -9766,153 +9877,155 @@ var file_api_proto_depIdxs = []int32{
 	42,  // 51: lazybox.bench.v1.JournalEvent.event:type_name -> lazybox.bench.v1.AgentEvent
 	70,  // 52: lazybox.bench.v1.JournalEvent.receipt:type_name -> lazybox.bench.v1.Receipt
 	73,  // 53: lazybox.bench.v1.ContinueSessionRequest.checkpoint:type_name -> lazybox.bench.v1.Checkpoint
-	80,  // 54: lazybox.bench.v1.ListCommandsResponse.commands:type_name -> lazybox.bench.v1.CommandStatus
-	80,  // 55: lazybox.bench.v1.ReadCommandResponse.status:type_name -> lazybox.bench.v1.CommandStatus
-	80,  // 56: lazybox.bench.v1.OutputEvent.status:type_name -> lazybox.bench.v1.CommandStatus
-	92,  // 57: lazybox.bench.v1.RepositorySearchRoot.repositories:type_name -> lazybox.bench.v1.DiscoveredRepository
-	93,  // 58: lazybox.bench.v1.RepositoryDiscovery.roots:type_name -> lazybox.bench.v1.RepositorySearchRoot
-	100, // 59: lazybox.bench.v1.GitHubConnection.pending_sign_in:type_name -> lazybox.bench.v1.GitHubSignIn
-	102, // 60: lazybox.bench.v1.ListGitHubInstallationsResponse.installations:type_name -> lazybox.bench.v1.GitHubInstallation
-	105, // 61: lazybox.bench.v1.ListGitHubRepositoriesResponse.repositories:type_name -> lazybox.bench.v1.GitHubRepository
-	44,  // 62: lazybox.bench.v1.ImportGitHubRepositoryResponse.repository:type_name -> lazybox.bench.v1.Repository
-	110, // 63: lazybox.bench.v1.ListGitHubItemsResponse.items:type_name -> lazybox.bench.v1.GitHubItem
-	115, // 64: lazybox.bench.v1.WorkspaceFile.entries:type_name -> lazybox.bench.v1.WorkspaceDirectoryEntry
-	122, // 65: lazybox.bench.v1.RepositoryCatalog.entries:type_name -> lazybox.bench.v1.RepositoryCatalogEntry
-	123, // 66: lazybox.bench.v1.RepositoryCatalog.sources:type_name -> lazybox.bench.v1.RepositoryCatalogSource
-	52,  // 67: lazybox.bench.v1.WorkspacePreparation.collection:type_name -> lazybox.bench.v1.Collection
-	127, // 68: lazybox.bench.v1.SnippetCatalog.snippets:type_name -> lazybox.bench.v1.Snippet
-	65,  // 69: lazybox.bench.v1.Answer.AnswersEntry.value:type_name -> lazybox.bench.v1.Answers
-	1,   // 70: lazybox.bench.v1.RunnerService.ListSnippets:input_type -> lazybox.bench.v1.InfoRequest
-	121, // 71: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:input_type -> lazybox.bench.v1.GetRepositoryCatalogRequest
-	125, // 72: lazybox.bench.v1.RunnerService.PrepareWorkspace:input_type -> lazybox.bench.v1.PrepareWorkspaceRequest
-	87,  // 73: lazybox.bench.v1.RunnerService.Version:input_type -> lazybox.bench.v1.VersionRequest
-	1,   // 74: lazybox.bench.v1.RunnerService.GetRunnerSettings:input_type -> lazybox.bench.v1.InfoRequest
-	3,   // 75: lazybox.bench.v1.RunnerService.SaveRunnerSettings:input_type -> lazybox.bench.v1.RunnerSettings
-	4,   // 76: lazybox.bench.v1.RunnerService.SetModelPrice:input_type -> lazybox.bench.v1.SetModelPriceRequest
-	1,   // 77: lazybox.bench.v1.RunnerService.Info:input_type -> lazybox.bench.v1.InfoRequest
-	6,   // 78: lazybox.bench.v1.RunnerService.GetTelemetry:input_type -> lazybox.bench.v1.TelemetryRequest
-	5,   // 79: lazybox.bench.v1.RunnerService.RenameCollection:input_type -> lazybox.bench.v1.RenameCollectionRequest
-	15,  // 80: lazybox.bench.v1.RunnerService.AddSubscription:input_type -> lazybox.bench.v1.AddSubscriptionRequest
-	16,  // 81: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
-	16,  // 82: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
-	17,  // 83: lazybox.bench.v1.RunnerService.RefreshSubscription:input_type -> lazybox.bench.v1.RefreshSubscriptionRequest
-	89,  // 84: lazybox.bench.v1.RunnerService.GetGitHubConnection:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
-	96,  // 85: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:input_type -> lazybox.bench.v1.ConfigureGitHubAppRequest
-	95,  // 86: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:input_type -> lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
-	90,  // 87: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:input_type -> lazybox.bench.v1.ListRepositoryDiscoveryRequest
-	91,  // 88: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:input_type -> lazybox.bench.v1.ScanRepositoryRootRequest
-	98,  // 89: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:input_type -> lazybox.bench.v1.BeginGitHubSignInRequest
-	99,  // 90: lazybox.bench.v1.RunnerService.GetGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
-	99,  // 91: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
-	89,  // 92: lazybox.bench.v1.RunnerService.DisconnectGitHub:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
-	101, // 93: lazybox.bench.v1.RunnerService.ListGitHubInstallations:input_type -> lazybox.bench.v1.ListGitHubInstallationsRequest
-	104, // 94: lazybox.bench.v1.RunnerService.ListGitHubRepositories:input_type -> lazybox.bench.v1.ListGitHubRepositoriesRequest
-	107, // 95: lazybox.bench.v1.RunnerService.ImportGitHubRepository:input_type -> lazybox.bench.v1.ImportGitHubRepositoryRequest
-	109, // 96: lazybox.bench.v1.RunnerService.ListGitHubItems:input_type -> lazybox.bench.v1.ListGitHubItemsRequest
-	45,  // 97: lazybox.bench.v1.RunnerService.AddLocalRepository:input_type -> lazybox.bench.v1.AddLocalRepositoryRequest
-	47,  // 98: lazybox.bench.v1.RunnerService.ListRepositories:input_type -> lazybox.bench.v1.ListRepositoriesRequest
-	120, // 99: lazybox.bench.v1.RunnerService.RemoveRepository:input_type -> lazybox.bench.v1.RemoveRepositoryRequest
-	53,  // 100: lazybox.bench.v1.RunnerService.CreateCollection:input_type -> lazybox.bench.v1.CreateCollectionRequest
-	54,  // 101: lazybox.bench.v1.RunnerService.AddCollectionRepositories:input_type -> lazybox.bench.v1.AddCollectionRepositoriesRequest
-	55,  // 102: lazybox.bench.v1.RunnerService.GetCollection:input_type -> lazybox.bench.v1.CollectionRequest
-	57,  // 103: lazybox.bench.v1.RunnerService.ListCollections:input_type -> lazybox.bench.v1.ListCollectionsRequest
-	55,  // 104: lazybox.bench.v1.RunnerService.ArchiveCollection:input_type -> lazybox.bench.v1.CollectionRequest
-	59,  // 105: lazybox.bench.v1.RunnerService.ReconcileCollection:input_type -> lazybox.bench.v1.ReconcileCollectionRequest
-	25,  // 106: lazybox.bench.v1.RunnerService.OpenSession:input_type -> lazybox.bench.v1.OpenSessionRequest
-	26,  // 107: lazybox.bench.v1.RunnerService.OpenAssistant:input_type -> lazybox.bench.v1.OpenAssistantRequest
-	30,  // 108: lazybox.bench.v1.RunnerService.RenameConversation:input_type -> lazybox.bench.v1.RenameConversationRequest
-	31,  // 109: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:input_type -> lazybox.bench.v1.WorkspaceChangesRequest
-	36,  // 110: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:input_type -> lazybox.bench.v1.WorkspaceDiffRequest
-	114, // 111: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:input_type -> lazybox.bench.v1.WorkspaceFileRequest
-	117, // 112: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:input_type -> lazybox.bench.v1.SaveWorkspaceFileRequest
-	29,  // 113: lazybox.bench.v1.RunnerService.ListHistory:input_type -> lazybox.bench.v1.ListHistoryRequest
-	39,  // 114: lazybox.bench.v1.RunnerService.ResumeSession:input_type -> lazybox.bench.v1.ResumeSessionRequest
-	40,  // 115: lazybox.bench.v1.RunnerService.GetSession:input_type -> lazybox.bench.v1.SessionRequest
-	68,  // 116: lazybox.bench.v1.RunnerService.Apply:input_type -> lazybox.bench.v1.ApplyRequest
-	40,  // 117: lazybox.bench.v1.RunnerService.CloseSession:input_type -> lazybox.bench.v1.SessionRequest
-	40,  // 118: lazybox.bench.v1.RunnerService.StopSessionResources:input_type -> lazybox.bench.v1.SessionRequest
-	118, // 119: lazybox.bench.v1.RunnerService.DeleteConversation:input_type -> lazybox.bench.v1.DeleteConversationRequest
-	55,  // 120: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:input_type -> lazybox.bench.v1.CollectionRequest
-	113, // 121: lazybox.bench.v1.RunnerService.DeleteWorkspace:input_type -> lazybox.bench.v1.DeleteWorkspaceRequest
-	74,  // 122: lazybox.bench.v1.RunnerService.ContinueSession:input_type -> lazybox.bench.v1.ContinueSessionRequest
-	71,  // 123: lazybox.bench.v1.RunnerService.WatchEvents:input_type -> lazybox.bench.v1.WatchEventsRequest
-	76,  // 124: lazybox.bench.v1.RunnerService.StartCommand:input_type -> lazybox.bench.v1.StartCommandRequest
-	77,  // 125: lazybox.bench.v1.RunnerService.RegisterPipe:input_type -> lazybox.bench.v1.RegisterPipeRequest
-	78,  // 126: lazybox.bench.v1.RunnerService.Publish:input_type -> lazybox.bench.v1.PublishRequest
-	79,  // 127: lazybox.bench.v1.RunnerService.FinishPipe:input_type -> lazybox.bench.v1.FinishPipeRequest
-	81,  // 128: lazybox.bench.v1.RunnerService.ListCommands:input_type -> lazybox.bench.v1.ListCommandsRequest
-	83,  // 129: lazybox.bench.v1.RunnerService.ReadCommand:input_type -> lazybox.bench.v1.ReadCommandRequest
-	75,  // 130: lazybox.bench.v1.RunnerService.WaitCommand:input_type -> lazybox.bench.v1.CommandRequest
-	75,  // 131: lazybox.bench.v1.RunnerService.CancelCommand:input_type -> lazybox.bench.v1.CommandRequest
-	85,  // 132: lazybox.bench.v1.RunnerService.WatchOutput:input_type -> lazybox.bench.v1.WatchOutputRequest
-	128, // 133: lazybox.bench.v1.RunnerService.ListSnippets:output_type -> lazybox.bench.v1.SnippetCatalog
-	124, // 134: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:output_type -> lazybox.bench.v1.RepositoryCatalog
-	126, // 135: lazybox.bench.v1.RunnerService.PrepareWorkspace:output_type -> lazybox.bench.v1.WorkspacePreparation
-	88,  // 136: lazybox.bench.v1.RunnerService.Version:output_type -> lazybox.bench.v1.VersionResponse
-	3,   // 137: lazybox.bench.v1.RunnerService.GetRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
-	3,   // 138: lazybox.bench.v1.RunnerService.SaveRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
-	3,   // 139: lazybox.bench.v1.RunnerService.SetModelPrice:output_type -> lazybox.bench.v1.RunnerSettings
-	22,  // 140: lazybox.bench.v1.RunnerService.Info:output_type -> lazybox.bench.v1.InfoResponse
-	14,  // 141: lazybox.bench.v1.RunnerService.GetTelemetry:output_type -> lazybox.bench.v1.TelemetryReport
-	56,  // 142: lazybox.bench.v1.RunnerService.RenameCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	18,  // 143: lazybox.bench.v1.RunnerService.AddSubscription:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	18,  // 144: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	18,  // 145: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
-	20,  // 146: lazybox.bench.v1.RunnerService.RefreshSubscription:output_type -> lazybox.bench.v1.Profile
-	97,  // 147: lazybox.bench.v1.RunnerService.GetGitHubConnection:output_type -> lazybox.bench.v1.GitHubConnection
-	97,  // 148: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:output_type -> lazybox.bench.v1.GitHubConnection
-	97,  // 149: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:output_type -> lazybox.bench.v1.GitHubConnection
-	94,  // 150: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	94,  // 151: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	100, // 152: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	100, // 153: lazybox.bench.v1.RunnerService.GetGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	100, // 154: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
-	97,  // 155: lazybox.bench.v1.RunnerService.DisconnectGitHub:output_type -> lazybox.bench.v1.GitHubConnection
-	103, // 156: lazybox.bench.v1.RunnerService.ListGitHubInstallations:output_type -> lazybox.bench.v1.ListGitHubInstallationsResponse
-	106, // 157: lazybox.bench.v1.RunnerService.ListGitHubRepositories:output_type -> lazybox.bench.v1.ListGitHubRepositoriesResponse
-	108, // 158: lazybox.bench.v1.RunnerService.ImportGitHubRepository:output_type -> lazybox.bench.v1.ImportGitHubRepositoryResponse
-	111, // 159: lazybox.bench.v1.RunnerService.ListGitHubItems:output_type -> lazybox.bench.v1.ListGitHubItemsResponse
-	46,  // 160: lazybox.bench.v1.RunnerService.AddLocalRepository:output_type -> lazybox.bench.v1.AddLocalRepositoryResponse
-	48,  // 161: lazybox.bench.v1.RunnerService.ListRepositories:output_type -> lazybox.bench.v1.ListRepositoriesResponse
-	94,  // 162: lazybox.bench.v1.RunnerService.RemoveRepository:output_type -> lazybox.bench.v1.RepositoryDiscovery
-	56,  // 163: lazybox.bench.v1.RunnerService.CreateCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	56,  // 164: lazybox.bench.v1.RunnerService.AddCollectionRepositories:output_type -> lazybox.bench.v1.CollectionResponse
-	56,  // 165: lazybox.bench.v1.RunnerService.GetCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	58,  // 166: lazybox.bench.v1.RunnerService.ListCollections:output_type -> lazybox.bench.v1.ListCollectionsResponse
-	56,  // 167: lazybox.bench.v1.RunnerService.ArchiveCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	56,  // 168: lazybox.bench.v1.RunnerService.ReconcileCollection:output_type -> lazybox.bench.v1.CollectionResponse
-	60,  // 169: lazybox.bench.v1.RunnerService.OpenSession:output_type -> lazybox.bench.v1.SessionResponse
-	60,  // 170: lazybox.bench.v1.RunnerService.OpenAssistant:output_type -> lazybox.bench.v1.SessionResponse
-	60,  // 171: lazybox.bench.v1.RunnerService.RenameConversation:output_type -> lazybox.bench.v1.SessionResponse
-	35,  // 172: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:output_type -> lazybox.bench.v1.WorkspaceChanges
-	37,  // 173: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:output_type -> lazybox.bench.v1.WorkspaceDiff
-	116, // 174: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
-	116, // 175: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
-	38,  // 176: lazybox.bench.v1.RunnerService.ListHistory:output_type -> lazybox.bench.v1.ListHistoryResponse
-	60,  // 177: lazybox.bench.v1.RunnerService.ResumeSession:output_type -> lazybox.bench.v1.SessionResponse
-	60,  // 178: lazybox.bench.v1.RunnerService.GetSession:output_type -> lazybox.bench.v1.SessionResponse
-	70,  // 179: lazybox.bench.v1.RunnerService.Apply:output_type -> lazybox.bench.v1.Receipt
-	60,  // 180: lazybox.bench.v1.RunnerService.CloseSession:output_type -> lazybox.bench.v1.SessionResponse
-	60,  // 181: lazybox.bench.v1.RunnerService.StopSessionResources:output_type -> lazybox.bench.v1.SessionResponse
-	119, // 182: lazybox.bench.v1.RunnerService.DeleteConversation:output_type -> lazybox.bench.v1.DeleteConversationResponse
-	112, // 183: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:output_type -> lazybox.bench.v1.WorkspaceDeletionPreview
-	56,  // 184: lazybox.bench.v1.RunnerService.DeleteWorkspace:output_type -> lazybox.bench.v1.CollectionResponse
-	60,  // 185: lazybox.bench.v1.RunnerService.ContinueSession:output_type -> lazybox.bench.v1.SessionResponse
-	72,  // 186: lazybox.bench.v1.RunnerService.WatchEvents:output_type -> lazybox.bench.v1.JournalEvent
-	80,  // 187: lazybox.bench.v1.RunnerService.StartCommand:output_type -> lazybox.bench.v1.CommandStatus
-	80,  // 188: lazybox.bench.v1.RunnerService.RegisterPipe:output_type -> lazybox.bench.v1.CommandStatus
-	80,  // 189: lazybox.bench.v1.RunnerService.Publish:output_type -> lazybox.bench.v1.CommandStatus
-	80,  // 190: lazybox.bench.v1.RunnerService.FinishPipe:output_type -> lazybox.bench.v1.CommandStatus
-	82,  // 191: lazybox.bench.v1.RunnerService.ListCommands:output_type -> lazybox.bench.v1.ListCommandsResponse
-	84,  // 192: lazybox.bench.v1.RunnerService.ReadCommand:output_type -> lazybox.bench.v1.ReadCommandResponse
-	80,  // 193: lazybox.bench.v1.RunnerService.WaitCommand:output_type -> lazybox.bench.v1.CommandStatus
-	80,  // 194: lazybox.bench.v1.RunnerService.CancelCommand:output_type -> lazybox.bench.v1.CommandStatus
-	86,  // 195: lazybox.bench.v1.RunnerService.WatchOutput:output_type -> lazybox.bench.v1.OutputEvent
-	133, // [133:196] is the sub-list for method output_type
-	70,  // [70:133] is the sub-list for method input_type
-	70,  // [70:70] is the sub-list for extension type_name
-	70,  // [70:70] is the sub-list for extension extendee
-	0,   // [0:70] is the sub-list for field type_name
+	80,  // 54: lazybox.bench.v1.FinishPipeRequest.report:type_name -> lazybox.bench.v1.CommandReport
+	80,  // 55: lazybox.bench.v1.CommandStatus.report:type_name -> lazybox.bench.v1.CommandReport
+	81,  // 56: lazybox.bench.v1.ListCommandsResponse.commands:type_name -> lazybox.bench.v1.CommandStatus
+	81,  // 57: lazybox.bench.v1.ReadCommandResponse.status:type_name -> lazybox.bench.v1.CommandStatus
+	81,  // 58: lazybox.bench.v1.OutputEvent.status:type_name -> lazybox.bench.v1.CommandStatus
+	93,  // 59: lazybox.bench.v1.RepositorySearchRoot.repositories:type_name -> lazybox.bench.v1.DiscoveredRepository
+	94,  // 60: lazybox.bench.v1.RepositoryDiscovery.roots:type_name -> lazybox.bench.v1.RepositorySearchRoot
+	101, // 61: lazybox.bench.v1.GitHubConnection.pending_sign_in:type_name -> lazybox.bench.v1.GitHubSignIn
+	103, // 62: lazybox.bench.v1.ListGitHubInstallationsResponse.installations:type_name -> lazybox.bench.v1.GitHubInstallation
+	106, // 63: lazybox.bench.v1.ListGitHubRepositoriesResponse.repositories:type_name -> lazybox.bench.v1.GitHubRepository
+	44,  // 64: lazybox.bench.v1.ImportGitHubRepositoryResponse.repository:type_name -> lazybox.bench.v1.Repository
+	111, // 65: lazybox.bench.v1.ListGitHubItemsResponse.items:type_name -> lazybox.bench.v1.GitHubItem
+	116, // 66: lazybox.bench.v1.WorkspaceFile.entries:type_name -> lazybox.bench.v1.WorkspaceDirectoryEntry
+	123, // 67: lazybox.bench.v1.RepositoryCatalog.entries:type_name -> lazybox.bench.v1.RepositoryCatalogEntry
+	124, // 68: lazybox.bench.v1.RepositoryCatalog.sources:type_name -> lazybox.bench.v1.RepositoryCatalogSource
+	52,  // 69: lazybox.bench.v1.WorkspacePreparation.collection:type_name -> lazybox.bench.v1.Collection
+	128, // 70: lazybox.bench.v1.SnippetCatalog.snippets:type_name -> lazybox.bench.v1.Snippet
+	65,  // 71: lazybox.bench.v1.Answer.AnswersEntry.value:type_name -> lazybox.bench.v1.Answers
+	1,   // 72: lazybox.bench.v1.RunnerService.ListSnippets:input_type -> lazybox.bench.v1.InfoRequest
+	122, // 73: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:input_type -> lazybox.bench.v1.GetRepositoryCatalogRequest
+	126, // 74: lazybox.bench.v1.RunnerService.PrepareWorkspace:input_type -> lazybox.bench.v1.PrepareWorkspaceRequest
+	88,  // 75: lazybox.bench.v1.RunnerService.Version:input_type -> lazybox.bench.v1.VersionRequest
+	1,   // 76: lazybox.bench.v1.RunnerService.GetRunnerSettings:input_type -> lazybox.bench.v1.InfoRequest
+	3,   // 77: lazybox.bench.v1.RunnerService.SaveRunnerSettings:input_type -> lazybox.bench.v1.RunnerSettings
+	4,   // 78: lazybox.bench.v1.RunnerService.SetModelPrice:input_type -> lazybox.bench.v1.SetModelPriceRequest
+	1,   // 79: lazybox.bench.v1.RunnerService.Info:input_type -> lazybox.bench.v1.InfoRequest
+	6,   // 80: lazybox.bench.v1.RunnerService.GetTelemetry:input_type -> lazybox.bench.v1.TelemetryRequest
+	5,   // 81: lazybox.bench.v1.RunnerService.RenameCollection:input_type -> lazybox.bench.v1.RenameCollectionRequest
+	15,  // 82: lazybox.bench.v1.RunnerService.AddSubscription:input_type -> lazybox.bench.v1.AddSubscriptionRequest
+	16,  // 83: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
+	16,  // 84: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:input_type -> lazybox.bench.v1.SubscriptionEnrollmentRequest
+	17,  // 85: lazybox.bench.v1.RunnerService.RefreshSubscription:input_type -> lazybox.bench.v1.RefreshSubscriptionRequest
+	90,  // 86: lazybox.bench.v1.RunnerService.GetGitHubConnection:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
+	97,  // 87: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:input_type -> lazybox.bench.v1.ConfigureGitHubAppRequest
+	96,  // 88: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:input_type -> lazybox.bench.v1.ConnectGitHubPersonalTokenRequest
+	91,  // 89: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:input_type -> lazybox.bench.v1.ListRepositoryDiscoveryRequest
+	92,  // 90: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:input_type -> lazybox.bench.v1.ScanRepositoryRootRequest
+	99,  // 91: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:input_type -> lazybox.bench.v1.BeginGitHubSignInRequest
+	100, // 92: lazybox.bench.v1.RunnerService.GetGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
+	100, // 93: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:input_type -> lazybox.bench.v1.GitHubSignInRequest
+	90,  // 94: lazybox.bench.v1.RunnerService.DisconnectGitHub:input_type -> lazybox.bench.v1.GetGitHubConnectionRequest
+	102, // 95: lazybox.bench.v1.RunnerService.ListGitHubInstallations:input_type -> lazybox.bench.v1.ListGitHubInstallationsRequest
+	105, // 96: lazybox.bench.v1.RunnerService.ListGitHubRepositories:input_type -> lazybox.bench.v1.ListGitHubRepositoriesRequest
+	108, // 97: lazybox.bench.v1.RunnerService.ImportGitHubRepository:input_type -> lazybox.bench.v1.ImportGitHubRepositoryRequest
+	110, // 98: lazybox.bench.v1.RunnerService.ListGitHubItems:input_type -> lazybox.bench.v1.ListGitHubItemsRequest
+	45,  // 99: lazybox.bench.v1.RunnerService.AddLocalRepository:input_type -> lazybox.bench.v1.AddLocalRepositoryRequest
+	47,  // 100: lazybox.bench.v1.RunnerService.ListRepositories:input_type -> lazybox.bench.v1.ListRepositoriesRequest
+	121, // 101: lazybox.bench.v1.RunnerService.RemoveRepository:input_type -> lazybox.bench.v1.RemoveRepositoryRequest
+	53,  // 102: lazybox.bench.v1.RunnerService.CreateCollection:input_type -> lazybox.bench.v1.CreateCollectionRequest
+	54,  // 103: lazybox.bench.v1.RunnerService.AddCollectionRepositories:input_type -> lazybox.bench.v1.AddCollectionRepositoriesRequest
+	55,  // 104: lazybox.bench.v1.RunnerService.GetCollection:input_type -> lazybox.bench.v1.CollectionRequest
+	57,  // 105: lazybox.bench.v1.RunnerService.ListCollections:input_type -> lazybox.bench.v1.ListCollectionsRequest
+	55,  // 106: lazybox.bench.v1.RunnerService.ArchiveCollection:input_type -> lazybox.bench.v1.CollectionRequest
+	59,  // 107: lazybox.bench.v1.RunnerService.ReconcileCollection:input_type -> lazybox.bench.v1.ReconcileCollectionRequest
+	25,  // 108: lazybox.bench.v1.RunnerService.OpenSession:input_type -> lazybox.bench.v1.OpenSessionRequest
+	26,  // 109: lazybox.bench.v1.RunnerService.OpenAssistant:input_type -> lazybox.bench.v1.OpenAssistantRequest
+	30,  // 110: lazybox.bench.v1.RunnerService.RenameConversation:input_type -> lazybox.bench.v1.RenameConversationRequest
+	31,  // 111: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:input_type -> lazybox.bench.v1.WorkspaceChangesRequest
+	36,  // 112: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:input_type -> lazybox.bench.v1.WorkspaceDiffRequest
+	115, // 113: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:input_type -> lazybox.bench.v1.WorkspaceFileRequest
+	118, // 114: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:input_type -> lazybox.bench.v1.SaveWorkspaceFileRequest
+	29,  // 115: lazybox.bench.v1.RunnerService.ListHistory:input_type -> lazybox.bench.v1.ListHistoryRequest
+	39,  // 116: lazybox.bench.v1.RunnerService.ResumeSession:input_type -> lazybox.bench.v1.ResumeSessionRequest
+	40,  // 117: lazybox.bench.v1.RunnerService.GetSession:input_type -> lazybox.bench.v1.SessionRequest
+	68,  // 118: lazybox.bench.v1.RunnerService.Apply:input_type -> lazybox.bench.v1.ApplyRequest
+	40,  // 119: lazybox.bench.v1.RunnerService.CloseSession:input_type -> lazybox.bench.v1.SessionRequest
+	40,  // 120: lazybox.bench.v1.RunnerService.StopSessionResources:input_type -> lazybox.bench.v1.SessionRequest
+	119, // 121: lazybox.bench.v1.RunnerService.DeleteConversation:input_type -> lazybox.bench.v1.DeleteConversationRequest
+	55,  // 122: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:input_type -> lazybox.bench.v1.CollectionRequest
+	114, // 123: lazybox.bench.v1.RunnerService.DeleteWorkspace:input_type -> lazybox.bench.v1.DeleteWorkspaceRequest
+	74,  // 124: lazybox.bench.v1.RunnerService.ContinueSession:input_type -> lazybox.bench.v1.ContinueSessionRequest
+	71,  // 125: lazybox.bench.v1.RunnerService.WatchEvents:input_type -> lazybox.bench.v1.WatchEventsRequest
+	76,  // 126: lazybox.bench.v1.RunnerService.StartCommand:input_type -> lazybox.bench.v1.StartCommandRequest
+	77,  // 127: lazybox.bench.v1.RunnerService.RegisterPipe:input_type -> lazybox.bench.v1.RegisterPipeRequest
+	78,  // 128: lazybox.bench.v1.RunnerService.Publish:input_type -> lazybox.bench.v1.PublishRequest
+	79,  // 129: lazybox.bench.v1.RunnerService.FinishPipe:input_type -> lazybox.bench.v1.FinishPipeRequest
+	82,  // 130: lazybox.bench.v1.RunnerService.ListCommands:input_type -> lazybox.bench.v1.ListCommandsRequest
+	84,  // 131: lazybox.bench.v1.RunnerService.ReadCommand:input_type -> lazybox.bench.v1.ReadCommandRequest
+	75,  // 132: lazybox.bench.v1.RunnerService.WaitCommand:input_type -> lazybox.bench.v1.CommandRequest
+	75,  // 133: lazybox.bench.v1.RunnerService.CancelCommand:input_type -> lazybox.bench.v1.CommandRequest
+	86,  // 134: lazybox.bench.v1.RunnerService.WatchOutput:input_type -> lazybox.bench.v1.WatchOutputRequest
+	129, // 135: lazybox.bench.v1.RunnerService.ListSnippets:output_type -> lazybox.bench.v1.SnippetCatalog
+	125, // 136: lazybox.bench.v1.RunnerService.GetRepositoryCatalog:output_type -> lazybox.bench.v1.RepositoryCatalog
+	127, // 137: lazybox.bench.v1.RunnerService.PrepareWorkspace:output_type -> lazybox.bench.v1.WorkspacePreparation
+	89,  // 138: lazybox.bench.v1.RunnerService.Version:output_type -> lazybox.bench.v1.VersionResponse
+	3,   // 139: lazybox.bench.v1.RunnerService.GetRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
+	3,   // 140: lazybox.bench.v1.RunnerService.SaveRunnerSettings:output_type -> lazybox.bench.v1.RunnerSettings
+	3,   // 141: lazybox.bench.v1.RunnerService.SetModelPrice:output_type -> lazybox.bench.v1.RunnerSettings
+	22,  // 142: lazybox.bench.v1.RunnerService.Info:output_type -> lazybox.bench.v1.InfoResponse
+	14,  // 143: lazybox.bench.v1.RunnerService.GetTelemetry:output_type -> lazybox.bench.v1.TelemetryReport
+	56,  // 144: lazybox.bench.v1.RunnerService.RenameCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	18,  // 145: lazybox.bench.v1.RunnerService.AddSubscription:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	18,  // 146: lazybox.bench.v1.RunnerService.GetSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	18,  // 147: lazybox.bench.v1.RunnerService.CancelSubscriptionEnrollment:output_type -> lazybox.bench.v1.SubscriptionEnrollment
+	20,  // 148: lazybox.bench.v1.RunnerService.RefreshSubscription:output_type -> lazybox.bench.v1.Profile
+	98,  // 149: lazybox.bench.v1.RunnerService.GetGitHubConnection:output_type -> lazybox.bench.v1.GitHubConnection
+	98,  // 150: lazybox.bench.v1.RunnerService.ConfigureGitHubApp:output_type -> lazybox.bench.v1.GitHubConnection
+	98,  // 151: lazybox.bench.v1.RunnerService.ConnectGitHubPersonalToken:output_type -> lazybox.bench.v1.GitHubConnection
+	95,  // 152: lazybox.bench.v1.RunnerService.ListRepositoryDiscovery:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	95,  // 153: lazybox.bench.v1.RunnerService.ScanRepositoryRoot:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	101, // 154: lazybox.bench.v1.RunnerService.BeginGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	101, // 155: lazybox.bench.v1.RunnerService.GetGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	101, // 156: lazybox.bench.v1.RunnerService.CancelGitHubSignIn:output_type -> lazybox.bench.v1.GitHubSignIn
+	98,  // 157: lazybox.bench.v1.RunnerService.DisconnectGitHub:output_type -> lazybox.bench.v1.GitHubConnection
+	104, // 158: lazybox.bench.v1.RunnerService.ListGitHubInstallations:output_type -> lazybox.bench.v1.ListGitHubInstallationsResponse
+	107, // 159: lazybox.bench.v1.RunnerService.ListGitHubRepositories:output_type -> lazybox.bench.v1.ListGitHubRepositoriesResponse
+	109, // 160: lazybox.bench.v1.RunnerService.ImportGitHubRepository:output_type -> lazybox.bench.v1.ImportGitHubRepositoryResponse
+	112, // 161: lazybox.bench.v1.RunnerService.ListGitHubItems:output_type -> lazybox.bench.v1.ListGitHubItemsResponse
+	46,  // 162: lazybox.bench.v1.RunnerService.AddLocalRepository:output_type -> lazybox.bench.v1.AddLocalRepositoryResponse
+	48,  // 163: lazybox.bench.v1.RunnerService.ListRepositories:output_type -> lazybox.bench.v1.ListRepositoriesResponse
+	95,  // 164: lazybox.bench.v1.RunnerService.RemoveRepository:output_type -> lazybox.bench.v1.RepositoryDiscovery
+	56,  // 165: lazybox.bench.v1.RunnerService.CreateCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	56,  // 166: lazybox.bench.v1.RunnerService.AddCollectionRepositories:output_type -> lazybox.bench.v1.CollectionResponse
+	56,  // 167: lazybox.bench.v1.RunnerService.GetCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	58,  // 168: lazybox.bench.v1.RunnerService.ListCollections:output_type -> lazybox.bench.v1.ListCollectionsResponse
+	56,  // 169: lazybox.bench.v1.RunnerService.ArchiveCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	56,  // 170: lazybox.bench.v1.RunnerService.ReconcileCollection:output_type -> lazybox.bench.v1.CollectionResponse
+	60,  // 171: lazybox.bench.v1.RunnerService.OpenSession:output_type -> lazybox.bench.v1.SessionResponse
+	60,  // 172: lazybox.bench.v1.RunnerService.OpenAssistant:output_type -> lazybox.bench.v1.SessionResponse
+	60,  // 173: lazybox.bench.v1.RunnerService.RenameConversation:output_type -> lazybox.bench.v1.SessionResponse
+	35,  // 174: lazybox.bench.v1.RunnerService.ListWorkspaceChanges:output_type -> lazybox.bench.v1.WorkspaceChanges
+	37,  // 175: lazybox.bench.v1.RunnerService.ReadWorkspaceDiff:output_type -> lazybox.bench.v1.WorkspaceDiff
+	117, // 176: lazybox.bench.v1.RunnerService.ReadWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
+	117, // 177: lazybox.bench.v1.RunnerService.SaveWorkspaceFile:output_type -> lazybox.bench.v1.WorkspaceFile
+	38,  // 178: lazybox.bench.v1.RunnerService.ListHistory:output_type -> lazybox.bench.v1.ListHistoryResponse
+	60,  // 179: lazybox.bench.v1.RunnerService.ResumeSession:output_type -> lazybox.bench.v1.SessionResponse
+	60,  // 180: lazybox.bench.v1.RunnerService.GetSession:output_type -> lazybox.bench.v1.SessionResponse
+	70,  // 181: lazybox.bench.v1.RunnerService.Apply:output_type -> lazybox.bench.v1.Receipt
+	60,  // 182: lazybox.bench.v1.RunnerService.CloseSession:output_type -> lazybox.bench.v1.SessionResponse
+	60,  // 183: lazybox.bench.v1.RunnerService.StopSessionResources:output_type -> lazybox.bench.v1.SessionResponse
+	120, // 184: lazybox.bench.v1.RunnerService.DeleteConversation:output_type -> lazybox.bench.v1.DeleteConversationResponse
+	113, // 185: lazybox.bench.v1.RunnerService.PreviewWorkspaceDeletion:output_type -> lazybox.bench.v1.WorkspaceDeletionPreview
+	56,  // 186: lazybox.bench.v1.RunnerService.DeleteWorkspace:output_type -> lazybox.bench.v1.CollectionResponse
+	60,  // 187: lazybox.bench.v1.RunnerService.ContinueSession:output_type -> lazybox.bench.v1.SessionResponse
+	72,  // 188: lazybox.bench.v1.RunnerService.WatchEvents:output_type -> lazybox.bench.v1.JournalEvent
+	81,  // 189: lazybox.bench.v1.RunnerService.StartCommand:output_type -> lazybox.bench.v1.CommandStatus
+	81,  // 190: lazybox.bench.v1.RunnerService.RegisterPipe:output_type -> lazybox.bench.v1.CommandStatus
+	81,  // 191: lazybox.bench.v1.RunnerService.Publish:output_type -> lazybox.bench.v1.CommandStatus
+	81,  // 192: lazybox.bench.v1.RunnerService.FinishPipe:output_type -> lazybox.bench.v1.CommandStatus
+	83,  // 193: lazybox.bench.v1.RunnerService.ListCommands:output_type -> lazybox.bench.v1.ListCommandsResponse
+	85,  // 194: lazybox.bench.v1.RunnerService.ReadCommand:output_type -> lazybox.bench.v1.ReadCommandResponse
+	81,  // 195: lazybox.bench.v1.RunnerService.WaitCommand:output_type -> lazybox.bench.v1.CommandStatus
+	81,  // 196: lazybox.bench.v1.RunnerService.CancelCommand:output_type -> lazybox.bench.v1.CommandStatus
+	87,  // 197: lazybox.bench.v1.RunnerService.WatchOutput:output_type -> lazybox.bench.v1.OutputEvent
+	135, // [135:198] is the sub-list for method output_type
+	72,  // [72:135] is the sub-list for method input_type
+	72,  // [72:72] is the sub-list for extension type_name
+	72,  // [72:72] is the sub-list for extension extendee
+	0,   // [0:72] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_init() }
@@ -9935,14 +10048,14 @@ func file_api_proto_init() {
 		(*ApplyRequest_Approval)(nil),
 		(*ApplyRequest_Permission)(nil),
 	}
-	file_api_proto_msgTypes[79].OneofWrappers = []any{}
+	file_api_proto_msgTypes[80].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_rawDesc), len(file_api_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   129,
+			NumMessages:   130,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

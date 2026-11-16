@@ -96,6 +96,9 @@ func wireStatus(s commands.Status) *pb.CommandStatus {
 		code := int32(*s.ExitCode)
 		w.ExitCode = &code
 	}
+	if r := s.Report; r != nil {
+		w.Report = &pb.CommandReport{ExitCode: int32(r.ExitCode), OutputBytes: r.OutputBytes, AgentBytes: r.AgentBytes, Filter: r.Filter, OutputPath: r.OutputPath}
+	}
 	return w
 }
 
@@ -454,7 +457,11 @@ func (s *Service) FinishPipe(ctx context.Context, r *pb.FinishPipeRequest) (*pb.
 	if r.CaptureError != "" {
 		cause = errors.New(r.CaptureError)
 	}
-	if err = c.FinishPipe(cause); err != nil {
+	var report *commands.Report
+	if r := r.Report; r != nil {
+		report = &commands.Report{ExitCode: int(r.ExitCode), OutputBytes: r.OutputBytes, AgentBytes: r.AgentBytes, Filter: r.Filter, OutputPath: r.OutputPath}
+	}
+	if err = s.Bench.FinishPipe(c, cause, report); err != nil {
 		return nil, rpcError(err)
 	}
 	return wireStatus(c.Status()), nil

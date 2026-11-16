@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
@@ -60,7 +61,16 @@ type Config struct {
 	Worker          string `json:"worker"`
 	// CLIDir holds the lazybox CLI. It is put first on every agent's PATH and
 	// enables the command-output briefing. Empty leaves both off.
-	CLIDir          string                   `json:"-"`
+	CLIDir string `json:"-"`
+	// OutputRoot holds each execution's full-output files from `lazybox run`,
+	// deleted with its conversation. Empty selects <State>/command-output.
+	OutputRoot string `json:"-"`
+	// OutputFallbackRoot is where the CLI saves them when a sandbox keeps it
+	// out of OutputRoot. Empty selects <temp>/lazybox-output, the CLI's own default.
+	OutputFallbackRoot string `json:"-"`
+	// OutputBudget bounds both roots together; the oldest files go first.
+	// Zero selects 1 GiB.
+	OutputBudget    int64                    `json:"commandOutputBudget,omitempty"`
 	CodexBinary     string                   `json:"codexBinary,omitempty"`
 	ClaudeBinary    string                   `json:"claudeBinary,omitempty"`
 	Profiles        []accounts.Profile       `json:"profiles"`
@@ -120,6 +130,8 @@ type Bench struct {
 	starts              sync.WaitGroup
 	closeOnce           sync.Once
 	closeErr            error
+	trimming            atomic.Bool
+	trims               sync.WaitGroup
 	// Adapters is an injection boundary for deterministic conformance tests.
 	Adapters map[string]agent.Adapter
 }
@@ -145,6 +157,18 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if cfg.CommandHostRoot == "" {
 		cfg.CommandHostRoot = filepath.Join(cfg.State, "command-hosts")
+	}
+	if cfg.OutputRoot == "" {
+		cfg.OutputRoot = filepath.Join(cfg.State, "command-output")
+	}
+	if cfg.OutputFallbackRoot == "" {
+		cfg.OutputFallbackRoot = filepath.Join(os.TempDir(), "lazybox-output")
+	}
+	if cfg.OutputBudget == 0 {
+		cfg.OutputBudget = 1 << 30
+	}
+	if !filepath.IsAbs(cfg.OutputRoot) || !filepath.IsAbs(cfg.OutputFallbackRoot) || cfg.OutputBudget < 0 {
+		return nil, errors.New("command output roots must be absolute and its budget not negative")
 	}
 	if !filepath.IsAbs(cfg.HostRoot) || !filepath.IsAbs(cfg.CommandHostRoot) {
 		return nil, errors.New("session host roots must be absolute directories")
@@ -543,7 +567,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	}
 	env = b.withCLI(env)
 	env = append(env, "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint)
-	env = append(env, "LAZYBOX_V2_SESSION_ID="+id)
+	env = append(env, "LAZYBOX_V2_SESSION_ID="+id, b.outputEnv(id))
 	if collectionID != "" {
 		env = append(env, "LAZYBOX_V2_COLLECTION_ID="+collectionID)
 	}
@@ -640,7 +664,7 @@ func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []str
 					if err != nil {
 						return nil, err
 					}
-					env = append(b.withCLI(env), "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID="+e.ID)
+					env = append(b.withCLI(env), "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID="+e.ID, b.outputEnv(e.ID))
 					if e.CollectionID != "" {
 						env = append(env, "LAZYBOX_V2_COLLECTION_ID="+e.CollectionID)
 					}
@@ -753,6 +777,7 @@ func (b *Bench) shutdown(detach bool) error {
 			b.GitHub.Close()
 		}
 		b.starts.Wait()
+		b.trims.Wait()
 		for _, e := range b.List() {
 			// A no-op for a detached engine: its agent is the next Runner's.
 			b.closeErr = errors.Join(b.closeErr, e.Engine.Close())

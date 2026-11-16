@@ -80,6 +80,8 @@ small{color:#87929f;font-size:11px;overflow-wrap:anywhere}
 .console{margin:10px 24px 0;border:1px solid #303741;border-radius:8px;overflow:hidden}
 .console .panel-title{padding:16px}
 .console .panel-title h2{font-size:12px;max-width:260px;overflow:hidden}
+.command-report{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:4px 0 0;font:10px/1.4 var(--mono,ui-monospace,monospace);color:#9aa3ad}
+.command-report button{padding:0;border:0;background:none;font-size:10px;color:#8fb4e8;text-decoration:underline;cursor:pointer}
 .console-tools{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #292f36}
 .console-tools label{flex-direction:row;align-items:center;font-size:10px;white-space:nowrap}
 .console-tools input[type=checkbox]{width:auto}

@@ -4,6 +4,7 @@ import { follow, providerData, type RunnerClient } from '@lazybox/client-core';
 import { Decision, type AgentEvent, type CommandStatus } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { readConsoleState, writeConsoleState } from './view-state';
+import { reportSummary } from './command-runs';
 
 export function RequestCard({ request, api, session, onError }: { request: AgentEvent; api: RunnerClient; session: string; onError: (s: string) => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -70,10 +71,12 @@ export function Console({ api, command, onOpenViewer, viewState, onError }: { ap
       element.scrollTo({ top: restoreScroll.current }); restoreScroll.current = null;
     }
   }, [text, followOutput, status]);
-  return <section className="console"><div className="panel-title"><div><span className="eyebrow">Shared console</span><h2>{metadata?.title || 'Command output'}</h2></div><span className="pill">{status}</span></div>
+  const report = metadata?.report;
+  return <section className="console"><div className="panel-title"><div><span className="eyebrow">Shared console</span><h2>{metadata?.title || 'Command output'}</h2>
+    {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy full-output path</button>}</p>}</div><span className="pill">{status}</span></div>
     <div className="console-tools"><label><input type="checkbox" checked={followOutput} onChange={e => { setFollowOutput(e.target.checked); restoreScroll.current = null; saveView(search, e.target.checked); }}/> Follow</label><input aria-label="Search output" placeholder="Find in output…" value={search} onChange={e => { setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/><button onClick={() => navigator.clipboard.writeText(text).catch(error => onError?.(String(error)))}>Copy</button>{onOpenViewer && <button onClick={onOpenViewer}>Open viewer ↗</button>}</div>
     <pre ref={pane} tabIndex={0} className="output" data-testid="console-output" onWheel={() => { restoreScroll.current = null; }} onScroll={() => { if (!followOutput && restoreScroll.current === null) saveView(search, false); }}>{search ? text.split('\n').filter(line => line.toLocaleLowerCase().includes(search.toLocaleLowerCase())).join('\n') : text || 'Waiting for output…'}</pre>
-    <footer><span className="mono">{command.slice(0, 12)} · {offset.toString()} bytes</span><span>{metadata?.captureError || (metadata?.done ? metadata.exitCode === undefined ? 'Capture EOF · upstream exit unknown' : `Exit ${metadata.exitCode}${metadata.signal ? ' · ' + metadata.signal : ''}` : 'Running')}</span></footer>
+    <footer><span className="mono">{command.slice(0, 12)} · {offset.toString()} bytes</span><span>{metadata?.captureError || (metadata?.done ? metadata.exitCode === undefined ? report ? `Exit ${report.exitCode}` : 'Capture EOF · upstream exit unknown' : `Exit ${metadata.exitCode}${metadata.signal ? ' · ' + metadata.signal : ''}` : 'Running')}</span></footer>
     <small className="retention">Showing up to the last 512 KiB. Full retained output is available through command reads until the configured spool budget is exhausted.</small>
   </section>;
 }

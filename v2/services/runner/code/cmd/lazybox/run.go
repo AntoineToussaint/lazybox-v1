@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -53,7 +54,7 @@ func runVerb(ctx context.Context, endpointPath string, args []string, stdout, st
 	o := runOptions{}
 	flags.StringVar(&o.session, "session", os.Getenv("LAZYBOX_V2_SESSION_ID"), "execution id whose console shows the output")
 	flags.StringVar(&o.title, "title", "", "console title (default: the command line)")
-	flags.StringVar(&o.outputDir, "output-dir", os.Getenv("LAZYBOX_V2_OUTPUT_DIR"), "directory for full-output files (default: system temp)")
+	flags.StringVar(&o.outputDir, "output-dir", os.Getenv("LAZYBOX_V2_OUTPUT_DIR"), "directory for full-output files (default: the session's, set by the Runner; else system temp)")
 	flags.BoolVar(&o.raw, "raw", false, "give the agent the full output instead of the compact view")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "Usage: lazybox run [--title T] [--raw] -- COMMAND [ARGS...]")
@@ -82,7 +83,7 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 		title = shorten(line, 120)
 	}
 	s := &sink{}
-	if f, path, err := outputFile(o.outputDir, argv[0]); err == nil {
+	if f, path, err := outputFile(o.outputDir, o.session, argv[0]); err == nil {
 		s.file, s.path = f, path
 		defer f.Close()
 	} else {
@@ -116,7 +117,6 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 		}
 	}
 	elapsed := time.Since(started)
-	s.finish()
 
 	var result gortk.Result
 	if o.raw {
@@ -124,7 +124,16 @@ func runCommand(ctx context.Context, c console, unavailable error, o runOptions,
 	} else {
 		result = compressor.Compress(gortk.CommandFromArgs(argv, s.out.data, s.err.data, code))
 	}
-	writeReport(stdout, report{line: line, code: code, elapsed: elapsed, result: result, path: s.path, bytes: s.total, clipped: s.out.clipped || s.err.clipped, console: s.id, publishErr: s.publishErr})
+	// The view is built before the capture closes so the console can label the
+	// run with what the agent received.
+	var view bytes.Buffer
+	published := s.publishErr
+	writeReport(&view, report{line: line, code: code, elapsed: elapsed, result: result, path: s.path, bytes: s.total, clipped: s.out.clipped || s.err.clipped, console: s.id, publishErr: published})
+	s.finish(&pb.CommandReport{ExitCode: int32(code), OutputBytes: uint64(s.total), AgentBytes: uint64(view.Len()), Filter: result.Filter, OutputPath: s.path})
+	if published == nil && s.publishErr != nil {
+		fmt.Fprintf(&view, "[lazybox] not shown in the Lazybox console: %v\n", s.publishErr)
+	}
+	_, _ = stdout.Write(view.Bytes()) // the command's own status matters more than a closed stdout
 	if code != 0 {
 		return processExit(code)
 	}
@@ -228,7 +237,7 @@ func (w streamWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (s *sink) finish() {
+func (s *sink) finish(r *pb.CommandReport) {
 	if s.console == nil {
 		return
 	}
@@ -238,7 +247,7 @@ func (s *sink) finish() {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 5*time.Second)
 	defer cancel()
-	if _, err := s.console.FinishPipe(ctx, connect.NewRequest(&pb.FinishPipeRequest{CommandId: s.id, CaptureError: cause})); err != nil && s.publishErr == nil {
+	if _, err := s.console.FinishPipe(ctx, connect.NewRequest(&pb.FinishPipeRequest{CommandId: s.id, CaptureError: cause, Report: r})); err != nil && s.publishErr == nil {
 		s.publishErr = err
 	}
 }
@@ -260,15 +269,29 @@ func readEndpoint(path string) (endpoint, error) {
 
 func newHTTPClient(token string) *http.Client { return &http.Client{Transport: authTransport{token}} }
 
-// outputFile is private to the user: it holds unredacted output.
-func outputFile(dir, name string) (*os.File, string, error) {
-	if dir == "" {
-		dir = filepath.Join(os.TempDir(), "lazybox-output")
+// outputFile is private to the user: it holds unredacted output. The Runner
+// names a directory under its state, deleted with the session; when that is
+// unset or not writable (Codex's workspace-write sandbox allows only the
+// workspace and the temp directories), the file goes to the temp directory,
+// under the session's id so the Runner can still delete it with the session.
+func outputFile(dir, session, name string) (*os.File, string, error) {
+	pattern := safeName(filepath.Base(name)) + "-*.log"
+	create := func(dir string) (*os.File, error) {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, err
+		}
+		return os.CreateTemp(dir, pattern)
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, "", err
+	if dir != "" {
+		if f, err := create(dir); err == nil {
+			return f, f.Name(), nil
+		}
 	}
-	f, err := os.CreateTemp(dir, safeName(filepath.Base(name))+"-*.log")
+	fallback := filepath.Join(os.TempDir(), "lazybox-output")
+	if session != "" && safeName(session) == session {
+		fallback = filepath.Join(fallback, session)
+	}
+	f, err := create(fallback)
 	if err != nil {
 		return nil, "", err
 	}
