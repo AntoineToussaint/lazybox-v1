@@ -191,3 +191,5 @@
   .artifact-print-sheet table{border-collapse:collapse}.artifact-print-sheet td,.artifact-print-sheet th{border:1px solid #bbb;padding:3pt 6pt}
   @page{margin:18mm 16mm}
 }
+.artifacts-elsewhere{border-top:1px solid var(--line,#2c2d35);padding-top:6px;min-height:0;overflow:auto}
+.artifacts-elsewhere h4{margin:4px 12px 2px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#7d8494}

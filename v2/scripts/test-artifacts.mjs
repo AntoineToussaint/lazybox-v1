@@ -157,6 +157,12 @@ try{
  await expect(page.getByRole('article',{name:'File preview'})).toHaveCount(0);
  await expect(list.getByRole('option',{name:/File preview/})).toHaveCount(0);
  await expect(list.getByRole('option')).toHaveCount(2);
+ // An artifact made in another workspace is one click away, not lost.
+ fixture.artifacts.agentPut({collectionId:'beta',sessionId:'beta-session',conversationId:'conversation-beta',title:'Plan from Beta',kind:'plan',content:'# Plan from Beta\n\nSteps.\n'});
+ const elsewhere=page.getByRole('listbox',{name:'Artifacts in other workspaces'});
+ await expect(elsewhere.getByRole('option',{name:/Plan from Beta/})).toContainText('Beta release',{timeout:20000});
+ await elsewhere.getByRole('option',{name:/Plan from Beta/}).click();
+ await expect(page.getByRole('article',{name:'Plan from Beta'})).toBeVisible();
  await page.screenshot({path:'.cache/artifacts-panel.png'});
  assert.deepEqual(errors,[]);
  console.log('PASS: track a chat message as an artifact (right-click and hover), update it after a reviewed diff, browse versions and changes, copy and download, rename, open in its own window, list an agent\'s artifact, track a Markdown file that follows disk changes, delete with confirmation. Fixture only.');

@@ -36,3 +36,29 @@ export function useArtifacts(collectionId: string) {
   }, [api, collectionId, revision]);
   return { artifacts, loaded, error, reload };
 }
+
+/**
+ * Artifacts of every other workspace, for finding a plan made elsewhere: read
+ * once when shown and every 15 seconds while the window is visible.
+ */
+export function useOtherArtifacts(collections: { id: string; name: string }[], current: string) {
+  const { api } = useRunner();
+  const [items, setItems] = useState<{ artifact: Artifact; collectionId: string; workspace: string }[]>([]);
+  const ids = collections.filter(c => c.id && c.id !== current).map(c => `${c.id}\u0000${c.name}`).join('\u0001');
+  useEffect(() => {
+    const others = ids ? ids.split('\u0001').map(entry => { const [id, name] = entry.split('\u0000'); return { id, name }; }) : [];
+    if (!others.length) { setItems([]); return; }
+    const control = new AbortController();
+    const load = async () => {
+      if (document.visibilityState === 'hidden') return;
+      const lists = await Promise.all(others.map(c => api.listArtifacts({ collectionId: c.id }, { signal: control.signal, timeoutMs: 10000 })
+        .then(result => result.artifacts.map(artifact => ({ artifact, collectionId: c.id, workspace: c.name })))
+        .catch(() => [])));
+      if (!control.signal.aborted) setItems(lists.flat().sort((a, b) => Number(b.artifact.updatedAtUnixMillis || 0n) - Number(a.artifact.updatedAtUnixMillis || 0n)));
+    };
+    void load();
+    const timer = setInterval(() => void load(), 15000);
+    return () => { control.abort(); clearInterval(timer); };
+  }, [api, ids, current]);
+  return items;
+}
