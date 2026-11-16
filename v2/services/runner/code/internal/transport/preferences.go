@@ -15,7 +15,7 @@ import (
 
 func (s *Service) GetRunnerSettings(context.Context, *pb.InfoRequest) (*pb.RunnerSettings, error) {
 	d, rates := s.Bench.Preferences.SnapshotRates()
-	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, SuggestedName: petname.Generate(3, "-"),
+	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, PlainTitles: d.PlainTitles, SuggestedName: petname.Generate(3, "-"),
 		Review: &pb.ReviewSettings{Reviewer: d.Review.Reviewer, Template: d.Review.Template, AutoStart: d.Review.AutoStart, DefaultTemplate: reviews.DefaultTemplate, Loop: firstNonEmptyString(d.Review.Loop, reviews.LoopAsk), MaxRounds: uint32(reviews.ClampRounds(d.Review.MaxRounds))}}
 	for key, r := range rates {
 		provider, model, _ := strings.Cut(key, "/")
@@ -39,7 +39,7 @@ func (s *Service) SaveRunnerSettings(ctx context.Context, r *pb.RunnerSettings) 
 	if r.Review != nil {
 		review = preferences.Review{Reviewer: r.Review.Reviewer, Template: strings.TrimSpace(r.Review.Template), AutoStart: r.Review.AutoStart, Loop: r.Review.Loop, MaxRounds: int(r.Review.MaxRounds)}
 	}
-	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors,
+	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors, PlainTitles: r.PlainTitles,
 		Review: review})
 	if err != nil {
 		return nil, settingsError(err)

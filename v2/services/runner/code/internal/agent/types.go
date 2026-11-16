@@ -78,6 +78,22 @@ func (o Open) HostOptions(provider string) sessionhost.Options {
 // sessions forward it, so the Runner can say which host runs a conversation.
 type Hosted interface{ HostID() string }
 
+// Titler is a session that can name its conversation through its provider
+// (the cheapest way the provider offers). description is the conversation's
+// first message and a bounded excerpt of the reply (titles.Description); the
+// answer is raw provider text, tidied by the caller. Wrapping sessions forward it.
+type Titler interface {
+	Title(ctx context.Context, description string) (string, error)
+}
+
+// TitleOf asks s to name its conversation; ErrUnsupported when it cannot.
+func TitleOf(ctx context.Context, s Session, description string) (string, error) {
+	if t, ok := s.(Titler); ok {
+		return t.Title(ctx, description)
+	}
+	return "", ErrUnsupported
+}
+
 // HostOf returns the session host running s's native process, or "".
 func HostOf(s Session) string {
 	if h, ok := s.(Hosted); ok {

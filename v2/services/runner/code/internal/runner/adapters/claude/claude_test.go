@@ -72,6 +72,45 @@ func TestStopAgentReachesOnlyAWorkerThatSupportsIt(t *testing.T) {
 	}
 }
 
+// A conversation is named by the worker that offers it (Claude Code's own
+// title generator); an older worker is not asked.
+func TestTitleReachesOnlyAWorkerThatSupportsIt(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	script := func(features string) string {
+		return `read -r line
+printf '%s\n' '{"id":"lazybox-1","result":{"reference":"ref","features":` + features + `}}'
+while IFS= read -r line; do
+  case "$line" in
+    *'"method":"title"'*'"description":"fix the login flake"'*) printf '%s\n' '{"id":"lazybox-2","result":{"title":"Login flake"}}' ;;
+    *) printf '%s\n' '{"id":"lazybox-2","error":{"message":"unexpected"}}' ;;
+  esac
+done
+`
+	}
+	for _, tc := range []struct {
+		features string
+		works    bool
+	}{{`["permission","title"]`, true}, {`["permission"]`, false}} {
+		worker := filepath.Join(t.TempDir(), "worker.sh")
+		if err := os.WriteFile(worker, []byte(script(tc.features)), 0700); err != nil {
+			t.Fatal(err)
+		}
+		session, err := Adapter{Node: "/bin/sh", Worker: worker}.Open(ctx, agent.Open{Cwd: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		title, err := agent.TitleOf(ctx, session, "fix the login flake")
+		if tc.works && (err != nil || title != "Login flake") {
+			t.Fatalf("title not generated: %q %v", title, err)
+		}
+		if !tc.works && !errors.Is(err, agent.ErrUnsupported) {
+			t.Fatalf("an older worker was asked for a title: %v", err)
+		}
+		_ = session.Close()
+	}
+}
+
 // The person's claude.ai connectors setting reaches the worker at open: off
 // unless they turned it on (Settings → Agents).
 func TestOpenTellsTheWorkerWhetherClaudeAIConnectorsLoad(t *testing.T) {

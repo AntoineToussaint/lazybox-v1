@@ -23,10 +23,16 @@ type Record struct {
 	GatewayID                                                        string
 	Title                                                            string
 	UserTitle                                                        string
-	CreatedAt, UpdatedAt                                             time.Time
-	Snapshot                                                         engine.Snapshot
-	ProviderSettings                                                 json.RawMessage
-	ResumeBlocked                                                    string
+	// GeneratedTitle is the title generated after the conversation's first
+	// turn (titles, agent.Titler); UserTitle wins over it. Resolved on read.
+	GeneratedTitle string `json:",omitempty"`
+	// Opening is the conversation's first message (bounded), resolved on read
+	// from its first attempt.
+	Opening              string `json:",omitempty"`
+	CreatedAt, UpdatedAt time.Time
+	Snapshot             engine.Snapshot
+	ProviderSettings     json.RawMessage
+	ResumeBlocked        string
 	// Instructions is the last shared-instructions update delivered to this
 	// conversation after it started; Context holds what it started with.
 	Instructions string `json:",omitempty"`
@@ -44,6 +50,8 @@ type Store interface {
 	Identity(context.Context) (string, error)
 	Query(context.Context, Query) ([]Record, error)
 	Rename(context.Context, string, string) error
+	// SetGeneratedTitle records a generated title; a rename still wins.
+	SetGeneratedTitle(context.Context, string, string) error
 	Create(context.Context, Record) error
 	SaveState(context.Context, string, engine.Snapshot, json.RawMessage) error
 	// Amend changes one attempt's record atomically.

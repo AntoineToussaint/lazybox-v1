@@ -28,4 +28,3 @@
 .prompt-jump.in-header .prompt-jump-toggle{height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;box-shadow:none;color:inherit;opacity:1;white-space:nowrap}
 .prompt-jump.in-header .prompt-jump-toggle:hover,.prompt-jump.in-header .prompt-jump-toggle[aria-expanded=true]{background:var(--surface-hover);color:var(--text)}
 .prompt-jump.in-header .prompt-jump-list{top:32px;z-index:30}
-.chat-heading[data-narrow] .prompt-jump-noun{display:none}

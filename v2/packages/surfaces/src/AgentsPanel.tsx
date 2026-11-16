@@ -3,7 +3,7 @@ import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import { Icon } from './Icons';
 import { AttentionIcon, LiveText } from './Inbox';
-import { conversationTitle } from './conversation-model';
+import { conversationName } from './conversation-model';
 import { ageLabel, attentionTitle, seenMark, type Attention } from './attention';
 import { useInbox } from './useAttention';
 import { readPreference, writePreference } from './view-state';
@@ -74,13 +74,13 @@ export function AgentsPanel({ collections, target, viewState, onShowSession }: {
           <button className="agent-row" aria-current={row.session.id === target.sessionId ? 'true' : undefined} onClick={() => open(row)}>
             <AttentionIcon state={row.state} size={14}/><span className="sr-only">{attentionTitle[row.state]}{row.unread ? ', unread' : ''}: </span>
             <span className="agent-main">
-              <span className="agent-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationTitle(row.session) || 'New conversation'}</strong></span>
+              <span className="agent-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationName(row.session)}</strong></span>
               <span className="agent-meta">{grouping === 'priority' && <span>{workspace(row)}</span>}{row.state === 'working' ? <LiveText session={row.session}/> : <em>{row.reason || attentionTitle[row.state]}</em>}</span>
             </span>
             <time className="agent-age" dateTime={row.at ? new Date(row.at).toISOString() : undefined}>{ageLabel(row.at, now)}</time>
           </button>
-          <button className="icon-button agent-pin" aria-pressed={pinned.includes(row.key)} aria-label={`${pinned.includes(row.key) ? 'Unpin' : 'Pin'} ${conversationTitle(row.session) || 'conversation'}`} title={pinned.includes(row.key) ? 'Unpin (p)' : 'Pin to the top (p)'} onClick={() => togglePin(row.key)}><Icon name="target" size={12}/></button>
-          {row.unread && row.state !== 'needs-input' && <button className="icon-button agent-seen" aria-label={`Mark ${conversationTitle(row.session) || 'conversation'} as seen`} title="Mark as seen" onClick={() => inbox.mark([{ key: row.key, at: seenMark(row) }])}><Icon name="check" size={12}/></button>}
+          <button className="icon-button agent-pin" aria-pressed={pinned.includes(row.key)} aria-label={`${pinned.includes(row.key) ? 'Unpin' : 'Pin'} ${conversationName(row.session, 'conversation')}`} title={pinned.includes(row.key) ? 'Unpin (p)' : 'Pin to the top (p)'} onClick={() => togglePin(row.key)}><Icon name="target" size={12}/></button>
+          {row.unread && row.state !== 'needs-input' && <button className="icon-button agent-seen" aria-label={`Mark ${conversationName(row.session, 'conversation')} as seen`} title="Mark as seen" onClick={() => inbox.mark([{ key: row.key, at: seenMark(row) }])}><Icon name="check" size={12}/></button>}
         </li>)}</ul>}
       </section>;
     })}

@@ -1,3 +1,4 @@
+import { conversationName } from './conversation-model';
 import { useFileOpener } from './file-links';
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -58,7 +59,7 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   // opened beside this page, for the person to review and send.
   const sendToAgent = (text: string, to: Session | undefined = conversation) => {
     if (!to) { void navigator.clipboard?.writeText(text).catch(() => {}); setNotice('No conversation in this workspace yet. The failing checks were copied: start one and paste them.'); return; }
-    const said = `Added to the message box of “${to.title || 'the conversation'}”. Review it and send.`;
+    const said = `Added to the message box of “${conversationName(to, 'the conversation')}”. Review it and send.`;
     composeInConversation({ sessionId: to.id, text });
     // Opening the chat beside this panel remounts it; the notice survives that.
     notices.set(workspaceId, said); setNotice(said);

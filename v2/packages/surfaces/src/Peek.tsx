@@ -9,7 +9,7 @@ import { MessageList } from './MessageList';
 import { RichContent, CodeBlock } from './RichContent';
 import { LiveStatusLabel } from './LiveIndicator';
 import { Console } from './session-parts';
-import { conversationDetails, conversationTitle } from './conversation-model';
+import { conversationDetails, conversationName, conversationTitle } from './conversation-model';
 import { useMissions } from './useMissions';
 import { liveLabel, statusLabel as missionStatus } from './missions-model';
 import { backendLabel, formatMemory, formatUptime, processState, stopConsequence } from './processes-model';
@@ -269,7 +269,7 @@ function ConversationPeek({ sessionId, onResolved, onTitle }: { sessionId: strin
   const transcript = useTranscript(api, sessionId, true);
   const [visible, setVisible] = useState(40);
   const scroller = useRef<HTMLDivElement>(null), stuck = useRef(true);
-  useEffect(() => { onResolved({ workspaceId: session?.collectionId, sessionId }); onTitle(session ? conversationTitle(session) || 'New conversation' : ''); }, [session?.collectionId, session?.title]);
+  useEffect(() => { onResolved({ workspaceId: session?.collectionId, sessionId }); onTitle(session ? conversationName(session) : ''); }, [session?.collectionId, session?.title]);
   useLayoutEffect(() => { const node = scroller.current; if (node && stuck.current) node.scrollTop = node.scrollHeight; }, [transcript.messages.length, transcript.messages.at(-1)?.text]);
   const agentName = session?.provider === 'codex' ? 'Codex' : 'Claude';
   return <div className="peek-conversation">

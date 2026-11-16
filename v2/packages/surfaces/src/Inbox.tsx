@@ -5,7 +5,7 @@ import type { ViewStateStore } from '@lazybox/platform';
 import { Icon } from './Icons';
 import { useLiveStatus } from './LiveIndicator';
 import { useRunner } from './RunnerContext';
-import { conversationDetails, conversationTitle } from './conversation-model';
+import { conversationDetails, conversationName } from './conversation-model';
 import { useKeyboardAction, useKeymap, type Keymap } from './keyboard';
 import { ageLabel, attentionTitle, seenMark, type Attention, type AttentionState, type Inbox } from './attention';
 import { attentionChanges, deliverAttention } from './attention-alerts';
@@ -104,16 +104,16 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
               'separator',
               { label: 'Mark all seen', icon: 'checkAll', disabled: !unseen.length, run: () => markSeen(unseen) },
             ], { sessionId: row.session.id, workspaceId: row.session.collectionId })}>
-            <button className="inbox-row" {...peekProps({ kind: 'conversation', sessionId: row.session.id, workspaceId: row.session.collectionId, title: row.session.title })} aria-current={row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' })}>
+            <button className="inbox-row" {...peekProps({ kind: 'conversation', sessionId: row.session.id, workspaceId: row.session.collectionId, title: conversationName(row.session) })} aria-current={row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' })}>
               <AttentionIcon state={row.state}/><span className="sr-only">{attentionTitle[row.state]}{row.unread ? ', unread' : ''}: </span>
               <span className="inbox-main">
-                <span className="inbox-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationTitle(row.session) || 'New conversation'}</strong></span>
+                <span className="inbox-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationName(row.session)}</strong></span>
                 <span className="inbox-meta"><span>{workspace(row)}</span><span>{conversationDetails(row.session, info?.profiles || [], false)}</span></span>
                 {(row.line || row.state !== 'idle') && <span className="inbox-line">{row.state === 'working' ? <LiveText session={row.session}/> : <em>{row.reason}</em>}{row.line && <> · {row.line}</>}</span>}
               </span>
               <time className="inbox-age" dateTime={row.at ? new Date(row.at).toISOString() : undefined} title={row.at ? new Date(row.at).toLocaleString() : undefined}>{ageLabel(row.at, now)}</time>
             </button>
-            {row.unread && row.state !== 'needs-input' && <button className="inbox-seen icon-button" aria-label={`Mark ${row.session.title || 'conversation'} as seen`} title="Mark as seen (m)" onClick={() => markSeen([row])}><Icon name="check" size={14}/></button>}
+            {row.unread && row.state !== 'needs-input' && <button className="inbox-seen icon-button" aria-label={`Mark ${conversationName(row.session, 'conversation')} as seen`} title="Mark as seen (m)" onClick={() => markSeen([row])}><Icon name="check" size={14}/></button>}
           </li>)}</ul>
           {visible.length < group.rows.length && <button className="inbox-more" onClick={() => setAllDone(true)}>Show {group.rows.length - visible.length} more</button>}
         </section>;

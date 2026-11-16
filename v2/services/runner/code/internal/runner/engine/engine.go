@@ -21,7 +21,10 @@ type accepted struct {
 	adopted bool
 }
 type Snapshot struct {
-	Title        string             `json:"title,omitempty"`
+	Title string `json:"title,omitempty"`
+	// Opening is the conversation's first message, bounded: what a generated
+	// title and the fallback title are made from.
+	Opening      string             `json:"opening,omitempty"`
 	Purpose      string             `json:"purpose"`
 	ID           string             `json:"id"`
 	Profile      string             `json:"profile"`
@@ -51,6 +54,9 @@ type QueuedMessage struct {
 	// Origin marks a message Lazybox wrote (agent.Origin).
 	Origin *agent.Origin `json:"origin,omitempty"`
 }
+
+// openingLimit bounds the first message a snapshot keeps (Snapshot.Opening).
+const openingLimit = 2000
 
 // queuedPreview bounds a queued message's text in a snapshot.
 const queuedPreview = 280
@@ -332,6 +338,11 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 			title = title[:80]
 		}
 		e.state.Title = string(title)
+		opening := []rune(strings.TrimSpace(op.Text))
+		if len(opening) > openingLimit {
+			opening = opening[:openingLimit]
+		}
+		e.state.Opening = string(opening)
 	}
 	// Do not retain image bytes or credentials in journal events.
 	record := map[string]any{"type": "operation_accepted", "operationId": op.ID, "kind": op.Kind, "text": op.Text, "imageCount": len(op.Images), "requestId": op.RequestID, "data": map[string]any{"files": op.Files}}
@@ -779,6 +790,12 @@ func (e *Engine) SetRotation(ids []string) error {
 		return agent.ErrUnsupported
 	}
 	return switcher.SetRotation(ids)
+}
+
+// Title asks the provider to name the conversation (agent.Titler). It runs
+// beside the conversation: it neither waits for nor delays a turn.
+func (e *Engine) Title(ctx context.Context, description string) (string, error) {
+	return agent.TitleOf(ctx, e.provider, description)
 }
 
 // HostID is the session host running the provider's native process, or "".

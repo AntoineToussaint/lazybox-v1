@@ -234,7 +234,7 @@ try{
  // The count is neutral; only what failed is red, and it says so.
  {const activity=chat.locator('.chat-heading').getByRole('button',{name:'View tools and activity'});
   await expect(activity.locator('.tool-activity-count')).toHaveText(/^\d+ tool calls$/);await expect(activity.locator('.tool-activity-failed')).toHaveText('1 failed');
-  const colours=await activity.evaluate(node=>({count:getComputedStyle(node.querySelector('.tool-activity-count')).color,failed:getComputedStyle(node.querySelector('.tool-activity-failed')).color,context:getComputedStyle(node.closest('.chat-heading-actions').querySelector('.context-trigger')).color}));
+  const colours=await activity.evaluate(node=>({count:getComputedStyle(node.querySelector('.tool-activity-count')).color,failed:getComputedStyle(node.querySelector('.tool-activity-failed')).color,context:getComputedStyle(node.closest('.chat-heading').querySelector('.context-trigger')).color}));
   assert.notEqual(colours.count,colours.failed,'the count is not drawn in the failure colour');}
  await expect(tray.locator('.subagent-tray-all')).toHaveText('All · 5 sub-agents · 1 command');
  await page.screenshot({path:'.cache/subagents-polish-header.png',clip:{x:280,y:88,width:1160,height:80}});

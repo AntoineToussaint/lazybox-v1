@@ -1,3 +1,4 @@
+import { conversationName } from './conversation-model';
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -35,7 +36,7 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
   const sendToAgent = (text: string) => {
     if (!conversation) { showMenuNotice('No conversation in this workspace yet'); return; }
     composeInConversation({ sessionId: conversation.id, text: fencedCode(text) });
-    showMenuNotice(`Added to the message box of “${conversation.title || 'the conversation'}”`);
+    showMenuNotice(`Added to the message box of “${conversationName(conversation, 'the conversation')}”`);
     onShowSession?.({ collectionId: workspaceId, sessionId: conversation.id, commandId: '' });
   };
   const { api } = useRunner();

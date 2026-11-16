@@ -6,6 +6,7 @@ import { ACTIVITY_LABELS, type ActivityDetailState } from './activity-detail';
 import { ACTIVITY_DETAILS } from './tool-lines';
 import type { SlashChoice } from './slash-commands';
 import { showMenuNotice } from './ContextMenu';
+import { requestRename } from './ConversationTitle';
 
 /** The model picker: the same choices and switch as `/model` (useSlashCommands.tsx). */
 export type ModelChoices = { choices: SlashChoice[]; live: boolean; disabled?: string; choose(value: string): void; /** Any model id: `/model ` in the message box. */ pick(): void };
@@ -57,6 +58,7 @@ export function sessionMenuItems({ session, allowStart, onChangePermission, onRe
     session && !session.closed && { label: 'Switch subscription…', run: onSwitchSubscription },
     session?.closed ? allowStart && { label: 'New session', run: onNewSession } : { label: 'End session', disabled: !session, run: onClose },
     'separator',
+    session && sessionID && { label: 'Rename…', icon: 'pencil', run: () => { if (!requestRename(sessionID)) showMenuNotice('Open the conversation to rename it'); } },
     sessionID && { label: 'Copy session ID', icon: 'copy', run: () => copySessionId(sessionID) },
     { label: 'Delete conversation…', danger: true, disabled: !session, run: onDelete },
   ];

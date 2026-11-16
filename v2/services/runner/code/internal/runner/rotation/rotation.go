@@ -185,6 +185,14 @@ func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return 
 func (s *session) HostID() string                   { s.mu.Lock(); defer s.mu.Unlock(); return agent.HostOf(s.current) }
 func (s *session) Capabilities() agent.Capabilities { return s.caps }
 
+// Title asks the current profile's session (agent.Titler).
+func (s *session) Title(ctx context.Context, description string) (string, error) {
+	s.mu.Lock()
+	current := s.current
+	s.mu.Unlock()
+	return agent.TitleOf(ctx, current, description)
+}
+
 // replayedEvent reports, and consumes, an event the journal recorded before
 // the restart (so the excerpt holds its text). The replay ends with the first
 // line completed after the last one recorded whole.

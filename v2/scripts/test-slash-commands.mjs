@@ -70,7 +70,8 @@ try{
  await page.keyboard.press('Enter');
  await expect.poll(()=>applies().at(-1)?.body.model?.model).toBe('claude-sonnet-5');
  await expect(chat.locator('.command-line').filter({hasText:'Switched model to claude-sonnet-5'})).toBeVisible();
- await expect(chat.locator('.chat-heading')).toContainText('claude-sonnet-5');
+ // The header says the model as people do; the id stays in its tooltip.
+ await expect(chat.locator('.chat-heading .chat-model')).toHaveText('Claude · Sonnet 5');await expect(chat.locator('.chat-heading .chat-model')).toHaveAttribute('title',/claude-sonnet-5/);
 
  // The agent's own command: Enter completes it for its argument, Enter sends it as the prompt.
  await message.fill('');await page.keyboard.type('/review-pr');

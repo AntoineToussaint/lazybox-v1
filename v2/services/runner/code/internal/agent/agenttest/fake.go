@@ -22,10 +22,12 @@ type Adapter struct {
 	LiveModel bool
 	// Durable, when set, makes sessions re-attachable with this state.
 	Durable json.RawMessage
+	// Titles names conversations (agent.Titler); nil: sessions cannot.
+	Titles func(description string) (string, error)
 }
 
 func (a *Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) {
-	a.Session = &Session{Events: make(chan agent.Event, 128), Applied: make(chan agent.Operation, 128), Ref: o.Resume, Open: o, Steer: a.Steer, LivePermission: a.LivePermission, StopAgent: a.StopAgent, LiveModel: a.LiveModel, detached: make(chan struct{})}
+	a.Session = &Session{Events: make(chan agent.Event, 128), Applied: make(chan agent.Operation, 128), Ref: o.Resume, Open: o, Steer: a.Steer, LivePermission: a.LivePermission, StopAgent: a.StopAgent, LiveModel: a.LiveModel, Titles: a.Titles, detached: make(chan struct{})}
 	if a.Durable != nil {
 		a.Session.State = a.Durable
 	}
@@ -49,6 +51,8 @@ type Session struct {
 	StopAgent      bool
 	LiveModel      bool
 	Closed         bool
+	// Titles names the conversation (agent.Titler); nil: ErrUnsupported.
+	Titles func(description string) (string, error)
 	// State is the fake's DurableState; nil means it cannot outlive a Runner.
 	State     json.RawMessage
 	Detached  bool
@@ -56,6 +60,14 @@ type Session struct {
 	detached  chan struct{}
 	// committed is closed and replaced on every commit (see AwaitCommits).
 	committed chan struct{}
+}
+
+// Title answers with Titles (agent.Titler).
+func (s *Session) Title(_ context.Context, description string) (string, error) {
+	if s.Titles == nil {
+		return "", agent.ErrUnsupported
+	}
+	return s.Titles(description)
 }
 
 func (s *Session) DurableState() json.RawMessage { s.mu.Lock(); defer s.mu.Unlock(); return s.State }

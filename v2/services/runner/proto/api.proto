@@ -350,6 +350,10 @@ message RunnerSettings { uint64 revision = 1; string naming = 2; string permissi
   bool claude_ai_connectors = 11;
   // Agent review (GITHUB.md, "Agent review").
   ReviewSettings review = 12;
+  // Conversations keep the title made from their first message: no title is
+  // generated after the first turn. Off by default, so an older client that
+  // does not know the field keeps titles generated.
+  bool plain_titles = 13;
 }
 message ReviewSettings {
   // The default reviewer: "" for the other provider than the conversation

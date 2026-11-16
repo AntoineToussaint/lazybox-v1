@@ -1,5 +1,5 @@
 import type { Profile, RepositoryGitSummary, Session, WorkspaceGitSummary } from '@lazybox/protocol';
-import { conversationDetails, conversationTitle } from './conversation-model';
+import { conversationDetails, conversationName } from './conversation-model';
 
 /**
  * A workspace row's git line and agent line, the pure half (WorkspaceRow.tsx
@@ -105,7 +105,7 @@ export function featuredConversation(sessions: readonly Session[]): Session | un
 
 /** What the agent line says: the conversation's title (its task), never "Claude · model". Those are the tooltip. */
 export function agentLine(session: Session, profiles: readonly Profile[], others = 0): { title: string; more: string; tooltip: string } {
-  const title = conversationTitle(session) || 'New conversation';
+  const title = conversationName(session);
   const more = others > 0 ? `+${others}` : '';
   const tooltip = [title, conversationDetails(session, profiles), others > 0 ? `${plural(others, 'other conversation')} in this workspace` : ''].filter(Boolean).join('\n');
   return { title, more, tooltip };

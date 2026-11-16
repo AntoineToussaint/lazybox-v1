@@ -84,7 +84,6 @@
   .workspace-shell .embedded-chat .keyboard-hint{display:none}
   .workspace-shell .embedded-chat .chat-heading{padding:8px 8px 8px 14px;gap:10px}
   .workspace-shell .embedded-chat .chat-heading .agent-avatar{display:none}
-  .workspace-shell .embedded-chat .chat-account{display:none}
   .workspace-shell .new-session-dialog{padding:20px;max-height:calc(100dvh - 24px)}
   .workspace-shell .new-session-dialog input,.workspace-shell .new-session-dialog select{font-size:calc(16px * var(--text-scale))}
   /* One panel at a time: docking has no meaning here; closing still does. */

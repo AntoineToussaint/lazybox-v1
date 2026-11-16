@@ -114,7 +114,8 @@ try{
  await page.keyboard.press('ContextMenu');await expect(menu).toBeVisible();await close();
 
  // The chat header: the ⋯ session actions, with permissions as a submenu.
- await open(chat.locator('.chat-heading .agent-avatar'));
+ // (Anywhere on the header that is not a control: in a slim panel the avatar gives its room to the title.)
+ await open(chat.locator('.chat-heading .chat-status'));
  const sessionItems=await labels();
  for(const name of ['Permissions','Switch subscription…','Delete conversation…'])assert.ok(sessionItems.includes(name),name);
  await page.keyboard.press('p');await expect(item('Permissions')).toBeFocused();

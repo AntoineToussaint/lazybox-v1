@@ -7,7 +7,7 @@ import { cancelDictation, registerDictationTarget, takeOverDictation, toggleDict
 import { VoicePill } from './voice/VoiceLayer';
 import { attentionTitle, type Attention } from './attention';
 import { openArtifact } from './artifact-events';
-import { conversationTitle } from './conversation-model';
+import { conversationName } from './conversation-model';
 import { FileIcon } from './DirectoryListing';
 import { bestMatch, fuzzyMatch } from './fuzzy';
 import { Icon } from './Icons';
@@ -112,7 +112,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
       keys: firstKeys(keymap[definition.id as keyof Keymap]), run: () => { runAction(definition.id, undefined, 'palette'); },
     }));
     const conversations: Item[] = inbox.rows.map(row => ({
-      key: `conversation:${row.key}`, kind: 'conversation', title: conversationTitle(row.session) || 'New conversation',
+      key: `conversation:${row.key}`, kind: 'conversation', title: conversationName(row.session),
       detail: `${workspaceName(row.session.collectionId)} · ${row.state === 'idle' ? row.reason : attentionTitle[row.state]}`, extra: workspaceName(row.session.collectionId),
       icon: <AttentionIcon state={row.state} size={15}/>, current: row.session.id === navigator.current.sessionId,
       run: () => navigator.goTo({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' }),

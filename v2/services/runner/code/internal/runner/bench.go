@@ -223,6 +223,8 @@ type Bench struct {
 	// agentCLI is the shell integration that keeps this Runner's CLI first on
 	// agents' PATH, and the last probe of it (agent_cli.go).
 	agentCLI agentCLIState
+	// titling is the conversation naming in progress (titles.go).
+	titling titling
 }
 
 func New(cfg Config) (*Bench, error) {

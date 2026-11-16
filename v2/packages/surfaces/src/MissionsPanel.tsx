@@ -6,7 +6,7 @@ import type { ViewStateStore } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
-import { conversationTitle } from './conversation-model';
+import { conversationName } from './conversation-model';
 import { readPreference, writePreference } from './view-state';
 import type { ModuleProps } from './PanelRegistry';
 import type { ViewTarget } from './workspace-model';
@@ -310,7 +310,7 @@ function AssignDialog({ task, mission, collections, workspaceId, viewState, onCl
         <label>Workspace<select aria-label="Workspace" value={collectionId} onChange={e => setCollectionId(e.target.value)}>{ready.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label>Agent<select aria-label="Agent" value={profileId} onChange={e => setProfileId(e.target.value)}>{profiles.map(p => <option key={p.id} value={p.id}>{p.provider === 'codex' ? 'Codex' : 'Claude'}{p.label ? ' · ' + p.label : ''}</option>)}</select></label>
         <p className="mission-muted">Every conversation in a workspace shares its files. Give parallel tasks their own workspaces.</p>
-      </> : <label>Conversation<select aria-label="Conversation" value={sessionId} onChange={e => setSessionId(e.target.value)}>{conversations.map(s => <option key={s.id} value={s.id}>{conversationTitle(s) || 'Untitled conversation'} · {workspaceName(s.collectionId)}</option>)}</select></label>}
+      </> : <label>Conversation<select aria-label="Conversation" value={sessionId} onChange={e => setSessionId(e.target.value)}>{conversations.map(s => <option key={s.id} value={s.id}>{conversationName(s)} · {workspaceName(s.collectionId)}</option>)}</select></label>}
       <label className="mission-check"><input type="checkbox" checked={sendBrief} onChange={e => setSendBrief(e.target.checked)}/> Send the task's brief to the agent now</label>
       {sendBrief && <pre className="mission-brief-preview" aria-label="Brief to send">{task.title}{task.brief ? '\n\n' + task.brief : ''}{`\n\n(Task of the Lazybox mission “${mission.title}”. …)`}</pre>}
       {error && <p className="missions-error" role="alert">{error}</p>}

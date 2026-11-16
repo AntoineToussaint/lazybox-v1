@@ -91,6 +91,18 @@ Keys work while the chat has focus, never while you are typing.
 
 ## Follow what it does
 
+- **The header** names the conversation and says how it is going. The title
+  is a few words the agent gives it when its first turn ends (turn this off in
+  Settings → Agents & workspaces → *Name conversations after their first
+  turn*), and until then a cut of your first message that never stops inside a
+  word. **Double-click** the title (or press `F2` on it, or ⋯ → **Rename…**) to
+  name it yourself: your name always wins and is what the sidebar, the Agents
+  list, the inbox, tabs, peek and the palette show. A click shows the first
+  message whole. The line under it has the status, the branch, the agent and
+  model (click to switch), the subscription when you have more than one, then
+  the numbers — prompts, background work, context and cost, tool calls — with
+  their words in the tooltips. In a narrow panel what does not fit moves, whole,
+  into **⋯**.
 - **Tool calls are one line each** — *Read src/a.ts*, *Ran npm test*, *Edited
   3 files +12 −4* — expandable in place to the command, its output, or the diff.
   How much you see is your choice: [Activity detail](activity-detail.md).

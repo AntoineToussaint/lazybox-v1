@@ -193,6 +193,25 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 	r.ID = op.ID
 	return r, err
 }
+
+// Title names the conversation with Claude Code's own session-title
+// generator (the one its /rename and session list use: a small, tool-free
+// request on the conversation's subscription). A worker started before it
+// existed cannot.
+func (s *session) Title(ctx context.Context, description string) (string, error) {
+	if !s.has("title") {
+		return "", agent.ErrUnsupported
+	}
+	result, err := s.p.Call(ctx, "title", map[string]string{"description": description})
+	if err != nil {
+		return "", err
+	}
+	var response struct {
+		Title string `json:"title"`
+	}
+	err = json.Unmarshal(result, &response)
+	return response.Title, err
+}
 func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	for {
 		m, err := s.p.Receive(ctx)

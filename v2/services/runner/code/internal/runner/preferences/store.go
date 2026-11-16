@@ -32,6 +32,9 @@ type Data struct {
 	// ClaudeAIConnectors lets new Claude sessions load the person's claude.ai
 	// connectors. Off by default, so documents stay in Lazybox artifacts.
 	ClaudeAIConnectors bool `json:"claudeAiConnectors,omitempty"`
+	// PlainTitles keeps conversations titled by their first message: no
+	// title is generated after the first turn. Off by default.
+	PlainTitles bool `json:"plainTitles,omitempty"`
 
 	// Review is agent review (GITHUB.md, "Agent review").
 	Review Review `json:"review,omitzero"`

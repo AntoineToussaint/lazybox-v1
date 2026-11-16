@@ -105,6 +105,11 @@ func (s *session) Detach() error {
 	return nil
 }
 func (s *session) Close() error { err := s.Session.Close(); s.release(); return err }
+
+// Title forwards to the native session (agent.Titler).
+func (s *session) Title(ctx context.Context, description string) (string, error) {
+	return agent.TitleOf(ctx, s.Session, description)
+}
 func (s *session) SessionSettings() json.RawMessage {
 	if native, ok := s.Session.(agent.RuntimeSettings); ok {
 		return native.SessionSettings()

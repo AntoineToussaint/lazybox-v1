@@ -30,7 +30,9 @@ import { usePromptRecall } from './usePromptRecall';
 import { useSessionRefresh, useSessionWorkspace } from './useSessionPolling';
 import { useFileDrop } from './useFileDrop';
 import { NewSessionForm, useSessionLauncher } from './NewSessionForm';
-import { ChatHeader, ChatStatus, SessionHeader, SessionInspection, WindowTopbar } from './ChatHeader';
+import { ChatHeader, ChatStatus, SessionHeader, SessionInspection, WindowTopbar, type HeaderStats } from './ChatHeader';
+import { TelemetryPanel } from './TelemetryPanel';
+import { ToolActivity } from './ToolActivity';
 import { BrowsingBadge } from './BrowserPanel';
 import { useBrowserAutoShow } from './useBrowser';
 import { ConversationTitle } from './ConversationTitle';
@@ -331,6 +333,9 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const profileList = info?.profiles;
   const nameFor = useCallback((id: string) => subscriptionName(profileList?.find(p => p.id === id), id), [profileList]);
   const shownAccount = accountName === 'Account not reported' || accountName === 'Loading account…' ? '' : accountName;
+  // The header names the subscription only when the provider has another one to tell it from.
+  const provider0 = (activeProfile?.provider || launcher.provider) === 'codex' ? 'codex' : 'claude';
+  const headerAccount = (profileList || []).filter(p => p.provider === provider0).length > 1 ? shownAccount : '';
   // A Runner restart while nothing was said yet is not news: an empty
   // conversation stays empty instead of showing "Runner restarted".
   const spoken = conversation.some(m => m.type !== 'reattached');
@@ -441,10 +446,11 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   useBrowserAutoShow(api, session?.conversationId || session?.id || '', session?.closed ? undefined : session?.browser, onShowBrowser);
   if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError} onOpenFile={session?.collectionId ? openFile : undefined} files={fileLinks.element}/>;
 
-  const title = <ConversationTitle api={api} session={session} sessionID={sessionID} realTitle={realTitle} suggestedTitle={titleFromMessage(firstPrompt)} branch={branch}
+  const title = <ConversationTitle api={api} session={session} sessionID={sessionID} realTitle={realTitle} suggestedTitle={titleFromMessage(firstPrompt)} firstMessage={firstPrompt} branch={branch}
     onRenamed={renamed => { setSession(renamed); refresh(); }} onError={setError}/>;
   const status = <><ChatStatus session={session} live={live}/><BrowsingBadge session={session} agentName={agentName} onShow={onShowBrowser}/><SubagentAttention/></>;
   const inspection = <><BackgroundWorkButton/><SessionInspection sessionID={sessionID} session={session} activity={transcript.activity} activityTruncated={transcript.activityTruncated}/></>;
+  const stats: HeaderStats = { background: <BackgroundWorkButton/>, usage: <TelemetryPanel executionId={sessionID} conversationId={session?.conversationId} compact/>, tools: <ToolActivity events={transcript.activity} truncated={transcript.activityTruncated}/> };
   const lifecycle = <SessionLifecycleButton session={session} allowStart={allowStart} onNewSession={newSession} onClose={() => void close()}/>;
 
   return <main className={'agent-window' + (embedded ? ' embedded-chat' : '') + (drop.dragging ? ' file-drag-active' : '')} {...drop.handlers} onFocusCapture={activity.mark} onPointerDownCapture={activity.mark}>
@@ -462,8 +468,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         ? <NewSessionForm launcher={launcher} info={info} purpose={purpose} emptyWorkspace={emptyWorkspace} collectionId={collectionId} agentName={agentName}/>
         : <SubagentContext.Provider value={subagents}><section className="single-session">
           {embedded
-            ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} modelLabel={modelLabel} inspection={inspection}
-              realTitle={realTitle} branch={branch} shownAccount={shownAccount} onOpenChat={onOpenChat}
+            ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} statusText={live.text + (session?.queued ? ` · ${session.queued} queued` : '')} statusBusy={live.tone === 'busy' || live.tone === 'waiting'}
+              modelLabel={modelLabel} stats={stats} realTitle={realTitle} branch={branch} shownAccount={headerAccount} onOpenChat={onOpenChat}
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
               onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...sessionMenuItems({ session, allowStart,
                 onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),

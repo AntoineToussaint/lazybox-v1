@@ -1,3 +1,4 @@
+import { conversationName } from './conversation-model';
 import {useEffect,useRef,useState} from 'react';
 import type {Session} from '@lazybox/protocol';
 import {DraggableDialog,DialogHeader} from './DraggableDialog';
@@ -17,7 +18,7 @@ export function DeleteConversationDialog({session,onClose,onDeleted}:{session:Se
  },[api,session.id]);
  return <DraggableDialog ref={dialog} className="delete-conversation-dialog" aria-label="Delete conversation" onCancel={event=>{if(busy)event.preventDefault();else onClose();}}>
  <DialogHeader><h2>Delete conversation?</h2><button disabled={busy} aria-label="Cancel conversation deletion" onClick={onClose}>×</button></DialogHeader>
- <p className="deletion-subject">{session.title||'Untitled conversation'}</p><p>Its messages and uploads will be removed from Lazybox.</p><p className="deletion-note">Workspace files, accounts, usage records and provider history are kept.</p>
+ <p className="deletion-subject">{conversationName(session,'Untitled conversation')}</p><p>Its messages and uploads will be removed from Lazybox.</p><p className="deletion-note">Workspace files, accounts, usage records and provider history are kept.</p>
  {!checked&&!error&&<p role="status">Checking running resources…</p>}
  {checked&&active&&<><p>This conversation has an active session or command.</p><label className="cleanup-choice"><input type="checkbox" checked={stop} disabled={busy} onChange={e=>setStop(e.target.checked)}/>Stop its agent and running commands before deleting</label></>}
  {blocked&&<p role="alert">{blocked}</p>}{error&&<p role="alert">{error}</p>}

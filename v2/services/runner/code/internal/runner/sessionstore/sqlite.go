@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/titles"
 	_ "modernc.org/sqlite"
 )
 
@@ -59,7 +60,7 @@ func OpenSQLite(path string) (*SQLite, error) {
 		db.Close()
 		return fail(err)
 	}
-	if version > 3 {
+	if version > 4 {
 		db.Close()
 		return fail(errors.New("session database requires a newer Runner"))
 	}
@@ -79,6 +80,14 @@ func OpenSQLite(path string) (*SQLite, error) {
 	}
 	if version < 3 {
 		_, err = db.Exec(`BEGIN; CREATE TABLE deleted_attempts(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL); CREATE INDEX deleted_conversations ON deleted_attempts(conversation_id); PRAGMA user_version=3; COMMIT;`)
+		if err != nil {
+			db.Close()
+			return fail(err)
+		}
+	}
+	if version < 4 {
+		// A generated title is kept apart from the person's: a rename always wins.
+		_, err = db.Exec(`BEGIN; ALTER TABLE conversation_metadata ADD COLUMN generated TEXT NOT NULL DEFAULT ''; PRAGMA user_version=4; COMMIT;`)
 		if err != nil {
 			db.Close()
 			return fail(err)
@@ -140,6 +149,7 @@ func decode(row *sql.Row) (Record, error) {
 	}
 	var r Record
 	err = json.Unmarshal(data, &r)
+	resolveTitle(&r)
 	return r, err
 }
 func (s *SQLite) Get(ctx context.Context, id string) (Record, error) {
@@ -192,7 +202,22 @@ func (s *SQLite) SaveState(ctx context.Context, id string, state engine.Snapshot
 	return tx.Commit()
 }
 
-const selectedRecord = `SELECT json_set(a.body, '$.UserTitle', COALESCE(m.title,''), '$.DisplayTitle', COALESCE(NULLIF(m.title,''), NULLIF(json_extract(root.body,'$.Snapshot.title'),''),json_extract(root.body,'$.Title'),'')) FROM attempts a LEFT JOIN conversation_metadata m ON m.id=a.conversation_id LEFT JOIN attempts root ON root.id=a.conversation_id`
+// shownTitle is a conversation's title in SQL, for search: the person's name
+// for it, else its generated title, else its first message's first line.
+const shownTitle = `COALESCE(NULLIF(m.title,''),NULLIF(m.generated,''),NULLIF(json_extract(root.body,'$.Snapshot.title'),''),json_extract(root.body,'$.Title'),'')`
+
+const selectedRecord = `SELECT json_set(a.body, '$.UserTitle', COALESCE(m.title,''), '$.GeneratedTitle', COALESCE(m.generated,''), '$.Opening', COALESCE(NULLIF(json_extract(root.body,'$.Snapshot.opening'),''),json_extract(root.body,'$.Snapshot.title'),''), '$.DisplayTitle', ` + shownTitle + `) FROM attempts a LEFT JOIN conversation_metadata m ON m.id=a.conversation_id LEFT JOIN attempts root ON root.id=a.conversation_id`
+
+// resolveTitle finishes DisplayTitle: a conversation titled only by its first
+// message shows titles.Fallback of it (a sentence or a cut at a word), never
+// the raw first line cut mid-word.
+func resolveTitle(r *Record) {
+	if r.UserTitle == "" && r.GeneratedTitle == "" && r.Opening != "" {
+		if title := titles.Fallback(r.Opening); title != "" {
+			r.DisplayTitle = title
+		}
+	}
+}
 
 func (s *SQLite) Identity(ctx context.Context) (string, error) {
 	var id string
@@ -207,6 +232,24 @@ func (s *SQLite) Rename(ctx context.Context, id, title string) error {
 		return errors.New("conversation name must contain 1..120 characters without controls")
 	}
 	result, err := s.db.ExecContext(ctx, `INSERT INTO conversation_metadata(id,title) SELECT conversation_id,? FROM attempts WHERE id=? ON CONFLICT(id) DO UPDATE SET title=excluded.title`, title, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return os.ErrNotExist
+	}
+	return err
+}
+
+// SetGeneratedTitle records a title generated for id's conversation. It never
+// touches the person's own name for it, which is shown instead when there is one.
+func (s *SQLite) SetGeneratedTitle(ctx context.Context, id, title string) error {
+	title = strings.TrimSpace(title)
+	if title == "" || !utf8.ValidString(title) || utf8.RuneCountInString(title) > 120 || strings.IndexFunc(title, unicode.IsControl) >= 0 {
+		return errors.New("generated title must contain 1..120 characters without controls")
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO conversation_metadata(id,title,generated) SELECT conversation_id,'',? FROM attempts WHERE id=? ON CONFLICT(id) DO UPDATE SET generated=excluded.generated`, title, id)
 	if err != nil {
 		return err
 	}
@@ -235,7 +278,7 @@ func (s *SQLite) Query(ctx context.Context, q Query) ([]Record, error) {
 		args = append(args, *q.Workspace)
 	}
 	if q.Search != "" {
-		where += ` AND instr(lower(COALESCE(NULLIF(m.title,''),NULLIF(json_extract(root.body,'$.Snapshot.title'),''),json_extract(root.body,'$.Title'),'')),lower(?))>0`
+		where += ` AND instr(lower(` + shownTitle + `),lower(?))>0`
 		args = append(args, q.Search)
 	}
 	args = append(args, limit, offset)
@@ -254,6 +297,7 @@ func (s *SQLite) Query(ctx context.Context, q Query) ([]Record, error) {
 		if err = json.Unmarshal(body, &r); err != nil {
 			return nil, err
 		}
+		resolveTitle(&r)
 		result = append(result, r)
 	}
 	return result, rows.Err()

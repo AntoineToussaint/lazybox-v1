@@ -1,3 +1,4 @@
+import { conversationName as nameOf } from './conversation-model';
 import { nudgeGitSummaries } from './useGitSummaries';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Code, ConnectError } from '@lazybox/client-core';
@@ -48,7 +49,7 @@ export function useWorkConversation(workspaceId: string, sessionId: string) {
   return conversation;
 }
 
-const conversationName = (session?: Session) => session ? `“${session.title || 'this conversation'}”` : '';
+const conversationName = (session?: Session) => session ? `“${nameOf(session, 'this conversation')}”` : '';
 
 /** Asks the conversation's agent to write a draft and waits for its fenced reply. */
 function useAgentDraft(conversation?: Session) {

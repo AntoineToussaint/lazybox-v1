@@ -1,3 +1,4 @@
+import { conversationName } from './conversation-model';
 import type { AgentEvent, Session } from '@lazybox/protocol';
 import { repositoryRequestSummary } from './repository-request-model';
 import { browserRequestSummary } from './browser-model';
@@ -197,7 +198,7 @@ export type AttentionNotice = { key: string; kind: 'needs-input' | 'failed' | 'r
  */
 export function noticeFor(previous: Attention | undefined, next: Attention, preferences: NotificationPreferences, viewing: boolean, workspace = ''): AttentionNotice | undefined {
   if (!previous || viewing) return undefined;
-  const title = next.session.title || 'Untitled conversation';
+  const title = conversationName(next.session, 'Untitled conversation');
   const where = workspace ? `${workspace} · ` : '';
   const target = { key: next.key, collectionId: next.session.collectionId, sessionId: next.session.id };
   if (next.state === 'needs-input') {

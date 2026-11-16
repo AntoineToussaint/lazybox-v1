@@ -1,3 +1,4 @@
+import { conversationTitle } from './conversation-model';
 import { LeaderMenu } from './LeaderMenu';
 import { WorkspaceNavigator } from './WorkspaceNavigator';
 import { useKeyboardAction, useKeyboardNavigation, useKeymap } from './keyboard';
@@ -451,7 +452,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const base = liveTitles[panel.id]?.text || registry[panel.kind]?.title || panel.kind;
     if (panel.kind !== 'chat') return base;
     const session = info?.sessions.find(value => value.id === resolveTarget(panel, page.selection).sessionId);
-    return session?.title?.trim() || base;
+    return conversationTitle(session) || base;
   };
   const iconOf = (panel: Panel) => registry[panel.kind]?.icon || 'file';
   // Panels of this workspace in windows of their own: chats (of any page) and the page's popped-out groups.

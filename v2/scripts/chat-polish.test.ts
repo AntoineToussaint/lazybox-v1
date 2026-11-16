@@ -116,7 +116,8 @@ test('workspace names and branches read well', () => {
 test('a conversation titled after its folder has no title; the branch leads instead', () => {
   assert.equal(conversationTitle(session({ title: 'strongly-tight-collie', workingDirectory: '/w/strongly-tight-collie' })), '');
   assert.equal(conversationTitle(session({ title: 'Fix login', workingDirectory: '/w/strongly-tight-collie' })), 'Fix login');
-  assert.equal(titleFromMessage('## Can you fix the flaky login test?\nMore'), 'Can you fix the flaky login test');
+  // The words that only open a request go, as the Runner's fallback title drops them.
+  assert.equal(titleFromMessage('## Can you fix the flaky login test?\nMore'), 'Fix the flaky login test?');
   assert.equal(titleFromMessage('word '.repeat(30)).endsWith('…'), true);
   const one = create(CollectionSchema, { members: [{ spec: { name: 'api', branch: 'feature/x' } }, { spec: { name: 'web', branch: 'feature/x' } }] });
   assert.deepEqual(branchSummary(one), { name: 'feature/x', detail: '2 repositories', title: 'api: feature/x\nweb: feature/x' });

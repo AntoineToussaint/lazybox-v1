@@ -11,6 +11,7 @@ import { contextSnapshot } from './context.js';
 import { SettingsApprovals, settingsServer, settingsServerName, updateSettingsTool } from './settings.js';
 import { alwaysChoices, covers, decide, offered, type Grant } from './permissions.js';
 import { browserServer, browserServerName } from './browser.js';
+import { generateTitle } from './title.js';
 
 type Request = { id?: string; method?: string; params?: any; result?: any; error?: any };
 let session: Query | undefined;
@@ -93,7 +94,7 @@ async function open(options: any) {
   void session.initializationResult().then(init => sayCatalog(catalog.fromInitialize(init))).catch(() => { /* Each turn's init message still names the commands. */ });
   // Operations added after the original protocol. A running worker outlives
   // Runner upgrades, so the Runner asks this worker rather than assuming.
-  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model'] };
+  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model', 'title'] };
 }
 
 async function receive(q: Query) {
@@ -170,6 +171,10 @@ async function handle(request: Request) {
         if (typeof p?.nativeId !== 'string' || !p.nativeId) throw new Error('nativeId required');
         await session.stopTask(p.nativeId);
         reply(request.id, { delivery: 'acknowledged' }); break;
+      }
+      case 'title': {
+        // Beside the conversation: names it, never touches its turn.
+        reply(request.id, { title: await generateTitle(session, p?.description) }); break;
       }
       case 'interrupt': interrupted = true; await session.interrupt(); reply(request.id, { delivery: 'acknowledged' }); break;
       case 'answer': case 'approve': {

@@ -35,6 +35,8 @@ type session struct {
 	purpose         string
 	// responded: the user's responses to requests answered before a Runner restart.
 	responded map[string]agent.Operation
+	// titler names the conversation (title.go).
+	titler *titler
 }
 
 // GatewayArgs deliberately selects an HTTP Responses provider. Setting only
@@ -71,7 +73,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 		binary = "codex"
 	}
 	if o.Host != nil && o.Host.Attach != nil {
-		return attach(ctx, o)
+		return attach(ctx, o, binary)
 	}
 	gateway := o.Gateway
 	life, cancel := context.WithCancel(ctx)
@@ -169,6 +171,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 		return fail(errors.New("Codex omitted native thread id"))
 	}
 	s := &session{p: p, ref: response.Thread.ID, model: response.Model, workflow: o.Workflow, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, purpose: o.Purpose}
+	s.titler = newTitler(binary, o, s.currentModel)
 	settings := map[string]json.RawMessage{}
 	for key, value := range map[string]json.RawMessage{"approvalPolicy": response.Approval, "approvalsReviewer": response.Reviewer, "sandboxPolicy": response.Sandbox} {
 		if len(value) > 0 && string(value) != "null" {
@@ -240,7 +243,7 @@ func (s *session) replyItems(native json.RawMessage, request string, items []any
 
 const toolOutcomeUnknown = "The Runner restarted while this approved lazybox_command was running; its outcome is unknown. Inspect the workspace and command list before retrying."
 
-func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
+func attach(ctx context.Context, o agent.Open, binary string) (agent.Session, error) {
 	var state durable
 	if err := json.Unmarshal(o.Host.Attach.State, &state); err != nil || state.Host == "" {
 		return nil, errors.New("Codex session has no re-attachable host")
@@ -259,6 +262,7 @@ func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
 		}
 	}
 	s := &session{p: p, ref: o.Host.Attach.Reference, turn: state.Turn, model: state.Model, workflow: o.Workflow, settings: state.Settings, overrides: state.Overrides, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, purpose: o.Purpose, responded: o.Host.Attach.Responded}
+	s.titler = newTitler(binary, o, s.currentModel)
 	go s.read()
 	return s, nil
 }
@@ -322,6 +326,9 @@ func (s *session) SessionSettings() json.RawMessage {
 	return append(json.RawMessage(nil), s.settings...)
 }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
+
+// currentModel is the model of the conversation's next turn.
+func (s *session) currentModel() string { s.mu.Lock(); defer s.mu.Unlock(); return s.model }
 func (s *session) Capabilities() agent.Capabilities {
 	return agent.Capabilities{Images: true, Files: true, Questions: s.workflow == "plan", Approvals: true, Steer: true, Resume: true, Subagents: true, LivePermission: true, LiveModel: true, ProfileIsolation: "environment; cross-account resume unverified"}
 }

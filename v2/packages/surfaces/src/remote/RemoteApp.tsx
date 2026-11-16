@@ -5,7 +5,7 @@ import { RunnerProvider, useRunner } from '../RunnerContext';
 import { AttentionScope, useInbox, useMarkViewed } from '../useAttention';
 import { ageLabel, attentionTitle, requestSummary, type Attention } from '../attention';
 import { AttentionIcon } from '../Inbox';
-import { conversationDetails, conversationTitle } from '../conversation-model';
+import { conversationDetails, conversationName } from '../conversation-model';
 import { sessionStatus } from '../agent-status';
 import { useTranscript } from '../useTranscript';
 import { ConversationLoading, MessageList } from '../MessageList';
@@ -204,7 +204,7 @@ function PhoneInbox({ device, collections, onOpen, onForget }: { device: DeviceS
               <button onClick={() => onOpen(row.session.id)}>
                 <AttentionIcon state={row.state} size={18}/>
                 <span className="remote-row-main">
-                  <span className="remote-row-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot" aria-label="unread"/>}<strong>{conversationTitle(row.session) || 'New conversation'}</strong></span>
+                  <span className="remote-row-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot" aria-label="unread"/>}<strong>{conversationName(row.session)}</strong></span>
                   <span className="remote-row-meta">{[workspace(row), conversationDetails(row.session, info.profiles, false)].filter(Boolean).join(' · ')}</span>
                   {(row.line || row.state !== 'idle') && <span className="remote-row-line">{row.state === 'working' ? <LiveText session={row.session}/> : <em>{row.reason}</em>}{row.line && <> · {row.line}</>}</span>}
                 </span>
@@ -246,10 +246,10 @@ function PhoneConversation({ sessionId, device, collections, onBack }: { session
   const respond = device.grants.includes('respond'), start = device.grants.includes('start');
   const workspace = collections.find(value => value.id === session?.collectionId)?.name || '';
   const status = useLiveStatus(session, transcript.recent);
-  return <main className="remote-conversation" aria-label={conversationTitle(session) || 'Conversation'}>
+  return <main className="remote-conversation" aria-label={conversationName(session, 'Conversation')}>
     <header className="remote-bar">
       <button className="remote-icon-button" aria-label="Back to inbox" onClick={onBack}><Icon name="back" size={20}/></button>
-      <div className="remote-bar-title"><h1>{conversationTitle(session) || 'Conversation'}</h1><span>{[workspace, sessionStatus(session)].filter(Boolean).join(' · ')}</span></div>
+      <div className="remote-bar-title"><h1>{conversationName(session, 'Conversation')}</h1><span>{[workspace, sessionStatus(session)].filter(Boolean).join(' · ')}</span></div>
     </header>
     <div className="remote-transcript">
       {transcript.error && <p className="remote-error" role="alert">Conversation could not be loaded. {transcript.error} <button onClick={transcript.retry}>Retry</button></p>}

@@ -20,7 +20,7 @@ function SettingsLoading({ error, what }: { error: string; what: string }) {
   return error ? <div className="settings-error" role="alert">{error} <button type="button" onClick={announce}>Try again</button></div> : <p className="settings-empty" role="status">Loading {what}…</p>;
 }
 
-const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors, s.review?.reviewer || '', s.review?.template || '', !!s.review?.autoStart, s.review?.loop || '', s.review?.maxRounds || 0]);
+const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors, s.plainTitles, s.review?.reviewer || '', s.review?.template || '', !!s.review?.autoStart, s.review?.loop || '', s.review?.maxRounds || 0]);
 
 export function AgentSettings() {
   const { api, info } = useRunner();
@@ -49,6 +49,11 @@ export function AgentSettings() {
         <select id="setting-permission" value={settings.permission} onChange={e => change({ permission: e.target.value })}><option value="">Current CLI settings</option><option value="ask">Ask for approval</option><option value="read-only">Read only</option><option value="yolo">YOLO · full access, no approval prompts</option></select>
       </SettingsRow>
       {settings.permission === 'yolo' && <p className="settings-callout tone-warn" role="note"><Icon name="alert" size={14}/>New coding agents will run with unrestricted tool access and never ask first.</p>}
+    </SettingsGroup>
+    <SettingsGroup title="Conversations">
+      <SettingsRow label="Name conversations after their first turn" htmlFor="setting-generated-titles" description={<>When a conversation’s first turn ends, its agent gives it a short title of what it is about, with a small request on the same subscription. Off: a conversation is titled after its first message. A name you give it (double-click the title) always wins.</>}>
+        <span className="settings-switch"><input id="setting-generated-titles" type="checkbox" role="switch" checked={!settings.plainTitles} onChange={e => change({ plainTitles: !e.target.checked })}/></span>
+      </SettingsRow>
     </SettingsGroup>
     <SettingsGroup title="Documents and connectors" description="Plans, design docs, specs and reports agents write become Lazybox artifacts: versioned pages you read, compare and export here.">
       <SettingsRow label="Use my claude.ai connectors in Lazybox sessions" htmlFor="setting-claude-connectors" description={<>Off: new Claude agents do not load the connectors of your claude.ai account (Claude Docs, Gmail, Notion…), so their documents stay in Lazybox. MCP servers configured on this computer are not affected. Applies to conversations started afterwards.</>}>

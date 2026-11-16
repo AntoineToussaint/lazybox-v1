@@ -1,5 +1,5 @@
 import type { Collection, InfoResponse } from '@lazybox/protocol';
-import { conversationTitle, mergeConversations } from './conversation-model';
+import { conversationName, mergeConversations } from './conversation-model';
 import { Icon } from './Icons';
 import type { ViewTarget } from './workspace-model';
 
@@ -30,7 +30,7 @@ export function WorkspaceSwitcher({ selection, workspaceID, collections, info, l
     <label className="session-switcher"><span className="sr-only">Session</span><select value={selection.sessionId} onChange={event => { const session = info?.sessions.find(value => value.id === event.target.value); onSelect({ collectionId: session ? session.collectionId : selection.collectionId, sessionId: event.target.value, commandId: '' }); }}>
       <option value="">Choose a conversation</option>
       {selection.sessionId && !info?.sessions.some(value => value.id === selection.sessionId) && <option value={selection.sessionId}>Unavailable session</option>}
-      {mergeConversations([], info?.sessions || []).filter(value => !selection.collectionId || value.collectionId === selection.collectionId).map(value => <option key={value.id} value={value.id}>{conversationTitle(value) || 'New conversation'} · {providerName(value.profileId)} · {profileLabel(value.profileId) || value.id.slice(0, 6)}</option>)}
+      {mergeConversations([], info?.sessions || []).filter(value => !selection.collectionId || value.collectionId === selection.collectionId).map(value => <option key={value.id} value={value.id}>{conversationName(value)} · {providerName(value.profileId)} · {profileLabel(value.profileId) || value.id.slice(0, 6)}</option>)}
     </select></label>
   </div>;
 }

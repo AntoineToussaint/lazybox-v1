@@ -51,6 +51,7 @@
     { "id": "prompt-navigation", "scope": "ui", "script": "test:prompt-navigation" },
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },
     { "id": "transcript-polish", "scope": "ui", "script": "test:transcript-polish" },
+    { "id": "chat-header", "scope": "ui", "script": "test:chat-header" },
     { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" },
     { "id": "settings-polish", "scope": "ui", "script": "test:settings-polish" },
     { "id": "send-recovery", "scope": "ui", "script": "test:send-recovery" },

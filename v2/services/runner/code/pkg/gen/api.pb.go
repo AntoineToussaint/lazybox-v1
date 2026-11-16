@@ -247,7 +247,11 @@ type RunnerSettings struct {
 	// and documents stay in Lazybox artifacts. Running sessions keep theirs.
 	ClaudeAiConnectors bool `protobuf:"varint,11,opt,name=claude_ai_connectors,json=claudeAiConnectors,proto3" json:"claude_ai_connectors,omitempty"`
 	// Agent review (GITHUB.md, "Agent review").
-	Review        *ReviewSettings `protobuf:"bytes,12,opt,name=review,proto3" json:"review,omitempty"`
+	Review *ReviewSettings `protobuf:"bytes,12,opt,name=review,proto3" json:"review,omitempty"`
+	// Conversations keep the title made from their first message: no title is
+	// generated after the first turn. Off by default, so an older client that
+	// does not know the field keeps titles generated.
+	PlainTitles   bool `protobuf:"varint,13,opt,name=plain_titles,json=plainTitles,proto3" json:"plain_titles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -364,6 +368,13 @@ func (x *RunnerSettings) GetReview() *ReviewSettings {
 		return x.Review
 	}
 	return nil
+}
+
+func (x *RunnerSettings) GetPlainTitles() bool {
+	if x != nil {
+		return x.PlainTitles
+	}
+	return false
 }
 
 type ReviewSettings struct {
@@ -25766,7 +25777,7 @@ const file_api_proto_rawDesc = "" +
 	"\tmax_input\x18\b \x01(\x03R\bmaxInput\x12\x18\n" +
 	"\aversion\x18\t \x01(\tR\aversion\x12\x16\n" +
 	"\x06custom\x18\n" +
-	" \x01(\bR\x06custom\"\xff\x03\n" +
+	" \x01(\bR\x06custom\"\xa2\x04\n" +
 	"\x0eRunnerSettings\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x16\n" +
 	"\x06naming\x18\x02 \x01(\tR\x06naming\x12\x1e\n" +
@@ -25782,7 +25793,8 @@ const file_api_proto_rawDesc = "" +
 	"\x1drotation_excluded_profile_ids\x18\n" +
 	" \x03(\tR\x1arotationExcludedProfileIds\x120\n" +
 	"\x14claude_ai_connectors\x18\v \x01(\bR\x12claudeAiConnectors\x128\n" +
-	"\x06review\x18\f \x01(\v2 .lazybox.bench.v1.ReviewSettingsR\x06review\"\xc5\x01\n" +
+	"\x06review\x18\f \x01(\v2 .lazybox.bench.v1.ReviewSettingsR\x06review\x12!\n" +
+	"\fplain_titles\x18\r \x01(\bR\vplainTitles\"\xc5\x01\n" +
 	"\x0eReviewSettings\x12\x1a\n" +
 	"\breviewer\x18\x01 \x01(\tR\breviewer\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x1d\n" +

@@ -7,7 +7,7 @@ import { useKeymap } from './keyboard';
 import { repositoryLabel } from './repository-model';
 import { useConversationIndex } from './useConversationIndex';
 import { LiveStatusLabel } from './LiveIndicator';
-import { conversationTitle } from './conversation-model';
+import { conversationName } from './conversation-model';
 import type { ViewTarget } from './workspace-model';
 import './workspace-home.css';
 
@@ -52,7 +52,7 @@ export function WorkspaceHome({ workspace, viewState, onNewConversation, onShowM
       </div>
       {recent.length > 0 && <nav className="workspace-home-recent" aria-label="Recent conversations in this workspace">
         <h3>Recent conversations</h3>
-        {recent.map(session => <button key={session.id} onClick={() => onTarget({ collectionId: workspace.id, sessionId: session.id, commandId: '' })}><Icon name="chat" size={13}/><span className="workspace-home-title">{conversationTitle(session) || 'New conversation'}</span><LiveStatusLabel session={session}/></button>)}
+        {recent.map(session => <button key={session.id} onClick={() => onTarget({ collectionId: workspace.id, sessionId: session.id, commandId: '' })}><Icon name="chat" size={13}/><span className="workspace-home-title">{conversationName(session)}</span><LiveStatusLabel session={session}/></button>)}
       </nav>}
     </div>
   </section>;

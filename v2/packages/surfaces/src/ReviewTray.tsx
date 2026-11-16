@@ -1,3 +1,4 @@
+import { conversationName } from './conversation-model';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { ReviewComment, ReviewRun, Session } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
@@ -154,7 +155,7 @@ export function ReviewTray({ workspaceId, review, conversation, focusReview = ''
     setBusy(true); setError('');
     try {
       onSend(reviewMessage(chosen), to);
-      await review.setDisposition(chosen.map(c => c.id), 'sent', { sessionId: to.id, sessionTitle: to.title || '' });
+      await review.setDisposition(chosen.map(c => c.id), 'sent', { sessionId: to.id, sessionTitle: conversationName(to, '') });
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   };
   const summary = counts.all ? [counts.proposed && `${counts.proposed} to triage`, counts.pending && `${counts.pending} pending`, counts.sent && `${counts.sent} sent`, counts.settled && `${counts.settled} done`].filter(Boolean).join(' · ') : runs.some(r => r.state === 'running') ? 'Waiting for findings…' : 'No comments yet';
@@ -208,12 +209,12 @@ export function ReviewTray({ workspaceId, review, conversation, focusReview = ''
     <footer>
       {error && <p className="review-error" role="alert">{error}</p>}
       {conversations.length > 1 && <label className="review-target">Send to<select value={to?.id || ''} onChange={event => setTarget(event.target.value)} aria-label="Conversation">
-        {conversations.map(s => <option key={s.id} value={s.id}>{s.title || 'Untitled conversation'}{s.id === author ? ' (author)' : s.id === conversation?.id ? ' (current)' : ''}</option>)}
+        {conversations.map(s => <option key={s.id} value={s.id}>{conversationName(s, 'Untitled conversation')}{s.id === author ? ' (author)' : s.id === conversation?.id ? ' (current)' : ''}</option>)}
       </select></label>}
       <button className="primary review-send" disabled={!chosen.length || !to || busy} onClick={() => void send()}>
         <Icon name="send" size={14}/>{chosen.length ? `Send ${plural(chosen.length, 'comment')} to the agent` : 'Send review to the agent'}
       </button>
-      <small className="review-muted">{!to ? 'No conversation in this workspace yet. Start one to send it comments.' : `Goes to the message box of “${to.title || 'the conversation'}” as one message, findings exactly as filed. You review it and send it; nothing is sent for you.`}</small>
+      <small className="review-muted">{!to ? 'No conversation in this workspace yet. Start one to send it comments.' : `Goes to the message box of “${conversationName(to, 'the conversation')}” as one message, findings exactly as filed. You review it and send it; nothing is sent for you.`}</small>
       <label className="review-auto"><input type="checkbox" checked={review.autoResolve} onChange={event => { const enabled = event.target.checked; void review.setAutoResolve(enabled).catch(e => setError(errorText(e))); }}/>Resolve sent comments when a commit changes their lines</label>
     </footer>
   </aside>;

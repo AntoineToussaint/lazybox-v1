@@ -57,17 +57,24 @@ func (b *Bench) checkpointRepositories(ctx context.Context, e *Execution) []code
 	return []codecheckpoints.Repository{{Member: filepath.Base(top), Path: top}}
 }
 
-// watchTurns checkpoints e's workspace before each turn and after it ends,
+// watchTurns follows e's turns: it names the conversation after a turn
+// (titles.go), checkpoints its workspace before each turn and after it ends,
 // then lets reviews follow the turn (review_runs.go). Assistant
-// conversations never change code and are not followed.
+// conversations never change code: only naming follows them.
 func (b *Bench) watchTurns(e *Execution) {
 	live, ok := e.Engine.(*engine.Engine)
-	if !ok || agent.IsAssistant(e.Purpose) || (b.Checkpoints == nil && b.Reviews == nil) {
+	if !ok {
 		return
 	}
+	code := !agent.IsAssistant(e.Purpose) && (b.Checkpoints != nil || b.Reviews != nil)
 	conversation := conversationOf(e)
 	hooks := engine.TurnHooks{
 		After: func(operation string, ended time.Time) {
+			// Beside the checkpoint, never ahead of it: naming waits on the provider.
+			go b.nameConversation(e)
+			if !code {
+				return
+			}
 			if b.Checkpoints != nil {
 				b.checkpoint(func(ctx context.Context) error {
 					repos := b.checkpointRepositories(ctx, e)
@@ -81,7 +88,7 @@ func (b *Bench) watchTurns(e *Execution) {
 			b.reviewTurnEnded(e, operation)
 		},
 	}
-	if b.Checkpoints != nil {
+	if code && b.Checkpoints != nil {
 		hooks.Before = func(op agent.Operation) {
 			b.checkpoint(func(ctx context.Context) error {
 				repos := b.checkpointRepositories(ctx, e)
