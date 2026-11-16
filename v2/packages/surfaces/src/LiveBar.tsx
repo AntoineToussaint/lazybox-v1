@@ -11,6 +11,10 @@ import { SubagentTray, useBackgroundRunning } from './SubagentTray';
 import './live-bar.css';
 import { contextMenu, copyText } from './ContextMenu';
 import { stripAnsi } from './ansi';
+import { LogTail, type LogActions } from './LogView';
+import { openInBrowser, openInViewer } from './web-links';
+import type { FileLink } from './file-reference';
+import type { OpenModifiers } from './file-links';
 import { readPreference, writePreference } from './view-state';
 
 /** Whether the bar shows a command's latest lines: a choice that holds for every conversation until changed. */
@@ -59,7 +63,7 @@ function useSessionCommands(api: RunnerClient, sessionId: string, active: boolea
  * on request, hidden when it is in the way, or the whole of it in the
  * console), the right Stop, and the sub-agents and background commands at work.
  */
-export function LiveBar({ api, session, sessionID, live, disconnected, activity, viewState, onInterrupt, onOpenCommand }: {
+export function LiveBar({ api, session, sessionID, live, disconnected, activity, viewState, onInterrupt, onOpenCommand, onOpenFile }: {
   api: RunnerClient;
   session?: Session;
   sessionID: string;
@@ -72,6 +76,8 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   onInterrupt(): void;
   /** Shows a managed command in the console. */
   onOpenCommand?(commandId: string): void;
+  /** Opens a file the output names (`main.go:42`). */
+  onOpenFile?(link: FileLink, how: OpenModifiers): void;
 }) {
   const rootBusy = !!session?.busy && !session.closed && live.tone === 'busy';
   const background = useBackgroundRunning();
@@ -91,6 +97,13 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   const [moved, setMoved] = useState('');
   const [error, setError] = useState('');
   const outputId = useId();
+  // Pages and ports in the output open in the Web panel (⌘-click: the browser), files in the editor.
+  const openFileRef = useRef(onOpenFile); openFileRef.current = onOpenFile;
+  const tailActions = useMemo<LogActions>(() => ({
+    openLink: (url, browser) => { if (browser || !openInViewer(url)) void openInBrowser(url).catch(e => setError(`Could not open ${url}: ${String(e)}`)); },
+    openFile: onOpenFile ? (link, how) => openFileRef.current?.(link, how) : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [!!onOpenFile]);
   // When a command was first seen running, for one the journal gives no start of.
   const seen = useRef(new Map<string, number>());
   if (managed && !seen.current.has(managed.id)) seen.current.set(managed.id, Date.now());
@@ -163,8 +176,8 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
       </span>
     </div>
     {managed && !hidden && <div className="live-bar-output-frame">
-      <pre id={outputId} className="live-bar-output" data-expanded={expanded || undefined} aria-label={`Latest output of ${managed.title || 'the command'}`} tabIndex={expanded ? 0 : -1}
-        onKeyDown={event => { if (event.key === 'Escape' && expanded) { event.stopPropagation(); setExpanded(false); } }}>{lines.length ? lines.join('\n') : <span className="live-bar-quiet">No output yet.</span>}</pre>
+      <pre id={outputId} className="live-bar-output" data-expanded={expanded || undefined} aria-label={`Latest output of ${managed.title || 'the command'}`} tabIndex={expanded ? 0 : -1} data-link-routing="own"
+        onKeyDown={event => { if (event.key === 'Escape' && expanded) { event.stopPropagation(); setExpanded(false); } }}>{lines.length ? <LogTail text={tail} count={expanded ? 40 : 3} actions={tailActions}/> : <span className="live-bar-quiet">No output yet.</span>}</pre>
       <button type="button" className="icon-button live-bar-hide" aria-label="Hide output" title="Hide the output here. The command keeps running; Show output brings it back." onClick={() => showOutput(false)}><Icon name="close" size={12}/></button>
     </div>}
     {neverEnds && <p className="live-bar-hint" role="note"><Icon name="alert" size={12}/><span>This command may never end. Interrupt the turn and ask {agentLabel(session)} to start it with <code>lazybox run</code> — it moves servers to the background.</span></p>}

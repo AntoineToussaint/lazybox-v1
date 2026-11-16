@@ -6,7 +6,7 @@
  * window never flashes the wrong theme.
  */
 import { resolveTheme, themeCss, type ResolvedTheme } from './themes';
-import { effectiveTypography, findTheme, parsePreferences, selectedThemeId, SYSTEM_CODE_FONT, SYSTEM_UI_FONT, type AppearancePreferences, type Typography } from './preferences';
+import { CONSOLE_FONT, effectiveTypography, findTheme, parsePreferences, selectedThemeId, SYSTEM_CODE_FONT, SYSTEM_UI_FONT, type AppearancePreferences, type Typography } from './preferences';
 import type { Scheme } from './tokens';
 
 export type AppearanceState = { preferences: AppearancePreferences; theme: ResolvedTheme; typography: Typography; reducedMotion: boolean; system: Scheme };
@@ -37,6 +37,8 @@ export function appearanceCss({ theme, typography: t }: AppearanceState): string
   const vars = [
     `--font-ui:${t.uiFont || SYSTEM_UI_FONT}`,
     `--font-mono:${t.codeFont || SYSTEM_CODE_FONT}`,
+    // Command output: the person's code font, else the bundled JetBrains Mono (log-view.css loads it).
+    `--font-console:${t.codeFont || `${CONSOLE_FONT},${SYSTEM_CODE_FONT}`}`,
     `--text-scale:${t.uiFontSize / 13}`,
     `--code-scale:${t.codeFontSize / 12}`,
     `--code-ligatures:${t.ligatures ? 'normal' : 'none'}`,

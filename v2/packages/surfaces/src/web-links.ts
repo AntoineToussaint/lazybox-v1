@@ -73,6 +73,8 @@ const externalLink = (anchor: HTMLAnchorElement) => {
   try { const url = new URL(anchor.href); return url.origin === location.origin && url.protocol !== 'mailto:' ? '' : url.href; } catch { return ''; }
 };
 const anchorOf = (target: EventTarget | null) => (target instanceof Element ? target.closest('a[href]') : null) as HTMLAnchorElement | null;
+/** Links inside `[data-link-routing="own"]` (the command console) open the way that view says; the right-click menu still applies. */
+const ownRouting = (anchor: Element) => !!anchor.closest('[data-link-routing="own"]');
 
 /** What a right-click on a web link offers, the default first. */
 export function linkMenuItems(href: string): MenuItem[] {
@@ -106,7 +108,7 @@ export function installLinkRouting(external?: (url: string) => Promise<void>): (
     if (event.defaultPrevented || event.button !== 0) return;
     const anchor = anchorOf(event.target);
     const url = anchor && externalLink(anchor);
-    if (!url) return;
+    if (!url || ownRouting(anchor)) return;
     const page = webPage(url);
     // ⌘/Ctrl- and Shift-click are the browser's own "new tab / window" gestures.
     const explicit = event.metaKey || event.ctrlKey || event.shiftKey;
@@ -129,7 +131,7 @@ export function installLinkRouting(external?: (url: string) => Promise<void>): (
   const hover = (event: MouseEvent) => {
     const anchor = anchorOf(event.target);
     const url = anchor && externalLink(anchor);
-    if (!anchor || !url || (anchor.title && !anchor.dataset.linkHint)) return;
+    if (!anchor || !url || (anchor.title && !anchor.dataset.linkHint) || ownRouting(anchor)) return;
     const hint = linkHint(url, preferences.target, canOpenInViewer(), isMac ? '⌥' : 'Alt');
     if (anchor.title !== hint) { anchor.title = hint; anchor.dataset.linkHint = '1'; }
   };

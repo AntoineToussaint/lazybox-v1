@@ -17,7 +17,7 @@ motion. Everything applies at once, in every window, and is kept.
 | Minimum contrast | Off, 3:1, 4.5:1 (default, WCAG AA) or 7:1. Text too faint against its background is moved just far enough in lightness to reach it, keeping its hue. Surfaces and fills never change. | This device |
 | Colour overrides | Any token, on top of every theme. | This device |
 | Interface font and text size | Any installed font; 11–16 px. Every UI text size scales with it. | This device |
-| Code font, size, ligatures | The editor, code blocks, diffs, command output and the terminal. | This device |
+| Code font, size, ligatures | The editor, code blocks, diffs, command output and the terminal. Empty: the system monospace, and for command output the bundled JetBrains Mono. | This device |
 | Zoom | Desktop app: everything, every window, 50–200 %. **View → Zoom In / Zoom Out / Actual Size** (`⌘=` `⌘−` `⌘0`) from anywhere; kept across launches. In a browser, use the browser's zoom. | Desktop app data folder |
 | Chat text (Settings → Chat) | Size, line spacing (Compact 1.35, Comfortable 1.5, Relaxed 1.7 or any value), paragraph spacing, and a line width cap (70–120 characters, centred) for wide windows. A sample message shows the result. | This device |
 | Density | Compact, comfortable or relaxed rows in lists and the sidebar; also sets chat line and paragraph spacing. | This device |
@@ -90,7 +90,9 @@ and its sizes follow `--text-scale`.
 | `AppearanceSettings.tsx` | Settings → Appearance, and the Chat text group shown in Settings → Chat (`ChatTextSettings`). |
 
 The ANSI renderer uses `--ansi-0` … `--ansi-15` for the 16 named colours
-(256-colour and truecolour stay the program's own). Charts use `--chart-1` …
+(256-colour and truecolour stay the program's own); the console's source column uses
+`--log-source-1` … `--log-source-6` (the information colour at six hues away from red and yellow), and
+its text `--font-console` (the code font, else the bundled JetBrains Mono). Charts use `--chart-1` …
 `--chart-7`. The Runner side is `ListThemes` and `CreateTheme`
 ([interfaces](INTERFACES.md)), package `internal/themes`. The desktop host
 owns zoom (`appearance.rs`) and tells every window when a preference changes

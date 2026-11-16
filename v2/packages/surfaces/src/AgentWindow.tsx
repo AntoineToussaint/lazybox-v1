@@ -439,7 +439,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
   // The agent starts browsing: its browser shows beside the chat (Settings → Browser).
   useBrowserAutoShow(api, session?.conversationId || session?.id || '', session?.closed ? undefined : session?.browser, onShowBrowser);
-  if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError}/>;
+  if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError} onOpenFile={session?.collectionId ? openFile : undefined} files={fileLinks.element}/>;
 
   const title = <ConversationTitle api={api} session={session} sessionID={sessionID} realTitle={realTitle} suggestedTitle={titleFromMessage(firstPrompt)} branch={branch}
     onRenamed={renamed => { setSession(renamed); refresh(); }} onError={setError}/>;
@@ -485,7 +485,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             onOpenFile={session?.collectionId ? openFile : undefined} onError={setError} detail={activity.detail}
             subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/></CodeRunContext.Provider>
           {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} viewState={viewState} onInterrupt={() => void interrupt()}
-            onOpenCommand={openCommand}/>}
+            onOpenCommand={openCommand} onOpenFile={session?.collectionId ? openFile : undefined}/>}
           {!transcript.error && !disconnected && <QueuedMessages api={api} session={session} sessionID={sessionID} live={live} agentName={agentName} activity={transcript.activity}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}

@@ -2,7 +2,8 @@ import type { ViewStateStore } from '@lazybox/platform';
 
 export type FileReference = { name: string; size: number; lastModified: number };
 export type Draft = { text: string; files: FileReference[]; operationId: string };
-export type ConsoleState = { search: string; follow: boolean; scrollTop: number };
+/** A console's view of one command: its search, whether it follows the end, where it was read, and the sources it hides. */
+export type ConsoleState = { search: string; follow: boolean; scrollTop: number; hidden?: string[] };
 const blank = (): Draft => ({ text: '', files: [], operationId: '' });
 
 function read(store: ViewStateStore | undefined, key: string): Record<string, unknown> {
@@ -26,7 +27,8 @@ export function writeDraft(store: ViewStateStore | undefined, session: string, d
 }
 export function readConsoleState(store: ViewStateStore | undefined, command: string): ConsoleState {
   const data = read(store, `console:${command}`);
-  return { search: typeof data.search === 'string' ? data.search.slice(0, 4096) : '', follow: data.follow !== false, scrollTop: typeof data.scrollTop === 'number' && Number.isFinite(data.scrollTop) ? Math.max(0, Math.min(data.scrollTop, 1e9)) : 0 };
+  const hidden = Array.isArray(data.hidden) ? data.hidden.filter((name): name is string => typeof name === 'string').slice(0, 64) : [];
+  return { search: typeof data.search === 'string' ? data.search.slice(0, 4096) : '', follow: data.follow !== false, scrollTop: typeof data.scrollTop === 'number' && Number.isFinite(data.scrollTop) ? Math.max(0, Math.min(data.scrollTop, 1e9)) : 0, ...(hidden.length ? { hidden } : {}) };
 }
 export function writeConsoleState(store: ViewStateStore | undefined, command: string, state: ConsoleState): void {
   store?.setItem(`${store.key}:console:${command}`, JSON.stringify(state));

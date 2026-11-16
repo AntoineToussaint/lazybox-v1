@@ -106,6 +106,7 @@ export const TOKENS: TokenSpec[] = [
   t('diff-word-del', 'Diff', 'The changed words inside a removed line.', { derive: (g, s) => mix(g('surface'), g('danger'), dark(s) ? 0.38 : 0.25) }),
   t('diff-del-mark', 'Diff', 'The − sign and removed counts.', { contrast: 'body', on: ['diff-del-bg', 'surface'], derive: g => g('danger') }),
   ...ansi(),
+  ...logSources(),
   ...[1, 2, 3, 4, 5, 6, 7].map(n => t(`chart-${n}`, 'Charts', `Chart series ${n}.`, { derive: g => g(['info', 'warn', 'ok', 'accent', 'danger', 'running', 'syntax-type'][n - 1]) })),
   t('chart-muted', 'Charts', 'Reserved or unused parts of a chart.', { derive: g => g('text-faint') }),
   t('shadow', 'Effects', 'The colour of shadows and backdrops.', { derive: (_g, s) => dark(s) ? '#000000' : '#16161f' }),
@@ -120,6 +121,17 @@ function ansi(): TokenSpec[] {
     ...names.map((n, i) => t(`ansi-${i}`, 'Terminal colours', `ANSI ${n} in command output.`, { contrast: i === 0 ? 'hint' : 'body', on: ['code-bg'], derive: g => normal(g, i) })),
     ...names.map((n, i) => t(`ansi-${i + 8}`, 'Terminal colours', `ANSI bright ${n}.`, { contrast: i === 0 ? 'hint' : 'body', on: ['code-bg'], derive: g => bright(g, i) })),
   ];
+}
+
+/**
+ * The source column of a multi-service log (`api/web  > …`, `web-1  | …`): each
+ * source keeps one of these. Hues avoid red and yellow, which say error and
+ * warning there; lightness follows the theme's information colour.
+ */
+function logSources(): TokenSpec[] {
+  // Six, as the console's source colours count them (LOG_SOURCE_COLOURS in log-lines.ts).
+  return [195, 300, 150, 250, 340, 60].map((h, i) => t(`log-source-${i + 1}`, 'Terminal colours', `Source ${i + 1} of a multi-service log: its name in the console and its filter chip.`,
+    { contrast: 'body', on: ['code-bg'], derive: g => adjust(g('info'), { h, c: 0.11 }) }));
 }
 
 export const TOKEN_NAMES = new Set(TOKENS.map(spec => spec.name));

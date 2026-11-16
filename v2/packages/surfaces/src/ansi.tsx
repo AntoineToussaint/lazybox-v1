@@ -6,7 +6,7 @@ import { memo, type CSSProperties, type ReactNode } from 'react';
  * dropped, and a carriage return overwrites the line like a progress bar does.
  */
 
-type Style = { fg?: string; bg?: string; bold?: boolean; dim?: boolean; italic?: boolean; underline?: boolean; inverse?: boolean };
+export type Style = { fg?: string; bg?: string; bold?: boolean; dim?: boolean; italic?: boolean; underline?: boolean; inverse?: boolean };
 export type Segment = { text: string; style: Style };
 
 // The 16 named colours come from the theme (tokens ansi-0 … ansi-15), so
@@ -60,27 +60,34 @@ function applySGR(style: Style, params: number[]): Style {
 // CSI (ESC [ … final), OSC (ESC ] … BEL or ESC \), and other two-byte escapes.
 const ESCAPES = /\x1b\[([0-9;:?<>=]*)([@-~])|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]/g;
 
+/**
+ * One line (no newline in it) of styled segments, starting in `style`; returns
+ * the style in force after it, so a caller can parse output a line at a time
+ * as it streams. A carriage return keeps only what was written last.
+ */
+export function parseAnsiLine(rawLine: string, style: Style = {}): { line: Segment[]; style: Style } {
+  // A progress bar redraws its line after \r: what is visible is the last redraw.
+  const parts = rawLine.split('\r');
+  let visible = parts.pop() ?? '';
+  while (visible === '' && parts.length) visible = parts.pop() ?? '';
+  // Styles set in overwritten parts still apply afterwards.
+  for (const hidden of parts) for (const match of hidden.matchAll(ESCAPES)) if (match[2] === 'm') style = applySGR(style, match[1].split(/[;:]/).filter(Boolean).map(Number));
+  const line: Segment[] = [];
+  let last = 0;
+  for (const match of visible.matchAll(ESCAPES)) {
+    if (match.index! > last) line.push({ text: visible.slice(last, match.index), style });
+    if (match[2] === 'm') style = applySGR(style, match[1].split(/[;:]/).filter(Boolean).map(Number));
+    last = match.index! + match[0].length;
+  }
+  if (last < visible.length) line.push({ text: visible.slice(last), style });
+  return { line, style };
+}
+
 /** Lines of styled segments. Carriage returns keep only what was written last on a line. */
 export function parseAnsi(input: string): Segment[][] {
   const lines: Segment[][] = [];
   let style: Style = {};
-  for (const rawLine of input.split('\n')) {
-    // A progress bar redraws its line after \r: what is visible is the last redraw.
-    const parts = rawLine.split('\r');
-    let visible = parts.pop() ?? '';
-    while (visible === '' && parts.length) visible = parts.pop() ?? '';
-    // Styles set in overwritten parts still apply afterwards.
-    for (const hidden of parts) for (const match of hidden.matchAll(ESCAPES)) if (match[2] === 'm') style = applySGR(style, match[1].split(/[;:]/).filter(Boolean).map(Number));
-    const line: Segment[] = [];
-    let last = 0;
-    for (const match of visible.matchAll(ESCAPES)) {
-      if (match.index! > last) line.push({ text: visible.slice(last, match.index), style });
-      if (match[2] === 'm') style = applySGR(style, match[1].split(/[;:]/).filter(Boolean).map(Number));
-      last = match.index! + match[0].length;
-    }
-    if (last < visible.length) line.push({ text: visible.slice(last), style });
-    lines.push(line);
-  }
+  for (const rawLine of input.split('\n')) { const parsed = parseAnsiLine(rawLine, style); style = parsed.style; lines.push(parsed.line); }
   return lines;
 }
 
@@ -89,7 +96,8 @@ export function stripAnsi(input: string): string {
   return parseAnsi(input).map(line => line.map(segment => segment.text).join('')).join('\n');
 }
 
-const css = (style: Style): CSSProperties | undefined => {
+/** The inline style of a segment: theme tokens for the 16 named colours. */
+export const segmentStyle = (style: Style): CSSProperties | undefined => {
   if (!Object.keys(style).length) return undefined;
   const fg = style.inverse ? style.bg || 'var(--code-bg)' : style.fg, bg = style.inverse ? style.fg || 'var(--code-text)' : style.bg;
   return { color: fg, background: bg, fontWeight: style.bold ? 600 : undefined, opacity: style.dim ? 0.65 : undefined, fontStyle: style.italic ? 'italic' : undefined, textDecoration: style.underline ? 'underline' : undefined };
@@ -102,7 +110,7 @@ export const AnsiText = memo(function AnsiText({ text, filter }: { text: string;
   parseAnsi(text).forEach((line, index) => {
     if (needle && !line.map(s => s.text).join('').toLocaleLowerCase().includes(needle)) return;
     if (out.length) out.push('\n');
-    out.push(<span key={index}>{line.map((segment, k) => <span key={k} style={css(segment.style)}>{segment.text}</span>)}</span>);
+    out.push(<span key={index}>{line.map((segment, k) => <span key={k} style={segmentStyle(segment.style)}>{segment.text}</span>)}</span>);
   });
   return <>{out}</>;
 });

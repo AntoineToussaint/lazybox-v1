@@ -41,6 +41,8 @@ export type AppearancePreferences = {
 
 export const SYSTEM_UI_FONT = "ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
 export const SYSTEM_CODE_FONT = 'ui-monospace,SFMono-Regular,Menlo,monospace';
+/** Bundled with the app (@fontsource-variable/jetbrains-mono): command output reads in it unless a code font is set. */
+export const CONSOLE_FONT = "'JetBrains Mono Variable'";
 export const DEFAULT_TYPOGRAPHY: Typography = {
   uiFont: '', uiFontSize: 13, codeFont: '', codeFontSize: 12, ligatures: false, density: 'comfortable',
   chatFontSize: 14, chatLineHeight: 1.5, chatParagraphGap: 8, chatMaxWidth: 0,

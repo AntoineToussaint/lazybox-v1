@@ -15,7 +15,7 @@
 .live-bar-button:hover:not(:disabled){background:var(--surface-selected)!important;color:var(--text)!important}
 .embedded-chat .live-bar-stop,.live-bar-stop{color:var(--danger-soft)!important;border:1px solid var(--danger-line-subtle)!important}
 .live-bar-stop:hover:not(:disabled){background:var(--danger-bg)!important;color:var(--danger-strong)!important}
-.live-bar-output{margin:0;padding:6px 10px;border-radius:7px;background:var(--surface-sunken);color:var(--text-tertiary);font-family:var(--font-mono,ui-monospace,monospace);font-size:calc(11px * var(--code-scale));line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:calc(3 * 1.5em + 12px);overflow:hidden}
+.live-bar-output{margin:0;padding:6px 10px;border-radius:7px;background:var(--surface-sunken);color:var(--text-tertiary);font-family:var(--font-console,var(--font-mono,ui-monospace,monospace));font-size:calc(11px * var(--code-scale));line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:calc(3 * 1.5em + 12px);overflow:hidden}
 .live-bar-output{flex:none}
 /* The output's own close, in its corner: it is in the way as often as it is wanted. */
 .live-bar-output-frame{position:relative;display:flex;flex-direction:column;flex:0 1 auto;min-height:0}

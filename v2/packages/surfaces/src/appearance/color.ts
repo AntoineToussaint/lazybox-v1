@@ -118,12 +118,12 @@ export function mix(a: string, b: string, amount: number): string {
   const p = toOklab(x), q = toOklab(y), t = clamp01(amount);
   return toHex(fromOklab(p.L + (q.L - p.L) * t, p.A + (q.A - p.A) * t, p.B + (q.B - p.B) * t, x.a + (y.a - x.a) * t));
 }
-/** The colour with its OKLCH lightness and chroma changed. */
-export function adjust(color: string, change: { l?: number; c?: number; scaleC?: number }): string {
+/** The colour with its OKLCH lightness, chroma or hue changed. */
+export function adjust(color: string, change: { l?: number; c?: number; scaleC?: number; h?: number }): string {
   const c = parseColor(color);
   if (!c) throw new Error(`Not a colour: ${color}`);
   const lch = toOklch(c);
-  return toHex(fromOklch({ ...lch, l: change.l ?? lch.l, c: change.c ?? lch.c * (change.scaleC ?? 1) }));
+  return toHex(fromOklch({ ...lch, l: change.l ?? lch.l, c: change.c ?? lch.c * (change.scaleC ?? 1), h: change.h ?? lch.h }));
 }
 export function lightness(color: string): number { const c = parseColor(color); return c ? toOklab(c).L : 0; }
 /** Perceptual distance (Euclidean OKLab, ×100 so 2 is about one just-noticeable step). */

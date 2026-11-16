@@ -161,6 +161,33 @@ choice is shared by every conversation. Each run's header reads, for example, `e
 Runner records the same numbers in telemetry (`commands` table, one row per
 run) to measure savings (step 6).
 
+**Reading the output as a log** (`log-lines.ts` reads it, `LogView.tsx`
+shows it, in the docked console, the console window and the live bar's
+tail). Output from several services (Codefly's `api/web  > …` and
+`[codefly] …`, docker compose's `web-1  | …`, pnpm's `packages/web dev: …`,
+turbo's `web:dev: …`) is laid out in columns: a dim time gutter for a leading
+`21:28:14` (or an ISO or Go timestamp), the source in its own colour (one of
+six theme tokens, `--log-source-1` … `-6`, the same for a name from run to
+run), then the message, which wraps under itself; an indented line (a stack
+frame) belongs to the source above it. A level the program wrote (`(WARN)`,
+`[ERROR]`, `INFO`, `error:`, `npm ERR!`, `--- FAIL`, `level=warn`) is a small
+badge; an error row is tinted. A milestone (`>> api: Running on :8080`,
+"listening on", "ready in", Vite's `Local: http://…`) is a highlighted row.
+A web address, a local port (`:57771`, `localhost:3000`, `port 3000`) opens
+in the Web panel, ⌘/Ctrl-click in the browser; `file.go:42` opens in the
+editor. A long bracketed list or run of addresses folds to `… 9 addresses`,
+and the same line again (ignoring its time) folds to one row with ×N; both
+open in place. With more than one source, a row of chips shows each with its
+count: a click hides or shows its lines, the target (or ⌥-click) shows only
+it; the choice is kept with the console's view. **Hide noise** shows each
+kind of warning once (`(WARN) (Flow.checkLoopback) …`, numbers and lists
+aside) and folds progress lines that differ only in numbers ("still
+starting… 5s, 10s"); it is remembered per command line, so the next
+`codefly run` starts quiet too. None of it is lossy: Copy and the full-output
+file are the output as written. Lines are read once as they arrive; only rows
+near the visible part are in the page, so the 512 KiB tail stays fast. The
+text is JetBrains Mono (bundled), or the code font from Settings → Appearance.
+
 **Running what the agent wrote.** A shell code block in an agent's message
 (`bash`, `sh`, `shell`, `zsh`, or a `console` transcript, whose prompts and
 output lines are dropped) has a **Run** split button beside Copy

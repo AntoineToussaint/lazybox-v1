@@ -198,7 +198,7 @@ export function AppearanceSettings({ store, zoom }: { store?: ViewStateStore; zo
       <SettingsRow label="Interface text size" htmlFor="appearance-ui-size">
         <span className="appearance-inline"><NumberField id="appearance-ui-size" value={typography.uiFontSize} limits={TYPOGRAPHY_LIMITS.uiFontSize} onChange={v => type({ uiFontSize: v })} unit="px"/><Reset shown={typography.uiFontSize !== themeTypography.uiFontSize} what="interface text size" onClick={() => unset('uiFontSize')}/></span>
       </SettingsRow>
-      <SettingsRow label="Code font" htmlFor="appearance-code-font" description="The editor, code blocks, diffs and command output.">
+      <SettingsRow label="Code font" htmlFor="appearance-code-font" description="The editor, code blocks, diffs and command output. Empty uses the system monospace, and JetBrains Mono (bundled) for command output.">
         <span className="appearance-inline"><input id="appearance-code-font" list="appearance-code-fonts" placeholder="System monospace" defaultValue={typography.codeFont} key={`code-${typography.codeFont}`} onBlur={e => { const v = e.target.value.trim(); if (validFont(v)) type({ codeFont: v }); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}/><datalist id="appearance-code-fonts">{CODE_FONTS.map(f => <option key={f} value={f}/>)}</datalist><Reset shown={preferences.typography.codeFont !== undefined} what="code font" onClick={() => unset('codeFont')}/></span>
       </SettingsRow>
       <SettingsRow label="Code text size" htmlFor="appearance-code-size">

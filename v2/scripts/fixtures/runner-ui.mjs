@@ -70,7 +70,16 @@ export async function startRunnerFixture() {
   // a workspace run, optionally shared with a conversation (`--to`).
   const claimedShares = new Set();
   const startTerminalRun = (collectionId, title, report, { shareWith = '', done = true, output = 'fixture retained output\n' } = {}) => { const command = { id: `terminal-run-${commands.length}`, sessionId: '', collectionId, origin: 'terminal', shareWith, title, mode: 'pipe', done, offset: String(Buffer.byteLength(output)), report, output }; commands.push(command); return command; };
-  const wireCommand = ({ output, ...command }) => command;
+  const wireCommand = ({ output, live, ...command }) => command;
+  // streamCommand stands in for a managed command whose output arrives while it is watched:
+  // write(text) sends a chunk to every console following it, finish(exitCode) ends it.
+  const streamCommand = (sessionId, title, argv = ['/bin/sh', '-lc', title]) => {
+    const command = { id: `stream-${commands.length}`, sessionId, title, argv, mode: 'managed', done: false, offset: '0', output: '', live: { events: [], clients: new Set() } };
+    const send = event => { command.live.events.push(event); for (const res of command.live.clients) res.write(frame(event)); };
+    command.write = text => { const data = Buffer.from(text), offset = Buffer.byteLength(command.output); command.output += text; command.offset = String(offset + data.length); send({ cursor: String(command.live.events.length + 1), offset: String(offset), channel: 'stdout', data: data.toString('base64'), status: wireCommand(command) }); };
+    command.finish = (exitCode = 0) => { Object.assign(command, { done: true, exitCode }); send({ cursor: String(command.live.events.length + 1), offset: command.offset, status: wireCommand(command) }); for (const res of command.live.clients) res.end(frame({}, 2)); command.live.clients.clear(); };
+    commands.push(command); return command;
+  };
   const listedCommand = command => { const value = wireCommand(command); return value.report ? { ...value, report: { ...value.report, agentView: undefined } } : value; };
   const requests = new Map();
   const library = [{ id: 'backend', path: '/fixture/backend' }, { id: 'frontend', path: '/fixture/frontend' }];
@@ -590,6 +599,13 @@ actions:
       }
       case 'WatchOutput': {
         const command = commands.find(value => value.id === body.commandId) || runtimeCommands.find(value => value.id === body.commandId);
+        // A streaming command (streamCommand): its chunks so far, then each new one as it is written, until it finishes.
+        if (command?.live) {
+          res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.flushHeaders();
+          for (const event of command.live.events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0))) res.write(frame(event));
+          if (command.done) { res.end(frame({}, 2)); return; }
+          command.live.clients.add(res); res.on('close', () => command.live.clients.delete(res)); return;
+        }
         const events = [{ cursor: '1', offset: '0', channel: 'stdout', data: Buffer.from(command?.output || 'fixture retained output\n').toString('base64'), status: command && wireCommand(command) }];
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
       }
@@ -908,7 +924,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

@@ -1,4 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
+import type { FileLink } from './file-reference';
+import type { OpenModifiers } from './file-links';
 import type { RunnerClient } from '@lazybox/client-core';
 import type { CommandStatus, Session } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -53,10 +55,11 @@ export function EventLog({ events }: { events: ReturnType<typeof useTranscript>[
 }
 
 /** A window that shows one command's output, independent of any chat. */
-export function ConsoleWindow({ api, command, error, viewState, onError }: { api: RunnerClient; command?: string; error: string; viewState?: ViewStateStore; onError(message: string): void }) {
+export function ConsoleWindow({ api, command, error, viewState, onError, onOpenFile, files }: { api: RunnerClient; command?: string; error: string; viewState?: ViewStateStore; onError(message: string): void;
+  /** Opens a file the output names, and what that shows (a choice of matches, a quick look). */ onOpenFile?: (link: FileLink, how: OpenModifiers) => void; files?: ReactNode }) {
   return <main className="agent-window console-window">
     <header className="topbar"><div><h1>Command console</h1><p>Independent view · execution stays on the Runner</p></div></header>
     {error && <div role="alert" className="error">{error}</div>}
-    {command ? <Console api={api} command={command} viewState={viewState} onError={onError}/> : <div className="empty">No command is selected.</div>}
+    {command ? <Console api={api} command={command} viewState={viewState} onError={onError} onOpenFile={onOpenFile}/> : <div className="empty">No command is selected.</div>}{files}
   </main>;
 }

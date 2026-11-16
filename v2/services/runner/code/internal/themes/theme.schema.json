@@ -611,6 +611,36 @@
           "description": "ANSI bright white. (Terminal colours)",
           "pattern": "^(#[0-9A-Fa-f]{3,8}|(rgb|rgba|hsl|hsla)\\(.*\\))$"
         },
+        "log-source-1": {
+          "type": "string",
+          "description": "Source 1 of a multi-service log: its name in the console and its filter chip. (Terminal colours)",
+          "pattern": "^(#[0-9A-Fa-f]{3,8}|(rgb|rgba|hsl|hsla)\\(.*\\))$"
+        },
+        "log-source-2": {
+          "type": "string",
+          "description": "Source 2 of a multi-service log: its name in the console and its filter chip. (Terminal colours)",
+          "pattern": "^(#[0-9A-Fa-f]{3,8}|(rgb|rgba|hsl|hsla)\\(.*\\))$"
+        },
+        "log-source-3": {
+          "type": "string",
+          "description": "Source 3 of a multi-service log: its name in the console and its filter chip. (Terminal colours)",
+          "pattern": "^(#[0-9A-Fa-f]{3,8}|(rgb|rgba|hsl|hsla)\\(.*\\))$"
+        },
+        "log-source-4": {
+          "type": "string",
+          "description": "Source 4 of a multi-service log: its name in the console and its filter chip. (Terminal colours)",
+          "pattern": "^(#[0-9A-Fa-f]{3,8}|(rgb|rgba|hsl|hsla)\\(.*\\))$"
+        },
+        "log-source-5": {
+          "type": "string",
+          "description": "Source 5 of a multi-service log: its name in the console and its filter chip. (Terminal colours)",
+          "pattern": "^(#[0-9A-Fa-f]{3,8}|(rgb|rgba|hsl|hsla)\\(.*\\))$"
+        },
+        "log-source-6": {
+          "type": "string",
+          "description": "Source 6 of a multi-service log: its name in the console and its filter chip. (Terminal colours)",
+          "pattern": "^(#[0-9A-Fa-f]{3,8}|(rgb|rgba|hsl|hsla)\\(.*\\))$"
+        },
         "chart-1": {
           "type": "string",
           "description": "Chart series 1. (Charts)",
