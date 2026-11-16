@@ -76,14 +76,17 @@ try {
 
   // (2) Every Claude subscription at its limit: Ask Lazybox falls back to
   // Codex (the saved subscription first) and says Claude is not ready.
-  fixture.availability.states['claude-default'] = {state: 'limited', resetAt: Math.floor(Date.now() / 1000) + 3600};
+  const backAt = Math.floor(Date.now() / 1000) + 3600;
+  // After 23:00 local time the reset is past midnight, and the line names the day.
+  const backDay = new Date(backAt * 1000).toDateString() === new Date().toDateString() ? '' : 'tomorrow ';
+  fixture.availability.states['claude-default'] = {state: 'limited', resetAt: backAt};
   await panel.locator('summary[aria-label="Choose the agent for Ask Lazybox"]').click();
   await menu.getByRole('button', {name: 'Check again'}).click();
   await expect(header).toContainText('using Codex (Saved Codex)');
   await expect(panel.locator('.help-assistant-fallback')).toHaveText('Claude is not ready, so Codex answers.');
   assert.ok(fixture.availability.refreshes >= 1, 'Check again probes the programs again');
   await panel.locator('summary[aria-label="Choose the agent for Ask Lazybox"]').click();
-  await expect(menu.getByRole('button', {name: /Claude · Claude CLI sign-in/})).toContainText(/Limit reached · back at/);
+  await expect(menu.getByRole('button', {name: /Claude · Claude CLI sign-in/})).toContainText(`Limit reached · back ${backDay}at`);
   await page.keyboard.press('Escape');
   await page.screenshot({path: '.cache/help-fallback.png'});
   await panel.getByRole('button', {name: 'How do I run my app from a workspace?'}).click();
