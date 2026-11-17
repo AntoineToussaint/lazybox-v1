@@ -143,6 +143,8 @@ const useNarrow = () => useSyncExternalStore(listener => { const query = matchMe
 const POPOUT_URL = '/popout.html';
 /** A group of the page by its own id (`groupOf` finds the group holding a panel). */
 const groupById = (page: WorkspacePage, id: string) => pageGroups(page).find(group => group.id === id);
+/** A page of its own asked for while the workspace has every page it may: say which to free. */
+const pageFull = (name: string) => `A workspace has at most ${PAGE_LIMIT} pages. Remove one (⋯ → Customize pages) to open ${name} on a page of its own.`;
 
 /**
  * Reads a workspace's saved pages. Pages saved by an older version are
@@ -150,9 +152,6 @@ const groupById = (page: WorkspacePage, id: string) => pageGroups(page).find(gro
  * never loses a person's layout. A layout that cannot be read throws: the
  * caller keeps it untouched and says so.
  */
-/** A page of its own asked for while the workspace has every page it may: say which to free. */
-const pageFull = (name: string) => `A workspace has at most ${PAGE_LIMIT} pages. Remove one (⋯ → Customize pages) to open ${name} on a page of its own.`;
-
 function loadPages(viewState: ViewStateStore | undefined, key: string, fallback: ViewTarget, agents?: SidebarAgents, previews = true): WorkspaceLayout {
   const saved = viewState?.getItem(key);
   if (!saved) return defaultLayout(fallback, agents);
