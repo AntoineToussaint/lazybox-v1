@@ -554,7 +554,11 @@ actions:
       }
       case 'SaveRunnerSettings': {
         if(body.revision!==runnerSettings.revision)return error('aborted','Settings changed');
-        mutations.push({method,body});const {defaultTemplate:_,...review}=body.review||runnerSettings.review||{};runnerSettings={...runnerSettings,...body,review,revision:String(Number(runnerSettings.revision)+1)};return json(runnerSettings);
+        mutations.push({method,body});const {defaultTemplate:_,...review}=body.review||runnerSettings.review||{};
+        // The request is the whole of what it saves, as the Runner reads it: proto3 JSON leaves out a field at its zero
+        // value (an empty list, false, ''), which is saved as that zero value, never the previous one kept.
+        const zero={naming:'',permission:'',context:'',claudeContext:'',codexContext:'',processBackend:'',rotationExcludedProfileIds:[],claudeAiConnectors:false,plainTitles:false};
+        runnerSettings={...runnerSettings,...zero,...body,review,revision:String(Number(runnerSettings.revision)+1)};return json(runnerSettings);
       }
       case 'SetModelPrice': {
         if(body.revision!==runnerSettings.revision)return error('aborted','Settings changed');

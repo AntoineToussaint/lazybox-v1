@@ -34,8 +34,11 @@ try {
  const switching=codex.getByRole('switch',{name:'Automatic switching',exact:true});
  await expect(switching).toBeChecked();await switching.uncheck();await expect(switching).not.toBeChecked();
  await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SaveRunnerSettings').at(-1)?.body.rotationExcludedProfileIds).toEqual(['codex-saved']);
+ // The Runner's answer, and the reload after it, keep the switch where it was put: checked again only once the save is done.
+ await expect(switching).toBeEnabled();await expect(switching).not.toBeChecked();
  await switching.check();await expect(switching).toBeChecked();
  await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SaveRunnerSettings').at(-1)?.body.rotationExcludedProfileIds??[]).toEqual([]);
+ await expect(switching).toBeEnabled();await expect(switching).toBeChecked();
  const saves=fixture.mutations.filter(m=>m.method==='SaveRunnerSettings');assert.equal(saves.length,2);assert.ok(saves.every(m=>m.body.naming==='repositories'&&m.body.context),'a switch must not reset other Runner settings');
  assert.equal(fixture.mutations.length,2,'switching an account must not touch execution');
  await mkdir('.cache',{recursive:true});await page.screenshot({path:'.cache/settings-subscriptions.png',fullPage:true});
