@@ -118,6 +118,12 @@ export function fileKey(file: File, index: number, files: readonly File[]): stri
   return files.indexOf(file) === index ? String(id) : `${id}-${index}`;
 }
 
+/** `next` takes `previous`'s key: an edited box stays the same box, and keeps its focus. */
+export function inheritKey(previous: File, next: File) {
+  const id = fileIds.get(previous);
+  if (id !== undefined) fileIds.set(next, id);
+}
+
 /** The size an image is shown at to fit `box` without being enlarged past its natural size. */
 export function fitWithin(width: number, height: number, box: { width: number; height: number }): { width: number; height: number } {
   if (!width || !height) return { width: 0, height: 0 };

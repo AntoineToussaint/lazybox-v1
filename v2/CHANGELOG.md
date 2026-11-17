@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.27] - 2026-11-17 · Attachments are boxes
+
+- **A big paste becomes a box** Paste more than 800 characters or 12 lines and it sits above the message as a box, Pasted text · 142 lines, its first line as the title (Pasted Python when it is clearly code), instead of filling the message box. Hover it to scroll through it; click it to read or edit it. ⌘Z right after the paste, or ⋯ → Insert inline, puts the text in the message instead. It is kept with your draft if the window reloads.
+- **One box for every file** Images keep their thumbnail; a PDF shows its page count, any other file its name and size, all the same height. Hover or Tab to a box to preview it, Enter or a click opens it, Delete removes it, ⌥← ⌥→ or a drag reorders them. On a phone, tap a box to open it.
+- **Clear limits** A file over the limit no longer refuses the whole selection: the files that fit are attached, and the one that does not shows as a red box saying why, Too large: 25 MiB of 20.
+- **Every agent gets them** Claude, Codex and ACP agents all receive your attachments after your text, in the order of the boxes: an image as an image when the agent sees images, a pasted box or a source file as its text, a PDF or any other file as a file the agent opens. The sent message shows the same boxes, and hovering one says how the agent got it.
+
 ## [2026-11-17.26] - 2026-11-17 · The agent and its context under your message
 
 - **Who answers, and how full their context is** The left of the message box's controls shows the agent and model (Claude · Opus 5.5) and the context used, as a small meter and a percentage that turns amber from 60% and red from 85%. Click the agent to switch model; click the meter for the context and token cost. It says what the chat header says, from the same reading. A narrow box keeps the meter; a phone keeps the percentage. A conversation that has not started shows none of it.

@@ -19,6 +19,8 @@ import { createAcpFake } from './acp-ui-fake.mjs';
 import { artifactFixture } from './artifacts.mjs';
 
 const frame = (value, flag = 0) => { const data = Buffer.from(JSON.stringify(value)); const head = Buffer.alloc(5); head[0] = flag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]); };
+/** Text as the Runner reads it (agent.IsText): valid UTF-8, no NUL, not a PDF. */
+const isText=data=>{if(data.includes(0)||data.subarray(0,5).toString('latin1')==='%PDF-')return false;try{new TextDecoder('utf-8',{fatal:true}).decode(data);return true;}catch{return false;}};
 /** The provider data of a message Lazybox wrote (its `origin`), as the Runner journals it. */
 const originData = origin => Buffer.from(JSON.stringify({ files: [], origin: { detail: '', copy: '', from: '', ...origin } })).toString('base64');
 // The Runner's built-in rate card (telemetry.DefaultRates), as GetRunnerSettings reports it.
@@ -1000,20 +1002,25 @@ actions:
         // (by execution and content digest) and journaled with the file list a
         // conversation shows its thumbnails from.
         else if(session&&body.message?.attachments?.length){
-          const files=body.message.attachments.map(file=>{const data=Buffer.from(file.data||'','base64');const path=`/fixture/attachments/${session.id}/${createHash('sha256').update(data).digest('hex')}/${file.name}`;attachments.set(path,{name:file.name,mediaType:file.mediaType||'application/octet-stream',data});return {name:file.name,mediaType:file.mediaType||'application/octet-stream',path,size:data.length};});
+          // With how each reached the agent, by the Runner's rule (agent.Delivery).
+          let images=0;
+          const files=body.message.attachments.map(file=>{const data=Buffer.from(file.data||'','base64');const path=`/fixture/attachments/${session.id}/${createHash('sha256').update(data).digest('hex')}/${file.name}`;attachments.set(path,{name:file.name,mediaType:file.mediaType||'application/octet-stream',data});
+            const image=!!session.capabilities?.images&&images<4&&data.length<=6<<20&&/^image\/(png|jpeg|gif|webp)$/.test(file.mediaType||'');if(image)images++;
+            return {name:file.name,mediaType:file.mediaType||'application/octet-stream',path,size:data.length,delivery:image?'image':data.length<=256<<10&&isText(data)?'text':'file'};});
           eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text||'',providerDataJson:Buffer.from(JSON.stringify({files})).toString('base64')});
         }
         // Like the Runner, which journals every message it accepts; opt-in (runner.journalMessages) so tests that count events keep theirs.
         else if(session&&body.message&&runner.journalMessages)eventStreams.get(session.id)?.push({type:'operation_accepted',operationId:body.operationId,text:body.message.text||''});
         return json({ operationId: body.operationId, delivery: 'accepted' });
       }
-      // Like the Runner: only a retained attachment, only an image a browser displays.
+      // Like the Runner: only a retained attachment, only an image a browser displays or text (served as plain text).
       case 'ReadAttachment': {
         const file=attachments.get(body.path);
         if(!file)return error(String(body.path||'').startsWith('/fixture/attachments/')?'not_found':'invalid_argument','not a retained message attachment');
-        if(!/^image\/(png|jpeg|gif|webp)$/.test(file.mediaType))return error('failed_precondition','only PNG, JPEG, GIF and WebP attachments can be previewed');
+        const image=/^image\/(png|jpeg|gif|webp)$/.test(file.mediaType);
+        if(!image&&!isText(file.data))return error('failed_precondition','only PNG, JPEG, GIF and WebP images and text attachments can be previewed');
         if(attachmentReadDelayMs)await new Promise(resolve=>setTimeout(resolve,attachmentReadDelayMs));
-        return json({name:file.name,mediaType:file.mediaType,data:file.data.toString('base64')});
+        return json({name:file.name,mediaType:image?file.mediaType:'text/plain; charset=utf-8',data:file.data.toString('base64')});
       }
       // A switch continues the same conversation: the fixture journals what the
       // Runner does (switching, switched with its origin) and clears the limit.

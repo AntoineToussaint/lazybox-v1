@@ -153,7 +153,7 @@ try {
   await expect(attached).toHaveCount(0);
 
   // Send an image and a text file: the message shows the image as a thumbnail
-  // and the text file as a named chip; only the image is read back.
+  // and the text file as a box with its lines; each is read back once.
   await copyImage(page); await composer.focus(); await page.keyboard.press('ControlOrMeta+V');
   await expect(attached.locator('li')).toHaveCount(1);
   await composer.evaluate(node => {
@@ -168,6 +168,7 @@ try {
   const sentThumb = sent.getByRole('button', { name: /^Open Pasted image .*\.png, [\d.]+ [KM]iB$/ });
   await expect(sentThumb).toBeEnabled();
   await expect(sent).toContainText('notes.txt');
+  await expect(sent.getByRole('button', { name: 'Open notes.txt, 1 line · 5 B' })).toBeVisible();
   const apply = fixture.mutations.findLast(m => m.method === 'Apply').body;
   const sentPath = [...fixture.attachments.keys()].find(path => path.includes(apply.message.attachments[0].name));
   // The clipboard re-encodes what it holds; what is sent is the PNG the paste delivered.
@@ -176,7 +177,7 @@ try {
   assert.deepEqual([sentBytes.readUInt32BE(16), sentBytes.readUInt32BE(20)], [1600, 900], 'at its full size');
   assert.equal(apply.message.attachments[0].mediaType, 'image/png');
   assert.equal(reads(sentPath), 1, 'the sent image is read once');
-  assert.equal(fixture.calls.filter(call => call.method === 'ReadAttachment' && call.body.path.endsWith('notes.txt')).length, 0, 'a text file is never read for preview');
+  assert.equal(fixture.calls.filter(call => call.method === 'ReadAttachment' && call.body.path.endsWith('notes.txt')).length, 1, 'a text file is read once, for its preview');
   const sentBox = await sentThumb.boundingBox();
   assert.ok(Math.abs(sentBox.height - 90) <= 2 && sentBox.width > sentBox.height, `a sent screenshot keeps its wide shape: ${JSON.stringify(sentBox)}`);
   await sentThumb.hover(); await expect(preview).toBeVisible(); await expect(preview).toContainText('1600 × 900');
@@ -189,12 +190,176 @@ try {
   // Composer URLs are gone; the sent image holds its two (original and thumbnail).
   await expect.poll(() => page.evaluate(() => window.liveObjectUrls())).toBe(urlsAtStart + 2);
 
-  // An attachment the Runner no longer has (a deleted conversation's) is a named chip.
+  // An attachment the Runner no longer has (a deleted conversation's) is a named box.
   alpha.push({ type: 'operation_accepted', text: 'An old one', providerDataJson: data({ files: [{ name: 'gone.png', mediaType: 'image/png', size: 2048, path: '/fixture/attachments/alpha-session/' + '0'.repeat(64) + '/gone.png' }] }) });
   const gone = chat.locator('.sent-files li', { hasText: 'gone.png' });
   await expect(gone).toBeVisible();
   await expect(gone).toHaveAttribute('title', /Preview unavailable/);
   await context.close();
+
+  // ── A large paste is a box: preview on hover, ⌘Z and Insert inline put it
+  // back, the viewer edits it, it survives a reload,
+  // and it is sent as a text file the bubble shows as the same box.
+  {
+    const python = ['def build_report(rows):', '    """Totals per row."""', ...Array.from({ length: 135 }, (_, i) => `    total_${i + 1} = compute(rows, ${i + 1})`), '', 'def compute(rows, n):', '    return sum(r[n] for r in rows)', '', 'import os'].join('\n');
+    assert.equal(python.split('\n').length, 142);
+    const { context, page, chat, composer, attached } = await open('workspace');
+    const paste = async () => { await page.evaluate(text => navigator.clipboard.writeText(text), python); await composer.focus(); await page.keyboard.press('ControlOrMeta+V'); };
+    const box = attached.getByRole('button', { name: /^Open Pasted Python · 142 lines/ });
+    await composer.fill('Explain this: ');
+    await composer.evaluate(node => node.setSelectionRange(node.value.length, node.value.length));
+    await paste();
+    await expect(box).toBeVisible();
+    await expect(composer, 'the paste is a box, not text in the message').toHaveValue('Explain this: ');
+    await expect(box).toContainText('def build_report(rows):');
+    await expect(box).toContainText('Pasted Python · 142 lines');
+    const boxRect = await box.boundingBox();
+    assert.ok(Math.abs(boxRect.height - 54) <= 3, `a box is as tall as an image thumbnail: ${JSON.stringify(boxRect)}`);
+
+    // Hover: a monospace preview that takes the pointer and scrolls.
+    await box.hover();
+    const preview = page.getByRole('tooltip');
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText('total_135 = compute(rows, 135)');
+    await expect(preview).toContainText('Python');
+    const pre = preview.locator('pre');
+    assert.match(await pre.evaluate(node => getComputedStyle(node).fontFamily), /mono|Menlo|SFMono/i);
+    assert.ok(await pre.evaluate(node => node.scrollHeight > node.clientHeight), 'the preview scrolls');
+    await settle(page);
+    const card = await preview.boundingBox();
+    assert.ok(card.y + card.height <= boxRect.y, 'above the composer');
+    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+    await page.mouse.wheel(0, 400);
+    await expect.poll(() => pre.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+    await expect(preview, 'the pointer on the preview keeps it open').toBeVisible();
+    await page.screenshot({ path: '.cache/attachment-paste-preview.png' });
+    await page.mouse.move(5, 5);
+    await expect(preview).toHaveCount(0);
+
+    // ⌘Z right after: the text goes in the message, where it was pasted.
+    await composer.focus(); await page.keyboard.press('ControlOrMeta+Z');
+    await expect(attached).toHaveCount(0);
+    await expect(composer).toHaveValue('Explain this: ' + python);
+
+    // ⋯ → Insert inline does the same later.
+    await composer.fill(''); await paste();
+    await expect(box).toBeVisible();
+    await composer.fill('Typed after the paste');
+    await composer.press('ControlOrMeta+Z');
+    await expect(box, '⌘Z after more typing is the editor’s own undo, not the box').toBeVisible();
+    await composer.fill('');
+    await attached.getByLabel('More for the pasted text', { exact: true }).click();
+    await page.getByRole('group', { name: 'More for the pasted text menu' }).getByRole('button', { name: 'Insert inline' }).click();
+    await expect(attached).toHaveCount(0);
+    await expect(composer).toHaveValue(python);
+
+    // A click opens it in the viewer, where it can be edited; Save keeps the edit.
+    await composer.fill(''); await paste();
+    await box.click();
+    const viewer = page.getByRole('dialog', { name: /^Pasted text .*\.py$/ });
+    await expect(viewer).toBeVisible();
+    const field = viewer.getByRole('textbox', { name: /^Text of Pasted text/ });
+    await expect(field).toHaveValue(python);
+    await field.evaluate(node => node.setSelectionRange(node.value.length, node.value.length)); await field.pressSequentially('\nprint(os.getcwd())');
+    await settle(page); await page.screenshot({ path: '.cache/attachment-text-viewer.png' });
+    await viewer.getByRole('button', { name: 'Save' }).click();
+    await expect(viewer).toHaveCount(0);
+    const edited = attached.getByRole('button', { name: /^Open Pasted Python · 143 lines/ });
+    await expect(edited).toBeFocused();
+    // Esc leaves it unchanged.
+    await edited.press('Enter'); await expect(viewer).toBeVisible();
+    await viewer.getByRole('textbox').fill('discarded');
+    await page.keyboard.press('Escape');
+    await expect(viewer).toHaveCount(0);
+    await expect(edited).toBeVisible();
+
+    // A reload keeps the box: its text is in the saved draft, not lost with the window.
+    await page.reload();
+    await expect(composer).toBeEnabled();
+    await expect(attached.getByRole('button', { name: /^Open Pasted Python · 143 lines/ })).toBeVisible();
+    await expect(chat.getByRole('group', { name: 'Files to attach again' })).toHaveCount(0);
+
+    // Sent: the agent's message carries the text as a file; the bubble shows the same box.
+    await composer.fill('What does this do?'); await composer.press('Enter');
+    await expect(attached).toHaveCount(0);
+    const apply = fixture.mutations.findLast(m => m.method === 'Apply').body;
+    assert.equal(apply.message.text, 'What does this do?', 'the person’s text is unchanged');
+    assert.equal(apply.message.attachments.length, 1);
+    assert.match(apply.message.attachments[0].name, /^Pasted text \d{4}-\d\d-\d\d at \d\d\.\d\d\.\d\d\.py$/);
+    assert.equal(apply.message.attachments[0].mediaType, 'text/plain');
+    assert.equal(Buffer.from(apply.message.attachments[0].data, 'base64').toString(), python + '\nprint(os.getcwd())');
+    const sentBox = chat.getByRole('list', { name: 'Sent attachments' }).last().getByRole('button', { name: /^Open Pasted Python · 143 lines/ });
+    await expect(sentBox).toBeVisible();
+    await expect(sentBox).toContainText('def build_report(rows):');
+    await expect(sentBox).toHaveAttribute('title', 'The agent got its text');
+    await sentBox.hover();
+    await expect(page.getByRole('tooltip')).toContainText('print(os.getcwd())');
+    await page.mouse.move(5, 5);
+    await sentBox.click();
+    const sentViewer = page.getByRole('dialog', { name: /^Pasted text .*\.py$/ });
+    await expect(sentViewer.getByText('print(os.getcwd())', { exact: false })).toBeVisible();
+    await expect(sentViewer.getByRole('textbox'), 'a sent box is read only').toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(sentViewer).toHaveCount(0);
+    await context.close();
+  }
+
+  // ── Image, PDF and any other file: one box each, a preview on hover or
+  // focus, removed and moved from the keyboard.
+  {
+    const { context, page, composer, attached } = await open('workspace');
+    const pdf = Buffer.from('%PDF-1.7\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >> endobj\n%\xe2\xe3\xcf\xd3\n', 'latin1');
+    await composer.evaluate(async (node, pdf) => {
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 300; canvas.getContext('2d').fillRect(0, 0, 400, 300);
+      const png = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([png], 'diagram.png', { type: 'image/png' }));
+      transfer.items.add(new File([new Uint8Array(pdf)], 'report.pdf', { type: 'application/pdf' }));
+      transfer.items.add(new File([new Uint8Array([0, 1, 2, 3])], 'archive.bin', { type: '' }));
+      node.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
+    }, [...pdf]);
+    const kinds = () => attached.locator('li').evaluateAll(items => items.map(item => item.dataset.kind));
+    await expect.poll(kinds).toEqual(['image', 'pdf', 'file']);
+    const pdfBox = attached.getByRole('button', { name: /^report\.pdf, PDF · 3 pages · / });
+    await expect(pdfBox).toBeVisible();
+    const fileBox = attached.getByRole('button', { name: 'archive.bin, 4 B' });
+    // Every box is the same height.
+    const heights = await attached.locator('li').evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().height)));
+    assert.ok(Math.max(...heights) - Math.min(...heights) <= 2, `consistent sizes: ${heights}`);
+    await settle(page); await page.screenshot({ path: '.cache/attachment-boxes.png' });
+    // Hover a PDF: its pages and size. Focus a file: its details; Enter keeps them open.
+    await pdfBox.hover();
+    await expect(page.getByRole('tooltip')).toContainText('PDF · 3 pages');
+    await page.mouse.move(5, 5);
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+    await fileBox.focus(); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab');
+    await expect(fileBox).toBeFocused();
+    await expect(page.getByRole('tooltip')).toContainText('archive.bin');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+    await page.keyboard.press('Enter');
+    await expect(fileBox).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    await page.keyboard.press('Escape');
+    // Alt+← moves a box; dragging one onto another does too.
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect.poll(kinds).toEqual(['image', 'file', 'pdf']);
+    await expect(fileBox).toBeFocused();
+    await attached.locator('li[data-kind=pdf]').dragTo(attached.locator('li[data-kind=image]'));
+    await expect.poll(kinds).toEqual(['pdf', 'image', 'file']);
+    // Delete removes the focused box, whatever its kind, and focus stays in the row.
+    await fileBox.focus(); await page.keyboard.press('Delete');
+    await expect.poll(kinds).toEqual(['pdf', 'image']);
+    const thumb = attached.getByRole('button', { name: /^Open diagram\.png/ });
+    await expect(thumb).toBeFocused();
+    await page.keyboard.press('Backspace');
+    await expect.poll(kinds).toEqual(['pdf']);
+    await expect(pdfBox).toBeFocused();
+    await page.keyboard.press('Delete');
+    await expect(attached).toHaveCount(0);
+    await expect(composer).toBeFocused();
+    await context.close();
+  }
 
   // ── Lazy loading: an image far up the conversation is read only when scrolled to.
   const beta = fixture.openEvents('beta-session');

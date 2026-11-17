@@ -40,8 +40,27 @@ it did.
 - **Dictate** instead of typing: hold `Right ⌥` (or `⌥Space`) and speak, or click the
   microphone in the message box — see [Voice](voice.md).
 - **Attach** files with the paperclip, by dropping them on the chat, or by
-  pasting a screenshot. Up to four files, 20 MiB per message. Images show as
-  thumbnails; hover one to see it larger.
+  pasting a screenshot. Up to four files, 20 MiB per message. Each file is a
+  box above the message: an image as its thumbnail, a PDF with its page
+  count, any other file by name and size. Hover a box (or Tab to it) to
+  preview it; click it, or press Enter, to open it. Delete or Backspace
+  removes the focused box, ⌥← and ⌥→ (or a drag) reorder them, and × removes
+  one too. On a phone, tap a box to open it. A file over a limit stays out as
+  a red box that says why (*Too large: 25 MiB of 20*); dismiss it with × or
+  Delete.
+- **Paste a big chunk of text** — more than 800 characters, or more than 12
+  lines — and it becomes a box instead of filling the message: *Pasted text ·
+  142 lines*, its first line as the title (*Pasted Python* when it is clearly
+  code). Hover it to scroll through it; click it to read or edit it. ⌘Z right
+  after the paste, or the box's ⋯ → **Insert inline**, puts the text in the
+  message instead. A pasted box counts as one of the four files, and it is
+  kept with your draft if the window reloads.
+- **Every agent gets your attachments**, Claude, Codex and ACP agents alike,
+  after your text and in the order of the boxes: an image as an image (when
+  the agent sees images), text (a pasted box, a source file, up to 256 KiB)
+  as its text, and anything else (a PDF, an archive, longer text) as a file
+  the agent opens itself. The sent message shows the same boxes; hover one
+  to see how the agent got it.
 - **Interrupt** (in the live bar at the bottom) stops the running turn. An
   interrupt is never treated as an error: send your next message and the agent
   carries on.

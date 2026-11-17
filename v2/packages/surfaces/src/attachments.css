@@ -1,4 +1,4 @@
-/* Attached files: thumbnails for images, named chips for the rest. */
+/* Attached files: one box for every kind. Images are thumbnails; text, PDFs and other files are cards of the same height. */
 .attached-files,.sent-files{list-style:none;padding:0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}
 .attached-files{margin:0 0 10px}
 .sent-files{margin:10px 0 0;color:var(--text-secondary);font-size:calc(11px * var(--text-scale))}
@@ -18,6 +18,31 @@
 .attachment-chip .attachment-thumb:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .attachment-thumb-placeholder{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--text-disabled);background:linear-gradient(110deg,var(--surface) 30%,var(--surface-active) 50%,var(--surface) 70%) 0 0/200% 100%}
 
+/* A card box: icon, title (a paste's first line, else the name) and a line under it; ⋯ and × inside its border. */
+.attachment-chip.box{box-sizing:border-box;height:56px;max-width:min(280px,100%);padding:0 4px 0 0;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--text-secondary)}
+.attachment-chip.box:has(.attachment-box:hover){border-color:var(--accent-solid-hover)}
+.attachment-chip.box.error{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 8%,var(--surface))}
+.attachment-chip.box.error .attachment-box-icon{color:var(--danger)}
+.attachment-chip.box.error small{color:var(--danger)}
+.attachment-box{display:flex;align-items:center;gap:9px;min-width:0;height:100%;flex:1;box-sizing:border-box;padding:0 6px 0 10px;margin:0;border:0;border-radius:7px;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.attachment-box.error-box{cursor:default}
+.attachment-box:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.attachment-box-icon{display:flex;flex:none;color:var(--text-muted)}
+.attachment-chip.box[data-kind=pdf] .attachment-box-icon{color:var(--danger)}
+.attachment-chip.box[data-kind=text] .attachment-box-icon{color:var(--accent-text,var(--text-muted))}
+.attachment-box-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.attachment-box-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;color:var(--text);font-size:calc(12px * var(--text-scale))}
+.attachment-chip.box[data-kind=text] .attachment-box-title{font-family:var(--font-mono);font-size:calc(11px * var(--code-scale,var(--text-scale)))}
+.attachment-box small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);font-size:calc(10.5px * var(--text-scale))}
+.attachment-box[data-state=loading] small{opacity:.7}
+.attachment-chip[draggable=true]{cursor:grab}
+.attachment-chip[data-dragging]{opacity:.45}
+.attachment-chip.box .attachment-menu>summary{display:flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border-radius:50%;list-style:none;color:var(--text-subtle);cursor:pointer}
+.attachment-chip.box .attachment-menu>summary::-webkit-details-marker{display:none}
+.attachment-chip.box .attachment-menu>summary:hover,.attachment-chip.box .attachment-menu[open]>summary{background:var(--surface-strong);color:var(--text-strong)}
+.attachment-chip.box .attachment-menu>summary:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.sent-files .attachment-chip.box{padding-right:0}
+
 /* Remove: a small round badge on the corner, so the picture keeps its space. */
 .attachment-chip .attachment-remove{display:flex;box-sizing:border-box;align-items:center;justify-content:center;flex:none;width:22px;height:22px;padding:0;border-radius:50%;border:0;background:transparent;color:var(--text-subtle);cursor:pointer}
 .attachment-chip .attachment-remove:hover:not(:disabled){background:var(--surface-strong);color:var(--text-strong)}
@@ -32,6 +57,32 @@
 .attachment-preview-caption{align-self:stretch;display:flex;justify-content:space-between;align-items:center;gap:12px;box-sizing:border-box;height:26px;padding:6px 4px 1px;font-size:calc(11px * var(--text-scale));line-height:1.4;color:var(--text-soft);min-width:0}
 .attachment-preview-caption span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attachment-preview-caption small{flex:none;color:var(--text-muted)}
+
+/* A card's preview: text to scroll (it takes the pointer, to be scrolled), or a file's details. */
+.attachment-card-preview{align-items:stretch;min-width:0;max-width:none;max-height:none;padding:0}
+.attachment-card-preview[data-interactive]{pointer-events:auto}
+.attachment-text-preview{flex:1;min-height:0;margin:0;padding:10px 12px;overflow:auto;white-space:pre;tab-size:2;font-family:var(--font-mono);font-size:calc(11px * var(--code-scale,var(--text-scale)));line-height:1.5;color:var(--text);background:var(--surface);border-radius:11px 11px 0 0;outline:none}
+.attachment-text-more{color:var(--text-muted)}
+.attachment-card-preview .attachment-preview-caption{padding:6px 10px 6px;height:auto}
+.attachment-details-preview{display:flex;flex-direction:column;gap:3px;padding:10px 12px;font-size:calc(11.5px * var(--text-scale));color:var(--text-secondary)}
+.attachment-details-preview strong{color:var(--text);font-weight:600;overflow-wrap:anywhere}
+
+/* The text viewer: a text box full size, editable in the composer. */
+.text-viewer{display:flex;flex-direction:column;width:min(920px,calc(100vw - 32px));height:min(720px,calc(100dvh - 48px));max-width:none;max-height:none;padding:0;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-raised,var(--surface));color:var(--text);box-shadow:0 24px 70px color-mix(in srgb,var(--shadow) calc(70% * var(--shadow-strength)),transparent);overflow:hidden}
+.text-viewer:not([open]){display:none}
+.text-viewer::backdrop{background:color-mix(in srgb,var(--bg) 70%,transparent)}
+.text-viewer header{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px;border-bottom:1px solid var(--line)}
+.text-viewer-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.text-viewer header small{flex:1;color:var(--text-subtle);white-space:nowrap}
+.text-viewer-body{flex:1;min-height:0;margin:0;padding:12px 16px;border:0;resize:none;overflow:auto;white-space:pre;tab-size:2;font-family:var(--font-mono);font-size:calc(12px * var(--code-scale,var(--text-scale)));line-height:1.5;color:var(--text);background:var(--surface);outline:none}
+.text-viewer-body:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
+.text-viewer footer{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
+.text-viewer-spacer{flex:1}
+@media (max-width:650px){
+  .attachment-chip.box{max-width:100%}
+  .attachment-box-title{max-width:52vw}
+  .text-viewer{width:100vw;height:100dvh;border-radius:0;border:0}
+}
 
 /* The lightbox: the image at full size, over a dimmed window. */
 .image-lightbox{width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;color:var(--text);overflow:hidden}
@@ -50,7 +101,7 @@
   .attachment-chip .attachment-thumb{transition:border-color .12s}
   .attachment-thumb[data-state=loading] .attachment-thumb-placeholder{animation:attachment-shimmer 1.2s linear infinite}
   .attachment-preview[data-placed]{animation:attachment-preview-in .12s ease-out}
-  .image-lightbox[open]{animation:attachment-fade-in .14s ease-out}
+  .image-lightbox[open],.text-viewer[open]{animation:attachment-fade-in .14s ease-out}
   .image-lightbox[open]::backdrop{animation:attachment-fade-in .14s ease-out}
 }
 @keyframes attachment-shimmer{to{background-position:-200% 0}}

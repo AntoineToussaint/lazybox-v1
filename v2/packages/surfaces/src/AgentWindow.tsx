@@ -26,7 +26,8 @@ import './style.css';
 import './chat-header.css';
 import { awaitingFirstMessage } from './agent-status';
 import { appendToDraft, composeRunMessage, useComposerOffers, useSharedRuns } from './command-runs';
-import { useComposerDraft } from './useComposerDraft';
+import { fileReferences, useComposerDraft } from './useComposerDraft';
+import { useComposerAttachments } from './useComposerAttachments';
 import { usePromptRecall } from './usePromptRecall';
 import { useSessionRefresh, useSessionWorkspace } from './useSessionPolling';
 import { useFileDrop } from './useFileDrop';
@@ -166,6 +167,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const canResumeOnSend = !!session?.closed && !session.resumeBlocked && !session.recoveryRequired && !!session.providerReference && !!session.capabilities?.resume;
   const canCompose = !!session && (!session.closed || canResumeOnSend);
   const canAttach = !!session?.capabilities?.files && !!info?.attachmentLimits && canCompose && !sending;
+  const boxes = useComposerAttachments({ draft: { message, setMessage, files, setFiles, missingFiles, setMissingFiles, uncertainSend, setUncertainSend, sendAttempt, persistDraft }, limits: info?.attachmentLimits, canAttach, textarea: composer, sessionID, onError: setError });
   // At a subscription limit a message waits and is sent once the conversation continues.
   const limited = !!sessionLimit(session);
   // After a provider error ends a turn, the next message continues the conversation.
@@ -256,7 +258,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         destination = resumed.session.id;
         // A view may close while delivery is in flight. Retain the same draft
         // and operation identity under the successor before sending any bytes.
-        writeDraft(viewState, destination, { text, files: files.map(file => ({ name: file.name, size: file.size, lastModified: file.lastModified })), operationId: attempt.id });
+        writeDraft(viewState, destination, { text, files: fileReferences(files), operationId: attempt.id });
       }
       // A delivery that never answers (a Runner restarting mid-request) must not
       // block sending forever. The operation id is kept, so sending again cannot
@@ -267,29 +269,13 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       savePrompt(viewState, text, session?.conversationId || sessionID); recall.reset();
       // Behind a busy turn the message was queued: it goes next, the turn stopped for it.
       if (now && destination === sessionID && session?.busy && !session.closed) void queuedDelivery.deliver(attempt.id, 'now', true);
-      if (!signal.aborted) { setMessage(''); setFiles([]); setUncertainSend(''); sendAttempt.current = null; persistDraft('', [], []); if (destination !== sessionID) { writeDraft(viewState, destination, { text: '', files: [], operationId: '' }); setSessionID(destination); onSessionChange?.(destination); refresh(); } }
+      if (!signal.aborted) { setMessage(''); setFiles([]); boxes.clearRejected(); setUncertainSend(''); sendAttempt.current = null; persistDraft('', [], []); if (destination !== sessionID) { writeDraft(viewState, destination, { text: '', files: [], operationId: '' }); setSessionID(destination); onSessionChange?.(destination); refresh(); } }
       return !signal.aborted;
     } catch (e) { if (!signal.aborted) { setError(String(e)); if (snippetText) setMessage(text); } return false; }
     finally { if (!signal.aborted) { sendingRef.current = false; setSending(false); } }
   };
-  const selectFiles = (selected: FileList | File[] | null) => {
-    const limits = info?.attachmentLimits;
-    if (!limits) return;
-    // Different client files can share a name, size, and modification time.
-    // Preserve the selected bytes; the Runner deduplicates by content.
-    const next = [...files, ...Array.from(selected || [])];
-    const remaining = [...missingFiles];
-    let changed = false;
-    for (const file of Array.from(selected || [])) {
-      const index = remaining.findIndex(saved => saved.name === file.name && saved.size === file.size && saved.lastModified === file.lastModified);
-      if (index >= 0) remaining.splice(index, 1); else changed = true;
-    }
-    if (next.length + remaining.length > limits.maxFiles || next.some(file => BigInt(file.size) > limits.maxFileBytes) || [...next, ...remaining].reduce((size, file) => size + BigInt(file.size), 0n) > limits.maxMessageBytes) {
-      setError(`Attach up to ${limits.maxFiles} files, ${Number(limits.maxFileBytes) / (1 << 20)} MiB per file and ${Number(limits.maxMessageBytes) / (1 << 20)} MiB total.`); return;
-    }
-    if (changed) { setUncertainSend(''); sendAttempt.current = null; }
-    setFiles(next); setMissingFiles(remaining); setError(''); persistDraft(message, next, remaining, changed ? '' : uncertainSend);
-  };
+  // Files chosen, dropped or pasted: those over a limit become error boxes (useComposerAttachments).
+  const selectFiles = boxes.select;
   const interrupt = async () => {
     try { await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'interrupt', value: {} } }); }
     catch (e) { setError(String(e)); }
@@ -537,7 +523,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             onOpenCommand={openCommand} onOpenFile={session?.collectionId ? openFile : undefined}/>}
           {!transcript.error && !disconnected && <QueuedMessages session={session} live={live} agentName={agentName} activity={transcript.activity} delivery={queuedDelivery} sendNowKey={sendNowKey}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
-            limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
+            limited={limited} message={message} files={files} attachments={boxes} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}
             permissionPrompt={<>{restartTo && <PermissionRestartPrompt mode={restartTo} busy={!!session?.busy} onRestart={() => void restartWithPermission(restartTo)} onCancel={() => setRestartTo('')}/>}{slash.prompt}</>}
             slash={slash}
@@ -546,7 +532,6 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             onChange={text => { recall.reset(); setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); }}
             onDictate={setMessage}
             onRecallKey={recall.onKeyDown}
-            onRemoveFile={i => { const next = files.filter((_, index) => index !== i); setFiles(next); setUncertainSend(''); persistDraft(message, next, missingFiles); }}
             onRemoveMissingFile={i => { const next = missingFiles.filter((_, index) => index !== i); setMissingFiles(next); setUncertainSend(''); setError(''); persistDraft(message, files, next); }}
             onDropMissingFiles={() => { setMissingFiles([]); setUncertainSend(''); setError(''); persistDraft(message, files, []); requestAnimationFrame(() => composer.current?.focus()); }}
             onDismissHandover={() => setHandedOver('')}

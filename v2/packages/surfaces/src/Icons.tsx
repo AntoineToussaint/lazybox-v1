@@ -18,6 +18,10 @@ const paths: Record<string, string[]> = {
   send: ['M12 19V5', 'm6 11 6-6 6 6'],
   more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
   file: ['M14 3H6v18h12V7z', 'M14 3v4h4'],
+  // Attachment boxes: a text file, code, a PDF (a "P" on the page).
+  'file-text': ['M14 3H6v18h12V7z', 'M14 3v4h4', 'M9 12h6', 'M9 16h6'],
+  'file-code': ['M14 3H6v18h12V7z', 'M14 3v4h4', 'm10 12-2 2.5 2 2.5', 'm14 12 2 2.5-2 2.5'],
+  'file-pdf': ['M14 3H6v18h12V7z', 'M14 3v4h4', 'M10 18v-6h2a1.75 1.75 0 0 1 0 3.5h-2'],
   image: ['M4 5h16v14H4z', 'm4 16 5-5 4 4 2-2 5 5', 'M15.5 9.5h.01'],
   up: ['M12 19V7', 'm6 11 6-6 6 6', 'M5 4h14'],
   chevronRight: ['m10 8 4 4-4 4'],

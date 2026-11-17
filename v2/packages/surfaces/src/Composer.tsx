@@ -1,6 +1,9 @@
-import { useMemo, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useMemo, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { ComposerAttachment } from './AttachmentThumbnail';
+import { ErrorBox } from './AttachmentBox';
 import { fileKey, pastedFiles } from './attachment-images';
+import { shouldBoxPaste } from './attachment-boxes';
+import type { ComposerAttachments } from './useComposerAttachments';
 import type { Session } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
 import type { VimMode } from './composer-vim';
@@ -16,7 +19,7 @@ import type { FileReference } from './view-state';
  * (with Vim editing and prompt recall), and the send, attach, snippet and
  * interrupt controls. The draft itself is owned by the chat.
  */
-export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onDictate, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, interruptInBar = false, onError, slash, info }: {
+export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, attachments, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onDictate, onRecallKey, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, interruptInBar = false, onError, slash, info }: {
   textarea: RefObject<HTMLTextAreaElement | null>;
   fileInput: RefObject<HTMLInputElement | null>;
   agentName: string;
@@ -29,6 +32,8 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   limited: boolean;
   message: string;
   files: File[];
+  /** The boxes of the files: paste, undo, move, edit, error boxes (useComposerAttachments). */
+  attachments: ComposerAttachments;
   missingFiles: FileReference[];
   /** The operation ID of a send that was not confirmed. */
   uncertainSend: string;
@@ -46,7 +51,6 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   onDictate?(text: string): void;
   /** Prompt recall (↑/↓); true when it handled the key. */
   onRecallKey(event: KeyboardEvent<HTMLTextAreaElement>, vimMode?: VimMode): boolean;
-  onRemoveFile(index: number): void;
   onRemoveMissingFile(index: number): void;
   /** Send without the files a restored draft could not bring back. */
   onDropMissingFiles(): void;
@@ -68,15 +72,41 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   const vim = useComposerVim({ textarea, enabled: vimEditing, value: message, resetKey: sessionID, reserved: reservedKeys, onSend: () => { if (canSend || missingFiles.length > 0 || !!message.trim()) textarea.current?.form?.requestSubmit(); } });
   const dictation = useComposerDictation({ textarea, value: message, enabled: canCompose && !sending, onPreview: text => (onDictate || onChange)(text), onCommit: onChange,
     onSend: () => textarea.current?.form?.requestSubmit() });
-  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (slash?.onKeyDown(event, vim.mode)) return; if (onRecallKey(event, vim.mode)) return; vim.textareaProps.onKeyDown?.(event); };
-  // A pasted image (a screenshot, say) attaches like a dropped file; a text paste stays native.
+  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const mod = event.metaKey || event.ctrlKey;
+    // ⌘Z right after a paste became a box puts the text back where it was pasted.
+    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z' && attachments.undoPaste()) { event.preventDefault(); return; }
+    if (slash?.onKeyDown(event, vim.mode)) return; if (onRecallKey(event, vim.mode)) return; vim.textareaProps.onKeyDown?.(event);
+  };
+  // A pasted image (a screenshot, say) attaches like a dropped file; a large
+  // text paste becomes a box; a short one stays a native paste.
   const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = pastedFiles(event.clipboardData);
-    if (!pasted.length) { vim.textareaProps.onPaste?.(event); return; }
+    if (!pasted.length) {
+      const text = event.clipboardData.getData('text/plain');
+      const node = event.currentTarget;
+      if (shouldBoxPaste(text) && attachments.pasteText(text, node.selectionStart, node.selectionEnd)) { event.preventDefault(); return; }
+      vim.textareaProps.onPaste?.(event); return;
+    }
     event.preventDefault();
     if (!canAttach) { onError('This conversation cannot accept files right now.'); return; }
     onSelectFiles(pasted);
   };
+  // A box dragged onto another takes its place (Alt+← and Alt+→ do the same from the keyboard).
+  const [dragged, setDragged] = useState(-1);
+  const BOX_DRAG = 'application/x-lazybox-attachment';
+  const boxDrag = (index: number) => ({
+    draggable: !sending,
+    onDragStart: (event: DragEvent<HTMLLIElement>) => { event.dataTransfer.setData(BOX_DRAG, String(index)); event.dataTransfer.effectAllowed = 'move'; setDragged(index); },
+    onDragEnd: () => setDragged(-1),
+    onDragOver: (event: DragEvent<HTMLLIElement>) => { if (event.dataTransfer.types.includes(BOX_DRAG)) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } },
+    onDrop: (event: DragEvent<HTMLLIElement>) => {
+      if (!event.dataTransfer.types.includes(BOX_DRAG)) return;
+      event.preventDefault(); event.stopPropagation();
+      const from = Number(event.dataTransfer.getData(BOX_DRAG)); setDragged(-1);
+      if (Number.isInteger(from) && from !== index) attachments.move(from, index);
+    },
+  });
   const sendLabel = sending ? 'Sending…' : session?.busy ? 'Queue follow-up' : 'Send message';
 
   const sendKey = bindings(keymap['chat.send'])[0] || 'Enter';
@@ -87,8 +117,12 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   const dictateHint = dictateKey ? `Dictate · hold ${displayBinding(dictateKey).join(' ')} to talk, tap it ${isLoneModifier(dictateKey) ? 'twice ' : ''}to keep listening` : 'Dictate';
   // Sending while listening (↵, ⌘↵, Send) waits for the last words, then sends through this same form.
   return <form className="composer" onSubmit={event => { if (dictation.finishAndSend()) { event.preventDefault(); return; } onSubmit(event); }}>
-    {files.length > 0 && <ul className="attached-files" aria-label="Attached files">
-      {files.map((file, i) => <ComposerAttachment key={fileKey(file, i, files)} file={file} disabled={sending} onRemove={() => onRemoveFile(i)}/>)}
+    {(files.length > 0 || attachments.rejected.length > 0) && <ul className="attached-files" aria-label="Attached files" aria-live="polite">
+      {files.map((file, i) => <ComposerAttachment key={fileKey(file, i, files)} file={file} disabled={sending} item={{ ...boxDrag(i), ...(dragged === i ? { 'data-dragging': true } : {}) }}
+        onRemove={() => attachments.remove(i)}
+        onMove={files.length > 1 ? by => attachments.move(i, Math.max(0, Math.min(files.length - 1, i + by))) : undefined}
+        onReplace={next => attachments.replace(i, next)} onInline={text => attachments.inline(i, text)}/>)}
+      {attachments.rejected.map((file, i) => <ErrorBox key={`rejected-${i}-${file.name}`} name={file.name} reason={file.reason} onDismiss={() => attachments.dismiss(i)}/>)}
     </ul>}
     {missingFiles.length > 0 && <div className="restore-files" role="group" aria-label="Files to attach again">
       <p>The window reloaded, so {missingFiles.length === 1 ? 'this file needs' : 'these files need'} to be attached again (or removed) before sending:</p>

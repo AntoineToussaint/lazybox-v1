@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.27',
+    date: '2026-11-17',
+    title: 'Attachments are boxes',
+    items: [
+      { title: 'A big paste becomes a box', body: 'Paste more than 800 characters or 12 lines and it sits above the message as a box, Pasted text · 142 lines, its first line as the title (Pasted Python when it is clearly code), instead of filling the message box. Hover it to scroll through it; click it to read or edit it. ⌘Z right after the paste, or ⋯ → Insert inline, puts the text in the message instead. It is kept with your draft if the window reloads.' },
+      { title: 'One box for every file', body: 'Images keep their thumbnail; a PDF shows its page count, any other file its name and size, all the same height. Hover or Tab to a box to preview it, Enter or a click opens it, Delete removes it, ⌥← ⌥→ or a drag reorders them. On a phone, tap a box to open it.' },
+      { title: 'Clear limits', body: 'A file over the limit no longer refuses the whole selection: the files that fit are attached, and the one that does not shows as a red box saying why, Too large: 25 MiB of 20.' },
+      { title: 'Every agent gets them', body: 'Claude, Codex and ACP agents all receive your attachments after your text, in the order of the boxes: an image as an image when the agent sees images, a pasted box or a source file as its text, a PDF or any other file as a file the agent opens. The sent message shows the same boxes, and hovering one says how the agent got it.' },
+    ],
+  },
+  {
     id: '2026-11-17.26',
     date: '2026-11-17',
     title: 'The agent and its context under your message',
