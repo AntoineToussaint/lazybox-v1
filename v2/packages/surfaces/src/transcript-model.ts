@@ -328,6 +328,8 @@ function noticeOf(record: JournalEvent): { notice: RunnerNotice; text: string } 
   if (event?.type === 'code_reverted' && event.text) return { notice: 'reverted', text: event.text };
   // Another lazybox comes first on agents' PATH (internal/agentshell): what Lazybox did about it.
   if (event?.type === 'cli_notice' && event.text) return { notice: 'cli', text: event.text };
+  // A pull request this conversation delivered changed (runner/items.go): one quiet line.
+  if (event?.type === 'pull_request' && event.text) return { notice: 'pull-request', text: event.text };
   // The agent did not survive while no Runner ran (a reboot): the Runner's own sentence says what was lost and what to do.
   if (event?.type === 'agent_lost')
     return { notice: 'agent-lost', text: event.text || 'Lazybox restarted after this agent stopped. Send a message to resume its session.' };

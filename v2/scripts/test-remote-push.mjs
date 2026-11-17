@@ -345,7 +345,7 @@ try {
   // Every phone call carried a device credential and stayed on the device allowlist.
   assert.deepEqual(f.remote.deviceDenied, []);
   const used = [...new Set(f.calls.filter(c => c.device).map(c => c.method))].sort();
-  assert.deepEqual(used.filter(m => !['Apply', 'GetPushSettings', 'GetSession', 'Info', 'ListCollections', 'ListCommands', 'PinConversation', 'SendTestPush', 'SetPushSettings', 'WatchEvents', 'WatchOutput'].includes(m)), [], 'the phone used an RPC it does not need');
+  assert.deepEqual(used.filter(m => !['Apply', 'GetPushSettings', 'GetSession', 'Info', 'ListCollections', 'ListCommands', 'ListLinks', 'PinConversation', 'SendTestPush', 'SetPushSettings', 'WatchEvents', 'WatchOutput'].includes(m)), [], 'the phone used an RPC it does not need');
   assert.deepEqual(errors, []);
   console.log('PASS remote push: row approvals with Undo, flagged commands confirmed, deny with reason, question chips, swipe pin/read/stop, action sheet, pull to refresh, offline, live command output, push permission and subscription, per-kind toggles, quiet hours, test push, closed-page push → notification → conversation → approve, iPhone Home Screen guidance, revoke; screenshots in .cache/remote-*.png.');
 } finally { await browser?.close(); await server.close(); await f.close(); }

@@ -59,6 +59,7 @@ const NOTICE_LINES: Record<RunnerNotice, string> = {
   'agent-lost': 'Lazybox restarted after this agent stopped · send a message to resume its session',
   reverted: '',
   cli: '',
+  'pull-request': '',
 };
 
 /** What a Runner restart (or a revert) left to know: one line, its whole sentence on hover. */

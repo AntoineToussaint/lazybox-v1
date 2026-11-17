@@ -33,9 +33,9 @@ export function GitLine({ git, fallback, empty = false }: { git?: RowGit; fallba
       {git.badges.map(badge => <span key={badge.kind} className={`git-badge is-${badge.kind}`} data-git-badge={badge.kind}>
         {badge.kind === 'dirty' && <i className="git-dot"/>}{badge.text}
       </span>)}
-      {git.pulls.slice(0, 2).map(pull => <span key={pull.member} className={`git-pull is-${pull.tone}`} data-git-pull={pull.tone}>
+      {git.pulls.slice(0, 2).map(pull => pull.number ? <span key={pull.member + pull.number} className={`git-pull is-${pull.tone}`} data-git-pull={pull.tone}>
         <i className="git-dot"/>{pull.text}
-      </span>)}
+      </span> : <span key="more" className="git-pull is-more">{pull.text}</span>)}
       {git.pulls.length > 2 && <span className="git-pull is-more">+{git.pulls.length - 2}</span>}
       {git.problem && <span className="git-badge is-problem"><Icon name="alert" size={10}/></span>}
     </span>

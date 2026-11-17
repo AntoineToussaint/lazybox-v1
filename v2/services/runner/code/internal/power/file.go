@@ -52,7 +52,7 @@ const (
 var stepKinds = []string{StepSend, StepOpen, StepRun, StepCommand, StepPermission, StepWait, StepDo}
 
 // Panels an open step may show: the app's panel kinds, plus settings and the inbox.
-var Panels = []string{"chat", "console", "terminal", "assistant", "changes", "usage", "sessions", "missions", "processes", "actions", "preview", "files", "editor", "artifacts", "settings", "inbox"}
+var Panels = []string{"chat", "console", "terminal", "assistant", "changes", "usage", "sessions", "missions", "pulls", "processes", "actions", "preview", "files", "editor", "artifacts", "settings", "inbox"}
 
 // Grants a hook may hold, as a paired phone's (REMOTE.md): read the inbox and
 // conversations; respond (send, answer, approve, interrupt); start conversations.

@@ -85,6 +85,7 @@ Open the parts of the workspace in front.
 | Layout configuration | — | — |
 | Show missions | — | — |
 | Open the missions board | — | — |
+| Show pull requests | — | — |
 
 ## Layout
 

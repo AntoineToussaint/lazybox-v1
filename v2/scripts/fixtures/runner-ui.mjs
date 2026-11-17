@@ -39,6 +39,8 @@ export async function startRunnerFixture() {
   // A restarted Runner has a new bearer, and a launcher restart a new port: both change.
   let token = randomUUID(), url = '';
   const calls = [], mutations = [], pins = [];
+  // Tracked pull requests (ListLinks): links the test sets, the reactions sent.
+  const tracked = { links: [], events: [], trackingError: '', refusal: '', requests: [], sent: [] };
   const workspaceFiles=new Map();
   // Message attachments the fake Runner retained, by the path its journal lists.
   const attachments=new Map();let attachmentReadDelayMs=0;
@@ -370,7 +372,7 @@ actions:
   // Remote control (REMOTE.md): a fake Tailscale route, pairing offers checked
   // with the phone's real WebCrypto signatures, paired devices, and short
   // device credentials. deviceRPCs mirrors the Runner's device allowlist.
-  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', PinConversation: 'respond', OpenSession: 'start', ResumeSession: 'start', GetPushSettings: 'read', SetPushSettings: 'read', SendTestPush: 'read' };
+  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', PinConversation: 'respond', OpenSession: 'start', ResumeSession: 'start', GetPushSettings: 'read', SetPushSettings: 'read', SendTestPush: 'read', ListLinks: 'read', SendPullRequestFailures: 'respond', ImportPullRequestReview: 'respond' };
   // Web Push (REMOTE.md): the Runner's VAPID key (a real P-256 key, so a browser accepts it
   // as applicationServerKey), each device's subscription and preferences, and what was
   // pushed — payloads exactly as the Runner's notifier builds them.
@@ -783,7 +785,35 @@ actions:
           checks:[{name:'test',status:'completed',conclusion:'failure',url:`https://github.com/${s.githubRepository}/actions/runs/41/job/1`,summary:'2 tests failed'},{name:'lint',status:'in_progress',conclusion:'',url:''},{name:'build',status:'completed',conclusion:'success',url:`https://github.com/${s.githubRepository}/actions/runs/40`}]};
         return json(pullRequest(s));
       }
+      case 'ListLinks': {
+        // Like the Runner (runner/items.go): the store's links, never GitHub on the request path.
+        tracked.requests.push(body);
+        const links=tracked.links.filter(l=>body.all||l.collectionId===body.collectionId);
+        return json({links,events:tracked.events,trackingError:tracked.trackingError,pollSeconds:body.focused?60:300});
+      }
+      case 'SendPullRequestFailures': case 'ImportPullRequestReview': {
+        mutations.push({method,body});
+        const l=tracked.links.find(x=>x.collectionId===body.collectionId&&x.item?.ref?.key===body.ref?.key&&x.role!=='mentions');
+        if(!l)return error('not_found','this workspace does not deliver that pull request');
+        if(tracked.refusal)return error('failed_precondition',tracked.refusal);
+        const sessionId=body.sessionId||l.sessionId,key=l.item.ref.key,session=sessions.find(x=>x.id===sessionId),queued=!!session?.busy;
+        const failing=(l.item.pullRequest?.failingChecks||[]).map(c=>c.name);
+        const kind=method==='SendPullRequestFailures'?'pr_checks':'pr_review';
+        const text=kind==='pr_checks'?`[Lazybox] Checks failed on ${key}: ${failing.join(', ')}.\n\n### ${failing[0]} — \`go test ./...\` → exit 1\n\n\`\`\`text\n--- FAIL: TestRefundRounding\n\`\`\`\n\nFull log (12 KB): /fixture/output/${sessionId}/pr-${failing[0]}.log`:`[Lazybox] The review of ${key} on GitHub asks for changes.`;
+        tracked.sent.push({method,sessionId,text,kind});
+        eventStreams.get(sessionId)?.push({type:'operation_accepted',operationId:`${kind}-${tracked.sent.length}`,text,providerDataJson:originData({kind,summary:kind==='pr_checks'?`Checks failed on ${key}`:`Review of ${key} on GitHub`,detail:kind==='pr_checks'?failing.join(', '):'1 comment',copy:l.item.url})});
+        return json({sessionId,queued,summary:kind==='pr_checks'?`Sent ${failing.length} failing ${failing.length===1?'check':'checks'} of #${key.split('#')[1]} to the agent`:`Sent 1 review comment of #${key.split('#')[1]} to the agent`,files:kind==='pr_checks'?[`/fixture/output/${sessionId}/pr-${failing[0]}.log`]:[],notes:[],comments:kind==='pr_review'?1:0});
+      }
       case 'MergePullRequest': {
+        if(body.item?.key){
+          mutations.push({method,body});
+          const l=tracked.links.find(x=>x.collectionId===body.collectionId&&x.item?.ref?.key===body.item.key&&x.role!=='mentions');
+          if(!l)return error('not_found','this workspace does not deliver that pull request');
+          if(body.expectedHead!==l.item.pullRequest?.headSha)return error('failed_precondition','GitHub: Head branch was modified. Review and try the merge again.');
+          l.item.state={category:'merged',label:'Merged'};l.item.pullRequest.closedAtUnixMillis=String(Date.now());
+          const [repo,number]=l.item.ref.key.split('#');
+          return json({githubRepository:repo,branch:l.item.pullRequest.head,found:true,number,title:l.item.title,url:l.item.url,state:'merged',headSha:l.item.pullRequest.headSha});
+        }
         mutations.push({method,body});const s=shipState(body.collectionId,body.member);
         if(!s.pr||String(s.pr.number)!==String(body.number))return error('failed_precondition',`pull request #${body.number} is not this branch's pull request`);
         if(s.mergeRefusal)return error('failed_precondition','GitHub: '+s.mergeRefusal);
@@ -1034,7 +1064,7 @@ actions:
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
   return { items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
-    availability, acp, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
+    availability, acp, tracked, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */

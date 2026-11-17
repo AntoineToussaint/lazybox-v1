@@ -75,6 +75,9 @@ const KINDS: Record<string, Kind> = {
   plan_decided: { icon: 'checklist', tone: 'neutral', kind: 'Plan decision', fallback: 'The person decided the plan' },
   overlap_detected: { icon: 'alert', tone: 'warn', kind: 'Agents overlap', fallback: 'Two of your agents changed the same files' },
   continuation: { icon: 'history', tone: 'neutral', kind: 'Continuation', fallback: 'Continued from a checkpoint' },
+  // A tracked pull request's reactions (runner/item_reactions.go): the person chose to send them.
+  pr_checks: { icon: 'pullRequest', tone: 'warn', kind: 'PR checks', fallback: 'The pull request’s failing checks' },
+  pr_review: { icon: 'review', tone: 'review', kind: 'PR review', fallback: 'The pull request’s review on GitHub' },
 };
 const UNKNOWN: Kind = { icon: 'sparkle', tone: 'neutral', kind: 'From Lazybox', fallback: 'A message from Lazybox' };
 
@@ -91,13 +94,14 @@ export function systemEventView(origin: MessageOrigin, agentName = 'the agent'):
 }
 
 /** A Runner restart that left something uncertain, in one quiet line. */
-export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'agent-lost' | 'reverted' | 'cli';
+export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'agent-lost' | 'reverted' | 'cli' | 'pull-request';
 export const NOTICE_ICONS: Record<RunnerNotice, { icon: string; tone: SystemTone }> = {
   'delivery-unknown': { icon: 'alert', tone: 'warn' },
   'outcome-unknown': { icon: 'alert', tone: 'warn' },
   'agent-lost': { icon: 'refresh', tone: 'warn' },
   reverted: { icon: 'back', tone: 'neutral' },
   cli: { icon: 'terminal', tone: 'neutral' },
+  'pull-request': { icon: 'pullRequest', tone: 'muted' },
 };
 
 /** "Restarted 13 times · last at 14:02": what the restart marker says on hover. */

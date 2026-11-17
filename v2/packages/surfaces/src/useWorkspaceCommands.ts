@@ -49,6 +49,7 @@ export function useWorkspaceCommands(commands: Commands): CommandNavigator {
     'changes.show': { run: () => c().showPanel('changes'), enabled: () => !!c().workspaceId },
     'missions.open': { run: () => c().showPanel('missions'), enabled: () => !!c().registry.missions },
     'missions.page': { run: () => showMissionsPage(), enabled: () => !!c().registry.missions },
+    'pulls.open': { run: () => c().showPanel('pulls'), enabled: () => !!c().registry.pulls },
     'terminal.open':{ run: () => c().showPanel('terminal'), enabled: () => c().terminalReady },
     'workspace.window': { run: () => c().openWorkspaceWindow(), enabled: () => c().canOpenWorkspaceWindow },
     'page.customize': () => c().toggleEditing(),

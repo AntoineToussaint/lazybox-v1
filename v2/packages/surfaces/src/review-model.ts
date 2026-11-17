@@ -159,7 +159,7 @@ export function parseSeverity(text: string): Severity | undefined { return Objec
 export const severityLabel = (severity: string) => severities.find(s => s.value === severity)?.label || '';
 export const severityRank = (severity: string) => { const i = severities.findIndex(s => s.value === severity); return i < 0 ? severities.length : i; };
 /** Who wrote it, for a chip: "from Codex", or nothing for the person's own. */
-export const authorLabel = (c: Pick<ReviewComment, 'author' | 'authorLabel'>) => isFinding(c) ? `from ${c.authorLabel || 'the reviewer'}` : '';
+export const authorLabel = (c: Pick<ReviewComment, 'author' | 'authorLabel'>) => isFinding(c) ? `from ${c.authorLabel || 'the reviewer'}` : c.author === 'github' ? `from ${c.authorLabel || 'GitHub'}` : '';
 
 /** Authors present in a review, the person first: filter choices. */
 export function reviewAuthors(comments: readonly ReviewComment[]): { value: string; label: string }[] {

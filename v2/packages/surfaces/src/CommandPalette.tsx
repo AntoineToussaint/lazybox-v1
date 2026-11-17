@@ -22,6 +22,9 @@ import { useArtifacts } from './useArtifacts';
 import { RunnerBadge, useMergedInbox, useRunnerDirectory } from './RunnerDirectory';
 import { healthLabel, rowTarget } from './runner-directory';
 import { useMissions } from './useMissions';
+import { useTrackedItems } from './useTrackedPulls';
+import { groupPulls, needsYou as pullNeedsYou } from './pull-requests-model';
+import { PullStatusIcon } from './PullRequestsPanel';
 import { selectMission } from './navigate-requests';
 import { readPreference, writePreference } from './view-state';
 import { modKey, useWorkbenchState, type Workbench } from './workbench';
@@ -29,8 +32,8 @@ import type { CommandNavigator } from './CommandCenter';
 import type { ViewTarget } from './workspace-model';
 import './command-center.css';
 
-type Kind = 'action' | 'conversation' | 'workspace' | 'file' | 'setting' | 'panel' | 'artifact' | 'mission';
-const kindLabel: Record<Kind, string> = { action: 'Action', conversation: 'Conversation', workspace: 'Workspace', file: 'File', setting: 'Settings', panel: 'Panel', artifact: 'Artifact', mission: 'Mission' };
+type Kind = 'action' | 'conversation' | 'workspace' | 'file' | 'setting' | 'panel' | 'artifact' | 'mission' | 'pull';
+const kindLabel: Record<Kind, string> = { action: 'Action', conversation: 'Conversation', workspace: 'Workspace', file: 'File', setting: 'Settings', panel: 'Panel', artifact: 'Artifact', mission: 'Mission', pull: 'Pull request' };
 /** `runner`: the item is on that Runner of the window (a badge says which). */
 type Item = { key: string; kind: Kind; title: string; detail?: string; extra?: string; icon: ReactNode; keys?: string[]; current?: boolean; runner?: string; run(how: { side: boolean }): void };
 type Shown = Item & { positions: number[]; score: number };
@@ -42,6 +45,7 @@ export const prefixes: { prefix: string; kind: Kind; label: string }[] = [
   { prefix: '@', kind: 'conversation', label: 'Conversations' },
   { prefix: '#', kind: 'workspace', label: 'Workspaces' },
   { prefix: '/', kind: 'file', label: 'Files' },
+  { prefix: '!', kind: 'pull', label: 'Pull requests' },
 ];
 const recentKey = 'palette:recent:v1';
 function readRecent(store?: ViewStateStore): string[] {
@@ -101,6 +105,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
   const workspaceId = navigator.current.collectionId;
   const { artifacts } = useArtifacts(navigator.showPanel && !scope ? workspaceId : '');
   const missions = useMissions();
+  const tracked = useTrackedItems();
   const files = useFileResults(navigator.workbench, scope?.kind === 'file' || (!scope && term.length >= 2) ? term : null);
 
   const close = () => onClose();
@@ -166,10 +171,19 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
       key: `mission:${mission.id}`, kind: 'mission', title: mission.title || 'Untitled mission', detail: `Mission · ${mission.tasks.length} ${mission.tasks.length === 1 ? 'task' : 'tasks'}`, extra: mission.brief.slice(0, 200), icon: <Icon name="target" size={15}/>,
       run: () => { navigator.showPanel!('missions'); selectMission(mission.id); },
     })) : [];
+    // The tracked pull requests (pull-requests-model.ts): Enter opens the
+    // workspace at the conversation that delivered it.
+    const pulls = groupPulls(tracked.links, Date.now());
+    const pullItems: Item[] = [...pulls.needsYou, ...pulls.waiting, ...pulls.merged].map(pull => ({
+      key: `pull:${pull.key}`, kind: 'pull', title: `${pull.repository}#${pull.number}${pull.title ? ` ${pull.title}` : ''}`,
+      detail: `${workspaceName(pull.link.collectionId) === 'Unavailable workspace' ? pull.link.collectionName || 'Deleted workspace' : workspaceName(pull.link.collectionId)} · ${pull.detail}`, extra: `pull request pr ${pull.link.item?.pullRequest?.head || ''}`,
+      icon: <PullStatusIcon pull={pull} size={15}/>, current: pullNeedsYou.has(pull.status) ? false : undefined,
+      run: () => navigator.goTo({ collectionId: pull.link.collectionId, sessionId: pull.link.sessionId, commandId: '' }),
+    }));
     // The person's own actions (POWER.md), after the built-in ones.
     actions.push(...userPaletteItems().map(item => ({ ...item, icon: <Icon name={item.icon || 'play'} size={15}/> })));
-    return { actions, conversations, workspaces, settings, panels: [...windowItems, ...panels], artifactItems, missionItems };
-  }, [keymap, navigator, inbox.rows, inbox.multi, inbox.here, directory, artifacts, missions.missions, workspaceId, userActions]);
+    return { actions, conversations, workspaces, settings, panels: [...windowItems, ...panels], artifactItems, missionItems, pullItems, pullsNeedingYou: pulls.needsYou.map(pull => `pull:${pull.key}`) };
+  }, [keymap, navigator, inbox.rows, inbox.multi, inbox.here, directory, artifacts, missions.missions, workspaceId, userActions, tracked.links]);
 
   const fileItem = (path: string): Item => {
     const slash = path.lastIndexOf('/');
@@ -178,19 +192,20 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
   const fileItems: Item[] = useMemo(() => (files.paths || []).map(fileItem), [files.paths, navigator.workbench, workspaceId]);
 
   const sections: Section[] = useMemo(() => {
-    const all: Item[] = [...items.actions, ...items.conversations, ...items.workspaces, ...items.settings, ...items.panels, ...items.artifactItems, ...items.missionItems];
+    const all: Item[] = [...items.actions, ...items.conversations, ...items.workspaces, ...items.settings, ...items.panels, ...items.artifactItems, ...items.missionItems, ...items.pullItems];
     const plain = (rows: Item[]): Shown[] => rows.map(row => ({ ...row, positions: [], score: 0 }));
     if (!term) {
       if (scope?.kind === 'action') return [{ title: 'Actions', items: plain(items.actions) }];
       if (scope?.kind === 'conversation') return [{ title: 'Conversations', items: plain(items.conversations) }];
       if (scope?.kind === 'workspace') return [{ title: 'Workspaces', items: plain(items.workspaces) }];
+      if (scope?.kind === 'pull') return [{ title: 'Pull requests', items: plain(items.pullItems) }];
       if (scope?.kind === 'file') return [{ title: navigator.workbench ? 'Recently opened' : '', items: plain(fileItems) }];
       const byKey = new Map(all.map(item => [item.key, item]));
       // Files chosen recently in this workspace come back as files.
       if (navigator.workbench) for (const key of recent) if (key.startsWith(`file:${workspaceId}:`)) byKey.set(key, fileItem(key.slice(`file:${workspaceId}:`.length)));
       const recentItems = recent.map(key => byKey.get(key)).filter((item): item is Item => !!item && !item.current).slice(0, 5);
       const used = new Set(recentItems.map(item => item.key));
-      const waiting = needsYou(inbox.rows).map(row => byKey.get(`conversation:${row.key}`)).filter((item): item is Item => !!item && !used.has(item.key)).slice(0, 5);
+      const waiting = [...needsYou(inbox.rows).map(row => `conversation:${row.key}`), ...items.pullsNeedingYou].map(key => byKey.get(key)).filter((item): item is Item => !!item && !used.has(item.key)).slice(0, 6);
       waiting.forEach(item => used.add(item.key));
       return [
         { title: 'Recent', items: plain(recentItems) },

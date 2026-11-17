@@ -78,7 +78,7 @@ func init() {
 }
 
 // panelKinds are the panels `open --panel` and `shot` name (the app's panel kinds).
-var panelKinds = []string{"chat", "console", "terminal", "assistant", "changes", "usage", "sessions", "missions", "processes", "actions", "preview", "files", "editor", "artifacts", "settings", "inbox"}
+var panelKinds = []string{"chat", "console", "terminal", "assistant", "changes", "usage", "sessions", "missions", "pulls", "processes", "actions", "preview", "files", "editor", "artifacts", "settings", "inbox"}
 
 // legacyUnless marks the old flag form: any of these flags, or no positional argument.
 func legacyUnless(flags ...string) func([]string) bool {

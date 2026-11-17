@@ -1,5 +1,6 @@
 import type { Profile, RepositoryGitSummary, Session, WorkspaceGitSummary } from '@lazybox/protocol';
 import { conversationDetails, conversationName } from './conversation-model';
+import type { RowPull } from './pull-requests-model';
 
 /**
  * A workspace row's git line and agent line, the pure half (WorkspaceRow.tsx
@@ -11,7 +12,7 @@ import { conversationDetails, conversationName } from './conversation-model';
 
 export type GitBadgeKind = 'dirty' | 'ahead' | 'behind' | 'behind-default';
 export type GitBadge = { kind: GitBadgeKind; count: number; text: string; label: string };
-export type PullTone = 'success' | 'failure' | 'pending' | 'none' | 'draft' | 'merged' | 'closed';
+export type PullTone = 'success' | 'failure' | 'changes' | 'pending' | 'none' | 'draft' | 'merged' | 'closed';
 export type PullBadge = { member: string; number: number; url: string; tone: PullTone; text: string; label: string };
 export type RowGit = {
   /** The branch every repository is on, or the first one's. */
@@ -40,7 +41,7 @@ export function pullTone(pr: NonNullable<RepositoryGitSummary['pullRequest']>): 
   if (pr.checksState === 'success') return 'success';
   return 'none';
 }
-const toneWords: Record<PullTone, string> = { success: 'checks passed', failure: 'checks failing', pending: 'checks running', none: 'no checks', draft: 'draft', merged: 'merged', closed: 'closed' };
+const toneWords: Record<PullTone, string> = { success: 'checks passed', failure: 'checks failing', changes: 'changes requested', pending: 'checks running', none: 'no checks', draft: 'draft', merged: 'merged', closed: 'closed' };
 
 function pullBadge(repo: RepositoryGitSummary): PullBadge | undefined {
   const pr = repo.pullRequest;
@@ -64,8 +65,14 @@ export function repositoryLine(repo: RepositoryGitSummary): string {
   return parts.join(' · ');
 }
 
-/** The git line for a workspace, or undefined before the Runner answered. */
-export function rowGit(summary: WorkspaceGitSummary | undefined): RowGit | undefined {
+/**
+ * The git line for a workspace, or undefined before the Runner answered.
+ * tracked is the workspace's most urgent tracked pull request (checks
+ * failed, then changes requested, then ready to merge, …): it is the row's
+ * one pull request badge, whatever branch it is on; without it, each
+ * repository's branch pull request shows, as before tracking.
+ */
+export function rowGit(summary: WorkspaceGitSummary | undefined, tracked?: RowPull): RowGit | undefined {
   if (!summary) return;
   const repos = summary.repositories;
   const readable = repos.filter(repo => !repo.error);
@@ -79,7 +86,9 @@ export function rowGit(summary: WorkspaceGitSummary | undefined): RowGit | undef
   if (ahead) badges.push({ kind: 'ahead', count: ahead, text: `↑${ahead}`, label: `${plural(ahead, 'commit')} not pushed` });
   if (behind) badges.push({ kind: 'behind', count: behind, text: `↓${behind}`, label: `${plural(behind, 'pushed commit')} not pulled` });
   if (behindDefault) badges.push({ kind: 'behind-default', count: behindDefault, text: `⇣${behindDefault}`, label: `${plural(behindDefault, 'commit')} behind ${defaults.join(', ') || 'the default branch'}` });
-  const pulls = readable.map(pullBadge).filter((value): value is PullBadge => !!value);
+  const pulls = tracked
+    ? [{ member: tracked.pull.link.member, number: tracked.pull.number, url: tracked.pull.url, tone: tracked.tone, text: tracked.text, label: tracked.label }, ...(tracked.more ? [{ member: '', number: 0, url: '', tone: 'none' as const, text: `+${tracked.more}`, label: '' }] : [])]
+    : readable.map(pullBadge).filter((value): value is PullBadge => !!value);
   const branch = branches[0] || '';
   const more = branches.length > 1 ? `+${branches.length - 1}` : '';
   const title = repos.map(repositoryLine).join('\n');

@@ -22,6 +22,8 @@ import type { ViewTarget } from "./workspace-model";
 import { Icon } from "./Icons";
 import { useGitSummaries } from "./useGitSummaries";
 import { featuredConversation, rowGit } from "./workspace-row-model";
+import { useTrackedItems } from "./useTrackedPulls";
+import { rowPull } from "./pull-requests-model";
 import { isArchivedAway } from "./agents-model";
 import { readPreference, writePreference } from "./view-state";
 import type { ViewStateStore } from "@lazybox/platform";
@@ -171,6 +173,8 @@ function WorkspaceList({
   const index = useConversationIndex();
   // An agent finishing (or starting) a turn changes its worktree: refresh the rows' git state soon after.
   const git = useGitSummaries(index.sessions.map(s => `${s.id}:${s.busy ? 1 : 0}:${s.status}`).join(","));
+  // The tracked pull requests: each row's one badge is its most urgent (pull-requests-model.ts).
+  const tracked = useTrackedItems();
   const [deletingConversation, setDeletingConversation] = useState<Session>();
   // Each workspace lists every conversation under it; a fold keeps one quiet.
   const [folded, setFolded] = useState<string[]>(() => { try { const value: unknown = JSON.parse(readPreference(viewState, "workspaces.folded") || "[]"); return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string").slice(0, 256) : []; } catch { return []; } });
@@ -320,7 +324,7 @@ function WorkspaceList({
               <WorkspaceRow
                 conversation={single}
                 featured={single || (index.complete ? featuredConversation(rows) : undefined)}
-                git={rowGit(git.byWorkspace.get(collection.id))}
+                git={rowGit(git.byWorkspace.get(collection.id), rowPull(tracked.links, collection.id, Date.now()))}
                 conversationCount={rows.length}
                 onNewConversation={() => onNewConversation ? onNewConversation(collection.id) :
                   onTarget({

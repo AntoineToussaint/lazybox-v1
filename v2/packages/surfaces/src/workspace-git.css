@@ -17,6 +17,8 @@
 .git-pull.is-success .git-dot{color:var(--git-success,var(--ok))}
 .git-pull.is-failure .git-dot{color:var(--git-failure,var(--danger))}
 .git-pull.is-failure{box-shadow:inset 0 0 0 1px var(--git-failure-ring,var(--danger-line-subtle))}
+.git-pull.is-changes .git-dot{color:var(--git-changes,var(--warn))}
+.git-pull.is-changes{box-shadow:inset 0 0 0 1px var(--git-changes-ring,var(--warn-line-subtle,var(--line-bold)))}
 .git-pull.is-pending .git-dot{color:var(--git-pending,var(--warn));animation:git-pending 1.4s ease-in-out infinite}
 .git-pull.is-none .git-dot{color:var(--git-none,var(--text-faint))}
 .git-pull.is-draft{background:transparent;box-shadow:inset 0 0 0 1px var(--git-draft-ring,var(--line-bold));color:var(--git-muted,var(--text-muted))}

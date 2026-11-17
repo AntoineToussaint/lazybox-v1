@@ -8,6 +8,8 @@ import { AttentionCenter } from './Inbox';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { RunControl } from './RunControl';
 import { RunnerIndicator } from './RunnerControl';
+import { PullRequestPills } from './PullRequestsPanel';
+import { useGitSummaries } from './useGitSummaries';
 import { shortcut } from './workbench';
 import type { ViewTarget, WorkspacePage } from './workspace-model';
 
@@ -58,6 +60,9 @@ export function WorkspaceHeader({ app, pages, selectedPage, settings, pending, f
   // A phone's header has room for the essentials: Files, Terminal and Help go into ⋯
   // (hidden by CSS at once as the window narrows, listed in ⋯ here).
   const phone = useSyncExternalStore(listener => { const query = matchMedia(PHONE); query.addEventListener('change', listener); return () => query.removeEventListener('change', listener); }, () => matchMedia(PHONE).matches);
+  // Each repository's current branch: a pill whose pull request is on it opens the PR loop.
+  const git = useGitSummaries();
+  const branches = new Map((git.byWorkspace.get(workspaceID)?.repositories || []).map(repo => [repo.member, repo.branch]));
   return <header className="workspace-header">
     <button className="mobile-navigation-button icon-button" aria-label="Open workspace navigator" aria-expanded={navigatorOpen} onClick={onOpenNavigator}><Icon name="sidebar"/></button>
     <div className="workspace-brand"><span className="brand-mark">l<span>↗</span></span><strong>lazybox</strong></div>
@@ -67,6 +72,7 @@ export function WorkspaceHeader({ app, pages, selectedPage, settings, pending, f
     </nav>
     <div className="workspace-header-actions">
       <AttentionCenter collections={collections} selection={selection} viewState={viewState} onOpen={onOpenAttention}/>
+      {!settings && <PullRequestPills workspaceId={workspaceID} branches={branches} onShowChanges={onShowChanges} onShowPanel={() => onShowModule('pulls')}/>}
       <button className={`toolbar-action${changesShown ? ' icon-only' : ''}`} disabled={!workspaceID} aria-label="Review changes" title="Review changes" onClick={onShowChanges}><Icon name="branch"/>{!changesShown && <span>Changes</span>}</button>
       <button className="toolbar-action phone-overflow" disabled={!workspaceID} aria-label="Browse files" title={`Browse files · Go to file ${shortcut('Mod+P')}`} onClick={onBrowseFiles}><Icon name="folder"/><span>Files</span></button>
       <RunControl workspaceId={workspaceID} disabled={!terminalReady} onShowPanel={onShowModule}/>

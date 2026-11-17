@@ -67,7 +67,7 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "panel": { "enum": ["chat", "console", "terminal", "assistant", "changes", "usage", "sessions", "missions", "processes", "actions", "preview", "files", "editor", "artifacts", "settings", "inbox"] },
+                "panel": { "enum": ["chat", "console", "terminal", "assistant", "changes", "usage", "sessions", "missions", "pulls", "processes", "actions", "preview", "files", "editor", "artifacts", "settings", "inbox"] },
                 "url": { "type": "string", "pattern": "^https?://" },
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 }

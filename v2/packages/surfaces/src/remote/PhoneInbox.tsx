@@ -14,6 +14,7 @@ import { isArchivedAway } from '../agents-model';
 import { ActionSheet, ConfirmSheet, DenySheet, useRowActions, type ActionState, type SheetChoice } from './PhoneSheets';
 import { SwipeRow, type SwipeAction } from './SwipeRow';
 import { PushNudge } from './PhoneSettings';
+import { PullRequestInboxSection, usePullInboxCount } from '../PullRequestInbox';
 import type { Route } from './route';
 
 export function PinGlyph({ filled, size = 18 }: { filled?: boolean; size?: number }) {
@@ -44,7 +45,8 @@ export function PhoneInbox({ device, collections, pins: pinStore, go, onRefresh 
   const needs = inbox.counts['needs-input'];
   useEffect(() => { document.title = needs ? `(${needs}) Lazybox` : 'Lazybox'; }, [needs]);
   const workspace = (row: Attention) => collections.find(value => value.id === row.session.collectionId)?.name || '';
-  const summary = needs ? `${needs} waiting for you` : inbox.counts.failed || inbox.counts.review ? `${inbox.counts.failed + inbox.counts.review} to look at` : inbox.rows.length ? 'Nothing needs you' : '';
+  const pulls = usePullInboxCount();
+  const summary = needs ? `${needs} waiting for you` : inbox.counts.failed || inbox.counts.review || pulls ? `${inbox.counts.failed + inbox.counts.review + pulls} to look at` : inbox.rows.length ? 'Nothing needs you' : '';
   const close = () => setSheet(undefined);
   const title = (row: Attention) => conversationName(row.session);
 
@@ -124,10 +126,11 @@ export function PhoneInbox({ device, collections, pins: pinStore, go, onRefresh 
     </header>
     <PullToRefresh onRefresh={onRefresh}>
       <PushNudge onOpenSettings={() => go({ screen: 'settings' })}/>
+      <PullRequestInboxSection collections={collections} phone canRespond={respond} defer={action => actions.schedule(action)} onOpen={target => go(target.sessionId ? { session: target.sessionId } : {})}/>
       {!info ? <p className="remote-empty" role="status">Loading conversations…</p>
         : !inbox.rows.length ? <div className="remote-empty"><Icon name="inbox" size={28}/><strong>No conversations yet</strong><p>Agents that need you will show up here.</p></div>
         : <>
-          {!needs && !inbox.counts.failed && !inbox.counts.review && <p className="remote-caught-up"><Icon name="check" size={14}/>Nothing needs you right now. Your agents keep working.</p>}
+          {!needs && !pulls && !inbox.counts.failed && !inbox.counts.review && <p className="remote-caught-up"><Icon name="check" size={14}/>Nothing needs you right now. Your agents keep working.</p>}
           {sections.map(section => {
             const rows = section.state === 'idle' && !allDone ? section.rows.slice(0, DONE_SHOWN) : section.rows;
             return <section key={section.id} className={`remote-group group-${section.id}`} aria-labelledby={`remote-group-${section.id}`}>
