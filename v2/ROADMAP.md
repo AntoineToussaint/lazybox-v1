@@ -60,6 +60,10 @@ The M0–M8 catalog remains historical scope inventory. M1 does not authorize a
 second Hub here, and V2 805 no longer postpones mobile until after a desktop MVP.
 No R0–R4 outcome is marked complete by this audit.
 
+**Proposal, 2026-11-17:** [Mobile client, cloud backend and the Hub](MOBILE_CLOUD_HUB.md)
+surveys the state of the art and proposes an Expo iPhone app, an end-to-end-encrypted
+relay and a phased Hub (V2 805, V2 806); its decisions are open.
+
 ## November 3 delivery review (historical)
 
 <a id="current-delivery-order--critical-review-2026-11-03"></a>

@@ -125,6 +125,7 @@ configuration are resolved explicitly and stay isolated during development.
 | [Command output](../../COMMAND_OUTPUT.md) | The full console for people and the compact view for agents. |
 | [Terminals](../../TERMINALS.md) | The workspace shell on the Runner, `lazybox log` / `lazybox run`. |
 | [Remote control](../../REMOTE.md) | Pairing a phone by QR code over Tailscale, device grants, threat model. |
+| [Mobile, cloud and Hub](../../MOBILE_CLOUD_HUB.md) | Proposal: native iPhone app, an end-to-end-encrypted relay and push gateway, the Hub's scope and phases, decisions for the user. |
 | [Agent browser](../../BROWSER.md) | The browser agents drive and people watch: tools, engine choice, site permissions, Take over, safety. |
 | [ACP agents](../../ACP.md) | Any Agent Client Protocol agent as a conversation: the adapter, the protocol mapping, files and terminals served by Lazybox, restarts, gaps. |
 | [Computer control](../../COMPUTER_CONTROL.md) | Design only: agents driving other Mac apps, its permissions, risks and smallest safe first step. |
