@@ -27,13 +27,13 @@ try {
  await expect.poll(()=>fixture.mutations.filter(m=>m.method==='RenameCollection').length).toBe(1);
  assert.deepEqual(fixture.mutations.at(-1).body,{collectionId:'alpha',name:'Alpha renamed'});
  await page.locator('.workspace-row').filter({hasText:'Alpha renamed'}).locator('button').first().click();
- await expect(page.locator('.messages')).toContainText('FIRST_PROMPT');
+ await expect(page.locator('.messages:visible')).toContainText('FIRST_PROMPT');
  for(let i=0;i<805;i++)channel.push({type:'message_delta',text:`part${i} `});
- await expect(page.locator('.messages')).toContainText('part804');
- await expect(page.locator('.messages')).toContainText('FIRST_PROMPT');await expect(page.locator('.messages')).toContainText('ANSWER_BEGINNING');
+ await expect(page.locator('.messages:visible')).toContainText('part804');
+ await expect(page.locator('.messages:visible')).toContainText('FIRST_PROMPT');await expect(page.locator('.messages:visible')).toContainText('ANSWER_BEGINNING');
  for(let i=0;i<110;i++){channel.push({type:'operation_accepted',text:`Prompt ${i}`});channel.push({type:'message_delta',text:`Reply ${i}\n\n${'long answer '.repeat(30)}`});}
- await expect(page.locator('.messages')).toContainText('Reply 109');
- const pane=page.locator('.messages');
+ await expect(page.locator('.messages:visible')).toContainText('Reply 109');
+ const pane=page.locator('.messages:visible');
  // Earlier history: the button mounts the next step, and nearing the top mounts it on its own.
  await expect(pane).not.toContainText('FIRST_PROMPT');await page.getByRole('button',{name:'Show earlier messages'}).click();
  await expect.poll(async()=>{await pane.evaluate(node=>{node.scrollTop=0;node.dispatchEvent(new Event('scroll'));});return (await pane.textContent()).includes('FIRST_PROMPT');},{message:'scrolling to the top reaches the start of the conversation'}).toBe(true);
@@ -47,16 +47,16 @@ try {
  await page.getByRole('button',{name:'Conversation history',exact:true}).click();
  const history=page.getByRole('dialog',{name:'Conversation history',exact:true});await history.getByRole('searchbox').fill('Retained deleted');
  await history.getByRole('button',{name:/Retained deleted workspace conversation/}).click();
- await expect(page.locator('.messages')).toContainText('Retained conversation for deleted-session');
+ await expect(page.locator('.messages:visible')).toContainText('Retained conversation for deleted-session');
  // Opening old history must not create or resume an execution.
  assert.deepEqual(fixture.mutations.map(m=>m.method),['RenameCollection']);
  // A fresh window gets an independent reader, even if the main window cached Beta.
  const gap=fixture.openEvents('beta-session');gap.push({type:'message_delta',text:'gap'});gap.events[0].cursor='2';
  const gapPage=await browser.newPage();await gapPage.goto(url.replace('collection=alpha','collection=beta').replace('session=alpha-session','session=beta-session'));
  await expect(gapPage.getByRole('alert').filter({hasText:'Replay gap'})).toBeVisible();
- await expect(gapPage.locator('.messages')).not.toContainText('READY TO WORK');
+ await expect(gapPage.locator('.messages:visible')).not.toContainText('READY TO WORK');
  gap.events[0].cursor='1';await gapPage.getByRole('button',{name:'Retry conversation'}).click();
- await expect(gapPage.locator('.messages')).toContainText('gap');await expect(gapPage.getByRole('alert').filter({hasText:'Replay gap'})).toHaveCount(0);await gapPage.close();
+ await expect(gapPage.locator('.messages:visible')).toContainText('gap');await expect(gapPage.getByRole('alert').filter({hasText:'Replay gap'})).toHaveCount(0);await gapPage.close();
  channel.push({type:'operation_accepted',text:'Show a file'});
  channel.push({type:'message_delta',text:'Open [the file](api/README.md#L2) or `api/README.md:2`.'});
  await page.locator('.workspace-row').filter({hasText:'Alpha renamed'}).locator('button').first().click();
@@ -72,7 +72,7 @@ try {
  const sent=fixture.mutations.slice(before);assert.deepEqual(sent.map(m=>m.method),['ResumeSession','Apply']);assert.equal(sent[1].body.sessionId,'saved-session-continued');assert.equal(sent[0].body.processesStopped,undefined);
  // A reopened window anchored to an earlier attempt follows its successor without launching another.
  const restored=await browser.newPage();await restored.goto(url.replace('alpha-session','saved-session'));
- await expect(restored.locator('.messages')).toContainText('saved-session-continued');
+ await expect(restored.locator('.messages:visible')).toContainText('saved-session-continued');
  assert.equal(fixture.mutations.filter(m=>m.method==='ResumeSession').length,1);await restored.close();
  // A conversation the Runner failed when it lost its stream from a live agent (Dev: its own write hit a full disk)
  // recovers once the Runner re-adopts the agent: the banner goes, the composer sends, and the loss stays as one line of history.
@@ -93,7 +93,7 @@ try {
  Object.assign(alpha,{fault:'',status:'ready'});
  channel.push({type:'runner_reattached',status:'native_process_adopted'},new Date(lostAt+2_600_000).toISOString());
  channel.push({type:'message_delta',text:'RECOVERED_REPLY'});channel.push({type:'turn_ended',status:'completed'});
- await expect(banner).toHaveCount(0);await expect(page.locator('.messages')).toContainText('RECOVERED_REPLY');
+ await expect(banner).toHaveCount(0);await expect(page.locator('.messages:visible')).toContainText('RECOVERED_REPLY');
  await expect(lost).toContainText('reconnected at');await expect(lost).toHaveAttribute('data-tone','muted');
  await expect(page.locator('.runner-mark')).toHaveCount(0);
  await expect(composerBox).toBeEnabled();await composerBox.fill('Carry on');await page.getByRole('button',{name:'Send message',exact:true}).click();
