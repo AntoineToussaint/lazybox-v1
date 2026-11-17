@@ -19,7 +19,10 @@ export function useSubagentHost({ api, sessionID, session, index, revealMessage,
 }): SubagentView {
   const [view] = useState(() => new SubagentView());
   // Read during this render by the cards it mounts; announced once committed.
-  view.setConversation(sessionID);
+  // What was cleared and seen belongs to the conversation, which a resume or
+  // a restart (a new execution, a new sessionID) continues.
+  const conversation = session?.conversationId || sessionID;
+  view.setConversation(conversation);
   view.setIndex(index);
   view.actions = {
     revealMessage, openFile,
@@ -38,6 +41,6 @@ export function useSubagentHost({ api, sessionID, session, index, revealMessage,
   useLayoutEffect(() => { view.notify(); }, [view, index]);
   useLayoutEffect(() => { if (view.setSession(session)) view.notify(); }, [view, session]);
   // A different conversation starts with its cards closed and no panel.
-  useLayoutEffect(() => { view.expanded.clear(); view.results.clear(); view.seen.clear(); view.panel = null; view.notify(); }, [view, sessionID]);
+  useLayoutEffect(() => { view.expanded.clear(); view.results.clear(); view.panel = null; view.notify(); }, [view, conversation]);
   return view;
 }

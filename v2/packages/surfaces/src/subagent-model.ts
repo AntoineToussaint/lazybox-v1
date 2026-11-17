@@ -141,7 +141,9 @@ const READ_TOOLS = new Set(['BashOutput', 'TaskOutput']);
 const COMMAND_TASKS = new Set(['local_bash', 'shell', 'bash']);
 /** A sub-agent's own events that change its card or timeline. */
 const CHILD_TYPES = new Set(['tool_activity', 'message_delta', 'activity', 'approval', 'question', 'request_resolved', 'turn_started', 'turn_ended', 'failure']);
-const MAX_AGENTS = 256, MAX_ITEMS = 400, MAX_MESSAGE = 100_000, MAX_RESULT = 64_000, MAX_PAYLOAD = 8_000;
+/** Sub-agents and background commands a conversation keeps; past it, the oldest finished ones make room. */
+export const SUBAGENT_LIMIT = 256;
+const MAX_AGENTS = SUBAGENT_LIMIT, MAX_ITEMS = 400, MAX_MESSAGE = 100_000, MAX_RESULT = 64_000, MAX_PAYLOAD = 8_000;
 
 const decoder = new TextDecoder();
 function payload(bytes: Uint8Array): Record<string, any> | undefined {
@@ -254,7 +256,7 @@ export class SubagentFold {
     const existing = this.get(id);
     if (existing) return existing;
     const count = (this.order ?? this.state.order).length;
-    if (count >= MAX_AGENTS) { this.truncated = true; return; }
+    if (count >= MAX_AGENTS && !this.evict()) { this.truncated = true; return; }
     const parent = parentId && parentId !== 'root' ? this.get(this.resolve(parentId)) : undefined;
     const agent: Subagent = {
       id, runnerId: id, parentId: parent ? parent.id : 'root', depth: parent ? parent.depth + 1 : 0, nativeId: '', anchor: parent ? '' : `subagent:${id}`,
@@ -273,6 +275,31 @@ export class SubagentFold {
       this.push(owner, { kind: 'agent', id: `agent:${id}`, agentId: id });
     } else this.cards.push(id);
     return agent;
+  }
+
+  /**
+   * Makes room for a new sub-agent or command past the limit: the oldest
+   * finished one with nothing kept under it goes, from the index and from
+   * its parent's timeline (`truncated` says the list is no longer whole).
+   * False when everything kept is still at work: the new one is dropped.
+   */
+  private evict(): boolean {
+    const order = this.order ?? this.state.order;
+    const index = order.findIndex(id => { const agent = this.get(id); return !!agent && !activeSubagent(agent.status) && !agent.children.length; });
+    if (index < 0) return false;
+    const id = order[index], agent = this.get(id)!;
+    (this.order ??= [...this.state.order]).splice(index, 1);
+    delete (this.byId ??= { ...this.state.byId })[id];
+    const spawns = this.spawns ?? this.state.spawns, aliases = this.aliases ?? this.state.aliases;
+    for (const [call, target] of Object.entries(spawns)) if (target === id) delete (this.spawns ??= { ...this.state.spawns })[call];
+    for (const [alias, target] of Object.entries(aliases)) if (target === id) delete (this.aliases ??= { ...this.state.aliases })[alias];
+    if (agent.parentId !== 'root' && this.get(agent.parentId)) {
+      const owner = this.edit(agent.parentId);
+      owner.children = owner.children.filter(child => child !== id); this.owned.add(owner.children);
+      owner.items = owner.items.filter(item => !(item.kind === 'agent' && item.agentId === id)); this.owned.add(owner.items);
+    }
+    this.truncated = true;
+    return true;
   }
 
   private phase(agent: Subagent, phase: string, tool: string, at: number | undefined) {

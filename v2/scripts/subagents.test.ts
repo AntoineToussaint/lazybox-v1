@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyTranscript, foldTranscript, type Transcript } from '../packages/surfaces/src/transcript-model.ts';
 import { describeGroup, describeTool } from '../packages/surfaces/src/tool-lines.ts';
-import { actionLabel, agentElapsed, ancestry, backgroundCommands, canStopSubagent, commandTitle, currentAction, endsWithTurn, finishedWork, hiddenFromWork, mergedStatus, resultPreview, statusWord, stepRows, subagentLabel, subagentTree, tokenLabel, toolTotal, type Subagent } from '../packages/surfaces/src/subagent-model.ts';
+import { SUBAGENT_LIMIT, actionLabel, agentElapsed, ancestry, backgroundCommands, canStopSubagent, commandTitle, currentAction, endsWithTurn, finishedWork, hiddenFromWork, mergedStatus, resultPreview, statusWord, stepRows, subagentLabel, subagentTree, tokenLabel, toolTotal, type Subagent } from '../packages/surfaces/src/subagent-model.ts';
 import { noteStops } from '../packages/surfaces/src/tool-stops.ts';
 
 let cursor = 0n;
@@ -512,4 +512,40 @@ test('a sub-agent whose call was stopped is stopped, with everything it started;
   // The turn's end changes nothing more.
   t = fold(t, record(300, { type: 'turn_ended', status: 'interrupted' }));
   assert.equal(t.subagents.byId[id].status, 'stopped');
+});
+
+// Past 256, new sub-agents and background commands were dropped: a long
+// conversation's latest work was invisible. The oldest finished ones make room.
+test('past the limit, the oldest finished sub-agent makes room for a new one; running ones are kept', () => {
+  cursor = 0n;
+  const status = (id: string, value: string, parent = 'root') => record(0, { type: 'agent_status', agentId: id, parentAgentId: parent, status: value, name: `Task ${id}` });
+  const records: JournalEvent[] = [];
+  // Two still running, then a parent with a finished child, then finished ones up to the limit.
+  records.push(status('codex:run-0', 'running'), status('codex:run-1', 'running'), status('codex:parent', 'running'), status('codex:child', 'running', 'codex:parent'), status('codex:child', 'done'), status('codex:parent', 'done'));
+  for (let i = 4; i < SUBAGENT_LIMIT; i++) records.push(status(`codex:done-${i}`, 'running'), status(`codex:done-${i}`, 'done'));
+  let t = foldTranscript(emptyTranscript(), records);
+  assert.equal(t.subagents.order.length, SUBAGENT_LIMIT);
+  assert.equal(t.subagents.truncated, false);
+  t = fold(t, status('codex:new', 'running'));
+  const kept = t.subagents;
+  assert.equal(kept.order.length, SUBAGENT_LIMIT, 'still at the limit');
+  assert.ok(kept.byId['codex:new'], 'the new one is in');
+  assert.ok(kept.byId['codex:run-0'] && kept.byId['codex:run-1'], 'running ones stay');
+  assert.ok(!kept.byId['codex:child'], 'the oldest finished one went');
+  assert.deepEqual(kept.byId['codex:parent'].children, [], 'and left its parent');
+  assert.ok(!kept.byId['codex:parent'].items.some(item => item.kind === 'agent' && item.agentId === 'codex:child'), 'and its parent\'s timeline');
+  assert.equal(kept.truncated, true, 'the list says it is no longer whole');
+  // The parent, now without children, goes next.
+  t = fold(t, status('codex:newer', 'running'));
+  assert.ok(!t.subagents.byId['codex:parent'] && t.subagents.byId['codex:newer']);
+});
+
+test('past the limit with everything still running, a new sub-agent is dropped and the list says so', () => {
+  cursor = 0n;
+  const records: JournalEvent[] = [];
+  for (let i = 0; i < SUBAGENT_LIMIT; i++) records.push(record(0, { type: 'agent_status', agentId: `codex:r-${i}`, parentAgentId: 'root', status: 'running' }));
+  const t = foldTranscript(emptyTranscript(), [...records, record(1, { type: 'agent_status', agentId: 'codex:extra', parentAgentId: 'root', status: 'running' })]);
+  assert.equal(t.subagents.order.length, SUBAGENT_LIMIT);
+  assert.ok(!t.subagents.byId['codex:extra']);
+  assert.equal(t.subagents.truncated, true);
 });

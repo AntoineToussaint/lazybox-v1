@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { Icon } from './Icons';
 import { LiveIndicator, useNow } from './LiveIndicator';
 import { elapsedLabel, type LiveStatus } from './live-status';
-import { activeSubagent, agentElapsed, backgroundCommands, commandTitle, currentAction, finishedWork, hiddenFromWork, mergedStatus, newestFirstTree, recentWork, runningSummary, statusWord, subagentTree, workCounts, workSummary, workTotals, type Subagent, type SubagentStatus, type Subagents } from './subagent-model';
+import { SUBAGENT_LIMIT, activeSubagent, agentElapsed, backgroundCommands, commandTitle, currentAction, finishedWork, hiddenFromWork, mergedStatus, newestFirstTree, recentWork, runningSummary, statusWord, subagentTree, workCounts, workSummary, workTotals, type Subagent, type SubagentStatus, type Subagents } from './subagent-model';
 import { usePresentation, useSubagentIndex, useSubagentView, type SubagentView } from './subagent-view';
 import { StopSubagent, stopKeys, SubagentMark, SubagentName, subagentTitle } from './SubagentCard';
 import './subagents.css';
@@ -125,6 +125,7 @@ function WorkList({ view, index, now, placement, onClose }: { view: SubagentView
       <span>Cleared {view.lastCleared.length}</span><span aria-hidden="true"> · </span>
       <button ref={undo} type="button" className="subagent-link" onClick={() => { view.undoClear(); list.current?.querySelector<HTMLElement>('.subagent-tree-row')?.focus(); }}>Undo</button>
     </p>}
+    {index.truncated && <p className="subagent-tree-truncated" role="note">Earlier finished work is no longer listed: a conversation keeps its latest {SUBAGENT_LIMIT} sub-agents and commands.</p>}
     <div className="subagent-tree-body">
       {tree.length > 0 && <section aria-label="Sub-agents">{heading('Sub-agents', counts.agents, counts.agentsRunning, counts.agentsFailed)}<ul>{agentList.shown.flat().map(({ agent, depth }) => row(agent, depth))}{earlier(agentList.earlier, 'agents')}</ul></section>}
       {commands.length > 0 && <section aria-label="Background commands">{heading('Commands', counts.commands, counts.commandsRunning, counts.commandsFailed)}<ul>{commandList.shown.map(agent => row(agent, 0))}{earlier(commandList.earlier, 'commands')}</ul></section>}

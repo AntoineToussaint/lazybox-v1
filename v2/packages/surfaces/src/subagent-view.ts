@@ -6,9 +6,16 @@ import type { OpenModifiers } from './file-links';
 
 export type SubagentPanelMode = 'float' | 'dock';
 export type StopOutcome = 'stopping' | 'gone' | 'failed';
-/** Cleared items remembered per conversation: the newest. */
+/** Cleared and seen items remembered per conversation: the newest. */
 const CLEARED_LIMIT = 1000;
 const clearedKey = (conversation: string) => `lazybox.background-work.cleared.${conversation}`;
+const seenKey = (conversation: string) => `lazybox.background-work.seen.${conversation}`;
+const load = (key: string): Set<string> => {
+  let ids: unknown = [];
+  try { ids = JSON.parse(localStorage.getItem(key) || '[]'); } catch { /* nothing kept, or storage unavailable */ }
+  return new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []);
+};
+const save = (key: string, ids: Set<string>) => { try { localStorage.setItem(key, JSON.stringify([...ids].slice(-CLEARED_LIMIT))); } catch { /* holds for this window */ } };
 export type SubagentActions = {
   /** Scroll the conversation to a transcript message (a top-level card). */
   revealMessage(messageId: string): void;
@@ -31,7 +38,11 @@ export class SubagentView {
   index: Subagents = emptySubagents();
   expanded = new Set<string>();
   results = new Set<string>();
-  /** Failed sub-agents the person has looked at. */
+  /**
+   * Sub-agents the person has looked at: a failure among them no longer
+   * asks for attention. Kept per conversation, across a reopen, a resume
+   * and a restart, like `cleared`.
+   */
   seen = new Set<string>();
   /** Sub-agents the person asked to stop here: Stopping… until they end, then Stopped by you. */
   stopping = new Set<string>();
@@ -85,17 +96,20 @@ export class SubagentView {
     this.runner = runner; this.names = names; this.canStop = canStop; this.root = root;
     return changed || renamed || moved;
   }
-  /** A different conversation: its own cleared items, nothing else carried over. */
-  setConversation(conversation: string) {
-    if (conversation === this.conversation) return;
+  /**
+   * A different conversation (by its conversation id, which a resume or a
+   * restart keeps): its own cleared and seen items, nothing else carried
+   * over. True when it changed.
+   */
+  setConversation(conversation: string): boolean {
+    if (conversation === this.conversation) return false;
     this.conversation = conversation; this.gone.clear(); this.stopping.clear(); this.lastCleared = [];
-    let ids: unknown = [];
-    try { ids = JSON.parse(localStorage.getItem(clearedKey(conversation)) || '[]'); } catch { /* nothing cleared, or storage unavailable */ }
-    this.cleared = new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []);
+    this.cleared = load(clearedKey(conversation));
+    this.seen = load(seenKey(conversation));
+    return true;
   }
-  private saveCleared() {
-    try { localStorage.setItem(clearedKey(this.conversation), JSON.stringify([...this.cleared].slice(-CLEARED_LIMIT))); } catch { /* holds for this window */ }
-  }
+  private saveCleared() { save(clearedKey(this.conversation), this.cleared); }
+  private see(id: string) { if (this.seen.has(id)) return; this.seen.add(id); save(seenKey(this.conversation), this.seen); }
   /** Hides finished items from Background work; the transcript keeps them. Undo brings them back. */
   clearFinished(ids: readonly string[]) {
     if (!ids.length) return;
@@ -110,21 +124,21 @@ export class SubagentView {
   }
   dismissUndo() { if (this.lastCleared.length) { this.lastCleared = []; this.notify(); } }
   toggle(id: string, open = !this.expanded.has(id)) {
-    if (open) { this.expanded.add(id); this.seen.add(id); } else this.expanded.delete(id);
+    if (open) { this.expanded.add(id); this.see(id); } else this.expanded.delete(id);
     this.notify();
   }
-  toggleResult(id: string) { if (this.results.has(id)) this.results.delete(id); else { this.results.add(id); this.seen.add(id); } this.notify(); }
-  open(id: string, mode?: SubagentPanelMode) { this.panel = { agentId: id, mode: mode || this.panel?.mode || 'dock' }; this.seen.add(id); this.notify(); }
+  toggleResult(id: string) { if (this.results.has(id)) this.results.delete(id); else { this.results.add(id); this.see(id); } this.notify(); }
+  open(id: string, mode?: SubagentPanelMode) { this.panel = { agentId: id, mode: mode || this.panel?.mode || 'dock' }; this.see(id); this.notify(); }
   closePanel() { this.panel = null; this.notify(); }
   setMode(mode: SubagentPanelMode) { if (this.panel) { this.panel = { ...this.panel, mode }; this.notify(); } }
-  markSeen(ids: string[]) { for (const id of ids) this.seen.add(id); this.notify(); }
+  markSeen(ids: string[]) { for (const id of ids) this.see(id); this.notify(); }
   /** Scroll to a sub-agent's card, opening every card on the way so it can be seen. */
   reveal(id: string) {
     if (this.index.byId[id]?.kind === 'command') { this.open(id); return; }
     const chain = ancestry(this.index, id);
     if (!chain.length) return;
     for (const member of chain) this.expanded.add(member);
-    this.seen.add(id);
+    this.see(id);
     const top = this.index.byId[chain[0]];
     this.flash = chain.length > 1 ? { agentId: id, nonce: Date.now() } : null;
     this.notify();
