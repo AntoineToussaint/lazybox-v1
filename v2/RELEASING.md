@@ -237,8 +237,26 @@ locally needs (`release.json` records `"updaterKey": "test"`).
    test installs a uniquely named test launchd job, updates it to a second
    copy of the build, checks a terminal survived, and removes it).
 8. Tag `v2-v0.1.0` and push the tag.
-9. **Publish the docs** (decide where: a lazybox.ai section, or the repository
-   once it is public). Nothing publishes them today.
+9. **Publish the docs.** The site is `docs/` rendered by VitePress
+   (`docs-site/`), the same Markdown the app's docs viewer shows. Preview it
+   first: `npm run docs:check` (builds into `.cache/docs-site` and fails on a
+   dead link or anchor), then `npm run docs:preview`; `npm run docs:dev`
+   reloads as you edit. The standalone repository deploys it to GitHub Pages
+   with its **Docs** workflow (`.github/workflows/docs.yml`, written by the
+   export from `scripts/export-repo/root/`; it never runs in the monorepo).
+   It runs only on a `v2-v*` tag and by hand, never on a push to `main`.
+   - Once, before the first deployment: make the repository public (step 5),
+     then Settings → Pages → Build and deployment → Source: **GitHub
+     Actions**. The site is then served at
+     `https://antoinetoussaint.github.io/lazybox/` (the workflow takes the
+     base path from Pages, so a custom domain set there later needs no
+     change here).
+   - If Pages was enabled before step 8, the tag already deployed it: check
+     the run under Actions → Docs. Otherwise, Actions → Docs → **Run
+     workflow** on the tag.
+   - Then link the site from the release notes and the repository's About
+     box. Until Pages is enabled the workflow's deploy job fails and nothing
+     is published; to never publish, leave Pages off or disable the workflow.
 10. On a clean Mac: install from the disk image, check the first run, `lazybox
     doctor`, then `brew install --cask AntoineToussaint/lazybox/lazybox-v2`
     on another. Install the next release over it to see the update flow.
@@ -258,7 +276,7 @@ locally needs (`release.json` records `"updaterKey": "test"`).
 | Settings → Updates and the install flow against a fake feed (offline, bad signature, skip, remind, install, post-update notice, version mismatch) | `npm run test:updates` |
 | Help → Send feedback: preview equals what is saved, copied and put in the issue; redaction | `npm run test:feedback` |
 | Resume after a reboot (Runner and every session host killed) | `make test-reboot` (SESSION_HOSTS.md, "After a reboot") |
-| Workflows | `actionlint .github/workflows/v2-release.yml .github/workflows/v2.yml` |
+| Workflows | `actionlint .github/workflows/v2-release.yml .github/workflows/v2.yml v2/scripts/export-repo/root/.github/workflows/docs.yml` |
 
 ## What V2 reuses from V1
 

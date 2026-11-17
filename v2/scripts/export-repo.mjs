@@ -296,6 +296,9 @@ const PATCHES = [
   const target = join(source, '.cache', 'snippet-adapter');
   await run('cargo', ['build', '--locked', '--manifest-path', join(source, 'tools/lazybox-snippets/Cargo.toml')], source, {...buildEnv, CARGO_TARGET_DIR:target});` },
   { file: 'scripts/environments.mjs', find: "snippetDirectory: channel === 'dev' ? resolve(source, '..') : source,", replace: 'snippetDirectory: source,' },
+  // The docs site's workflow is written at the root from the overlay (scripts/export-repo/root).
+  { file: 'RELEASING.md', find: 'with its **Docs** workflow (`.github/workflows/docs.yml`, written by the\n   export from `scripts/export-repo/root/`; it never runs in the monorepo).\n', replace: 'with its **Docs** workflow (`.github/workflows/docs.yml`).\n' },
+  { file: 'RELEASING.md', find: ' v2/scripts/export-repo/root/.github/workflows/docs.yml`', replace: ' .github/workflows/docs.yml`' },
   // The repository is V2 alone and V2 is on main.
   { file: 'docs/getting-started.md', find: 'cd lazybox\ngit switch feat/v2-command-output        # V2 lives on this branch for now\n', replace: 'cd lazybox\n' },
   { file: 'docs/README.md', find: 'They describe what is on the `feat/v2-command-output` branch today;', replace: 'They describe what is on `main` today;' },

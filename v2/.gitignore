@@ -16,3 +16,8 @@ target/
 runner.config.json
 playwright-report/
 test-results/
+
+# The docs site (docs-site/): VitePress writes these when its outDir and cacheDir are not set.
+docs-site/.vitepress/cache/
+docs-site/.vitepress/.temp/
+docs-site/.vitepress/dist/

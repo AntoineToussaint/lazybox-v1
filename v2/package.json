@@ -27,6 +27,10 @@
     "docs:screenshots": "node scripts/docs-screenshots.mjs",
     "scenario": "node --import tsx scenarios/run.ts",
     "test:scenarios": "node --import tsx scenarios/run.ts all --no-video",
+    "docs:dev": "vitepress dev docs-site",
+    "docs:build": "vitepress build docs-site",
+    "docs:preview": "vitepress preview docs-site",
+    "docs:check": "vitepress build docs-site && node scripts/docs-site-check.mjs",
     "test:worker": "node --import tsx --test workers/claude-sdk/src/*.test.ts",
     "test:browser-service": "node --import tsx --test workers/browser/src/*.test.ts",
     "test:startup": "node scripts/test-startup.mjs",
@@ -146,6 +150,8 @@
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",
     "@bufbuild/protoc-gen-es": "2.16.0",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@playwright/test": "1.64.1",
     "@types/node": "26.6.5",
     "@types/react": "19.3.0",
@@ -153,6 +159,7 @@
     "@vitejs/plugin-react": "6.1.2",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "vitepress": "2.0.0-alpha.21"
   }
 }
