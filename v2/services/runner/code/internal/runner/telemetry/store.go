@@ -257,6 +257,7 @@ func costsOf(r Record, prices Pricer) *Costs {
 	}
 	return again.Costs
 }
+
 // addBucket counts a record in its hour's bucket.
 func addBucket(buckets map[string]*Bucket, r Record) {
 	hour := r.ObservedAt.UTC().Truncate(time.Hour).UnixMilli()
