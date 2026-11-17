@@ -144,7 +144,11 @@ Keys work while the chat has focus, never while you are typing.
 - **Activity** in the chat header opens the full, searchable history of every
   tool call, with Running and Failed filters.
 - **Command output** (`]] o`) is the console of the commands the agent ran —
-  every byte, while the agent itself received a compact view.
+  every byte, while the agent itself received a compact view. It stays on the
+  run you read: a new run takes it over only when that run keeps going, the
+  one shown has finished, and you have not used the console for 30 seconds.
+  Newer runs are offered in its header (**2 newer · npm test ↵ Show**); turn
+  off **Follow new runs** in its ⋯ menu to keep it from ever switching by itself.
 
 Links in the agent's answer work: a `path:line` opens the file in the Editor
 (`⌥`-click opens a quick look instead), and `⌥`-click on a web link opens it in

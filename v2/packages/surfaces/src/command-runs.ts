@@ -133,28 +133,3 @@ export class RunTracker {
     return fresh;
   }
 }
-
-// useCommandRuns calls onRun when a command starts in the session, so a
-// collapsed console can open for it. It polls at the console's own interval.
-export function useCommandRuns(api: RunnerClient, sessionId: string, onRun: (commandId: string) => void) {
-  const handler = useRef(onRun); handler.current = onRun;
-  useEffect(() => {
-    if (!sessionId) return;
-    const tracker = new RunTracker(), control = new AbortController(); let updating = false;
-    const update = async () => {
-      if (updating) return; updating = true;
-      try {
-        const { commands } = await api.listCommands({ sessionId }, { signal: control.signal });
-        if (control.signal.aborted) return;
-        // Actions and setup scripts have their own panel: a dev server restarting
-        // must not open the conversation's console.
-        const fresh = tracker.next(commands.filter(command => !isRuntimeRun(command)).map(command => command.id));
-        if (fresh.length) handler.current(fresh[fresh.length - 1]);
-      }
-      catch { /* The console panel reports listing errors when it is open. */ }
-      finally { updating = false; }
-    };
-    void update(); const timer = setInterval(() => void update(), 1500);
-    return () => { control.abort(); clearInterval(timer); };
-  }, [api, sessionId]);
-}

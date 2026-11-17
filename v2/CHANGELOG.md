@@ -14,6 +14,14 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.17] - 2026-11-17 · Command output stays on what you read
+
+- **Command output stays put** While an agent runs many quick commands, the Command output panel keeps showing the run you are reading. A new run takes it over only when the one shown has finished, you have not picked, searched, scrolled, selected or resized its text in the last 30 seconds, and the new run is still going after about a second and a half. Quick runs are listed in the picker, newest first, and counted.
+- **Newer runs are offered** When newer runs exist, the panel's header says so, for example 2 newer · npm test ↵ Show; click it, or Tab to it and press ↵, to jump to the newest.
+- **Follow new runs** The header's ⋯ menu has Follow new runs, on by default. Off, the output never switches by itself; newer runs are only offered. The choice is remembered for the window's workspace.
+- **No tab comes forward by itself** A run starting never brings Command output in front of another tab in its group; a panel you put away stays away.
+- **One row of controls** The header stays one row at any width: at narrow widths A−/A+, Copy and Hide noise move into its ⋯ menu.
+
 ## [2026-11-17.16] - 2026-11-17 · Long conversations open at once
 
 - **The latest first** Opening or reloading a long conversation shows its latest turns at once, then reads the rest behind them; until it is in, the top of the conversation says Loading earlier messages…. A conversation of about 10,000 events shows its last turn in a fifth of the time it took before.

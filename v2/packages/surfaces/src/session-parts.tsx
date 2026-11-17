@@ -13,6 +13,7 @@ import type { OpenModifiers } from './file-links';
 import { openInBrowser, openInViewer } from './web-links';
 import { Icon } from './Icons';
 import { contextMenu, copyText, showMenuNotice } from './ContextMenu';
+import { ActionMenu } from './ActionMenu';
 
 /** A question or approval the agent waits on (RequestCards.tsx). */
 export function RequestCard(props: RequestCardProps) {
@@ -24,9 +25,15 @@ export function RequestCard(props: RequestCardProps) {
 /**
  * One command's output. `toolbar` makes it the compact, docked form: what the
  * host passes (the command picker) leads a single row with the outcome, Stop,
- * find and copy, so a short panel is output, not chrome.
+ * find and copy, so a short panel is output, not chrome. That row never wraps:
+ * at narrow widths its lesser controls move into its ⋯ menu, which also holds
+ * what the host passes as `menu`.
  */
-export function Console({ api, command, onOpenViewer, viewState, onError, onSendToAgent, onOpenFile, toolbar, readOnly }: { api: RunnerClient; command: string;
+export function Console({ api, command, onOpenViewer, viewState, onError, onSendToAgent, onOpenFile, toolbar, menu: hostMenu, onUse, readOnly }: { api: RunnerClient; command: string;
+  /** The docked form's ⋯ menu items from the host, first. */
+  menu?: ReactNode;
+  /** The person read the output their way: found, scrolled, selected, resized its text. */
+  onUse?: () => void;
   /** A paired phone follows output but may not stop or rerun it (REMOTE.md). */
   readOnly?: boolean; onOpenViewer?: () => void; viewState?: ViewStateStore; onError?: (error: string) => void; onSendToAgent?: (text: string) => string;
   /** Opens a file the output names (`main.go:42`); without it, file names are plain text. */
@@ -38,7 +45,7 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
   const text = model.current.raw;
   // The output's text size: one choice for every console, remembered (A− / A+, ⌘− / ⌘+ in the output).
   const [fontSize, setFontSizeState] = useState(() => { try { const n = Number(localStorage.getItem('lazybox:console.font-size')); return n >= 9 && n <= 16 ? n : 11; } catch { return 11; } });
-  const setFontSize = (n: number) => { const next = Math.min(16, Math.max(9, n)); setFontSizeState(next); try { localStorage.setItem('lazybox:console.font-size', String(next)); } catch { /* a convenience */ } };
+  const setFontSize = (n: number) => { onUse?.(); const next = Math.min(16, Math.max(9, n)); setFontSizeState(next); try { localStorage.setItem('lazybox:console.font-size', String(next)); } catch { /* a convenience */ } };
   const [status, setStatus] = useState('Connecting');
   const [metadata, setMetadata] = useState<CommandStatus>();
   const [followOutput, setFollowOutput] = useState(true);
@@ -53,7 +60,7 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
   const restoreScroll = useRef<number | null>(null);
   // When the reader last moved the output themselves (wheel, keys, touch, the scrollbar).
   const readerScrolled = useRef(0);
-  const readerScrolls = () => { readerScrolled.current = Date.now(); };
+  const readerScrolls = () => { readerScrolled.current = Date.now(); onUse?.(); };
   const hiddenRef = useRef(hidden); hiddenRef.current = hidden;
   const saveView = (search: string, follow: boolean, hiddenSources: ReadonlySet<string> = hiddenRef.current) => {
     try { writeConsoleState(viewState, command, { search, follow, scrollTop: pane.current?.scrollTop || 0, ...(hiddenSources.size ? { hidden: [...hiddenSources] } : {}) }); }
@@ -143,14 +150,21 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
       {report && <p className="command-report" data-testid="command-report"><span>{reportSummary(report, fromTerminal)}</span>{report.outputPath && <button title={report.outputPath} onClick={() => navigator.clipboard.writeText(report.outputPath).catch(error => onError?.(String(error)))}>Copy log path</button>}</p>}
       {fromTerminal && onSendToAgent && <p className="command-share"><button className="primary" disabled={!metadata.done || !view} title={shareTitle} onClick={sendToAgent}>Send to agent</button>{handed ? <small role={handed.ok ? 'status' : 'alert'} className={handed.ok ? '' : 'error-text'}>{handed.text}</small> : <small>{metadata.done ? view ? `The agent gets ${formatBytes(report!.agentBytes)}, not the ${formatBytes(report!.outputBytes)} above.` : '' : 'You can send it to an agent when the output ends.'}</small>}</p>}</div>}
     <div className="console-tools">{toolbar}{toolbar && state}<input aria-label="Search output" placeholder="Find in output…" value={search}
-      onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); restoreScroll.current = null; saveView('', followOutput); } }}
-      onChange={e => { setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/>{(noise > 0 || hideNoise) && <button type="button" className="console-noise" aria-pressed={hideNoise}
+      onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); onUse?.(); setSearch(''); restoreScroll.current = null; saveView('', followOutput); } }}
+      onChange={e => { onUse?.(); setSearch(e.target.value); restoreScroll.current = null; saveView(e.target.value, followOutput); }}/>{(noise > 0 || hideNoise) && <button type="button" className="console-noise" data-fold="600" aria-pressed={hideNoise}
         title={hideNoise ? `Showing each kind of warning once and folding progress lines (${noise} hidden). Click to show every line.` : `Show each kind of warning once and fold progress lines: ${noise} repeated warning${noise === 1 ? '' : 's'}`}
-        onClick={() => setHideNoise(!hideNoise)}><Icon name={hideNoise ? 'eye' : 'collapse'} size={12}/>{hideNoise ? 'Noise hidden' : 'Hide noise'}{noise > 0 && <span className="console-noise-count">{noise}</span>}</button>}<span className="console-size" role="group" aria-label="Output text size"><button type="button" className="icon-button" aria-label="Smaller output text" title={`Smaller text (${fontSize}px)`} disabled={fontSize <= 9} onClick={() => setFontSize(fontSize - 1)}>A−</button><button type="button" className="icon-button" aria-label="Larger output text" title={`Larger text (${fontSize}px)`} disabled={fontSize >= 16} onClick={() => setFontSize(fontSize + 1)}>A+</button></span>{toolbar
-        ? <><button className="icon-button" aria-label="Copy output" title="Copy the output" disabled={!text} onClick={() => copyText(stripAnsi(text), 'Copied output')}><Icon name="copy" size={14}/></button>{onOpenViewer && <button className="icon-button" aria-label="Open output in a window" title="Open this output in its own window" onClick={onOpenViewer}><Icon name="external" size={14}/></button>}</>
+        onClick={() => setHideNoise(!hideNoise)}><Icon name={hideNoise ? 'eye' : 'collapse'} size={12}/>{hideNoise ? 'Noise hidden' : 'Hide noise'}{noise > 0 && <span className="console-noise-count">{noise}</span>}</button>}<span className="console-size" data-fold="820" role="group" aria-label="Output text size"><button type="button" className="icon-button" aria-label="Smaller output text" title={`Smaller text (${fontSize}px)`} disabled={fontSize <= 9} onClick={() => setFontSize(fontSize - 1)}>A−</button><button type="button" className="icon-button" aria-label="Larger output text" title={`Larger text (${fontSize}px)`} disabled={fontSize >= 16} onClick={() => setFontSize(fontSize + 1)}>A+</button></span>{toolbar
+        ? <><button className="icon-button" data-fold="820" aria-label="Copy output" title="Copy the output" disabled={!text} onClick={() => copyText(stripAnsi(text), 'Copied output')}><Icon name="copy" size={14}/></button>{onOpenViewer && <button className="icon-button" aria-label="Open output in a window" title="Open this output in its own window" onClick={onOpenViewer}><Icon name="external" size={14}/></button>}
+          <ActionMenu label="Output actions" className="console-menu">{hostMenu}
+            {/* What the row has no room for at narrow widths (shown in the row otherwise). */}
+            <button type="button" data-unfold="820" data-keep-open disabled={fontSize <= 9} onClick={() => setFontSize(fontSize - 1)}><Icon name="zoomOut"/><span>Smaller text</span><small>{fontSize}px</small></button>
+            <button type="button" data-unfold="820" data-keep-open disabled={fontSize >= 16} onClick={() => setFontSize(fontSize + 1)}><Icon name="zoomIn"/><span>Larger text</span></button>
+            {(noise > 0 || hideNoise) && <button type="button" data-unfold="600" aria-pressed={hideNoise} onClick={() => setHideNoise(!hideNoise)}><Icon name={hideNoise ? 'eye' : 'collapse'}/><span>{hideNoise ? 'Show every line' : 'Hide noise'}</span>{noise > 0 && <small>{noise}</small>}</button>}
+            <button type="button" data-unfold="820" disabled={!text} onClick={() => copyText(stripAnsi(text), 'Copied output')}><Icon name="copy"/><span>Copy output</span></button>
+          </ActionMenu></>
         : <><button onClick={() => navigator.clipboard.writeText(stripAnsi(text)).catch(error => onError?.(String(error)))}>Copy</button>{onOpenViewer && <button onClick={onOpenViewer}>Open viewer ↗</button>}</>}</div>
     {sources.length > 1 && <SourceFilter sources={sources} counts={counts} hidden={hidden} colour={layout.colour} onChange={setHidden}/>}
-    <div ref={pane} tabIndex={0} className="output log-output" data-testid="console-output" data-link-routing="own" aria-label="Command output" style={{ fontSize: `calc(${fontSize}px * var(--code-scale, 1))` }} onPointerDown={readerScrolls} onTouchMove={readerScrolls} onKeyDown={event => { readerScrolls(); if (!(event.metaKey || event.ctrlKey)) return; const step = event.key === '=' || event.key === '+' ? 1 : event.key === '-' ? -1 : 0; if (step) { event.preventDefault(); event.stopPropagation(); setFontSize(fontSize + step); } }} onWheel={() => { readerScrolls(); restoreScroll.current = null; }} onScroll={event => {
+    <div ref={pane} tabIndex={0} className="output log-output" data-testid="console-output" data-link-routing="own" aria-label="Command output" style={{ fontSize: `calc(${fontSize}px * var(--code-scale, 1))` }} onPointerDown={readerScrolls} onTouchMove={readerScrolls} onMouseUp={() => { if (window.getSelection()?.toString()) onUse?.(); }} onKeyDown={event => { readerScrolls(); if (!(event.metaKey || event.ctrlKey)) return; const step = event.key === '=' || event.key === '+' ? 1 : event.key === '-' ? -1 : 0; if (step) { event.preventDefault(); event.stopPropagation(); setFontSize(fontSize + step); } }} onWheel={() => { readerScrolls(); restoreScroll.current = null; }} onScroll={event => {
       const node = event.currentTarget; const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 24; if (restoreScroll.current !== null) return;
       // Only the reader leaves the end: a scroll that arriving output, a fold or the windowing caused keeps following.
       if (followOutput && !atEnd && Date.now() - readerScrolled.current > 800) { node.scrollTop = node.scrollHeight; return; }

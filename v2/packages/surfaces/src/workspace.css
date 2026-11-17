@@ -117,10 +117,10 @@
 .embedded-chat .composer button.send-button:disabled{opacity:1;background:var(--surface-strong);color:var(--text-disabled);border-color:var(--line-bold)}
 .embedded-chat .event-detail{display:none}
 .embedded-chat .session-setup{max-width:500px;padding:50px 30px}.embedded-chat .session-setup h2{font-size:calc(24px * var(--text-scale));letter-spacing:-.7px}.embedded-chat .session-setup p{font-size:calc(12px * var(--text-scale));color:var(--text-muted)}.embedded-chat .open-form{gap:18px;margin-top:24px}.embedded-chat .session-options{border-color:var(--line-strong);background:var(--surface-raised);padding:12px}.embedded-chat .session-options summary{font-size:calc(10px * var(--text-scale));color:var(--text-muted)}.embedded-chat .setup-row,.embedded-chat .options-grid{gap:14px}
-.command-panel{display:flex;flex-direction:column;flex:1;min-height:0;background:var(--surface-sunken)}
+.command-panel{display:flex;flex-direction:column;flex:1;min-height:0;background:var(--surface-sunken);container-type:inline-size;container-name:command-panel}
 /* The docked console is one row of controls (which command, how it ended, Stop, find, copy) and then output. */
 .command-panel .console{display:flex;flex-direction:column;flex:1;min-height:0;margin:0;border:0;border-radius:0;background:var(--surface-sunken)}
-.command-panel .console-tools{order:-1;flex:none;flex-wrap:wrap;gap:6px 8px;min-height:38px;padding:5px 10px 5px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.command-panel .console-tools{order:-1;flex:none;flex-wrap:nowrap;overflow:hidden;gap:6px 8px;min-height:38px;padding:5px 10px 5px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
 .command-panel .command-picker{flex:1 1 180px;min-width:0;display:flex;flex-direction:row;align-items:center;padding:0;border:0}
 .command-panel .command-picker>select{width:100%;min-width:0;font-size:calc(12px * var(--text-scale));background-color:transparent;border:0;padding:4px 22px 4px 0;color:var(--text-soft);text-overflow:ellipsis}
 .command-panel .console-state{flex:none;gap:6px}
@@ -136,6 +136,34 @@
 /* The pill says how it ended and the report line the sizes: no second status row. */
 .command-panel .console>footer,.command-panel .retention{display:none}
 .command-panel>.console-tools+.module-empty,.command-panel>.module-empty{margin:auto;padding:16px;max-width:52ch;text-align:center}
+/* The header is one row at every width: the picker and the newer-runs chip give way first, then the lesser controls move into the ⋯ menu. */
+.command-panel .console-tools>*{flex-shrink:0}
+.command-panel .console-tools>.command-picker{flex:1 1 180px;min-width:72px}
+.command-panel .console-tools input:not([type=checkbox]){flex-shrink:1}
+.command-panel .console-tools>.console-state{flex-shrink:1;min-width:0}
+.command-panel .console-state .pill{min-width:5.5em;overflow:hidden;text-overflow:ellipsis}
+.console-newer{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto!important;min-width:0;max-width:240px;overflow:hidden;height:24px;padding:0 9px!important;border:1px solid var(--accent-line-subtle);border-radius:999px;background:var(--accent-bg);color:var(--accent-strong);font-size:calc(11px * var(--text-scale))!important;line-height:1;white-space:nowrap;cursor:pointer}
+.console-newer:hover{background:var(--accent-bg-strong)}
+.console-newer:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.console-newer-count{flex:none;font-weight:600;font-variant-numeric:tabular-nums}
+.console-newer-title{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--text-soft);font-family:var(--font-console,var(--font-mono,ui-monospace,monospace))}
+.console-newer[data-running] .console-newer-title::before{content:'● ';color:var(--running,var(--accent))}
+.console-newer-show{flex:none;color:var(--text-muted)}
+.command-panel .console-menu>summary{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border-radius:5px;color:var(--text-muted)}
+.command-panel .console-menu>summary::-webkit-details-marker{display:none}
+.command-panel .console-menu>summary:hover,.command-panel .console-menu[open]>summary{background:var(--surface-selected);color:var(--text)}
+.console-menu>.action-popover{min-width:210px}
+.console-menu>.action-popover>button{display:flex;align-items:center;gap:9px}
+.console-menu>.action-popover>button>span:not(.console-follow-mark){flex:1}
+.console-menu>.action-popover>button>svg,.console-follow-mark{flex:none;width:14px;color:var(--text-subtle)}
+.console-follow-mark{display:inline-flex}
+.console-menu>.action-popover>button>small{color:var(--text-faint);font-size:calc(10.5px * var(--text-scale))}
+/* data-fold: a control the row gives up at that width; data-unfold: its place in the ⋯ menu from then on. */
+@container command-panel (min-width:821px){.command-panel [data-unfold]{display:none!important}}
+@container command-panel (min-width:601px){.command-panel [data-unfold="600"]{display:none!important}}
+@container command-panel (max-width:820px){.command-panel [data-fold="820"]{display:none!important}.console-newer{max-width:200px}}
+@container command-panel (max-width:600px){.command-panel [data-fold="600"]{display:none!important}}
+@container command-panel (max-width:560px){.console-newer-title,.console-newer-show{display:none}.command-panel .console-tools{gap:4px;padding-left:10px}.command-panel .console-tools>.command-picker{min-width:56px}.command-panel .console-tools input:not([type=checkbox]){min-width:56px}}
 .page-config{display:flex;align-items:end;gap:10px;padding:12px 16px;border-bottom:1px solid var(--accent-line);background:var(--surface-hover);flex-shrink:0;flex-wrap:wrap}
 .page-config form{display:flex;align-items:end;gap:7px}.page-config input{max-width:150px}.page-config label{font-size:calc(10px * var(--text-scale))}.page-config button{font-size:calc(10px * var(--text-scale));padding:7px 9px}
 .panel-config{display:flex;gap:5px;flex-wrap:wrap;width:100%;padding:6px 0}.panel-config button{font-size:calc(9px * var(--text-scale));padding:4px 6px}

@@ -9,6 +9,18 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.17',
+    date: '2026-11-17',
+    title: 'Command output stays on what you read',
+    items: [
+      { title: 'Command output stays put', body: 'While an agent runs many quick commands, the Command output panel keeps showing the run you are reading. A new run takes it over only when the one shown has finished, you have not picked, searched, scrolled, selected or resized its text in the last 30 seconds, and the new run is still going after about a second and a half. Quick runs are listed in the picker, newest first, and counted.' },
+      { title: 'Newer runs are offered', body: 'When newer runs exist, the panel\'s header says so, for example 2 newer · npm test ↵ Show; click it, or Tab to it and press ↵, to jump to the newest.' },
+      { title: 'Follow new runs', body: 'The header\'s ⋯ menu has Follow new runs, on by default. Off, the output never switches by itself; newer runs are only offered. The choice is remembered for the window\'s workspace.' },
+      { title: 'No tab comes forward by itself', body: 'A run starting never brings Command output in front of another tab in its group; a panel you put away stays away.' },
+      { title: 'One row of controls', body: 'The header stays one row at any width: at narrow widths A−/A+, Copy and Hide noise move into its ⋯ menu.' },
+    ],
+  },
+  {
     id: '2026-11-17.16',
     date: '2026-11-17',
     title: 'Long conversations open at once',

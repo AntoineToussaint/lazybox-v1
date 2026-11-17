@@ -15,7 +15,7 @@ import { RunnerDirectoryProvider, RunnerScope, useRunnerDirectory, useRunnerIden
 import { elsewhere, localTarget, OWN_RUNNER, type RunnerTarget } from './runner-directory';
 import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
-import { useCommandRuns } from './command-runs';
+import { consolePlace, followConsole, noteConsoleUse, readFollowRuns, useRunFollowing } from './console-follow';
 import { requestTerminal } from './TerminalPanel';
 import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
@@ -272,15 +272,14 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     consolePutAway.current.set(consoleKey, away);
     try { viewState?.setItem(consoleKey, away ? '1' : '0'); } catch { /* holds for this window */ }
   };
-  // A run starting in the viewed session opens the console on it, unless the
-  // person put the console away. Focus stays put.
-  useCommandRuns(api, page.selection.sessionId, commandId => {
+  // A run starting in the viewed session is offered to the console, which moves
+  // to it only when nobody is reading it and never comes forward over another
+  // tab (console-follow.ts). Put away, it stays away. Focus stays put.
+  useRunFollowing(api, page.selection.sessionId, () => ({ follow: readFollowRuns(sessionStore), place: consolePlace(livePage(), isConsolePutAway()), shown: livePage().selection.commandId }), ({ commandId, open }) => {
     const live = livePage();
     if (!live || locked || live.selection.sessionId !== page.selection.sessionId) return;
-    const output = shownPanels(live).find(panel => panel.kind === 'console' && panel.binding.mode === 'follow' && !panel.detached);
-    // Put away, the console still points at the newest run: opening it shows that one.
-    if (!output || isConsolePutAway()) { changePage({ ...live, selection: { ...live.selection, commandId } }); return; }
-    changePage({ ...activatePanel(live, output.id), selection: { ...live.selection, commandId } });
+    const output = followConsole(live);
+    changePage({ ...(open && output ? activatePanel(live, output.id) : live), selection: { ...live.selection, commandId } });
   });
   const canShowNewSession = shownPanels(page).some(p => p.kind === 'chat' && p.binding.mode === 'follow' && !p.detached) || allPanels(page).length < PANEL_LIMIT;
   const showSession = (requested: RunnerTarget) => {
@@ -421,6 +420,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       return;
     }
     if (target?.sessionId) showSession(target);
+    // A run the person opened is one they chose: the console stays on it (console-follow.ts).
+    if (kind === 'console' && target?.commandId) noteConsoleUse(target.sessionId);
     showModule(kind);
   };
   /** Move a panel to an edge of the page's content area, in a group of its own (the keyboard way to drag it there). */

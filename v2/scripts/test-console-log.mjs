@@ -151,6 +151,14 @@ try {
   await expect(output).toContainText('Building go binary');
 
   // Hide noise: the second loopback warning goes; the choice is the command's, kept across a reload.
+  // The panel is narrow beside the Web page and the editor, so its one-row header keeps Hide noise,
+  // A−/A+ and Copy in its ⋯ menu: maximized, they are back in the row.
+  const menu = panel.locator('summary[aria-label="Output actions"]');
+  await menu.click();
+  await expect(page.getByRole('button', { name: /^Hide noise/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Copy output/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Maximize Command output' }).click();
   const noise = panel.getByRole('button', { name: /Hide noise/ });
   await expect(noise).toContainText('1');
   await expect(rows.filter({ hasText: 'answers off loopback' })).toHaveCount(2);
@@ -192,10 +200,13 @@ try {
     await expect(output).toContainText('line 4499 of a long run');
   }
 
-  // Remembered per command: a reload keeps noise hidden.
+  // Remembered per command: a reload keeps noise hidden (narrow again, the ⋯ menu says so).
+  await page.getByRole('button', { name: 'Restore layout' }).first().click();
   await page.reload();
   await page.getByRole('tab', { name: 'Command output', exact: true }).click().catch(() => {});
-  await expect(page.locator('.command-panel').getByRole('button', { name: /Noise hidden/ })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.command-panel summary[aria-label="Output actions"]').click();
+  await expect(page.getByRole('button', { name: /^Show every line/ })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
 
   // Dark and light: the console maximized, and docked beside the conversation.
   const quiet = fixture.streamCommand(fixture.sessions[1].id, 'codefly run', ['codefly', 'run']);

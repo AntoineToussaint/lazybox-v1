@@ -1,6 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode } from 'react';
 import { Icon } from './Icons';
 
+/** The menu's buttons a person can reach: enabled, and not hidden (a menu may hold items only narrow layouts show). */
+const shownButtons = (panel: HTMLElement) => [...panel.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')].filter(button => button.getClientRects().length > 0);
+
 /** Keep actions in the browser top layer, outside scrolling panel clipping. */
 export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; className?: string; /** Replaces the ⋯ icon of the menu button. */ summary?: ReactNode; icon?: string; title?: string; onToggle?(open: boolean): void; children: ReactNode }>(function ActionMenu({ label, className = '', summary, icon = 'more', title, onToggle, children }, forwardedRef) {
   const details = useRef<HTMLDetailsElement>(null);
@@ -24,7 +27,7 @@ export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; classN
       if (!owner.open) { panel.hidePopover(); return; }
       panel.showPopover();
       position();
-      panel.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
+      shownButtons(panel)[0]?.focus({ preventScroll: true });
     };
     const observer = new MutationObserver(sync);
     observer.observe(owner, { attributes: true, attributeFilter: ['open'] });
@@ -49,7 +52,7 @@ export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; classN
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || (event.target as HTMLElement).matches('input, textarea')) return;
     event.preventDefault();
     if (!details.current!.open) { details.current!.open = true; return; }
-    const buttons = [...popup.current!.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    const buttons = shownButtons(popup.current!);
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
     buttons[next]?.focus();
