@@ -109,6 +109,7 @@ leave out.
 - **Found from anywhere** A card in the conversation, a count in the chat header, ⌘K across every workspace, and All workspaces in the Artifacts panel.
 - **Track the file an agent names** Right-click a Markdown file named in a message and choose Track as artifact: it stays in sync with the file.
 - **Beside a chat in its own window** In a chat moved to its own window, an artifact's Open or Compare shows it beside the chat in that window; Esc closes it, Open in main window moves it.
+- **One artifact per topic** An agent merges overlapping artifacts into one and retires the old ones, instead of leaving pointer stubs; the chat says "Merged 3 artifacts into Status" with Undo. Retired artifacts keep every version, hide behind Show retired, and say what replaced them, with Restore. An agent retires only what agents published; deleting stays yours.
 - **Artifacts use the room** One title, the kind named once in the toolbar, a smaller header with author, date, version and reading time on one line, and a text column that takes the room there is. The outline shows from 900 px of reader, else On this page; nothing scrolls sideways down to 360 px.
 
 ### Voice

@@ -14,6 +14,30 @@ the workspace: compare versions, export it, and hand it back to an agent.
 | **A Markdown file** | In Files, right-click the file (or the editor tab, or the file's link in a message) → **Track as artifact**. Lazybox follows the file: each settled change becomes a new version, and the page says *Synced with `api/docs/PLAN.md`*. **Stop syncing with file** keeps every version. |
 | **The agent itself** | Agents publish with `lazybox artifact put PLAN.md --title "Migration plan" --kind plan`; their briefing tells them to. |
 
+## One artifact per topic
+
+Agents revise as they go, and three overlapping documents are worse than one.
+An agent keeps one artifact per topic: it publishes a new version of the same
+artifact, or merges overlapping ones into one with
+`lazybox artifact put STATUS.md --title "Status" --supersedes ID1,ID2,ID3`,
+which **retires** the old ones. It can also retire one alone with
+`lazybox artifact retire ID --superseded-by ID`.
+
+Retiring is safe and reversible:
+
+- A retired artifact keeps every version. Nothing is deleted; only you
+  delete (⋯ → **Delete…**).
+- An agent can retire only artifacts agents published. Yours, one you edited,
+  and files you track stay put unless you retire them.
+- The conversation says what happened: **Merged 3 artifacts into “Status”**,
+  with **Undo** to bring them all back.
+- The Artifacts panel hides retired artifacts. **Show retired (N)** under
+  the list shows them.
+- A retired artifact's page says **Retired: superseded by Status**: click the
+  title to open the replacement, or **Restore** to bring it back.
+- You can **Retire** or **Restore** any artifact yourself from its ⋯ menu,
+  or by right-clicking its row.
+
 ## Read and compare
 
 An artifact lives in its workspace, and you reach it from wherever you are:

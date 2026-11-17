@@ -20,6 +20,7 @@ Each artifact has:
 | `origin_session_id`, `origin_conversation_id` | The conversation the artifact was first taken from. Later messages of that conversation offer "Update from this message". |
 | `tracked_path`, `tracking_problem` | The workspace file the Runner follows, and why it could not follow it lately (removed, not text, larger than 1 MiB). |
 | `links` | Reserved for missions and tasks (see [Orchestration](#orchestration)). Any link is refused until the Runner has missions. |
+| `retired` | Set while the artifact is retired (see [Retiring and merging](#retiring-and-merging)): when, by whom (`person` or `agent` with its execution), the artifact that `superseded_by` it, and a one-line reason. |
 
 These rules hold for every caller:
 
@@ -32,6 +33,9 @@ These rules hold for every caller:
   UTF-8, and at most 1000 versions per artifact.
 - **Deleting a workspace deletes its artifacts.** Deleting a conversation
   does not delete the artifacts taken from it.
+- **Retiring never deletes.** A retired artifact keeps every version, is
+  left out of `ListArtifacts` unless `include_retired`, and is restored as
+  it was.
 
 ## Where artifacts come from
 
@@ -80,21 +84,80 @@ disappears, the last version is kept and the problem is shown.
 ```sh
 lazybox artifact put PLAN.md --title "Datasource migration plan" --kind plan
 lazybox artifact put - --id ID < PLAN.md      # a new version of the same artifact
+lazybox artifact put STATUS.md --title "Status" --supersedes ID1,ID2,ID3
+                                              # one artifact replacing several, which are retired
+lazybox artifact retire ID [--superseded-by ID] [--reason "…"]
 lazybox artifact get ID [--version N]         # prints the Markdown
-lazybox artifact list
+lazybox artifact list [--all]                 # --all includes retired artifacts
 ```
 
 Every agent's briefing (`commandBriefing` in
 `internal/runner/command_output.go`) tells it to publish plans, design docs,
 specs, reports and notes this way, to keep one artifact per document (each
 revision is a new version with `--id`), to write the repository file too when
-the document belongs there, and never to put these documents in an external
+the document belongs there, to keep one artifact per topic (merging overlapping
+ones with `--supersedes` rather than leaving pointer stubs), and never to put
+these documents in an external
 document tool or connector (Claude Docs, Notion, Google Docs…) unless the
 person asks for that tool by name. An agent credential may call `ListArtifacts`, `GetArtifact`
 and `PutArtifact` only for **its own execution's workspace**. Its versions
 are always recorded as that agent, with source `agent`, whatever the request
-claims. Every other artifact call is owner only, and a workspace terminal's
-credential can call none of them (`internal/transport/auth.go`).
+claims. It may also call `RetireArtifact` (and `PutArtifact` with
+`supersedes`) there, to retire, never to restore, and only artifacts agents
+published (see below). Every other artifact call is owner only, including
+`DeleteArtifact`, and a workspace terminal's credential can call none of them
+(`internal/transport/auth.go`).
+
+## Retiring and merging
+
+Agents revise their thinking: a milestone plan, then a "what's left"
+checklist, then "limitations and what's next", each overlapping the last.
+The fix is one artifact per topic, and a way to get there that is safe for
+the person: **retiring**.
+
+- **Retire** (`RetireArtifact`, `lazybox artifact retire ID`) archives an
+  artifact. It keeps every version and stays readable by its ID, but leaves
+  the default list. It may name the artifact that **supersedes** it, of the
+  same workspace, and give a one-line reason. Retiring one already retired
+  records the new retirement.
+- **Merge in one step** (`PutArtifact` with `supersedes`, `lazybox artifact
+  put … --supersedes ID,ID`) publishes the artifact (new, or a new version
+  with `--id`), then retires each listed one as superseded by it. Every
+  listed artifact is checked first: if one may not be retired, nothing is
+  published. An artifact cannot supersede itself.
+- **Restore** (`RetireArtifact` with `restore`) brings it back as it was.
+  Only the person restores.
+- **What an agent may retire:** only an artifact of its own execution's
+  workspace that **agents published**: every version authored by an agent,
+  and no tracked file. One the person made, edited, took from a message or
+  tracked from a file is theirs; the Runner refuses (`PermissionDenied`, with
+  the title, telling the agent to ask). An agent never deletes:
+  `DeleteArtifact` stays the person's (⋯ → Delete…).
+- **The CLI prints** `Retired “Title” (artifact ID), superseded by “New”
+  (artifact ID2).` for each artifact retired, which is what the
+  conversation's card reads (`retiredArtifacts` in `tool-lines.ts`).
+- **The latest plan** a review is briefed with (`reviewPlan`) skips retired
+  plans.
+
+In the app:
+
+- **The conversation.** A put that superseded others shows one card,
+  "Merged 3 artifacts into “Status”" (an update of one of them counts it
+  too; one replaced by a new one reads "Replaced “Old” with “New”"), listing
+  what it retired, with **Undo** (restore them all) and **Open**. A
+  `lazybox artifact retire` shows "Retired “Title”", with what superseded it
+  and **Undo**. Once restored the card says "Undone: … back in the list".
+- **The Artifacts panel** lists only live artifacts. When some are retired,
+  **Show retired (N)** under the list shows them in a *Retired* group (quiet
+  rows, "Retired · superseded by “Status”"), reached by ↑/↓ like any row; the
+  choice is kept per panel. A workspace whose artifacts are all retired says
+  so. The palette, the header chip and "All workspaces" never list retired
+  artifacts.
+- **The page** of a retired artifact opens with a banner: "Retired:
+  superseded by **Status**" (the title opens it), who retired it and when,
+  the reason, and **Restore**.
+- **Retire and Restore** are also in the page's ⋯ menu and the row's menu,
+  for any artifact of the workspace. Neither asks first: nothing is deleted.
 
 ## Lazybox artifacts by default
 
@@ -264,7 +327,7 @@ The page follows new versions by itself.
   the web (`?view=artifact`). Closing that window changes nothing.
 - **⋯** has Rename, Open source message (opens the conversation and scrolls
   to the message, with the usual highlight), Open source file, Stop syncing
-  with file, and Delete… (asks first).
+  with file, Retire (or Restore, when retired), and Delete… (asks first).
 
 ## Export
 
