@@ -55,10 +55,10 @@ func TestMarksAreIndexedOnAppendAndRebuiltOnOpen(t *testing.T) {
 	_ = j.Dispose()
 }
 
-// A journal whose last line was torn (a crash mid-append) or with a line that
-// is not a record is still refused whole, as before: no index is built from
-// a line that is not a record.
-func TestMarkedJournalRefusesATornOrCorruptLine(t *testing.T) {
+// No index is built from a line that is not a record. A journal whose last
+// line was torn (a crash mid-append) opens without it; one with a line that
+// is not a record is refused for writing and read up to it.
+func TestMarkedJournalIndexesNoTornOrCorruptLine(t *testing.T) {
 	for name, tail := range map[string]string{"torn last line": `{"sequence":3,"value":"tu`, "corrupt line": "not a record\n"} {
 		path := filepath.Join(t.TempDir(), "events")
 		j, err := Open(path, 1<<16, turn)
@@ -77,12 +77,26 @@ func TestMarkedJournalRefusesATornOrCorruptLine(t *testing.T) {
 		}
 		_, _ = f.WriteString(tail)
 		_ = f.Close()
-		for _, open := range []func(string, int64, ...Option) (*Journal, error){Open, OpenExisting} {
-			if j, err = open(path, 1<<16, turn); err == nil {
-				j.Dispose()
-				t.Fatalf("%s: accepted", name)
-			}
+		read, err := OpenExisting(path, 1<<16, turn)
+		if err != nil {
+			t.Fatal(name, err)
 		}
+		if read.Count() != 2 || !slices.Equal(read.Marks(), []uint64{1}) || (read.Damage() != nil) != (name == "corrupt line") {
+			t.Fatalf("%s: read %d records, marks %v, damage %v", name, read.Count(), read.Marks(), read.Damage())
+		}
+		_ = read.Dispose()
+		j, err = Open(path, 1<<16, turn)
+		if name == "corrupt line" {
+			if err == nil {
+				j.Dispose()
+				t.Fatal("appending after a corrupt line")
+			}
+			continue
+		}
+		if err != nil || j.Count() != 2 || !slices.Equal(j.Marks(), []uint64{1}) {
+			t.Fatalf("%s: %v", name, err)
+		}
+		_ = j.Dispose()
 	}
 }
 
