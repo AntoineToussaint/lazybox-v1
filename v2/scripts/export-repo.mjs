@@ -57,6 +57,12 @@ const ROOT_LINK_MAP = new Map([
 const EXPORTER = path => path === 'scripts/export-repo.mjs' || path.startsWith('scripts/export-repo/');
 const LOCAL_PARTS = new Set(['node_modules', '.cache', 'dist', 'target', 'build', 'bin', 'coverage', '.codefly', '.expo', 'playwright-report', 'test-results']);
 const isLocalState = path => path.split('/').some(part => LOCAL_PARTS.has(part) || part === 'runner.config.json' || part === '.env' || (part.startsWith('.env.') && part !== '.env.example') || part.endsWith('.log') || part.endsWith('.tsbuildinfo'));
+// Names that must never be published: an employer's name (and its domain and
+// GitHub organization) and its internal module. Whole words only, so ordinary
+// words that contain them (a probe in progress, a round-r-o-b-i-n rotation) pass.
+// Spelled with a character class so this file never matches itself in a
+// repository-wide search.
+const PRIVATE_NAME_PATTERNS = [/(?<![A-Za-z])(?:[Oo]bin|[O]BIN)(?![a-z])/, /(?<![A-Za-z])R[o]bin(?![a-z])/];
 const SECRET_PATTERNS = [
   /gh[pousr]_[A-Za-z0-9]{36,}/, /github_pat_[A-Za-z0-9_]{60,}/, /sk-ant-[A-Za-z0-9_-]{40,}/, /sk-proj-[A-Za-z0-9_-]{40,}/,
   /AKIA[0-9A-Z]{16}/, /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/, /xox[baprs]-[A-Za-z0-9-]{20,}/,
@@ -479,11 +485,15 @@ function main() {
   record('.gitignore', '100644', Buffer.concat([ignore.data, Buffer.from('\n# Editor and OS files, local agent state.\n.DS_Store\n*.swp\n*.swo\n.claude/\n')]), 'merged from v2/.gitignore');
   for (const [path, file] of overlay) record(path, file.mode, file.data, 'V2 version (scripts/export-repo/root)');
 
-  // Nothing may still name the old module, and nothing may look like a secret.
+  // Nothing may still name the old module, name what must stay private, or look
+  // like a secret.
   const problems = [];
   for (const [path, { data }] of output) {
     if (['/', '"', '\n', ';'].some(next => data.includes(GO_MODULE.from + next))) problems.push(`${path}: still names ${GO_MODULE.from}`);
     const text = data.toString('latin1');
+    if (!isBinary(path, data)) text.split('\n').forEach((line, index) => {
+      for (const pattern of PRIVATE_NAME_PATTERNS) if (pattern.test(line)) problems.push(`${path}:${index + 1}: names something private (${pattern})`);
+    });
     for (const pattern of SECRET_PATTERNS) if (pattern.test(text)) problems.push(`${path}: matches secret pattern ${pattern}`);
   }
   for (const patch of PATCHES) if (!patch.optional && !output.has(patch.file)) problems.push(`${patch.file}: patched file missing from export`);
