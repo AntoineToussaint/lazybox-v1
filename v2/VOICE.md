@@ -57,6 +57,8 @@ On-device and private by default. User guide:
   drawn by an overlay (a transparent copy of the textarea's text with the live
   span tinted and underlined), so the textarea itself stays a plain controlled
   input. Previews are not saved; the draft is saved when the dictation ends.
+  A dictation that ends having shown no words leaves the caret alone (putting
+  it back later would undo the key that ended it, such as ⌥→ in a slow ⌥ chord).
   Typing takes over; sending (`↵`, `⌘↵`, the Send button) while listening
   stops, lets the recognizer settle, then submits the same form.
 - **`CommandPalette.tsx`** — a spoken query ranks by words (`spokenScore`), not

@@ -234,8 +234,10 @@ try {
   await expect(pill).toHaveCount(0);
   await page.keyboard.up('AltRight');
   await expect(message).toHaveValue('Right option works');
+  // ⌥→ moved the caret past "works"; the dropped dictation leaves it there, so the next one goes at the end.
+  await page.waitForTimeout(100);
+  assert.equal(await message.evaluate(box => box.selectionStart), 'Right option works'.length, 'a dropped dictation never moves the caret back');
   // Tapped twice, it keeps listening; tapped once more, it stops.
-  await message.evaluate(box => box.setSelectionRange(box.value.length, box.value.length));
   await page.keyboard.press('AltRight'); await page.keyboard.press('AltRight');
   await listening();
   await say('and keeps listening');

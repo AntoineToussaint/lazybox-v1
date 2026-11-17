@@ -55,8 +55,11 @@ export function useComposerDictation({ textarea, value, enabled, onPreview, onCo
         box.focus({ preventScroll: true });
         setActive(true);
         const place = (at: number) => requestAnimationFrame(() => { const node = textarea.current; if (node && document.activeElement === node) { node.setSelectionRange(at, at); } });
+        // Words were shown in the box: its text, and so its caret, changed.
+        let previewed = false;
         return {
           update(view) {
+            if (view.text) previewed = true;
             const merged = mergeDictation(before, after, view.text);
             latest.current.onPreview(merged.text);
             setLive(view.liveStart < view.text.length ? { start: merged.start + view.liveStart, end: merged.end } : null);
@@ -67,7 +70,11 @@ export function useComposerDictation({ textarea, value, enabled, onPreview, onCo
             if (reason === 'takeover') return;
             // Nothing said: the draft stays exactly as it was (a selection is not replaced by silence).
             if (reason === 'cancel' || reason === 'error' || !view.text) {
-              latest.current.onCommit(original); place(to);
+              latest.current.onCommit(original);
+              // Put the caret back only where words had moved it. Untouched, it stays where the
+              // person has it: a later placement would undo the key that ended this dictation
+              // (⌥→ after Right ⌥, a slow ⌥ chord) and send the next dictation to the old spot.
+              if (previewed) place(to);
               // ⌘↵ with nothing new said still sends what the box holds.
               if (reason === 'send') sendWhenShown(original);
               return;

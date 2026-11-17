@@ -90,6 +90,11 @@ test('a pause starts a new stretch: the words before it stay, in order', () => {
   out = applyResult(out, { segment: 0, text: 'first', final: true }, english).dictation;
   out = applyResult(out, { segment: 1, text: 'second', final: false }, english).dictation;
   assert.equal(dictationView(out, english).text, 'First second third');
+  // An earlier stretch's final that grows after a later one began still reads before it.
+  let late = applyResult(emptyDictation(), { segment: 0, text: 'right option', final: false }, english).dictation;
+  late = applyResult(late, { segment: 1, text: 'and keeps listening', final: false }, english).dictation;
+  late = applyResult(late, { segment: 0, text: 'right option works', final: true }, english).dictation;
+  assert.deepEqual(dictationView(late, english), { text: 'Right option works and keeps listening', liveStart: 19 });
   // The words of a settled stretch never change again.
   assert.equal(applyResult(d, { segment: 0, text: 'something else', final: false }, english).dictation, d);
 });
