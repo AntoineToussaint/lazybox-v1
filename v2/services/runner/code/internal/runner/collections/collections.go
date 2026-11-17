@@ -534,6 +534,11 @@ func (m *Manager) planMembers(ctx context.Context, c Collection, specs []MemberS
 		if exists {
 			return Collection{}, errors.New("branch already exists; choose a new collection branch")
 		}
+		// No explicit base: origin's default branch as last fetched (base.go),
+		// never the source copy's own stale branch or the checkout's current one.
+		if s.BaseRef == "HEAD" {
+			s.BaseRef = m.defaultBase(ctx, r.Path).Ref
+		}
 		commit, err := m.git(ctx, r.Path, "rev-parse", "--verify", "--end-of-options", s.BaseRef+"^{commit}")
 		if err != nil {
 			return Collection{}, fmt.Errorf("base ref for %s: %w", s.Name, err)

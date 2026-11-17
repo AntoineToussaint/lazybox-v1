@@ -209,6 +209,10 @@ func (b *Bench) prepareWorkspace(ctx context.Context, key, workspaceID, name, br
 			}
 			repoID = repo.ID
 		}
+		// The new branch starts from origin's default branch as it is now.
+		if err = b.refreshBase(ctx, id, repoID, row.Name, progress); err != nil {
+			return collections.Collection{}, err
+		}
 		members = append(members, collections.MemberSpec{RepositoryID: repoID, BaseRef: "HEAD"})
 	}
 	if err = progress("", "Creating worktrees"); err != nil {

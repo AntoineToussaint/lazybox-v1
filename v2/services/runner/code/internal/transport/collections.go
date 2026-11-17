@@ -51,6 +51,7 @@ func (s *Service) CreateCollection(ctx context.Context, r *pb.CreateCollectionRe
 		}
 		spec.Members = append(spec.Members, collections.MemberSpec{Name: member.Name, RepositoryID: member.RepositoryId, BaseRef: member.BaseRef, Branch: member.Branch})
 	}
+	s.Bench.RefreshBases(ctx, spec.Members)
 	c, err := m.Create(ctx, r.RequestKey, spec)
 	if err != nil {
 		return nil, rpcError(err)
@@ -139,6 +140,7 @@ func (s *Service) AddCollectionRepositories(ctx context.Context, r *pb.AddCollec
 			before[member.Name] = true
 		}
 	}
+	s.Bench.RefreshBases(ctx, members)
 	c, err := m.AddRepositories(ctx, r.CollectionId, r.RequestKey, members)
 	if err != nil {
 		return nil, rpcError(err)

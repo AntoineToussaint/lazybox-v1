@@ -9,6 +9,16 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.32',
+    date: '2026-11-17',
+    title: 'New work starts from today\'s main',
+    items: [
+      { title: 'Always from origin\'s main, as it is now', body: 'Adding a repository to a workspace (New task, Add repository, Start from an issue, an agent\'s request, lazybox new) first fetches the repository\'s default branch from origin, whatever it is called, and starts the workspace\'s branch there. Never from a copy Lazybox cloned weeks ago, the branch your own checkout has out, or another workspace\'s branch; your checkout\'s branches and files are not touched.' },
+      { title: 'Offline still works', body: 'If origin cannot be reached, the workspace starts from the last main Lazybox knows and says so while it prepares: Couldn\'t update api; started from main as of Nov 17 09:12.' },
+      { title: 'Your choice still wins', body: 'A branch you chose to continue, or an orchestrator\'s agent branching from its parent\'s work, starts where you said.' },
+    ],
+  },
+  {
     id: '2026-11-17.31',
     date: '2026-11-17',
     title: 'Steer Claude, and "always allow" that sticks',

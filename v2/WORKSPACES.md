@@ -40,8 +40,22 @@ retains the last complete snapshot and reports the source error. A changed GitHu
 identity does not expose another account's cached remote discovery.
 
 Repository selection is keyed by logical identity. The Runner resolves checkout
-paths and revalidates remote identity during preparation. The default base is
-`HEAD`; existing checkout contents and branches are not changed. Default folder
+paths and revalidates remote identity during preparation. **A new workspace
+branch starts from origin's default branch as it is now**: before creating
+the worktree (New task, Add repository, Start from an issue, an agent's
+repository request, `lazybox new`, `lazybox create-collection --spec`), the Runner asks
+origin which branch its HEAD names (never assuming `main`), fetches it into
+`refs/remotes/origin/<branch>` and records `origin/HEAD`, then branches from
+that commit — never from a source copy's stale branch, the branch a checkout
+has out, or another workspace's branch
+(`internal/runner/fresh_base.go`, `internal/gitpublish/refresh.go`,
+`internal/runner/collections/base.go`). If origin cannot be reached the
+workspace is still created, from the last known default branch, and
+preparation says so: *Couldn't update api; started from main as of Nov 17
+09:12*. A repository without origin starts from its `HEAD`. An explicit base
+(a branch to continue, an orchestrator's parent branch) is used as given.
+Only remote-tracking refs change; existing checkout contents and branches are
+not changed. Default folder
 names use the repository name, adding a numeric suffix only for collisions.
 Explicit folder names still require uniqueness. Successful source preparations
 remain reusable after a later failure; retrying the same request does not clone

@@ -14,6 +14,12 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.32] - 2026-11-17 · New work starts from today's main
+
+- **Always from origin's main, as it is now** Adding a repository to a workspace (New task, Add repository, Start from an issue, an agent's request, lazybox new) first fetches the repository's default branch from origin, whatever it is called, and starts the workspace's branch there. Never from a copy Lazybox cloned weeks ago, the branch your own checkout has out, or another workspace's branch; your checkout's branches and files are not touched.
+- **Offline still works** If origin cannot be reached, the workspace starts from the last main Lazybox knows and says so while it prepares: Couldn't update api; started from main as of Nov 17 09:12.
+- **Your choice still wins** A branch you chose to continue, or an orchestrator's agent branching from its parent's work, starts where you said.
+
 ## [2026-11-17.31] - 2026-11-17 · Steer Claude, and "always allow" that sticks
 
 - **Steer Claude mid-turn** A message queued while Claude works now has Steer, as Codex's does: Claude reads it after the step it is on, without stopping, as when you type into Claude Code during a turn. ⌘↵ still stops and sends.
