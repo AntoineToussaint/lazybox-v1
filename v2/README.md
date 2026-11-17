@@ -115,6 +115,8 @@ the rules for coding agents.
 
 ## Preview terms
 
-Lazybox is proprietary software: see [LICENSE](../LICENSE). You have this
-preview by invitation, to try it and tell us what you think. Please do not
-share the code or your builds.
+Lazybox is proprietary software: see [LICENSE](../LICENSE). For this
+preview, the owner permits you to build Lazybox from this repository, install
+it on your own computer and use it to evaluate it, and to share feedback and
+bug reports. Everything else the LICENSE reserves stays reserved: please do not
+redistribute the code or your builds, or publish modified versions.
