@@ -99,7 +99,8 @@
 .embedded-chat .message.notice{padding:6px 14px;margin:0 0 14px;border-left:2px solid var(--info-line)}
 .embedded-chat .message.notice p{font-size:calc(12px * var(--text-scale));line-height:1.6;color:var(--text-subtle)}
 .embedded-chat .message.operation_accepted{padding:14px 18px;background:var(--surface-active);border:1px solid var(--accent-line-subtle);border-radius:10px;margin-bottom:16px}
-.embedded-chat .message.operation_accepted>.eyebrow{display:block;color:var(--text-subtle);font-size:calc(10.5px * var(--text-scale));letter-spacing:0;text-transform:none;margin-bottom:8px}
+/* A message steered into the running turn: a small tag in the bubble's corner, not a name over it. */
+.message.operation_accepted>.message-tag{float:right;margin:0 -6px 4px 10px;padding:1px 7px;border:1px solid var(--line-strong);border-radius:999px;color:var(--text-muted);font-size:calc(10.5px * var(--text-scale));line-height:calc(16px * var(--text-scale));cursor:help}
 .embedded-chat .empty{margin:auto;padding:50px 24px;max-width:430px}.embedded-chat .empty h2{font-size:calc(22px * var(--text-scale));letter-spacing:-.5px}.embedded-chat .empty p{font-size:calc(12px * var(--text-scale));color:var(--text-faint)}
 .embedded-chat .composer{container-type:inline-size;position:relative;margin:0 24px 24px;padding:12px 14px 10px;border:1px solid var(--line-bold);border-radius:13px;background:var(--surface-hover);box-shadow:0 3px 10px color-mix(in srgb,var(--shadow) calc(7% * var(--shadow-strength)),transparent);flex-shrink:0}
 .embedded-chat .composer textarea{border:0;background:transparent;box-shadow:none;min-height:54px;max-height:180px;font-size:calc(13px * var(--text-scale));line-height:1.7;padding:2px;resize:vertical;outline-offset:5px;color:var(--text)}

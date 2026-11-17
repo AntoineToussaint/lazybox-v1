@@ -26,6 +26,8 @@ import { splitItemContext } from './item-context';
 import { QuotedItemChip } from './WorkItems';
 
 const ownName = (id: string) => id;
+/** The start of a message, for its accessible name. */
+const ownSummary = (text: string) => { const line = text.trim().replace(/\s+/g, ' '); return line.length > 80 ? `${line.slice(0, 79)}…` : line; };
 
 /**
  * A message's words; in one the person sent, an issue it carries (quoted by
@@ -59,9 +61,15 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   if (m.type === 'lineage' && m.lineage) return <LineageLine message={m} note={m.lineage}/>;
   if (m.type === 'review-alert') return <ReviewAlert text={m.text} id={m.id} note={m.review}/>;
   if (m.type === 'reattached') return <RestartMark message={m}/>;
-  return <article className={'message ' + m.type} data-message-id={m.id} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>
+  // The person's own message needs no name over it: it is theirs (screen readers still hear "You").
+  // What came from someone or something else is labelled: the agent, or an event (SystemEvent).
+  const own = m.type === 'operation_accepted';
+  return <article className={'message ' + m.type} data-message-id={m.id} aria-label={own ? `You${m.steered ? ', steered' : ''}: ${ownSummary(m.text)}` : undefined}
+    onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>
     {/* A message steered into a running turn says so, where it reached the agent. */}
-    <span className="eyebrow" {...(m.steered ? { title: `Given to ${agentName} inside its running turn` } : {})}>{m.type === 'operation_accepted' ? m.steered ? 'You · steered' : 'You' : m.type === 'failure' ? 'Stopped' : agentName}</span>
+    {own
+      ? m.steered && <span className="message-tag" title={`Given to ${agentName} inside its running turn`}>steered</span>
+      : <span className="eyebrow">{m.type === 'failure' ? 'Stopped' : agentName}</span>}
     {/* Only an agent's own words offer to run their commands. */}
     {m.type === 'message_delta' ? <RunMessageContext.Provider value={m.id}><RichContent text={m.text} onOpenFile={onOpenFile}/><InlineRuns messageId={m.id}/></RunMessageContext.Provider> : <PersonText text={m.text} quoted={m.type === 'operation_accepted'} onOpenFile={onOpenFile}/>}
     {m.files?.length ? <SentAttachments files={m.files}/> : null}

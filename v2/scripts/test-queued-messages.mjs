@@ -159,7 +159,7 @@ try{
  await expect(strip).toHaveCount(0,{timeout:5000});
  // Steered, it is said where it reached the running turn, and says so.
  await expect(youSaid(chat,'Also log the port it picked.')).toHaveCount(1);
- await expect(youSaid(chat,'Also log the port it picked.').locator('.eyebrow')).toHaveText('You · steered');
+ await expect(youSaid(chat,'Also log the port it picked.').locator('.message-tag')).toHaveText('steered');await expect(chat.getByRole('article',{name:'You, steered: Also log the port it picked.'})).toHaveCount(1);await expect(youSaid(chat,'Also log the port it picked.').locator('.eyebrow')).toHaveCount(0);await page.mouse.move(0,0);await youSaid(chat,'Also log the port it picked.').screenshot({path:'.cache/message-own-steered.png'});
 
  // Steer stays a button: ⌘↵ with nothing typed and nothing queued sends nothing, and says so quietly.
  const before=f.mutations.filter(m=>m.method==='Apply').length;
