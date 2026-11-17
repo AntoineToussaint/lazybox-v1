@@ -13,6 +13,8 @@ import { agentTitle } from './providers';
 import { useRepositoryCatalog } from './repository-catalog';
 import { repositoryLabel } from './repository-model';
 import { useRunner } from './RunnerContext';
+import { RunnerHealthDot, RunnerScope, useRunnerDirectory, useRunnerIdentity } from './RunnerDirectory';
+import { healthLabel, type RunnerHealth } from './runner-directory';
 import { useRunnerSettings } from './RunnerSettings';
 import { showToast } from './toasts';
 import { readLaunchChoices, readPreference, writePreference } from './view-state';
@@ -39,6 +41,8 @@ type Attempt = { spec: string; requestKey: string; operationId: string; collecti
 const CHOICES = 'new-task';
 /** The unsent sheet of this window: an Escape never loses a long message. */
 let unsent: Draft | undefined;
+/** When the sheet was remade for another Runner from its Runner row: focus goes back there (a time, so a repeated mount effect agrees). */
+let runnerPickedAt = 0;
 
 async function startTask(api: RunnerClient, plan: Plan, attempt: Attempt, progress: Progress): Promise<{ collectionId: string; sessionId: string }> {
   if (!attempt.collectionId) {
@@ -66,17 +70,33 @@ async function startTask(api: RunnerClient, plan: Plan, attempt: Attempt, progre
   return { collectionId: attempt.collectionId, sessionId: attempt.sessionId };
 }
 
-/** The sheet and its key, mounted once per workspace window. */
+/** A Runner the sheet can start on, when the window shows several. */
+type RunnerChoice = { id: string; label: string; channel: string; health: RunnerHealth };
+
+/**
+ * The sheet and its key, mounted once per workspace window. With several
+ * Runners in the window the sheet starts on the one the page shows, and a
+ * Runner row picks another: the sheet then talks to that Runner only (its
+ * repositories, agents and modes), and a started task opens on its page.
+ */
 export function NewTaskHost({ viewState, onStarted }: { viewState?: ViewStateStore; onStarted(target: ViewTarget): void }) {
   const [open, setOpen] = useState(false);
   const [failure, setFailure] = useState('');
   const sheet = useRef<HTMLDialogElement | null>(null);
-  useAction('task.new', () => { if (sheet.current?.open) sheet.current.querySelector<HTMLTextAreaElement>('.new-task-prompt')?.focus(); else { setFailure(''); setOpen(true); } });
-  return open ? <NewTaskSheet ref={sheet} viewState={viewState} failure={failure} onClose={() => setOpen(false)}
-    onStarted={onStarted} onFailed={message => { setFailure(message); setOpen(true); }}/> : null;
+  const directory = useRunnerDirectory();
+  const { id: here } = useRunnerIdentity();
+  const [runner, setRunner] = useState(here);
+  useAction('task.new', () => { if (sheet.current?.open) sheet.current.querySelector<HTMLTextAreaElement>('.new-task-prompt')?.focus(); else { setFailure(''); setRunner(here); setOpen(true); } });
+  if (!open) return null;
+  const choices: RunnerChoice[] | undefined = directory?.multi ? directory.shown.map(row => ({ id: row.id, label: row.label, channel: row.channel, health: row.health })) : undefined;
+  const chosen = choices?.some(choice => choice.id === runner) ? runner : here;
+  const started = (target: ViewTarget) => onStarted(chosen === here ? target : { ...target, runner: chosen } as ViewTarget);
+  const body = <NewTaskSheet key={chosen} ref={sheet} viewState={viewState} failure={failure} onClose={() => setOpen(false)} runners={choices} runner={chosen} onRunner={setRunner}
+    onStarted={started} onFailed={message => { setFailure(message); setOpen(true); }}/>;
+  return chosen === here ? body : <RunnerScope runner={chosen}>{body}</RunnerScope>;
 }
 
-function NewTaskSheet({ ref, viewState, failure, onClose, onStarted, onFailed }: { ref: RefObject<HTMLDialogElement | null>; viewState?: ViewStateStore; failure: string; onClose(): void; onStarted(target: ViewTarget): void; onFailed(message: string): void }) {
+function NewTaskSheet({ ref, viewState, failure, onClose, onStarted, onFailed, runners, runner, onRunner }: { ref: RefObject<HTMLDialogElement | null>; viewState?: ViewStateStore; failure: string; onClose(): void; onStarted(target: ViewTarget): void; onFailed(message: string): void; runners?: RunnerChoice[]; runner?: string; onRunner?(id: string): void }) {
   const { api, info } = useRunner();
   const { settings } = useRunnerSettings();
   const { catalog, loading: catalogLoading } = useRepositoryCatalog(api);
@@ -96,6 +116,7 @@ function NewTaskSheet({ ref, viewState, failure, onClose, onStarted, onFailed }:
 
   useEffect(() => {
     ref.current?.showModal();
+    if (Date.now() - runnerPickedAt < 1000) { ref.current?.querySelector<HTMLElement>('.new-task-runners [aria-checked=true]')?.focus(); return; }
     const field = prompt.current;
     if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
   }, []);
@@ -210,6 +231,25 @@ function NewTaskSheet({ ref, viewState, failure, onClose, onStarted, onFailed }:
     <form onSubmit={submit} aria-busy={busy || undefined}>
       <textarea ref={prompt} className="new-task-prompt" aria-label="First message" rows={4} maxLength={100_000} disabled={busy} placeholder="What should the agent do?"
         value={draft.prompt} onChange={event => { change({ prompt: event.target.value }); setProblem(undefined); }} onKeyDown={promptKeys}/>
+
+      {runners && <div className="new-task-field new-task-runner">
+        <span className="new-task-label" id={`${id}-runner`}><Icon name="processes" size={13}/>Runner</span>
+        <div className="new-task-runners" role="radiogroup" aria-labelledby={`${id}-runner`}
+          onKeyDown={event => {
+            const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+            if (!step) return;
+            event.preventDefault();
+            const usable = runners.filter(choice => choice.health === 'online' || choice.id === runner);
+            const next = usable[(usable.findIndex(choice => choice.id === runner) + step + usable.length) % usable.length];
+            if (next && next.id !== runner) { runnerPickedAt = Date.now(); onRunner?.(next.id); }
+          }}>
+          {runners.map(choice => <button key={choice.id} type="button" role="radio" aria-checked={choice.id === runner} tabIndex={choice.id === runner ? 0 : -1} disabled={busy || (choice.health !== 'online' && choice.id !== runner)}
+            title={choice.health === 'online' ? `Start on ${choice.label}${choice.channel && choice.channel !== choice.label ? ` (${choice.channel})` : ''}` : `${choice.label}: ${healthLabel[choice.health]}`}
+            onClick={() => { if (choice.id !== runner) { runnerPickedAt = Date.now(); onRunner?.(choice.id); } }}>
+            <RunnerHealthDot health={choice.health}/><span>{choice.label}</span>
+          </button>)}
+        </div>
+      </div>}
 
       <div className="new-task-field" data-invalid={problem?.field === 'repositories' || undefined}>
         <label className="new-task-label" htmlFor={`${id}-search`}><Icon name="repository" size={13}/>Repositories</label>

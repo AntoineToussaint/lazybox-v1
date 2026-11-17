@@ -10,7 +10,9 @@ import { useKeyboardAction, useKeymap, type Keymap } from './keyboard';
 import { ageLabel, attentionTitle, seenMark, type Attention, type AttentionState, type Inbox } from './attention';
 import { attentionChanges, deliverAttention } from './attention-alerts';
 import { bindings, displayKey, isChord } from './actions';
-import { useAttentionHost, useInbox, useNotificationPreferences, useViewingReader } from './useAttention';
+import { useAttentionHost, useNotificationPreferences, useViewingReader } from './useAttention';
+import { RunnerBadge, useMergedInbox, useRunnerActionHosts, useRunnerDirectory } from './RunnerDirectory';
+import { rowTarget, type RunnerRow } from './runner-directory';
 import { MissionInboxSection, useAwaitingTasks, useMissionAttention } from './MissionInbox';
 import { lineageLabel } from './agents-model';
 import type { ViewTarget } from './workspace-model';
@@ -38,7 +40,8 @@ export function LiveText({ session }: { session: Inbox['rows'][number]['session'
  * popover over the page stands in only where the page has no Agents panel.
  */
 export function AttentionCenter({ collections, selection, onOpen, viewState }: { collections: Collection[]; selection: ViewTarget; onOpen(target: ViewTarget): void; viewState?: ViewStateStore }) {
-  const inbox = useInbox();
+  // Every Runner the window shows: one count, one list, one set of notifications.
+  const inbox = useMergedInbox();
   const [open, setOpen] = useState(false);
   const keymap = useKeymap(viewState);
   const show = () => { if (conversationOpeners()?.showAgents()) requestAgentsFocus(); else setOpen(true); };
@@ -56,10 +59,15 @@ export function AttentionCenter({ collections, selection, onOpen, viewState }: {
   </>;
 }
 
-function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox: ReturnType<typeof useInbox>; collections: Collection[]; selection: ViewTarget; onClose(): void; onOpen(target: ViewTarget): void }) {
+function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox: ReturnType<typeof useMergedInbox>; collections: Collection[]; selection: ViewTarget; onClose(): void; onOpen(target: ViewTarget): void }) {
   const { info } = useRunner();
+  const directory = useRunnerDirectory();
   const dialog = useRef<HTMLDialogElement>(null);
   const actions = useConversationActions({ onOpen });
+  const others = useRunnerActionHosts(() => useConversationActions({ onOpen }), value => value.dialogs);
+  const actionsFor = (row: RunnerRow) => row.runner === inbox.here ? actions : others.get(row.runner);
+  const targetOf = (row: RunnerRow) => row.runner === inbox.here ? { collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' } : rowTarget(row);
+  const profilesOf = (row: RunnerRow) => (row.runner === inbox.here ? info : directory?.runners.find(value => value.id === row.runner)?.state?.info)?.profiles || [];
   const [allDone, setAllDone] = useState(false);
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
@@ -68,7 +76,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
     (dialog.current?.querySelector<HTMLElement>('.inbox-row') || dialog.current?.querySelector<HTMLElement>('[data-close-inbox]'))?.focus();
   }, []);
   useEffect(() => { setNow(Date.now()); }, [inbox.rows]);
-  const workspace = (row: Attention) => collections.find(value => value.id === row.session.collectionId)?.name || (row.session.collectionId ? 'Unavailable workspace' : 'No workspace');
+  const workspace = (row: Attention) => (!row.runner || row.runner === inbox.here ? collections : directory?.runners.find(value => value.id === row.runner)?.collections || []).find(value => value.id === row.session.collectionId)?.name || (row.session.collectionId ? 'Unavailable workspace' : 'No workspace');
   const unseen = inbox.rows.filter(row => row.unread && row.state !== 'needs-input');
   const markSeen = (rows: Attention[]) => inbox.mark(rows.map(row => ({ key: row.key, at: seenMark(row) })));
   const rows = () => [...dialog.current?.querySelectorAll<HTMLButtonElement>('.inbox-row') || []];
@@ -105,16 +113,17 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
         return <section key={group.state} className={`inbox-group group-${group.state}`} aria-labelledby={`inbox-group-${group.state}`}>
           <h3 id={`inbox-group-${group.state}`}><AttentionIcon state={group.state} size={13}/>{attentionTitle[group.state]}<span>{group.rows.length}</span></h3>
           <ul>{visible.map(row => <li key={row.key} className="inbox-item" data-key={row.key} data-state={row.state} data-unread={row.unread || undefined}
+            data-runner={inbox.multi ? row.runner : undefined}
             onContextMenu={contextMenu('inbox-item', () => [
-              ...actions.items(row.session),
+              ...(actionsFor(row)?.items(row.session) || []),
               'separator',
               { label: 'Mark all seen', icon: 'checkAll', disabled: !unseen.length, run: () => markSeen(unseen) },
             ], { sessionId: row.session.id, workspaceId: row.session.collectionId })}>
-            <button className="inbox-row" {...peekProps({ kind: 'conversation', sessionId: row.session.id, workspaceId: row.session.collectionId, title: conversationName(row.session) })} aria-current={row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' })}>
+            <button className="inbox-row" {...peekProps({ kind: 'conversation', sessionId: row.session.id, workspaceId: row.session.collectionId, title: conversationName(row.session), ...(inbox.multi ? { runner: row.runner } : {}) })} aria-current={row.runner === inbox.here && row.session.id === selection.sessionId ? 'true' : undefined} onClick={() => onOpen(targetOf(row))}>
               <AttentionIcon state={row.state}/><span className="sr-only">{attentionTitle[row.state]}{row.unread ? ', unread' : ''}: </span>
               <span className="inbox-main">
                 <span className="inbox-title">{row.unread && row.state !== 'needs-input' && <i className="unread-dot"/>}<strong>{conversationName(row.session)}</strong></span>
-                <span className="inbox-meta"><span>{workspace(row)}</span><span>{conversationDetails(row.session, info?.profiles || [], false)}</span></span>
+                <span className="inbox-meta"><RunnerBadge runner={row.runner}/><span>{workspace(row)}</span><span>{conversationDetails(row.session, profilesOf(row), false)}</span></span>
                 {lineageLabel(row.session) && <span className="inbox-lineage">{lineageLabel(row.session)}</span>}
                 {(row.line || row.state !== 'idle') && <span className="inbox-line">{row.state === 'working' ? <LiveText session={row.session}/> : <em>{row.reason}</em>}{row.line && <> · {row.line}</>}</span>}
               </span>
@@ -128,12 +137,15 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
     </div>
     <footer><kbd>j</kbd><kbd>k</kbd> move <kbd>Enter</kbd> open <kbd>m</kbd> mark seen <kbd>Esc</kbd> close</footer>
     {actions.dialogs}
+    {others.hosts}
   </dialog>;
 }
 
 /** Notifications and the dock badge, from the one window whose host can show them. */
-function useAttentionNotifier(inbox: Inbox, collections: Collection[], selection: ViewTarget, onOpen: (target: ViewTarget) => void, keymap: Keymap) {
+function useAttentionNotifier(inbox: ReturnType<typeof useMergedInbox>, collections: Collection[], selection: ViewTarget, onOpen: (target: ViewTarget) => void, keymap: Keymap) {
   const host = useAttentionHost();
+  const directory = useRunnerDirectory();
+  const others = useRef(directory?.runners); others.current = directory?.runners;
   const [preferences] = useNotificationPreferences();
   const viewing = useViewingReader();
   const previous = useRef<Map<string, Attention>>(undefined);
@@ -145,11 +157,13 @@ function useAttentionNotifier(inbox: Inbox, collections: Collection[], selection
     previous.current = new Map(inbox.rows.map(row => [row.key, row]));
     if (!before) return;
     const focused = document.visibilityState === 'visible' && document.hasFocus();
-    const here = focused ? inbox.rows.find(row => row.session.id === selection.sessionId)?.key : '';
+    const here = focused ? inbox.rows.find(row => row.runner === inbox.here && row.session.id === selection.sessionId)?.key : '';
     const elsewhere = viewing();
-    const notices = attentionChanges(before, inbox.rows, row => row.key === here || row.key === elsewhere, row => collections.find(value => value.id === row.session.collectionId)?.name);
+    const runnerOf = (row: Attention) => row.runner && row.runner !== inbox.here ? others.current?.find(value => value.id === row.runner) : undefined;
+    const notices = attentionChanges(before, inbox.rows, row => row.key === here || row.key === elsewhere, row => { const other = runnerOf(row); const name = (other ? other.collections : collections).find(value => value.id === row.session.collectionId)?.name; return other ? [other.label, name].filter(Boolean).join(' · ') : name; })
+      .map(notice => { const row = inbox.rows.find(value => value.key === notice.key); return row && row.runner !== inbox.here ? { ...notice, runner: row.runner } : notice; });
     const next = bindings(latest.current.keymap['attention.next']).find(isChord);
-    deliverAttention(notices, preferences, { host, focused, nextKey: next ? displayKey(next) : undefined, open: notice => open.current({ collectionId: notice.collectionId, sessionId: notice.sessionId, commandId: '' }) });
+    deliverAttention(notices, preferences, { host, focused, nextKey: next ? displayKey(next) : undefined, open: notice => open.current({ collectionId: notice.collectionId, sessionId: notice.sessionId, commandId: '', ...(notice.runner ? { runner: notice.runner } : {}) }) });
   }, [host, inbox.rows]);
   const badge = preferences.badge ? inbox.counts['needs-input'] : 0;
   useEffect(() => {
@@ -157,5 +171,5 @@ function useAttentionNotifier(inbox: Inbox, collections: Collection[], selection
     void host.setAttentionBadge(badge).catch(() => {});
   }, [host, badge]);
   useEffect(() => () => { void host?.setAttentionBadge?.(0).catch(() => {}); }, [host]);
-  useEffect(() => host?.onAttentionOpen?.(destination => open.current({ collectionId: destination.collectionId, sessionId: destination.sessionId, commandId: '' })), [host]);
+  useEffect(() => host?.onAttentionOpen?.(destination => open.current({ collectionId: destination.collectionId, sessionId: destination.sessionId, commandId: '', ...(destination.runner ? { runner: destination.runner } : {}) })), [host]);
 }

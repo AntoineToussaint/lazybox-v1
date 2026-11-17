@@ -8,9 +8,9 @@ export type ChatTarget = { panelId: string; collectionId: string; sessionId: str
  */
 export type ChatReturn = { panelId: string; collectionId: string; reason: 'put-back' | 'closed' };
 export type ArtifactTarget = { collectionId: string; artifactId: string };
-/** A conversation that needs the person, as a native notification. */
-export type AttentionNotice = { key: string; title: string; body: string; collectionId: string; sessionId: string };
-export type AttentionDestination = { collectionId: string; sessionId: string };
+/** A conversation that needs the person, as a native notification. `runner`: which of the window's Runners it is on, when it shows several. */
+export type AttentionNotice = { key: string; title: string; body: string; collectionId: string; sessionId: string; runner?: string };
+export type AttentionDestination = { collectionId: string; sessionId: string; runner?: string };
 export type NotificationPermission = 'granted' | 'denied' | 'default' | 'unsupported';
 /** What a host offers for attention: notifications, a dock badge, and the conversation a clicked notification asks for. */
 export type AttentionHost = {
@@ -132,7 +132,46 @@ export type ZoomHost = {
   /** Calls `listener` whenever the zoom changes (a menu shortcut, another window); returns the unsubscribe. */
   subscribe(listener: (level: number) => void): () => void;
 };
+/**
+ * A Runner a window can show besides its own (MULTI_RUNNER.md): found through
+ * a locator (`~/.config/lazybox/runners/*.json`, what `lazybox runners`
+ * lists) or a file the person added in Settings → Runners. Only a running
+ * Runner carries its loopback origin and owner bearer, read from its private
+ * endpoint file by the host; nothing here is ever written anywhere.
+ */
+export type RunnerListing = {
+  /** Stable while the locator exists, safe in keys ([A-Za-z0-9_.-]). */
+  id: string;
+  /** The locator's name: "dev", "working", "lazybox", or the file's. */
+  name: string;
+  product?: string;
+  /** "dev", "working" or "release"; empty for a Runner the person added. */
+  channel?: string;
+  /** Registered by a launcher, or added by the person (who can forget it). */
+  source: 'registered' | 'added';
+  /** The file it was found through (a locator or an endpoint file); never a credential. */
+  locator?: string;
+  /** The window's own Runner. */
+  current: boolean;
+  state: 'running' | 'stopped' | 'invalid';
+  /** Why it is stopped or cannot be used, as a sentence. */
+  problem?: string;
+  /** Loopback origin and owner bearer, for a running Runner only. */
+  url?: string;
+  token?: string;
+};
+export type RunnerDirectoryHost = {
+  /** Every Runner the host can find now, the window's own included. */
+  list(): Promise<RunnerListing[]>;
+  /** Adds a Runner by its locator or endpoint file; resolves its listing. */
+  add?(path: string): Promise<RunnerListing>;
+  /** Forgets a Runner the person added (registered ones are the launchers'). */
+  forget?(id: string): Promise<void>;
+};
+
 export type WorkspaceHost = AttentionHost & PowerHost & {
+  /** The other Runners this window can show (MULTI_RUNNER.md); absent where there are none to find. */
+  runners?: RunnerDirectoryHost;
   /** The UI zoom, where the host owns one (the desktop app). */
   zoom?: ZoomHost;
   /** The desktop app: version, updates (absent in a browser). */

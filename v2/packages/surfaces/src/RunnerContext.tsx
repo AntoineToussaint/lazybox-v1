@@ -10,7 +10,7 @@ import type { InfoResponse } from '@lazybox/protocol';
 export type RunnerConnection = { baseUrl: string; token: string; fetch?: typeof globalThis.fetch; renew?(): Promise<RunnerAuthority | undefined> };
 /** A restart the person asked for, from request until a new Runner process serves. */
 export type RunnerRestart = { phase: 'idle' } | { phase: 'restarting' } | { phase: 'restarted' } | { phase: 'failed'; message: string };
-type RunnerState = { connection: RunnerConnection; api: RunnerClient; info?: InfoResponse; connecting: boolean; error: string; authFailed: boolean; refresh(): void; revision: number; restart: RunnerRestart; restartRunner(): Promise<void>; dismissRestart(): void };
+export type RunnerState = { connection: RunnerConnection; api: RunnerClient; info?: InfoResponse; connecting: boolean; error: string; authFailed: boolean; refresh(): void; revision: number; restart: RunnerRestart; restartRunner(): Promise<void>; dismissRestart(): void };
 const Context = createContext<RunnerState | null>(null);
 
 // The launcher waits up to three minutes for a Runner to serve; Dev may also
@@ -21,6 +21,25 @@ const refused = [Code.FailedPrecondition, Code.PermissionDenied, Code.Unauthenti
 
 /** One resolved authority per window. Panel lifetimes never own execution. */
 export function RunnerProvider({ connection, expectRestart, children }: { connection: RunnerConnection; expectRestart?: () => Promise<void>; children: ReactNode }) {
+  const state = useRunnerState(connection, expectRestart);
+  return <Context.Provider value={state}>{children}</Context.Provider>;
+}
+
+/**
+ * Everything under it talks to the Runner `state` belongs to: a section of the
+ * sidebar, a row of the merged inbox or the whole page of another Runner of
+ * the window (RunnerDirectory.tsx). Every `useRunner()` call below reads it.
+ */
+export function RunnerStateProvider({ state, children }: { state: RunnerState; children: ReactNode }) {
+  return <Context.Provider value={state}>{children}</Context.Provider>;
+}
+
+/**
+ * One Runner's connection: its link (bearer, renewal, restart following), its
+ * info polled every 3 s, and restarts the person asked for. A window holds one
+ * for its own Runner (RunnerProvider) and one per other Runner it shows.
+ */
+export function useRunnerState(connection: RunnerConnection, expectRestart?: () => Promise<void>): RunnerState {
   // One link per window: clients made before a restart (caches, open streams)
   // send the current bearer too, so nothing keeps calling with a stale one.
   const renew = useRef(connection.renew); renew.current = connection.renew;
@@ -100,7 +119,8 @@ export function RunnerProvider({ connection, expectRestart, children }: { connec
   }, [restart.phase]);
   // A refused bearer anywhere in the window is a connection fault, not a panel's.
   const shown = error || (authFailure ? `The Runner refused this window's credentials (${authFailure}). Reconnecting…` : '');
-  return <Context.Provider value={{ connection, api, info, connecting, error: shown, authFailed: !!authFailure || error.includes('[unauthenticated]'), refresh, revision, restart, restartRunner, dismissRestart }}>{children}</Context.Provider>;
+  const authFailed = !!authFailure || error.includes('[unauthenticated]');
+  return useMemo(() => ({ connection, api, info, connecting, error: shown, authFailed, refresh, revision, restart, restartRunner, dismissRestart }), [connection, api, info, connecting, shown, authFailed, refresh, revision, restart, restartRunner, dismissRestart]);
 }
 
 export function useRunner(): RunnerState {

@@ -8,7 +8,8 @@
  * the peekable rows around it, in the order they are shown.
  */
 export type PeekItem =
-  | { kind: 'conversation'; sessionId: string; workspaceId?: string; title?: string }
+  /** `runner`: which of the window's Runners it is on, when the window shows several. */
+  | { kind: 'conversation'; sessionId: string; workspaceId?: string; title?: string; runner?: string }
   | { kind: 'command'; commandId: string; title?: string }
   | { kind: 'process'; processId: string; title?: string }
   | { kind: 'artifact'; workspaceId: string; artifactId: string; title?: string }
@@ -22,7 +23,7 @@ const required: Record<PeekKind, string[]> = {
   conversation: ['sessionId'], command: ['commandId'], process: ['processId'], artifact: ['workspaceId', 'artifactId'],
   'mission-task': ['taskId'], file: ['workspaceId', 'path'], subagent: ['agentId'],
 };
-const optional = ['workspaceId', 'title'];
+const optional = ['workspaceId', 'title', 'runner'];
 const LIMIT = 4096;
 
 /** The attribute a peekable element carries. */
@@ -50,7 +51,7 @@ export function parsePeek(text: string | null | undefined): PeekItem | undefined
 /** One identity per item, whatever its title says. */
 export function peekKey(item: PeekItem): string {
   switch (item.kind) {
-    case 'conversation': return `conversation:${item.sessionId}`;
+    case 'conversation': return item.runner ? `conversation:${item.runner}:${item.sessionId}` : `conversation:${item.sessionId}`;
     case 'command': return `command:${item.commandId}`;
     case 'process': return `process:${item.processId}`;
     case 'artifact': return `artifact:${item.workspaceId}:${item.artifactId}`;

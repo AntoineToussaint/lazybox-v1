@@ -35,6 +35,7 @@ Task by task:
 | Use several Claude or Codex accounts, and survive limits | [Subscriptions and limits](guides/subscriptions.md) |
 | Run Gemini CLI, Goose, OpenCode or any other ACP agent | [Gemini CLI, Goose and other agents](guides/other-agents.md) |
 | Answer my agents from my phone | [Pair your phone](guides/phone.md) |
+| See Dev, Working and my other Runners in one window | [Several Runners in one window](guides/several-runners.md) |
 | Arrange panels, pages and windows | [Layouts and docking](guides/layouts.md) |
 | Switch to light, make my own theme, change fonts, zoom, notifications | [Appearance and notifications](guides/appearance.md) |
 | Talk instead of typing: dictate, say commands, hear replies | [Voice](guides/voice.md) |

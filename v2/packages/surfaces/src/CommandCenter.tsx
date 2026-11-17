@@ -10,7 +10,8 @@ import { chordBindings, ownedByFocus, useKeymap, type Keymap } from './keyboard'
 import { useRunner } from './RunnerContext';
 import { ShortcutsOverlay } from './ShortcutsOverlay';
 import { dismissToast, showToast, useToasts, type Toast } from './toasts';
-import { useInbox } from './useAttention';
+import { useMergedInbox } from './RunnerDirectory';
+import { rowTarget } from './runner-directory';
 import type { Workbench } from './workbench';
 import type { ViewTarget } from './workspace-model';
 import { VoiceLayer } from './voice/VoiceLayer';
@@ -79,7 +80,7 @@ export function useChordKeys(keymap: Keymap) {
 export function CommandCenter({ viewState, navigator }: { viewState?: ViewStateStore; navigator: CommandNavigator }) {
   const keymap = useKeymap(viewState);
   const { info } = useRunner();
-  const inbox = useInbox();
+  const inbox = useMergedInbox();
   const [palette, setPalette] = useState<{ query: string } | null>(null);
   const [shortcuts, setShortcuts] = useState(false);
   useChordKeys(keymap);
@@ -90,10 +91,11 @@ export function CommandCenter({ viewState, navigator }: { viewState?: ViewStateS
     const { navigator, inbox } = latest.current;
     const rows = needsYou(inbox.rows);
     if (!rows.length) { showToast({ id: 'attention:none', tone: 'info', title: 'Nothing needs you right now' }); return; }
-    const index = rows.findIndex(row => row.session.id === navigator.current.sessionId);
+    const index = rows.findIndex(row => row.runner === inbox.here && row.session.id === navigator.current.sessionId);
     if (index >= 0 && rows.length === 1) { showToast({ id: 'attention:none', tone: 'info', title: 'This is the only conversation that needs you' }); return; }
     const row = rows[index < 0 ? (step > 0 ? 0 : rows.length - 1) : (index + step + rows.length) % rows.length];
-    navigator.goTo({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' });
+    // Across Runners: the next one may be on another Runner, whose page then shows.
+    navigator.goTo(row.runner === inbox.here ? { collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' } : rowTarget(row));
   };
   /** The next or previous conversation of this workspace, in sidebar order (newest first). */
   const stepConversation = (step: 1 | -1) => {

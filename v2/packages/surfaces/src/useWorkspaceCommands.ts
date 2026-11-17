@@ -6,6 +6,7 @@ import { showMissionsPage, useNavigationRequests } from './navigate-requests';
 import type { PanelModule } from './PanelRegistry';
 import type { Workbench } from './workbench';
 import type { ViewTarget } from './workspace-model';
+import type { RunnerTarget } from './runner-directory';
 
 type Commands = {
   root: string;
@@ -59,7 +60,8 @@ export function useWorkspaceCommands(commands: Commands): CommandNavigator {
     const { showSession, selectWorkspace, closeSettings, workspaceId } = latest.current;
     closeSettings();
     if (target.sessionId) showSession(target);
-    else if (target.collectionId !== workspaceId) selectWorkspace(target);
+    // A workspace of another Runner may share this one's id: naming its Runner always goes there.
+    else if (target.collectionId !== workspaceId || (target as RunnerTarget).runner) selectWorkspace(target);
   };
   // The palette's list changes when a window comes or goes, not on every render.
   const windowsKey = (commands.windows || []).map(item => `${item.id}:${item.title}`).join('|');

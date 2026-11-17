@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Session } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
+import { useRunnerDirectory, useRunnerIdentity } from './RunnerDirectory';
 import { useSeen } from './useAttention';
 import { conversationKey, deriveAttention, seenAt, seenMark } from './attention';
 import { archivedAt, isPinned } from './agents-model';
@@ -29,7 +30,11 @@ export function useConversationActions({ onOpen, onDeleted }: { onOpen?(target: 
   const { seen, mark } = useSeen();
   const [deleting, setDeleting] = useState<Session>();
   const [archiving, setArchiving] = useState<Session>();
-  const target = (session: Session): ViewTarget => ({ collectionId: session.collectionId, sessionId: session.id, commandId: '' });
+  // In a window showing several Runners, a conversation names its own: opening it shows that Runner's page.
+  const { id: runner, multi } = useRunnerIdentity();
+  const shownRunner = useRunnerDirectory()?.active;
+  const onPage = !multi || runner === shownRunner;
+  const target = (session: Session): ViewTarget => ({ collectionId: session.collectionId, sessionId: session.id, commandId: '', ...(multi ? { runner } : {}) });
   const name = (session: Session) => conversationName(session);
 
   const pin = useCallback(async (session: Session, pinned = !isPinned(session)) => {
@@ -54,8 +59,8 @@ export function useConversationActions({ onOpen, onDeleted }: { onOpen?(target: 
     return [
       onOpen && { label: 'Open', icon: 'chat', shortcut: 'Enter', run: () => onOpen(here) },
       { label: 'Open beside', icon: 'columns', disabled: !openers && 'Only in a workspace window', run: () => openers?.beside(here) },
-      { label: 'Open in new window', icon: 'external', disabled: !openers?.window && 'This window cannot open another one', run: () => openers?.window?.(here) },
-      { label: 'Peek', icon: 'eye', shortcut: 'Space', run: () => openPeek({ kind: 'conversation', sessionId: session.id, workspaceId: session.collectionId, title: session.title }) },
+      { label: 'Open in new window', icon: 'external', disabled: !onPage ? 'Show its Runner first' : !openers?.window && 'This window cannot open another one', run: () => openers?.window?.(here) },
+      { label: 'Peek', icon: 'eye', shortcut: 'Space', run: () => openPeek({ kind: 'conversation', sessionId: session.id, workspaceId: session.collectionId, title: session.title, ...(multi ? { runner } : {}) }) },
       'separator',
       { label: 'Rename', icon: 'pencil', shortcut: 'F2', disabled: !row.rename && 'Rename it from its header', run: () => row.rename?.() },
       { label: pinned ? 'Unpin' : 'Pin', icon: 'pin', shortcut: 'P', run: () => void pin(session, !pinned) },

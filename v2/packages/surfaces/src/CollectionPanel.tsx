@@ -13,6 +13,11 @@ import { NewTaskStart } from "./NewTaskSheet";
 import { useEffect, useRef, useState } from "react";
 import type { Collection, Repository, Session } from "@lazybox/protocol";
 import { useRunner } from "./RunnerContext";
+import { RunnerHealthDot, useMergedInbox, useRunnerDirectory, type RunnerView } from "./RunnerDirectory";
+import { healthLabel, runnerCounts, type RunnerRow } from "./runner-directory";
+import { AttentionIcon } from "./Inbox";
+import type { AttentionState } from "./attention";
+import { runAction } from "./actions";
 import type { ViewTarget } from "./workspace-model";
 import { Icon } from "./Icons";
 import { useGitSummaries } from "./useGitSummaries";
@@ -21,17 +26,7 @@ import { isArchivedAway } from "./agents-model";
 import { readPreference, writePreference } from "./view-state";
 import type { ViewStateStore } from "@lazybox/platform";
 
-export function CollectionPanel({
-  target,
-  onTarget,
-  collections,
-  error,
-  loaded = true,
-  refresh,
-  chooseRepositoryFolder,
-  onNewConversation,
-  viewState,
-}: {
+type ListProps = {
   target: ViewTarget;
   onTarget(target: ViewTarget): void;
   collections: Collection[];
@@ -43,6 +38,134 @@ export function CollectionPanel({
   onNewConversation?(workspaceId: string): void;
   /** Where folded workspaces are remembered. */
   viewState?: ViewStateStore;
+};
+
+/**
+ * Workspaces: every workspace of the Runner the page shows, with its
+ * conversations. When the window shows several Runners, one collapsible
+ * section per Runner (its name, channel, version and health on the header,
+ * what waits for the person beside it). The page's Runner lists its
+ * workspaces in full; another Runner's are one line each, with what waits
+ * there, so every Runner fits on screen — choosing one shows that Runner's
+ * page. A Runner that is not reachable says so on its header.
+ */
+export function CollectionPanel(props: ListProps) {
+  const directory = useRunnerDirectory();
+  if (!directory?.multi) return <WorkspaceList {...props}/>;
+  return <RunnerGroups {...props}/>;
+}
+
+function RunnerGroups(props: ListProps) {
+  const directory = useRunnerDirectory()!;
+  const inbox = useMergedInbox();
+  const [folded, setFolded] = useState<string[]>(() => { try { const value: unknown = JSON.parse(readPreference(props.viewState, "runners.folded") || "[]"); return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string").slice(0, 64) : []; } catch { return []; } });
+  const toggle = (id: string) => {
+    const next = folded.includes(id) ? folded.filter((value) => value !== id) : [...folded, id];
+    setFolded(next);
+    try { writePreference(props.viewState, "runners.folded", JSON.stringify(next)); } catch { /* a convenience */ }
+  };
+  return (
+    <section className="collection-panel runner-grouped">
+      <div className="explorer-heading">
+        <span>Workspaces</span>
+        <div>
+          <button className="icon-button" aria-label="Refresh workspaces" title="Refresh" onClick={() => { props.refresh(); void directory.reread(); }}>
+            <Icon name="refresh" size={14} />
+          </button>
+          <button className="icon-button" aria-label="New workspace" title={`New workspace on ${directory.runners.find((row) => row.id === directory.active)?.label || "this Runner"}`} onClick={() => runAction("workspace.new")}>
+            <Icon name="plus" size={16} />
+          </button>
+        </div>
+      </div>
+      <nav className="runner-groups" aria-label="Runners">
+        {directory.shown.map((row) => {
+          const active = row.id === directory.active, shut = folded.includes(row.id);
+          return (
+            <section key={row.id} className="runner-group" data-runner={row.id} data-health={row.health} data-active={active || undefined} aria-label={`${row.label} workspaces`}>
+              <RunnerGroupHeader row={row} active={active} folded={shut} counts={inbox.byRunner[row.id]} onToggle={() => toggle(row.id)} onShow={() => directory.activate(row.id)} />
+              {!shut && (active
+                ? <WorkspaceList {...props} embedded />
+                : row.state && (row.health === "online" || row.health === "offline")
+                  ? <RunnerWorkspaces row={row} rows={inbox.rows.filter((value) => value.runner === row.id)} onOpen={(collectionId) => props.onTarget({ collectionId, sessionId: "", commandId: "", runner: row.id } as ViewTarget)} />
+                  : <RunnerAbsent row={row} />)}
+            </section>
+          );
+        })}
+      </nav>
+    </section>
+  );
+}
+
+/** Another Runner's workspaces, one line each: its name and what waits there. Choosing one shows that Runner's page on it. */
+function RunnerWorkspaces({ row, rows, onOpen }: { row: RunnerView; rows: RunnerRow[]; onOpen(collectionId: string): void }) {
+  if (!row.collectionsLoaded) return <p className="runner-absent" role="status">Loading workspaces…</p>;
+  if (!row.collections.length) return <p className="module-empty runner-empty">No workspaces on {row.label} yet.</p>;
+  return (
+    <ul className="runner-workspaces" aria-label={`${row.label} workspaces`}>
+      {row.collections.map((collection) => {
+        const here = rows.filter((value) => value.session.collectionId === collection.id && !isArchivedAway(value.session));
+        const top = here[0], waiting = here.filter((value) => value.state === "needs-input").length;
+        const summary = waiting ? `${waiting} waiting for you` : top?.state === "failed" ? "Failed" : top?.state === "review" ? "Ready for review" : top?.state === "working" ? `${here.filter((value) => value.state === "working").length} working` : here.length ? `${here.length} ${here.length === 1 ? "conversation" : "conversations"}` : "No conversations";
+        return (
+          <li key={collection.id}>
+            <button type="button" className="runner-workspace-row" data-state={top?.state} disabled={row.health !== "online"} title={`${collection.name || collection.id} on ${row.label}\nShow it here`} onClick={() => onOpen(collection.id)}>
+              <Icon name="folder" size={13} />
+              <span className="runner-workspace-name">{collection.name || collection.id}</span>
+              <span className="runner-workspace-summary">{top && top.state !== "idle" && <AttentionIcon state={top.state} size={11} />}{summary}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** What a Runner that does not answer shows under its header: why, and what to do. Never an error. */
+function RunnerAbsent({ row }: { row: RunnerView }) {
+  // The header says the state; this says what to do about it.
+  const text = row.health === "stopped" ? row.listing?.problem || "Start it, and its workspaces show here."
+    : row.health === "invalid" ? row.listing?.problem || "Its locator cannot be read."
+    : "Connecting…";
+  return <p className="runner-absent" role="status">{text}</p>;
+}
+
+/** A Runner's section header: fold, name, channel, version, health, and what waits there. */
+export function RunnerGroupHeader({ row, active, folded, counts, onToggle, onShow }: { row: RunnerView; active: boolean; folded: boolean; counts?: Record<AttentionState, number>; onToggle(): void; onShow(): void }) {
+  const { waiting, review } = runnerCounts(row.health === "online" || active ? counts : undefined);
+  const detail = [row.channel && row.channel !== row.label ? row.channel : "", row.version ? `v${row.version.replace(/^v/, "")}` : "", healthLabel[row.health]].filter(Boolean).join(" · ");
+  return (
+    <div className="runner-group-header">
+      <button type="button" className="runner-group-toggle" aria-expanded={!folded} title={`${folded ? "Show" : "Fold"} ${row.label}\n${detail}${row.listing?.locator ? `\n${row.listing.locator}` : ""}`} onClick={onToggle}>
+        <Icon name={folded ? "chevronRight" : "chevron"} size={11} />
+        <RunnerHealthDot health={row.health} />
+        <span className="runner-group-name">{row.label}</span>
+        {row.channel && row.channel !== row.label && <span className="runner-group-channel">{row.channel}</span>}
+        {row.version && <span className="runner-group-version">{row.version.replace(/^v/, "")}</span>}
+        {row.health !== "online" && <span className="runner-group-state">{healthLabel[row.health]}</span>}
+      </button>
+      {waiting > 0 && <b className="runner-group-count urgent" title={`${waiting} waiting for you on ${row.label}`}>{waiting}</b>}
+      {!waiting && review > 0 && <b className="runner-group-count" title={`${review} to review on ${row.label}`}>{review}</b>}
+      {active
+        ? <span className="runner-group-showing" title="The page shows this Runner">Showing</span>
+        : <button type="button" className="runner-group-show" disabled={!row.state || row.health === "stopped"} onClick={onShow} title={`Show ${row.label}'s workspaces here`}>Show</button>}
+    </div>
+  );
+}
+
+function WorkspaceList({
+  target,
+  onTarget,
+  collections,
+  error,
+  loaded = true,
+  refresh,
+  chooseRepositoryFolder,
+  onNewConversation,
+  viewState,
+  embedded = false,
+}: ListProps & {
+  /** Under its Runner's header: no heading of its own. */
+  embedded?: boolean;
 }) {
   const { info, api, error: connectionError } = useRunner();
   const index = useConversationIndex();
@@ -113,8 +236,8 @@ export function CollectionPanel({
     onTarget({ collectionId: collection.id, sessionId, commandId: "" });
   };
   return (
-    <section ref={panel} className="collection-panel">
-      <div className="explorer-heading">
+    <section ref={panel} className={embedded ? "collection-panel runner-page-workspaces" : "collection-panel"}>
+      {!embedded && <div className="explorer-heading">
         <span>Workspaces</span>
         <div>
           <button
@@ -136,7 +259,7 @@ export function CollectionPanel({
             <Icon name="plus" size={16} />
           </button>
         </div>
-      </div>
+      </div>}
       {error && !connectionError && (
         <p className="error" role="alert">
           Workspaces unavailable: {error}

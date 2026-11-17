@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, configureExternalTerminal, configureSystemSounds, configureVoice, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
+import type { RunnerDirectoryHost, RunnerListing } from '@lazybox/platform';
 import type { AppHost, AppInfo, ChatReturn, AttentionDestination, AttentionHost, AvailableUpdate, FeedbackDiagnostics, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateError, UpdateErrorKind, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
 import { FirstRun } from './FirstRun';
 
@@ -18,7 +19,7 @@ const fetchRunner: typeof globalThis.fetch = (input, init) => nativeFetch(input,
  * focuses the main window, which then asks the host for its conversation.
  */
 const desktopAttention: AttentionHost = {
-  notifyAttention: notice => invoke<void>('notify_attention', { notice: { title: notice.title, body: notice.body, destination: { collectionId: notice.collectionId, sessionId: notice.sessionId } } }),
+  notifyAttention: notice => invoke<void>('notify_attention', { notice: { title: notice.title, body: notice.body, destination: { collectionId: notice.collectionId, sessionId: notice.sessionId, runner: notice.runner || '' } } }),
   setAttentionBadge: count => invoke<void>('set_attention_badge', { count }),
   notificationPermission: async () => 'granted',
   onAttentionOpen(listener) {
@@ -151,6 +152,18 @@ const desktopVoice: VoiceHost = {
 };
 configureVoice(desktopVoice);
 
+/**
+ * The other Runners on this machine (src-tauri/src/runners.rs): the launchers'
+ * locators and the files the person added. The host checks each endpoint file
+ * as it checks this window's (loopback, only this user can read it) and lets
+ * the page call exactly that Runner's RPC path. Only the main window lists them.
+ */
+const desktopRunners: RunnerDirectoryHost = {
+  list: () => invoke<RunnerListing[]>('runner_list'),
+  add: path => invoke<RunnerListing>('runner_add', { path }),
+  forget: id => invoke<void>('runner_forget', { id }),
+};
+
 type Renew = () => Promise<{ baseUrl: string; token: string } | undefined>;
 function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstrap; followRestart(): void; renew: Renew }) {
   const [error, setError] = useState(bootstrap.notice);
@@ -179,6 +192,7 @@ function DesktopWindow({ bootstrap, followRestart, renew }: { bootstrap: Bootstr
   const notifies = bootstrap.kind === 'workspace' && !bootstrap.fixedWorkspaceId;
   const workspaceHost = useMemo<WorkspaceHost>(() => ({
     ...(notifies ? desktopAttention : {}),
+    ...(notifies ? { runners: desktopRunners } : {}),
     zoom: desktopZoom,
     reconnect: () => invoke<void>('reconnect_view'),
     // Arm the host to adopt the restarted Runner's locator (possibly a new port)

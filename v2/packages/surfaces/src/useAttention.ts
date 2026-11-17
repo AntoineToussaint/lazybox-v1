@@ -22,6 +22,8 @@ function useRoot(): string {
   const { root } = useContext(Scope), { connection } = useRunner();
   return root || connection.baseUrl;
 }
+/** Where this part of the window keeps its Runner's seen marks and notification choices. */
+export const useAttentionRoot = useRoot;
 export function useAttentionHost(): AttentionHost | undefined {
   return useContext(Scope).host;
 }
@@ -38,6 +40,7 @@ const viewingKey = (root: string) => `${root}:attention:viewing`;
 // at import, so it runs before any component's own `storage` listener.
 const cache = new Map<string, string | null>();
 window.addEventListener('storage', () => cache.clear());
+export function subscribeAttention(listener: () => void) { return subscribe(listener); }
 function subscribe(listener: () => void) {
   window.addEventListener('storage', listener); window.addEventListener(changed, listener);
   return () => { window.removeEventListener('storage', listener); window.removeEventListener(changed, listener); };
@@ -54,6 +57,15 @@ function read(key: string): string | null {
   cache.set(key, value);
   return value;
 }
+/** The raw seen record of a Runner's root (another Runner of the window: RunnerDirectory.tsx). */
+export function readSeenText(root: string): string | null { return read(seenKey(root)); }
+/** Marks conversations of the Runner kept under `root` as seen. */
+export function markSeenIn(root: string, entries: { key: string; at: number }[]) {
+  const current = loadSeen(root);
+  let next = current;
+  for (const entry of entries) next = markSeen(next, entry.key, entry.at);
+  if (next !== current) write(seenKey(root), JSON.stringify(next));
+}
 function loadSeen(root: string): Seen {
   const text = read(seenKey(root));
   const seen = parseSeen(text, Date.now());
@@ -68,12 +80,7 @@ export function useSeen() {
   const seen = useMemo(() => parseSeen(text, Date.now()), [text]);
   // The first look starts the record: what happened before it counts as seen.
   useEffect(() => { if (text === null) loadSeen(root); }, [root, text]);
-  const mark = useCallback((entries: { key: string; at: number }[]) => {
-    const current = loadSeen(root);
-    let next = current;
-    for (const entry of entries) next = markSeen(next, entry.key, entry.at);
-    if (next !== current) write(seenKey(root), JSON.stringify(next));
-  }, [root]);
+  const mark = useCallback((entries: { key: string; at: number }[]) => markSeenIn(root, entries), [root]);
   /** Undoes a mark: a conversation's mark goes back to what it was (undefined: none). */
   const restore = useCallback((key: string, previous: number | undefined) => {
     const current = loadSeen(root);

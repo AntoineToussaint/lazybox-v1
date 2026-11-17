@@ -39,6 +39,7 @@
     { "id": "dogfood", "scope": "ui", "script": "test:dogfood" },
     { "id": "responsive-shell", "scope": "ui", "script": "test:responsive-shell" },
     { "id": "inbox", "scope": "ui", "script": "test:inbox" },
+    { "id": "multi-runner", "scope": "ui", "script": "test:multi-runner" },
     { "id": "command-palette", "scope": "ui", "script": "test:command-palette" },
     { "id": "pull-request", "scope": "ui", "script": "test:pull-request" },
     { "id": "review-comments", "scope": "ui", "script": "test:review-comments" },

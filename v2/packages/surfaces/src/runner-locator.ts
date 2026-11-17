@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RunnerAuthority } from '@lazybox/client-core';
+import type { RunnerDirectoryHost, RunnerListing } from '@lazybox/platform';
 
 /** What a window's host reads to find its Runner (the desktop's endpoint file, through the native host). */
 export type LocatedRunner = { url: string; token: string };
@@ -51,4 +52,40 @@ export function useRunnerLocator<T extends LocatedRunner>(read: () => Promise<T>
   }, [reread]);
   const follow = useCallback(() => { state.current.following = Date.now() + FOLLOW_MS; }, []);
   return { value, error, renew, follow };
+}
+
+/** What a listing says that matters to the window: a new value only when one of these changes, so a poll that finds the same Runners rerenders nothing. */
+export const listingKey = (listings: readonly RunnerListing[]) => JSON.stringify(listings.map(({ id, name, product, channel, source, locator, current, state, problem, url, token }) => [id, name, product, channel, source, locator, current, state, problem, url, token]));
+
+/**
+ * The Runners a window's host can find (RunnerDirectoryHost.list), reread on
+ * an interval and on demand. A listing that cannot be read keeps the last one
+ * (the window keeps showing what it knew) and says why. `reread` resolves the
+ * fresh listing, so a Runner whose bearer was refused renews from it.
+ */
+export function useRunnerListing(host: RunnerDirectoryHost | undefined, intervalMs = 4000) {
+  const [listings, setListings] = useState<RunnerListing[]>([]);
+  const [error, setError] = useState('');
+  const [ready, setReady] = useState(!host);
+  const reading = useRef<Promise<RunnerListing[]> | undefined>(undefined);
+  const latest = useRef(''), source = useRef(host); source.current = host;
+  const reread = useCallback((): Promise<RunnerListing[]> => {
+    const list = source.current?.list;
+    if (!list) return Promise.resolve([]);
+    reading.current ??= list().then(next => {
+      const valid = Array.isArray(next) ? next.filter(value => value && typeof value.id === 'string' && typeof value.name === 'string') : [];
+      const key = listingKey(valid);
+      if (key !== latest.current) { latest.current = key; setListings(valid); }
+      setError('');
+      return valid;
+    }, failure => { setError(String(failure)); throw failure; }).finally(() => { reading.current = undefined; setReady(true); });
+    return reading.current;
+  }, []);
+  useEffect(() => {
+    if (!host) { setReady(true); return; }
+    void reread().catch(() => {});
+    const timer = setInterval(() => void reread().catch(() => {}), intervalMs);
+    return () => clearInterval(timer);
+  }, [host, reread, intervalMs]);
+  return { listings, error, ready, reread };
 }

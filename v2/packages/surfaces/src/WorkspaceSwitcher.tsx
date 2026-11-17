@@ -3,6 +3,7 @@ import { agentTitle, isAcp } from './providers';
 import { conversationName, mergeConversations } from './conversation-model';
 import { Icon } from './Icons';
 import type { ViewTarget } from './workspace-model';
+import { RunnerBadge, useRunnerIdentity } from './RunnerDirectory';
 
 /**
  * The page's workspace (with its repositories) and conversation, chosen from
@@ -23,12 +24,15 @@ export function WorkspaceSwitcher({ selection, workspaceID, collections, info, l
   onShowRepositories(workspace?: Collection): void;
 }) {
   const workspace = collections.find(value => value.id === workspaceID);
+  const identity = useRunnerIdentity();
   const providerName = (profileId: string) => agentTitle(info?.profiles.find(profile => profile.id === profileId)?.provider, info?.profiles, 'Claude');
   // An ACP agent's profile is the agent itself: its label would only repeat its name.
   const profileLabel = (profileId: string) => { const profile = info?.profiles.find(p => p.id === profileId); return profile && !isAcp(profile.provider) ? profile.label : undefined; };
   const conversations = mergeConversations([], info?.sessions || []).filter(value => !selection.collectionId || value.collectionId === selection.collectionId);
   return <div className="workspace-context">
     <div className="collection-breadcrumb">
+      {/* With several Runners in the window, whose workspace this is. */}
+      {identity.multi && <RunnerBadge runner={identity.id} className="workspace-runner"/>}
       <Icon name="folder" size={17}/>
       <label><span className="sr-only">Workspace</span><select disabled={locked} value={selection.collectionId} onChange={event => { if (event.target.value !== workspaceID) onSelect({ collectionId: event.target.value, sessionId: '', commandId: '' }); }}>
         <option value="">Choose a workspace</option>

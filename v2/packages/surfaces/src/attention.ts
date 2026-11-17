@@ -36,6 +36,8 @@ export type Attention = {
   /** Pending request IDs, to tell a new request from one already announced. */
   requests: string[];
   session: Session;
+  /** The window's Runner this conversation is on, when the window shows several (RunnerDirectory.tsx). */
+  runner?: string;
 };
 
 /** Assistant side panels ("Ask Lazybox") are part of the workspace, not work items. */
@@ -187,7 +189,7 @@ export function seenMark(row: Pick<Attention, 'at' | 'turnEndedAt'>): number {
 /** Notifications (a system notification, or a toast in a focused window) per kind; sounds apart from them. */
 export type NotificationPreferences = { needsInput: boolean; failed: boolean; review: boolean; badge: boolean; soundNeedsYou: boolean; soundDone: boolean };
 export const defaultNotificationPreferences: NotificationPreferences = { needsInput: true, failed: true, review: false, badge: true, soundNeedsYou: true, soundDone: false };
-export type AttentionNotice = { key: string; kind: 'needs-input' | 'failed' | 'review'; title: string; body: string; collectionId: string; sessionId: string };
+export type AttentionNotice = { key: string; kind: 'needs-input' | 'failed' | 'review'; title: string; body: string; collectionId: string; sessionId: string; runner?: string };
 
 /**
  * Pure: what deserves a notification between two observations of one

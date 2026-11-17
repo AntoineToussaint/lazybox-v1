@@ -18,7 +18,8 @@ export const isPinned = (session: Session) => pinnedAt(session) > 0;
 /** Archived and not waiting for the person: an agent blocked on an answer is never out of sight. */
 export const isArchivedAway = (session: Session) => archivedAt(session) > 0 && !session.pending.length && session.status !== 'waiting_input' && session.status !== 'waiting_approval';
 
-export type Grouping = 'priority' | 'workspace';
+/** By Runner only when the window shows several (MULTI_RUNNER.md). */
+export type Grouping = 'priority' | 'workspace' | 'runner';
 export type AgentSection = { id: string; title: string; state?: AttentionState; rows: Attention[] };
 
 /** What the filter matches: the title, the workspace, what the row says, the model. */
@@ -36,7 +37,7 @@ export function matchesFilter(row: Attention, workspace: string, filter: string)
  * within). By workspace, each workspace is a section in the order of its most
  * urgent conversation, its rows in the same urgency order.
  */
-export function agentSections(inbox: Pick<Inbox, 'rows'>, grouping: Grouping, workspaceName: (row: Attention) => string, filter = ''): AgentSection[] {
+export function agentSections(inbox: Pick<Inbox, 'rows'>, grouping: Grouping, workspaceName: (row: Attention) => string, filter = '', runnerName: (row: Attention) => string = () => ''): AgentSection[] {
   const rows = inbox.rows.filter(row => !isArchivedAway(row.session) && matchesFilter(row, workspaceName(row), filter));
   const pins = rows.filter(row => isPinned(row.session)).sort((a, b) => pinnedAt(a.session) - pinnedAt(b.session) || (a.key < b.key ? -1 : 1));
   const rest = rows.filter(row => !isPinned(row.session));
@@ -45,9 +46,11 @@ export function agentSections(inbox: Pick<Inbox, 'rows'>, grouping: Grouping, wo
     const states = [...new Set(rest.map(row => row.state))];
     return [...sections, ...states.map(state => ({ id: state, title: attentionTitle[state], state, rows: rest.filter(row => row.state === state) }))];
   }
-  const byWorkspace = new Map<string, Attention[]>();
-  for (const row of rest) byWorkspace.set(row.session.collectionId, [...(byWorkspace.get(row.session.collectionId) || []), row]);
-  return [...sections, ...[...byWorkspace].map(([id, list]) => ({ id: `w:${id}`, title: workspaceName(list[0]), rows: list }))];
+  // Two Runners may have a workspace with the same id: a section is one Runner's workspace.
+  const group = grouping === 'runner' ? (row: Attention) => `r:${row.runner || ''}` : (row: Attention) => row.runner ? `w:${row.runner}:${row.session.collectionId}` : `w:${row.session.collectionId}`;
+  const byGroup = new Map<string, Attention[]>();
+  for (const row of rest) byGroup.set(group(row), [...(byGroup.get(group(row)) || []), row]);
+  return [...sections, ...[...byGroup].map(([id, list]) => ({ id, title: grouping === 'runner' ? runnerName(list[0]) : workspaceName(list[0]), rows: list }))];
 }
 
 /**

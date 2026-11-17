@@ -13,17 +13,22 @@ use tauri_plugin_notification::NotificationExt;
 
 /// Where a clicked notification leads: one conversation in one workspace, or
 /// nowhere in particular (a test notification only brings the window forward).
+/// `runner` names which of the window's Runners it is on when the window shows
+/// several (runners.rs); empty is the window's own.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct Destination {
     pub collection_id: String,
     pub session_id: String,
+    pub runner: String,
 }
 
 impl Destination {
     fn valid(&self) -> bool {
         let collection = self.collection_id.is_empty() || valid_id(&self.collection_id);
+        let runner = self.runner.is_empty() || valid_id(&self.runner);
         collection
+            && runner
             && (valid_id(&self.session_id)
                 || (self.session_id.is_empty() && self.collection_id.is_empty()))
     }
@@ -91,6 +96,7 @@ fn destination(
     let destination = Destination {
         collection_id: text("collectionId"),
         session_id: text("sessionId"),
+        runner: text("runner"),
     };
     (!destination.session_id.is_empty() && destination.valid()).then_some(destination)
 }
@@ -140,6 +146,7 @@ pub fn notify_attention(
         .body(notice.body)
         .extra("collectionId", notice.destination.collection_id)
         .extra("sessionId", notice.destination.session_id)
+        .extra("runner", notice.destination.runner)
         .show()
         .map_err(|e| e.to_string())
 }
@@ -170,6 +177,7 @@ mod tests {
             destination: Destination {
                 collection_id: collection.into(),
                 session_id: session.into(),
+                runner: String::new(),
             },
         }
     }
@@ -196,6 +204,12 @@ mod tests {
         ] {
             assert!(notice(session, collection, title, "").validate().is_err());
         }
+        let mut elsewhere = notice("alpha-session", "alpha", "Needs input", "");
+        elsewhere.destination.runner = "working".into();
+        assert!(elsewhere.validate().is_ok());
+        let mut forged = notice("alpha-session", "alpha", "Needs input", "");
+        forged.destination.runner = "a/b".into();
+        assert!(forged.validate().is_err());
     }
 
     #[test]
@@ -207,9 +221,19 @@ mod tests {
             destination(&extra),
             Some(Destination {
                 collection_id: "alpha".into(),
-                session_id: "alpha-session".into()
+                session_id: "alpha-session".into(),
+                runner: String::new(),
             })
         );
+        // Another Runner of the window: the click goes there.
+        extra.insert("runner".to_string(), serde_json::json!("3f2a9c0d1e4b5a6c"));
+        assert_eq!(
+            destination(&extra).map(|d| d.runner),
+            Some("3f2a9c0d1e4b5a6c".into())
+        );
+        extra.insert("runner".to_string(), serde_json::json!("../other"));
+        assert_eq!(destination(&extra), None);
+        extra.remove("runner");
         extra.insert("sessionId".to_string(), serde_json::json!("not valid"));
         assert_eq!(destination(&extra), None);
         assert_eq!(destination(&Default::default()), None);

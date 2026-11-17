@@ -1,4 +1,4 @@
-import type { AttentionDestination, AttentionHost, ChatReturn, ChatTarget, NotificationPermission, WorkspaceHost } from '@lazybox/platform';
+import type { AttentionDestination, AttentionHost, ChatReturn, ChatTarget, NotificationPermission, RunnerDirectoryHost, RunnerListing, WorkspaceHost } from '@lazybox/platform';
 
 /**
  * Browser test host. Reconnect to existing views across an opener reload/close.
@@ -52,6 +52,7 @@ export function browserWorkspaceHost(scope: string, token: string, chat?: ChatTa
   });
   return {
     ...attention,
+    ...(notifies ? { runners: browserRunners() } : {}),
     async openWorkspace(collectionId) {
       const url=new URL(location.href);url.search=new URLSearchParams({view:'workspace',collection:collectionId,workspaceWindow:'1'}).toString();url.hash=new URLSearchParams({token}).toString();
       const opened=window.open(url,`workspace-${collectionId}`);if(!opened)throw new Error('Workspace window was blocked');opened.focus();
@@ -124,7 +125,7 @@ function browserAttention(): AttentionHost {
       const shown = new Notification(notice.title, { body: notice.body, tag: `lazybox:${notice.key}` });
       shown.onclick = () => {
         window.focus(); shown.close();
-        if (notice.sessionId) for (const listener of listeners) listener({ collectionId: notice.collectionId, sessionId: notice.sessionId });
+        if (notice.sessionId) for (const listener of listeners) listener({ collectionId: notice.collectionId, sessionId: notice.sessionId, ...(notice.runner ? { runner: notice.runner } : {}) });
       };
     },
     async setAttentionBadge(count) {
@@ -135,6 +136,32 @@ function browserAttention(): AttentionHost {
     onAttentionOpen(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     async notificationPermission() { return permission(); },
     async requestNotificationPermission() { return permission() === 'unsupported' ? 'unsupported' : await Notification.requestPermission(); },
+  };
+}
+
+/**
+ * Other Runners for the browser client (MULTI_RUNNER.md): whatever serves this
+ * page may list them at `/__lazybox/runners`, each behind a path of this same
+ * origin, so the page never calls another origin and nothing crosses it. A
+ * server that does not (Vite on its own) answers 404 once and the page shows
+ * its one Runner.
+ */
+function browserRunners(): RunnerDirectoryHost {
+  let unsupported = false;
+  return {
+    async list() {
+      if (unsupported) return [];
+      const response = await fetch('/__lazybox/runners', { cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (response.status === 404 || !(response.headers.get('Content-Type') || '').includes('application/json')) { unsupported = true; return []; }
+      if (!response.ok) throw new Error(`The Runner list answered ${response.status}`);
+      const value = await response.json() as { runners?: RunnerListing[] };
+      // Same origin only: a listed Runner is a path of this page's origin.
+      return (Array.isArray(value.runners) ? value.runners : []).flatMap(runner => {
+        if (!runner.url) return [runner];
+        const url = new URL(runner.url, location.origin);
+        return url.origin === location.origin ? [{ ...runner, url: url.href.replace(/\/+$/, '') }] : [];
+      });
+    },
   };
 }
 

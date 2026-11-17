@@ -18,17 +18,20 @@ import { userPaletteItems, useUserCommands } from './user-commands';
 import { looksLikeLayoutYaml } from './config-files';
 import type { Keymap } from './keyboard';
 import { useArtifacts } from './useArtifacts';
-import { useInbox } from './useAttention';
+import { RunnerBadge, useMergedInbox, useRunnerDirectory } from './RunnerDirectory';
+import { healthLabel, rowTarget } from './runner-directory';
 import { useMissions } from './useMissions';
 import { selectMission } from './navigate-requests';
 import { readPreference, writePreference } from './view-state';
 import { modKey, useWorkbenchState, type Workbench } from './workbench';
 import type { CommandNavigator } from './CommandCenter';
+import type { ViewTarget } from './workspace-model';
 import './command-center.css';
 
 type Kind = 'action' | 'conversation' | 'workspace' | 'file' | 'setting' | 'panel' | 'artifact' | 'mission';
 const kindLabel: Record<Kind, string> = { action: 'Action', conversation: 'Conversation', workspace: 'Workspace', file: 'File', setting: 'Settings', panel: 'Panel', artifact: 'Artifact', mission: 'Mission' };
-type Item = { key: string; kind: Kind; title: string; detail?: string; extra?: string; icon: ReactNode; keys?: string[]; current?: boolean; run(how: { side: boolean }): void };
+/** `runner`: the item is on that Runner of the window (a badge says which). */
+type Item = { key: string; kind: Kind; title: string; detail?: string; extra?: string; icon: ReactNode; keys?: string[]; current?: boolean; runner?: string; run(how: { side: boolean }): void };
 type Shown = Item & { positions: number[]; score: number };
 type Section = { title: string; items: Shown[] };
 
@@ -47,7 +50,7 @@ function remember(store: ViewStateStore | undefined, key: string) {
   try { writePreference(store, recentKey, JSON.stringify([key, ...readRecent(store).filter(value => value !== key)].slice(0, 20))); } catch { /* a convenience */ }
 }
 /** Rows that need the person: input or approval, an unseen failure, an unseen finished turn. */
-export function needsYou(rows: readonly Attention[]): Attention[] {
+export function needsYou<T extends Attention>(rows: readonly T[]): T[] {
   return rows.filter(row => row.state === 'needs-input' || (row.unread && (row.state === 'failed' || row.state === 'review')));
 }
 const firstKeys = (value: string | undefined) => bindings(value).slice(0, 1).map(binding => displayBinding(binding).join(' '));
@@ -90,7 +93,9 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
   const spokenMode = !!spoken && spoken.text === query;
   const scope = spokenMode ? undefined : prefixes.find(value => query.startsWith(value.prefix));
   const term = (scope ? query.slice(1) : query).trim();
-  const inbox = useInbox();
+  // Conversations and workspaces of every Runner the window shows; choosing another Runner's shows its page.
+  const inbox = useMergedInbox();
+  const directory = useRunnerDirectory();
   const workspaceId = navigator.current.collectionId;
   const { artifacts } = useArtifacts(navigator.showPanel && !scope ? workspaceId : '');
   const missions = useMissions();
@@ -112,18 +117,33 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
       key: `action:${definition.id}`, kind: 'action', title: definition.title, detail: definition.group, extra: definition.keywords, icon: <Icon name={definition.icon} size={15}/>,
       keys: firstKeys(keymap[definition.id as keyof Keymap]), run: () => { runAction(definition.id, undefined, 'palette'); },
     }));
+    const runnerOf = (id: string) => directory?.runners.find(value => value.id === id);
+    const nameIn = (runner: string, id: string) => runner === inbox.here ? workspaceName(id) : runnerOf(runner)?.collections.find(value => value.id === id)?.name || (id ? 'Unavailable workspace' : 'No workspace');
     const conversations: Item[] = inbox.rows.map(row => ({
       key: `conversation:${row.key}`, kind: 'conversation', title: conversationName(row.session),
-      detail: `${workspaceName(row.session.collectionId)} · ${row.state === 'idle' ? row.reason : attentionTitle[row.state]}`, extra: workspaceName(row.session.collectionId),
-      icon: <AttentionIcon state={row.state} size={15}/>, current: row.session.id === navigator.current.sessionId,
-      run: () => navigator.goTo({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' }),
+      detail: `${nameIn(row.runner, row.session.collectionId)} · ${row.state === 'idle' ? row.reason : attentionTitle[row.state]}`, extra: [nameIn(row.runner, row.session.collectionId), inbox.multi ? runnerOf(row.runner)?.label : ''].filter(Boolean).join(' '),
+      icon: <AttentionIcon state={row.state} size={15}/>, current: row.runner === inbox.here && row.session.id === navigator.current.sessionId, runner: inbox.multi ? row.runner : undefined,
+      run: () => navigator.goTo(row.runner === inbox.here ? { collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' } : rowTarget(row)),
     }));
     const workspaces: Item[] = navigator.collections.map((collection, index) => ({
       key: `workspace:${collection.id}`, kind: 'workspace', title: collection.name || collection.id,
       detail: collection.members.map(member => member.spec?.name).filter(Boolean).join(', ') || 'No repositories', icon: <Icon name="collections" size={15}/>,
       keys: index < 9 ? firstKeys(keymap[`workspace.select.${index + 1}` as keyof Keymap]) : undefined, current: collection.id === workspaceId,
+      runner: inbox.multi ? inbox.here : undefined,
       run: () => navigator.goTo({ collectionId: collection.id, sessionId: '', commandId: '' }),
     }));
+    // Another Runner's workspaces, and each Runner itself: "Show Working".
+    if (inbox.multi && directory) for (const runner of directory.shown) {
+      if (runner.id !== inbox.here) {
+        workspaces.push({ key: `runner:${runner.id}`, kind: 'workspace', title: `Show ${runner.label}`, detail: `Runner · ${[runner.channel !== runner.label ? runner.channel : '', healthLabel[runner.health]].filter(Boolean).join(' · ')}`, extra: `runner machine switch ${runner.channel}`,
+          icon: <Icon name="processes" size={15}/>, runner: runner.id, run: () => directory.activate(runner.id) });
+        if (runner.health === 'online') for (const collection of runner.collections) workspaces.push({
+          key: `workspace:${runner.id}:${collection.id}`, kind: 'workspace', title: collection.name || collection.id,
+          detail: collection.members.map(member => member.spec?.name).filter(Boolean).join(', ') || 'No repositories', extra: runner.label, icon: <Icon name="collections" size={15}/>, runner: runner.id,
+          run: () => navigator.goTo({ collectionId: collection.id, sessionId: '', commandId: '', runner: runner.id } as ViewTarget),
+        });
+      }
+    }
     const settings: Item[] = navigator.openSettings ? settingsTabs.map(tab => ({
       key: `setting:${tab.id}`, kind: 'setting', title: `${tab.label} settings`, detail: `Settings · ${tab.group}`, extra: 'settings preferences', icon: <Icon name={tab.icon} size={15}/>,
       run: () => navigator.openSettings!(tab.id),
@@ -147,7 +167,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     // The person's own actions (POWER.md), after the built-in ones.
     actions.push(...userPaletteItems().map(item => ({ ...item, icon: <Icon name={item.icon || 'play'} size={15}/> })));
     return { actions, conversations, workspaces, settings, panels: [...windowItems, ...panels], artifactItems, missionItems };
-  }, [keymap, navigator, inbox.rows, artifacts, missions.missions, workspaceId, userActions]);
+  }, [keymap, navigator, inbox.rows, inbox.multi, inbox.here, directory, artifacts, missions.missions, workspaceId, userActions]);
 
   const fileItem = (path: string): Item => {
     const slash = path.lastIndexOf('/');
@@ -298,7 +318,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
             <span className="command-palette-icon">{item.icon}</span>
             <span className="command-palette-text">
               <span className="command-palette-title">{highlight(item.title, item.positions)}{item.current && <small className="command-palette-current">Current</small>}</span>
-              {item.detail && <span className="command-palette-detail">{item.detail}</span>}
+              {(item.detail || item.runner) && <span className="command-palette-detail">{item.runner && <RunnerBadge runner={item.runner}/>}{item.detail}</span>}
             </span>
             {!!item.keys?.length && <span className="command-palette-keys">{item.keys[0].split(' ').map((key, k) => <kbd key={k}>{key}</kbd>)}</span>}
             {term && !scope && <span className="command-palette-kind">{kindLabel[item.kind]}</span>}

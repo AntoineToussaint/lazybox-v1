@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import type { ProcessInventory } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
+import { useRunnerIdentity } from './RunnerDirectory';
 import { useRunnerSettings } from './RunnerSettings';
 import { Icon } from './Icons';
 import { SettingsGroup, SettingsHeader, SettingsRow, settingsError } from './settings-parts';
@@ -23,7 +24,10 @@ function runnerState(runner: ReturnType<typeof useRunner>): { label: string; ton
 /** Header status. Opens the Runner settings when the window has them. */
 export function RunnerIndicator({ onOpen }: { onOpen?(): void }) {
   const runner = useRunner();
-  const { label, tone } = runnerState(runner);
+  const { label: state, tone } = runnerState(runner);
+  // With several Runners in the window, which one the page shows: "Working · Connected".
+  const identity = useRunnerIdentity();
+  const label = identity.multi && identity.label ? `${identity.label} · ${state}` : state;
   const detail = runner.restart.phase === 'failed' ? runner.restart.message : runner.error || (runner.connecting ? 'Connecting to Runner' : 'Runner connected');
   const className = `runner-indicator tone-${tone}${tone === 'bad' ? ' offline' : ''}`;
   if (!onOpen) return <span className={className} title={detail}><i/>{label}</span>;
@@ -43,12 +47,13 @@ export function RestartNotice() {
 export function RunnerSection({ onShowProcesses }: { onShowProcesses?(): void } = {}) {
   const runner = useRunner();
   const { info, restart, restartRunner } = runner;
+  const identity = useRunnerIdentity();
   const [confirming, setConfirming] = useState(false);
   const { label, tone } = runnerState(runner);
   const available = !!info?.restartAvailable && !!info.instanceId;
   const restarting = restart.phase === 'restarting';
   return <section className="runner-preferences runner-control" aria-labelledby="runner-heading">
-    <SettingsHeader id="runner-heading" title="Runner" description="The local service behind this window. It runs your agents, managed commands and terminals."/>
+    <SettingsHeader id="runner-heading" title="Runner" description={identity.multi && identity.label ? `${identity.label}, the Runner this page shows. It runs its agents, managed commands and terminals; Settings → Runners lists the others.` : 'The local service behind this window. It runs your agents, managed commands and terminals.'}/>
     <SettingsGroup>
       <SettingsRow label="Status" description={!info && !restarting ? 'Waiting for the Runner…' : available || restarting ? 'Restarting loads its current code and configuration. Agents, managed commands and terminals keep running, and this window reconnects by itself.' : undefined}>
         <div className="runner-status-control">

@@ -5,6 +5,7 @@ import type { Artifact, HostedProcess, Session, WorkspaceFile } from '@lazybox/p
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { useRunner } from './RunnerContext';
+import { RunnerBadge, RunnerScope } from './RunnerDirectory';
 import { useTranscript } from './useTranscript';
 import { MessageList } from './MessageList';
 import { RichContent, CodeBlock } from './RichContent';
@@ -147,7 +148,7 @@ type Resolved = { workspaceId?: string; sessionId?: string; commandId?: string; 
 function openHere(item: PeekItem, resolved: Resolved, nav: PeekNavigation) {
   const workspaceId = resolved.workspaceId || ('workspaceId' in item ? item.workspaceId || '' : '');
   switch (item.kind) {
-    case 'conversation': nav.showSession({ collectionId: workspaceId, sessionId: item.sessionId, commandId: '' }); return;
+    case 'conversation': nav.showSession({ collectionId: workspaceId, sessionId: item.sessionId, commandId: '', ...(item.runner ? { runner: item.runner } : {}) }); return;
     case 'command':
       if (resolved.sessionId) nav.showSession({ collectionId: workspaceId, sessionId: resolved.sessionId, commandId: item.commandId });
       else nav.showModule('processes');
@@ -241,7 +242,10 @@ function PeekOverlay({ state: { item, list }, navigation }: { state: PeekState; 
 type ContentProps = { onResolved(resolved: Resolved): void; onTitle(title: string): void; onPeek(item: PeekItem): void };
 function PeekContent({ item, ...props }: { item: PeekItem } & ContentProps) {
   switch (item.kind) {
-    case 'conversation': return <ConversationPeek sessionId={item.sessionId} {...props}/>;
+    // Another Runner's conversation is read from that Runner.
+    case 'conversation': return item.runner
+      ? <RunnerScope runner={item.runner} fallback={<Problem>That Runner is not reachable.</Problem>}><RunnerBadge runner={item.runner} className="peek-runner"/><ConversationPeek sessionId={item.sessionId} {...props}/></RunnerScope>
+      : <ConversationPeek sessionId={item.sessionId} {...props}/>;
     case 'command': return <CommandPeek commandId={item.commandId} {...props}/>;
     case 'process': return <ProcessPeek processId={item.processId} {...props}/>;
     case 'artifact': return <ArtifactPeek workspaceId={item.workspaceId} artifactId={item.artifactId} {...props}/>;

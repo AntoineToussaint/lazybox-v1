@@ -11,6 +11,8 @@ import { createPortal } from 'react-dom';
 import type { Collection } from '@lazybox/protocol';
 import type { ChatReturn, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
+import { RunnerDirectoryProvider, RunnerScope, useRunnerDirectory, useRunnerIdentity } from './RunnerDirectory';
+import { elsewhere, localTarget, OWN_RUNNER, type RunnerTarget } from './runner-directory';
 import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { useCommandRuns } from './command-runs';
@@ -66,22 +68,66 @@ import { useMissionsPageHost } from './navigate-requests';
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
 type Props = { modules?: Readonly<Record<string, PanelModule>>; fixedWorkspaceId?: string; connection: RunnerConnection; viewState?: ViewStateStore; initialTarget?: ViewTarget; host?: WorkspaceHost; onOpenViewer?(sessionId: string, commandId: string): Promise<void>; onTargetChange?(target: ViewTarget): Promise<void> | void };
+/** What the page of one Runner gets besides the window's props. */
+type ViewProps = Props & {
+  /** Shown once the page is up: the conversation (or workspace) a switch from another Runner asked for. */
+  reveal?: ViewTarget;
+  /** Chats, consoles and workspaces may open in windows of their own: only the window's own Runner's (the host opens them on it). */
+  ownWindows?: boolean;
+};
 
 export function Workspace(props: Props) {
   return <RunnerProvider connection={props.connection} expectRestart={props.host?.expectRunnerRestart}>
-    <AppearanceSync store={props.viewState}/><UserThemeSync store={props.viewState}/>
     <AttentionScope root={props.viewState?.root} host={props.host}>
-      <RepositoryHostContext.Provider value={props.host || {}}>
-        <ArtifactHostContext.Provider value={props.host || {}}>
-          <WebViewsContext.Provider value={props.host?.webViews}>
-            <WebWindowContext.Provider value={props.host?.openWebWindow}>
-              <WorkspaceView {...props}/>
-            </WebWindowContext.Provider>
-          </WebViewsContext.Provider>
-        </ArtifactHostContext.Provider>
-      </RepositoryHostContext.Provider>
+      {/* A workspace window shows its one workspace; the main window shows every Runner the host finds. */}
+      <RunnerDirectoryProvider host={props.fixedWorkspaceId ? undefined : props.host?.runners} viewState={props.viewState}>
+        <AppearanceSync store={props.viewState}/><UserThemeSync store={props.viewState}/>
+        <ActiveRunner {...props}/>
+      </RunnerDirectoryProvider>
     </AttentionScope>
   </RunnerProvider>;
+}
+
+/**
+ * Another Runner's page keeps its own saved layouts (under the window's
+ * authority, so the host accepts them) and app-wide preferences stay the
+ * window's: a theme or a keymap does not change with the Runner shown.
+ */
+function runnerViewState(store: ViewStateStore, runner: string): ViewStateStore {
+  const base = store.scope || store.key;
+  const scope = `${base}:runner:${runner}`;
+  return { ...store, key: `${scope}:main`, scope, root: store.root || base.split(':')[0] };
+}
+/** The host as another Runner's page sees it: windows the host opens are the window's own Runner's, so they are not offered. */
+function foreignHost(host: WorkspaceHost): WorkspaceHost {
+  const { openWorkspace: _w, openArtifact: _a, focusWindow: _f, captureWindow: _c, expectRunnerRestart: _e, reconnect: _r, ...rest } = host;
+  return rest;
+}
+
+/**
+ * The page shows one Runner at a time: the window's own, or another chosen in
+ * the sidebar, the inbox, ⌘K or ⌘N. Switching mounts that Runner's page with
+ * its own saved layout; the sidebar and inbox keep showing every Runner.
+ */
+function ActiveRunner(props: Props) {
+  const directory = useRunnerDirectory()!;
+  const id = directory.active, own = id === OWN_RUNNER;
+  const viewState = useMemo(() => own || !props.viewState ? props.viewState : runnerViewState(props.viewState, id), [own, props.viewState, id]);
+  const host = useMemo(() => own || !props.host ? props.host : foreignHost(props.host), [own, props.host]);
+  if (directory.launching) return <main className="workspace-shell workspace-launching" aria-busy="true"><p className="module-empty" role="status">Connecting to your Runners…</p></main>;
+  return <RunnerScope runner={id} fallback={<main className="workspace-shell"><p className="module-empty" role="status">Connecting…</p></main>}>
+    <RepositoryHostContext.Provider value={host || {}}>
+      <ArtifactHostContext.Provider value={host || {}}>
+        <WebViewsContext.Provider value={host?.webViews}>
+          <WebWindowContext.Provider value={host?.openWebWindow}>
+            <WorkspaceView key={id} {...props} viewState={viewState} host={host} ownWindows={own}
+              initialTarget={directory.target || (own ? props.initialTarget : undefined)} reveal={directory.target}
+              onTargetChange={own ? props.onTargetChange : undefined} onOpenViewer={own ? props.onOpenViewer : undefined}/>
+          </WebWindowContext.Provider>
+        </WebViewsContext.Provider>
+      </ArtifactHostContext.Provider>
+    </RepositoryHostContext.Provider>
+  </RunnerScope>;
 }
 
 /** Phone and narrow windows show one panel at a time. */
@@ -106,10 +152,15 @@ function loadPages(viewState: ViewStateStore | undefined, key: string, fallback:
   return layout;
 }
 
-function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = emptyTarget(), host, onOpenViewer, onTargetChange }: Props) {
+function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = emptyTarget(), host, onOpenViewer, onTargetChange, reveal, ownWindows = true }: ViewProps) {
   const keyboardHint = useKeyboardNavigation(viewState);
   const keymap = useKeymap(viewState);
   const { api, info, error: connectionError, refresh: refreshRunner, restart } = useRunner();
+  // Which Runner this page shows; a target naming another one switches the window to it.
+  const directory = useRunnerDirectory();
+  const { id: here } = useRunnerIdentity();
+  const chatHost = ownWindows ? host : undefined;
+  const switched = (target: RunnerTarget) => { if (!directory || !elsewhere(target, here)) return false; directory.activate(target.runner!, localTarget(target)); return true; };
   const registry = useMemo(() => ({ ...builtinPanels, ...modules }), [modules]);
   const [workspaceID, setWorkspaceID] = useState(() => fixedWorkspaceId || initialTarget.collectionId || viewState?.getItem(`${viewState.key}:active-workspace`) || '');
   const workspaceKey = (id: string) => `${viewState?.scope || viewState?.key}:workspace:${id || 'home'}:pages`;
@@ -170,7 +221,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const livePage = () => current.current.pages.find(value => value.id === page.id)!;
   const changePage = (next: WorkspacePage) => commit({ ...current.current, pages: current.current.pages.map(value => value.id === next.id ? next : value) });
   const changePanel = (panelID: string, change: (panel: Panel) => Panel) => changePage(mapPagePanels(livePage(), panel => panel.id === panelID ? change(panel) : panel));
-  const select = (target: ViewTarget) => {
+  const select = (requested: RunnerTarget) => {
+    if (switched(requested)) return;
+    const target = localTarget(requested);
     if (target.collectionId !== workspaceID) {
       if (fixedWorkspaceId) { if (target.collectionId) void host?.openWorkspace?.(target.collectionId); return; }
       try {
@@ -223,12 +276,14 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     changePage({ ...activatePanel(live, output.id), selection: { ...live.selection, commandId } });
   });
   const canShowNewSession = shownPanels(page).some(p => p.kind === 'chat' && p.binding.mode === 'follow' && !p.detached) || allPanels(page).length < PANEL_LIMIT;
-  const showSession = (selection: ViewTarget) => {
+  const showSession = (requested: RunnerTarget) => {
+    if (switched(requested)) { setSettings(false); setNewSession(false); return; }
+    const selection = localTarget(requested);
     setMobilePanelId('');
     if (selection.collectionId !== workspaceID) { select(selection); setSettings(false); setNewSession(false); return; }
     const live = livePage();
     const open = detachedFor(live, selection);
-    if (open && host) { if (changePage({ ...live, selection })) { setSettings(false); setNewSession(false); } void host.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
+    if (open && chatHost) { if (changePage({ ...live, selection })) { setSettings(false); setNewSession(false); } void chatHost.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
     // Reuse the page's chat panel; never stack a second panel on the same conversation.
     const shown = routeChat({ ...live, selection }, selection, () => crypto.randomUUID());
     // While a panel is maximized, the conversation shows maximized (the zoom moves to the chat; ⌘J, ⌘] keep it).
@@ -250,6 +305,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (commit({ ...current.current, selectedPage: id, pages: [...current.current.pages, board] })) setSettings(false);
   };
   useMissionsPageHost(showMissionsPage);
+  // A switch from another Runner asked for this conversation (or workspace): shown once the page is up.
+  useEffect(() => { if (reveal?.sessionId) showSession(reveal); else if (reveal?.collectionId) select(reveal); }, []);
   // "Show changes in this turn" in a conversation of this workspace opens its Changes page.
   useTurnChangesHost(workspaceID, showChanges);
   // A review started anywhere shows its reviewer conversation; "Open review" its findings.
@@ -339,7 +396,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const pendingModule = useRef('');
   useEffect(() => { const kind = pendingModule.current; if (!kind) return; pendingModule.current = ''; showModule(kind); }, [workspaceID]);
   /** Show the panel of this kind for target: its workspace and conversation first, then the panel. */
-  const showPanelFor = (kind: string, target?: ViewTarget) => {
+  const showPanelFor = (kind: string, requested?: RunnerTarget) => {
+    if (requested && switched(requested)) return;
+    const target = requested && localTarget(requested);
     if (target && target.collectionId !== workspaceID && !fixedWorkspaceId) {
       pendingModule.current = kind;
       if (target.sessionId) showSession(target); else select(target);
@@ -420,16 +479,16 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   /** A chat to its own native window (the host's), pinned to its conversation. */
   const detach = async (panel: Panel) => {
-    if (!host || pending) return;
+    if (!chatHost || pending) return;
     const live = livePage(), target = resolveTarget(panel, live.selection);
     if (!target.sessionId) return;
     const open = detachedFor(live, target);
-    if (open) { try { await host.openChat({ panelId: open.id, ...pinnedTarget(open) }); } catch (error) { setError(String(error)); } return; }
+    if (open) { try { await chatHost.openChat({ panelId: open.id, ...pinnedTarget(open) }); } catch (error) { setError(String(error)); } return; }
     setPending(panel.id);
     const before = live;
     try {
       if (!changePage(detachChat(live, panel.id, target))) return;
-      await host.openChat({ panelId: panel.id, collectionId: target.collectionId, sessionId: target.sessionId });
+      await chatHost.openChat({ panelId: panel.id, collectionId: target.collectionId, sessionId: target.sessionId });
     }
     catch (error) { changePage(before); setError(String(error)); }
     finally { setPending(''); }
@@ -449,15 +508,15 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       if (!changePage({ ...live, layout: docked ? splitBeside(live.layout, group!.id, panel, 'right') : insertDocked(live.layout, panel, 'right', 0.5) })) return;
       setSettings(false); setMobilePanelId(panel.id); focusAfter.current = { panel: panel.id };
     },
-    window: host ? target => {
+    window: chatHost ? target => {
       const live = livePage(), open = detachedFor(live, target);
-      if (open) { void host.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
+      if (open) { void chatHost.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
       const shown = shownPanels(live).find(panel => panel.kind === 'chat' && !panel.detached && resolveTarget(panel, live.selection).sessionId === target.sessionId);
       if (shown) { void detach(shown); return; }
       if (allPanels(live).length >= PANEL_LIMIT) { setError(`This page already has ${PANEL_LIMIT} panels; close one to open a conversation in its own window.`); return; }
       const panel: Panel = { id: crypto.randomUUID(), kind: 'chat', binding: { mode: 'pinned', target: { ...target, commandId: '' } }, detached: true };
       if (!changePage({ ...live, detached: [...live.detached, panel] })) return;
-      void host.openChat({ panelId: panel.id, collectionId: target.collectionId, sessionId: target.sessionId }).catch(error => { changePage(live); setError(String(error)); });
+      void chatHost.openChat({ panelId: panel.id, collectionId: target.collectionId, sessionId: target.sessionId }).catch(error => { changePage(live); setError(String(error)); });
     } : undefined,
     showAgents: () => {
       const live = livePage(), agents = shownPanels(live).find(panel => panel.kind === 'agents');
@@ -468,10 +527,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   });
   /** A chat back from its own window: where it was, on its page, in front; its window closes and this one comes forward. */
   const bringBack = async (panel: Panel) => {
-    if (!host || pending) return;
+    if (!chatHost || pending) return;
     setPending(panel.id);
     try {
-      await host.dockChat(panel.id);
+      await chatHost.dockChat(panel.id);
       const back = returnDetached(current.current, panel.id);
       if (back && commit({ ...back.layout, selectedPage: back.page })) { setSettings(false); focusAfter.current = { panel: panel.id }; }
     }
@@ -502,16 +561,16 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       if (shown) { setSettings(false); select({ collectionId, sessionId: '', commandId: '' }); focusAfter.current = { panel: panelId }; }
     } catch (error) { setError(`Could not put the chat back: ${String(error)}`); }
   };
-  useEffect(() => host?.onChatReturn?.(request => chatReturned.current(request)), [host]);
+  useEffect(() => chatHost?.onChatReturn?.(request => chatReturned.current(request)), [chatHost]);
   // A saved chat whose window is gone (closed while this window was, or not restored) comes back to the page.
   useEffect(() => {
-    if (!host?.chatWindowOpen) return;
+    if (!chatHost?.chatWindowOpen) return;
     let live = true;
     for (const { panel } of detachedChats(current.current)) {
-      void host.chatWindowOpen(panel.id).then(open => { if (!open && live) chatReturned.current({ panelId: panel.id, collectionId: workspaceID, reason: 'closed' }); }).catch(() => {});
+      void chatHost.chatWindowOpen(panel.id).then(open => { if (!open && live) chatReturned.current({ panelId: panel.id, collectionId: workspaceID, reason: 'closed' }); }).catch(() => {});
     }
     return () => { live = false; };
-  }, [host, workspaceID]);
+  }, [chatHost, workspaceID]);
   // One sidebar width for every workspace (see DockLayout).
   const [sidebarWidth, setSidebarWidth] = useState(() => { const saved = Number(readPreference(viewState, 'workspace.sidebar-width')); return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : SIDEBAR_DEFAULT; });
   const saveSidebarWidth = (width: number) => { const next = clampSidebar(width); setSidebarWidth(next); try { writePreference(viewState, 'workspace.sidebar-width', String(next)); } catch { /* a convenience */ } };
@@ -556,7 +615,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const later = useRef({ bringBack }); later.current = { bringBack };
   const otherWindows: OtherWindow[] = [
     ...detachedChats(layout).map(({ panel }) => ({ id: panel.id, title: titleOf(panel), icon: iconOf(panel),
-      show: () => void host?.openChat({ panelId: panel.id, ...pinnedTarget(panel) }).catch(error => setError(String(error))),
+      show: () => void chatHost?.openChat({ panelId: panel.id, ...pinnedTarget(panel) }).catch(error => setError(String(error))),
       putBack: () => later.current.bringBack(panel), kind: 'chat' as const })),
     ...page.popouts.map(group => { const front = group.panels.find(value => value.id === group.active) || group.panels[0]; return { id: group.id,
       title: titleOf(front) + (group.panels.length > 1 ? ` +${group.panels.length - 1}` : ''), icon: iconOf(front),
@@ -572,7 +631,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   // ⇧⌘D (or the Window menu) with a popped-out group's window in front: that group goes back.
   useKeyboardAction('window.put-back', () => { const group = dock.current?.focusedPopout(); if (group) dock.current?.dockBack(group); }, () => !!dock.current?.focusedPopout());
   const navigator = useWorkspaceCommands({
-    root: viewState?.root || '', main: !fixedWorkspaceId, collections, selection: page.selection, workspaceId: workspaceID, workbench, registry,
+    root: viewState?.root || '', main: !fixedWorkspaceId && ownWindows, collections, selection: page.selection, workspaceId: workspaceID, workbench, registry,
     windows: otherWindows, canStartConversation: !!info && !pending && canShowNewSession, terminalReady, canOpenWorkspaceWindow: !!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId,
     showSession, selectWorkspace: select, closeSettings: () => setSettings(false),
     showPanel: kind => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : void showModule(kind),
@@ -590,7 +649,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     canClose: panel => !panel.detached,
     close: closePanel,
     // A Web panel has its own window (its ⋯ → Move to a new window): its native view belongs to one window.
-    canOpenWindow: panel => panel.kind === 'chat' ? !!host && !!resolveTarget(panel, page.selection).sessionId : panel.kind !== 'web' && !narrow,
+    canOpenWindow: panel => panel.kind === 'chat' ? !!chatHost && !!resolveTarget(panel, page.selection).sessionId : panel.kind !== 'web' && !narrow,
     openWindow: (panel, handle) => {
       if (panel.kind === 'chat') { void detach(panel); return; }
       void handle.popout(panel.id).then(opened => { if (!opened) setError('The new window was blocked. Allow pop-ups for Lazybox and try again.'); });
@@ -748,7 +807,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const panelActions: PanelActions = {
     close: closePanel, showSession,
     title: (panel, title) => setLiveTitles(titles => titles[panel.id]?.text === title?.text && titles[panel.id]?.icon === title?.icon ? titles : { ...titles, [panel.id]: title }),
-    retarget: (panel, target) => panel.binding.mode === 'pinned' ? changePanel(panel.id, value => ({ ...value, binding: { mode: 'pinned', target } })) : select(target),
+    retarget: (panel, target: RunnerTarget) => panel.binding.mode === 'pinned' && !elsewhere(target, here) ? changePanel(panel.id, value => ({ ...value, binding: { mode: 'pinned', target: localTarget(target) } })) : select(target),
     detach: panel => void detach(panel),
     dock: panel => void bringBack(panel),
   };
@@ -761,7 +820,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     return stores.get(panel.id);
   };
   const renderPanel = (panel: Panel) => <WorkspacePanel panel={panel} definition={Object.hasOwn(registry, panel.kind) ? registry[panel.kind] : undefined} target={resolveTarget(panel, page.selection)} store={storeFor(panel)}
-    module={moduleProps} actions={panelActions} pending={!!pending} mobileActive={panel.id === mobilePanel?.id} canDetach={!!host}/>;
+    module={moduleProps} actions={panelActions} pending={!!pending} mobileActive={panel.id === mobilePanel?.id} canDetach={!!chatHost}/>;
   const kindsShown = new Map<string, 'shown' | 'window'>([...detachedPanels.map(panel => [panel.kind, 'window'] as const), ...page.popouts.flatMap(group => group.panels.map(panel => [panel.kind, 'window'] as const)), ...shown.filter(panel => !page.popouts.some(group => group.panels.includes(panel)) && !panel.detached).map(panel => [panel.kind, 'shown'] as const)]);
 
   return <WorkbenchContext.Provider value={workbench}><main className="workspace-shell">
@@ -848,7 +907,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     {quickLook && workspaceID && <FilePreview key={`${workspaceID}:${quickLook.path}`} workspaceId={workspaceID} reference={quickLook} viewState={viewState} onClose={() => setQuickLook(undefined)}/>}
     {workspaceID && <ReviewActions workspaceId={workspaceID} sessionId={page.selection.collectionId === workspaceID ? page.selection.sessionId : ''}/>}
     {importing !== null && <LayoutImportDialog initial={importing} onClose={() => setImporting(null)} onImported={layout => { applyLayout(layout); showToast({ id: 'layout-file', tone: 'info', title: `Imported “${layout.name}”`, body: `${layout.file}.yaml in your layouts folder`, timeout: 3600 }); }}/>}
-    <PowerLayer workspaceId={workspaceID} selection={{ collectionId: page.selection.collectionId || workspaceID, sessionId: page.selection.sessionId }} primary={!fixedWorkspaceId} host={host} viewState={viewState}
+    <PowerLayer workspaceId={workspaceID} selection={{ collectionId: page.selection.collectionId || workspaceID, sessionId: page.selection.sessionId }} primary={!fixedWorkspaceId && ownWindows} host={host} viewState={viewState}
       onSelect={target => select({ ...target, commandId: '' })} onShowSession={target => showSession({ ...target, commandId: '' })}
       onShowPanel={(kind, target) => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : showPanelFor(kind, { ...target, commandId: '' })}
       onOpenSettings={tab => { setSettingsTab(tab); setSettings(true); }} onQuickLook={(path, line) => setQuickLook({ path, line })}
