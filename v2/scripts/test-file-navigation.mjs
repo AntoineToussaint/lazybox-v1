@@ -87,6 +87,12 @@ try{
  await tree.locator('[data-path="api/src/routes.ts"]').dblclick();
  await expect(tabs(1)).toHaveCount(2);await expect(tabs(1).nth(1)).toContainText('routes.ts');
  await expect(tabs(0)).toHaveText(before);
+ // The editor's keys are its own only while it has the focus: from the Files tree, ⌘\ and ⌘⌥\ do not split it.
+ await tree.locator('[data-path="api/src/routes.ts"]').focus();
+ await page.keyboard.press('ControlOrMeta+Alt+Backslash');await page.keyboard.press('ControlOrMeta+Backslash');
+ await expect(editorPanel.locator('.editor-group')).toHaveCount(2);
+ await page.keyboard.press('Escape');
+ await tabs(1).nth(1).click();
  await page.keyboard.press('ControlOrMeta+Alt+Backslash');
  await expect(editorPanel.locator('.editor-group')).toHaveCount(3);await expect(editorPanel.locator('.editor-split.split-column')).toHaveCount(1);
  // Reorder within a group from the keyboard.

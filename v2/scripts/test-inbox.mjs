@@ -185,8 +185,38 @@ try {
   await inbox.locator('.inbox-row').filter({hasText: 'Index the API'}).click();
   await expect(inbox).toHaveCount(0);
 
+  // A mission task waiting for acceptance is a row j/k stop on, and a note being typed in it is not
+  // thrown away: a click outside keeps the Inbox (the note's box shakes), Escape in the note is Back.
+  await page.setViewportSize({width: 1400, height: 900});
+  const mission = f.missions.create('Ship the parser split');
+  const task = f.missions.addTask(mission, 'Split the parser');
+  f.missions.assign(mission, task, session('review-session'), false);
+  Object.assign(task, {report: 'Split into lexer, parser and ast.', reportedAt: ms(Date.now()), gate: 'reviewed', rejected: false, reportedAfterAttempt: true, updated: ms(Date.now())});
+  await expect(inboxButton).toHaveAccessibleName(/1 task awaits acceptance/, {timeout: 15_000});
+  await inboxButton.click();
+  const taskRow = inbox.locator('.inbox-task').filter({hasText: 'Split the parser'});
+  await expect(taskRow).toBeFocused();
+  await page.keyboard.press('j');
+  await expect(inbox.locator('.inbox-row').first()).toBeFocused();
+  await page.keyboard.press('k');
+  await expect(taskRow).toBeFocused();
+  await taskRow.getByRole('button', {name: 'Ask for changes…'}).click();
+  const note = taskRow.getByRole('textbox', {name: 'What should change in Split the parser'});
+  await note.fill('Keep the old entry point');
+  const inboxBox = await inbox.boundingBox();
+  await page.mouse.click(inboxBox.x > 20 ? 8 : inboxBox.x + inboxBox.width + 8, 450);
+  await expect(inbox).toBeVisible();
+  await expect(note).toHaveValue('Keep the old entry point');
+  await note.press('Escape');
+  await expect(inbox).toBeVisible();
+  await expect(note).toHaveCount(0);
+  await expect(taskRow.getByRole('button', {name: 'Ask for changes…'})).toBeFocused();
+  // Nothing typed: Escape closes the Inbox as before.
+  await page.keyboard.press('Escape');
+  await expect(inbox).toHaveCount(0);
+
   // Settings → Notifications saves to settings.yaml (UpdateConfigFile, package C): a preference, not an agent action.
   assert.deepEqual(f.mutations.filter(m => m.method !== 'UpdateConfigFile'), [], 'the inbox never starts, stops or answers an agent');
   assert.deepEqual(errors, []);
-  console.log('PASS inbox: counts across workspaces, grouping, j/k/m/Enter, open in workspace, seen on view, sidebar unread, notifications on watched transitions only, notification click, settings, phone.');
+  console.log('PASS inbox: counts across workspaces, grouping, j/k/m/Enter, open in workspace, seen on view, sidebar unread, notifications on watched transitions only, notification click, settings, phone; j/k stop on a mission task, and a typed note survives a click outside and Escape (Back).');
 } finally { await browser?.close(); await server.close(); await f.close(); }

@@ -31,6 +31,8 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  // Copies are recorded; the rest of the real clipboard (which the editor uses) is left alone.
  await page.addInitScript(()=>{window.__copies=[];if(navigator.clipboard)navigator.clipboard.writeText=async text=>{window.__copies.push(text);};else Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__copies.push(text);}}});});
+ // Printing is counted, not shown: the system dialog would block the page.
+ await page.addInitScript(()=>{window.__prints=0;window.print=()=>{window.__prints++;setTimeout(()=>dispatchEvent(new Event('afterprint')));};});
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${fixture.token}`);
  const message=page.locator('.messages article.message.message_delta').filter({hasText:'Datasource migration plan'}).first();
  await expect(message).toBeVisible();
@@ -96,9 +98,22 @@ try{
  await expect(artifactPage.getByRole('region',{name:'Rendered changes'}).locator('.doc-diff-row.is-changed')).toHaveCount(1);
  await artifactPage.getByRole('radio',{name:'Text'}).click();
  await expect(artifactPage.getByRole('region',{name:'Changes from v1 to v2'}).locator('.artifact-diff-line.is-add')).toHaveCount(2);
+ // The chosen one shows: Text is filled, Rendered is not.
+ await expect.poll(async()=>{const bg=locator=>locator.evaluate(node=>getComputedStyle(node).backgroundColor);return (await bg(artifactPage.getByRole('radio',{name:'Text'})))!==(await bg(artifactPage.getByRole('radio',{name:'Rendered'})));}).toBe(true);
+ // Print from Changes shows the document and prints it once, not again and again.
+ await artifactPage.getByLabel('Export',{exact:true}).click();
+ await page.getByRole('button',{name:'Print or save as PDF…'}).click();
+ await expect(artifactPage.getByRole('tab',{name:'Document'})).toHaveAttribute('aria-selected','true');
+ await expect.poll(()=>page.evaluate(()=>window.__prints)).toBe(1);
+ await page.waitForTimeout(600);
+ assert.equal(await page.evaluate(()=>window.__prints),1,'printed once');
  await artifactPage.getByRole('tab',{name:'Document'}).click();
  if(!await versions.isVisible())await artifactPage.getByRole('button',{name:'2 versions'}).click();
- await versions.getByRole('option',{name:/^v1/}).click();
+ // ↑/↓ move through the versions from the keyboard.
+ await versions.getByRole('option',{name:/^v2/}).focus();
+ await page.keyboard.press('ArrowDown');
+ await expect(versions.getByRole('option',{name:/^v1/})).toBeFocused();
+ await page.keyboard.press('Enter');
  await expect(artifactPage.getByRole('note')).toContainText('You are viewing v1 of 2.');
  await expect(artifactPage.locator('.artifact-document')).not.toContainText('Phase four');
  await artifactPage.getByRole('button',{name:'Back to latest'}).click();
@@ -235,5 +250,5 @@ try{
  assert.equal(fileTracks(),tracksBefore+1);assert.equal(fixture.mutations.filter(m=>m.method==='TrackArtifactFile').at(-1).body.path,'docs/PLAN.md');
  await expect(planPage.locator('.doc-title-block')).toContainText('Synced with docs/PLAN.md');
  assert.deepEqual(errors,[]);
- console.log('PASS: track a chat message as an artifact (right-click and hover), update it after a reviewed diff, browse versions and changes, copy and download, rename, open in its own window, list an agent\'s artifact, track a Markdown file that follows disk changes, delete with confirmation, track a file an agent links (from the link, and offered first by a short message\'s Track). Fixture only.');
+ console.log('PASS: track a chat message as an artifact (right-click and hover), update it after a reviewed diff, browse versions and changes, copy and download, rename, open in its own window, list an agent\'s artifact, track a Markdown file that follows disk changes, print from Changes (once), keyboard through the history, delete with confirmation, track a file an agent links (from the link, and offered first by a short message\'s Track). Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}
