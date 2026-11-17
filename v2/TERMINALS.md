@@ -16,7 +16,11 @@ into a terminal.
   [Arrange panels](WORKSPACES.md#arrange-panels)). Its **×** closes the
   *panel*: shells keep running and re-attach when the panel comes back.
 - In the panel, pick a directory (**Workspace root** or a repository) and press
-  **New terminal** for another shell. Tabs switch between them; a tab's **×**
+  **New terminal** for another shell. The list also has each repository's
+  [home checkout](WORKSPACES.md#home-checkouts) and **Home folder (~)**: a
+  shell there starts outside the workspace (`OpenTerminal` with
+  `repository_home` or `user_home`, resolved by the Runner from its own
+  records) but is still this workspace's terminal, with its credential. Tabs switch between them; a tab's **×**
   closes that shell (it hangs up the shell, as closing a terminal window does).
 - **Panels → Terminal** in the workspace header also adds it. It docks like
   any other panel (see [Arrange panels](WORKSPACES.md#arrange-panels)). Opening or restoring the panel never starts a shell; it

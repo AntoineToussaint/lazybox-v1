@@ -31,6 +31,7 @@ Task by task:
 | See less (or more) of what the agent ran | [Activity detail](guides/activity-detail.md) |
 | Check what an agent changed, comment, undo a turn, open and merge a PR | [Review an agent's work](guides/review-agent-work.md) |
 | Run my app per workspace and look at it beside the chat | [Run your app](guides/run-your-app.md) |
+| Keep my own clone of a repo for logins, dev servers and trying things by hand | [Home checkouts](guides/home-checkouts.md) |
 | Let an agent use a browser while I watch, and take it over | [Agent browser](guides/agent-browser.md) |
 | Track a goal across several conversations, with evidence | [Missions and evidence](guides/missions.md) |
 | Let one agent start and drive others for a mission, under limits I set | [Let an agent run agents](guides/orchestrator.md) |

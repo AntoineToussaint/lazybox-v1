@@ -52,6 +52,13 @@ leave out.
 - **Tidier agent rows** A conversation whose sub-agents are listed under it no longer repeats their count on its own line, and a sub-agent panel says Ended without a report once.
 - **A clearer Missions board** The mission picker is a menu with each mission's progress, a working task leads with Open conversation, and the process reads One agent per task.
 
+### Home checkouts and your terminal
+
+- **Your own clone of each repository** A repository can have a home checkout: a regular clone outside every workspace, at ~/lazybox/repos/owner/name or a folder you already have, for logins, dev servers you keep running and trying a module by hand. Create one or pick a folder in Settings → Repositories or a workspace's repositories. Lazybox never deletes it and no agent changes it; its branch is yours. Update to latest main fetches, then moves main forward only when it is clean, and otherwise says why.
+- **Run opens a terminal** Run on a command the agent wrote opens a shell in the Terminal panel with the command at the prompt, exactly as written: check it, press Return. It is a real terminal, so logins and browser sign-ins work. Nothing runs by itself and nothing is sent to the agent; asking the agent to run it is still in the ▾, marked no terminal, and never offered for a login.
+- **Run what the agent hands back** When an agent finishes with something only you can run, its last message gets a button per command: Run in api home, or Run in your home folder for a login. The ⌄ beside it opens your own terminal app with the command copied, or copies it. When it ends, Tell Claude it's done sends how it went.
+- **Agents know where it is** Agents are told each repository's home, that it is yours, to use it rather than a temporary clone, and to hand logins back to you in so many words. lazybox repos and lazybox repo home api print the paths.
+
 ### Chat and Send now
 
 - **Send now** While the agent works, ↵ queues your message and ⌘↵ sends it now: the current step stops and your message is the next turn. A queued message shows once, above the message box.

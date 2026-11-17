@@ -113,6 +113,81 @@ workspace; `WaitRepositoryRequest` reaches only the execution's own requests;
 owner's; a workspace terminal can do none of it. A conversation may have three
 requests waiting at once and make ten an hour.
 
+## Home checkouts
+
+A repository's **home checkout** is the person's own regular clone of it, at a
+stable path outside every workspace: where they run logins (`acme login`),
+long-lived dev servers (`make playground`), one-time tool setup and manual
+tests. Workspaces are temporary worktrees named after the task; a home stays.
+User guide: [Home checkouts](docs/guides/home-checkouts.md).
+
+**Where it comes from.** Settings → Repositories → Home checkouts, or the
+workspace's repositories dialog, offers per repository:
+
+- **Create**: a clone at `<homeCheckoutRoot>/<owner>/<name>` (Runner config
+  `homeCheckoutRoot`, default `~/lazybox/repos`), or another path. The folder
+  must not exist.
+- **Use an existing folder…**: adopt a checkout the person has. It must be the
+  top folder of a checkout of the same repository (same GitHub project or Git
+  history, or a clone of the registered folder), outside the worktree root and
+  the Runner state.
+- A repository registered from a regular checkout (a local folder) has that
+  folder as its home already (`home_kind: source`); a GitHub import's bare
+  source copy is never a home.
+
+**Why a clone, not a worktree.** A created home is `git clone --local` of the
+Runner's source copy. Git hard-links the immutable object files, so it is fast
+and cheap, yet self-contained: it survives the source copy and a `git gc`
+there. A worktree of the source (`git worktree add`) would share refs, config
+and branch locks with every agent's workspace (an agent's `git branch -f` would
+move the person's branch, and the person's branch could not be checked out in
+a workspace), and would break with the source. Borrowing objects through
+alternates (`clone --reference`) would let a `gc` in the source corrupt it.
+After the clone, `origin` is the source's own remote (the real GitHub URL; no
+token), the remote-tracking refs are the source's view of that remote (never
+an agent's workspace branch), and the default branch is checked out tracking
+`origin`.
+
+**What never happens there.** Lazybox never deletes a home (forgetting one,
+removing the repository or deleting a workspace leaves its files), never
+commits, resets or switches its branch, and reads its state with
+`git --no-optional-locks status` so even the index is untouched. No workspace
+operation reaches it (`TestAWorkspaceNeverTouchesTheHome`).
+
+**Shells.** `OpenTerminal` takes `repository_home` (a repository id) or
+`user_home` instead of a workspace directory: the person's login shell starts
+there, still as a terminal of the workspace (its panel, its credential, its
+cleanup; see [terminals](TERMINALS.md)). The Terminal panel's directory list
+offers each member's home and **Home folder (~)**.
+
+**Agents.** The briefing says a home is the person's and read-only for the
+agent (read files and run read-only commands; never edit, commit, reset, stash,
+pull, switch branches or start servers there), and asks it to hand logins and
+long-lived commands back as "run in the home checkout of <repo>: `<cmd>`" or
+"run in your home folder: `<cmd>`". A new conversation's workspace context names
+each member's home; `ListWorkspaceRepositories` (so `lazybox workspace repos`,
+`lazybox repos`, `lazybox repo home`) returns it to an agent's credential.
+`ListRepositoryHomes`, `SetRepositoryHome` and `OpenRepositoryHome` are the
+owner's alone.
+
+**Run in … home.** The conversation's last message, once its turn is over,
+gets one button per command it hands to the person (`home-run.ts`): the
+briefing's phrase is read for certain; otherwise a command the message plainly
+hands over ("run … yourself", "you'll need to run", a login) is offered, at
+most three, never one the agent says it ran or one for later. A click opens a
+shell there in the Terminal panel and runs a one-line command at once; a
+multi-line script or one with placeholders is typed for review. A repository
+without a home gets one first ("Create api home and run"). A global tool's
+login (`gcloud`, `aws`, `gh`…) runs in the home folder. Each code block's Run
+menu also offers every home and the home folder.
+
+**Storage.** The home path is the repository record's `home` in the library
+(`repositories.json`), so it survives restarts. Libraries written before it
+have none: nothing is migrated on disk, and a local repository's source folder
+serves as its home until the person chooses another. Paths stay on the
+Runner's computer; nothing is shared or reachable beyond loopback, and a
+paired phone's grants include none of these RPCs.
+
 ## Catalog boundaries and configuration
 
 `repositorycatalog.Source` discovers metadata; `repositorycatalog.Store` persists
