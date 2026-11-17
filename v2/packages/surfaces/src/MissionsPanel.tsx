@@ -13,6 +13,7 @@ import type { ModuleProps } from './PanelRegistry';
 import type { ViewTarget } from './workspace-model';
 import { ago, arrange, briefTemplate, columns, evidenceChip, flagLabel, headlineEvidence, liveLabel, missionSummary, statusLabel, taskActions, trustLabel, trustMeaning } from './missions-model';
 import { useMissionDetail, useMissions, type ChangeInput } from './useMissions';
+import { agentTitle } from './providers';
 import { useMissionSelection } from './navigate-requests';
 import { GrantDialog } from './OrchestratorBadge';
 import { useOpenConversation } from './AgentMessages';
@@ -369,7 +370,7 @@ function AssignDialog({ task, mission, collections, workspaceId, viewState, onCl
       {mode === 'new' ? <>
         {!ready.length && <p className="missions-notice tone-warn">Create a workspace with the task's repositories first: a task works in a workspace's own branches.</p>}
         <label>Workspace<select aria-label="Workspace" value={collectionId} onChange={e => setCollectionId(e.target.value)}>{ready.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        <label>Agent<select aria-label="Agent" value={profileId} onChange={e => setProfileId(e.target.value)}>{profiles.map(p => <option key={p.id} value={p.id}>{p.provider === 'codex' ? 'Codex' : 'Claude'}{p.label ? ' · ' + p.label : ''}</option>)}</select></label>
+        <label>Agent<select aria-label="Agent" value={profileId} onChange={e => setProfileId(e.target.value)}>{profiles.map(p => { const name = agentTitle(p.provider); return <option key={p.id} value={p.id}>{name}{p.label && p.label !== name ? ' · ' + p.label : ''}</option>; })}</select></label>
         <p className="mission-muted">Every conversation in a workspace shares its files. Give parallel tasks their own workspaces.</p>
       </> : <label>Conversation<select aria-label="Conversation" value={sessionId} onChange={e => setSessionId(e.target.value)}>{conversations.map(s => <option key={s.id} value={s.id}>{conversationName(s)} · {workspaceName(s.collectionId)}</option>)}</select></label>}
       <label className="mission-check"><input type="checkbox" checked={sendBrief} onChange={e => setSendBrief(e.target.checked)}/> Send the task's brief to the agent now</label>

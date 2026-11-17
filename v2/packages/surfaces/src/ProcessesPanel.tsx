@@ -9,6 +9,7 @@ import { backendLabel, formatMemory, formatUptime, groupProcesses, listeningLabe
 import type { ViewTarget } from './workspace-model';
 import './processes.css';
 import { contextMenu, copyText } from './ContextMenu';
+import { agentTitle } from './providers';
 
 type Props = {
   workspaceId?: string;
@@ -18,7 +19,6 @@ type Props = {
   onShowPanel?(kind: string, target?: ViewTarget): void;
 };
 
-const providers: Record<string, string> = { claude: 'Claude', codex: 'Codex' };
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Polls the Runner's inventory while mounted. */
@@ -116,7 +116,7 @@ export function ProcessesPanel({ workspaceId = '', onShowSession, onShowPanel }:
 function ProcessRow({ process: p, showWorkspace, canOpen, onOpen, onCopy, onStop }: { process: HostedProcess; showWorkspace: boolean; canOpen: boolean; onOpen(): void; onCopy(): void; onStop(): void }) {
   const state = processState(p);
   const where = [
-    p.kind === 'agent' ? providers[p.provider] || p.provider : '',
+    p.kind === 'agent' ? agentTitle(p.provider, [], p.provider) : '',
     p.kind === 'command' && p.conversationTitle ? `in “${p.conversationTitle}”` : '',
     showWorkspace ? p.workspaceName : '',
   ].filter(place => place && place !== p.label);
