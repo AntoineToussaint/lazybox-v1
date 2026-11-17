@@ -130,6 +130,9 @@ type linkResult struct {
 }
 
 func (c *cli) link(args []string) error {
+	if len(args) > 0 && linkSubcommands[args[0]] {
+		return c.linkRemote(args)
+	}
 	if looksLikeItemURL(args) {
 		return c.linkItem(args)
 	}
