@@ -117,6 +117,11 @@ const (
 	RunnerService_GetPullRequest_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetPullRequest"
 	RunnerService_MergePullRequest_FullMethodName             = "/lazybox.bench.v1.RunnerService/MergePullRequest"
 	RunnerService_ListWorkspaceGitSummaries_FullMethodName    = "/lazybox.bench.v1.RunnerService/ListWorkspaceGitSummaries"
+	RunnerService_ListLinks_FullMethodName                    = "/lazybox.bench.v1.RunnerService/ListLinks"
+	RunnerService_LinkItem_FullMethodName                     = "/lazybox.bench.v1.RunnerService/LinkItem"
+	RunnerService_UnlinkItem_FullMethodName                   = "/lazybox.bench.v1.RunnerService/UnlinkItem"
+	RunnerService_SendPullRequestFailures_FullMethodName      = "/lazybox.bench.v1.RunnerService/SendPullRequestFailures"
+	RunnerService_ImportPullRequestReview_FullMethodName      = "/lazybox.bench.v1.RunnerService/ImportPullRequestReview"
 	RunnerService_ListReviewComments_FullMethodName           = "/lazybox.bench.v1.RunnerService/ListReviewComments"
 	RunnerService_AddReviewComment_FullMethodName             = "/lazybox.bench.v1.RunnerService/AddReviewComment"
 	RunnerService_EditReviewComment_FullMethodName            = "/lazybox.bench.v1.RunnerService/EditReviewComment"
@@ -367,9 +372,23 @@ type RunnerServiceClient interface {
 	// The sidebar's git state, per workspace and repository: branch, ahead and
 	// behind its pushed branch and the default branch, uncommitted files, and the
 	// last pull request seen for the branch. Local Git only (no fetch); the pull
-	// request comes from a cache GetPullRequest fills, refreshed in the
-	// background for pushed branches. Owner only.
+	// request comes from the tracked items (ListLinks), which the Runner keeps
+	// fresh in the background for pushed branches. Owner only.
 	ListWorkspaceGitSummaries(ctx context.Context, in *WorkspaceGitSummariesRequest, opts ...grpc.CallOption) (*WorkspaceGitSummaries, error)
+	// Tracked work items (PROJECTS_AND_INTEGRATIONS.md, GITHUB.md "Tracked pull
+	// requests"): the pull requests a workspace delivers and the items it
+	// mentions, kept fresh by their provider and persisted across restarts.
+	// ListLinks and LinkItem admit an agent for its own workspace (`lazybox
+	// items`, `lazybox link`); a paired phone reads them with the read grant.
+	ListLinks(ctx context.Context, in *ListLinksRequest, opts ...grpc.CallOption) (*Links, error)
+	LinkItem(ctx context.Context, in *LinkItemRequest, opts ...grpc.CallOption) (*Links, error)
+	UnlinkItem(ctx context.Context, in *UnlinkItemRequest, opts ...grpc.CallOption) (*Links, error)
+	// One-click reactions to a tracked pull request, always a person's: the
+	// failing checks' logs, compacted as `lazybox run` compacts output, and
+	// GitHub's review comments as Review comments, each sent to the
+	// conversation that delivered it (queued while it is mid-turn).
+	SendPullRequestFailures(ctx context.Context, in *PullRequestReactionRequest, opts ...grpc.CallOption) (*PullRequestReaction, error)
+	ImportPullRequestReview(ctx context.Context, in *PullRequestReactionRequest, opts ...grpc.CallOption) (*PullRequestReaction, error)
 	// Inline review comments on a workspace's changes, kept per workspace on the
 	// Runner so every window shows them. Owner only. Every reply is the whole
 	// review, each comment anchored against the working tree as it is now.
@@ -1636,6 +1655,56 @@ func (c *runnerServiceClient) ListWorkspaceGitSummaries(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListLinks(ctx context.Context, in *ListLinksRequest, opts ...grpc.CallOption) (*Links, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Links)
+	err := c.cc.Invoke(ctx, RunnerService_ListLinks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) LinkItem(ctx context.Context, in *LinkItemRequest, opts ...grpc.CallOption) (*Links, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Links)
+	err := c.cc.Invoke(ctx, RunnerService_LinkItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) UnlinkItem(ctx context.Context, in *UnlinkItemRequest, opts ...grpc.CallOption) (*Links, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Links)
+	err := c.cc.Invoke(ctx, RunnerService_UnlinkItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SendPullRequestFailures(ctx context.Context, in *PullRequestReactionRequest, opts ...grpc.CallOption) (*PullRequestReaction, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PullRequestReaction)
+	err := c.cc.Invoke(ctx, RunnerService_SendPullRequestFailures_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ImportPullRequestReview(ctx context.Context, in *PullRequestReactionRequest, opts ...grpc.CallOption) (*PullRequestReaction, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PullRequestReaction)
+	err := c.cc.Invoke(ctx, RunnerService_ImportPullRequestReview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListReviewComments(ctx context.Context, in *ListReviewCommentsRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkspaceReview)
@@ -2721,9 +2790,23 @@ type RunnerServiceServer interface {
 	// The sidebar's git state, per workspace and repository: branch, ahead and
 	// behind its pushed branch and the default branch, uncommitted files, and the
 	// last pull request seen for the branch. Local Git only (no fetch); the pull
-	// request comes from a cache GetPullRequest fills, refreshed in the
-	// background for pushed branches. Owner only.
+	// request comes from the tracked items (ListLinks), which the Runner keeps
+	// fresh in the background for pushed branches. Owner only.
 	ListWorkspaceGitSummaries(context.Context, *WorkspaceGitSummariesRequest) (*WorkspaceGitSummaries, error)
+	// Tracked work items (PROJECTS_AND_INTEGRATIONS.md, GITHUB.md "Tracked pull
+	// requests"): the pull requests a workspace delivers and the items it
+	// mentions, kept fresh by their provider and persisted across restarts.
+	// ListLinks and LinkItem admit an agent for its own workspace (`lazybox
+	// items`, `lazybox link`); a paired phone reads them with the read grant.
+	ListLinks(context.Context, *ListLinksRequest) (*Links, error)
+	LinkItem(context.Context, *LinkItemRequest) (*Links, error)
+	UnlinkItem(context.Context, *UnlinkItemRequest) (*Links, error)
+	// One-click reactions to a tracked pull request, always a person's: the
+	// failing checks' logs, compacted as `lazybox run` compacts output, and
+	// GitHub's review comments as Review comments, each sent to the
+	// conversation that delivered it (queued while it is mid-turn).
+	SendPullRequestFailures(context.Context, *PullRequestReactionRequest) (*PullRequestReaction, error)
+	ImportPullRequestReview(context.Context, *PullRequestReactionRequest) (*PullRequestReaction, error)
 	// Inline review comments on a workspace's changes, kept per workspace on the
 	// Runner so every window shows them. Owner only. Every reply is the whole
 	// review, each comment anchored against the working tree as it is now.
@@ -3274,6 +3357,21 @@ func (UnimplementedRunnerServiceServer) MergePullRequest(context.Context, *Merge
 }
 func (UnimplementedRunnerServiceServer) ListWorkspaceGitSummaries(context.Context, *WorkspaceGitSummariesRequest) (*WorkspaceGitSummaries, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceGitSummaries not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListLinks(context.Context, *ListLinksRequest) (*Links, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListLinks not implemented")
+}
+func (UnimplementedRunnerServiceServer) LinkItem(context.Context, *LinkItemRequest) (*Links, error) {
+	return nil, status.Error(codes.Unimplemented, "method LinkItem not implemented")
+}
+func (UnimplementedRunnerServiceServer) UnlinkItem(context.Context, *UnlinkItemRequest) (*Links, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnlinkItem not implemented")
+}
+func (UnimplementedRunnerServiceServer) SendPullRequestFailures(context.Context, *PullRequestReactionRequest) (*PullRequestReaction, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendPullRequestFailures not implemented")
+}
+func (UnimplementedRunnerServiceServer) ImportPullRequestReview(context.Context, *PullRequestReactionRequest) (*PullRequestReaction, error) {
+	return nil, status.Error(codes.Unimplemented, "method ImportPullRequestReview not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListReviewComments(context.Context, *ListReviewCommentsRequest) (*WorkspaceReview, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReviewComments not implemented")
@@ -5287,6 +5385,96 @@ func _RunnerService_ListWorkspaceGitSummaries_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLinksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListLinks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListLinks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListLinks(ctx, req.(*ListLinksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_LinkItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LinkItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).LinkItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_LinkItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).LinkItem(ctx, req.(*LinkItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_UnlinkItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlinkItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).UnlinkItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_UnlinkItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).UnlinkItem(ctx, req.(*UnlinkItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SendPullRequestFailures_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PullRequestReactionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SendPullRequestFailures(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SendPullRequestFailures_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SendPullRequestFailures(ctx, req.(*PullRequestReactionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ImportPullRequestReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PullRequestReactionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ImportPullRequestReview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ImportPullRequestReview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ImportPullRequestReview(ctx, req.(*PullRequestReactionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListReviewComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListReviewCommentsRequest)
 	if err := dec(in); err != nil {
@@ -7289,6 +7477,26 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListWorkspaceGitSummaries",
 			Handler:    _RunnerService_ListWorkspaceGitSummaries_Handler,
+		},
+		{
+			MethodName: "ListLinks",
+			Handler:    _RunnerService_ListLinks_Handler,
+		},
+		{
+			MethodName: "LinkItem",
+			Handler:    _RunnerService_LinkItem_Handler,
+		},
+		{
+			MethodName: "UnlinkItem",
+			Handler:    _RunnerService_UnlinkItem_Handler,
+		},
+		{
+			MethodName: "SendPullRequestFailures",
+			Handler:    _RunnerService_SendPullRequestFailures_Handler,
+		},
+		{
+			MethodName: "ImportPullRequestReview",
+			Handler:    _RunnerService_ImportPullRequestReview_Handler,
 		},
 		{
 			MethodName: "ListReviewComments",

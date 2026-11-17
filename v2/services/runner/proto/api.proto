@@ -157,9 +157,23 @@ service RunnerService {
   // The sidebar's git state, per workspace and repository: branch, ahead and
   // behind its pushed branch and the default branch, uncommitted files, and the
   // last pull request seen for the branch. Local Git only (no fetch); the pull
-  // request comes from a cache GetPullRequest fills, refreshed in the
-  // background for pushed branches. Owner only.
+  // request comes from the tracked items (ListLinks), which the Runner keeps
+  // fresh in the background for pushed branches. Owner only.
   rpc ListWorkspaceGitSummaries(WorkspaceGitSummariesRequest) returns (WorkspaceGitSummaries);
+  // Tracked work items (PROJECTS_AND_INTEGRATIONS.md, GITHUB.md "Tracked pull
+  // requests"): the pull requests a workspace delivers and the items it
+  // mentions, kept fresh by their provider and persisted across restarts.
+  // ListLinks and LinkItem admit an agent for its own workspace (`lazybox
+  // items`, `lazybox link`); a paired phone reads them with the read grant.
+  rpc ListLinks(ListLinksRequest) returns (Links);
+  rpc LinkItem(LinkItemRequest) returns (Links);
+  rpc UnlinkItem(UnlinkItemRequest) returns (Links);
+  // One-click reactions to a tracked pull request, always a person's: the
+  // failing checks' logs, compacted as `lazybox run` compacts output, and
+  // GitHub's review comments as Review comments, each sent to the
+  // conversation that delivered it (queued while it is mid-turn).
+  rpc SendPullRequestFailures(PullRequestReactionRequest) returns (PullRequestReaction);
+  rpc ImportPullRequestReview(PullRequestReactionRequest) returns (PullRequestReaction);
   // Inline review comments on a workspace's changes, kept per workspace on the
   // Runner so every window shows them. Owner only. Every reply is the whole
   // review, each comment anchored against the working tree as it is now.
@@ -776,6 +790,8 @@ message MergePullRequestRequest {
   string method = 4;
   // The head the person reviewed; GitHub refuses the merge if the branch moved since.
   string expected_head = 5;
+  // A tracked pull request this workspace delivers, on any branch; member may then be empty.
+  ItemRef item = 6;
 }
 message PullRequestCheck {
   string name = 1;
@@ -837,6 +853,12 @@ message ItemPullRequest {
   bool mergeable = 6;
   repeated ItemCheck failing_checks = 7;
   string head_sha = 8;
+  // GitHub's mergeable_state: clean, blocked, behind, dirty (conflicts), unstable, draft or unknown.
+  string mergeable_state = 9;
+  // How many checks the head has, failing ones included.
+  uint32 checks_total = 10;
+  // When it was merged or closed; zero while open.
+  int64 closed_at_unix_millis = 11;
 }
 message Item {
   ItemRef ref = 1;
@@ -917,6 +939,13 @@ message ItemLink {
   // How Lazybox learned of it: started-from, branch, agent-output, cli or person.
   string source = 5;
   int64 linked_at_unix_millis = 6;
+  // The workspace's name, kept for history once it is deleted.
+  string collection_name = 7;
+  bool collection_deleted = 8;
+  // The workspace repository whose origin is the item's repository, when one is.
+  string member = 9;
+  // The conversation's id (session_id is the execution that linked it).
+  string conversation_id = 10;
 }
 message PullRequestSummary {
   int64 number = 1; string title = 2; string url = 3;
@@ -948,6 +977,70 @@ message RepositoryGitSummary {
 }
 message WorkspaceGitSummary { string collection_id = 1; repeated RepositoryGitSummary repositories = 2; }
 message WorkspaceGitSummaries { repeated WorkspaceGitSummary workspaces = 1; }
+message ListLinksRequest {
+  // One workspace's links.
+  string collection_id = 1;
+  // An agent's own execution (`lazybox items`): the Runner derives its workspace.
+  string session_id = 2;
+  // Every workspace's links, deleted workspaces' included (the Pull requests panel).
+  bool all = 3;
+  // The asking window has focus: open pull requests are read more often.
+  bool focused = 4;
+}
+message Links {
+  repeated ItemLink links = 1;
+  // The latest transitions, newest first: what hooks, the Inbox and push saw.
+  repeated ItemEvent events = 2;
+  // Why tracking cannot read the provider now (not connected, rate limited); empty when it can.
+  string tracking_error = 3;
+  // How often open pull requests are read now, in seconds.
+  uint32 poll_seconds = 4;
+}
+// A tracked item's transition, emitted once: pr.opened, pr.checks-failed,
+// pr.checks-passed, pr.changes-requested, pr.approved, pr.merged, pr.closed or pr.conflicts.
+message ItemEvent {
+  string id = 1;
+  string name = 2;
+  ItemRef ref = 3;
+  string collection_id = 4;
+  string session_id = 5;
+  int64 at_unix_millis = 6;
+  // One short phrase: "checks failed: lint, unit-api".
+  string reason = 7;
+  string head_sha = 8;
+  string title = 9;
+  string url = 10;
+}
+message LinkItemRequest {
+  // An agent's own execution (`lazybox link`): its workspace and conversation.
+  string session_id = 1;
+  // The owner names the workspace instead.
+  string collection_id = 2;
+  string url = 3;
+  // delivers or mentions; empty is delivers for a pull request, mentions otherwise.
+  string role = 4;
+}
+message UnlinkItemRequest { string collection_id = 1; ItemRef ref = 2; }
+message PullRequestReactionRequest {
+  string collection_id = 1;
+  ItemRef ref = 2;
+  // The conversation to send to; empty is the one that delivered the pull request.
+  string session_id = 3;
+}
+message PullRequestReaction {
+  // The execution the message went to.
+  string session_id = 1;
+  // The conversation was mid-turn: the message waits for its turn to end.
+  bool queued = 2;
+  // What was sent, in one line.
+  string summary = 3;
+  // Where the full logs were saved, for the agent to read.
+  repeated string files = 4;
+  // What could not be included, and why ("deploy: logs need Actions: read").
+  repeated string notes = 5;
+  // Review comments imported into the workspace's Review.
+  uint32 comments = 6;
+}
 message WorkspaceDiffRequest { string collection_id = 1; string member = 2; string path = 3; bool staged = 4; // Diff of the branch's commits since the workspace's base, not of uncommitted changes.
   bool committed = 5;
   // With committed: the ref compared with; empty is the workspace start.
@@ -1203,8 +1296,9 @@ message Message {
   PromptSource source = 4;
 }
 message PromptSource {
-  // typed, snippet, console, inbox, mission, handoff or review (a review
-  // brief, findings or a re-review sent by Lazybox).
+  // typed, snippet, console, inbox, mission, handoff, review (a review
+  // brief, findings or a re-review sent by Lazybox), pr-checks (a tracked
+  // pull request's failing checks) or pr-review (its GitHub review).
   string kind = 1;
   string snippet_key = 2;
   // console: the run whose compact view was sent.

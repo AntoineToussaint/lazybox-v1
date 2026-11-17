@@ -320,6 +320,19 @@ const (
 	// RunnerServiceListWorkspaceGitSummariesProcedure is the fully-qualified name of the
 	// RunnerService's ListWorkspaceGitSummaries RPC.
 	RunnerServiceListWorkspaceGitSummariesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceGitSummaries"
+	// RunnerServiceListLinksProcedure is the fully-qualified name of the RunnerService's ListLinks RPC.
+	RunnerServiceListLinksProcedure = "/lazybox.bench.v1.RunnerService/ListLinks"
+	// RunnerServiceLinkItemProcedure is the fully-qualified name of the RunnerService's LinkItem RPC.
+	RunnerServiceLinkItemProcedure = "/lazybox.bench.v1.RunnerService/LinkItem"
+	// RunnerServiceUnlinkItemProcedure is the fully-qualified name of the RunnerService's UnlinkItem
+	// RPC.
+	RunnerServiceUnlinkItemProcedure = "/lazybox.bench.v1.RunnerService/UnlinkItem"
+	// RunnerServiceSendPullRequestFailuresProcedure is the fully-qualified name of the RunnerService's
+	// SendPullRequestFailures RPC.
+	RunnerServiceSendPullRequestFailuresProcedure = "/lazybox.bench.v1.RunnerService/SendPullRequestFailures"
+	// RunnerServiceImportPullRequestReviewProcedure is the fully-qualified name of the RunnerService's
+	// ImportPullRequestReview RPC.
+	RunnerServiceImportPullRequestReviewProcedure = "/lazybox.bench.v1.RunnerService/ImportPullRequestReview"
 	// RunnerServiceListReviewCommentsProcedure is the fully-qualified name of the RunnerService's
 	// ListReviewComments RPC.
 	RunnerServiceListReviewCommentsProcedure = "/lazybox.bench.v1.RunnerService/ListReviewComments"
@@ -748,9 +761,23 @@ type RunnerServiceClient interface {
 	// The sidebar's git state, per workspace and repository: branch, ahead and
 	// behind its pushed branch and the default branch, uncommitted files, and the
 	// last pull request seen for the branch. Local Git only (no fetch); the pull
-	// request comes from a cache GetPullRequest fills, refreshed in the
-	// background for pushed branches. Owner only.
+	// request comes from the tracked items (ListLinks), which the Runner keeps
+	// fresh in the background for pushed branches. Owner only.
 	ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error)
+	// Tracked work items (PROJECTS_AND_INTEGRATIONS.md, GITHUB.md "Tracked pull
+	// requests"): the pull requests a workspace delivers and the items it
+	// mentions, kept fresh by their provider and persisted across restarts.
+	// ListLinks and LinkItem admit an agent for its own workspace (`lazybox
+	// items`, `lazybox link`); a paired phone reads them with the read grant.
+	ListLinks(context.Context, *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error)
+	LinkItem(context.Context, *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error)
+	UnlinkItem(context.Context, *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error)
+	// One-click reactions to a tracked pull request, always a person's: the
+	// failing checks' logs, compacted as `lazybox run` compacts output, and
+	// GitHub's review comments as Review comments, each sent to the
+	// conversation that delivered it (queued while it is mid-turn).
+	SendPullRequestFailures(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
+	ImportPullRequestReview(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
 	// Inline review comments on a workspace's changes, kept per workspace on the
 	// Runner so every window shows them. Owner only. Every reply is the whole
 	// review, each comment anchored against the working tree as it is now.
@@ -1596,6 +1623,36 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceGitSummaries")),
 			connect.WithClientOptions(opts...),
 		),
+		listLinks: connect.NewClient[gen.ListLinksRequest, gen.Links](
+			httpClient,
+			baseURL+RunnerServiceListLinksProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListLinks")),
+			connect.WithClientOptions(opts...),
+		),
+		linkItem: connect.NewClient[gen.LinkItemRequest, gen.Links](
+			httpClient,
+			baseURL+RunnerServiceLinkItemProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("LinkItem")),
+			connect.WithClientOptions(opts...),
+		),
+		unlinkItem: connect.NewClient[gen.UnlinkItemRequest, gen.Links](
+			httpClient,
+			baseURL+RunnerServiceUnlinkItemProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UnlinkItem")),
+			connect.WithClientOptions(opts...),
+		),
+		sendPullRequestFailures: connect.NewClient[gen.PullRequestReactionRequest, gen.PullRequestReaction](
+			httpClient,
+			baseURL+RunnerServiceSendPullRequestFailuresProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendPullRequestFailures")),
+			connect.WithClientOptions(opts...),
+		),
+		importPullRequestReview: connect.NewClient[gen.PullRequestReactionRequest, gen.PullRequestReaction](
+			httpClient,
+			baseURL+RunnerServiceImportPullRequestReviewProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ImportPullRequestReview")),
+			connect.WithClientOptions(opts...),
+		),
 		listReviewComments: connect.NewClient[gen.ListReviewCommentsRequest, gen.WorkspaceReview](
 			httpClient,
 			baseURL+RunnerServiceListReviewCommentsProcedure,
@@ -2244,6 +2301,11 @@ type runnerServiceClient struct {
 	getPullRequest               *connect.Client[gen.GetPullRequestRequest, gen.PullRequestStatus]
 	mergePullRequest             *connect.Client[gen.MergePullRequestRequest, gen.PullRequestStatus]
 	listWorkspaceGitSummaries    *connect.Client[gen.WorkspaceGitSummariesRequest, gen.WorkspaceGitSummaries]
+	listLinks                    *connect.Client[gen.ListLinksRequest, gen.Links]
+	linkItem                     *connect.Client[gen.LinkItemRequest, gen.Links]
+	unlinkItem                   *connect.Client[gen.UnlinkItemRequest, gen.Links]
+	sendPullRequestFailures      *connect.Client[gen.PullRequestReactionRequest, gen.PullRequestReaction]
+	importPullRequestReview      *connect.Client[gen.PullRequestReactionRequest, gen.PullRequestReaction]
 	listReviewComments           *connect.Client[gen.ListReviewCommentsRequest, gen.WorkspaceReview]
 	addReviewComment             *connect.Client[gen.AddReviewCommentRequest, gen.WorkspaceReview]
 	editReviewComment            *connect.Client[gen.EditReviewCommentRequest, gen.WorkspaceReview]
@@ -2820,6 +2882,31 @@ func (c *runnerServiceClient) MergePullRequest(ctx context.Context, req *connect
 // ListWorkspaceGitSummaries calls lazybox.bench.v1.RunnerService.ListWorkspaceGitSummaries.
 func (c *runnerServiceClient) ListWorkspaceGitSummaries(ctx context.Context, req *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error) {
 	return c.listWorkspaceGitSummaries.CallUnary(ctx, req)
+}
+
+// ListLinks calls lazybox.bench.v1.RunnerService.ListLinks.
+func (c *runnerServiceClient) ListLinks(ctx context.Context, req *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error) {
+	return c.listLinks.CallUnary(ctx, req)
+}
+
+// LinkItem calls lazybox.bench.v1.RunnerService.LinkItem.
+func (c *runnerServiceClient) LinkItem(ctx context.Context, req *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return c.linkItem.CallUnary(ctx, req)
+}
+
+// UnlinkItem calls lazybox.bench.v1.RunnerService.UnlinkItem.
+func (c *runnerServiceClient) UnlinkItem(ctx context.Context, req *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return c.unlinkItem.CallUnary(ctx, req)
+}
+
+// SendPullRequestFailures calls lazybox.bench.v1.RunnerService.SendPullRequestFailures.
+func (c *runnerServiceClient) SendPullRequestFailures(ctx context.Context, req *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return c.sendPullRequestFailures.CallUnary(ctx, req)
+}
+
+// ImportPullRequestReview calls lazybox.bench.v1.RunnerService.ImportPullRequestReview.
+func (c *runnerServiceClient) ImportPullRequestReview(ctx context.Context, req *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return c.importPullRequestReview.CallUnary(ctx, req)
 }
 
 // ListReviewComments calls lazybox.bench.v1.RunnerService.ListReviewComments.
@@ -3432,9 +3519,23 @@ type RunnerServiceHandler interface {
 	// The sidebar's git state, per workspace and repository: branch, ahead and
 	// behind its pushed branch and the default branch, uncommitted files, and the
 	// last pull request seen for the branch. Local Git only (no fetch); the pull
-	// request comes from a cache GetPullRequest fills, refreshed in the
-	// background for pushed branches. Owner only.
+	// request comes from the tracked items (ListLinks), which the Runner keeps
+	// fresh in the background for pushed branches. Owner only.
 	ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error)
+	// Tracked work items (PROJECTS_AND_INTEGRATIONS.md, GITHUB.md "Tracked pull
+	// requests"): the pull requests a workspace delivers and the items it
+	// mentions, kept fresh by their provider and persisted across restarts.
+	// ListLinks and LinkItem admit an agent for its own workspace (`lazybox
+	// items`, `lazybox link`); a paired phone reads them with the read grant.
+	ListLinks(context.Context, *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error)
+	LinkItem(context.Context, *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error)
+	UnlinkItem(context.Context, *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error)
+	// One-click reactions to a tracked pull request, always a person's: the
+	// failing checks' logs, compacted as `lazybox run` compacts output, and
+	// GitHub's review comments as Review comments, each sent to the
+	// conversation that delivered it (queued while it is mid-turn).
+	SendPullRequestFailures(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
+	ImportPullRequestReview(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
 	// Inline review comments on a workspace's changes, kept per workspace on the
 	// Runner so every window shows them. Owner only. Every reply is the whole
 	// review, each comment anchored against the working tree as it is now.
@@ -4276,6 +4377,36 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceGitSummaries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListLinksHandler := connect.NewUnaryHandler(
+		RunnerServiceListLinksProcedure,
+		svc.ListLinks,
+		connect.WithSchema(runnerServiceMethods.ByName("ListLinks")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceLinkItemHandler := connect.NewUnaryHandler(
+		RunnerServiceLinkItemProcedure,
+		svc.LinkItem,
+		connect.WithSchema(runnerServiceMethods.ByName("LinkItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUnlinkItemHandler := connect.NewUnaryHandler(
+		RunnerServiceUnlinkItemProcedure,
+		svc.UnlinkItem,
+		connect.WithSchema(runnerServiceMethods.ByName("UnlinkItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendPullRequestFailuresHandler := connect.NewUnaryHandler(
+		RunnerServiceSendPullRequestFailuresProcedure,
+		svc.SendPullRequestFailures,
+		connect.WithSchema(runnerServiceMethods.ByName("SendPullRequestFailures")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceImportPullRequestReviewHandler := connect.NewUnaryHandler(
+		RunnerServiceImportPullRequestReviewProcedure,
+		svc.ImportPullRequestReview,
+		connect.WithSchema(runnerServiceMethods.ByName("ImportPullRequestReview")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListReviewCommentsHandler := connect.NewUnaryHandler(
 		RunnerServiceListReviewCommentsProcedure,
 		svc.ListReviewComments,
@@ -5018,6 +5149,16 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceMergePullRequestHandler.ServeHTTP(w, r)
 		case RunnerServiceListWorkspaceGitSummariesProcedure:
 			runnerServiceListWorkspaceGitSummariesHandler.ServeHTTP(w, r)
+		case RunnerServiceListLinksProcedure:
+			runnerServiceListLinksHandler.ServeHTTP(w, r)
+		case RunnerServiceLinkItemProcedure:
+			runnerServiceLinkItemHandler.ServeHTTP(w, r)
+		case RunnerServiceUnlinkItemProcedure:
+			runnerServiceUnlinkItemHandler.ServeHTTP(w, r)
+		case RunnerServiceSendPullRequestFailuresProcedure:
+			runnerServiceSendPullRequestFailuresHandler.ServeHTTP(w, r)
+		case RunnerServiceImportPullRequestReviewProcedure:
+			runnerServiceImportPullRequestReviewHandler.ServeHTTP(w, r)
 		case RunnerServiceListReviewCommentsProcedure:
 			runnerServiceListReviewCommentsHandler.ServeHTTP(w, r)
 		case RunnerServiceAddReviewCommentProcedure:
@@ -5595,6 +5736,26 @@ func (UnimplementedRunnerServiceHandler) MergePullRequest(context.Context, *conn
 
 func (UnimplementedRunnerServiceHandler) ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListWorkspaceGitSummaries is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListLinks(context.Context, *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListLinks is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) LinkItem(context.Context, *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.LinkItem is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UnlinkItem(context.Context, *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UnlinkItem is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendPullRequestFailures(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendPullRequestFailures is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ImportPullRequestReview(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ImportPullRequestReview is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error) {

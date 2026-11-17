@@ -1,9 +1,14 @@
-// Package githubtest is an in-memory GitHub REST API for PR-loop tests: pull
-// requests, reviews, check runs, commit statuses and merges, over httptest.
-// It never contacts GitHub.
+// Package githubtest is an in-memory GitHub REST API for PR-loop and
+// tracking tests: pull requests, reviews and their comments, check runs,
+// commit statuses, Actions job logs and merges, over httptest. Reads honour
+// If-None-Match as GitHub does (304, counted in NotModified), and RateLimited
+// answers as a primary rate limit. It never contacts GitHub.
 package githubtest
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,10 +17,25 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type Check struct {
 	Name, Status, Conclusion, URL string
+	// ID is the check run's id: an Actions job's, for Jobs.
+	ID int64
+}
+
+// Comment is an inline review comment.
+type Comment struct {
+	ID, InReplyTo   int64
+	Author, Body    string
+	Path            string
+	Line, StartLine int
+	// Side is RIGHT or LEFT; Hunk the diff hunk GitHub shows above it.
+	Side, Hunk string
+	// Outdated drops the current line, as GitHub does once the lines change.
+	Outdated bool
 }
 type Status struct {
 	Context, State, URL string
@@ -28,8 +48,10 @@ type PR struct {
 	State                    string
 	MergeableState           string
 	MergeMethod, MergeCommit string
-	Reviews                  []string // "login:STATE"
+	Reviews                  []string // "login:STATE" or "login:STATE:body"
 	Requested                int
+	Comments                 []Comment
+	CreatedAt                time.Time
 }
 
 // Server is a fake GitHub for one token. Set MergeRefusal to make merges fail
@@ -49,10 +71,18 @@ type Server struct {
 	ReadOnly     bool
 	// Issues and their comments, for the start-from-an-issue reads (issues.go).
 	Issues IssueStore
+	// Jobs are Actions job logs by job id; LogsForbidden refuses them as a
+	// token without Actions read access is refused.
+	Jobs          map[int64]string
+	LogsForbidden bool
+	// NotModified counts conditional reads answered 304.
+	NotModified int
+	// RateLimited answers every API read as a spent primary rate limit.
+	RateLimited bool
 }
 
 func New(t *testing.T, token string) *Server {
-	s := &Server{Token: token, Repos: map[string]string{}, Heads: map[string]string{}, Pulls: map[string][]*PR{}, Checks: map[string][]Check{}, Statuses: map[string][]Status{}}
+	s := &Server{Token: token, Repos: map[string]string{}, Heads: map[string]string{}, Pulls: map[string][]*PR{}, Checks: map[string][]Check{}, Statuses: map[string][]Status{}, Jobs: map[int64]string{}}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(s.Close)
 	return s
@@ -91,6 +121,24 @@ func write(w http.ResponseWriter, code int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
+// read answers a GET with an ETag of its body, and 304 when the client
+// already has it.
+func (s *Server) read(w http.ResponseWriter, r *http.Request, value any) {
+	var body bytes.Buffer
+	_ = json.NewEncoder(&body).Encode(value)
+	sum := sha256.Sum256(body.Bytes())
+	tag := `W/"` + hex.EncodeToString(sum[:8]) + `"`
+	w.Header().Set("ETag", tag)
+	if r.Header.Get("If-None-Match") == tag {
+		s.NotModified++
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body.Bytes())
+}
+
 func (s *Server) wire(full string, pr *PR) map[string]any {
 	state := pr.State
 	if pr.Merged {
@@ -100,27 +148,61 @@ func (s *Server) wire(full string, pr *PR) map[string]any {
 	for i := 0; i < pr.Requested; i++ {
 		reviewers = append(reviewers, map[string]any{"login": "reviewer" + strconv.Itoa(i)})
 	}
-	return map[string]any{
+	created := pr.CreatedAt
+	if created.IsZero() {
+		created = time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	}
+	// GitHub moves updated_at when a review is submitted, so a pull request
+	// whose reviews changed is never "not modified".
+	updated := created.Add(time.Duration(len(pr.Reviews)+len(pr.Comments)) * time.Minute)
+	times := map[string]any{"created_at": created.Format(time.RFC3339), "updated_at": updated.Format(time.RFC3339)}
+	if pr.Merged {
+		times["merged_at"], times["closed_at"] = updated.Format(time.RFC3339), updated.Format(time.RFC3339)
+	} else if pr.State == "closed" {
+		times["closed_at"] = updated.Format(time.RFC3339)
+	}
+	wire := map[string]any{
 		"number": pr.Number, "title": pr.Title, "body": pr.Body, "state": state, "draft": pr.Draft, "merged": pr.Merged,
 		"html_url": "https://github.com/" + full + "/pull/" + strconv.Itoa(pr.Number), "mergeable": pr.MergeableState == "clean" || pr.MergeableState == "unstable",
 		"mergeable_state": pr.MergeableState, "merge_commit_sha": pr.MergeCommit, "user": map[string]any{"login": "fixture"},
 		"head": map[string]any{"ref": pr.Head, "sha": pr.HeadSHA}, "base": map[string]any{"ref": pr.Base}, "requested_reviewers": reviewers,
 	}
+	for k, v := range times {
+		wire[k] = v
+	}
+	return wire
 }
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Requests = append(s.Requests, r.Method+" "+r.URL.Path)
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	// A job log's storage: a signed link, read without the credential.
+	if len(parts) == 2 && parts[0] == "blobs" {
+		id, _ := strconv.ParseInt(parts[1], 10, 64)
+		if text, ok := s.Jobs[id]; ok {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(text))
+			return
+		}
+		write(w, 404, map[string]any{"message": "Not Found"})
+		return
+	}
 	if r.Header.Get("Authorization") != "Bearer "+s.Token {
 		s.Unauthorized++
 		write(w, 401, map[string]any{"message": "Bad credentials"})
 		return
 	}
+	if s.RateLimited {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(10*time.Minute).Unix(), 10))
+		write(w, 403, map[string]any{"message": "API rate limit exceeded"})
+		return
+	}
 	if s.serveIssues(w, r) {
 		return
 	}
-	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	if len(parts) < 3 || parts[0] != "repos" {
 		write(w, 404, map[string]any{"message": "Not Found"})
 		return
@@ -144,7 +226,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 				out = append(out, s.wire(full, pulls[i]))
 			}
 		}
-		write(w, 200, out)
+		s.read(w, r, out)
 	case len(rest) == 1 && rest[0] == "pulls" && r.Method == "POST":
 		if s.ReadOnly {
 			write(w, 403, map[string]any{"message": "Resource not accessible by integration"})
@@ -183,12 +265,33 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		switch {
 		case len(rest) == 2 && r.Method == "GET":
-			write(w, 200, s.wire(full, pr))
+			s.read(w, r, s.wire(full, pr))
 		case len(rest) == 3 && rest[2] == "reviews" && r.Method == "GET":
 			out := []map[string]any{}
-			for _, review := range pr.Reviews {
-				login, state, _ := strings.Cut(review, ":")
-				out = append(out, map[string]any{"user": map[string]any{"login": login}, "state": state})
+			for i, review := range pr.Reviews {
+				fields := strings.SplitN(review, ":", 3)
+				entry := map[string]any{"id": i + 1, "user": map[string]any{"login": fields[0]}, "state": fields[1]}
+				if len(fields) == 3 {
+					entry["body"] = fields[2]
+				}
+				out = append(out, entry)
+			}
+			write(w, 200, out)
+		case len(rest) == 3 && rest[2] == "comments" && r.Method == "GET":
+			out := []map[string]any{}
+			for _, c := range pr.Comments {
+				entry := map[string]any{"id": c.ID, "user": map[string]any{"login": c.Author}, "body": c.Body, "path": c.Path, "side": c.Side, "diff_hunk": c.Hunk,
+					"original_line": c.Line, "html_url": fmt.Sprintf("https://github.com/%s/pull/%d#discussion_r%d", full, pr.Number, c.ID), "commit_id": pr.HeadSHA}
+				if !c.Outdated {
+					entry["line"] = c.Line
+				}
+				if c.StartLine > 0 {
+					entry["start_line"] = c.StartLine
+				}
+				if c.InReplyTo > 0 {
+					entry["in_reply_to_id"] = c.InReplyTo
+				}
+				out = append(out, entry)
 			}
 			write(w, 200, out)
 		case len(rest) == 3 && rest[2] == "merge" && r.Method == "PUT":
@@ -213,15 +316,26 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case len(rest) == 3 && rest[0] == "commits" && rest[2] == "check-runs":
 		runs := []map[string]any{}
 		for _, c := range s.Checks[rest[1]] {
-			runs = append(runs, map[string]any{"name": c.Name, "status": c.Status, "conclusion": c.Conclusion, "html_url": c.URL})
+			runs = append(runs, map[string]any{"id": c.ID, "name": c.Name, "status": c.Status, "conclusion": c.Conclusion, "html_url": c.URL})
 		}
-		write(w, 200, map[string]any{"total_count": len(runs), "check_runs": runs})
+		s.read(w, r, map[string]any{"total_count": len(runs), "check_runs": runs})
 	case len(rest) == 3 && rest[0] == "commits" && rest[2] == "status":
 		statuses := []map[string]any{}
 		for _, c := range s.Statuses[rest[1]] {
 			statuses = append(statuses, map[string]any{"context": c.Context, "state": c.State, "target_url": c.URL})
 		}
-		write(w, 200, map[string]any{"state": "pending", "statuses": statuses})
+		s.read(w, r, map[string]any{"state": "pending", "statuses": statuses})
+	case len(rest) == 4 && rest[0] == "actions" && rest[1] == "jobs" && rest[3] == "logs":
+		if s.LogsForbidden {
+			write(w, 403, map[string]any{"message": "Resource not accessible by personal access token"})
+			return
+		}
+		id, _ := strconv.ParseInt(rest[2], 10, 64)
+		if _, ok := s.Jobs[id]; !ok {
+			write(w, 404, map[string]any{"message": "Not Found"})
+			return
+		}
+		http.Redirect(w, r, "/blobs/"+rest[2], http.StatusFound)
 	default:
 		write(w, 404, map[string]any{"message": fmt.Sprintf("Not Found: %s", r.URL.Path)})
 	}

@@ -17,18 +17,25 @@ var ErrWriteForbidden = errors.New("GitHub refused this change; the connection n
 // Check is one CI signal on a commit: a check run or a commit status.
 type Check struct {
 	Name, Status, Conclusion, URL, Summary string
+	// Source is "run" (a check run) or "status" (a commit status). A check
+	// run's ID is a GitHub Actions job's ID when Actions ran it.
+	Source     string
+	ID         int64
+	DetailsURL string
 }
 
 // PullRequestStatus is everything the PR loop shows about a branch's pull
 // request. Found is false when the branch has none; DefaultBranch is still set.
 type PullRequestStatus struct {
-	DefaultBranch  string
-	Found          bool
-	Number         int64
-	Title, URL     string
-	State          string // open, closed or merged
-	Draft          bool
-	Base, HeadSHA  string
+	DefaultBranch string
+	Found         bool
+	Number        int64
+	Title, URL    string
+	State         string // open, closed or merged
+	Draft         bool
+	Base, HeadSHA string
+	// Head is the pull request's head branch.
+	Head           string
 	MergeableState string
 	Mergeable      bool
 	ReviewDecision string // approved, changes_requested, review_required or empty
@@ -160,21 +167,7 @@ func (c *Client) describe(ctx context.Context, client *sdk.Client, owner, name s
 	if err != nil {
 		return out, apiError(err, response)
 	}
-	out.Found = true
-	out.Number = int64(pr.GetNumber())
-	out.Title = pr.GetTitle()
-	out.URL = pr.GetHTMLURL()
-	out.State = pr.GetState()
-	if pr.GetMerged() {
-		out.State = "merged"
-		out.MergeCommit = pr.GetMergeCommitSHA()
-	}
-	out.Draft = pr.GetDraft()
-	out.Base = pr.GetBase().GetRef()
-	out.HeadSHA = pr.GetHead().GetSHA()
-	out.MergeableState = pr.GetMergeableState()
-	out.Mergeable = pr.GetMergeable()
-	out.Author = pr.GetUser().GetLogin()
+	out = pullStatus(pr, out)
 	reviews, response, err := client.PullRequests.ListReviews(ctx, owner, name, number, &sdk.ListOptions{PerPage: 100})
 	if err != nil {
 		return out, apiError(err, response)
@@ -188,33 +181,12 @@ func (c *Client) describe(ctx context.Context, client *sdk.Client, owner, name s
 	if err != nil {
 		return out, apiError(err, response)
 	}
-	for _, run := range runs.CheckRuns {
-		url := run.GetHTMLURL()
-		if url == "" {
-			url = run.GetDetailsURL()
-		}
-		summary := ""
-		if run.Output != nil {
-			summary = run.Output.GetTitle()
-		}
-		out.Checks = append(out.Checks, Check{Name: run.GetName(), Status: run.GetStatus(), Conclusion: run.GetConclusion(), URL: url, Summary: summary})
-	}
+	out.Checks = checkRuns(runs.CheckRuns)
 	combined, response, err := client.Repositories.GetCombinedStatus(ctx, owner, name, out.HeadSHA, &sdk.ListOptions{PerPage: 100})
 	if err != nil {
 		return out, apiError(err, response)
 	}
-	for _, status := range combined.Statuses {
-		check := Check{Name: status.GetContext(), Status: "completed", URL: status.GetTargetURL(), Summary: status.GetDescription()}
-		switch status.GetState() {
-		case "success":
-			check.Conclusion = "success"
-		case "failure", "error":
-			check.Conclusion = "failure"
-		default:
-			check.Status, check.Conclusion = "in_progress", ""
-		}
-		out.Checks = append(out.Checks, check)
-	}
+	out.Checks = append(out.Checks, commitStatuses(combined.Statuses)...)
 	sort.SliceStable(out.Checks, func(i, j int) bool { return checkRank(out.Checks[i]) < checkRank(out.Checks[j]) })
 	out.ChecksState = checksState(out.Checks)
 	return out, nil

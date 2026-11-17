@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"github.com/AntoineToussaint/lazybox/v2/pkg/gen/genconnect"
 	"github.com/codefly-dev/gortk"
@@ -38,8 +39,9 @@ type console interface {
 	FinishPipe(context.Context, *connect.Request[pb.FinishPipeRequest]) (*connect.Response[pb.CommandStatus], error)
 }
 
-// compressor is built once: gortk compiles its filters at construction.
-var compressor = gortk.Default().WithRedaction()
+// compressor is the Runner's (commands.Compressor): every compact view an
+// agent receives comes from the same filter.
+var compressor = commands.Compressor
 
 // captureLimit bounds what each stream keeps in memory for compression. The
 // console and the full-output file are not bounded by it.
