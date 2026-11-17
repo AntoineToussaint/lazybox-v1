@@ -139,6 +139,28 @@ It must not independently claim a second canonical task state.
 models, cached read snapshots, pending command receipts, reconnect/replay handling
 and derived view models. This is shared across React DOM and React Native.
 
+**Performance: opening a long conversation.** A window shows the latest turns
+of a conversation from one `ReadSessionTail` read, follows it live from that
+read's last cursor with `WatchEvents`, and reads the earlier history behind
+them in pages of about a mebibyte of journal. The Runner keeps, per journal,
+where each of the person's messages starts a turn (indexed as the journal opens
+and grows), so finding the tail parses nothing. A transcript's fold depends on
+its whole history (sub-agents, slash commands, questions answered later,
+review cards), so the tail is a preview: once the earlier history is in, the
+conversation is folded once from its first record and what arrived since the
+tail folded again on top, exactly as a full replay would. A window keeps the
+conversations it read (16 per Runner) and continues them from their cursors,
+so switching back reads nothing it holds. Measured on 10,000 records (about
+9 MB of journal, large tool outputs; RUNTIME_EVIDENCE.md, 2026-11-17): the last
+turn shows 62 ms after the window first reads the conversation, against
+319 ms for the replay; the Runner serves the tail (0.7 MB) in 4 ms, where it
+streamed 14 MB in 155–235 ms. The rest is read in 9 pages in about 85 ms,
+behind the latest turns. Payloads are not trimmed: the window keeps up to
+16 KB of each tool output it shows, the providers send at most 32 KB, and
+the tail already bounds what is read first. No transcript is stored on disk
+by the window; a reload reads the tail again, which is cheaper than any cache
+it would have to check.
+
 **Host/UI owns:** navigation, safe areas/keyboard, local drafts/cache, window and
 display placement, notification registration, file picking and accessible
 rendering. Retain the existing host seam, but separate window operations from

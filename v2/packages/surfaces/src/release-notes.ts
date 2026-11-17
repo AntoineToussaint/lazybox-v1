@@ -9,6 +9,14 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.16',
+    date: '2026-11-17',
+    title: 'Long conversations open at once',
+    items: [
+      { title: 'The latest first', body: 'Opening or reloading a long conversation shows its latest turns at once, then reads the rest behind them; until it is in, the top of the conversation says Loading earlier messages…. A conversation of about 10,000 events shows its last turn in a fifth of the time it took before.' },
+    ],
+  },
+  {
     id: '2026-11-17.15',
     date: '2026-11-17',
     title: 'Find your artifacts from anywhere',

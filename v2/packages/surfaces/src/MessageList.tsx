@@ -76,7 +76,7 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
  * is added as the reader scrolls toward it. A render of the window that hosts
  * it (a keystroke in the composer) does not touch the rows.
  */
-export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier, nameFor, checkpoints, sessionId, onReveal, detail = 'verbose' }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; onShowEarlier(): void; /** A subscription's name by profile ID, for switch lines. */ nameFor?(id: string): string; checkpoints?: CheckpointScope; /** The conversation, for Quote in reply. */ sessionId?: string; /** Scroll a message into view, mounting earlier history when needed. */ onReveal?(id: string): void; /** How much tool activity to show. */ detail?: ActivityDetail }) {
+export const MessageList = memo(function MessageList({ messages, visible, agentName, onOpenFile, onShowEarlier, nameFor, checkpoints, sessionId, onReveal, detail = 'verbose', loadingEarlier = false }: { messages: TranscriptMessage[]; visible: number; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; onShowEarlier(): void; /** A subscription's name by profile ID, for switch lines. */ nameFor?(id: string): string; checkpoints?: CheckpointScope; /** The conversation, for Quote in reply. */ sessionId?: string; /** Scroll a message into view, mounting earlier history when needed. */ onReveal?(id: string): void; /** How much tool activity to show. */ detail?: ActivityDetail; /** Only the latest turns are in: the earlier history is being read (transcript `partial`). */ loadingEarlier?: boolean }) {
   const hidden = Math.max(0, messages.length - visible);
   const checkpoint = useCheckpointUI(messages, checkpoints);
   // One stable menu for every row, so a new message does not re-render the others.
@@ -88,6 +88,7 @@ export const MessageList = memo(function MessageList({ messages, visible, agentN
   const row = (m: TranscriptMessage) => <Fragment key={m.id}><MessageRow message={m} agentName={agentName} onOpenFile={onOpenFile} nameFor={nameFor} sessionId={sessionId} menu={menu} turn={turns?.get(m.id)}/>{checkpoint.marker(m.id)}</Fragment>;
   return <>
     {hidden > 0 && <button type="button" className="show-earlier" onClick={onShowEarlier}>Show earlier messages <small>{hidden.toLocaleString()} more</small></button>}
+    {!hidden && loadingEarlier && messages.length > 0 && <div className="earlier-loading" role="status">Loading earlier messages…</div>}
     {systemRuns(messages, hidden).map(run => Array.isArray(run)
       ? <div key={`events:${run[0].id}`} className="system-event-group" role="group" aria-label={`${run.length} events from Lazybox`}>{run.map(row)}</div>
       : row(run))}

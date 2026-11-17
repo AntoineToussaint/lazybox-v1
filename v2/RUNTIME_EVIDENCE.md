@@ -923,3 +923,66 @@ focus return, lazy rendering, reading position, narrow layout), with
 screenshots inspected. Fixture and headless browsers only: no real provider,
 Runner restart or native desktop window was exercised, and trackpad pinch
 and touch pinch were not driven by a test.
+
+### Opening a long conversation from its tail — 2026-11-17
+
+Reloading a window, or opening a conversation, replayed its whole journal
+from the Runner (one `WatchEvents` message per record) and folded it before
+the latest turn was shown. Measured on a 10,000-record journal shaped like
+`scripts/fixtures/long-conversation.mjs` (three tool calls a turn with 8, 8 and
+32 KB outputs, answers streamed as 12-character deltas; 9.0 MB of journal),
+on a shared machine at load 5–7:
+
+| | Before | After |
+|---|---|---|
+| Runner: what is read before the latest turn can show | the whole replay: 14.1 MB over Connect, 231–255 ms | `ReadSessionTail`, 8 turns: 0.7 MB in 3.4–4.4 ms |
+| Runner: the whole history | (the same replay) | 9 pages, 13.2 MB, 83–85 ms, behind the latest turns; a `WatchEvents` replay now takes 153–195 ms |
+| Window: decode and fold before the latest turn shows (node) | 33–46 ms decode + 14–26 ms fold of 10,014 records | 1.5–3.8 ms for the tail's 263 records |
+| Window: last turn on screen after the conversation is first read (`test:conversation-load`, Chromium, development bundle, replay paced like the Runner's stream) | 310–325 ms | 61–64 ms |
+| Window: last turn on screen after navigation (`test:transcript-performance`, `PERF_TURNS=135`, Chromium) | 654 ms, a 3-turn conversation 421 ms | 422 ms, a 3-turn conversation 388 ms |
+
+Runner measurements: `LAZYBOX_MEASURE_HISTORY=1 LAZYBOX_MEASURE_TAIL=1 go test
+./internal/transport -run TestMeasureHistoryLoad -v` (before: the same test
+against `e812f312`). The fold itself was never the cost: the transfer and the
+Runner's per-record streaming were. The Runner also resolved a conversation's
+lineage (a SQLite query under the bench lock) for every replayed record; a
+stream now resolves it once (`runner.Timeline`), which is where the faster
+replay comes from.
+
+What changed: the Runner indexes, per journal, the records where the person's
+messages start turns (`journal.Marking`, built by the scan at open and on
+append), and `ReadSessionTail` serves a page of the timeline that ends before
+a cursor, turn-aligned and bounded in bytes. The window reads the latest 6
+turns (at most 384 KB of journal), shows them, follows the conversation live
+from that read's last cursor, and reads the earlier history in pages of about
+a mebibyte. Until that is in, the top of the conversation says Loading earlier
+messages…; then the conversation is folded from its first record, and the
+records since the tail's start folded again on top, so what is shown is
+exactly one fold of every record. A Runner without `ReadSessionTail` is
+replayed as before. Tool payloads are not trimmed: the window already keeps at
+most 16 KB of each output, providers send at most 32 KB, and the tail bounds
+what is read first. No transcript cache on disk: a reload reads the tail
+again, cheaper than checking a stored copy against the journal.
+
+Checks: `go test ./internal/runner/journal` (marks on append, the same marks
+rebuilt at open, a torn or corrupt line still refused, `Range`, `Span`, `Fit`),
+`go test ./internal/runner -run 'Turn|Tail'` (the engine's message record is a
+turn start; the tail starts at a turn; pages read backward reach the first
+record and together equal the replay; a size-bounded page keeps the most whole
+turns, cuts a too-large last turn to its latest records, never returns
+nothing; a restart rebuilds the same marks; a continued conversation's pages
+cross attempts), `go test ./internal/transport -run Tail` (tail then
+`WatchEvents` from its last cursor while the agent records: no gap, no
+duplicate; paging; OutOfRange, NotFound, a deleted conversation),
+`test:client` (`scripts/conversation-load.test.ts`: the tail, then the whole
+conversation equal to one fold of every record with sub-agents, a slash
+command, a late answer and a review card on both sides of the tail; live
+records during the load once each; a Runner restart during the load; an older
+Runner; a conversation closed mid-load and reopened; a rewritten journal and
+Retry; readers per Runner, forgotten on delete, a preview never continued),
+and `test:conversation-load` (above; scrolling up brings every turn once, in
+order; switching away and back reads nothing; a Runner restart while the
+earlier history loads loses and repeats nothing). It fails against the full
+replay (1.01x the replay's time, against a 0.5x budget). Fixture and headless
+browsers only: no real Runner served the window, and the phone was exercised
+through its fixture suites only.

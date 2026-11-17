@@ -12,6 +12,7 @@ import { createMissionFake } from './missions-fake.mjs';
 import { createPowerFake } from './power-fake.mjs';
 import { createConfigFake } from './config-fake.mjs';
 import { createItemsFake } from './items-fake.mjs';
+import { tailPage } from './session-tail.mjs';
 import { createExtensionsFake, extensionAllows } from './extensions-fake.mjs';
 import { createBrowserFake } from './browser-fake.mjs';
 import { createAcpFake } from './acp-ui-fake.mjs';
@@ -61,6 +62,11 @@ export async function startRunnerFixture() {
   const artifactStore=artifactFixture({workspaceFiles,mutations});
   // Messages a conversation accepted while at a subscription limit, by operation.
   const waitingMessages=new WeakMap();
+  // A saved conversation without a channel: one line per execution of its lineage, and a sub-agent's line.
+  const lineageEvents=sessionId=>{const lineage=[];let id=sessionId;while(id&&!lineage.includes(id)){lineage.unshift(id);id=sessions.find(s=>s.id===id)?.previousExecutionId;}return lineage.flatMap((id,index)=>[{cursor:String(index*2+1),event:{type:'message_delta',text:`Retained conversation for ${id}`,sessionReference:id}},{cursor:String(index*2+2),event:{type:'message_delta',text:'CHILD_PRIVATE_TRANSCRIPT',agentId:'child-review',parentAgentId:'root'}}]);};
+  // ReadSessionTail's answer, as the Runner pages a timeline. `tailReadDelayMs` slows each read.
+  const readTail=(events,body)=>{const page=tailPage(events,body);return page&&{events:page.events.map(event=>({...event,retained:String(page.retained)})),start:String(page.start),retained:String(page.retained)};};
+  let tailReadDelayMs=0;
   // A saved conversation's journal is finite: after `complete()` the stream ends
   // like the Runner's does at EOF, instead of staying open for live events.
   // `cut()` ends the open streams the way a restarting Runner does (Unavailable):
@@ -372,7 +378,7 @@ actions:
   // Remote control (REMOTE.md): a fake Tailscale route, pairing offers checked
   // with the phone's real WebCrypto signatures, paired devices, and short
   // device credentials. deviceRPCs mirrors the Runner's device allowlist.
-  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', PinConversation: 'respond', OpenSession: 'start', ResumeSession: 'start', GetPushSettings: 'read', SetPushSettings: 'read', SendTestPush: 'read', ListLinks: 'read', SendPullRequestFailures: 'respond', ImportPullRequestReview: 'respond' };
+  const deviceRPCs = { Info: 'read', ListHistory: 'read', GetSession: 'read', ListCollections: 'read', GetCollection: 'read', ListWorkspaceChanges: 'read', ReadWorkspaceDiff: 'read', ListCommands: 'read', ReadCommand: 'read', ReadAttachment: 'read', ReadSessionTail: 'read', WatchEvents: 'read', WatchOutput: 'read', Apply: 'respond', PinConversation: 'respond', OpenSession: 'start', ResumeSession: 'start', GetPushSettings: 'read', SetPushSettings: 'read', SendTestPush: 'read', ListLinks: 'read', SendPullRequestFailures: 'respond', ImportPullRequestReview: 'respond' };
   // Web Push (REMOTE.md): the Runner's VAPID key (a real P-256 key, so a browser accepts it
   // as applicationServerKey), each device's subscription and preferences, and what was
   // pushed — payloads exactly as the Runner's notifier builds them.
@@ -662,10 +668,22 @@ actions:
           const backlog=channel.events.filter(event=>BigInt(event.cursor)>BigInt(body.after||0)).map(event=>({...event,retained:head}));
           // `pace` paces a replay like the Runner's one-message-per-record stream: a
           // flush every `pace` records instead of one write of the whole journal.
-          if(channel.pace){void (async()=>{for(let i=0;i<backlog.length;i+=channel.pace){if(res.destroyed)return;res.write(Buffer.concat(backlog.slice(i,i+channel.pace).map(event=>frame(event))));await new Promise(resolve=>setTimeout(resolve,channel.paceMs??1));}if(channel.done)res.end(frame({},2));})();return;}
+          // Records pushed meanwhile follow the replay; then the stream is live.
+          if(channel.pace){void (async()=>{let sent=Number(body.after||0);while(!res.destroyed&&sent<channel.events.length){const chunk=channel.events.slice(sent,sent+channel.pace);res.write(Buffer.concat(chunk.map(event=>frame({...event,retained:String(Math.max(Number(head),Number(event.cursor)))}))));sent+=chunk.length;await new Promise(resolve=>setTimeout(resolve,channel.paceMs??1));}
+            if(res.destroyed)return;if(channel.done){res.end(frame({},2));return;}channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));})();return;}
           channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));for(const event of backlog)res.write(frame(event));if(channel.done){channel.clients.delete(res);res.end(frame({},2));}return;}
-        const lineage=[];let id=body.sessionId;while(id&&!lineage.includes(id)){lineage.unshift(id);id=sessions.find(s=>s.id===id)?.previousExecutionId;}const events=lineage.flatMap((id,index)=>[{cursor:String(index*2+1),event:{type:'message_delta',text:`Retained conversation for ${id}`,sessionReference:id}},{cursor:String(index*2+2),event:{type:'message_delta',text:'CHILD_PRIVATE_TRANSCRIPT',agentId:'child-review',parentAgentId:'root'}}]);
+        const events=lineageEvents(body.sessionId);
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
+      }
+      // The latest turns, or an earlier page, of what WatchEvents replays (the Runner's internal/runner/timeline.go).
+      case 'ReadSessionTail': {
+        // `noTail`: a Runner from before ReadSessionTail, for a conversation the window must replay.
+        if(eventStreams.get(body.sessionId)?.noTail)return error('unimplemented','Unsupported fixture RPC ReadSessionTail');
+        const events=eventStreams.get(body.sessionId)?.events||lineageEvents(body.sessionId);
+        const page=readTail(events,body);
+        if(!page)return error('out_of_range','cursor outside retained range');
+        if(tailReadDelayMs)await new Promise(resolve=>setTimeout(resolve,tailReadDelayMs));
+        return json(page);
       }
       case 'WatchOutput': {
         const command = commands.find(value => value.id === body.commandId) || runtimeCommands.find(value => value.id === body.commandId);
@@ -1063,7 +1081,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, acp, tracked, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

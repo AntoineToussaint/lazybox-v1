@@ -106,6 +106,7 @@
     { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" },
     { "id": "dismiss-outside", "scope": "ui", "script": "test:dismiss-outside" },
     { "id": "reload-latest-turn", "scope": "ui", "script": "test:reload-latest-turn" },
+    { "id": "conversation-load", "scope": "ui", "script": "test:conversation-load" },
     { "id": "updates", "scope": "ui", "script": "test:updates" },
     { "id": "feedback", "scope": "ui", "script": "test:feedback" }
   ],

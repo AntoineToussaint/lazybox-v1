@@ -7,6 +7,8 @@
 .conversation-loading progress::-moz-progress-bar{background:var(--accent)}
 .show-earlier{display:flex;align-items:center;gap:8px;margin:0 auto 14px;padding:6px 14px!important;border-radius:999px;background:var(--surface);border-color:var(--line);color:var(--text-secondary);font-size:calc(12px * var(--text-scale))}
 .show-earlier small{color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
+/* The latest turns are shown while the earlier history is read. */
+.earlier-loading{display:flex;justify-content:center;margin:0 auto 14px;padding:6px 0;color:var(--text-muted);font-size:calc(12px * var(--text-scale))}
 /* A command run in the conversation: one quiet line, not a message. */
 .command-line{display:flex;align-items:center;gap:7px;margin:4px 0 12px;padding:3px 0;color:var(--text-muted);font-size:calc(11.5px * var(--text-scale));line-height:1.5}
 .command-line svg{flex:none;color:var(--text-faint)}

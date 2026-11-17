@@ -14,6 +14,10 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.16] - 2026-11-17 · Long conversations open at once
+
+- **The latest first** Opening or reloading a long conversation shows its latest turns at once, then reads the rest behind them; until it is in, the top of the conversation says Loading earlier messages…. A conversation of about 10,000 events shows its last turn in a fifth of the time it took before.
+
 ## [2026-11-17.15] - 2026-11-17 · Find your artifacts from anywhere
 
 - **Artifacts show up in the conversation** When the agent publishes a plan or report, or a new version of one, a card shows under its steps with the title, the kind and the version: Open reads it in the Artifacts panel, and an update's Compare with v2 opens what changed. A message you tracked gets the same card.
