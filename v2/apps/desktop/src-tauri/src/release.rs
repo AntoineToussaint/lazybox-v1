@@ -237,6 +237,19 @@ pub async fn link_cli(app: tauri::AppHandle) -> Result<Value, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Removes an older Lazybox installed by Homebrew that comes first on the
+/// person's PATH: `lazybox link --remove-older --yes`, which runs
+/// `brew uninstall lazybox` and reports its output. The setup window calls it
+/// only after the person confirmed the exact command it showed; the CLI finds
+/// what to remove itself and refuses anything but Homebrew's formula.
+#[tauri::command]
+pub async fn remove_older_lazybox(app: tauri::AppHandle) -> Result<Value, String> {
+    let release = release_of(&app)?;
+    tauri::async_runtime::spawn_blocking(move || release.json(&["link", "--remove-older", "--yes"]))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 /// Shows the Runner's log in Console.
 #[tauri::command]
 pub fn show_runner_log(app: tauri::AppHandle) -> Result<(), String> {

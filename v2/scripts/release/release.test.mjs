@@ -47,13 +47,19 @@ test('the cask is the template with the version and the disk image checksum', as
   assert.throws(() => renderCask(template, '0.2.0', 'not-a-sum'));
   // The bundled Node needs macOS 13.5; Ventura is as close as a cask can say.
   assert.match(cask, /depends_on macos: ">= :ventura"/);
-  // V1's formula owns `lazybox`: the cask's own name for the CLI never collides with it.
-  assert.match(cask, /binary "#\{appdir\}\/Lazybox\.app\/Contents\/Resources\/runtime\/bin\/lazybox", target: "lazybox-v2"/);
-  // Caveats: how to reach V2's CLI when V1 shadows it, and how to open an unsigned build.
+  // One command, `lazybox`, which the app links on first launch: the cask
+  // links no second name, and no `lazybox` that the older formula's
+  // bin/lazybox would make fail to install.
+  assert.ok(!/^\s*binary /m.test(cask), 'the cask links a binary');
+  assert.ok(!cask.includes('target: "lazybox-v2"'));
+  // Caveats: the older formula and its fix, and how to open an unsigned
+  // build; no product generations.
   const caveats = /caveats <<~EOS\n([^]*?)\n {2}EOS/.exec(cask)?.[1] || '';
-  for (const words of ['`lazybox-v2`', 'V1', 'Privacy & Security', 'Open Anyway', 'xattr -dr com.apple.quarantine /Applications/Lazybox.app']) assert.ok(caveats.includes(words), `the caveats lack ${words}`);
-  // The tap has no lazybox-desktop cask, and V1's site is not V2's home.
-  assert.ok(!/conflicts_with/.test(cask));
+  for (const words of ['`lazybox` in your terminal runs it', 'brew uninstall lazybox', 'lazybox doctor', 'Privacy & Security', 'Open Anyway', 'xattr -dr com.apple.quarantine /Applications/Lazybox.app']) assert.ok(caveats.includes(words), `the caveats lack ${words}`);
+  for (const words of ['lazybox-v2', 'V1', 'V2']) assert.ok(!caveats.includes(words), `the caveats say ${words}`);
+  // Homebrew's conflicts_with takes only cask:, and the tap has no
+  // lazybox-desktop cask; V1's site is not this app's home.
+  assert.ok(!/^\s*conflicts_with/m.test(cask));
   assert.match(cask, /homepage "https:\/\/github\.com\/AntoineToussaint\/lazybox"/);
 });
 

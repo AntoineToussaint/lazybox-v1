@@ -189,6 +189,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             release::setup_finish,
             release::run_doctor,
             release::link_cli,
+            release::remove_older_lazybox,
             release::show_runner_log,
             updates::check_for_update,
             updates::install_update,

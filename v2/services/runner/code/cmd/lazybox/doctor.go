@@ -205,7 +205,7 @@ func (c *cli) diagnose(ctx context.Context) []check {
 	if k, ok := c.servicePathCheck(ctx, in, report.Path); ok {
 		add(k)
 	}
-	add(c.pathCheck(ctx, in))
+	add(c.pathCheck(in))
 	return checks
 }
 
@@ -401,20 +401,15 @@ func (c *cli) servicePathCheck(ctx context.Context, in installation.Installer, s
 }
 
 // pathCheck says which lazybox a terminal runs, on the person's login-shell
-// PATH: V1's Homebrew formula in /opt/homebrew/bin usually comes before the
-// directory Lazybox links into.
-func (c *cli) pathCheck(ctx context.Context, in installation.Installer) check {
-	path, _ := c.personPath(ctx, in)
-	cli := in.Layout.CLI()
-	found, ours := runsOn("lazybox", path, cli)
+// PATH: an older Lazybox from Homebrew in /opt/homebrew/bin usually comes
+// before the directory Lazybox links into.
+func (c *cli) pathCheck(in installation.Installer) check {
+	found, _, other := c.whichRuns(in)
 	switch {
 	case found == "":
-		if alias, ours := runsOn(aliasName, path, cli); ours {
-			return check{ID: "cli", Title: "lazybox on PATH", Status: checkOK, Detail: "as `" + aliasName + "` (" + alias + ")"}
-		}
-		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: "not on your PATH", Fix: "`" + cli + " link`, or Settings → About in the app"}
-	case !ours:
-		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: "`lazybox` runs " + whichLazybox(found) + " at " + found + ", which comes first on your PATH", Fix: shadowAdvice(found, path, cli)}
+		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: "not on your PATH", Fix: "`" + in.Layout.CLI() + " link`, or Settings → About in the app"}
+	case other != nil:
+		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: other.Problem, Fix: other.Fix}
 	}
 	return check{ID: "cli", Title: "lazybox on PATH", Status: checkOK, Detail: found}
 }

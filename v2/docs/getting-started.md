@@ -76,9 +76,10 @@ small *Welcome to Lazybox* window explains the Runner, the background service
 your agents run in (it starts when you log in, so agents keep working when the
 window is closed), and offers to add the `lazybox` command to your terminal.
 Choose **Set up Lazybox**; when it says the Runner is running, choose **Open
-Lazybox**. If another `lazybox` comes first on your PATH (V1's Homebrew
-formula), the window says so: use `lazybox-v2`, which always runs this
-release. More in [Install → First run](install.md#first-run). Dev and Working
+Lazybox**. If another `lazybox` comes first on your PATH, the window says
+what it is and how to fix it; for an older Lazybox installed by Homebrew, it
+offers to remove it (`brew uninstall lazybox`, shown before it runs). More in
+[Install → First run](install.md#first-run). Dev and Working
 skip this window: their launcher runs the Runner.
 
 ![The first-run welcome: connect a subscription, add a repository, five keys](images/welcome.webp)
@@ -193,9 +194,10 @@ lazybox ls                               # workspaces, conversations, live state
 lazybox inbox                            # what needs you
 ```
 
-It finds the running Working or Dev Runner by itself. If you also have V1
-installed, mind which `lazybox` comes first on your `PATH`: V1's is the
-terminal inbox. Agents always get the V2 one. See [the CLI reference](reference/cli.md).
+It finds the running Working or Dev Runner by itself. If you also have an
+older Lazybox installed, mind which `lazybox` comes first on your `PATH`
+(`brew uninstall lazybox` removes one Homebrew installed). Agents always get
+this one. See [the CLI reference](reference/cli.md).
 
 ## Next steps
 

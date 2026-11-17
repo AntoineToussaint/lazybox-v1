@@ -1,4 +1,4 @@
-# Homebrew cask for Lazybox (V2), the desktop app with its Runner service.
+# Homebrew cask for Lazybox, the desktop app with its Runner service.
 #
 # Rendered by scripts/release/build.mjs (__VERSION__ and __SHA256__ are
 # substituted; #{version} stays Ruby interpolation) and pushed to the
@@ -34,10 +34,16 @@ cask "lazybox-v2" do
 
   app "Lazybox.app"
 
-  # V1's `lazybox` formula owns `lazybox` in Homebrew's bin, so the cask links
-  # the CLI as `lazybox-v2`, which always runs this app's. Lazybox offers to
-  # link `lazybox` too on first launch (`lazybox link`).
-  binary "#{appdir}/Lazybox.app/Contents/Resources/runtime/bin/lazybox", target: "lazybox-v2"
+  # No `binary` stanza: there is one command, `lazybox`, and the app links it
+  # on first launch (`lazybox link`, into /usr/local/bin or ~/.local/bin, with
+  # completions; `lazybox uninstall` takes it back). A `binary` named
+  # `lazybox` would fail the install wherever the older `lazybox` formula
+  # already owns Homebrew's bin/lazybox.
+  #
+  # No `conflicts_with` either: Homebrew accepts only `cask:` there, so
+  # `conflicts_with formula: "lazybox"` would make this cask fail to load.
+  # The older formula is named in the caveats, and setup and `lazybox doctor`
+  # detect it and offer `brew uninstall lazybox`.
 
   # Removing the cask stops the Runner service; agents it ran stop by
   # themselves within a day. `zap` also deletes conversations and settings.
@@ -58,12 +64,14 @@ cask "lazybox-v2" do
 
   caveats <<~EOS
     Open Lazybox once: it sets up its background service (the Runner) and
-    offers to put the `lazybox` command on your PATH. `lazybox-v2` always
-    runs this app's CLI; `lazybox-v2 doctor` checks the installation.
+    puts the `lazybox` command on your PATH. `lazybox doctor` checks the
+    installation.
 
-    With V1's `lazybox` formula installed, `lazybox` in your terminal runs
-    V1, which comes first on your PATH. Use `lazybox-v2`, or remove V1 with
-    `brew uninstall lazybox`.
+    If an older Lazybox is installed from this tap's `lazybox` formula, it
+    comes first on your PATH, so `lazybox` in your terminal runs it. Remove
+    it with:
+      brew uninstall lazybox
+    Setup offers to do this for you, after showing you the command.
 
     A release not yet signed by Apple (its title says "unsigned") does not
     open the first time: open it once and choose Done, then System Settings

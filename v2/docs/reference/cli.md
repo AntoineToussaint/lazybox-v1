@@ -99,7 +99,8 @@ For the installed app ([Install](../install.md)):
 | `lazybox --version` | The release. The app, the CLI and the Runner always share it. |
 | `lazybox doctor` | Checks everything the app needs and prints the fix beside each problem. |
 | `lazybox service [status\|install\|start\|stop\|restart\|logs [-f]\|plan\|uninstall]` | The Runner's launchd service. `install` also repairs it and refreshes the PATH agents get; a restart or update keeps agents running. |
-| `lazybox link [--dir DIR]` | Puts this `lazybox` on your PATH with completions, no password. (`lazybox link URL` tracks a pull request instead, above.) |
+| `lazybox link [--dir DIR]` | Puts this `lazybox` on your PATH with completions, no password, and says when another `lazybox` comes first on your PATH, with the fix. (`lazybox link URL` tracks a pull request instead, above.) |
+| `lazybox link --remove-older [--yes] [--dry-run]` | Removes an older Lazybox installed by Homebrew that comes first on your PATH: shows `brew uninstall lazybox`, runs it once you confirm, and says which `lazybox` your terminal runs afterwards. Anything else (a version manager's shim, another program) gets its fix, never a removal. See [Another `lazybox` comes first](../install.md#another-lazybox-comes-first). |
 | `lazybox uninstall [--dry-run] [--remove-data]` | Removes the service, link and completions; `--remove-data` also your conversations and workspaces, after asking. |
 | `lazybox schema [actions\|process\|workspace\|keys\|settings\|layout\|theme] [--write DIR]` | The JSON Schemas of the files you write, for your editor; they ship with the CLI, nothing is fetched. |
 

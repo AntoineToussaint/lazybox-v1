@@ -29,7 +29,7 @@ leave out.
 
 - **A Mac app with everything inside** Download the disk image, open it and drag Lazybox to Applications. It brings its Runner, the Claude worker, Node and Claude Code: you only sign in.
 - **Agents keep working when the window is closed** The first launch sets up the Runner, a background service that starts when you log in. Quit Lazybox and your agents keep going.
-- **The lazybox command** Setup links lazybox and lazybox-v2 into your PATH with completions, no password needed. lazybox doctor checks the service, versions, agents' sign-in and your PATH, and names the fix.
+- **The lazybox command** Setup links lazybox into your PATH with completions, no password needed. If an older Lazybox installed by Homebrew comes first on your PATH, setup says so and offers to remove it, showing you brew uninstall lazybox first. lazybox doctor checks the service, versions, agents' sign-in and your PATH, and names the fix.
 - **Updates you choose** The header says when a version is out and what changed. Install and restart moves the app and its Runner together without stopping agents; skip a version or be reminded later.
 - **A Codex account in your browser** Settings → Subscriptions → Add subscription → Codex signs in on ChatGPT's page and continues by itself; a one-time code is there for another device.
 - **Help, in the app** Help → Documentation opens the guides offline, with search; a first-run welcome shows the five keys that matter. Help → Send feedback writes a report you read first, and uploads nothing.

@@ -175,8 +175,8 @@ that place's own limited credential; your own commands there fail with exit 4.
 ## An agent says `unknown command` for a lazybox command
 
 `unknown command artifact` (or `run`, `workspace`, `review`…) means the agent's
-shell ran another `lazybox`, usually V1's in `~/.cargo/bin` or Homebrew, which
-your shell startup files (`~/.zshenv`, `~/.zprofile`, mise, Homebrew's
+shell ran another `lazybox`, usually an older Lazybox in `~/.cargo/bin` or
+Homebrew's, which your shell startup files (`~/.zshenv`, `~/.zprofile`, mise, Homebrew's
 `shellenv`, macOS's `path_helper`) put first on `PATH`. `lazybox --version`
 tells them apart: this one prints `lazybox <version> (Lazybox V2)`.
 

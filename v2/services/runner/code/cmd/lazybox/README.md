@@ -110,7 +110,8 @@ Working build says so and exits 6.
 | `service plan` | The plist `install` would write, written nowhere |
 | `service uninstall` | Unload and remove the job and the CLI locator; data stays |
 | `doctor` | Release, service, endpoint (and its mode), versions, Node, Claude worker, Claude Code, Codex, git, gh, GitHub connection, disk, `lazybox` on PATH; each with its fix. Exit 1 when a check fails |
-| `link [--dir DIR] [--shell S]` | Link this CLI into `/usr/local/bin` (when writable without sudo) or `~/.local/bin`, with completions; never replaces another program without `--force` |
+| `link [--dir DIR] [--shell S]` | Link this CLI into `/usr/local/bin` (when writable without sudo) or `~/.local/bin`, with completions; never replaces another program without `--force`. Says when another `lazybox` comes first on the login shell's PATH (an older Lazybox from Homebrew, another install, a version manager's shim, another program), with the fix; removes a `lazybox-v2` an earlier build linked |
+| `link --remove-older [--yes] [--dry-run]` | Remove an older Lazybox installed by Homebrew that comes first on PATH: `<prefix>/bin/brew uninstall lazybox`, after asking (or `--yes`); refuses anything else |
 | `uninstall [--dry-run] [--remove-data [--yes]]` | Remove the service, links and completions it created; with `--remove-data`, also state, workspaces, logs and the app's window state, after typing `delete` |
 
 `lazybox schema [actions|process|workspace|keys|settings|layout|theme] [--write DIR]` prints (or

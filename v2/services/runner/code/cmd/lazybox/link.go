@@ -111,17 +111,18 @@ func replaceWithLink(link, target string) error {
 func exists(path string) bool { _, err := os.Lstat(path); return err == nil }
 
 type linkResult struct {
-	Link   string `json:"link"`
-	Target string `json:"target"`
-	// Alias is the lazybox-v2 link beside Link, which V1 cannot shadow.
-	Alias      string `json:"alias,omitempty"`
+	Link       string `json:"link"`
+	Target     string `json:"target"`
 	Completion string `json:"completion,omitempty"`
-	// OnPath and Shadowed are judged against the person's login-shell PATH
+	// OnPath and Shadow are judged against the person's login-shell PATH
 	// (personPath), not this process's.
-	OnPath   bool   `json:"onPath"`
-	Shadowed string `json:"shadowedBy,omitempty"`
-	// ShadowedWhat says what the other lazybox is ("V1's lazybox (the Homebrew formula)").
-	ShadowedWhat string `json:"shadowedWhat,omitempty"`
+	OnPath bool `json:"onPath"`
+	// Shadow is another `lazybox` that comes first on that PATH, so typing
+	// `lazybox` runs it: what it is and the fix.
+	Shadow *shadow `json:"shadow,omitempty"`
+	// Removed lists links to this CLI by the second name an earlier build
+	// made (lazybox-v2), which linking takes away: there is one command.
+	Removed []string `json:"removed,omitempty"`
 	// PathProblem: the login shell's PATH could not be read, so this process's was used.
 	PathProblem string   `json:"pathProblem,omitempty"`
 	Hints       []string `json:"hints,omitempty"`
@@ -142,12 +143,17 @@ func (c *cli) link(args []string) error {
 	noCompletions := f.Bool("no-completions", false, "do not install shell completions")
 	force := f.Bool("force", false, "replace a lazybox in that directory that is not a Lazybox release's")
 	dryRun := f.Bool("dry-run", false, "say what would change, change nothing")
+	removeOlder := f.Bool("remove-older", false, "remove an older Lazybox installed by Homebrew that comes first on your PATH: runs `brew uninstall lazybox`, after asking")
+	yes := f.Bool("yes", false, "with --remove-older: do not ask for confirmation")
 	if _, err := c.parse(f, args); err != nil {
 		return err
 	}
 	in, err := c.setup().installer()
 	if err != nil {
 		return err
+	}
+	if *removeOlder {
+		return c.removeOlder(in, *yes, *dryRun)
 	}
 	if reason := in.Layout.Unstable(); reason != "" {
 		return fail(exitUnavailable, "%s", reason)
@@ -167,14 +173,11 @@ func (c *cli) link(args []string) error {
 			if info.Mode()&os.ModeSymlink != 0 {
 				kind = "link"
 			}
-			return fail(exitFailure, "%s is already a %s that is not Lazybox's (perhaps the V1 lazybox TUI); pass --force to replace it, or --dir to link elsewhere", res.Link, kind)
+			if resolved, err := filepath.EvalSymlinks(res.Link); err == nil && homebrewPrefix(resolved) != "" {
+				return fail(exitFailure, "%s is an older Lazybox, installed by Homebrew: remove it with `brew uninstall lazybox` (or `lazybox link --remove-older`), then link again; or pass --dir to link elsewhere", res.Link)
+			}
+			return fail(exitFailure, "%s is already a %s that is not this Lazybox's (perhaps an older Lazybox); pass --force to replace it, or --dir to link elsewhere", res.Link, kind)
 		}
-	}
-	// lazybox-v2 beside it, unless something else has that name there.
-	if alias := filepath.Join(target, aliasName); *force || !exists(alias) || ourCLI(alias, in.Layout.CLI()) {
-		res.Alias = alias
-	} else {
-		res.Hints = append(res.Hints, fmt.Sprintf("%s is not Lazybox's, so it was left alone (--force replaces it)", alias))
 	}
 	if *shell == "" {
 		*shell = filepath.Base(c.getenv("SHELL"))
@@ -212,33 +215,33 @@ func (c *cli) link(args []string) error {
 		res.Hints = append(res.Hints, fmt.Sprintf("%s is not on your PATH: add `%s` to %s and open a new terminal", target, line, rc))
 	}
 	if found := shadowedBefore(path, target, in.Layout.CLI()); found != "" {
-		res.Shadowed, res.ShadowedWhat = found, whichLazybox(found)
-		use := "Run `" + aliasName + "` instead, which always runs this release"
-		if res.Alias == "" || !res.OnPath {
-			use = "Run this release as " + in.Layout.CLI()
+		s := identifyShadow(c.ctx, found, in.Layout.CLI(), target, res.OnPath)
+		res.Shadow = &s
+		res.Hints = append(res.Hints, s.Problem+" Fix: "+s.Fix)
+	}
+	record := readRecord(in.Paths)
+	for _, link := range record.Links {
+		if filepath.Base(link) == legacyAliasName && exists(link) && ourCLI(link, in.Layout.CLI()) {
+			res.Removed = append(res.Removed, link)
 		}
-		way := "or link this release into a directory earlier on your PATH (`lazybox link --dir <dir>`)"
-		if strings.Contains(res.ShadowedWhat, "Homebrew formula") {
-			way = "or remove V1 with `brew uninstall lazybox`"
-		}
-		res.Hints = append(res.Hints, fmt.Sprintf("`lazybox` in your terminal runs %s at %s, which comes first on your PATH. %s, %s.", res.ShadowedWhat, found, use, way))
 	}
 	if !*dryRun {
 		if err = os.MkdirAll(target, 0o755); err != nil {
 			return err
 		}
-		record := readRecord(in.Paths)
-		for _, link := range []string{res.Link, res.Alias} {
-			if link == "" {
-				continue
-			}
-			if err = replaceWithLink(link, in.Layout.CLI()); err != nil {
+		if err = replaceWithLink(res.Link, in.Layout.CLI()); err != nil {
+			return err
+		}
+		if !slices.Contains(record.Links, res.Link) {
+			record.Links = append(record.Links, res.Link)
+		}
+		// One command: a lazybox-v2 an earlier build linked goes.
+		for _, old := range res.Removed {
+			if err = os.Remove(old); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
-			if !slices.Contains(record.Links, link) {
-				record.Links = append(record.Links, link)
-			}
 		}
+		record.Links = slices.DeleteFunc(record.Links, func(l string) bool { return slices.Contains(res.Removed, l) })
 		if res.Completion != "" {
 			if err = os.MkdirAll(filepath.Dir(res.Completion), 0o755); err != nil {
 				return err
@@ -259,8 +262,8 @@ func (c *cli) link(args []string) error {
 	}
 	verb := map[bool]string{true: "Would link", false: "Linked"}[*dryRun]
 	c.out("%s %s %s → %s\n", c.paint(green, "✓"), verb, res.Link, res.Target)
-	if res.Alias != "" {
-		c.out("%s %s %s → %s\n", c.paint(green, "✓"), verb, res.Alias, res.Target)
+	for _, old := range res.Removed {
+		c.out("%s %s %s: `lazybox` is the one command now\n", c.paint(green, "✓"), map[bool]string{true: "Would remove", false: "Removed"}[*dryRun], old)
 	}
 	if res.Completion != "" {
 		c.out("%s %s %s completions: %s\n", c.paint(green, "✓"), map[bool]string{true: "Would install", false: "Installed"}[*dryRun], *shell, res.Completion)

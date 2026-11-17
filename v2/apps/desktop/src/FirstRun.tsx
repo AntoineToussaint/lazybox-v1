@@ -12,8 +12,16 @@ import './first-run.css';
 type ServiceStatus = { installed: boolean; loaded: boolean; running: boolean; reachable: boolean; version: string; runnerVersion: string; endpoint: string; log: string; state?: string; problem: string; unstable: string };
 type SetupState = { version: string; app: string; status: ServiceStatus };
 type Check = { id: string; title: string; status: 'ok' | 'warn' | 'fail'; detail: string; fix?: string };
+/**
+ * Another `lazybox` that comes first on the person's PATH, so typing
+ * `lazybox` runs it (shellpath.go). `remove` is set only for an older
+ * Lazybox installed by Homebrew: the exact command that removes it.
+ */
+type Shadow = { path: string; kind: 'homebrew' | 'older' | 'copy' | 'shim' | 'other'; what: string; problem: string; fix: string; remove?: string[]; removeCommand?: string };
 /** `lazybox link --json`: judged against the person's login-shell PATH, not the app's. */
-type LinkReport = { link?: string; alias?: string; completion?: string; onPath?: boolean; shadowedBy?: string; shadowedWhat?: string; hints?: string[]; error?: string };
+type LinkReport = { link?: string; completion?: string; onPath?: boolean; shadow?: Shadow; hints?: string[]; error?: string };
+/** `lazybox link --remove-older --yes --json`: what ran, what it printed, and what `lazybox` runs now. */
+type RemoveReport = { command?: string; ran?: string[]; output?: string; error?: string; removed: boolean; runs?: string; ours: boolean; shadow?: Shadow };
 /** `lazybox service install --json`; shellProblem: the login shell's PATH could not be read. */
 type InstallReport = { shellProblem?: string };
 type Phase = { kind: 'idle' } | { kind: 'working'; text: string } | { kind: 'done'; link?: LinkReport; shellProblem?: string } | { kind: 'failed'; message: string };
@@ -82,7 +90,7 @@ export function FirstRun() {
         <li><strong>You stay in control:</strong> Settings → About, or <code>lazybox service stop</code>, stops or removes it.</li>
       </ul>
       <label className="first-run-option"><input type="checkbox" checked={linkCli} disabled={busy} onChange={e => setLinkCli(e.target.checked)}/>
-        <span>Add the <code>lazybox</code> command to your terminal<small>Links <code>lazybox</code> and <code>lazybox-v2</code> into /usr/local/bin or ~/.local/bin, with completions for your shell. No password needed.</small></span>
+        <span>Add the <code>lazybox</code> command to your terminal<small>Links <code>lazybox</code> into /usr/local/bin or ~/.local/bin, with completions for your shell. No password needed.</small></span>
       </label>
     </section>}
 
@@ -117,20 +125,61 @@ export function FirstRun() {
 
 /**
  * What linking did. When another `lazybox` comes first on the person's PATH
- * (V1's Homebrew formula, usually), typing `lazybox` runs that one: said
- * plainly, with the name that always runs this release.
+ * (an older Lazybox from Homebrew, usually), typing `lazybox` runs that one:
+ * said plainly, with the fix. An older Lazybox from Homebrew can be removed
+ * from here, after the person confirms the exact command, whose output is
+ * shown; anything else (a version manager's shim, another program) gets
+ * its fix only. Nothing is ever removed silently.
  */
 function LinkDone({ link }: { link: LinkReport }) {
-  const shadow = link.shadowedBy;
+  const [shadow, setShadow] = useState(link.shadow);
+  const [removal, setRemoval] = useState<{ kind: 'confirm' } | { kind: 'running' } | { kind: 'ran'; report: RemoveReport } | { kind: 'failed'; message: string }>();
+  const remove = async () => {
+    setRemoval({ kind: 'running' });
+    try {
+      const report = await invoke<RemoveReport>('remove_older_lazybox');
+      setRemoval({ kind: 'ran', report });
+      if (report.removed || report.ours) setShadow(report.shadow);
+    } catch (e) { setRemoval({ kind: 'failed', message: String(e) }); }
+  };
+  const ran = removal?.kind === 'ran' ? removal.report : undefined;
+  // Offered again after a failure; never while asking or running.
+  const offer = shadow?.kind === 'homebrew' && !!shadow.remove && (!removal || removal.kind === 'failed' || !!ran?.error);
   return <>
-    <p className="first-run-muted">✓ {link.alias ? <><code>lazybox</code> and <code>lazybox-v2</code> are linked at {link.link?.replace(/\/lazybox$/, '')}.</> : <><code>lazybox</code> is linked at {link.link}.</>}</p>
+    <p className="first-run-muted">✓ <code>lazybox</code> is linked at {link.link}.</p>
     {shadow && <div className="first-run-warning" role="note">
-      <p><strong><code>lazybox</code> in your terminal runs {link.shadowedWhat || 'another lazybox'}</strong> ({shadow}), which comes first on your PATH.</p>
-      <p className="first-run-hint">{link.alias && link.onPath ? <>Use <code>lazybox-v2</code>: it always runs this Lazybox.</> : <>Run this Lazybox's command by its full path until its folder is on your PATH.</>}
-        {link.shadowedWhat?.includes('Homebrew') && <> Or remove V1 with <code>brew uninstall lazybox</code>.</>}</p>
+      <p><strong><Ticks text={shadow.problem}/></strong></p>
+      <p className="first-run-hint">Fix: <Ticks text={shadow.fix}/></p>
+      {offer && <div className="first-run-inline-actions">
+        <button onClick={() => setRemoval({ kind: 'confirm' })}>Remove the older Lazybox…</button>
+      </div>}
+      {shadow.remove && removal?.kind === 'confirm' && <div className="first-run-confirm" role="alertdialog" aria-label="Remove the older Lazybox"
+        onKeyDown={e => { if (e.key === 'Escape') setRemoval(undefined); }}>
+        <p>This runs, in Homebrew:</p>
+        <pre>{shadow.remove.join(' ')}</pre>
+        <p className="first-run-hint">It removes the older Lazybox ({shadow.path}). This Lazybox, your conversations and settings are not touched.</p>
+        <div className="first-run-inline-actions">
+          <button className="primary" onClick={() => void remove()}>Remove</button>
+          <button autoFocus onClick={() => setRemoval(undefined)}>Cancel</button>
+        </div>
+      </div>}
     </div>}
-    {link.hints?.filter(h => !(shadow && h.includes(shadow))).map(h => <p key={h} className="first-run-hint">{h}</p>)}
+    {removal?.kind === 'running' && <p className="first-run-progress" role="status"><span className="first-run-spinner" aria-hidden="true"/>Running <code>{link.shadow?.removeCommand}</code>…</p>}
+    {removal?.kind === 'failed' && <p className="first-run-error" role="alert">{removal.message}</p>}
+    {ran && <div role="status">
+      <p className="first-run-muted">$ {ran.ran?.join(' ')}</p>
+      {ran.output && <pre className="first-run-output">{ran.output}</pre>}
+      {ran.error ? <p className="first-run-error">{ran.error}</p>
+        : ran.ours ? <p className="first-run-muted">✓ The older Lazybox is removed: <code>lazybox</code> now runs this one.</p>
+        : ran.removed && !ran.shadow ? <p className="first-run-muted">✓ The older Lazybox is removed. Open a new terminal once {link.link?.replace(/\/lazybox$/, '')} is on your PATH.</p> : null}
+    </div>}
+    {link.hints?.filter(h => !(link.shadow && h.includes(link.shadow.problem))).map(h => <p key={h} className="first-run-hint">{h}</p>)}
   </>;
+}
+
+/** Text with `code` spans, as the CLI writes its messages. */
+function Ticks({ text }: { text: string }) {
+  return <>{text.split('`').map((part, i) => i % 2 ? <code key={i}>{part}</code> : part)}</>;
 }
 
 function Header({ version }: { version: string }) {

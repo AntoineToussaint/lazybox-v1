@@ -21,8 +21,15 @@ brew install --cask AntoineToussaint/lazybox/lazybox-v2
 ```
 
 Open Lazybox from Applications once afterwards: the first launch sets up the
-Runner (below). The cask also puts the CLI on your PATH as `lazybox-v2`, a
-name V1's `lazybox` formula cannot take over.
+Runner and puts the `lazybox` command on your PATH (below).
+
+If you installed an older Lazybox with this tap's `lazybox` formula, remove
+it: its `lazybox` in `/opt/homebrew/bin` comes first on your PATH, so
+`lazybox` in a terminal would run it. Setup offers to do it for you.
+
+```sh
+brew uninstall lazybox
+```
 
 ### Unsigned builds
 
@@ -57,13 +64,12 @@ The first time Lazybox opens it explains, once, what it needs to set up:
   they **keep working when you close the window or quit Lazybox**. It starts
   when you log in, answers only on this Mac (loopback), and keeps its data in
   `~/Library/Application Support/Lazybox`.
-- **The `lazybox` command** (optional, ticked by default): `lazybox` and
-  `lazybox-v2` links in `/usr/local/bin` when you can write there without a
-  password, otherwise in `~/.local/bin`, plus completions for your shell. If
-  that directory is not on your PATH, Lazybox says which line to add. If
-  another `lazybox` comes first on your PATH (V1's Homebrew formula, in
-  `/opt/homebrew/bin`), it says that `lazybox` runs V1 there: use
-  `lazybox-v2`, which always runs this release.
+- **The `lazybox` command** (optional, ticked by default): a `lazybox` link
+  in `/usr/local/bin` when you can write there without a password, otherwise
+  in `~/.local/bin`, plus completions for your shell. If that directory is
+  not on your PATH, Lazybox says which line to add. If another `lazybox`
+  comes first on your PATH, setup says what it is and how to fix it (see
+  [Another `lazybox` comes first](#another-lazybox-comes-first)).
 
 Choose **Set up Lazybox**; when it says the Runner is running, **Open
 Lazybox**. Closing the window instead quits without changing anything, and
@@ -170,7 +176,34 @@ lazybox service logs [-f]        # the Runner's log
 lazybox service restart          # a fresh Runner; agents keep running
 lazybox service stop | start     # stop until the next login, or start now
 lazybox link                     # put lazybox on PATH (+ completions), again
+lazybox link --remove-older      # remove an older Lazybox from Homebrew (asks first)
 ```
+
+### Another `lazybox` comes first
+
+Your terminal runs the first `lazybox` on your PATH. When that is not this
+Lazybox's, setup and `lazybox doctor` say what it is, where, and the fix:
+
+- **An older Lazybox, installed by Homebrew** (the `lazybox` formula, in
+  `/opt/homebrew/bin`). Remove it with `brew uninstall lazybox`. Setup offers
+  **Remove the older Lazybox…**, which shows you that exact command, runs it
+  only once you confirm, and shows what Homebrew printed;
+  `lazybox link --remove-older` does the same from a terminal. Or put the
+  directory Lazybox linked into before `/opt/homebrew/bin` in your shell's
+  PATH.
+- **An older Lazybox installed another way** (`cargo install`, say). Remove
+  the file it names, or fix the PATH order.
+- **A version manager's shim** (mise, asdf…). There is nothing to uninstall:
+  put the directory Lazybox linked into before the shims directory, after the
+  line in your shell's startup file that sets the manager up, or stop the
+  manager providing a `lazybox`.
+- **Another program, or another copy of Lazybox.** Fix the PATH order, or
+  rename or remove it; for another copy, `lazybox link --dir <its directory>`
+  run from this copy points that link here.
+
+Lazybox tells these apart by where the file lives (a Homebrew Cellar, an app,
+a shims directory) and otherwise by asking it for `--version`, which it gives
+three seconds. It removes nothing by itself.
 
 `lazybox service install` is what the first run does; it also repairs a
 service, refreshes the PATH agents get (read from your login shell), and moves
@@ -202,7 +235,7 @@ Runner.
 | --- | --- |
 | "Lazybox can't reach its Runner" | **Start the Runner**; if it stops again, **Show log** (or `lazybox service logs`). |
 | An agent cannot find `codex`, `gh`, `npm`… | The Runner's PATH comes from your login shell when the service was installed. Fix your shell's PATH, then `lazybox service install`. |
-| `lazybox` runs something else | Another `lazybox` comes first on your PATH, usually V1's Homebrew formula in `/opt/homebrew/bin`. `lazybox-v2 doctor` names it. Use `lazybox-v2`, remove V1 (`brew uninstall lazybox`), or `lazybox-v2 link --dir <earlier directory>`. |
+| `lazybox` runs something else | Another `lazybox` comes first on your PATH: see [Another `lazybox` comes first](#another-lazybox-comes-first). |
 | Versions differ in Settings → Updates | **Move the Runner now** there, or quit and reopen Lazybox: it moves the Runner to its own version. Or `lazybox service install`. Agents keep running. |
 | macOS will not open the app | An unsigned build: see [Unsigned builds](#unsigned-builds). |
 

@@ -1,18 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 )
 
-// v1Formula lays out V1's Homebrew formula under home: the Cellar binary and
-// the bin link Homebrew puts first on PATH.
-func v1Formula(t *testing.T, home string) (bin, lazybox string) {
+// olderFormula lays out an older Lazybox installed by Homebrew's `lazybox`
+// formula under home: the Cellar binary, the bin link Homebrew puts first on
+// PATH, and a stand-in brew that records its arguments in brew.args and, for
+// `uninstall lazybox`, removes the formula as Homebrew would. The real brew
+// never runs.
+func olderFormula(t *testing.T, home string) (bin, lazybox string) {
 	t.Helper()
 	cellar := filepath.Join(home, "homebrew", "Cellar", "lazybox", "0.1.21", "bin")
 	bin = filepath.Join(home, "homebrew", "bin")
@@ -21,23 +26,54 @@ func v1Formula(t *testing.T, home string) (bin, lazybox string) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(cellar, "lazybox"), []byte("#!/bin/sh\necho v1\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeScript(t, filepath.Join(cellar, "lazybox"), "echo lazybox 0.1.21")
 	lazybox = filepath.Join(bin, "lazybox")
 	if err := os.Symlink(filepath.Join(cellar, "lazybox"), lazybox); err != nil {
 		t.Fatal(err)
 	}
+	writeScript(t, filepath.Join(bin, "brew"), `here=$(dirname "$0")
+echo "$@" >> "$here/brew.args"
+if [ "$1 $2" = "uninstall lazybox" ]; then
+  rm -f "$here/lazybox"; rm -rf "$here/../Cellar/lazybox"
+  echo "Uninstalling $here/../Cellar/lazybox/0.1.21... (3 files, 9MB)"
+fi`)
 	return bin, lazybox
+}
+
+func writeScript(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// realPath is path with its links resolved: the temporary directory is
+// under /var, a link to /private/var, and brew is found through the Cellar.
+func realPath(t *testing.T, path string) string {
+	t.Helper()
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return real
+}
+
+// brewRan is what the stand-in brew was asked to do, one call per line.
+func brewRan(brew string) string {
+	data, _ := os.ReadFile(filepath.Join(brew, "brew.args"))
+	return string(data)
 }
 
 // The app runs `lazybox link` with launchd's PATH, which has neither
 // Homebrew nor ~/.local/bin. What a terminal runs is decided by the login
-// shell's PATH, and there V1's formula comes first: link says so, names the
-// lazybox-v2 alias it made, and doctor says the same.
-func TestLinkAndDoctorJudgeThePathByTheLoginShellAndNameV1(t *testing.T) {
+// shell's PATH, and there an older Lazybox from Homebrew comes first: link
+// and doctor say so, with the fix, and link makes only `lazybox`.
+func TestLinkAndDoctorJudgeThePathByTheLoginShellAndNameTheOlderLazybox(t *testing.T) {
 	r := newRelease(t, "0.1.0")
-	brew, v1 := v1Formula(t, r.home)
+	brew, older := olderFormula(t, r.home)
 	local := filepath.Join(r.home, ".local", "bin")
 	r.path = "/usr/bin:/bin:/usr/sbin:/sbin"
 	r.shell = brew + ":" + local + ":/usr/bin:/bin"
@@ -53,40 +89,237 @@ func TestLinkAndDoctorJudgeThePathByTheLoginShellAndNameV1(t *testing.T) {
 	if !res.OnPath {
 		t.Errorf("%s is on the login shell's PATH, but link says it is not: %+v", local, res)
 	}
-	if res.Shadowed != v1 || !strings.Contains(res.ShadowedWhat, "V1's lazybox (the Homebrew formula)") {
-		t.Errorf("V1 shadows the link, but: %+v", res)
+	problem := "Another `lazybox` (an older Lazybox, installed by Homebrew, at " + older + ") comes first on your PATH, so `lazybox` runs it."
+	fix := "`brew uninstall lazybox` (removes the older Lazybox), or put " + local + " before " + brew + " in your shell's PATH."
+	s := res.Shadow
+	if s == nil || s.Path != older || s.Kind != shadowHomebrew || s.Problem != problem || s.Fix != fix || s.RemoveCommand != "brew uninstall lazybox" || strings.Join(s.Remove, " ") != realPath(t, filepath.Join(brew, "brew"))+" uninstall lazybox" {
+		t.Errorf("the older Lazybox shadows the link, but: %+v", s)
 	}
 	hints := strings.Join(res.Hints, "\n")
-	for _, want := range []string{"`lazybox` in your terminal runs V1's lazybox", "Run `lazybox-v2` instead", "brew uninstall lazybox"} {
-		if !strings.Contains(hints, want) {
-			t.Errorf("hints lack %q:\n%s", want, hints)
+	if !strings.Contains(hints, problem+" Fix: "+fix) {
+		t.Errorf("hints lack the problem and its fix:\n%s", hints)
+	}
+	for _, never := range []string{"not on your PATH", "lazybox-v2", "V1", "V2"} {
+		if strings.Contains(hints, never) {
+			t.Errorf("hints say %q:\n%s", never, hints)
 		}
 	}
-	if strings.Contains(hints, "not on your PATH") {
-		t.Errorf("a directory on the login shell's PATH was called off PATH:\n%s", hints)
+	if entries, _ := os.ReadDir(local); len(entries) != 1 || entries[0].Name() != "lazybox" {
+		t.Errorf("link made more than `lazybox`: %v", entries)
 	}
-	alias := filepath.Join(local, aliasName)
-	if res.Alias != alias || !sameFile(alias, r.runtime.CLI()) {
-		t.Fatalf("no lazybox-v2 alias: %+v", res)
+	// Linking where the formula's own `lazybox` is (Homebrew's bin on an
+	// Intel Mac is /usr/local/bin) replaces nothing and names the fix.
+	if got := r.run("", false, "link", "--dir", brew); got.code == 0 || !strings.Contains(got.err.Error(), "is an older Lazybox, installed by Homebrew: remove it with `brew uninstall lazybox`") {
+		t.Errorf("linking over the formula: %+v", got)
+	}
+	if brewRan(brew) != "" {
+		t.Fatalf("link ran brew: %s", brewRan(brew))
 	}
 
 	got = r.run("", false, "doctor", "--json")
 	status := doctorChecks(t, got)
-	cli := status["cli"]
-	if cli.Status != checkWarn || !strings.Contains(cli.Detail, "runs V1's lazybox (the Homebrew formula) at "+v1) || !strings.Contains(cli.Fix, "Run `lazybox-v2`, which always runs this release") || !strings.Contains(cli.Fix, "brew uninstall lazybox") {
+	if cli := status["cli"]; cli.Status != checkWarn || cli.Detail != problem || cli.Fix != fix {
 		t.Errorf("cli: %+v", cli)
 	}
 	if status["shell"].Status != checkOK {
 		t.Errorf("shell: %+v", status["shell"])
 	}
 
-	// With V1 gone, `lazybox` is this release.
-	_ = os.Remove(v1)
+	// With the older one gone, `lazybox` is this release.
+	_ = os.Remove(older)
 	if k := doctorChecks(t, r.run("", false, "doctor", "--json"))["cli"]; k.Status != checkOK || k.Detail != filepath.Join(local, "lazybox") {
-		t.Errorf("cli without V1: %+v", k)
+		t.Errorf("cli without the older Lazybox: %+v", k)
+	}
+}
+
+// `lazybox link --remove-older` runs `brew uninstall lazybox` only for an
+// older Lazybox installed by Homebrew, only once confirmed, and says what
+// `lazybox` runs afterwards.
+func TestRemoveOlderRunsBrewUninstallOnlyOnceConfirmed(t *testing.T) {
+	r := newRelease(t, "0.1.0")
+	brew, older := olderFormula(t, r.home)
+	local := filepath.Join(r.home, ".local", "bin")
+	r.shell = brew + ":" + local + ":/usr/bin:/bin"
+	if got := r.run("", false, "link", "--dir", local, "--no-completions"); got.code != 0 {
+		t.Fatalf("%+v", got)
 	}
 
-	// Uninstall takes back both names.
+	// Not confirmed: nothing runs.
+	if got := r.run("", false, "link", "--remove-older"); got.code != exitUsage || !strings.Contains(got.err.Error(), "--yes") {
+		t.Errorf("no terminal, no --yes: %+v", got)
+	}
+	if got := r.run("n\n", true, "link", "--remove-older"); got.code == 0 || !strings.Contains(got.stdout, realPath(t, filepath.Join(brew, "brew"))+" uninstall lazybox") {
+		t.Errorf("declined: %+v", got)
+	}
+	if got := r.run("", false, "link", "--remove-older", "--dry-run"); got.code != 0 || !strings.Contains(got.stdout, "Would run: "+realPath(t, filepath.Join(brew, "brew"))+" uninstall lazybox") {
+		t.Errorf("dry run: %+v", got)
+	}
+	if ran := brewRan(brew); ran != "" {
+		t.Fatalf("brew ran without confirmation: %s", ran)
+	}
+
+	got := r.run("", false, "link", "--remove-older", "--yes", "--json")
+	if got.code != 0 {
+		t.Fatalf("%+v", got)
+	}
+	var res removeOlderResult
+	if err := json.Unmarshal([]byte(got.stdout), &res); err != nil {
+		t.Fatalf("%v: %s", err, got.stdout)
+	}
+	if brewRan(brew) != "uninstall lazybox\n" {
+		t.Errorf("brew ran %q", brewRan(brew))
+	}
+	if !res.Removed || res.Command != "brew uninstall lazybox" || !strings.Contains(res.Output, "Uninstalling") || !res.Ours || res.Runs != filepath.Join(local, "lazybox") || res.Shadow != nil {
+		t.Errorf("%+v", res)
+	}
+	if _, err := os.Lstat(older); err == nil {
+		t.Errorf("%s is still there", older)
+	}
+	// Nothing left to remove.
+	if got = r.run("", false, "link", "--remove-older", "--yes"); got.code != 0 || !strings.Contains(got.stdout, "Nothing to remove") {
+		t.Errorf("again: %+v", got)
+	}
+
+	// A brew that fails is reported with its output, and nothing is claimed.
+	brew2, _ := olderFormula(t, filepath.Join(r.home, "again"))
+	writeScript(t, filepath.Join(brew2, "brew"), `echo "Error: Refusing to uninstall" >&2; exit 1`)
+	r.shell = brew2 + ":" + local + ":/usr/bin:/bin"
+	got = r.run("", false, "link", "--remove-older", "--yes", "--json")
+	res = removeOlderResult{}
+	_ = json.Unmarshal([]byte(got.stdout), &res)
+	if got.code != exitFailure || res.Removed || !strings.Contains(res.Output, "Refusing") || !strings.Contains(res.Error, "brew uninstall lazybox") || res.Shadow == nil {
+		t.Errorf("failed brew: %+v %+v", got, res)
+	}
+}
+
+// What comes first is told apart by where it lives, and, when that does not
+// say, by asking it for --version, bounded in time. Only an older Lazybox
+// from Homebrew gets a removal; a shim is never run, and gets the order fix.
+func TestIdentifyShadowTellsAnOlderLazyboxFromAShimOrAnotherProgram(t *testing.T) {
+	defer func(d time.Duration) { versionProbeTimeout = d }(versionProbeTimeout)
+	versionProbeTimeout = 300 * time.Millisecond
+	home := realPath(t, t.TempDir())
+	dir := filepath.Join(home, ".local", "bin")
+	cli := "/Applications/Lazybox.app/Contents/Resources/runtime/bin/lazybox"
+
+	// A mise shim: a link to mise in mise's shims directory. Running it
+	// would start mise, so it is identified by its path alone.
+	ran := filepath.Join(home, "mise-ran")
+	mise := filepath.Join(home, "mise", "bin", "mise")
+	writeScript(t, mise, "touch "+ran+"; echo lazybox 0.1.21")
+	shims := filepath.Join(home, ".local", "share", "mise", "shims")
+	_ = os.MkdirAll(shims, 0o755)
+	shim := filepath.Join(shims, "lazybox")
+	if err := os.Symlink(mise, shim); err != nil {
+		t.Fatal(err)
+	}
+	// An older Lazybox from cargo install, a program that is not Lazybox,
+	// one that never answers, and another copy of the app.
+	cargo := filepath.Join(home, ".cargo", "bin", "lazybox")
+	writeScript(t, cargo, "echo lazybox 0.1.19")
+	other := filepath.Join(home, "other", "lazybox")
+	writeScript(t, other, "echo 'a box of lazy things'")
+	slow := filepath.Join(home, "slow", "lazybox")
+	writeScript(t, slow, "sleep 30")
+	copy := filepath.Join(home, "Old.app", "Contents", "Resources", "runtime", "bin", "lazybox")
+	writeScript(t, copy, "echo 'lazybox 0.0.9 (Lazybox V2)'")
+	// A formula whose brew is not where its Cellar says.
+	brewless := filepath.Join(home, "brewless", "Cellar", "lazybox", "0.1.2", "bin", "lazybox")
+	writeScript(t, brewless, "echo lazybox 0.1.2")
+
+	for _, c := range []struct {
+		found, kind string
+		what, fix   []string
+		remove      bool
+	}{
+		{shim, shadowShim, []string{"a mise shim, not Lazybox itself"}, []string{"Put " + dir + " before " + shims + " in your shell's PATH", "after the line that sets up mise", "stop mise providing a `lazybox`"}, false},
+		{cargo, shadowOlder, []string{"an older Lazybox, version 0.1.19"}, []string{"Remove " + cargo + " (the older Lazybox), or put " + dir + " before"}, false},
+		{other, shadowOther, []string{"a program that is not this Lazybox"}, []string{"Put " + dir + " before " + filepath.Dir(other), "or rename or remove " + other}, false},
+		{slow, shadowOther, []string{"a program that is not this Lazybox"}, []string{"rename or remove " + slow}, false},
+		{copy, shadowCopy, []string{"another copy of Lazybox, in " + filepath.Join(home, "Old.app")}, []string{"`" + cli + " link --dir " + filepath.Dir(copy) + "` points it at this copy"}, false},
+		{brewless, shadowHomebrew, []string{"an older Lazybox, installed by Homebrew"}, []string{"`brew uninstall lazybox`"}, false},
+	} {
+		start := time.Now()
+		s := identifyShadow(context.Background(), c.found, cli, dir, true)
+		if took := time.Since(start); took > 3*time.Second {
+			t.Errorf("%s: took %s", c.found, took)
+		}
+		if s.Kind != c.kind || (len(s.Remove) > 0) != c.remove || !strings.HasPrefix(s.Problem, "Another `lazybox` (") || !strings.HasSuffix(s.Problem, "at "+c.found+") comes first on your PATH, so `lazybox` runs it.") {
+			t.Errorf("%s: %+v", c.found, s)
+		}
+		for _, w := range c.what {
+			if !strings.Contains(s.What, w) {
+				t.Errorf("%s: what %q lacks %q", c.found, s.What, w)
+			}
+		}
+		for _, w := range c.fix {
+			if !strings.Contains(s.Fix, w) {
+				t.Errorf("%s: fix %q lacks %q", c.found, s.Fix, w)
+			}
+		}
+	}
+	if _, err := os.Stat(ran); err == nil {
+		t.Error("identifying a shim ran it")
+	}
+	// A directory not on PATH yet is added before the other one.
+	if s := identifyShadow(context.Background(), shim, cli, dir, false); !strings.HasPrefix(s.Fix, "Add "+dir+" to your shell's PATH, before "+shims) {
+		t.Errorf("off PATH: %q", s.Fix)
+	}
+}
+
+// A shim first on PATH: setup and doctor say how to fix the order, and
+// --remove-older refuses without running anything.
+func TestRemoveOlderNeverRemovesAShim(t *testing.T) {
+	r := newRelease(t, "0.1.0")
+	local := filepath.Join(r.home, ".local", "bin")
+	shims := filepath.Join(r.home, ".asdf", "shims")
+	writeScript(t, filepath.Join(shims, "lazybox"), "touch "+filepath.Join(r.home, "shim-ran"))
+	r.shell = shims + ":" + local + ":/usr/bin:/bin"
+	if got := r.run("", false, "link", "--dir", local, "--no-completions"); got.code != 0 {
+		t.Fatalf("%+v", got)
+	}
+	k := doctorChecks(t, r.run("", false, "doctor", "--json"))["cli"]
+	if k.Status != checkWarn || !strings.Contains(k.Detail, "an asdf shim") || !strings.HasPrefix(k.Fix, "Put "+local+" before "+shims) || strings.Contains(k.Fix, "brew") {
+		t.Errorf("cli: %+v", k)
+	}
+	got := r.run("", false, "link", "--remove-older", "--yes")
+	if got.code != exitFailure || !strings.Contains(got.err.Error(), "not an older Lazybox installed by Homebrew") {
+		t.Errorf("%+v", got)
+	}
+	if _, err := os.Stat(filepath.Join(r.home, "shim-ran")); err == nil {
+		t.Error("the shim ran")
+	}
+}
+
+// An earlier build linked a second name, lazybox-v2, beside `lazybox`:
+// linking again takes it away, and uninstall removes one it finds recorded.
+func TestTheOldSecondNameIsCleanedUp(t *testing.T) {
+	r := newRelease(t, "0.1.0")
+	local := filepath.Join(r.home, ".local", "bin")
+	_ = os.MkdirAll(local, 0o755)
+	alias := filepath.Join(local, legacyAliasName)
+	if err := os.Symlink(r.runtime.CLI(), alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeRecord(r.paths, linkRecord{Links: []string{filepath.Join(local, "lazybox"), alias}}); err != nil {
+		t.Fatal(err)
+	}
+	got := r.run("", false, "link", "--dir", local, "--no-completions")
+	if got.code != 0 || !strings.Contains(got.stdout, "Removed "+alias) {
+		t.Fatalf("%+v", got)
+	}
+	if _, err := os.Lstat(alias); err == nil {
+		t.Errorf("%s survived link", alias)
+	}
+	if record := readRecord(r.paths); len(record.Links) != 1 || record.Links[0] != filepath.Join(local, "lazybox") {
+		t.Errorf("record: %+v", record)
+	}
+
+	// An upgrade straight to uninstall: the recorded second name goes too.
+	if err := os.Symlink(r.runtime.CLI(), alias); err != nil {
+		t.Fatal(err)
+	}
+	_ = writeRecord(r.paths, linkRecord{Links: []string{filepath.Join(local, "lazybox"), alias}})
 	if got = r.run("", false, "uninstall"); got.code != 0 {
 		t.Fatalf("%+v", got)
 	}

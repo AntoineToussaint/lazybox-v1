@@ -39,3 +39,7 @@ body { margin: 0; background: Canvas; }
 .first-run button.primary { background: var(--fr-accent); border-color: var(--fr-accent); color: white; font-weight: 600; }
 .first-run button:disabled { opacity: .5; cursor: default; }
 .first-run button:focus-visible, .first-run-option:focus-within { outline: 2px solid var(--fr-accent); outline-offset: 2px; }
+.first-run-inline-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.first-run-confirm { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--fr-line); }
+.first-run pre { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--fr-surface); border: 1px solid var(--fr-line); border-radius: 6px; padding: 6px 8px; margin: 4px 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.first-run-output { max-height: 160px; overflow: auto; }
