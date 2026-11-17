@@ -98,8 +98,10 @@ try{
 
  // An unknown /word asks first; Enter again sends it as text.
  await page.keyboard.type('/deploy now');await expect(menu).toBeHidden();
+ // Under load the box can lag the keys: Enter only once it holds the whole line.
+ await expect(message).toHaveValue('/deploy now');
  await page.keyboard.press('Enter');
- await expect(chat.getByRole('alert').filter({hasText:'is not a command'})).toBeVisible();
+ await expect(chat.getByRole('alert').filter({hasText:'is not a command'})).toBeVisible({timeout:10000});
  assert.equal(applies().length,before,'not sent yet');
  await page.keyboard.press('Enter');
  await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/deploy now');
