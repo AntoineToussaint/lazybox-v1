@@ -47,6 +47,57 @@ and the conversation are what the page is for, so they stay; everything else
 docks around them. On a phone, panels show one at a time from the panel
 switcher.
 
+## Conversation tabs
+
+Conversations open as tabs, like files in an editor: keep several open, split
+them side by side, drag them anywhere.
+
+- **A single click** on a conversation (in Workspaces, Agents, ⌘K, ⌘J) shows it
+  in the chat group's **preview tab**, its title in *italics*. The next single
+  click replaces it, so browsing does not pile up tabs.
+- **Double-click** it, **type** in it, or choose **Open in new tab**: it becomes a
+  regular tab that stays. A new conversation opens as a regular tab too.
+- **⌘-click** (Ctrl-click on Windows and Linux) or **middle-click** a
+  conversation: it opens in a tab behind the one in front.
+- A conversation already open is brought forward in its tab, never opened
+  twice on a page.
+- Each conversation tab shows its status before its title: working, needs
+  you, failed, done. The tab in front is the selected conversation: the
+  sidebar, Command output and Changes follow it.
+- **×**, a middle-click on the tab or `⌘W` closes a tab; the conversation keeps
+  going. `⇧⌘T` reopens the last tab closed on the page, where it was.
+- A conversation opened from another one (an agent an orchestrator started, a
+  review) opens in a tab right after its parent's, behind it, so what you are
+  reading stays in front.
+
+Right-click a conversation (or its **⋯**) for **Open in new tab**, **Open
+beside** (split right), **Open below** (split down), **Open in new window**,
+**Move to new page** and, when it is open in a tab with others, **Close other
+tabs** and **Close tabs to the right**. Right-click a conversation's tab for the
+same, as **Split right** and **Split down**, plus **Stay on this conversation**
+(keep a preview tab) or **Follow the selected conversation** (make a tab the
+preview tab).
+
+Tabs move like any panel: drag one onto another group to join it, onto an edge
+to split, or use the keys below. A page holds up to 16 panels; when it is full,
+Lazybox says so and offers to close the oldest preview tab to make room. Every
+workspace remembers its tabs, preview and regular, across restarts. Applying a
+layout keeps every conversation tab, in the layout's chat group.
+
+| To… | Do this |
+| --- | --- |
+| Show a conversation in the preview tab | Click it |
+| Keep it in a tab | Double-click it, type in it, or **Open in new tab** |
+| Open it in a tab behind | `⌘`-click or middle-click it |
+| Close the tab | `⌘W`, **×**, or middle-click the tab |
+| Reopen the last closed tab | `⇧⌘T` |
+| Go to tab 1–8, or the last | `⌃1`–`⌃8`, `⌃9` |
+| Next or previous tab | `⌃⇥`, `⌃⇧⇥` |
+| Split it right or down | `⌘\`, or **Open beside** / **Open below** |
+
+`⌘1`–`⌘9` stay the workspace keys. In a browser tab (the web build), the
+browser keeps `⇧⌘T` and `⌘W` for itself: use the command palette there.
+
 In a small window every panel keeps a width it can be read at: the header's
 buttons keep only their icons, Workspaces and Agents stay on screen, and a
 panel that would be crushed becomes a tab beside another instead.
@@ -67,7 +118,9 @@ reader hears where the focus went.
 | Bring a tab of the active group to the front | `⌃1`–`⌃8`, `⌃9` for the last |
 | Split the active panel | `⌘\` — a lone panel asks what goes beside it |
 | Maximize or restore it | `⇧⌘M` |
-| Cycle through the groups | `⌃⇥`, `⌃⇧⇥` |
+| Close the active tab (a conversation keeps going) | `⌘W` |
+| Reopen the last closed conversation tab | `⇧⌘T` |
+| Go through every tab: the active group's, then the next group's | `⌃⇥`, `⌃⇧⇥` |
 
 A maximized panel stays maximized: moving the focus takes the zoom along, and
 `⌘J`, `⌘]` or opening a conversation shows it maximized. In the file editor,
@@ -107,8 +160,8 @@ window forward, **Put back** returns it, **Put all back** returns them all. The
 command palette (`⌘K`) has *Put all windows back* and *Put … back in main
 window* for each one.
 
-A conversation shows in at most one chat panel per page; choosing a conversation
-reuses the page's chat panel.
+A conversation shows in at most one tab per page; choosing one that is open
+brings its tab forward (see [Conversation tabs](#conversation-tabs)).
 
 ## Peek instead of switching
 

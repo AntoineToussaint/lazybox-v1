@@ -14,6 +14,15 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.23] - 2026-11-17 · Conversations are tabs
+
+- **Conversations open as tabs** A single click on a conversation shows it in the chat's preview tab, its title in italics; the next click replaces it, so browsing does not pile up tabs. Double-click it, type in it, or choose Open in new tab and it stays as a tab of its own. A new conversation opens in a tab too.
+- **Open one behind** ⌘-click or middle-click a conversation to open it in a tab behind the one you are reading. A conversation already open is brought forward, never opened twice.
+- **See every conversation at a glance** Each conversation tab shows a dot for working, needs you, failed or done, and a close button. The tab in front is the selected conversation: the sidebar, Command output and Changes follow it.
+- **Split, move, close** Right-click a conversation or its tab: Open in new tab, Open beside, Open below, Open in new window, Move to new page, Close other tabs, Close tabs to the right. Drag a tab onto another group or an edge to split. ⌘W closes a tab without ending the conversation, ⇧⌘T reopens it where it was, and ⌃⇥ goes through every tab.
+- **Related conversations beside their parent** Opening an agent from its orchestrator's card puts it in a tab right after the orchestrator's, behind it, instead of replacing what you read.
+- **Kept across restarts** Each workspace remembers its tabs, preview or not. A full page (16 panels) says so and offers to close its oldest preview tab.
+
 ## [2026-11-17.22] - 2026-11-17 · Review from the chat
 
 - **Review from the chat** The conversation's header has Review: another agent reviews the workspace's changes, read-only, without a detour through Changes. /review in the message box and ] ] ⇧R (⌘K Review this workspace's changes) do the same; /review the retry loop tells the reviewer what to look at first.

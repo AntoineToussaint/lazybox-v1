@@ -269,19 +269,24 @@ how you arrange it:
   shows an empty content area beside it with the page's empty state
   (`EMPTY_CONTENT` in `dock-bridge.ts`, never saved), rather than a sidebar
   across the page (`test:layout-stability` switches seven such pages).
-- **Double-click a tab** (or ⇧⌘M, or `] ] m`) to maximize its group; again to restore.
+- **Double-click a tab** (or ⇧⌘M, or `] ] m`) to maximize its group; again to
+  restore. A conversation's preview tab is kept open instead; a middle-click
+  closes a tab.
 - **Right-click a tab**, or **⋯** beside the tabs, for the group menu: Split
   right / down, Maximize, Minimize (to its tab bar, in a column; click the tab
   or press Enter on it to open it again), Float over the page, Open in new
-  window, Stay on this conversation / Follow the selected conversation (chat),
-  Dock left / right / top / bottom (the keyboard way to move a panel to an
-  edge of the content area), Close.
+  window, Move to new page and Stay on this conversation / Follow the
+  selected conversation (chat: keep a preview tab, or make a tab the
+  preview tab), Dock left / right / top / bottom (the keyboard way to move a
+  panel to an edge of the content area), Close other tabs, Close tabs to the
+  right, Close.
 - **×** on a tab closes the panel. Every panel can be closed; **Panels** in the
   workspace header lists every kind, focuses one that is shown and reopens a
   closed one where its kind was last docked. ⌘\ splits the active panel: a
   tab moves into a group of its own beside its group, or, when it is alone,
   Panels opens to choose what goes beside it. ⌘W closes the active panel, ⌃Tab
-  moves between groups. These and the rest of the group menu (split down,
+  goes through every tab (the active group's, then the next group's), ⇧⌘T
+  reopens the last conversation tab closed. These and the rest of the group menu (split down,
   float, open in new window, minimize, show a panel, change or reset the
   layout) are actions of the action registry (`actions.ts`, group *Layout*):
   in the command palette, **Settings → Shortcuts** and the `]]` menu, each
@@ -358,11 +363,35 @@ brings the Agents panel forward with its first row focused; only when the
 page has no Agents panel does the Inbox open as a list over the page.
 
 Every conversation row — Workspaces, Agents, the Inbox, History — has one
-menu (`ConversationActions.tsx`): Open · Open beside · Open in new window ·
-Peek, then Rename · Pin · Mark as read, then Copy ID · Stop, then Archive… ·
-Delete…, each of the last two behind a confirmation. Archive
-(`ArchiveConversation`) stops and deletes nothing; Unarchive brings it back.
-Open beside adds a chat pinned to that conversation next to the page's own.
+menu (`ConversationActions.tsx`): Open · Open in new tab · Open beside · Open
+below · Open in new window · Move to new page · Peek, then (when it is open in
+a tab with others) Close other tabs · Close tabs to the right, then Rename ·
+Pin · Mark as read, then Copy ID · Stop, then Archive… · Delete…, each of the
+last two behind a confirmation. Archive (`ArchiveConversation`) stops and
+deletes nothing; Unarchive brings it back. Open beside (below) splits a tab
+for that conversation right of (under) the conversation on screen.
+
+#### Conversation tabs
+
+Every chat panel is a tab of one conversation, as editors are tabs of files
+(`workspace-model.ts`, "Conversations"; `useConversationTabs.ts` wires it).
+A chat group's **preview tab** (`preview` on the panel, its title in italics)
+is where a single click on a row shows a conversation; the next single click
+replaces it. A double-click, typing in it, ⌘-click (a tab behind the one in
+front), a middle-click, Open in new tab and a new conversation make a
+**regular tab**, which stays until closed. Every chat keeps its own
+conversation (a `pinned` binding); a chat saved following the page (`follow`,
+older pages, templates, imports) becomes the preview tab of what it shows
+(`settleChats`, on load and on every save). The page's selection is the
+conversation of the tab in front: bringing a chat tab forward (a click, ⌃1,
+⌃⇥, a drag) selects it (`followFrontTab`), so the sidebar, Command output and
+Changes follow. A conversation opened from another (an orchestrator's agent;
+a review) opens with `openRelated` (`openRelatedConversation` in
+`conversation-requests.ts`): a regular tab right after its parent's, behind it.
+Closing a tab (×, a middle-click, ⌘W) never ends its conversation; the
+neighbour comes forward and ⇧⌘T (`layout.reopen-tab`) reopens the last tab
+closed on the page where it was. A full page (16 panels) opens nothing and
+offers to close its oldest preview tab. Tabs are saved with the page.
 
 #### How it is built, and why dockview
 
@@ -410,10 +439,11 @@ layout; a layout that cannot be read is left untouched, with a notice and
 **Reset retained layout**.
 
 A conversation shows in at most one chat panel per page. Choosing a
-conversation reuses the page's chat panel, including one brought back from its
-own window (pinned to its conversation); putting a chat back removes the returning
-panel when the page already shows that conversation; and saved pages with
-duplicate chat panels are repaired when they load.
+conversation brings its tab forward, including one brought back from its own
+window (a regular tab); otherwise the preview tab shows it. Putting a chat back
+removes the returning panel when the page already shows that conversation, and
+saved pages with duplicate chat panels are repaired when they load (a regular
+tab wins over the preview tab).
 
 ### Agent telemetry and workspace accounting
 

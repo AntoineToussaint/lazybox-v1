@@ -9,6 +9,19 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.23',
+    date: '2026-11-17',
+    title: 'Conversations are tabs',
+    items: [
+      { title: 'Conversations open as tabs', body: 'A single click on a conversation shows it in the chat\'s preview tab, its title in italics; the next click replaces it, so browsing does not pile up tabs. Double-click it, type in it, or choose Open in new tab and it stays as a tab of its own. A new conversation opens in a tab too.' },
+      { title: 'Open one behind', body: '⌘-click or middle-click a conversation to open it in a tab behind the one you are reading. A conversation already open is brought forward, never opened twice.' },
+      { title: 'See every conversation at a glance', body: 'Each conversation tab shows a dot for working, needs you, failed or done, and a close button. The tab in front is the selected conversation: the sidebar, Command output and Changes follow it.' },
+      { title: 'Split, move, close', body: 'Right-click a conversation or its tab: Open in new tab, Open beside, Open below, Open in new window, Move to new page, Close other tabs, Close tabs to the right. Drag a tab onto another group or an edge to split. ⌘W closes a tab without ending the conversation, ⇧⌘T reopens it where it was, and ⌃⇥ goes through every tab.' },
+      { title: 'Related conversations beside their parent', body: 'Opening an agent from its orchestrator\'s card puts it in a tab right after the orchestrator\'s, behind it, instead of replacing what you read.' },
+      { title: 'Kept across restarts', body: 'Each workspace remembers its tabs, preview or not. A full page (16 panels) says so and offers to close its oldest preview tab.' },
+    ],
+  },
+  {
     id: '2026-11-17.22',
     date: '2026-11-17',
     title: 'Review from the chat',
