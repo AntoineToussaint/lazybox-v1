@@ -249,7 +249,7 @@ try {
   await settings.getByRole('button', { name: 'Remove github.com from Alpha feature' }).click();
   await expect.poll(() => saves().at(-1)?.workspaces?.find(w => w.collectionId === 'alpha')?.sites ?? []).toEqual([]);
   assert.ok(saves().at(-1).workspaces.some(w => w.collectionId === 'alpha'), 'the workspace is saved with no sites');
-  await settings.getByRole('checkbox', { name: /Show the agent browser beside the chat/ }).uncheck();
+  await settings.getByRole('switch', { name: /Show the agent browser beside the chat/ }).uncheck();
   await expect.poll(() => fake.settings.showPanel).toBe(false);
   await settings.getByLabel('Downloads', { exact: true }).selectOption('block');
   await expect.poll(() => saves().at(-1)?.downloads).toBe('block');

@@ -222,7 +222,7 @@ try{
  await expect(reviewerSetting.locator('option[value=other]')).toHaveText('The other agent (recommended)');
  await reviewerSetting.selectOption('fixed:codex-saved');
  await page.getByRole('textbox',{name:'Reviewer model'}).fill('gpt-5.2-codex');
- const auto=page.getByRole('checkbox',{name:'Review every turn that changes files'});
+ const auto=page.getByRole('switch',{name:'Review every turn that changes files'});
  await expect(auto).not.toBeChecked();await auto.check();
  const brief=page.getByRole('textbox',{name:'Review brief'});
  await expect(brief).toHaveValue(/You are an independent reviewer/);

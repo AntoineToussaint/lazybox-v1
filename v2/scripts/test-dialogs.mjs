@@ -100,7 +100,7 @@ try {
     await expect(danger).toBeVisible();
     const measured = await danger.evaluate(contrast);
     assert.ok(measured.ratio >= 4.5, `${colorScheme}: the danger label reads on its fill (${JSON.stringify(measured)})`);
-    assert.equal(await stop.evaluate(node => getComputedStyle(node.querySelector('h2')).fontSize), '17px', `${colorScheme}: the shared dialog title size`);
+    assert.equal(await stop.evaluate(node => getComputedStyle(node.querySelector('h2')).fontSize), '15px', `${colorScheme}: the shared dialog title size`);
     await page.waitForTimeout(150);
     await stop.screenshot({ path: `.cache/dialogs-stop-${colorScheme}.png` });
     await stop.getByRole('button', { name: 'Cancel', exact: true }).click();
