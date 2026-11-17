@@ -51,6 +51,20 @@ export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWitho
   };
   useLayoutEffect(() => {
     const node = dialog.current!;
+    // Where the focus was before the dialog took it: it goes back there when the dialog closes or goes.
+    let opener = document.activeElement instanceof HTMLElement && !node.contains(document.activeElement) ? document.activeElement : null;
+    const giveBack = () => {
+      const target = opener;
+      if (!target) return;
+      // After the dialog is gone; only when nothing else took the focus meanwhile (the close action may have placed it).
+      queueMicrotask(() => {
+        const now = document.activeElement;
+        if ((now && now !== document.body && now.isConnected && !node.contains(now)) || !target.isConnected || target.closest('[inert]')) return;
+        target.focus({ preventScroll: true });
+      });
+    };
+    const remember = (event: FocusEvent) => { if (!node.open && event.target instanceof HTMLElement && !node.contains(event.target)) opener = event.target; };
+    document.addEventListener('focusin', remember, true);
     const fit = () => {
       if (!moved.current || !node.open) return;
       const bounds = node.getBoundingClientRect(); move(bounds.left, bounds.top);
@@ -58,7 +72,11 @@ export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWitho
     const open = new MutationObserver(()=>{
       center();
       edited.current = false;
-      if(!node.open)return;
+      if(!node.open){ giveBack(); return; }
+      // A field the dialog's owner focused as it opened stands (New workspace starts on its name);
+      // otherwise the native focus, on the drag handle, moves to the designated or first field.
+      const active=document.activeElement;
+      if(active instanceof HTMLElement&&active!==node&&node.contains(active)&&!active.hasAttribute('data-dialog-drag-handle'))return;
       const designated=node.querySelector<HTMLElement>('[data-autofocus]');
       if(designated)designated.focus();
       else if(document.activeElement?.hasAttribute('data-dialog-drag-handle'))
@@ -75,7 +93,12 @@ export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWitho
       if (draft === 'guard' && edited.current) { nudge(node); return; }
       if (onDismiss) onDismiss(); else requestDialogClose(node);
     });
-    return () => { open.disconnect(); size.disconnect(); window.removeEventListener('resize', fit); window.removeEventListener('blur', stop); node.removeEventListener('input', change); node.removeEventListener('change', change); unbind(); };
+    return () => {
+      open.disconnect(); size.disconnect(); window.removeEventListener('resize', fit); window.removeEventListener('blur', stop); node.removeEventListener('input', change); node.removeEventListener('change', change); unbind();
+      document.removeEventListener('focusin', remember, true);
+      // Unmounted while open (most dialogs close by going away): the focus goes back too.
+      if (node.open || node.contains(document.activeElement)) giveBack();
+    };
   }, []);
 
   const isHandle = (target: EventTarget) => target instanceof Element && !!target.closest('[data-dialog-drag-handle]') && !target.closest('button, input, select, textarea, a, [contenteditable="true"]');
