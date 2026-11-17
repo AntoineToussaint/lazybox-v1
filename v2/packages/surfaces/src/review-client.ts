@@ -108,6 +108,8 @@ export function useReviewLauncher(workspaceId: string, source?: Pick<Session, 'i
   // No conversation to review (a transcript on the phone, Peek): nothing to choose a reviewer for.
   const { settings } = useRunnerSettings(!!source);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
+  // `busy` is this render's: two starts in one frame (a click and `/review`) both see it empty.
+  const starting = useRef(false);
   const authorProvider = source?.provider || info?.profiles.find(p => p.id === source?.profileId)?.provider || '';
   // Agents that cannot review now (not installed, no account): never offered, and the default gives way.
   const availability = useProviderAvailability(!!source);
@@ -118,8 +120,8 @@ export function useReviewLauncher(workspaceId: string, source?: Pick<Session, 'i
   const unavailable = !workspaceId ? 'Choose a workspace first' : !source ? 'No conversation in this workspace to review yet' : !choices.length ? 'No agent is available to review with' : '';
   /** `focus`: what the reviewer should look at in particular (`/review <focus>`). */
   const start = async (scope: ReviewScope, choice: ReviewerChoice | undefined = choices[0], focus = '') => {
-    if (!source || !choice || busy) return;
-    setBusy(choice.key); setError('');
+    if (!source || !choice || busy || starting.current) return;
+    starting.current = true; setBusy(choice.key); setError('');
     try {
       // The default reviewer is left to the Runner, which applies the setting the same way and
       // records why another agent stands in; one picked for this run is named.
@@ -129,7 +131,7 @@ export function useReviewLauncher(workspaceId: string, source?: Pick<Session, 'i
       if (started.run?.state === 'failed') setError(started.run.detail);
       return started;
     } catch (e) { setError(errorText(e)); }
-    finally { setBusy(''); }
+    finally { starting.current = false; setBusy(''); }
   };
   return { choices, start, busy, error, setError, unavailable };
 }

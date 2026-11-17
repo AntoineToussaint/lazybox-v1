@@ -439,6 +439,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     'code.run-last-myself': !!codeRuns && { run: () => runLast(true), enabled: canRunLast },
   });
 
+  // Review from the chat: the header's Review button, its ⋯ item, the right-click menu and `/review`.
+  const chatReview = useChatReview({ session: assistant ? undefined : session, sessionID, onError: setError });
   // Slash commands: the menu over the message box, and Lazybox's own commands (useSlashCommands.tsx).
   const provider = activeProfile?.provider || session?.provider || launcher.provider;
   const slash = useSlashCommands({
@@ -446,7 +448,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     model: transcript.reportedModel || session?.model || '', conversation, shellBlock: !!codeRuns && !!lastShellBlock(), detail: activity.detail,
     subscriptions: (profileList || []).filter(p => p.provider === provider).length, canCompose, message,
     setText: text => { setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); },
-    textarea: composer, front: activity.current, onError: setError,
+    textarea: composer, front: activity.current, onError: setError, reviewLauncher: chatReview.launcher,
     actions: {
       sendText: async text => {
         const ready = !!session && !session.closed && (!session.fault || limited || continuesAfterError);
@@ -472,8 +474,6 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
 
   // Settings → Voice → Read aloud: a reply that finishes while this conversation is shown.
   useReadAloudReplies(mode === 'agent' ? sessionID : '', transcript);
-  // Review from the chat: the header's Review button, its ⋯ item and the right-click menu.
-  const chatReview = useChatReview({ session: assistant ? undefined : session, sessionID, onError: setError });
   const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
   // The agent starts browsing: its browser shows beside the chat (Settings → Browser).
   useBrowserAutoShow(api, session?.conversationId || session?.id || '', session?.closed ? undefined : session?.browser, onShowBrowser);

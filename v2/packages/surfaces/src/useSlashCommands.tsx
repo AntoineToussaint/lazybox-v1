@@ -6,8 +6,7 @@ import { runAction, useActions, type ActionId } from './actions';
 import { openArtifact } from './artifact-events';
 import { TrackArtifactDialog, UpdateArtifactDialog } from './ArtifactDialogs';
 import { requestReviewTray } from './ChangesPanel';
-import { useReviewLauncher } from './review-client';
-import { useWorkspaceReview } from './useWorkspaceReview';
+import type { ReviewLauncher } from './review-client';
 import { showMenuNotice } from './ContextMenu';
 import type { VimMode } from './composer-vim';
 import { conversationArtifacts, trackable } from './MessageArtifactActions';
@@ -15,7 +14,7 @@ import { saveSnippetUse } from './snippet-usage';
 import { SlashMenu, SlashWarning, SLASH_MENU_ID, slashOptionId } from './SlashMenu';
 import { useDismiss } from './dismiss';
 import {
-  decideSend, findCommand, lazyboxCommands, mergeModels, modelRestartText, reviewRequest, providerCommands, resolveModel, sameModel, slashMenu, snippetCommands,
+  boxAfterCommand, decideSend, findCommand, lazyboxCommands, mergeModels, modelRestartText, paletteCommand, reviewRequest, providerCommands, resolveModel, sameModel, slashCommandList, slashMenu, snippetCommands,
   type CommandCatalog, type ProviderModel, type SlashChoice, type SlashCommand, type SlashContext, type SlashMenuState,
 } from './slash-commands';
 import { useProviderAvailability } from './useProviderAvailability';
@@ -62,6 +61,11 @@ type Options = {
   /** This is the chat in front: the palette's commands mean it. */
   front(): boolean;
   actions: SlashActions;
+  /**
+   * Who reviews `/review`: the chat's one launcher, shared with the header's
+   * Review button, so the two never start two reviews at once.
+   */
+  reviewLauncher: ReviewLauncher;
   onError(message: string): void;
 };
 
@@ -100,10 +104,8 @@ export function useSlashCommands(o: Options) {
 
   // `/review`: another agent reviews this conversation's work (or, from a
   // review conversation, the work it reviews: a review is never reviewed).
-  const runs = useWorkspaceReview(workspaceId).review?.runs;
-  const asReviewer = session && runs?.find(run => run.reviewerSessionId === session.id);
-  const reviewLauncher = useReviewLauncher(workspaceId, asReviewer ? { id: asReviewer.sourceSessionId, profileId: '', provider: asReviewer.sourceProvider } : session);
-  useEffect(() => { if (reviewLauncher.error) { latest.current.onError(`Could not start the review: ${reviewLauncher.error}`); reviewLauncher.setError(''); } }, [reviewLauncher.error]);
+  // The launcher is the chat's (ReviewFromChat.tsx), which reports its errors.
+  const { reviewLauncher } = o;
   const live = !!session && !session.closed;
   const lastAgentMessage = useMemo(() => [...o.conversation].reverse().find(trackable), [o.conversation]);
   // The Runner's models for this provider: what its program lists, else built in.
@@ -121,7 +123,7 @@ export function useSlashCommands(o: Options) {
   };
   const lazybox = lazyboxCommands(context);
   const modelsRef = useRef(models); modelsRef.current = models;
-  const commands: SlashCommand[] = [...lazybox, ...providerCommands(catalog, lazybox, o.canCompose ? undefined : 'The conversation cannot take a message now'), ...snippetCommands(snippets.rows, snippets.next)];
+  const commands: SlashCommand[] = slashCommandList(lazybox, providerCommands(catalog, lazybox, o.canCompose ? undefined : 'The conversation cannot take a message now'), snippetCommands(snippets.rows, snippets.next));
   const byName = (name: string) => lazybox.find(command => command.name === name)!;
 
   // ---- The menu --------------------------------------------------------
@@ -206,14 +208,20 @@ export function useSlashCommands(o: Options) {
     setTracking({ kind: 'track', message, existing });
   };
 
-  /** Lazybox's command, for real. Choosing one that takes an argument without one shows its choices. */
-  const run = (command: SlashCommand, rawArgs: string) => {
+  /**
+   * Lazybox's command, for real. Choosing one that takes an argument without
+   * one shows its choices. `from`: typed in the box (or chosen from its menu),
+   * whose `/command` gives way to the draft set aside; or the palette, which
+   * leaves the box as it is — the draft is the person's.
+   */
+  const run = (command: SlashCommand, rawArgs: string, from: 'box' | 'palette' = 'box') => {
     const args = rawArgs.trim();
     const { actions, onError } = latest.current;
     if (command.disabled) { notice(command.disabled); return; }
     // `/review` alone starts the default reviewer: one Enter, not a menu.
     if (!args && (command.choices?.length || command.needsArgument) && !(command.name === 'review' && reviewLauncher.choices.length)) { borrow(`/${command.name} `); return; }
-    finish();
+    const back = boxAfterCommand(from, stash.current);
+    if (back !== undefined) { stash.current = null; setText(back); }
     switch (command.name) {
       case 'model': void switchModel(resolveModel(args, modelsRef.current)); break;
       case 'permissions': {
@@ -236,6 +244,7 @@ export function useSlashCommands(o: Options) {
           if (!request.tray && args) { onError(`No agent is available to review with: ${reviewLauncher.unavailable || 'sign one in under Settings → Subscriptions'}.`); break; }
           requestReviewTray(workspaceId); if (!runAction('changes.show')) notice('Open the Changes panel to see the review tray'); break;
         }
+        if (reviewLauncher.busy) { notice('A review is starting'); break; }
         notice(`Starting ${request.reviewer.label}’s review${request.focus ? ', with your focus' : ''}…`);
         void reviewLauncher.start({ scope: 'changes' }, request.reviewer, request.focus);
         break;
@@ -329,8 +338,9 @@ export function useSlashCommands(o: Options) {
   const fromPalette = (name: string) => {
     const command = byName(name);
     if (command.disabled) { notice(command.disabled); return; }
-    if (command.choices?.length || command.needsArgument) borrow(`/${name} `);
-    else run(command, '');
+    const what = paletteCommand(command);
+    if ('borrow' in what) borrow(what.borrow);
+    else run(command, what.args, 'palette');
   };
   const can = (name: string) => () => latest.current.enabled && latest.current.front() && !byNameLatest(name)?.disabled;
   const byNameLatest = (name: string) => lazyboxCommands(contextRef.current).find(command => command.name === name);

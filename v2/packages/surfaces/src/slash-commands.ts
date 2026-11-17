@@ -28,6 +28,12 @@ export type SlashCommand = {
   aliases?: string[];
   /** Why it cannot run now. It is still listed, so the person learns it exists. */
   disabled?: string;
+  /**
+   * Lazybox's command does nothing for this provider (`/compact` for an ACP
+   * agent): the agent's own command of the same name, if it has one, takes its
+   * place in the menu and on Enter.
+   */
+  unsupported?: boolean;
   /** The argument is picked from these as it is typed. */
   choices?: SlashChoice[];
   /** A free argument is required (`/rename <title>`): choosing it completes `/name ` first. */
@@ -271,7 +277,7 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
     { key: 'lazybox:model', name: 'model', group: 'lazybox', icon: 'sparkle', argumentHint: '<name>', description: ctx.liveModel ? `Switch ${agentName}'s model` : `Switch ${agentName}'s model${restart(false)}`, choices: models, freeArgument: true, disabled: unless(notLive), keywords: 'opus sonnet haiku gpt' },
     { key: 'lazybox:permissions', name: 'permissions', group: 'lazybox', icon: 'shield', argumentHint: 'ask|read-only|yolo', aliases: ['permission', 'yolo'], description: 'Ask, Read only or YOLO', choices: permissions, disabled: unless(notLive, !ctx.coding && 'Assistants are read-only') },
     { key: 'lazybox:subscription', name: 'subscription', group: 'lazybox', icon: 'card', description: 'Switch subscription…', aliases: ['account'], disabled: unless(notLive), keywords: 'account login profile limit' },
-    { key: 'lazybox:compact', name: 'compact', group: 'lazybox', icon: 'collapse', description: 'Compact the context: summarize the conversation so far', disabled: unless(notLive, ctx.busy && 'Wait for the turn to finish', !ctx.compact && (ctx.provider === 'codex' ? 'Codex compacts its context on its own' : isAcp(ctx.provider) ? `${agentName} has no /compact; see its own commands` : 'Not available until the agent reports its commands')), keywords: 'summarize context shrink tokens' },
+    { key: 'lazybox:compact', name: 'compact', group: 'lazybox', icon: 'collapse', description: 'Compact the context: summarize the conversation so far', disabled: unless(notLive, ctx.busy && 'Wait for the turn to finish', !ctx.compact && (ctx.provider === 'codex' ? 'Codex compacts its context on its own' : isAcp(ctx.provider) ? `${agentName} has no /compact; see its own commands` : 'Not available until the agent reports its commands')), unsupported: !ctx.compact, keywords: 'summarize context shrink tokens' },
     { key: 'lazybox:clear', name: 'clear', group: 'lazybox', icon: 'plus', description: 'New conversation in this workspace (this one is kept)', aliases: ['new'], disabled: unless(!ctx.workspace && 'Only in a workspace'), keywords: 'reset fresh start' },
     { key: 'lazybox:cost', name: 'cost', group: 'lazybox', icon: 'activity', description: 'Token cost of this conversation', aliases: ['usage'], keywords: 'tokens price money spend' },
     { key: 'lazybox:context', name: 'context', group: 'lazybox', icon: 'activity', description: 'How full the context window is', keywords: 'tokens window memory' },
@@ -394,10 +400,12 @@ export function resolveModel(args: string, models: readonly ProviderModel[]): st
 /**
  * The agent's own commands, as listed by its catalog: Lazybox's command of
  * the same name stands in for it (Lazybox's `/model` switches live; the
- * agent's would wait for a terminal), and terminal-only ones are left out.
+ * agent's would wait for a terminal), unless Lazybox's does nothing for this
+ * agent (`unsupported`: an ACP agent's own `/compact`), and terminal-only
+ * ones are left out.
  */
 export function providerCommands(catalog: CommandCatalog, lazybox: readonly SlashCommand[], disabled?: string): SlashCommand[] {
-  const taken = new Set(lazybox.flatMap(names));
+  const taken = new Set(lazybox.filter(command => !command.unsupported).flatMap(names));
   const terminal = new Set(catalog.terminal.map(name => name.toLowerCase()));
   const seen = new Set<string>();
   return catalog.commands.flatMap(command => {
@@ -406,6 +414,38 @@ export function providerCommands(catalog: CommandCatalog, lazybox: readonly Slas
     seen.add(lower);
     return [{ key: `provider:${command.name}`, name: command.name, group: 'provider' as const, icon: command.builtin ? 'sparkle' : 'notes', description: command.description || (command.builtin ? 'Built-in command' : 'Custom command'), argumentHint: command.argumentHint || undefined, aliases: command.aliases?.filter(alias => !taken.has(alias.toLowerCase())), disabled }];
   });
+}
+
+/**
+ * What ⌘K does with one of Lazybox's commands: `/review` from the palette is
+ * its title, "Open the review tray" (it starts no review); one that takes a
+ * choice or an argument borrows the message box to ask for it; any other runs.
+ */
+export function paletteCommand(command: Pick<SlashCommand, 'name' | 'choices' | 'needsArgument'>): { borrow: string } | { args: string } {
+  if (command.name === 'review') return { args: 'tray' };
+  if (command.choices?.length || command.needsArgument) return { borrow: `/${command.name} ` };
+  return { args: '' };
+}
+/**
+ * The message box once a command has run: typed there (or chosen from its
+ * menu), the `/command` gives way to the draft it set aside (empty without
+ * one); from the palette, the box is the person's draft and stays as it is,
+ * unless the palette had borrowed it for a command's choices. Undefined:
+ * leave it.
+ */
+export function boxAfterCommand(from: 'box' | 'palette', setAside: string | null): string | undefined {
+  if (from === 'palette' && setAside === null) return undefined;
+  return setAside ?? '';
+}
+
+/**
+ * Every command the menu lists: Lazybox's, the agent's, the snippets. A
+ * Lazybox command that does nothing for this agent gives way to the agent's
+ * own command of the same name.
+ */
+export function slashCommandList(lazybox: readonly SlashCommand[], provider: readonly SlashCommand[], snippets: readonly SlashCommand[]): SlashCommand[] {
+  const own = new Set(provider.flatMap(names));
+  return [...lazybox.filter(command => !command.unsupported || !own.has(command.name.toLowerCase())), ...provider, ...snippets];
 }
 
 /** Snippets by name; those the last one sent chains to (`next:`) come first, marked Next. */

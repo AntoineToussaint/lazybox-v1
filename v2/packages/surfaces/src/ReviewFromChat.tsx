@@ -24,10 +24,14 @@ import './review-agents.css';
 export function useChatReview({ session, sessionID, onError }: { session?: Session; sessionID: string; onError(message: string): void }) {
   const workspaceId = session?.collectionId || '';
   const runs = useWorkspaceReview(workspaceId).review?.runs;
-  // A review conversation is never itself reviewed; an assistant has no work to review.
-  const isReviewer = !!runs?.some(run => run.reviewerSessionId === sessionID);
+  // A review conversation is never itself reviewed (its `/review` reviews the
+  // work it reviews); an assistant has no work to review.
+  const asReviewer = runs?.find(run => run.reviewerSessionId === sessionID);
+  const isReviewer = !!asReviewer;
   const coding = !!session && (!session.purpose || session.purpose === 'coding');
-  const launcher = useReviewLauncher(workspaceId, coding && !isReviewer ? session : undefined);
+  // One launcher per chat: the header's button, its ⋯ item and `/review`
+  // (useSlashCommands.tsx) share it, and so its busy state: never two reviews at once.
+  const launcher = useReviewLauncher(workspaceId, asReviewer ? { id: asReviewer.sourceSessionId, profileId: '', provider: asReviewer.sourceProvider } : coding ? session : undefined);
   const latest = useRef(onError); latest.current = onError;
   useEffect(() => { if (launcher.error) { latest.current(`Could not start the review: ${launcher.error}`); launcher.setError(''); } }, [launcher.error]);
   const shown = !!workspaceId && coding && !isReviewer && launcher.choices.length > 0;

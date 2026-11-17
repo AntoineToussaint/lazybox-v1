@@ -1,7 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {create} from '@bufbuild/protobuf';import {JournalEventSchema} from '@lazybox/protocol';
 import {appendTranscript,emptyTranscript} from '../packages/surfaces/src/transcript-model';
-import {commandLine,decideSend,emptyCatalog,lazyboxCommands,mergeCatalog,mergeModels,modelChoices,modelRestartText,parseSlash,providerCommands,rankChoices,rankCommands,resolveModel,sameModel,shortTokens,slashMenu,snippetCommands,type SlashContext} from '../packages/surfaces/src/slash-commands';
+import {boxAfterCommand,commandLine,decideSend,emptyCatalog,findCommand,lazyboxCommands,mergeCatalog,mergeModels,modelChoices,modelRestartText,paletteCommand,parseSlash,providerCommands,rankChoices,rankCommands,resolveModel,sameModel,shortTokens,slashCommandList,slashMenu,snippetCommands,type SlashContext} from '../packages/surfaces/src/slash-commands';
 
 const ctx=(over:Partial<SlashContext>={}):SlashContext=>({provider:'claude',live:true,busy:false,coding:true,workspace:true,permission:'ask',planWorkflow:false,livePermission:true,model:'claude-opus-5-5',liveModel:true,resumable:true,models:[{value:'claude-opus-5-5',displayName:'Opus 5.5',description:'Most capable'},{value:'claude-sonnet-5',displayName:'Sonnet 5',description:'Fast'}],agentMessage:true,shellBlock:true,compact:true,detail:'smart',subscriptions:1,...over});
 const catalog=mergeCatalog(emptyCatalog(),{commands:[{name:'compact',description:'Clear history but keep a summary',argumentHint:'<instructions>',builtin:true},{name:'review-pr',description:'Review a pull request',argumentHint:'<number>'},{name:'/init',description:'Initialize CLAUDE.md',argumentHint:''},{name:'model',description:'native model picker',argumentHint:''},{name:'exit',description:'Exit',argumentHint:''},{name:'bad name',description:'',argumentHint:''}],models:[{value:'opus',displayName:'Opus'}],terminal:['exit']});
@@ -25,6 +25,36 @@ test('the catalog: names without their slash, bounded, terminal commands kept ap
 test('provider commands: Lazybox stands in for a name it has; terminal-only ones are left out',()=>{
  const names=providerCommands(catalog,lazyboxCommands(ctx())).map(c=>c.name);
  assert.deepEqual(names,['review-pr','init']);});
+
+test('an agent\'s own command takes the place of a Lazybox command that does nothing for it (an ACP agent\'s /compact)',()=>{
+ const acp=ctx({provider:'acp:gemini',agentName:'Gemini CLI',compact:false});
+ const lazybox=lazyboxCommands(acp),provider=providerCommands(catalog,lazybox);
+ assert.deepEqual(provider.map(c=>c.name),['compact','review-pr','init'],'its /compact is listed; Lazybox\'s /model still stands in for its own');
+ const list=slashCommandList(lazybox,provider,[]);
+ assert.equal(list.filter(c=>c.name==='compact').length,1,'one /compact');
+ assert.equal(findCommand(list,'compact')?.group,'provider');
+ assert.deepEqual(decideSend('/compact keep the API notes',list),{kind:'provider',command:findCommand(list,'compact'),args:'keep the API notes'},'Enter sends it as the prompt');
+ // An agent without one keeps Lazybox's, which says why it cannot run.
+ const bare=slashCommandList(lazybox,providerCommands(emptyCatalog(),lazybox),[]);
+ assert.match(findCommand(bare,'compact')!.disabled!,/Gemini CLI has no \/compact/);
+ // Claude: Lazybox's /compact stands in for Claude's, as before; a command disabled only for now still does.
+ for(const c of [ctx(),ctx({busy:true})]){const own=lazyboxCommands(c);assert.equal(findCommand(slashCommandList(own,providerCommands(catalog,own),[]),'compact')?.group,'lazybox');}
+});
+
+test('⌘K: Open the review tray opens the tray; a command with choices borrows the box; the palette leaves a draft alone',()=>{
+ const lazybox=lazyboxCommands(ctx({reviewers:[{key:'codex',label:'Codex'}]}));
+ const named=(name:string)=>lazybox.find(c=>c.name===name)!;
+ assert.deepEqual(paletteCommand(named('review')),{args:'tray'},'it starts no review');
+ assert.deepEqual(paletteCommand(named('model')),{borrow:'/model '});
+ assert.deepEqual(paletteCommand(named('rename')),{borrow:'/rename '});
+ assert.deepEqual(paletteCommand(named('compact')),{args:''});
+ // A command typed in the box gives the box back: empty, or the draft set aside for its choices.
+ assert.equal(boxAfterCommand('box',null),'');
+ assert.equal(boxAfterCommand('box','half a draft'),'half a draft');
+ // From the palette the box holds the draft: it stays (and its saved copy with it).
+ assert.equal(boxAfterCommand('palette',null),undefined);
+ assert.equal(boxAfterCommand('palette','half a draft'),'half a draft','a box the palette borrowed is given back');
+});
 
 test('filtering and ranking: exact, then prefix, then letters in order; grouped Lazybox · agent · snippets',()=>{
  const {items,best}=rankCommands('',all());
