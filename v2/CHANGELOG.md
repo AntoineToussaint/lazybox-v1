@@ -14,6 +14,15 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.10] - 2026-11-17 · Start a task from a GitHub issue
+
+- **Paste an issue's link** Paste a GitHub issue's link (or acme/api#812) into New task's message box: it becomes the issue's chip, its repository is chosen, and the workspace is named after it on a branch like 812-fix-refund-rounding.
+- **Pick from your issues** From an issue… in New task, or Start from an issue… in ⌘K, opens a picker on the open issues assigned to you: type to search, ↑↓ and Enter to pick, Tab to widen to issues that involve you or all of GitHub.
+- **See exactly what the agent gets** The issue's text and its last comments go with your first message, quoted as content from GitHub so the agent treats it as information, not instructions. Open What the agent gets to read it before starting, and untick the comments to leave them out. The agent starts in Ask unless you pick YOLO.
+- **Already started?** When an issue already has a workspace the sheet says which, with Open it, or Start another on a branch of its own.
+- **Where the work came from** The conversation header shows the issue (key, title, state), and opens it in your browser or the Web panel. The agent is told to write Fixes #812 in its commits and pull request, so GitHub links them back.
+- **From the terminal** lazybox new --from https://github.com/acme/api/issues/812 "Start with the ledger" does the same from a shell; --another starts a second workspace for the same issue.
+
 ## [2026-11-17.9] - 2026-11-17 · Add a Codex account in your browser
 
 - **Codex signs in in your browser** Settings → Subscriptions → Add subscription → Codex now shows Continue in your browser: ChatGPT's sign-in page opens, and Lazybox continues by itself when you are done, with Open again and Cancel while it waits. No code to copy, and it works for accounts that do not allow device codes, such as most Business and Enterprise workspaces.

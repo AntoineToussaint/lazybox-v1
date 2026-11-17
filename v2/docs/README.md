@@ -24,6 +24,7 @@ Task by task:
 | I want to… | Guide |
 | --- | --- |
 | Ask how to do something in Lazybox, or have it change a setting for me | [Ask Lazybox](guides/ask-lazybox.md) |
+| Start a task from a GitHub issue: paste its link, or pick one assigned to me | [Start from an issue](guides/start-from-an-issue.md) |
 | Work with an agent: answer its questions, approve, follow sub-agents | [Work in the chat](guides/chat.md) |
 | See less (or more) of what the agent ran | [Activity detail](guides/activity-detail.md) |
 | Check what an agent changed, comment, undo a turn, open and merge a PR | [Review an agent's work](guides/review-agent-work.md) |

@@ -421,17 +421,63 @@ without an approval prompt (it may ask once), and whether Codex's read-only
 sandbox reaches the Runner (the brief points it at Lazybox's command tool when
 it does not).
 
+## Start a workspace from an issue
+
+The user guide is [Start from an issue](docs/guides/start-from-an-issue.md);
+the design is [PROJECTS_AND_INTEGRATIONS.md](PROJECTS_AND_INTEGRATIONS.md#start-a-workspace-from-an-item).
+
+- **Access.** Reading issues needs **Issues: read** on the repository: a
+  classic token's `repo` scope, a fine-grained token's Issues read, or the
+  App's Issues read-only permission (already part of the App setup above). The
+  picker uses GitHub's issue search API (`/search/issues`, 30 per page, at most
+  1,000 results), whose `@me` qualifiers need a user token: personal tokens
+  and App user tokens both are. Nothing is ever written to an issue.
+- **Provider surface.** `internal/sources/github` reads (`IssueReader`:
+  `SearchIssues`, `Issue`, `IssueComments`, which reads only the tail of a long
+  thread). `internal/runner/workitems` is the provider contract (`Search`,
+  `Get`, `Resolve`) that extension providers will implement too (phase 3);
+  GitHub is its first implementation, with no Runner or UI state.
+- **Search.** The picker's scopes are `mine` (`is:issue is:open archived:false
+  assignee:@me`, the default), `recent` (`involves:@me`) and `all` (only with
+  words). A key (`owner/name#N`) or an issue or pull request URL reads that one
+  item without a search.
+- **Context.** `GetItem` returns the body and the last 10 comments (at most 50)
+  with authors and dates, and the exact text the agent receives
+  (`workitems.Quote`): framed by `[Lazybox] External content: …` and
+  `[Lazybox] End of external content from KEY`, every line between them quoted
+  with `> `, so the content cannot close the block. The description is cut at
+  16 KiB and each comment at 4 KiB, pointing at the URL for the rest. The
+  desktop recognises the frame to show it as a chip (`item-context.ts`).
+- **Origin.** `PrepareWorkspace` with `item` stores `Collection.origin` (a
+  snapshot: provider, key, kind, title, URL, closing reference, when) in the
+  workspace record. Without repositories it uses the issue's; without a branch,
+  `<number>-<slug of the title>`, with `-2`, `-3` when a workspace already
+  holds it; without a name, the title. When GitHub cannot be read the start
+  goes on from the reference alone. `FindItemWorkspaces` answers "already has a
+  workspace".
+- **Briefing.** A workspace with an origin adds one line to the agent's
+  workspace context: "This work started from acme/api#812 (GitHub issue).
+  Reference it as `Fixes #812` in your commits and pull request."
+- **Safety.** Item text is untrusted: quoted as above, shown before sending,
+  and the agent starts in Ask unless the person picks YOLO in the sheet (or
+  `--permission` in the CLI), even when the Runner's default is YOLO.
+- **Not yet:** other providers, a project's `items:` mapping, write-back
+  actions (move, assign), and keeping an item's state fresh over time (links
+  and refresh belong to the PR tracking work).
+
 ## Scope and evidence
 
 Implemented: personal-token and App connection lifecycles, App-token refresh,
 user-repository and installation/repository pagination,
-selected imports, durable library registration, Workspace membership, and
-read-only issue/PR RPCs for imported repos, and the PR loop (tested against a
-local bare remote and a fake GitHub API; not yet exercised against github.com).
+selected imports, durable library registration, Workspace membership,
+read-only issue/PR RPCs for imported repos, the PR loop (tested against a
+local bare remote and a fake GitHub API; not yet exercised against github.com),
+and starting a workspace from an issue (search, read and quote, tested against
+the same fake API; not yet exercised against github.com).
 The repository browser does not expose a second issue/PR browsing workflow. See [runtime evidence](RUNTIME_EVIDENCE.md).
 
 Not yet implemented: background inbox synchronization, durable task/event
-reconciliation, opening a tracker record directly into a session, incremental
+reconciliation, incremental
 fetching of imported source copies, publishing review comments to GitHub, auto-merge, or
 remote Hub coordination. Re-importing an existing repository is idempotent; it
 does not fetch a newer base. Live App identity and repository listing have been verified. Live personal-token

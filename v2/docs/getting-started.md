@@ -95,7 +95,9 @@ approval, Plan first, Read only, YOLO). **Enter** creates the workspace on its
 branch and the conversation, and sends your message; **⌘Enter** does it in
 the background so you can start the next one. The sheet remembers your last
 repositories, agent and mode; Escape keeps an unsent message for next time.
-*Start without a repository* makes an empty workspace. The steps below do the
+*Start without a repository* makes an empty workspace. Paste a GitHub issue's
+link into the message, or choose **From an issue…**, to
+[start from an issue](guides/start-from-an-issue.md). The steps below do the
 same one at a time.
 
 ## Your first workspace

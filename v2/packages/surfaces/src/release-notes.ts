@@ -9,6 +9,19 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.10',
+    date: '2026-11-17',
+    title: 'Start a task from a GitHub issue',
+    items: [
+      { title: 'Paste an issue\'s link', body: 'Paste a GitHub issue\'s link (or acme/api#812) into New task\'s message box: it becomes the issue\'s chip, its repository is chosen, and the workspace is named after it on a branch like 812-fix-refund-rounding.' },
+      { title: 'Pick from your issues', body: 'From an issue… in New task, or Start from an issue… in ⌘K, opens a picker on the open issues assigned to you: type to search, ↑↓ and Enter to pick, Tab to widen to issues that involve you or all of GitHub.' },
+      { title: 'See exactly what the agent gets', body: 'The issue\'s text and its last comments go with your first message, quoted as content from GitHub so the agent treats it as information, not instructions. Open What the agent gets to read it before starting, and untick the comments to leave them out. The agent starts in Ask unless you pick YOLO.' },
+      { title: 'Already started?', body: 'When an issue already has a workspace the sheet says which, with Open it, or Start another on a branch of its own.' },
+      { title: 'Where the work came from', body: 'The conversation header shows the issue (key, title, state), and opens it in your browser or the Web panel. The agent is told to write Fixes #812 in its commits and pull request, so GitHub links them back.' },
+      { title: 'From the terminal', body: 'lazybox new --from https://github.com/acme/api/issues/812 "Start with the ledger" does the same from a shell; --another starts a second workspace for the same issue.' },
+    ],
+  },
+  {
     id: '2026-11-17.9',
     date: '2026-11-17',
     title: 'Add a Codex account in your browser',

@@ -198,6 +198,12 @@ provider whose items are code reviews fills it (GitHub, later GitLab).
 
 ### Start a workspace from an item
 
+> **Implemented for GitHub issues** (phase 2b): paste, the picker, the CLI, the
+> quoted context, "already started", the origin chip and the briefing line. The
+> project home (3) and write-back wait for projects and actions. Details in
+> [GITHUB.md](GITHUB.md#start-a-workspace-from-an-issue); the guide is
+> [Start from an issue](docs/guides/start-from-an-issue.md).
+
 There are four ways in, and all of them land in the same New task sheet:
 
 1. **Paste a link into the message box.** A Linear or GitHub URL becomes an item

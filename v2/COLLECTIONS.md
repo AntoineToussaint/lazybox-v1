@@ -191,3 +191,11 @@ collisions, and creates the root once. `RenameCollection` changes only `name`;
 worktree paths, branches, ownership claims and request fingerprints remain fixed.
 Versions 1–3 acquire their existing folder basename as the slug when loaded. No
 migration moves files. Older binaries cannot read version 4 manifests.
+
+A workspace started from a work item records it as `origin` (provider, key and
+a snapshot of its kind, title, URL and closing reference; see
+[GITHUB.md](GITHUB.md#start-a-workspace-from-an-issue)). It is an optional
+field of version 4, so no version change: records without it load as before,
+and a request key's fingerprint covers only the item's provider and key, so a
+retry that read the item again is the same request. A Runner that predates the
+field reads such a record and drops the field if it rewrites it.
