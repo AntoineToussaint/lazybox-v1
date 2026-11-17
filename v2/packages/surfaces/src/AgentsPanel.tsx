@@ -171,7 +171,7 @@ export function AgentsPanel({ collections, target, viewState, onShowSession }: {
                       {depth > 0 && <span className="agent-role agent-lineage" title={lineageLabel(row.session)}>{lineage?.role || 'agent'}</span>}
                       {lineage?.grantId && <span className="agent-orchestrator" title={`Orchestrator of “${lineage.missionTitle}”: ${lineage.liveChildren} of ${lineage.maxChildren} agents running`}><Icon name="subagent" size={10}/>{lineage.liveChildren}/{lineage.maxChildren}</span>}</span>
                     {from && <span className="agent-lineage" title={lineageLabel(row.session)}><Icon name="subagent" size={10}/>{from}</span>}
-                    <span className="agent-meta">{inbox.multi && grouping !== 'runner' && <RunnerBadge runner={row.runner}/>}{row.state === 'working' ? <>{grouping !== 'workspace' && <span className="agent-workspace">{workspace(row)}</span>}<LiveText session={row.session}/></> : <span>{metaLine(row, workspace(row), grouping !== 'workspace' || section.id === 'pinned')}</span>}</span>
+                    <span className="agent-meta">{inbox.multi && grouping !== 'runner' && <RunnerBadge runner={row.runner}/>}{row.state === 'working' ? <>{grouping !== 'workspace' && <span className="agent-workspace">{workspace(row)}</span>}<LiveText session={row.session} subagentsShown={subagents.length > 0}/></> : <span>{metaLine(row, workspace(row), grouping !== 'workspace' || section.id === 'pinned')}</span>}</span>
                   </span>
                   <time className="agent-age" dateTime={row.at ? new Date(row.at).toISOString() : undefined}>{ageLabel(row.at, now)}</time>
                 </button>}

@@ -406,6 +406,8 @@ try{
  await card(B).getByRole('button',{name:'Open Audit worker events in a panel'}).click();
  const sheet=chat.getByRole('complementary',{name:'Sub-agent: Audit worker events'});
  await expect(sheet).toHaveAttribute('data-mode','sheet');
+ // It and the sub-agent it started both ended unreported: said once, by it, not again by the nested card.
+ await expect(sheet.locator('.subagent-outcome').filter({hasText:'Ended without a report'})).toHaveCount(1);
  await page.screenshot({path:'.cache/subagents-phone.png'});
  await sheet.getByRole('button',{name:'Close sub-agent panel'}).click();
  await expect(sheet).toHaveCount(0);

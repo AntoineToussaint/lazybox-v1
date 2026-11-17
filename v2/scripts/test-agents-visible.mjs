@@ -159,6 +159,12 @@ try {
   await expect(working.locator('.agent-subagent')).toContainText('Find the flaky test');
   await page.keyboard.press('ArrowLeft');
   await expect(working.locator('.agent-subagent')).toHaveCount(0);
+  // The main agent's turn ends while its sub-agent works on: the row's own line says Running, and
+  // does not count the sub-agent again (it truncated as "Running · 1 sub-ag…"): the nested row does.
+  Object.assign(f.sessions[0], {busy: false}); Object.assign(f.sessions[0].agents[0], {status: 'done', phase: ''});
+  await expect(working.locator('.agent-meta')).toHaveText(/^(alpha feature\s*)?Running$/i, {timeout: 10000});
+  await expect(working.locator('.agent-subagents-toggle')).toHaveText('1 sub-agent working');
+  Object.assign(f.sessions[0], {busy: true, status: 'running'}); Object.assign(f.sessions[0].agents[0], {status: 'running', phase: 'tool'});
 
   // Keyboard: j/k move, Space peeks, Enter opens.
   const rows = agents.locator('.agent-row');

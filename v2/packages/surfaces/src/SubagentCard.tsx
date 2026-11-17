@@ -177,6 +177,8 @@ export const SubagentCard = memo(function SubagentCard({ id }: { id: string }) {
   const view = useSubagentView();
   const agent = useSubagent(view, id);
   const status = useAgentStatus(view, agent);
+  const parent = useSubagent(view, agent?.parentId || '');
+  const parentStatus = useAgentStatus(view, parent);
   const active = activeSubagent(status);
   const now = useNow(active);
   const bodyId = useId();
@@ -217,7 +219,8 @@ export const SubagentCard = memo(function SubagentCard({ id }: { id: string }) {
       <span className="subagent-now-text" onPointerEnter={titleWhenTruncated(action.text)}>{action.text}</span>
     </div>}
     {active && agent.progress && <p className="subagent-progress" title="The provider's summary of its progress">{agent.progress}</p>}
-    {!active && <SubagentOutcome view={view} agent={agent} status={status}/>}
+    {/* Inside a parent's timeline whose own end went unreported too, the parent's outcome says it once. */}
+    {!active && !(status === 'unreported' && parentStatus === 'unreported' && !agent.result && !agent.summary) && <SubagentOutcome view={view} agent={agent} status={status}/>}
     {expanded && <div id={bodyId} className="subagent-body" ref={scroller} onScroll={follow}>
       <SubagentPrompt agent={agent}/>
       <SubagentTimeline agent={agent} status={status} scroller={scroller} latest={CARD_STEPS}/>

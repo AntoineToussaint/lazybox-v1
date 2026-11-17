@@ -23,10 +23,10 @@ export function useNow(ticking: boolean): number {
 }
 
 /** A conversation's live status, moving while the agent works. */
-export function useLiveStatus(session: Session | undefined, events?: readonly JournalEvent[]): LiveStatus {
+export function useLiveStatus(session: Session | undefined, events?: readonly JournalEvent[], options?: { subagentsShown?: boolean }): LiveStatus {
   const [ticking, setTicking] = useState(false);
   const now = useNow(ticking);
-  const status = liveStatus(session, now, events);
+  const status = liveStatus(session, now, events, options);
   const timed = status.since !== undefined;
   useEffect(() => setTicking(timed), [timed]);
   return status;

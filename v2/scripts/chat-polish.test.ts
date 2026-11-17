@@ -55,6 +55,9 @@ test('waiting, failed, saved and sub-agent states are distinct and still', () =>
   assert.equal(liveStatus(children, 0).text, 'Running · 1 sub-agent');
   const background = session({ status: 'running', agents: [{ status: 'done', lastTurnStatus: 'completed' }, { id: 'claude-tool:a', status: 'running' }, { id: 'claude-tool:b', status: 'running', kind: 'local_bash' }, { id: 'claude-tool:c', status: 'running', kind: 'local_bash' }] });
   assert.equal(liveStatus(background, 0).text, 'Running · 1 sub-agent · 2 background commands', 'a background command is not a sub-agent');
+  // The Agents list nests the sub-agents under the row: its line does not count them again.
+  assert.equal(liveStatus(children, 0, undefined, { subagentsShown: true }).text, 'Running');
+  assert.equal(liveStatus(background, 0, undefined, { subagentsShown: true }).text, 'Running · 2 background commands');
 });
 
 test('an opened session that never ran a turn is Ready, not stuck Starting', () => {

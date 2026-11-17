@@ -104,7 +104,8 @@ export function turnEndedInJournal(events: readonly JournalEvent[]): boolean {
  * The live status of a conversation. `events` (a chat's journal) refines the
  * step when supplied; rows pass only the session the Runner lists.
  */
-export function liveStatus(session: Session | undefined, now: number, events?: readonly JournalEvent[]): LiveStatus {
+/** `subagentsShown`: the place showing this status lists the sub-agents itself (the Agents list's nested row), so it does not count them. */
+export function liveStatus(session: Session | undefined, now: number, events?: readonly JournalEvent[], { subagentsShown = false }: { subagentsShown?: boolean } = {}): LiveStatus {
   if (!session) return fixed('busy', 'Connecting…');
   if (session.fault === 'native_exit_unconfirmed') return fixed('failed', 'Status unknown');
   if (session.historical && session.status === 'interrupted') return fixed('failed', 'Interrupted');
@@ -134,7 +135,7 @@ export function liveStatus(session: Session | undefined, now: number, events?: r
     const step: Phase = journal || { phase: root?.phase || (session.status === 'starting' ? 'starting' : 'working'), tool: root?.tool || '', at: millis(root?.phaseSinceUnixMillis) || millis(root?.turnStartedAtUnixMillis) || undefined };
     return timed(phaseLabel(step.phase, step.tool), step.at, now);
   }
-  if (children || commands) return fixed('busy', `Running · ${[children && `${children} ${children === 1 ? 'sub-agent' : 'sub-agents'}`, commands && `${commands} background ${commands === 1 ? 'command' : 'commands'}`].filter(Boolean).join(' · ')}`);
+  if (children || commands) return fixed('busy', ['Running', !subagentsShown && children && `${children} ${children === 1 ? 'sub-agent' : 'sub-agents'}`, commands && `${commands} background ${commands === 1 ? 'command' : 'commands'}`].filter(Boolean).join(' · '));
   if (session.status === 'starting') return fixed('busy', 'Starting…');
   if (session.status === 'running' && !ended) return fixed('busy', 'Working…');
   if (ended && ['running', 'starting'].includes(session.status)) return fixed('idle', 'Turn done');

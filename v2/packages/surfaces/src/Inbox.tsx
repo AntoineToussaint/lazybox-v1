@@ -32,8 +32,8 @@ const doneLimit = 8;
 export const INBOX_ROWS = '.inbox-row, [data-inbox-row]';
 const ROWS = INBOX_ROWS;
 /** A working row says what the agent is doing, and for how long: "Running · Bash · 12s". */
-export function LiveText({ session }: { session: Inbox['rows'][number]['session'] }) {
-  const status = useLiveStatus(session);
+export function LiveText({ session, subagentsShown = false }: { session: Inbox['rows'][number]['session']; /** The row lists its sub-agents itself: the line does not count them. */ subagentsShown?: boolean }) {
+  const status = useLiveStatus(session, undefined, { subagentsShown });
   return <em className="inbox-live" data-tone={status.tone}>{status.text}</em>;
 }
 
