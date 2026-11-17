@@ -33,7 +33,7 @@ func TestAgentsVerbRunsALineage(t *testing.T) {
 	env := agentEnv(t, orchNative, orch.Id)
 
 	// No grant: spawn is refused as a scoped credential's overreach, ls explains.
-	if out := r.cli(env, "", "agents", "spawn", "--title", "Index"); out.code != exitDenied || !strings.Contains(out.err.Error(), "Orchestrator grant") {
+	if out := r.cli(env, "", "agents", "spawn", "--title", "Index"); out.code != exitDenied || !strings.Contains(out.err.Error(), "lazybox conversation new") || strings.Contains(out.err.Error(), "\n") {
 		t.Fatalf("spawn without a grant: %+v", out)
 	}
 	if out := r.cli(env, "", "agents", "ls"); out.code != 0 || !strings.Contains(out.stdout, "You run no agents") {

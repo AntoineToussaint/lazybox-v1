@@ -245,9 +245,8 @@ func (c *client) explain(err error) error {
 	case connect.CodeInvalidArgument:
 		return exitError{exitUsage, errors.New(message)}
 	case connect.CodePermissionDenied:
-		if c.target.Scoped {
-			return fail(exitDenied, "%s\nThis process holds a scoped credential (LAZYBOX_V2_ENDPOINT): an agent may publish its own console and artifacts and ask for a repository in its own workspace, a workspace terminal its own runs, a hook what its grants allow. Owner verbs run from your own terminal.", message)
-		}
+		// The Runner's refusal is one actionable line; a scoped credential (an
+		// agent's, a terminal's, a hook's) gets no paragraph appended to it.
 		return exitError{exitDenied, errors.New(message)}
 	case connect.CodeUnauthenticated:
 		return fail(exitDenied, "the Runner refused the credential in %s (%s); if the Runner restarted, its endpoint file has a new one", c.target.EndpointPath, message)

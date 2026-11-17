@@ -354,7 +354,25 @@ func authorize(ctx context.Context, owner string, agents AgentCredentials, metho
 	if allowed := agentRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {
 		return who, nil
 	}
-	return principal{}, status.Error(codes.PermissionDenied, "an agent credential may only publish and follow its own session's console output, list and stop its own commands, use its own workspace's artifacts, ask the person to add a repository to its own workspace, link pull requests to its own workspace and list them, file findings of a review it is the reviewer of, and (with an Orchestrator grant the person gave) start and drive only the agents it started; it never approves, answers for the person, passes a gate or accepts a task")
+	return principal{}, status.Error(codes.PermissionDenied, agentDenial(method))
+}
+
+// agentDenial is what an agent is told when its credential may not make a
+// call: one line, what was refused and the one next step. What an agent may
+// do at all is agentRPCs (above), `lazybox --help` and RESOURCE_OWNERSHIP.md,
+// not a paragraph in every refusal.
+func agentDenial(method string) string {
+	name := method[strings.LastIndex(method, "/")+1:]
+	switch method {
+	case pb.RunnerService_SpawnAgent_FullMethodName, pb.RunnerService_ProposePlan_FullMethodName:
+		return "starting another agent needs the person's OK: ask them with `lazybox conversation new --title … --brief …` (one click for them)"
+	case pb.RunnerService_SendAgentMessage_FullMethodName, pb.RunnerService_WaitAgents_FullMethodName, pb.RunnerService_StopChildAgent_FullMethodName:
+		return "you reach only the agents you started, and your own parent: `lazybox agents ls` lists them"
+	}
+	if agentRPCs[method] != nil {
+		return "refused: an agent's " + name + " reaches only its own conversation, commands and workspace"
+	}
+	return "refused: " + name + " is the person's to do, not an agent's; ask them in your reply"
 }
 
 // LocalAuthority protects the experimental Runner's execution authority on

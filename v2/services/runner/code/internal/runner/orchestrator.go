@@ -28,8 +28,8 @@ import (
 
 // Errors the transport maps to a refusal an agent can read.
 var (
-	ErrNoGrant = errors.New("this conversation has no Orchestrator grant in force: only the person gives one (the conversation's ⋯ menu or ⌘K → “Let this conversation run agents…”)")
-	ErrNoChild = errors.New("no such agent in your lineage: you reach only the agents you started, and your own parent")
+	ErrNoGrant = errors.New("no Orchestrator grant for this conversation: ask the person to start a conversation with `lazybox conversation new --title … --brief …`")
+	ErrNoChild = errors.New("no such agent: you reach only the agents you started, and your own parent (lazybox agents ls)")
 )
 
 // orchestratorBriefing is what an orchestrator is told, with the person's
