@@ -16,17 +16,28 @@ import { Icon } from "./Icons";
 import { actionDefinition, actionGroups, isMac } from "./actions";
 import { SettingsGroup, SettingsHeader, SettingsRow } from "./settings-parts";
 
+type ShortcutDraft = { map: ReturnType<typeof readKeymap>; preset?: string };
+/**
+ * Unsaved shortcut edits, per window and Runner: Settings unmounts a section
+ * when another is chosen, and coming back finds the edits where they were.
+ */
+const drafts = new Map<string, ShortcutDraft>();
+const draftKey = (store?: ViewStateStore) => store?.root || store?.key || "";
+
 export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
-  const [map, setMap] = useState(() => readKeymap(store)),
+  const [saved] = useState(() => drafts.get(draftKey(store)));
+  const [map, setMapState] = useState(() => saved?.map || readKeymap(store)),
     [status, setStatus] = useState(""),
     [tone, setTone] = useState<"saved" | "error" | "">(""),
-    [dirty, setDirty] = useState(false),
+    [dirty, setDirty] = useState(!!saved),
     // The preset picked here, which keys.yaml records with the save.
-    [preset, setPreset] = useState<string>();
+    [preset, setPresetState] = useState<string | undefined>(saved?.preset);
+  const keep = (next: ShortcutDraft) => drafts.set(draftKey(store), next);
+  const setMap = (next: ShortcutDraft["map"]) => { setMapState(next); keep({ map: next, preset }); };
   // keys.yaml saved in an editor shows here at once, unless you are mid-edit.
   const dirtyRef = useRef(dirty); dirtyRef.current = dirty;
   useEffect(() => {
-    const reload = () => { if (!dirtyRef.current) setMap(readKeymap(store)); };
+    const reload = () => { if (!dirtyRef.current) setMapState(readKeymap(store)); };
     window.addEventListener("lazybox-keymap", reload);
     return () => window.removeEventListener("lazybox-keymap", reload);
   }, [store]);
@@ -46,7 +57,8 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
               setTone(result.saved || !result.message ? "saved" : "error");
             });
             setDirty(false);
-            setPreset(undefined);
+            setPresetState(undefined);
+            drafts.delete(draftKey(store));
           } catch (error) {
             setStatus(String(error).replace(/^Error:\s*/, ""));
             setTone("error");
@@ -57,10 +69,12 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
           <SettingsRow label="Start from a preset" htmlFor="keyboard-preset" description="Fills in every shortcut below. Nothing changes until you save.">
             <select
               id="keyboard-preset"
-              defaultValue="custom"
+              value={preset ?? "custom"}
               onChange={(e) => {
-                setMap(keyboardPreset(e.target.value));
-                setPreset(e.target.value);
+                const next = keyboardPreset(e.target.value);
+                setMapState(next);
+                setPresetState(e.target.value);
+                keep({ map: next, preset: e.target.value });
                 setDirty(true);
                 setStatus("");
               }}
