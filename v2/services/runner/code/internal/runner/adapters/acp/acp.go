@@ -127,6 +127,11 @@ type session struct {
 	loading   json.RawMessage
 	loaded    chan jsonl.Message
 	events    chan agent.Event
+	// ended is closed when read returns (the agent exited, the Runner
+	// detached or closed): Receive then ends with why instead of waiting for
+	// events nothing will send.
+	ended     chan struct{}
+	why       error
 	ctx       context.Context
 	cancel    context.CancelFunc
 	tools     func(context.Context, string, json.RawMessage) (string, error)
@@ -306,7 +311,7 @@ func (s *session) load(ctx context.Context, params map[string]any) (json.RawMess
 }
 
 func newSession(p *jsonl.Process, life context.Context, cancel context.CancelFunc, o agent.Open) *session {
-	return &session{p: p, cwd: o.Cwd, purpose: o.Purpose, openContext: o.Context, ctx: life, cancel: cancel, tools: o.Tools, requests: map[string]pending{}, calls: map[string]*toolCall{}, events: make(chan agent.Event, 256), terminals: map[string]int{}}
+	return &session{p: p, cwd: o.Cwd, purpose: o.Purpose, openContext: o.Context, ctx: life, cancel: cancel, tools: o.Tools, requests: map[string]pending{}, calls: map[string]*toolCall{}, events: make(chan agent.Event, 256), ended: make(chan struct{}), terminals: map[string]int{}}
 }
 
 func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
@@ -440,12 +445,31 @@ func (s *session) emit(ev agent.Event) bool {
 	}
 }
 
+// end records why read stopped and ends Receive once the events read sent
+// before it are taken. The events channel is never closed: client calls
+// still being served may send to it, and give up on the cancelled context.
+func (s *session) end(why error) {
+	if why == nil {
+		why = errors.New("ACP connection closed")
+	}
+	s.why = why
+	close(s.ended)
+}
+
 func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	select {
 	case e := <-s.events:
 		return e, nil
 	case <-ctx.Done():
 		return agent.Event{}, ctx.Err()
+	case <-s.ended:
+		// What read sent before it stopped (its failure, say) comes first.
+		select {
+		case e := <-s.events:
+			return e, nil
+		default:
+		}
+		return agent.Event{}, fmt.Errorf("ACP agent stream ended: %w", s.why)
 	}
 }
 

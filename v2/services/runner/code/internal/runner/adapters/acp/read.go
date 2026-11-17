@@ -48,6 +48,7 @@ func (s *session) read() {
 				emit(agent.Event{Type: "failure", Status: "provider_process_exit", Text: err.Error()})
 				flush()
 			}
+			s.end(err)
 			return
 		}
 		switch {
@@ -61,6 +62,7 @@ func (s *session) read() {
 			s.update(m.Params, emit, activity, func() { phase = "responding/" })
 		}
 		if !flush() {
+			s.end(s.ctx.Err())
 			return
 		}
 	}

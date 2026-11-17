@@ -448,6 +448,33 @@ func TestCancelAndFailuresEndTheTurn(t *testing.T) {
 	}
 }
 
+// When the agent process dies, Receive ends after reporting it: the engine
+// learns the provider is gone instead of waiting for events nothing will
+// send. The exit is a Runner fault, not a turn fault a message continues.
+func TestAgentDeathEndsReceive(t *testing.T) {
+	s := open(t, agent.Open{})
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "die", Kind: agent.Message, Text: "die"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	var seen []agent.Event
+	for {
+		ev, err := s.Receive(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				t.Fatalf("Receive never ended after the agent died; seen %s", summary(seen))
+			}
+			break
+		}
+		seen = append(seen, ev)
+	}
+	last := seen[len(seen)-1]
+	if last.Type != "failure" || last.Status != "provider_process_exit" || agent.TurnFault(last.Status) {
+		t.Fatalf("the agent's exit was not reported as a Runner fault: %s", summary(seen))
+	}
+}
+
 func TestStartupFailuresSayWhatToDo(t *testing.T) {
 	a := Adapter{Agent: fakeAgent(t)}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

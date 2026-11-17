@@ -110,6 +110,8 @@ async function prompt(id, params) {
     }
     else if (/^wait\b/i.test(last)) { say('Waiting until cancelled.'); await done; }
     else if (/^slow\b/i.test(last)) { say('slow part one. '); await sleep(Number(process.env.ACP_FAKE_SLOW_MS || 1500)); say('slow part two.'); }
+    // The agent process dies mid-turn.
+    else if (/^die\b/i.test(last)) process.exit(4);
     else if (/^fail\b/i.test(last)) return finish(undefined, { code: -32603, message: 'The fake model is overloaded' });
     else if (/^auth\b/i.test(last)) return finish(undefined, { code: -32000, message: 'Authentication required' });
     else if (/^refuse\b/i.test(last)) return finish({ stopReason: 'refusal' });
