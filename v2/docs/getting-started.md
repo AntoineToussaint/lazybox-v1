@@ -18,11 +18,14 @@ release, drag **Lazybox** to Applications and open it (or
 `brew install --cask AntoineToussaint/lazybox/lazybox-v2`). The first launch
 explains and sets up its background service, the **Runner**, and offers to
 put the `lazybox` command on your PATH. It brings its own Runner, Claude
-worker and Node; you need `git` and the agents you use (Claude Code, Codex)
-signed in. Updates arrive in the app. Everything else — where things are,
-unsigned builds, uninstalling — is in [Install](install.md).
+worker, Node and Claude Code, which only needs you to sign in; you need `git`,
+and Codex if you use it. Updates arrive in the app. Everything else — where
+things are, unsigned builds, uninstalling — is in [Install](install.md).
 
-No release is published yet. Until then, build it from source.
+Releases are on the [releases page](https://github.com/AntoineToussaint/lazybox/releases),
+named *Lazybox x.y.z*. The first ones are prereleases, not yet signed by
+Apple: macOS asks you to confirm the first launch ([Unsigned builds](install.md#unsigned-builds)).
+To work on Lazybox itself, build it from source.
 
 ## Build from source
 
@@ -68,6 +71,16 @@ running even then, and the next Runner picks them up again.
 > See [the internal notes](../ENVIRONMENTS.md) for where each keeps its data.
 
 ## First launch
+
+**The installed app sets up its Runner first.** The first time it opens, a
+small *Welcome to Lazybox* window explains the Runner, the background service
+your agents run in (it starts when you log in, so agents keep working when the
+window is closed), and offers to add the `lazybox` command to your terminal.
+Choose **Set up Lazybox**; when it says the Runner is running, choose **Open
+Lazybox**. If another `lazybox` comes first on your PATH (V1's Homebrew
+formula), the window says so: use `lazybox-v2`, which always runs this
+release. More in [Install → First run](install.md#first-run). Dev and Working
+skip this window: their launcher runs the Runner.
 
 ![The first-run welcome: connect a subscription, add a repository, five keys](images/welcome.webp)
 

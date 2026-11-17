@@ -5,15 +5,17 @@ place you check their work before it lands. These pages are for people **using**
 Lazybox V2. They describe what is on the `feat/v2-command-output` branch today;
 anything marked **Preview** works but is incomplete or not yet packaged.
 
-> **V2 is a preview.** It installs as a Mac app once its first release is
-> published ([Getting started](getting-started.md)); until then you build it
-> from source on macOS. The `lazybox` formula on Homebrew is V1, the terminal
-> inbox — its docs are at [lazybox.ai/docs](https://lazybox.ai/docs/).
+> **V2 is a preview.** It installs as a Mac app from the disk image of a
+> release ([Install](install.md)), or you build it from source on macOS
+> ([Getting started](getting-started.md)). The `lazybox` formula on Homebrew is
+> V1, the terminal inbox — its docs are at [lazybox.ai/docs](https://lazybox.ai/docs/).
 
 ## Start
 
 - **[Getting started](getting-started.md)** — install, first workspace, first
   agent, and the five keys worth learning on day one.
+- **[Install](install.md)** — the Mac app: install, first run, updates, the
+  `lazybox` command, troubleshooting and uninstalling.
 - **[Concepts](concepts.md)** — the Runner, workspaces, conversations,
   sub-agents, missions, artifacts and subscriptions, in one page.
 

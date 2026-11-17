@@ -93,8 +93,8 @@ layout keeps every conversation tab, in the layout's chat group.
 
 | To… | Do this |
 | --- | --- |
-| Show a conversation in the preview tab | Click it |
-| Keep it in a tab | Double-click it, type in it, or **Open in new tab** |
+| Open a conversation in its own tab, or bring its tab forward | Click it |
+| With *Open a workspace's conversations as tabs* off: keep the preview tab's conversation | Double-click it, type in it, or **Open in new tab** |
 | Open it in a tab behind | `⌘`-click or middle-click it |
 | Close the tab | `⌘W`, **×**, or middle-click the tab |
 | Reopen the last closed tab | `⇧⌘T` |

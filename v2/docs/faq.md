@@ -77,7 +77,8 @@ and your own theme files. See [Appearance](guides/appearance.md).
 `⌘K` and type what you want; `?` lists every shortcut with your keys. All
 defaults: [Keyboard shortcuts](reference/keyboard-shortcuts.md).
 
-### The Documentation link in the app opens V1's site
+### Where is the documentation in the app?
 
-Known: Help → Documentation and the welcome's link still point at
-lazybox.ai, which documents V1. These pages are V2's.
+**Help → Documentation** opens these pages inside Lazybox, offline, with
+search; they are bundled with the app, so they match the version you have.
+lazybox.ai documents V1.

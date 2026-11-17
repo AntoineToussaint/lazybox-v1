@@ -317,9 +317,13 @@ private folder.
 
 ## What it costs
 
-The usage popover in the chat header (`/cost`) shows the context window once
-the agent has reported usage (before that the header shows no meter; `/context`
-still opens it) and the conversation's **token cost**: input, cache read, cache write and output,
+The left of the message box's controls shows who answers, the agent and model
+(*Claude · Opus 5.5*), and how full its context is: a small meter and a
+percentage, amber from 60% and red from 85%, the same reading as the chat
+header's (a conversation that has not started shows neither). Click the agent
+to switch model. Click either meter, or type `/cost`, for the usage popover:
+the context window once the agent has reported usage (`/context` opens it
+before that) and the conversation's **token cost**: input, cache read, cache write and output,
 each with its tokens and what it cost, then the total and how much of the
 input the prompt cache served. The cost is an API-equivalent estimate, not a
 bill. Usage without a price says which model and why — a model with no price

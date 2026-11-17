@@ -6,8 +6,9 @@ Claude and Codex all day: it keeps every agent of every workspace in view, shows
 what each one actually did, and keeps them running when the app or its Runner
 restarts.
 
-> **Preview.** V2 installs as a Mac app ([INSTALL.md](docs/install.md)) once its
-> first release is published; until then, build it from source on macOS. The
+> **Preview.** V2 installs as a Mac app: the disk image from the
+> [releases](https://github.com/AntoineToussaint/lazybox/releases)
+> ([install guide](docs/install.md)), or build it from source on macOS. The
 > `lazybox` formula on Homebrew is V1, the terminal PR inbox
 > ([its docs](https://lazybox.ai/docs/)).
 
