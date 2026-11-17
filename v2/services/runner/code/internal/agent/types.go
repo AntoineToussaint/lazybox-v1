@@ -52,6 +52,9 @@ type Open struct {
 	// Host asks a native adapter to run its process under a detached session
 	// host so it survives the Runner. Nil keeps a Runner-owned local pipe.
 	Host *Hosting
+	// Grants are the conversation's "always allow" choices so far: a new
+	// process of the provider starts holding them (Grant).
+	Grants []Grant
 }
 
 // Hosting selects session hosts under Root. A non-nil Attach re-attaches to
@@ -174,6 +177,8 @@ const (
 	StopAgent Kind = "stop_agent"
 	// Model switches the running session's model for its following turns.
 	Model Kind = "model"
+	// RevokeGrant takes back one "always allow" of the conversation (Grant).
+	RevokeGrant Kind = "revoke_grant"
 )
 
 // PermissionModes are the modes a running session can switch to. Inherit
@@ -237,6 +242,8 @@ type Operation struct {
 	Model string `json:"model,omitempty"`
 	// Origin, on a Message, marks one Lazybox wrote rather than the person.
 	Origin *Origin `json:"origin,omitempty"`
+	// GrantID is the grant a RevokeGrant operation takes back.
+	GrantID string `json:"grantId,omitempty"`
 }
 
 // Origin marks a message Lazybox wrote, not the person: the answer to a

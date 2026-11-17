@@ -12,6 +12,7 @@ import { requestRename } from './ConversationTitle';
 import { conversationHandoffItems, useHandoffMenus } from './handoff';
 import { useRunner } from './RunnerContext';
 import { streamLabel } from './human-error';
+import { Icon } from './Icons';
 
 /** The model picker: the same choices and switch as `/model` (useSlashCommands.tsx). */
 export type ModelChoices = { choices: SlashChoice[]; live: boolean; disabled?: string; choose(value: string): void; /** Any model id: `/model ` in the message box. */ pick(): void };
@@ -120,6 +121,7 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
       <button disabled={!!models.disabled} title="Any model id, typed in the message box (/model)" onClick={models.pick}>Other…</button>
     </div>}
     {activity && <ActivityDetailChoice activity={activity}/>}
+    {session && !session.closed && session.permissionGrants.length > 0 && <AlwaysAllowed session={session}/>}
     {session?.closed && !allowStart && <span>Saved conversation</span>}
     <ActionMenuItems items={[...extra, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, sessionID }).filter(item => !item || item === 'separator' || !item.submenu), handoff)]}/>
   </ActionMenu>;
@@ -136,6 +138,28 @@ export function PermissionRestartPrompt({ mode, busy, returnTo, onRestart, onCan
     <span>Switch to {PERMISSION_CHOICES.find(([choice]) => choice === mode)?.[1] || mode}? An older Lazybox started this conversation's agent, so switching restarts it and your conversation continues.</span>
     <button className="primary" disabled={busy} title={busy ? 'Wait for the current turn to finish' : undefined} onClick={onRestart}>Restart</button>
     <button onClick={onCancel}>Cancel</button>
+  </div>;
+}
+
+/** A grant's label with its `code` spans: "commands starting with `npm run`". */
+const grantLabel = (label: string) => label.split('`').map((part, i) => i % 2 ? <code key={i}>{part}</code> : part);
+
+/**
+ * The "always allow" choices made in this conversation, which its agent holds
+ * also after a restart or a resume, each with Remove: the agent asks again.
+ */
+function AlwaysAllowed({ session }: { session: Session }) {
+  const { api } = useRunner();
+  const revoke = async (grantId: string, label: string) => {
+    try { await api.apply({ sessionId: session.id, operationId: crypto.randomUUID(), operation: { case: 'revokeGrant', value: { grantId } } }); showMenuNotice(`Removed: the agent asks again for ${label.replaceAll('`', '')}`); }
+    catch (error) { showMenuNotice(`Could not remove it: ${error instanceof Error ? error.message : String(error)}`); }
+  };
+  return <div className="session-permission session-grants" role="group" aria-label="Always allowed">
+    <strong>Always allowed</strong>
+    <ul>{session.permissionGrants.map(grant => <li key={grant.id} title="Allowed for this conversation, also after the agent restarts">
+      <span>{grantLabel(grant.label)}</span>
+      <button type="button" aria-label={`Remove always allow: ${grant.label.replaceAll('`', '')}`} title="Remove: the agent asks again" onClick={() => void revoke(grant.id, grant.label)}><Icon name="close" size={11}/></button>
+    </li>)}</ul>
   </div>;
 }
 

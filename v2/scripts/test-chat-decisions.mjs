@@ -152,6 +152,22 @@ try{
  const dialog=page.getByRole('dialog',{name:'Tools and activity'});await expect(dialog).toBeVisible();
  await expect(dialog.locator('details.tool-call[open]')).toContainText('pnpm run check');
  await dialog.getByRole('button',{name:'Close tools'}).click();
+ // ── "Always allow" outlives the agent: after a restart or a resume the conversation still lists
+ // what its agent holds (Session.permissionGrants), in the ⋯ menu, and Remove takes one back.
+ session.permissionGrants=[{id:'grant-npm',label:'commands starting with `npm run`',tool:'Bash',grantedAtUnixMillis:String(Date.now())},{id:'grant-git',label:'`git status`',tool:'Bash'}];
+ await page.reload();
+ const chatWindow=page.locator('.agent-window').first();
+ await chatWindow.getByLabel('Session actions',{exact:true}).click();
+ const allowed=page.getByRole('group',{name:'Always allowed'});
+ await expect(allowed.getByRole('listitem')).toHaveText(['commands starting with npm run','git status']);
+ await expect(allowed.locator('code')).toHaveText(['npm run','git status']);
+ await page.screenshot({path:'.cache/chat-decisions-always-allowed.png'});
+ await allowed.getByRole('button',{name:'Remove always allow: git status'}).click();
+ await expect.poll(()=>applied('revokeGrant')).toEqual([{grantId:'grant-git'}]);
+ await expect(page.locator('.context-menu-notice')).toHaveText('Removed: the agent asks again for git status');
+ // Like every choice in the menu, Remove closes it; open again, the rest is listed.
+ await expect.poll(async()=>{await page.keyboard.press('Escape');await chatWindow.getByLabel('Session actions',{exact:true}).click();return allowed.getByRole('listitem').allTextContents();},{timeout:5000}).toEqual(['commands starting with npm run']);
+ await page.keyboard.press('Escape');
  assert.deepEqual(errors,[]);
- console.log('PASS: question cards (single, multi, Other…, preview, 1–9/arrows/Space/⌘↵, echo), approvals (command, cwd, risk hints, 1 of N and header count, Deny with reason via n, Always allow at the workspace scope, y from the chat) and inline tool lines (grouped reads/edits, exit/duration, failure line, running spinner, ANSI output, diff, full details), inline edit diffs, a quiet thinking line and the latest plan as a live checklist. Fixture only.');
+ console.log('PASS: always-allowed choices listed in the session menu after a restart, with Remove; question cards (single, multi, Other…, preview, 1–9/arrows/Space/⌘↵, echo), approvals (command, cwd, risk hints, 1 of N and header count, Deny with reason via n, Always allow at the workspace scope, y from the chat) and inline tool lines (grouped reads/edits, exit/duration, failure line, running spinner, ANSI output, diff, full details), inline edit diffs, a quiet thinking line and the latest plan as a live checklist. Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}

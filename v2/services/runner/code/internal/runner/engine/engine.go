@@ -45,6 +45,9 @@ type Snapshot struct {
 	ActivityTruncated bool                      `json:"activityTruncated"`
 	// LastMessage is the tail of the main agent's latest message.
 	LastMessage string `json:"lastMessage,omitempty"`
+	// Grants are the conversation's "always allow" choices its provider's
+	// process holds (agent.Grant), carried to every later process.
+	Grants []agent.Grant `json:"grants,omitempty"`
 }
 
 // QueuedMessage is a message accepted while the agent was busy.
@@ -156,6 +159,8 @@ func NewDurable(ctx context.Context, adapter agent.Adapter, open agent.Open, spo
 	if open.Gateway != nil {
 		e.state.GatewayID = open.Gateway.ID
 	}
+	// A restarted or resumed conversation's grants: its new process holds them.
+	e.state.Grants = append([]agent.Grant(nil), open.Grants...)
 	e.state.Agents = map[string]agent.Activity{"root": {ID: "root", Name: "Main agent", Kind: "agent", Status: agent.Starting, UpdatedAt: time.Now().UTC()}}
 	if spool.Count() != 0 {
 		cancel()
@@ -267,6 +272,10 @@ func validate(op agent.Operation, c agent.Capabilities) error {
 			return err
 		}
 	case agent.Interrupt:
+	case agent.RevokeGrant:
+		if op.GrantID == "" || len(op.GrantID) > 128 {
+			return errors.New("grant id required")
+		}
 	case agent.StopAgent:
 		if !c.StopAgent {
 			return agent.ErrUnsupported
@@ -348,6 +357,10 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 			e.mu.Unlock()
 			return agent.Receipt{}, errors.New("request is absent, resolved, or of another kind")
 		}
+	}
+	if op.Kind == agent.RevokeGrant && !agent.HasGrant(e.state.Grants, op.GrantID) {
+		e.mu.Unlock()
+		return agent.Receipt{}, errors.New("this conversation has no such grant")
 	}
 	if (op.Kind == agent.Interrupt || op.Kind == agent.Steer) && !e.state.Busy {
 		e.mu.Unlock()
@@ -453,6 +466,10 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	if op.Kind == agent.Interrupt && err != nil {
 		// Not stopped: the turn goes on, and an error in it is an error.
 		e.stop.forget(stopped)
+	}
+	if op.Kind == agent.RevokeGrant && err == nil {
+		// The provider stopped honouring it: no later process gets it either.
+		e.state.Grants = agent.WithoutGrant(e.state.Grants, op.GrantID)
 	}
 	e.appendLocked(map[string]any{"type": "receipt", "receipt": r})
 	// A local submission is not request resolution: only the adapter's
@@ -762,6 +779,15 @@ func (e *Engine) receive() {
 					e.appendLocked(agent.Event{Type: "request_resolved", RequestID: id, Status: "turn_ended"})
 					delete(e.state.Pending, id)
 				}
+			}
+		case agent.GrantEvent:
+			if !rootEvent {
+				break
+			}
+			// Kept with the conversation; a grant that cannot be read is
+			// recorded as said, and simply not carried to a later process.
+			if g, err := agent.GrantOf(ev, time.Now()); err == nil {
+				e.state.Grants = agent.WithGrant(e.state.Grants, g)
 			}
 		case "approval", "question":
 			if _, known := e.state.Pending[ev.RequestID]; known && ev.RequestID != "" {

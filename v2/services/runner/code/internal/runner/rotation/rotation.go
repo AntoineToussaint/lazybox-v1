@@ -274,6 +274,10 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 	if err == nil && (op.Kind == agent.Message || op.Kind == agent.Steer) {
 		s.remember("\nUSER: " + agent.Prompt(op) + "\n")
 	}
+	if err == nil && op.Kind == agent.RevokeGrant {
+		// A later subscription attempt starts without it.
+		s.open.Grants = agent.WithoutGrant(s.open.Grants, op.GrantID)
+	}
 	return receipt, err
 }
 func (s *session) emit(ev agent.Event) bool {
@@ -354,6 +358,12 @@ func (s *session) run() {
 		s.mu.Lock()
 		if replayed := s.replayedEvent(ev); root && ev.Type == "message_delta" && !replayed {
 			s.remember(ev.Text)
+		}
+		if root && ev.Type == agent.GrantEvent {
+			// A later subscription attempt starts holding it too.
+			if g, err := agent.GrantOf(ev, time.Now()); err == nil {
+				s.open.Grants = agent.WithGrant(s.open.Grants, g)
+			}
 		}
 		s.mu.Unlock()
 		s.mu.Lock()

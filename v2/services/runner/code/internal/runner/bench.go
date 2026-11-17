@@ -822,6 +822,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		}
 		record.Snapshot.Capabilities = parent.Snapshot.Capabilities
 		record.ProviderSettings = parent.ProviderSettings
+		if parent.Provider == selected.Provider {
+			record.Snapshot.Grants = parent.Snapshot.Grants
+		}
 	}
 	e.Saved = record
 	if err = b.History.Create(b.ctx, record); err != nil {
@@ -832,6 +835,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	if parent != nil && profile == parent.Snapshot.Profile {
 		open.ProviderSettings = parent.ProviderSettings
 	}
+	// The person's "always allow" choices go on with the conversation: its
+	// new process holds them, and the menu still lists them.
+	open.Grants = record.Snapshot.Grants
 	eng, err := engine.NewDurable(b.ctx, adapter, open, spool, func(snapshot engine.Snapshot, settings json.RawMessage) error {
 		return b.History.SaveState(context.Background(), id, snapshot, settings)
 	}, func(a engine.Attachment) error { return b.saveAttachment(id, a) })

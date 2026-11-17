@@ -10,7 +10,7 @@ import { NativeStatus } from './status.js';
 import { CommandCatalog } from './catalog.js';
 import { contextSnapshot } from './context.js';
 import { SettingsApprovals, settingsServer, settingsServerName, updateSettingsTool } from './settings.js';
-import { alwaysChoices, covers, decide, offered, type Grant } from './permissions.js';
+import { alwaysChoices, covers, decide, offered, restoreGrant, type Grant } from './permissions.js';
 import { browserServer, browserServerName } from './browser.js';
 import { generateTitle } from './title.js';
 import { ModelSwitch } from './model.js';
@@ -28,8 +28,9 @@ let permission = '';
 let inputWake: (() => void) | undefined;
 const messages: SDKUserMessage[] = [];
 const requests = new Map<string, { resolve: (value: PermissionResult) => void; input: Record<string, unknown>; kind: string; name: string; choices: ReturnType<typeof alwaysChoices> }>();
-// "Always allow" grants this worker enforces itself, for this conversation (see permissions.ts).
-const grants: Grant[] = [];
+// "Always allow" grants this worker enforces itself, for this conversation
+// (see permissions.ts). The Runner keeps them and opens a new worker with them.
+let grants: Grant[] = [];
 const tools = new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }>();
 const settingsApprovals = new SettingsApprovals();
 // The agent's own slash commands and models, said once per change.
@@ -73,6 +74,7 @@ export function mcpServers(purpose: string, browser = false, call: typeof callRu
 
 async function open(options: any) {
   permission = options.permission || '';
+  grants = (Array.isArray(options.grants) ? options.grants : []).map(restoreGrant).filter((g: Grant | undefined): g is Grant => !!g);
   session = query({ prompt: input(), options: {
     ...nativeOptions(options, process.env),
     mcpServers: mcpServers(options.purpose, options.browser === true),
@@ -82,7 +84,7 @@ async function open(options: any) {
       const settingsTool = name.startsWith(`mcp__${settingsServerName}__`);
       if (kind === 'approval' && permission === 'yolo' && !settingsTool) return { behavior: 'allow', updatedInput: original };
       // The person said "always" for this earlier in the conversation.
-      if (kind === 'approval' && !settingsTool && grants.some(grant => covers(grant, name, original))) return { behavior: 'allow', updatedInput: original, decisionClassification: 'user_permanent' };
+      if (kind === 'approval' && !settingsTool && grants.some(grant => covers(grant, name, original, context.suggestions))) return { behavior: 'allow', updatedInput: original, decisionClassification: 'user_permanent' };
       const choices = kind === 'approval' ? alwaysChoices(name, original, { suggestions: context.suggestions, suppressAlwaysAllowRule: context.suppressAlwaysAllowRule, settingsTool }) : [];
       const id = context.requestId;
       if (!id) throw new Error('SDK omitted the native permission request id');
@@ -107,7 +109,7 @@ async function open(options: any) {
   void session.initializationResult().then(init => sayCatalog(catalog.fromInitialize(init))).catch(() => { /* Each turn's init message still names the commands. */ });
   // Operations added after the original protocol. A running worker outlives
   // Runner upgrades, so the Runner asks this worker rather than assuming.
-  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model', 'title', 'parts', 'steer'] };
+  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model', 'title', 'parts', 'steer', 'grants'] };
 }
 
 async function receive(q: Query) {
@@ -188,6 +190,12 @@ async function handle(request: Request) {
         // Beside the conversation: names it, never touches its turn.
         reply(request.id, { title: await generateTitle(session, p?.description) }); break;
       }
+      case 'revoke': {
+        // The person took an "always allow" back: the next such request asks.
+        if (typeof p?.id !== 'string' || !p.id) throw new Error('grant id required');
+        grants = grants.filter(grant => grant.id !== p.id);
+        reply(request.id, { delivery: 'acknowledged' }); break;
+      }
       case 'interrupt': { const running = session; await interruptTurn(interrupts, () => running.interrupt()); reply(request.id, { delivery: 'acknowledged' }); break; }
       case 'answer': case 'approve': {
         const pending = requests.get(p.requestId);
@@ -199,7 +207,11 @@ async function handle(request: Request) {
           // The user's approval of a settings update is what lets that exact update run.
           const { result, grant } = decide(pending.name, pending.input, pending.choices, p);
           if (p.decision === 'accept' && pending.name === updateSettingsTool) settingsApprovals.grant(pending.input);
-          if (grant) grants.push(grant);
+          if (grant) {
+            // The Runner keeps it with the conversation, beyond this worker.
+            grants.push(grant);
+            event({ type: 'permission_grant', sessionId: reference, data: grant });
+          }
           pending.resolve(result);
         }
         reply(request.id, { delivery: 'submitted' }); break;

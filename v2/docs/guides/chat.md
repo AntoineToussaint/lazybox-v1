@@ -168,6 +168,13 @@ Keys work while the chat has focus, never while you are typing. With two
 conversations side by side, a key pressed on the page answers the one you
 last clicked or typed in, never both.
 
+What you always allow for a Claude conversation stays with the conversation:
+Claude does not ask again after its agent restarts, after Lazybox restarts, or
+when you resume the conversation later. The session menu (⋯) lists them under
+**Always allowed**; × removes one, and Claude asks again for it from its next
+request. What you allow for the whole workspace is saved in the workspace's
+`.claude/settings.local.json` instead, where Claude itself keeps it.
+
 ## Follow what it does
 
 - **The header** names the conversation and says how it is going. The title

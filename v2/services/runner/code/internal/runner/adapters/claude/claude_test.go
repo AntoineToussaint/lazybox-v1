@@ -218,3 +218,47 @@ done
 		_ = session.Close()
 	}
 }
+
+// A new worker is opened with the conversation's grants, as the worker
+// reported them; taking one back reaches only a worker that holds grants.
+func TestGrantsReachTheWorkerAtOpenAndCanBeRevoked(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	spec := `{"id":"g1","label":"x","tool":"Bash","exact":"make test"}`
+	script := func(features string) string {
+		return `read -r line
+case "$line" in
+  *'"grants":[` + spec + `]'*) printf '%s\n' '{"id":"lazybox-1","result":{"reference":"ref","features":` + features + `}}' ;;
+  *) printf '%s\n' '{"id":"lazybox-1","error":{"message":"grants missing"}}' ;;
+esac
+while IFS= read -r line; do
+  case "$line" in
+    *'"method":"revoke"'*'"id":"g1"'*) printf '%s\n' '{"id":"lazybox-2","result":{"delivery":"acknowledged"}}' ;;
+    *) printf '%s\n' '{"id":"lazybox-2","error":{"message":"unexpected"}}' ;;
+  esac
+done
+`
+	}
+	grants := []agent.Grant{{ID: "g1", Label: "x", Tool: "Bash", Spec: []byte(spec)}}
+	for _, tc := range []struct {
+		features string
+		works    bool
+	}{{`["parts","grants"]`, true}, {`["parts"]`, false}} {
+		worker := filepath.Join(t.TempDir(), "worker.sh")
+		if err := os.WriteFile(worker, []byte(script(tc.features)), 0700); err != nil {
+			t.Fatal(err)
+		}
+		session, err := Adapter{Node: "/bin/sh", Worker: worker}.Open(ctx, agent.Open{Cwd: t.TempDir(), Grants: grants})
+		if err != nil {
+			t.Fatalf("the worker was not opened with the grants: %v", err)
+		}
+		r, err := session.Apply(ctx, agent.Operation{ID: "revoke-1", Kind: agent.RevokeGrant, GrantID: "g1"})
+		if tc.works && (err != nil || r.Delivery != "acknowledged" || r.ID != "revoke-1") {
+			t.Fatalf("revoke not acknowledged: %+v %v", r, err)
+		}
+		if !tc.works && !errors.Is(err, agent.ErrUnsupported) {
+			t.Fatalf("an older worker was asked to revoke: %v", err)
+		}
+		_ = session.Close()
+	}
+}

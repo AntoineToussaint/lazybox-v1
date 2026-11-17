@@ -140,6 +140,13 @@ func wireSession(e *runner.Execution) *pb.Session {
 	for _, p := range s.Pending {
 		w.Pending = append(w.Pending, wireEvent(p))
 	}
+	for _, g := range s.Grants {
+		grant := &pb.PermissionGrant{Id: g.ID, Label: g.Label, Tool: g.Tool}
+		if !g.GrantedAt.IsZero() {
+			grant.GrantedAtUnixMillis = g.GrantedAt.UnixMilli()
+		}
+		w.PermissionGrants = append(w.PermissionGrants, grant)
+	}
 	return w
 }
 func wireActivity(a agent.Activity) *pb.AgentActivity {
@@ -403,6 +410,9 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 	case *pb.ApplyRequest_StopAgent:
 		op.Kind = agent.StopAgent
 		op.AgentID = o.StopAgent.GetAgentId()
+	case *pb.ApplyRequest_RevokeGrant:
+		op.Kind = agent.RevokeGrant
+		op.GrantID = o.RevokeGrant.GetGrantId()
 	case *pb.ApplyRequest_Answer:
 		op.Kind = agent.Answer
 		op.RequestID = o.Answer.RequestId

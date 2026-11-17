@@ -242,6 +242,9 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 	adapter := b.sessionAdapter(e, selected, options, r.ConversationID)
 	open := b.sessionOpen(e, r.Context, "")
 	open.ProviderSettings = r.ProviderSettings
+	// The re-attached process holds them already; a later subscription
+	// attempt starts with them.
+	open.Grants = r.Snapshot.Grants
 	eng, err := engine.Adopt(b.ctx, adapter, open, spool, r.Snapshot, record, func(snapshot engine.Snapshot, settings json.RawMessage) error {
 		return b.History.SaveState(context.Background(), r.ID, snapshot, settings)
 	}, func(a engine.Attachment) error { return b.saveAttachment(r.ID, a) })

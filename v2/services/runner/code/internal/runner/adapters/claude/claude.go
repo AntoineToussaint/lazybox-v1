@@ -109,7 +109,9 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	}
 	setup, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	result, err := p.Call(setup, "open", map[string]any{"cwd": o.Cwd, "purpose": o.Purpose, "model": o.Model, "resume": o.Resume, "permission": o.Permission, "workflow": o.Workflow, "binary": a.Binary, "context": o.Context, "browser": o.Browser, "claudeAiConnectors": o.ClaudeAIConnectors})
+	// The conversation's "always allow" choices so far: the new worker holds
+	// them (a worker started before grants ignores the field).
+	result, err := p.Call(setup, "open", map[string]any{"cwd": o.Cwd, "purpose": o.Purpose, "model": o.Model, "resume": o.Resume, "permission": o.Permission, "workflow": o.Workflow, "binary": a.Binary, "context": o.Context, "browser": o.Browser, "claudeAiConnectors": o.ClaudeAIConnectors, "grants": agent.GrantSpecs(o.Grants)})
 	if err != nil {
 		p.Close()
 		return nil, err
@@ -186,6 +188,19 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 	// steering existed cannot; the message then waits for the turn to end.
 	if op.Kind == agent.Steer && !s.has("steer") {
 		return r, agent.ErrUnsupported
+	}
+	if op.Kind == agent.RevokeGrant {
+		// Only a worker that reports its grants holds any to take back.
+		if !s.has("grants") {
+			return r, agent.ErrUnsupported
+		}
+		result, err := s.p.Call(ctx, "revoke", map[string]string{"id": op.GrantID})
+		if err != nil {
+			return r, err
+		}
+		err = json.Unmarshal(result, &r)
+		r.ID = op.ID
+		return r, err
 	}
 	if op.Kind == agent.StopAgent {
 		// A worker started before single sub-agent stops cannot do one.

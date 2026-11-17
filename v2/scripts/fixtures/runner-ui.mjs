@@ -971,6 +971,8 @@ actions:
         if(session&&body.stopAgent){const agent=(session.agents||[]).find(a=>a.id===body.stopAgent.agentId);if(!agent||!agent.nativeId||agent.notRunning||!['running','starting','waiting_input','waiting_approval'].includes(agent.status))return error('failed_precondition','sub-agent is not running');}
         // Like the Runner: a live model switch is a setting, recorded as one line in the conversation.
         if(session&&body.model){if(!session.capabilities?.liveModel)return error('unimplemented','operation unsupported by adapter');session.model=body.model.model;session.modelReported=true;eventStreams.get(session.id)?.push({type:'model_changed',text:body.model.model,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}
+        // Like the Runner: an "always allow" taken back leaves the conversation's list.
+        if(session&&body.revokeGrant){const grants=session.permissionGrants||[];if(!grants.some(g=>g.id===body.revokeGrant.grantId))return error('failed_precondition','this conversation has no such grant');session.permissionGrants=grants.filter(g=>g.id!==body.revokeGrant.grantId);return json({operationId:body.operationId,delivery:'acknowledged'});}
         if(session&&body.permission){session.permission=body.permission.mode;eventStreams.get(session.id)?.push({type:'permission_changed',text:body.permission.mode,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}
         // Like the Runner: a queued message delivered ahead of its turn, "now" (the turn is
         // interrupted, it goes next) or "steer" (into the running turn, where the agent can).

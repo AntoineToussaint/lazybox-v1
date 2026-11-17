@@ -1210,6 +1210,21 @@ message Session {
   int64 archived_at_unix_millis = 38;
   // Where this conversation sits in an agent tree, when it does.
   SessionLineage lineage = 39;
+  // The "always allow" choices the person made for this conversation that
+  // its agent holds, oldest first. They outlive the agent's process: a
+  // restarted or resumed agent holds them again. ApplyRequest.revoke_grant
+  // takes one back. Choices saved to the workspace's own settings are not
+  // listed: they are the agent's.
+  repeated PermissionGrant permission_grants = 40;
+}
+// PermissionGrant is one "always allow" of a conversation.
+message PermissionGrant {
+  string id = 1;
+  // What it allows, in words: "commands starting with `npm run`".
+  string label = 2;
+  // The agent's tool it applies to (Bash, mcp__lazybox__command…).
+  string tool = 3;
+  int64 granted_at_unix_millis = 4;
 }
 // SessionLineage nests conversations by who started them: an orchestrator's
 // children name it as their parent.
@@ -1403,7 +1418,13 @@ message ApplyRequest {
     StopAgent stop_agent = 9;
     ModelChange model = 10;
     DeliverQueued deliver_queued = 11;
+    RevokeGrant revoke_grant = 12;
   }
+}
+// Takes back one "always allow" of the conversation (Session.permission_grants):
+// the agent asks again for what it covered, now and after any restart.
+message RevokeGrant {
+  string grant_id = 1;
 }
 // Delivers a queued message (Session.queued_messages) ahead of its turn.
 // how "now": the turn in progress is interrupted and this message is the next
