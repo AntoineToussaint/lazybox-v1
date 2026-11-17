@@ -108,17 +108,23 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
   const consume = () => {
     if (!workspaceId || known.current === null || !requested.has(workspaceId)) return;
     const wanted = requested.get(workspaceId) || '';
-    // A shell opened a moment ago may not be listed yet: look again before choosing.
+    // A shell opened a moment ago may not be listed yet: look again before choosing, and finish
+    // as soon as it is listed. Listing it shows it and its view takes focus; finishing later took
+    // focus a second time, a tenth of a second on, back from wherever the person had gone since.
     if (wanted && !listed.current.some(terminal => terminal.id === wanted) && (retries.current[wanted] = (retries.current[wanted] || 0) + 1) <= 5) {
-      void refresh().then(() => setTimeout(() => consumeRef.current(), 100), () => {});
+      void refresh().then(() => { if (listed.current.some(terminal => terminal.id === wanted)) consumeRef.current(); else setTimeout(() => consumeRef.current(), 100); }, () => {});
       return;
     }
     requested.delete(workspaceId);
     const live = listed.current.filter(terminal => !terminal.done);
-    if (wanted && live.some(terminal => terminal.id === wanted)) choose(wanted);
+    let next = selectedRef.current;
+    if (wanted && live.some(terminal => terminal.id === wanted)) next = wanted;
     else if (!live.length) { if (!wanted) void open(); return; }
-    else if (!live.some(terminal => terminal.id === selectedRef.current)) choose(live.at(-1)!.id);
-    requestAnimationFrame(() => focusView.current?.());
+    else if (!live.some(terminal => terminal.id === selectedRef.current)) next = live.at(-1)!.id;
+    // A shell newly chosen takes focus as its view mounts (focusView is still the one it replaces); the one shown takes it now.
+    const switching = next !== selectedRef.current;
+    choose(next);
+    if (!switching) requestAnimationFrame(() => focusView.current?.());
   };
   const consumeRef = useRef(consume); consumeRef.current = consume;
   const retries = useRef<Record<string, number>>({});
