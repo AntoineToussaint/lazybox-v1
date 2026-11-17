@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { ModelPrice, ReviewSettings, RunnerSettings } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
@@ -16,10 +16,14 @@ import './pricing.css';
  * The Runner's settings, loaded on mount and reloaded after any save.
  * `enabled: false` reads nothing: a surface that may never need them (a
  * transcript on the phone, whose device credential cannot read them) stays off the wire.
+ * A local change wins over a reload already on its way: that reload read the
+ * settings before the change, and would flip a switch back until the save answers.
  */
 export function useRunnerSettings(enabled = true){
- const {api}=useRunner();const [settings,setSettings]=useState<RunnerSettings>(),[error,setError]=useState(''),[loading,setLoading]=useState(true);
- useEffect(()=>{if(!enabled)return;const control=new AbortController();const load=()=>{void api.getRunnerSettings({}, {signal:control.signal,timeoutMs:5000}).then(value=>{if(!control.signal.aborted){setSettings(value);setError('');}},e=>{if(!control.signal.aborted)setError(settingsError(e,'load'));}).finally(()=>{if(!control.signal.aborted)setLoading(false);});};load();window.addEventListener('lazybox-settings-saved',load);return()=>{control.abort();window.removeEventListener('lazybox-settings-saved',load);};},[api,enabled]);
+ const {api}=useRunner();const [settings,setLoaded]=useState<RunnerSettings>(),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+ const changes=useRef(0);
+ const setSettings=useCallback<Dispatch<SetStateAction<RunnerSettings|undefined>>>(value=>{changes.current++;setLoaded(value);},[]);
+ useEffect(()=>{if(!enabled)return;const control=new AbortController();const load=()=>{const since=changes.current;void api.getRunnerSettings({}, {signal:control.signal,timeoutMs:5000}).then(value=>{if(!control.signal.aborted&&changes.current===since){setLoaded(value);setError('');}},e=>{if(!control.signal.aborted)setError(settingsError(e,'load'));}).finally(()=>{if(!control.signal.aborted)setLoading(false);});};load();window.addEventListener('lazybox-settings-saved',load);return()=>{control.abort();window.removeEventListener('lazybox-settings-saved',load);};},[api,enabled]);
  return {settings,setSettings,error,setError,loading};
 }
 const announce=()=>window.dispatchEvent(new Event('lazybox-settings-saved'));
