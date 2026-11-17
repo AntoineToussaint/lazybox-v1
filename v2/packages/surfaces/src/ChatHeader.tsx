@@ -212,8 +212,8 @@ export function SessionHeader({ agentName, session, sessionID, title, status, mo
     </div>
     <div className="session-meta">
       {status}
-      <span>{accountName}</span>
-      <span>Gateway: {session?.gatewayId || 'direct'}</span>
+      {accountName && <span>{accountName}</span>}
+      {session?.gatewayId && session.gatewayId !== 'direct' && <span>Gateway: {session.gatewayId}</span>}
       <span>{session?.queued || 0} queued</span>
       <span className="mono">{sessionID.slice(0, 12)}</span>
     </div>

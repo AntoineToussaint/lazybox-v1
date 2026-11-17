@@ -80,6 +80,9 @@ try {
     const menu = page.getByRole('group', { name: 'Session actions menu' });
     const resume = menu.getByRole('button', { name: 'Continue in Claude Code…' });
     await expect(resume).toBeEnabled();
+    // No debug facts: the direct gateway and an account the CLI does not report go unsaid.
+    await expect(menu).not.toContainText('Gateway');
+    await expect(menu).not.toContainText('Account not reported');
     if (scheme === 'dark') await page.screenshot({ path: '.cache/handoff-session-menu-dark.png' });
     await resume.click();
     await expect.poll(() => copied(page)).toBe(`cd /fixture/collections/alpha && claude --resume 7c1e2a40-cache`);

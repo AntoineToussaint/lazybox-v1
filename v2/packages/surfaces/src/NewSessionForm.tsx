@@ -50,6 +50,7 @@ export function useSessionLauncher({ api, info, viewState, agent, workingDirecto
   const openingRef = useRef(false);
 
   const profiles = info?.profiles.filter(p => p.provider === provider) || [];
+  const gateways = info?.gateways.filter(g => g.provider === provider) || [];
   const selectedProfile = profiles.find(p => p.id === profile)?.id || profiles.find(p => p.managed)?.id || profiles[0]?.id || '';
 
   const open = async (event?: FormEvent) => {
@@ -78,7 +79,7 @@ export function useSessionLauncher({ api, info, viewState, agent, workingDirecto
 
   return {
     runnerSettings, provider, setProvider, setProfile, rotate, setRotate, cwd, setCwd, model, setModel, gateway, setGateway,
-    instructions, setInstructions, permission, setPermission, workflow, setWorkflow, opening, profiles, selectedProfile, open,
+    instructions, setInstructions, permission, setPermission, workflow, setWorkflow, opening, profiles, gateways, selectedProfile, open,
   };
 }
 
@@ -95,7 +96,7 @@ export function NewSessionForm({ launcher, info, purpose, emptyWorkspace, collec
   collectionId: string;
   agentName: string;
 }) {
-  const { runnerSettings, provider, setProvider, setProfile, rotate, setRotate, cwd, setCwd, model, setModel, gateway, setGateway, instructions, setInstructions, permission, setPermission, workflow, setWorkflow, opening, profiles, selectedProfile, open } = launcher;
+  const { runnerSettings, provider, setProvider, setProfile, rotate, setRotate, cwd, setCwd, model, setModel, gateway, setGateway, instructions, setInstructions, permission, setPermission, workflow, setWorkflow, opening, profiles, gateways, selectedProfile, open } = launcher;
   const assistant = purpose !== 'coding';
   return <section className="session-setup">
     <div className="eyebrow">New conversation</div>
@@ -125,14 +126,15 @@ export function NewSessionForm({ launcher, info, purpose, emptyWorkspace, collec
       </select></label>
       {(permission === 'yolo' || (!permission && runnerSettings?.permission === 'yolo')) && !assistant && <small>Full tool access for this session. Existing conversations keep their original permissions.</small>}
       <details className="session-options">
-        <summary>Model, gateway & context</summary>
+        <summary>Model & context</summary>
         <div className="options-grid">
           <label>Model<input disabled={opening} placeholder="Provider default" value={model} onChange={e => setModel(e.target.value)}/></label>
-          <label>Gateway<select disabled={opening} value={gateway} onChange={e => setGateway(e.target.value)}>
+          {/* A gateway is a choice only where the Runner has one besides the direct connection. */}
+          {(gateways.length > 0 || !!gateway) && <label>Gateway<select disabled={opening} value={gateway} onChange={e => setGateway(e.target.value)}>
             <option value="">Runner default</option>
             <option value="direct">Direct</option>
-            {info?.gateways.filter(g => g.provider === provider).map(g => <option key={g.id} value={g.id}>{g.id === 'metered' ? 'Metered · track workspace cost' : g.id}</option>)}
-          </select></label>
+            {gateways.map(g => <option key={g.id} value={g.id}>{g.id === 'metered' ? 'Metered · track workspace cost' : g.id}</option>)}
+          </select></label>}
           {!assistant && <label>Workflow<select disabled={opening} value={workflow} onChange={e => { setWorkflow(e.target.value); if (e.target.value === 'plan' && permission === 'yolo') setPermission('read-only'); }}>
             <option value="execute">Execute</option>
             <option value="plan">Plan</option>

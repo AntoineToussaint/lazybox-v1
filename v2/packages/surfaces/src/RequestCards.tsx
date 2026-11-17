@@ -198,7 +198,8 @@ function QuestionCard({ request, api, session, onError, position }: RequestCardP
     {questions.map((q, i) => <QuestionField key={q.key} question={q} index={i} total={questions.length} answer={answers[q.key] || empty} disabled={waiting}
       onPick={index => { if (pick(q, index)) advance(q); }} onOther={text => update(q, a => ({ ...a, other: text, otherOn: q.options.length ? (text ? true : a.otherOn) : false, picked: q.multi || !text ? a.picked : [] }))}
       onSubmit={() => void send()} complete={complete}/>)}
-    <details className="request-metadata"><summary>Request details</summary><CodeBlock text={JSON.stringify(data, null, 2)} language="json"/><small className="mono">{request.requestId}</small></details>
+    {/* The raw request is a diagnostic: shown only for a question Lazybox could not read. */}
+    {!questions.length && <details className="request-metadata"><summary>Request details</summary><CodeBlock text={JSON.stringify(data, null, 2)} language="json"/><small className="mono">{request.requestId}</small></details>}
     <footer className="question-footer">
       <small className="question-hint" aria-hidden="true">{questions.some(q => q.options.length) ? '1–9 to choose · ↑↓ to move · ' : ''}⌘↵ to send</small>
       <button type="button" className="primary question-send" disabled={waiting || !complete} onClick={() => void send()}>{waiting ? 'Sending…' : 'Send answer'}</button>

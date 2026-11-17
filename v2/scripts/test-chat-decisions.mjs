@@ -36,6 +36,8 @@ try{
  await expect(card.getByRole('radio')).toHaveCount(3+1+2+1);
  await expect(card.getByRole('checkbox')).toHaveCount(3+1);
  await expect(card.getByRole('textbox')).toHaveCount(0);
+ // A question Lazybox reads shows no raw request: that is a diagnostic for one it cannot.
+ await expect(card.locator('.request-metadata')).toHaveCount(0);
  await expect(card.getByRole('button',{name:'Send answer'})).toBeDisabled();
  // Keyboard: focus starts on the first option; 2 picks SQLite and moves on, showing its preview.
  await expect(card.getByRole('radio',{name:/Postgres/})).toBeFocused();

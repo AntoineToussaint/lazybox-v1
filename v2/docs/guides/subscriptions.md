@@ -63,6 +63,6 @@ continue. You can also switch at any time from the session menu (⋯) →
 | Keep one conversation on its account | Untick **Switch subscriptions automatically** when you start it (CLI: `--no-rotate`). |
 | Never switch onto an account | Turn off **Automatic switching** on its card in Settings → Subscriptions. |
 | Turn switching on for conversations already running | The limit card's **Always switch automatically**, or the session menu. |
-| Track cost per workspace | Choose **Metered · track workspace cost** under *Model, gateway & context* when starting a conversation; the Usage & cost panel and the chat's usage line then count it. Settings → Pricing holds the rates. |
+| Track cost per workspace | Choose **Metered · track workspace cost** as the Gateway under *Model & context* when starting a conversation (it shows when the Runner has the metered gateway); the Usage & cost panel and the chat's usage line then count it. Settings → Pricing holds the rates. |
 
 More in [Troubleshooting → limits](../troubleshooting.md#an-account-hit-its-limit).

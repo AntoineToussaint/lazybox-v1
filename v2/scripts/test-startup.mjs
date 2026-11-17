@@ -30,7 +30,7 @@ try {
     return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'unavailable', message: 'Fixture stops before provider startup' }) });
   });
   await page.goto(url);
-  await page.getByText('Model, gateway & context', { exact: true }).click();
+  await page.getByText('Model & context', { exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Permissions', exact: true })).toHaveValue('');
   await page.getByLabel('Working directory').fill('/fixture/collection');
   for (const provider of ['claude', 'codex']) {

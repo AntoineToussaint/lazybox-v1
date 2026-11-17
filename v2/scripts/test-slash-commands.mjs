@@ -163,8 +163,9 @@ try{
  await chat.locator('summary[aria-label="Session actions"]').click();
  const sessionMenu=chat.locator('.session-menu');
  await expect(sessionMenu.getByRole('group',{name:'Model'}).getByRole('button',{name:'Sonnet 5.5',exact:true})).toHaveAttribute('aria-pressed','true');
- await expect(sessionMenu.locator('.session-facts')).toContainText('Subscription');
- await expect(sessionMenu.locator('.session-facts')).toContainText('Gateway');
+ // No debug facts: the direct gateway, and an account the CLI does not report, go unsaid.
+ await expect(sessionMenu).not.toContainText('Gateway');
+ await expect(sessionMenu).not.toContainText('Account not reported');
  await expect(sessionMenu.getByRole('button',{name:'Copy session ID'})).toBeVisible();
  await expect(sessionMenu).not.toContainText('alpha-session');
  await page.screenshot({path:'.cache/slash-session-menu.png'});

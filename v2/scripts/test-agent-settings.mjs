@@ -44,7 +44,7 @@ try{
  await mkdir('.cache',{recursive:true});await page.screenshot({path:'.cache/agent-pricing-settings.png'});
  await page.getByRole('button',{name:'New conversation',exact:true}).click();const setup=page.getByRole('dialog',{name:'New conversation',exact:true});await page.screenshot({path:'.cache/agent-startup.png'});
  await setup.getByRole('combobox',{name:'Agent',exact:true}).click();await setup.getByRole('option',{name:/^Codex/}).click();await setup.getByLabel('Account profile').selectOption('saved-codex');
- await setup.getByRole('combobox',{name:'Permissions',exact:true}).selectOption('yolo');await setup.getByText('Model, gateway & context',{exact:true}).click();await setup.getByLabel('Additional session context').fill('Inspect this workspace');
+ await setup.getByRole('combobox',{name:'Permissions',exact:true}).selectOption('yolo');await setup.getByText('Model & context',{exact:true}).click();await setup.getByLabel('Additional session context').fill('Inspect this workspace');
  await setup.getByRole('button',{name:'Start Codex ↗',exact:true}).click();await expect(setup).not.toBeVisible();
  let opened=fixture.mutations.findLast(m=>m.method==='OpenSession').body;assert.equal(opened.options.permission,'yolo');assert.equal(opened.options.instructions,'Inspect this workspace');
  // Reset the explicitly saved Runner default; one-off session YOLO must not be remembered.
