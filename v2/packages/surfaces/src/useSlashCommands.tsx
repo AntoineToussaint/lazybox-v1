@@ -13,6 +13,7 @@ import { conversationArtifacts, trackable } from './MessageArtifactActions';
 import { saveSnippetUse } from './snippet-usage';
 import { SlashMenu, SlashWarning, SLASH_MENU_ID, slashOptionId } from './SlashMenu';
 import { useDismiss } from './dismiss';
+import { useConfirmCard } from './confirm-card';
 import {
   boxAfterCommand, decideSend, findCommand, lazyboxCommands, mergeModels, modelRestartText, paletteCommand, reviewRequest, providerCommands, resolveModel, sameModel, slashCommandList, slashMenu, snippetCommands,
   type CommandCatalog, type ProviderModel, type SlashChoice, type SlashCommand, type SlashContext, type SlashMenuState,
@@ -367,7 +368,7 @@ export function useSlashCommands(o: Options) {
     {menuElement}
     {unknown?.kind === 'unknown' && <SlashWarning name={unknown.name} onSend={() => { latest.current.textarea.current?.form?.requestSubmit(); }} onCancel={() => { setWarning(null); latest.current.textarea.current?.focus(); }}/>}
   </>;
-  const prompt: ReactNode = restart ? <ModelRestartPrompt provider={provider} agentName={o.agentName} label={restart.label} busy={!!session?.busy} queued={restart.queued}
+  const prompt: ReactNode = restart ? <ModelRestartPrompt provider={provider} agentName={o.agentName} label={restart.label} busy={!!session?.busy} queued={restart.queued} returnTo={o.textarea}
     onRestart={() => { if (session?.busy) setRestart({ ...restart, queued: true }); else void restartWithModel(restart.model); }} onCancel={() => setRestart(undefined)}/> : null;
   const dialogs: ReactNode = tracking && workspaceId && <>
     {tracking.kind === 'track' && <TrackArtifactDialog collectionId={workspaceId} content={tracking.message.text}
@@ -394,10 +395,12 @@ export function useSlashCommands(o: Options) {
 }
 
 /** The one question before a model switch that restarts the agent; during a turn, it restarts when the turn ends. */
-function ModelRestartPrompt({ provider, agentName, label, busy, queued, onRestart, onCancel }: { provider: string; agentName: string; label: string; busy: boolean; queued: boolean; onRestart(): void; onCancel(): void }) {
-  return <div className="restart-permission restart-model" role="alert">
+function ModelRestartPrompt({ provider, agentName, label, busy, queued, returnTo, onRestart, onCancel }: { provider: string; agentName: string; label: string; busy: boolean; queued: boolean; returnTo: RefObject<HTMLTextAreaElement | null>; onRestart(): void; onCancel(): void }) {
+  // Enter restarts (now, or after this turn), Esc cancels; the message box has the keyboard back after either.
+  const { cardProps, giveBack } = useConfirmCard(onCancel, returnTo);
+  return <div className="restart-permission restart-model" role="alert" {...cardProps} aria-keyshortcuts="Enter Escape">
     <span>{modelRestartText(provider, agentName, label, busy, queued)}</span>
-    {!queued && <button className="primary" onClick={onRestart}>{busy ? 'Restart after this turn' : 'Restart now'}</button>}
+    {!queued && <button className="primary" onClick={() => { onRestart(); giveBack(); }}>{busy ? 'Restart after this turn' : 'Restart now'}</button>}
     <button onClick={onCancel}>Cancel</button>
   </div>;
 }

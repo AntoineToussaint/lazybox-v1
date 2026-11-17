@@ -118,7 +118,11 @@ runs and `Esc` closes it and leaves your text. It works in Vim insert mode too.
   `/help`. A command that takes a choice lists it (models, modes) with the
   current one marked; one that cannot run now says why. They are in the command
   palette (`⌘K`) as well, where they leave your draft alone; there `/review`
-  is *Open the review tray*.
+  is *Open the review tray*. The model name in the chat header and under the
+  message box opens the same `/model` choices (`Tab` to it, `Enter`). A
+  switch that restarts the agent asks in a card that has the keyboard:
+  `Enter` restarts (or restarts after this turn), `Esc` cancels, and the
+  message box has the keyboard back.
 - **The agent's own** commands — Claude's built-ins and your project's or your
   own `.claude/commands` — with their descriptions and argument hints. Choosing
   one completes `/name ` for its arguments; `Enter` sends it as the prompt and

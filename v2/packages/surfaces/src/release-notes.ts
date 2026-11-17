@@ -14,6 +14,7 @@ export const releaseNotes: readonly Release[] = [
     title: 'A steadier conversation',
     items: [
       { title: '⌘K keeps your draft', body: 'A conversation command run from the command palette (Compact the context, Show context and token cost…) no longer empties the message box or its saved draft. ⌘K Open the review tray opens the tray; it no longer starts a review.' },
+      { title: 'Switch model from the keyboard', body: 'The model name under the message box, like the one in the header, opens the /model choices: Tab to it, Enter, ↑/↓, Enter. A switch that restarts the agent (a model, or /permissions) asks in a card that has the keyboard: Enter restarts, also after this turn, Esc cancels, and you are back in the message box.' },
       { title: 'One review at a time', body: 'The header\'s Review and /review start reviews through the same launcher, so a quick double start no longer runs two reviews of the same work.' },
       { title: 'What you add while sending stays', body: 'Quote in reply, Ask to fix and other text added to the message box while a message is being sent wait for the send and are kept. The message box also keeps the keyboard after each send.' },
       { title: 'Keys go where you look', body: 'With two conversations side by side, y, a or n on the page answers the approval of the one you last clicked or typed in, never the other. The Enter that confirms Japanese, Chinese or Korean input no longer sends the message.' },

@@ -68,6 +68,7 @@ import { showToast } from './toasts';
 import { useReadAloudReplies } from './voice/useReadAloudReplies';
 import { ItemOriginChip } from './WorkItems';
 import { humanError } from './human-error';
+import { focusComposerOf, wantsComposerFocus } from './confirm-card';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -305,7 +306,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     } catch (e) { setError(humanError(e)); }
   };
   /** The conversation continues in a new agent (a restart in another mode or model). */
-  const adopt = (next: Session) => { continueConversation(api, sessionID, next); setSessionID(next.id); onSessionChange?.(next.id); refresh(); };
+  // The message box has the keyboard again once the new agent can take a message (confirm-card.ts).
+  const adopt = (next: Session) => { focusComposerOf(next.id); continueConversation(api, sessionID, next); setSessionID(next.id); onSessionChange?.(next.id); refresh(); };
   const setPermission = (mode: string) => { if (session?.capabilities?.livePermission) void changePermission(mode); else setRestartTo(mode); };
   const changePermission = async (mode: string) => {
     try {
@@ -389,6 +391,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     const active = document.activeElement;
     if (!active || active === document.body || composer.current?.closest('main')?.contains(active)) composer.current?.focus({ preventScroll: true });
   }, [firstMessage, canCompose, sessionID]);
+  // A restart answered from its card (keyboard or not): the conversation continues here, and so does typing.
+  useEffect(() => {
+    if (!canCompose || !wantsComposerFocus(sessionID)) return;
+    const active = document.activeElement;
+    if (!active || active === document.body || composer.current?.closest('main')?.contains(active)) composer.current?.focus({ preventScroll: true });
+  }, [canCompose, sessionID]);
   const resumeSession = async (processesStopped: boolean) => {
     const result = await api.resumeSession({ sessionId: sessionID, processesStopped }, { signal: lifetime.current!.signal });
     if (!result.session) return false;
@@ -535,14 +543,14 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
           {transcript.error && <TranscriptNotice error={transcript.error} onRetry={transcript.retry}/>}
           <CodeRunContext.Provider value={codeRuns}><MessageArea api={api} session={session} sessionID={sessionID} transcript={transcript} scroll={scroll} spoken={spoken} agentName={agentName} limited={limited} nameFor={nameFor}
             onOpenFile={session?.collectionId ? openFile : undefined} onError={setError} detail={activity.detail}
-            subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/></CodeRunContext.Provider>
+            subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => { setSwitchingSubscription(false); requestAnimationFrame(() => { const active = document.activeElement; if (!active || active === document.body) composer.current?.focus({ preventScroll: true }); }); }} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/></CodeRunContext.Provider>
           {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} viewState={viewState} onInterrupt={() => void interrupt()}
             onOpenCommand={openCommand} onOpenFile={session?.collectionId ? openFile : undefined}/>}
           {!transcript.error && !disconnected && <QueuedMessages session={session} queued={queued} turnRunning={transcript.turnRunning} live={live} agentName={agentName} activity={transcript.activity} delivery={queuedDelivery} sendNowKey={sendNowKey}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} attachments={boxes} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}
-            permissionPrompt={<>{restartTo && <PermissionRestartPrompt mode={restartTo} busy={!!session?.busy} onRestart={() => void restartWithPermission(restartTo)} onCancel={() => setRestartTo('')}/>}{slash.prompt}</>}
+            permissionPrompt={<>{restartTo && <PermissionRestartPrompt mode={restartTo} busy={!!session?.busy} returnTo={composer} onRestart={() => void restartWithPermission(restartTo)} onCancel={() => setRestartTo('')}/>}{slash.prompt}</>}
             slash={slash}
             info={embedded && session && !firstMessage ? <ComposerInfo agentName={agentName} modelLabel={modelLabel} modelRequested={!!session.model && !session.modelReported && !transcript.reportedModel} sessionID={sessionID} onPickModel={session.closed ? undefined : slash.models.pick}/> : undefined}
             onSubmit={send}

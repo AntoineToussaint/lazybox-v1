@@ -30,7 +30,8 @@ export function ComposerInfo({ agentName, modelLabel, modelRequested, sessionID,
   const words = <><span className="composer-info-agent">{agentName}</span>{model && <span className="composer-info-model-name"> · {model}</span>}</>;
   return <div className="composer-info" role="group" aria-label="Agent and context">
     {onPickModel
-      ? <button type="button" className="composer-info-model" data-requested={modelRequested || undefined} title={`${tooltip}\nSwitch model (/model)`} aria-label={`${text}: change model`} onClick={onPickModel}>{words}</button>
+      // tabIndex: WebKit (the desktop app) leaves buttons out of Tab unless they ask; this one is /model from the keyboard.
+      ? <button type="button" tabIndex={0} className="composer-info-model" data-requested={modelRequested || undefined} title={`${tooltip}\nSwitch model (/model)`} aria-label={`${text}: change model`} onClick={onPickModel}>{words}</button>
       : <span className="composer-info-model" data-requested={modelRequested || undefined} title={tooltip}>{words}</span>}
     {percent !== undefined && context && <button type="button" className="composer-info-context" data-level={contextLevel(percent)} popoverTarget={context.popover}
       title={`Context ${label} used · show context and cost`} aria-label={`Context ${label} used: show context and cost`}

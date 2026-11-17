@@ -154,7 +154,8 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
     switch (id) {
       case 'branch': return showBranch && <span className="chat-meta-branch" title={branch!.title}><Icon name="branch" size={11}/><span className="chat-meta-branch-name">{branch!.name}</span></span>;
       case 'model': return onPickModel
-        ? <button type="button" className="chat-model chat-model-button" data-requested={modelRequested || undefined} title={`${modelLabel || agentName}${requested}\nSwitch model (/model)`} aria-label={`Model ${modelText}: switch model`} onClick={onPickModel}>{modelText}<Icon name="chevron" size={10}/></button>
+        // tabIndex: in WebKit (the desktop app) a button is in the Tab order only when it asks.
+        ? <button type="button" tabIndex={0} className="chat-model chat-model-button" data-requested={modelRequested || undefined} title={`${modelLabel || agentName}${requested}\nSwitch model (/model)`} aria-label={`Model ${modelText}: switch model`} onClick={onPickModel}>{modelText}<Icon name="chevron" size={10}/></button>
         : <span className="chat-model" data-requested={modelRequested || undefined} title={`${modelLabel || agentName}${requested}`}>{modelText}</span>;
       case 'account': return shownAccount && <span className="chat-account" title="Subscription">{shownAccount}</span>;
       // A number chip moves between the line and "⋯" without remounting: its open list, its

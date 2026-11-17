@@ -12,7 +12,7 @@ const catalog={commands:[{name:'compact',description:'Clear history but keep a s
 // Alpha switches models live; beta's agent was started by an older Lazybox: it lists no models and restarts to switch.
 // The Codex conversation lists its app-server's models and switches live.
 Object.assign(f.sessions[0],{title:'Fix the flaky login test',provider:'claude',model:'claude-opus-5-5',modelReported:true,busy:false,status:'ready',conversationId:'alpha-conversation',capabilities:{...f.sessions[0].capabilities,liveModel:true,resume:true},agents:[{id:'root',status:'ready'}]});
-Object.assign(f.sessions[1],{title:'Release notes',provider:'claude',model:'claude-opus-5-5',modelReported:true,status:'ready',capabilities:{...f.sessions[1].capabilities,liveModel:false,resume:true},agents:[{id:'root',status:'ready'}]});
+Object.assign(f.sessions[1],{title:'Release notes',provider:'claude',model:'claude-opus-5-5',modelReported:true,status:'ready',capabilities:{...f.sessions[1].capabilities,liveModel:false,livePermission:false,resume:true},agents:[{id:'root',status:'ready'}]});
 const alpha=f.openEvents('alpha-session');alpha.push({type:'command_catalog',providerDataJson:data(catalog)});alpha.push({type:'operation_accepted',text:'Why is the login test flaky?'});alpha.push({type:'message_delta',text:'The test races the session cookie.'});alpha.push({type:'turn_ended',status:'completed'});
 f.openEvents('beta-session');
 f.sessions.push({...structuredClone(f.sessions[1]),id:'codex-session',conversationId:'codex-conversation',title:'Codex refactor',provider:'codex',profileId:'codex-default',model:'gpt-6.1-sol',modelReported:true,busy:false,status:'ready',capabilities:{...f.sessions[1].capabilities,liveModel:true,resume:true,steer:true}});
@@ -175,6 +175,26 @@ try{
  await chat.getByRole('button',{name:/switch model/}).click();
  await expect(models).toBeVisible();await expect(message).toHaveValue('/model ');
  await page.keyboard.press('Escape');await expect(message).toHaveValue('','a borrowed box is given back empty');
+ // The model in the message box's info row is /model too, from the keyboard alone: Tab to it, Enter,
+ // ↑/↓ through the same choices (the current one marked), Enter switches, and the box keeps the keyboard.
+ await message.focus();
+ const infoModel=chat.locator('.composer-info-model');
+ for(let i=0;i<15&&!(await infoModel.evaluate(node=>node===document.activeElement));i++)await page.keyboard.press('Tab');
+ await expect(infoModel).toBeFocused();
+ await page.keyboard.press('Enter');
+ await expect(models).toBeVisible();await expect(message).toBeFocused();await expect(message).toHaveValue('/model ');
+ await expect(models.getByRole('option').filter({hasText:'Current'})).toContainText('Opus 5.5');
+ await expect(models.getByRole('option',{selected:true})).toContainText('Sonnet 5.5');
+ await page.keyboard.press('ArrowDown');await expect(models.getByRole('option',{selected:true})).toContainText('Haiku 5.5');
+ await page.keyboard.press('ArrowUp');await expect(models.getByRole('option',{selected:true})).toContainText('Sonnet 5.5');
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.model?.model).toBe('claude-sonnet-5-5');
+ await expect(models).toBeHidden();await expect(message).toHaveValue('');await expect(message).toBeFocused();
+ // Space on it does the same.
+ for(let i=0;i<15&&!(await infoModel.evaluate(node=>node===document.activeElement));i++)await page.keyboard.press('Tab');
+ await page.keyboard.press('Space');
+ await expect(models).toBeVisible();await expect(message).toBeFocused();
+ await page.keyboard.press('Escape');await expect(message).toHaveValue('');
 
  // ⌘K "Open the review tray" opens the tray; it starts no review.
  await page.keyboard.press(`${mod}+k`);
@@ -189,7 +209,21 @@ try{
  await go(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
  const betaChat=page.locator('.embedded-chat').first(),betaMessage=betaChat.getByRole('textbox',{name:'Message',exact:true});
  await expect(betaMessage).toBeEnabled();
- await betaMessage.click();await page.keyboard.type('/model ');
+ // From here to the restart, the keyboard alone: no click anywhere.
+ await betaMessage.focus();
+ // /permissions yolo where the agent must restart to switch: the card takes the keyboard, Enter restarts, the box has it back.
+ await page.keyboard.type('/permissions yolo');await page.keyboard.press('Enter');
+ const permissionCard=betaChat.getByRole('alert').filter({hasText:'Switch to YOLO?'});
+ await expect(permissionCard.getByRole('button',{name:'Restart',exact:true})).toBeFocused();
+ await page.keyboard.press('Escape');
+ await expect(permissionCard).toHaveCount(0);await expect(betaMessage).toBeFocused();
+ assert.equal(f.mutations.filter(m=>m.method==='RestartWithPermission').length,0,'Esc restarts nothing');
+ await page.keyboard.type('/permissions yolo');await page.keyboard.press('Enter');
+ await expect(permissionCard.getByRole('button',{name:'Restart',exact:true})).toBeFocused();
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='RestartWithPermission')?.body).toEqual({sessionId:'beta-session',mode:'yolo'});
+ await expect(permissionCard).toHaveCount(0);await expect(betaMessage).toBeFocused();
+ await page.keyboard.type('/model ');
  const betaModels=betaChat.getByRole('listbox',{name:'/model choices'});
  await expect(betaModels.getByRole('option')).toHaveText([/Opus 5\.5.*Current/,/Sonnet 5\.5/,/Haiku 5\.5/,/Fable 5\.2/]);
  await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');
@@ -200,9 +234,20 @@ try{
  await expect(restart).toHaveText(/^Switch to Sonnet 5\.5\? An older Lazybox started this conversation's agent, so switching restarts it and your conversation continues\./);
  await expect(betaChat.locator('.restart-model')).toHaveCount(1);
  await page.screenshot({path:'.cache/slash-model-restart.png'});
- await restart.getByRole('button',{name:'Restart now'}).click();
- await expect.poll(()=>f.mutations.findLast(m=>m.method==='RestartWithModel')?.body).toEqual({sessionId:'beta-session',model:'claude-sonnet-5-5'});
+ // The card has the keyboard: Esc cancels and gives the box back; Enter restarts and gives it back.
+ const restartNow=restart.getByRole('button',{name:'Restart now'});
+ await expect(restartNow).toBeFocused();
+ await page.keyboard.press('Escape');
+ await expect(betaChat.locator('.restart-model')).toHaveCount(0);await expect(betaMessage).toBeFocused();
+ assert.equal(f.mutations.filter(m=>m.method==='RestartWithModel').length,0,'Esc restarts nothing');
+ await page.keyboard.type('/model son');await expect(betaModels.getByRole('option',{selected:true})).toContainText('Sonnet 5.5');
+ await page.keyboard.press('Enter');
+ await expect(restartNow).toBeFocused();
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='RestartWithModel')?.body?.model).toBe('claude-sonnet-5-5');
+ assert.match(f.mutations.findLast(m=>m.method==='RestartWithModel').body.sessionId,/^beta-session-restarted-/,'the conversation as it continued after the permission restart');
  await expect(betaChat.locator('.restart-model')).toHaveCount(0);
+ await expect(betaMessage).toBeFocused();
 
  // Codex: its app-server's models (merged with the Runner's), the current one marked; a live switch.
  await go(`${base}/?view=workspace&collection=beta&session=codex-session#token=${f.token}`);
@@ -237,5 +282,5 @@ try{
  await expect.poll(()=>applies().at(-1)?.body.permission?.mode).toBe('read-only');
 
  assert.deepEqual(errors,[]);
- console.log('PASS: / opens the grouped command menu (Lazybox · Claude · Snippets) with icons, names, hints and descriptions; it filters and ranks as you type, Esc closes it; /permissions and /model run for real (for Claude and Codex: the provider\'s models, the Runner\'s list where the agent lists none, the current one marked and a no-op, a live switch, one clear restart card where needed) and leave one line in the conversation; the agent\'s commands complete for arguments and go as the prompt; a snippet is inserted; an unknown /word asks first; a path is a message; /detail and /help act; ⌘K lists the commands and gives a borrowed draft back, a command run from it keeps the draft (and its saved copy), and its Open the review tray opens the tray without starting a review; the ⋯ menu offers the models and the header\'s model name opens the picker; Vim insert mode works. Fixture only.');
+ console.log('PASS: / opens the grouped command menu (Lazybox · Claude · Snippets) with icons, names, hints and descriptions; it filters and ranks as you type, Esc closes it; /permissions and /model run for real (for Claude and Codex: the provider\'s models, the Runner\'s list where the agent lists none, the current one marked and a no-op, a live switch, one clear restart card where needed) and leave one line in the conversation; a restart card (model or permissions) takes the keyboard, Enter restarts, Esc cancels, and the message box has the keyboard back, with no click; the agent\'s commands complete for arguments and go as the prompt; a snippet is inserted; an unknown /word asks first; a path is a message; /detail and /help act; ⌘K lists the commands and gives a borrowed draft back, a command run from it keeps the draft (and its saved copy), and its Open the review tray opens the tray without starting a review; the ⋯ menu offers the models; the header\'s model name and the message box\'s model label open the /model choices, by click or Tab and Enter; Vim insert mode works. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close?.();}

@@ -1,4 +1,6 @@
+import type { RefObject } from 'react';
 import type { Session } from '@lazybox/protocol';
+import { useConfirmCard } from './confirm-card';
 import { ActionMenu } from './ActionMenu';
 import { ActionMenuItems } from './ActionMenuItems';
 import type { MenuItem } from './context-menu-model';
@@ -127,8 +129,10 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
  * An agent whose worker predates live permission changes restarts in the new
  * mode between turns; the same provider conversation continues.
  */
-export function PermissionRestartPrompt({ mode, busy, onRestart, onCancel }: { mode: string; busy: boolean; onRestart(): void; onCancel(): void }) {
-  return <div className="restart-permission" role="alert">
+export function PermissionRestartPrompt({ mode, busy, returnTo, onRestart, onCancel }: { mode: string; busy: boolean; /** The message box: the keyboard goes back there once answered. */ returnTo?: RefObject<HTMLElement | null>; onRestart(): void; onCancel(): void }) {
+  // Enter restarts, Esc cancels: no pointer needed (`/permissions yolo` asks here when the agent restarts to switch).
+  const { cardProps } = useConfirmCard(onCancel, returnTo, () => { if (!busy) onRestart(); });
+  return <div className="restart-permission" role="alert" {...cardProps} aria-keyshortcuts="Enter Escape">
     <span>Switch to {PERMISSION_CHOICES.find(([choice]) => choice === mode)?.[1] || mode}? An older Lazybox started this conversation's agent, so switching restarts it and your conversation continues.</span>
     <button className="primary" disabled={busy} title={busy ? 'Wait for the current turn to finish' : undefined} onClick={onRestart}>Restart</button>
     <button onClick={onCancel}>Cancel</button>
