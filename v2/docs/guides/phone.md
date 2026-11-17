@@ -21,9 +21,9 @@
    not installed or signed in, certificates off, the port taken, Funnel on — the
    card says exactly what.
 2. **Pair a phone.** A QR code appears with what the phone will be allowed to do
-   (*See conversations · Reply, answer and approve*); **Change** adds *Start
-   conversations* or removes replying. The code works **once, for five
-   minutes**; closing the dialog withdraws it.
+   (*See conversations · Reply, answer and approve*); **Change** removes
+   replying. The code works **once, for five minutes**; closing the dialog
+   withdraws it.
 3. **On the phone**, scan the code with the camera. Check what it will be able
    to do, name it, and **Pair this phone**. Both screens then show the same key
    fingerprint — check they match.
@@ -63,7 +63,9 @@ The tab's title carries the number of conversations waiting for you.
 - **Pull down** at the top to refresh now. When the phone is offline or
   cannot reach your computer, a bar says so, with **Retry now**.
 
-Pins and read marks are this phone's own for now; the computer keeps its own.
+Pins are shared with your computer: a conversation pinned on one is pinned on
+the other. A phone that may only see conversations shows the computer's pins
+but cannot change them. Read marks are each device's own.
 
 ### Follow a command
 
@@ -129,6 +131,5 @@ files, delete anything, restart the Runner, manage devices — or change an
 agent's permission mode, even with every grant. A phone's access token lasts 15
 minutes and its key cannot be copied out of the phone's browser.
 
-Not yet: access from outside your tailnet, reviewing diffs on the phone,
-starting a conversation from the phone (the permission exists; the screen does
-not), pins shared with the computer.
+Not yet: access from outside your tailnet, reviewing diffs on the phone, and
+starting a conversation from the phone.

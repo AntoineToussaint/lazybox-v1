@@ -16,7 +16,9 @@ Hub's device identity in [device experience](DEVICE_EXPERIENCE.md).
    HTTPS certificates off, port taken, Funnel on).
 2. **Pair a phone.** A QR code appears at once, with the usual grants
    ("See conversations · Reply, answer and approve"); **Change** lets the
-   owner add "Start conversations" or drop replying, which issues a new code.
+   owner drop replying, which issues a new code. The `start` grant is not
+   offered (`offered` in `DevicesSettings.tsx`) until the phone has a screen
+   to start a conversation from; a phone paired with it keeps it.
    The code works once and for five minutes; the dialog counts down, follows
    it, and closing the dialog withdraws it.
 3. **On the phone**, the camera opens the link. The page lists what the phone
@@ -188,7 +190,7 @@ holding every grant (`TestDeviceCredentialIsDeniedEveryRPCOffTheAllowlist`).
 | --- | --- |
 | `read` (always) | `Info` (redacted), `ListHistory`, `GetSession`, `ListCollections`, `GetCollection`, `ListWorkspaceChanges`, `ReadWorkspaceDiff`, `ListCommands`, `ReadCommand`, `ReadAttachment` (images a sent message carried); `ReadSessionTail` (a conversation's latest turns and earlier pages: what `WatchEvents` replays, in fewer reads); `GetPushSettings`, `SetPushSettings` (its own only, at most 30 changes a minute; the owner is refused) and `SendTestPush` (itself only, within its 8-a-minute notification budget; never a hook), so a read-only phone is notified too; `ListLinks` (the tracked pull requests, never as an agent); streams `WatchEvents`, `WatchOutput` |
 | `respond` (default) | `Apply` with message, steer, interrupt, answer or approval — never permission; `PinConversation` (the person's own arrangement, shared with the computer; never archive or delete); `SendPullRequestFailures` and `ImportPullRequestReview` (a tracked pull request's failures or review, to the conversation that delivered it — never merge, link or unlink) |
-| `start` (opt-in) | `OpenSession` only in an existing workspace with no directory, resume reference, permission, gateway or instructions override; `ResumeSession`, never with `processes_stopped` (the owner's statement after an unclean shutdown) |
+| `start` (opt-in; not offered at pairing until the phone has its screen) | `OpenSession` only in an existing workspace with no directory, resume reference, permission, gateway or instructions override; `ResumeSession`, never with `processes_stopped` (the owner's statement after an unclean shutdown) |
 
 ## Verification
 
@@ -276,5 +278,6 @@ while some phone is subscribed).
 - A phone revoking itself on the Runner ("Forget pairing" only clears the
   phone); per-workspace grants; reviewing diffs and files on the phone (the RPCs
   are readable, the screens are not built); starting a conversation from the
-  phone (the grant exists; the screen does not).
+  phone (the grant exists and phones paired with it keep it; pairing no
+  longer offers it, since the screen does not exist).
 - Hub-level device identity and multi-human attribution (D05).

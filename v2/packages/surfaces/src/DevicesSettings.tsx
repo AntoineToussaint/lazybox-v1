@@ -16,6 +16,9 @@ const grantHints: Record<string, string> = {
   start: 'Start or continue a conversation in an existing workspace. This runs an agent on this computer.',
 };
 const never = 'Never: settings, subscriptions, GitHub, terminals, deleting anything.';
+/** The grants a new pairing offers. `start` is not offered until the phone has a screen to start a
+ * conversation from; a phone already granted it keeps it, and its label above. */
+const offered = ['read', 'respond'];
 const message = (error: unknown) => ConnectError.from(error).rawMessage || String(error);
 
 /**
@@ -158,7 +161,7 @@ function PairPhoneDialog({ phoneUrl, onClose }: { phoneUrl: string; onClose(): v
     return () => clearInterval(timer);
   }, [api, offerId]);
   const close = () => { dialog.current?.close(); };
-  const toggle = (grant: string, on: boolean) => setGrants(value => ['read', 'respond', 'start'].filter(g => g === 'read' || (g === grant ? on : value.includes(g))));
+  const toggle = (grant: string, on: boolean) => setGrants(value => offered.filter(g => g === 'read' || (g === grant ? on : value.includes(g))));
   const host = (() => { try { return new URL(phoneUrl).host; } catch { return phoneUrl; } })();
   const remaining = phase.kind === 'offer' ? Math.max(0, Number(phase.offer.expiresAtUnixMillis) - now) : 0;
   const ended = phase.kind === 'ended' ? phase.offer : undefined;
@@ -189,7 +192,7 @@ function PairPhoneDialog({ phoneUrl, onClose }: { phoneUrl: string; onClose(): v
         <div className="pair-allowed">
           <span>This phone will be able to</span>
           {editing ? <fieldset aria-label="What this phone may do">
-            {['read', 'respond', 'start'].map(grant => <label key={grant} className="grant-option"><input type="checkbox" checked={grants.includes(grant)} disabled={grant === 'read'} onChange={event => toggle(grant, event.target.checked)}/><span><strong>{grantLabels[grant]}</strong><small>{grantHints[grant]}</small></span></label>)}
+            {offered.map(grant => <label key={grant} className="grant-option"><input type="checkbox" checked={grants.includes(grant)} disabled={grant === 'read'} onChange={event => toggle(grant, event.target.checked)}/><span><strong>{grantLabels[grant]}</strong><small>{grantHints[grant]}</small></span></label>)}
             <small>{never}</small>
           </fieldset> : <p>{grants.map(grant => grantLabels[grant]).join(' · ')} <button className="link-button" onClick={() => setEditing(true)}>Change</button></p>}
         </div>

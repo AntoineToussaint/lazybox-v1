@@ -61,11 +61,13 @@ try {
   // Changing what the phone may do issues a new code and withdraws the old one.
   await dialog.getByRole('button', { name: 'Change' }).click();
   await expect(dialog.getByRole('checkbox', { name: /See conversations/ })).toBeDisabled();
-  await dialog.getByRole('checkbox', { name: /Start conversations/ }).check();
+  // Starting a conversation is not offered: the phone has no screen for it yet.
+  await expect(dialog.getByRole('checkbox', { name: /Start conversations/ })).toHaveCount(0);
+  await dialog.getByRole('checkbox', { name: /Reply, answer and approve/ }).uncheck();
   await expect.poll(async () => await qr.getAttribute('data-value')).not.toBe(firstLink);
   await expect.poll(() => f.remote.offers.get(firstOffer).state).toBe('cancelled');
-  assert.match(await qr.getAttribute('data-value'), /grants=read%2Crespond%2Cstart$/);
-  await dialog.getByRole('checkbox', { name: /Start conversations/ }).uncheck();
+  assert.match(await qr.getAttribute('data-value'), /grants=read$/);
+  await dialog.getByRole('checkbox', { name: /Reply, answer and approve/ }).check();
   await expect.poll(async () => await qr.getAttribute('data-value')).toMatch(/grants=read%2Crespond$/);
   await desktop.screenshot({ path: '/tmp/lazybox-pair-dialog.png' });
   const link = await qr.getAttribute('data-value');
