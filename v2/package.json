@@ -76,6 +76,7 @@
     "test:mermaid-robust": "node scripts/test-mermaid-robust.mjs",
     "test:file-navigation": "node scripts/test-file-navigation.mjs",
     "test:prompt-navigation": "node scripts/test-prompt-navigation.mjs",
+    "test:composer-fast-typing": "node scripts/test-composer-fast-typing.mjs",
     "test:send-recovery": "node scripts/test-send-recovery.mjs",
     "test:chat-polish": "node scripts/test-chat-polish.mjs",
     "test:transcript-polish": "node scripts/test-transcript-polish.mjs",

@@ -174,7 +174,10 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   // A run handed over from a terminal joins the draft, after anything already
   // typed, and the cursor goes to its end: the person adds a line and sends.
   const [handedOver, setHandedOver] = useState('');
-  useEffect(() => { if (!message.trim()) setHandedOver(''); }, [message]);
+  // An emptied draft drops the notice. Adjusted during render, not in an effect
+  // keyed on the text: that effect queued a second render for every key typed
+  // into a blank box, and fast keys piled them up into "Maximum update depth exceeded".
+  if (handedOver && !message.trim()) setHandedOver('');
   useEffect(() => setHandedOver(''), [sessionID]);
   const addToDraft = (text: string, notice: string) => {
     const next = appendToDraft(message, text);

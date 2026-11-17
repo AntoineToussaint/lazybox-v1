@@ -118,7 +118,12 @@ export function useSlashCommands(o: Options) {
   // ---- The menu --------------------------------------------------------
   const [dismissed, setDismissed] = useState(false);
   const [vimMode, setVimMode] = useState<VimMode | undefined>();
-  useEffect(() => { if (!o.message.startsWith('/')) setDismissed(false); }, [o.message]);
+  // Esc's dismissal lasts while the box holds a command. It is reset during
+  // render, not in an effect: an effect that sets state on every keystroke
+  // queues a second, default-priority render per key, and keys that land
+  // faster than that render runs (fast or scripted typing, a busy machine)
+  // pile those up until React stops with "Maximum update depth exceeded".
+  if (dismissed && !o.message.startsWith('/')) setDismissed(false);
   const menu = o.enabled && (!vimMode || vimMode === 'insert') ? slashMenu(o.message, commands, dismissed) : null;
   const menuKey = menu ? `${menu.kind}:${menu.kind === 'hint' ? menu.command.key : menu.kind === 'choices' ? `${menu.command.key}:${menu.query}` : menu.query}:${menu.kind === 'hint' ? 0 : menu.items.length}` : '';
   const [picked, setPicked] = useState({ key: '', index: 0 });
