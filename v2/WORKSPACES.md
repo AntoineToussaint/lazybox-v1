@@ -728,7 +728,9 @@ workspace are dropped. An empty query lists recently opened files; `name:42`
 opens at line 42; Cmd/Ctrl+Enter opens beside, Alt+Enter quick-looks.
 
 The **Editor** panel holds files in tabs, in up to four groups split right or
-down (buttons on each group, Cmd/Ctrl+\ and Cmd/Ctrl+Alt+\). A single click
+down (buttons on each group, Cmd/Ctrl+\ and Cmd/Ctrl+Alt+\). The editor's
+keys are its own only while the focus is in it; elsewhere Cmd/Ctrl+\ splits the
+panel in front. A single click
 opens a preview tab (italic) that the next one replaces; a double click, an edit
 or Enter keeps it. Tabs show an unsaved dot, reorder by drag or
 Cmd/Ctrl+Alt+Shift+←/→, move between groups by drag, cycle with Cmd/Ctrl+Alt+←/→,

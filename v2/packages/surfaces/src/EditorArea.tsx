@@ -34,18 +34,18 @@ function Editors({ workbench, viewState }: { workbench: Workbench; viewState?: V
  const area = useRef<HTMLDivElement>(null);
  const vim = useVimPreferences(viewState).editor;
  useEffect(() => { void preloadEditor(); }, []);
- // Editor shortcuts work wherever focus is, except Alt+W, which types a
- // character on a Mac keyboard and so only closes a tab from inside the editor.
+ // Editor shortcuts are the editor's only while the focus is in it: elsewhere
+ // ⌘\ splits the panel in front, and ⌥⌘←/→ belong to whatever has the focus.
  useEffect(() => {
   const keydown = (event: KeyboardEvent) => {
    if (event.defaultPrevented || event.isComposing || !area.current?.isConnected || document.querySelector('dialog[open]')) return;
-   const inside = area.current.contains(document.activeElement);
+   if (!area.current.contains(document.activeElement)) return;
    const mod = modKey(event), state = workbench.getState(), group = state.layout.focused;
    const act = (run: () => void) => { event.preventDefault(); event.stopPropagation(); run(); };
    if (mod && !event.shiftKey && event.code === 'Backslash') act(() => workbench.split(event.altKey ? 'column' : 'row'));
    else if (mod && event.altKey && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) act(() => event.shiftKey ? workbench.shiftTab(event.key === 'ArrowRight' ? 1 : -1) : workbench.cycleTab(event.key === 'ArrowRight' ? 1 : -1));
    else if (mod && event.altKey && /^Digit[1-4]$/.test(event.code)) act(() => workbench.focusGroupAt(Number(event.code.slice(5)) - 1));
-   else if (inside && event.altKey && !mod && !event.shiftKey && event.code === 'KeyW') act(() => { const active = editorGroups(state.layout.root).find(value => value.id === group)?.active; if (active) workbench.close(group, active); });
+   else if (event.altKey && !mod && !event.shiftKey && event.code === 'KeyW') act(() => { const active = editorGroups(state.layout.root).find(value => value.id === group)?.active; if (active) workbench.close(group, active); });
   };
   window.addEventListener('keydown', keydown, true);
   return () => window.removeEventListener('keydown', keydown, true);
