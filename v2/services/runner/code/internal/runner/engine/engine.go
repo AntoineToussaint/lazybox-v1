@@ -696,8 +696,18 @@ func (e *Engine) receive() {
 		if err != nil {
 			e.mu.Lock()
 			if !e.state.Closed && !e.detaching && e.ctx.Err() == nil {
-				e.state.Fault = fmt.Sprintf("provider stream ended: %v", err)
-				exit := agent.Event{Type: "process_exit", Status: "unknown", Text: err.Error()}
+				// The native process exited (its exit was observed, here or
+				// reported just before): the conversation's process is gone,
+				// which no re-attachment settles (agent.ProcessExitFault).
+				// Otherwise this Runner only lost its stream from the agent,
+				// which may still run (agent.TransportFault).
+				status := "unknown"
+				if errors.Is(err, agent.ErrProcessExited) || e.state.Fault == agent.ProcessExitFault {
+					e.state.Fault, status = agent.ProcessExitFault, "exited"
+				} else {
+					e.state.Fault = fmt.Sprintf("provider stream ended: %v", err)
+				}
+				exit := agent.Event{Type: "process_exit", Status: status, Text: err.Error()}
 				e.observe(exit)
 				e.appendLocked(exit)
 			}
@@ -723,6 +733,12 @@ func (e *Engine) receive() {
 			e.settleTransportFaultLocked()
 		}
 		switch ev.Type {
+		case "process_exit":
+			// The supervising layer observed the native process exit; the
+			// stream's end follows.
+			if rootEvent && ev.Status == "exited" && !e.state.Closed {
+				e.state.Fault = agent.ProcessExitFault
+			}
 		case "profile_switching":
 			for id, pending := range e.state.Pending {
 				e.appendLocked(agent.Event{Type: "request_resolved", RequestID: id, AgentID: pending.AgentID, Status: "profile_switched"})

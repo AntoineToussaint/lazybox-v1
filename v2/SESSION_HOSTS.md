@@ -169,6 +169,16 @@ notices in the conversation.
   a host that is gone took its agent's group with it, which confirms the exit.
   A conversation whose agent's exit stays unconfirmed resumes once the person
   confirms the agent is stopped (`processesStopped`).
+- A Runner that loses its stream from an agent (the host connection, its own
+  record keeping) faults the conversation as a lost stream
+  (`agent.TransportFault`): re-attaching settles it, and Resume re-attaches in
+  place. An agent whose process exited is not that: its exit was observed (the
+  host's exit report, `agent.ErrProcessExited`), the conversation's fault is
+  `provider_process_exit` (`agent.ProcessExitFault`), which neither
+  re-adoption nor a later event clears and no message continues, and Resume
+  ends the session and continues the provider's conversation in a new process
+  (`TestAnAgentThatExitedIsResumedInANewProcess`,
+  `TestAnObservedExitIsNotSettledByReadoption`).
 - A newer client attaching to a host supersedes the old one and tells it so; the
   superseded Runner stands down and never stops a program it no longer owns.
 - A host whose program exited while no Runner was attached keeps the remaining

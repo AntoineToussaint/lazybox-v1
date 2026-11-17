@@ -398,20 +398,33 @@ type ProfileSwitcher interface {
 	SetRotation(ids []string) error
 }
 
+// ErrProcessExited marks a provider stream that ended because the native
+// process exited (its exit was observed: a session host's exit report, or a
+// local child reaped), as opposed to the Runner losing its connection to a
+// process that may still run. Adapters wrap it; test with errors.Is.
+var ErrProcessExited = errors.New("native process exited")
+
+// ProcessExitFault is the fault of a conversation whose native process
+// exited. It is a Runner fault, neither a turn fault (no process takes the
+// next message) nor a TransportFault: re-attaching cannot bring the process
+// back, so neither re-adoption nor a later event settles it. Resume continues
+// the provider's conversation in a new process instead.
+const ProcessExitFault = "provider_process_exit"
+
 // TurnFault reports whether a fault came from the provider ending one turn with
 // an error (an API error, an image it could not read, an overloaded service),
 // as opposed to the Runner losing track of the provider. After a turn fault
 // the conversation is intact: the person's next message continues it.
 //
-// A provider process that ended (provider_process_exit) or a worker whose SDK
-// stream failed (sdk_error) is not a turn fault: nothing is left to take the
-// next message.
+// A provider process that ended (ProcessExitFault) or a worker whose SDK
+// stream failed (sdk_error, after which the worker exits) is not a turn
+// fault: nothing is left to take the next message.
 func TurnFault(fault string) bool {
 	if fault == "" || LimitFault(fault) {
 		return false
 	}
 	switch fault {
-	case "provider_process_exit", "sdk_error":
+	case ProcessExitFault, "sdk_error":
 		return false
 	}
 	for _, runner := range []string{"provider delivery failed", "event capture failed", "provider stream ended", "invalid or excessive pending provider requests", "native_exit_unconfirmed", "provider startup failed"} {

@@ -61,6 +61,9 @@ type Session struct {
 	// committed is closed and replaced on every commit (see AwaitCommits).
 	committed chan struct{}
 	held      map[agent.Kind]hold
+	// ends are the errors End was given, in order: Receive returns each
+	// as it is, so a test can end the stream with a wrapped sentinel.
+	ends []error
 }
 
 // Title answers with Titles (agent.Titler).
@@ -170,7 +173,12 @@ func (s *Session) Apply(ctx context.Context, o agent.Operation) (agent.Receipt, 
 
 // End ends the session's stream with err once the events sent before it are
 // read: what a native process that exits, or a supervisor that stops, does.
-func (s *Session) End(err error) { s.Events <- agent.Event{Type: endStream, Text: err.Error()} }
+func (s *Session) End(err error) {
+	s.mu.Lock()
+	s.ends = append(s.ends, err)
+	s.mu.Unlock()
+	s.Events <- agent.Event{Type: endStream, Text: err.Error()}
+}
 
 // endStream marks the event End sends; it is never received as an event.
 const endStream = "agenttest:end"
@@ -179,6 +187,13 @@ func (s *Session) Receive(ctx context.Context) (agent.Event, error) {
 	select {
 	case e := <-s.Events:
 		if e.Type == endStream {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if len(s.ends) > 0 {
+				err := s.ends[0]
+				s.ends = s.ends[1:]
+				return agent.Event{}, err
+			}
 			return agent.Event{}, errors.New(e.Text)
 		}
 		return e, nil

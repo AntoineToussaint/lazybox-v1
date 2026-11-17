@@ -225,11 +225,20 @@ export function transportFault(fault = ''): boolean {
   return fault.startsWith('provider stream ended') || fault.startsWith('event capture failed');
 }
 
+/**
+ * The agent's process exited: nothing is left to re-attach, and Resume
+ * continues its conversation in a new process. Mirrors agent.ProcessExitFault.
+ */
+export function exitFault(fault = ''): boolean {
+  return fault === 'provider_process_exit';
+}
+
 /** Why a conversation needs attention, for a fault that is not a subscription limit. */
 export function faultSentence(fault: string): string {
   if (!fault) return '';
   if (fault === 'provider delivery failed; reconcile before continuing') return 'A message could not be delivered to the agent. Check the conversation before sending again.';
   if (fault.startsWith('provider stream ended')) return 'The connection to the agent ended unexpectedly.';
+  if (exitFault(fault)) return 'The agent process stopped unexpectedly. Resume continues the conversation in a new one.';
   if (fault.startsWith('event capture failed')) return 'Lazybox could not record this conversation. Its agent keeps running: Resume reconnects to it.';
   if (fault === 'provider_failure' || fault === 'provider_error' || fault === 'sdk_error') return 'The agent stopped after an error from the provider.';
   if (looksLikeCode(fault)) return codeSentences[fault] || `The agent stopped (${fault.replaceAll('_', ' ')}).`;

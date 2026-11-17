@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"time"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/processguard"
 	"github.com/AntoineToussaint/lazybox/v2/internal/redact"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
@@ -147,7 +148,7 @@ func (p *Process) readHosted() {
 			if exit.Outcome.Error != "" {
 				exitErr = errors.New(exit.Outcome.Error)
 			}
-			reason := fmt.Errorf("native process exited (code %d%s)", exit.Outcome.ExitCode, signalSuffix(exit.Outcome.Signal))
+			reason := fmt.Errorf("%w (code %d%s)", agent.ErrProcessExited, exit.Outcome.ExitCode, signalSuffix(exit.Outcome.Signal))
 			if exit.Stderr != "" {
 				reason = fmt.Errorf("%w; adapter stderr: %s", reason, exit.Stderr)
 			}

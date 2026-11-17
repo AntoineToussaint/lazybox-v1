@@ -579,8 +579,11 @@ func (s *session) read() {
 		m, err := s.p.Receive(s.ctx)
 		cursor = m.Seq
 		if err != nil {
-			if s.ctx.Err() == nil && !errors.Is(err, jsonl.ErrDetached) {
-				emit(agent.Event{Type: "failure", Status: "provider_process_exit", Text: err.Error()})
+			// Only an exit is the process ending: a lost connection to its
+			// session host is the Runner's (the stream's end says it), and
+			// re-attaching may find the process still running.
+			if s.ctx.Err() == nil && errors.Is(err, agent.ErrProcessExited) {
+				emit(agent.Event{Type: "failure", Status: agent.ProcessExitFault, Text: err.Error()})
 				flush()
 			}
 			s.end(err)

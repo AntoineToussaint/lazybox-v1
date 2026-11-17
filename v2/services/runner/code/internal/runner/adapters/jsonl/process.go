@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/processguard"
 	"github.com/AntoineToussaint/lazybox/v2/internal/redact"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
@@ -156,12 +157,13 @@ func StartWith(ctx context.Context, binary string, args, env []string, cwd strin
 		if err == nil {
 			err = io.EOF
 		}
-		p.stop(err)
+		// The process is gone (reaped above): its stream ended with it.
+		p.stop(fmt.Errorf("%w: %w", agent.ErrProcessExited, err))
 	}()
 	go func() {
 		_, exitErr := guard.Wait()
 		if exitErr != nil {
-			p.stop(exitErr)
+			p.stop(fmt.Errorf("%w: %w", agent.ErrProcessExited, exitErr))
 		}
 		timer := time.NewTimer(time.Second)
 		defer timer.Stop()

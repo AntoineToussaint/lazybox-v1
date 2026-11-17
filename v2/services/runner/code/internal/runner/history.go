@@ -127,6 +127,15 @@ func (b *Bench) Resume(ctx context.Context, id string, processesStopped bool) (*
 	if live, ok := e.Engine.(*engine.Engine); ok && !e.Archived && !state.Closed && agent.TransportFault(state.Fault) {
 		return b.reconnect(ctx, e, live, processesStopped)
 	}
+	// Its native process exited (the exit was observed): there is nothing to
+	// re-attach. Its session is over; the provider's conversation goes on in
+	// a new process below, as for any ended session.
+	if !e.Archived && !state.Closed && state.Fault == agent.ProcessExitFault {
+		if err := e.Engine.Close(); err != nil {
+			return nil, fmt.Errorf("could not end the session whose agent exited: %w", err)
+		}
+		state = e.Engine.Snapshot()
+	}
 	if !e.Archived && !state.Closed {
 		return nil, errors.New("end the existing session before resuming; an active session can be reattached")
 	}

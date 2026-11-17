@@ -11,7 +11,7 @@ import { PromptNavigator } from './PromptNavigator';
 import { RequestCard } from './session-parts';
 import { ToolLineContext } from './ToolLine';
 import { latestPlanId, type ActivityDetail } from './tool-lines';
-import { faultSentence, transportFault } from './subscription-model';
+import { exitFault, faultSentence, transportFault } from './subscription-model';
 import type { useChatScroll } from './useChatScroll';
 import type { useTranscript } from './useTranscript';
 
@@ -78,7 +78,8 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
  * Why the conversation cannot go on. It follows the Runner's fault, so it is
  * gone as soon as the Runner settles it (a re-adopted agent, Resume). A lost
  * stream offers Resume: the Runner re-attaches the live agent in place and
- * never starts a second one.
+ * never starts a second one. An agent whose process exited offers it too:
+ * its conversation goes on in a new process.
  */
 function FaultBanner({ api, session, sessionID, onError }: { api: RunnerClient; session: Session; sessionID: string; onError(message: string): void }) {
   const [resuming, setResuming] = useState(false);
@@ -91,7 +92,7 @@ function FaultBanner({ api, session, sessionID, onError }: { api: RunnerClient; 
   };
   return <div className="error" role="alert">
     {faultSentence(session.fault)}
-    {transportFault(session.fault) && !session.closed && <button disabled={resuming} onClick={() => void resume()}>{resuming ? 'Resuming…' : 'Resume'}</button>}
+    {(transportFault(session.fault) || exitFault(session.fault)) && !session.closed && <button disabled={resuming} onClick={() => void resume()}>{resuming ? 'Resuming…' : 'Resume'}</button>}
   </div>;
 }
 

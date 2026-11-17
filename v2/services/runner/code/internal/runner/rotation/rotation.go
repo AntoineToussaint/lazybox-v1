@@ -304,7 +304,14 @@ func (s *session) run() {
 			detaching := s.detaching
 			s.stateMu.Unlock()
 			if s.ctx.Err() == nil && !detaching {
-				s.emit(agent.Event{Type: "process_exit", Status: "unknown", Text: err.Error()})
+				// "exited" when the native process's exit was observed: the
+				// engine then faults the conversation as ended (agent.ProcessExitFault),
+				// not as a lost stream a re-attachment settles.
+				status := "unknown"
+				if errors.Is(err, agent.ErrProcessExited) {
+					status = "exited"
+				}
+				s.emit(agent.Event{Type: "process_exit", Status: status, Text: err.Error()})
 			}
 			return
 		}

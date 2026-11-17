@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema, ProfileSchema, SessionSchema, type Profile, type Session } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { backAt, backWhen, bestChoice, comeback, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, signInDefault, subscriptionChoices, subscriptionName, switchedLine, switchNote, turnFault, untilText } from '../packages/surfaces/src/subscription-model.ts';
+import { backAt, backWhen, bestChoice, comeback, exitFault, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, signInDefault, subscriptionChoices, subscriptionName, switchedLine, switchNote, transportFault, turnFault, untilText } from '../packages/surfaces/src/subscription-model.ts';
 import { foldTranscript, emptyTranscript } from '../packages/surfaces/src/transcript-model.ts';
 import { liveStatus } from '../packages/surfaces/src/live-status.ts';
 import { deriveAttention } from '../packages/surfaces/src/attention.ts';
@@ -129,4 +129,9 @@ test('a new Codex subscription signs in with the browser only from the Runner\'s
 test('an agent process that ended is not a turn fault the next message continues (mirrors agent.TurnFault)', () => {
   for (const fault of ['provider_error', 'provider_failure', 'invalid_request']) assert.equal(turnFault(fault), true, fault);
   for (const fault of ['provider_process_exit', 'sdk_error', 'provider stream ended: EOF', 'native_exit_unconfirmed', 'exhausted', '']) assert.equal(turnFault(fault), false, fault);
+  // An exit is not a lost stream: Resume continues it in a new process (mirrors agent.ProcessExitFault).
+  assert.equal(exitFault('provider_process_exit'), true);
+  assert.equal(transportFault('provider_process_exit'), false);
+  assert.equal(exitFault('provider stream ended: EOF'), false);
+  assert.match(faultSentence('provider_process_exit'), /stopped unexpectedly\. Resume/);
 });
