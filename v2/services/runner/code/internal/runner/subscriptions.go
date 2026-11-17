@@ -33,6 +33,11 @@ type LoginCanceller interface {
 	CancelLogin(context.Context, string) error
 }
 
+// ExpiredSignIn is said of a sign-in that ran out of time, or that this
+// Runner no longer has (a restart ends one that was waiting). A request whose
+// account was saved reads "added" instead (Enrollment checks saved profiles).
+const ExpiredSignIn = "The sign-in took too long and was stopped. Try again when you’re ready."
+
 // Failures a client offers a way out of (SubscriptionEnrollment.error_code).
 const (
 	// ErrorDeviceSignInDisabled: the account refuses device codes; the browser works.
@@ -231,7 +236,11 @@ func (b *Bench) enrollSubscription(ctx context.Context, flow *Enrollment, token 
 				_ = canceller.CancelLogin(stop, login.ID)
 				cancel()
 			}
-			finish("cancelled", "")
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				finish("expired", ExpiredSignIn)
+			} else {
+				finish("cancelled", "")
+			}
 		} else {
 			fail(err, "Provider sign-in did not complete.")
 		}

@@ -244,7 +244,7 @@ func TestEnrollmentReceiptRecoversAfterRunnerRestartWithoutTokenReplay(t *testin
 		t.Fatal(receipt, err)
 	}
 	missing, err := service.GetSubscriptionEnrollment(context.Background(), &pb.SubscriptionEnrollmentRequest{RequestKey: "never-accepted", Provider: "codex"})
-	if err != nil || missing.State != "expired" {
+	if err != nil || missing.State != "expired" || missing.Error != runner.ExpiredSignIn || strings.Contains(missing.Error, "tracked") {
 		t.Fatal(missing, err)
 	}
 }

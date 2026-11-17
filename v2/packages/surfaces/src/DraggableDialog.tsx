@@ -43,7 +43,7 @@ export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWitho
       const designated=node.querySelector<HTMLElement>('[data-autofocus]');
       if(designated)designated.focus();
       else if(document.activeElement?.hasAttribute('data-dialog-drag-handle'))
-        node.querySelector<HTMLElement>('[autofocus],input:not([disabled]),textarea:not([disabled]),select:not([disabled]),footer button:not([disabled])')?.focus();
+        node.querySelector<HTMLElement>('[autofocus],input:not([disabled]),textarea:not([disabled]),select:not([disabled]),footer button:not([disabled]),button.primary:not([disabled])')?.focus();
     });
     open.observe(node, { attributes: true, attributeFilter: ['open'] });
     const size = new ResizeObserver(fit); size.observe(node);

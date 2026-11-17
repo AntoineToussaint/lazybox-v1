@@ -204,7 +204,10 @@ and confirms success; codes remain absent from persisted view state.
 Enrollment is idempotent. Clients retain only a non-secret request reference
 to recover lost acknowledgements. Tokens, one-time codes and sign-in URLs are
 absent from saved client view state and ordinary Info metadata. Registered
-profiles survive Runner restart; incomplete login processes do not. Completed
+profiles survive Runner restart; incomplete login processes do not. A sign-in
+still waiting after 10 minutes is stopped and reads `expired` ("The sign-in
+took too long and was stopped"), as does one a restarted Runner no longer
+has; one whose account was saved reads `added`. Completed
 requests can be reconciled from saved metadata without replaying a token.
 Credential renewal/removal UI and distributed Hub account management remain
 subsequent work.

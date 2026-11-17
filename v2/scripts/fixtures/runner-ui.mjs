@@ -580,7 +580,7 @@ actions:
         if (!enrollments.has(id)) { const device = body.provider === 'codex' && body.signInMethod === 'device'; enrollments.set(id, { id, state: 'awaiting_login', profileId: `saved-${enrollments.size}`, provider: body.provider, label: body.label, signInMethod: device ? 'device' : 'browser', signInUrl: body.provider === 'claude' ? 'https://claude.com/cai/oauth/authorize?state=fixture' : device ? 'https://auth.openai.com/codex/device' : 'https://auth.openai.com/oauth/authorize?state=fixture', userCode: device ? 'AUTH-FIXTURE-CODE' : '' }); }
         return json(enrollments.get(id));
       }
-      case 'GetSubscriptionEnrollment': { const id=body.enrollmentId || `enrollment-${body.requestKey}`; return enrollments.has(id) ? json(enrollments.get(id)) : json({id, state:'expired',error:'Fixture enrollment no longer tracked'}); }
+      case 'GetSubscriptionEnrollment': { const id=body.enrollmentId || `enrollment-${body.requestKey}`; return enrollments.has(id) ? json(enrollments.get(id)) : json({id, state:'expired',error:'The sign-in took too long and was stopped. Try again when you’re ready.'}); }
       case 'CancelSubscriptionEnrollment': { const flow = enrollments.get(body.enrollmentId); if (!flow) return error('not_found', 'Unknown enrollment'); flow.state = 'cancelled'; flow.userCode = ''; flow.signInUrl = ''; return json(flow); }
       case 'RenameConversation': {const session=sessions.find(s=>s.id===body.sessionId);if(!session)return error('not_found','Missing conversation');session.title=body.title;mutations.push({method,body});return json({session});}
       // Pins and archive marks are the conversation's, kept by the Runner (a pin keeps its first time).

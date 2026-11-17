@@ -46,6 +46,10 @@ function windowName(window: UsageWindow) {
  return bucket && bucket!=='codex' && bucket!=='model' ? `${bucket.replaceAll('_',' ')} · ${bare}` : bare;
 }
 const terminal = (state = '') => ['added', 'failed', 'cancelled', 'expired'].includes(state);
+/** Where a sign-in stands: one body-size line with its icon, not a second title. */
+function EnrollmentStatus({ tone, icon, children }: { tone: 'waiting' | 'problem' | 'stopped'; icon: string; children: ReactNode }) {
+  return <p className={`enrollment-status tone-${tone}`}><Icon name={icon} size={15}/><span>{children}</span></p>;
+}
 export type SettingsTab = 'appearance' | 'chat' | 'subscriptions' | 'repositories' | 'agents' | 'workspaces' | 'pricing' | 'notifications' | 'voice' | 'web' | 'browser' | 'devices' | 'keyboard' | 'runners' | 'runner' | 'process' | 'power' | 'extensions' | 'updates' | 'about';
 /** The sections, in the order and groups the sidebar shows them. */
 export const settingsTabs: { id: SettingsTab; label: string; icon: string; group: string }[] = [
@@ -252,6 +256,13 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
       if (openSignIn) void open();
     }
   }, [flow?.state, flow?.signInUrl]);
+  // A new step of the sign-in takes the focus to its main action when the
+  // button the person used is gone (or the focus sits on the dialog's title bar).
+  useEffect(() => {
+    const node = dialog.current, active = document.activeElement;
+    if (!node?.open || (active && active !== document.body && node.contains(active) && !active.hasAttribute('data-dialog-drag-handle'))) return;
+    node.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+  }, [flow?.state, flow?.userCode, flow?.errorCode, switching]);
   // Signed in: the dialog closes by itself and the subscription is in the list.
   useEffect(() => {
     if (flow?.state !== 'added' || !flowID) return;
@@ -371,27 +382,30 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
         <small>Your existing CLI sign-ins stay separate.</small>
       </form> : <div className="enrollment-state">
         {flow?.state === 'awaiting_login' && flow.userCode ? <>
-          <h3>Finish signing in with {flow.provider === 'claude' ? 'Claude' : 'ChatGPT'}</h3>
+          <EnrollmentStatus tone="waiting" icon="pending">Finish signing in with {flow.provider === 'claude' ? 'Claude' : 'ChatGPT'}</EnrollmentStatus>
           <p>Enter this code on the sign-in page:</p>
           <div className="device-code-control"><input className="device-code" aria-label="Sign-in code" readOnly value={flow.userCode} onFocus={event => event.currentTarget.select()}/><button onClick={() => void copyCode()}>{copied ? 'Copied' : 'Copy code'}</button><span className="copy-status" role="status">{copied ? 'Code copied to clipboard' : ''}</span>{copyError && <p role="alert">{copyError}</p>}</div>
-          <button className="primary" onClick={() => void open()}>Open sign-in page <Icon name="external"/></button>
-          <small role="status">Waiting for sign-in…</small>
-          {local && <button className="quiet sign-in-other" onClick={() => void signInWith('browser')}>Sign in with the browser instead</button>}
+          <div className="enrollment-actions"><button className="primary" data-autofocus onClick={() => void open()}>Open sign-in page <Icon name="external"/></button><button className="cancel-sign-in" onClick={() => void cancel()}>Cancel</button></div>
+          {local && <p className="sign-in-hint">ChatGPT says device code sign-in is off? <button className="quiet sign-in-other" onClick={() => void signInWith('browser')}>Sign in with the browser instead</button></p>}
         </> : flow?.state === 'awaiting_login' ? <>
-          <h3>Finish signing in in your browser</h3>
-          <p role="status">Lazybox continues when you’re done.</p>
-          <div className="enrollment-actions"><button className="primary" onClick={() => void open()}>Open again <Icon name="external"/></button><button className="cancel-sign-in" onClick={() => void cancel()}>Cancel</button></div>
+          <EnrollmentStatus tone="waiting" icon="pending">Finish signing in in your browser</EnrollmentStatus>
+          <p>Lazybox continues when you’re done.</p>
+          <div className="enrollment-actions"><button className="primary" data-autofocus onClick={() => void open()}>Open again <Icon name="external"/></button><button className="cancel-sign-in" onClick={() => void cancel()}>Cancel</button></div>
           {flow.provider === 'codex' && <button className="quiet sign-in-other" onClick={() => void signInWith('device')}>Use a code instead (for another device)</button>}
         </> : flow?.state === 'failed' && flow.errorCode === 'device_sign_in_disabled' ? <>
-          <h3>Could not sign in with a code</h3>
+          <EnrollmentStatus tone="problem" icon="alert">Could not sign in with a code</EnrollmentStatus>
           <p>{flow.error}</p>
-          <div className="enrollment-actions"><button className="primary" onClick={() => void signInWith('browser')}>Sign in with the browser instead <Icon name="external"/></button><button onClick={clear}>Close</button></div>
+          <div className="enrollment-actions"><button className="primary" data-autofocus onClick={() => void signInWith('browser')}>Sign in with the browser instead <Icon name="external"/></button><button onClick={clear}>Close</button></div>
         </> : flow?.state === 'failed' && flow.errorCode === 'sign_in_in_progress' ? <>
-          <h3>Another sign-in is open</h3>
+          <EnrollmentStatus tone="problem" icon="alert">Another sign-in is open</EnrollmentStatus>
           <p>{flow.error}</p>
-          <div className="enrollment-actions"><button className="primary" onClick={() => void signInWith('browser')}>Try again</button><button onClick={() => void signInWith('device')}>Use a code instead</button><button onClick={clear}>Close</button></div>
-        </> : flow?.state === 'failed' || flow?.state === 'cancelled' || flow?.state === 'expired' ? <><h3>{flow.state === 'cancelled' ? 'Sign-in cancelled' : flow.state === 'expired' ? 'Sign-in request expired' : 'Could not add subscription'}</h3>{flow.error && <p>{flow.error}</p>}<div className="enrollment-actions"><button className="primary" onClick={() => { const label0 = label; clear(); setLabel(label0); setAdding(true); }}>Try again</button><button onClick={clear}>Close</button></div></> : <p role="status">{flow?.state === 'cancelling' ? 'Cancelling sign-in…' : flow?.state === 'added' ? 'Subscription added' : 'Preparing sign-in…'}</p>}
-        {!terminal(flow?.state) && !(flow?.state === 'awaiting_login' && !flow.userCode) && <button className="cancel-sign-in" disabled={flow?.state === 'cancelling'} onClick={() => void cancel()}>Cancel</button>}
+          <div className="enrollment-actions"><button className="primary" data-autofocus onClick={() => void signInWith('browser')}>Try again</button><button onClick={() => void signInWith('device')}>Use a code instead</button><button onClick={clear}>Close</button></div>
+        </> : flow?.state === 'failed' || flow?.state === 'cancelled' || flow?.state === 'expired' ? <>
+          <EnrollmentStatus tone={flow.state === 'failed' ? 'problem' : 'stopped'} icon={flow.state === 'failed' ? 'alert' : 'pending'}>{flow.state === 'cancelled' ? 'Sign-in cancelled' : flow.state === 'expired' ? 'Sign-in timed out' : 'Could not add subscription'}</EnrollmentStatus>
+          {flow.error && <p>{flow.error}</p>}
+          <div className="enrollment-actions"><button className="primary" data-autofocus onClick={() => { const label0 = flow.label || label; clear(); setLabel(label0); setAdding(true); }}>Try again</button><button onClick={clear}>Close</button></div>
+        </> : <p role="status">{flow?.state === 'cancelling' ? 'Cancelling sign-in…' : flow?.state === 'added' ? 'Subscription added' : 'Preparing sign-in…'}</p>}
+        {(!flow || flow.state === 'starting' || flow.state === 'cancelling') && <button className="cancel-sign-in" disabled={flow?.state === 'cancelling'} onClick={() => void cancel()}>Cancel</button>}
       </div>}
     </DraggableDialog>
   </section>;

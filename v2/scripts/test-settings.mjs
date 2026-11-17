@@ -43,7 +43,7 @@ try {
  // Codex signs in with the browser on this computer: no code, Codex receives the callback itself.
  let dialog=page.getByRole('dialog');await dialog.getByLabel('Account name',{exact:true}).fill('Work');
  await dialog.getByRole('button',{name:'Continue in your browser',exact:true}).click();
- await expect(dialog.getByRole('heading',{name:'Finish signing in in your browser',exact:true})).toBeVisible();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();
  await expect(dialog).toContainText('Lazybox continues when you’re done.');await dialog.screenshot({path:'.cache/settings-codex-browser-sign-in.png'});
  await expect(dialog.getByRole('textbox',{name:'Sign-in code',exact:true})).toHaveCount(0);
  assert.equal(fixture.mutations.filter(m=>m.method==='AddSubscription').at(-1).body.signInMethod,'browser');
@@ -54,7 +54,9 @@ try {
  let storage=await page.evaluate(()=>JSON.stringify(localStorage));assert.ok(!storage.includes('auth.openai.com'),'one-time auth data persisted');
  await page.reload();await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Continue sign-in',exact:true}).first().click();dialog=page.getByRole('dialog');
- await expect(dialog.getByRole('heading',{name:'Finish signing in in your browser',exact:true})).toBeVisible();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();
+ // Opening the dialog focuses its main action, never the title bar (no focus ring on the header).
+ await expect(dialog.getByRole('button',{name:'Open again',exact:true})).toBeFocused();
  const id=[...fixture.enrollments.keys()][0];fixture.completeEnrollment(id);
  // Done in the browser: the dialog closes by itself and the subscription is listed.
  await expect(dialog).toBeHidden();
@@ -64,7 +66,7 @@ try {
  await page.getByRole('button',{name:'Add subscription',exact:true}).click();dialog=page.getByRole('dialog');
  await dialog.getByLabel('Account name',{exact:true}).fill('Phone');
  await dialog.getByRole('button',{name:'Continue in your browser',exact:true}).click();
- await expect(dialog.getByRole('heading',{name:'Finish signing in in your browser',exact:true})).toBeVisible();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();
  const phoneBrowser=enrollmentOf('Phone');
  await dialog.getByRole('button',{name:'Use a code instead (for another device)',exact:true}).click();
  await expect(dialog.getByRole('textbox',{name:'Sign-in code',exact:true})).toHaveValue('AUTH-FIXTURE-CODE');
@@ -81,7 +83,7 @@ try {
  fixture.failEnrollment(enrollmentOf('Phone').id,'Device-code sign-in is off for this ChatGPT account. In a Business or Enterprise workspace, an admin turns it on.','device_sign_in_disabled');
  await expect(dialog).toContainText('Device-code sign-in is off for this ChatGPT account. In a Business or Enterprise workspace, an admin turns it on.');await dialog.screenshot({path:'.cache/settings-codex-device-refused.png'});
  await dialog.getByRole('button',{name:'Sign in with the browser instead',exact:true}).click();
- await expect(dialog.getByRole('heading',{name:'Finish signing in in your browser',exact:true})).toBeVisible();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();
  assert.equal(enrollmentOf('Phone').signInMethod,'browser');
  // Cancel stops the sign-in and closes the dialog; nothing is added.
  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
@@ -95,7 +97,7 @@ try {
  await expect(dialog.getByRole('button',{name:'Sign in with the browser instead',exact:true})).toBeVisible();
  await dialog.getByRole('button',{name:'Sign in with the browser instead',exact:true}).click();
  await dialog.getByRole('button',{name:'Continue in your browser',exact:true}).click();
- await expect(dialog.getByRole('heading',{name:'Finish signing in in your browser',exact:true})).toBeVisible();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();
  fixture.failEnrollment(enrollmentOf('Busy').id,'Another Codex sign-in is in progress on this Mac. Finish or close it, then try again.','sign_in_in_progress');
  await expect(dialog).toContainText('Another Codex sign-in is in progress on this Mac. Finish or close it, then try again.');
  await dialog.getByRole('button',{name:'Use a code instead',exact:true}).click();
@@ -108,7 +110,7 @@ try {
  await expect(dialog.getByLabel('Subscription token',{exact:true})).toHaveCount(0);
  await expect(dialog).not.toContainText('setup-token');
  await dialog.getByRole('button',{name:'Continue with Claude',exact:true}).click();
- await expect(dialog.getByRole('heading',{name:'Finish signing in in your browser',exact:true})).toBeVisible();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();
  // Claude has no device code to switch to.
  await expect(dialog.getByRole('button',{name:'Use a code instead (for another device)',exact:true})).toHaveCount(0);
  assert.equal(fixture.mutations.filter(m=>m.method==='AddSubscription').at(-1).body.signInMethod||'','','Claude names no sign-in method');
@@ -164,10 +166,24 @@ try {
  // Explicit cancellation must not register another account.
  await page.getByRole('button',{name:'Add subscription',exact:true}).click();dialog=page.getByRole('dialog');
  await dialog.getByLabel('Provider',{exact:true}).selectOption('codex');await dialog.getByLabel('Account name',{exact:true}).fill('Cancelled');await dialog.getByRole('button',{name:'Continue in your browser',exact:true}).click();
- await expect(dialog.getByRole('heading',{name:'Finish signing in in your browser',exact:true})).toBeVisible();await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
  // Cancelling is what the person asked for: the dialog closes, with no dead-end "Sign-in cancelled" screen.
  await expect(dialog).toBeHidden();
  await expect(page.getByRole('article',{name:'Cancelled subscription',exact:true})).toHaveCount(0);
+ // A sign-in that ran out of time: plain words, the dialog's normal type scale, the focus on Try again.
+ await page.getByRole('button',{name:'Add subscription',exact:true}).click();dialog=page.getByRole('dialog');
+ await dialog.getByLabel('Account name',{exact:true}).fill('Slow');await dialog.getByRole('button',{name:'Continue in your browser',exact:true}).click();
+ await expect(dialog.getByText('Finish signing in in your browser',{exact:true})).toBeVisible();
+ fixture.enrollments.delete(enrollmentOf('Slow').id);
+ await expect(dialog.getByText('Sign-in timed out',{exact:true})).toBeVisible();
+ await expect(dialog).toContainText('The sign-in took too long and was stopped. Try again when you’re ready.');
+ await expect(dialog).not.toContainText('tracked');
+ await expect(dialog.getByRole('heading')).toHaveCount(1);
+ const titleSize=await dialog.locator('h2').evaluate(node=>parseFloat(getComputedStyle(node).fontSize));assert.ok(titleSize<=16,`dialog title is ${titleSize}px`);
+ const statusSize=await dialog.locator('.enrollment-status').evaluate(node=>parseFloat(getComputedStyle(node).fontSize));assert.ok(statusSize<=14,`state line is ${statusSize}px`);
+ await expect(dialog.getByRole('button',{name:'Try again',exact:true})).toBeFocused();
+ await dialog.screenshot({path:'.cache/settings-subscription-expired.png'});
+ await dialog.getByRole('button',{name:'Close',exact:true}).click();await expect(dialog).toBeHidden();
  await page.screenshot({path:'.cache/settings-subscriptions-added.png',fullPage:true});
  // Settings → Process shows the effective orchestration process, read-only: phases left to right, then role cards.
  const before=fixture.mutations.length;
@@ -188,7 +204,7 @@ try {
  await page.getByRole('button',{name:'Work',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Message',exact:true})).toHaveValue('draft preserved while editing settings');
  assert.equal(fixture.calls.filter(c=>['OpenSession','OpenAssistant','Apply','CloseSession','StartCommand'].includes(c.method)).length,0,'settings started/stopped an agent or command');
- assert.equal(fixture.calls.filter(c=>c.method==='AddSubscription').length,9,'reload/lost acknowledgement duplicated account enrollment');
+ assert.equal(fixture.calls.filter(c=>c.method==='AddSubscription').length,10,'reload/lost acknowledgement duplicated account enrollment');
  assert.equal(JSON.stringify(fixture.profiles.filter(profile=>!profile.managed)),localAccounts,'Settings modified a local CLI reference');
  assert.equal(errors.length,0,errors.join('\n'));
  // Ten accounts remain compact and readable; long identities must not widen the page.

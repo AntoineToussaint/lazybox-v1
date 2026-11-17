@@ -19,6 +19,7 @@ continue on lines indented by two spaces.
 - **Codex signs in in your browser** Settings → Subscriptions → Add subscription → Codex now shows Continue in your browser: ChatGPT's sign-in page opens, and Lazybox continues by itself when you are done, with Open again and Cancel while it waits. No code to copy, and it works for accounts that do not allow device codes, such as most Business and Enterprise workspaces.
 - **A code when you need one** Use a code instead (for another device) still gives you a one-time code to enter on another device. When an account refuses codes, Lazybox says why in one line and offers Sign in with the browser instead.
 - **Another sign-in in the way** If another Codex sign-in is open on your Mac, Lazybox says so plainly and offers a code instead.
+- **A calmer sign-in dialog** The Add subscription dialog uses the normal type size, opens with the focus on its main action, and a sign-in that ran out of time says so in plain words: The sign-in took too long and was stopped.
 
 ## [2026-11-17.8] - 2026-11-17 · Track the file an agent names
 

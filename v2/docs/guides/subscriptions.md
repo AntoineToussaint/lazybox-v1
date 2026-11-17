@@ -23,7 +23,9 @@ For Codex, **Use a code instead (for another device)** shows a one-time code
 to enter at ChatGPT on any device, such as your phone. Some ChatGPT accounts
 do not allow codes: Lazybox then says that device-code sign-in is off for the
 account (in a Business or Enterprise workspace, an admin turns it on) and
-offers **Sign in with the browser instead**, which always works.
+offers **Sign in with the browser instead**, which always works. When
+ChatGPT's own page says so first ("Enable device code sign-in for Codex…"),
+choose **Sign in with the browser instead** under the code in Lazybox.
 
 Codex listens on your Mac for the browser to say you are signed in, so only
 one Codex browser sign-in can wait at a time: starting one ends a `codex

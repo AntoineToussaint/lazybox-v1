@@ -33,7 +33,7 @@ func (s *Service) GetSubscriptionEnrollment(ctx context.Context, p *pb.Subscript
 		flow, err = s.Bench.EnrollmentForRequest(p.Provider, p.RequestKey)
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		return &pb.SubscriptionEnrollment{Id: p.EnrollmentId, State: "expired", Error: "This sign-in request is no longer tracked. Check saved accounts before trying again."}, nil
+		return &pb.SubscriptionEnrollment{Id: p.EnrollmentId, State: "expired", Error: runner.ExpiredSignIn}, nil
 	}
 	if err != nil {
 		return nil, rpcError(err)
