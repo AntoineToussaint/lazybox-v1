@@ -79,6 +79,17 @@ type Server struct {
 	NotModified int
 	// RateLimited answers every API read as a spent primary rate limit.
 	RateLimited bool
+	// Associations are review authors' relation to the repository by login
+	// (author_association); MEMBER when not named.
+	Associations map[string]string
+}
+
+// association is a login's author_association. Caller holds mu.
+func (s *Server) association(login string) string {
+	if a := s.Associations[login]; a != "" {
+		return a
+	}
+	return "MEMBER"
 }
 
 func New(t *testing.T, token string) *Server {
@@ -270,7 +281,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			out := []map[string]any{}
 			for i, review := range pr.Reviews {
 				fields := strings.SplitN(review, ":", 3)
-				entry := map[string]any{"id": i + 1, "user": map[string]any{"login": fields[0]}, "state": fields[1]}
+				entry := map[string]any{"id": i + 1, "user": map[string]any{"login": fields[0]}, "state": fields[1], "author_association": s.association(fields[0])}
 				if len(fields) == 3 {
 					entry["body"] = fields[2]
 				}
@@ -280,7 +291,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		case len(rest) == 3 && rest[2] == "comments" && r.Method == "GET":
 			out := []map[string]any{}
 			for _, c := range pr.Comments {
-				entry := map[string]any{"id": c.ID, "user": map[string]any{"login": c.Author}, "body": c.Body, "path": c.Path, "side": c.Side, "diff_hunk": c.Hunk,
+				entry := map[string]any{"id": c.ID, "user": map[string]any{"login": c.Author}, "author_association": s.association(c.Author), "body": c.Body, "path": c.Path, "side": c.Side, "diff_hunk": c.Hunk,
 					"original_line": c.Line, "html_url": fmt.Sprintf("https://github.com/%s/pull/%d#discussion_r%d", full, pr.Number, c.ID), "commit_id": pr.HeadSHA}
 				if !c.Outdated {
 					entry["line"] = c.Line

@@ -299,6 +299,16 @@ in progress.
   comment; replies folded in; author `github`, key `github:<id>`, each
   imported once), with the reviews' own summaries; the review loop's message
   for them is sent and they are marked sent. Replying on GitHub is not done.
+  Only reviews and comments whose author is the repository's `OWNER`,
+  `MEMBER` or `COLLABORATOR` (GitHub's `author_association`) are imported and
+  sent; the others are counted in a note, to the person and the agent, and
+  stay on GitHub.
+
+Both messages quote everything GitHub wrote — the title, check names,
+summaries and logs, review summaries and comments — in one external-content
+block (`workitems.QuoteExternal`, the frame `workitems.Quote` uses), with
+framing that says it is data, not instructions; Lazybox's own words stay
+outside it.
 - **Merge**: `MergePullRequest` with `item` merges a tracked pull request on
   any branch of a workspace that delivers it, only at the head the person saw.
 
@@ -609,7 +619,8 @@ the design is [PROJECTS_AND_INTEGRATIONS.md](PROJECTS_AND_INTEGRATIONS.md#start-
   with authors and dates, and the exact text the agent receives
   (`workitems.Quote`): framed by `[Lazybox] External content: …` and
   `[Lazybox] End of external content from KEY`, every line between them quoted
-  with `> `, so the content cannot close the block. The description is cut at
+  with `> ` (after `\r`, U+2028, U+2029 and U+0085 become line breaks, so no
+  line escapes the prefix), so the content cannot close the block. The description is cut at
   16 KiB and each comment at 4 KiB, pointing at the URL for the rest. The
   desktop recognises the frame to show it as a chip (`item-context.ts`).
 - **Origin.** `PrepareWorkspace` with `item` stores `Collection.origin` (a

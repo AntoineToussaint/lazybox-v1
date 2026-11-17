@@ -356,16 +356,21 @@ type ReviewComment struct {
 	Outdated     bool
 	OriginalLine int
 	Body, Author string
-	URL          string
-	DiffHunk     string
-	CommitID     string
-	CreatedAt    time.Time
+	// Association is the author's relation to the repository, as GitHub
+	// states it: OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, NONE, ….
+	Association string
+	URL         string
+	DiffHunk    string
+	CommitID    string
+	CreatedAt   time.Time
 }
 
 // Review is one submitted review.
 type Review struct {
-	ID          int64
-	Author      string
+	ID     int64
+	Author string
+	// Association is as ReviewComment's.
+	Association string
 	State       string
 	Body        string
 	URL         string
@@ -392,7 +397,7 @@ func (c *Client) ReviewComments(ctx context.Context, token, fullName string, num
 		for _, c := range list {
 			comments = append(comments, ReviewComment{ID: c.GetID(), ReviewID: c.GetPullRequestReviewID(), InReplyTo: c.GetInReplyTo(), Path: c.GetPath(),
 				Line: c.GetLine(), StartLine: c.GetStartLine(), Side: c.GetSide(), Outdated: c.Line == nil, OriginalLine: c.GetOriginalLine(),
-				Body: c.GetBody(), Author: c.GetUser().GetLogin(), URL: c.GetHTMLURL(), DiffHunk: c.GetDiffHunk(), CommitID: c.GetCommitID(), CreatedAt: c.GetCreatedAt().Time})
+				Body: c.GetBody(), Author: c.GetUser().GetLogin(), Association: c.GetAuthorAssociation(), URL: c.GetHTMLURL(), DiffHunk: c.GetDiffHunk(), CommitID: c.GetCommitID(), CreatedAt: c.GetCreatedAt().Time})
 		}
 		if !hasMore(response) {
 			break
@@ -404,7 +409,7 @@ func (c *Client) ReviewComments(ctx context.Context, token, fullName string, num
 	}
 	var reviews []Review
 	for _, r := range list {
-		reviews = append(reviews, Review{ID: r.GetID(), Author: r.GetUser().GetLogin(), State: r.GetState(), Body: r.GetBody(), URL: r.GetHTMLURL(), SubmittedAt: r.GetSubmittedAt().Time})
+		reviews = append(reviews, Review{ID: r.GetID(), Author: r.GetUser().GetLogin(), Association: r.GetAuthorAssociation(), State: r.GetState(), Body: r.GetBody(), URL: r.GetHTMLURL(), SubmittedAt: r.GetSubmittedAt().Time})
 	}
 	return comments, reviews, nil
 }

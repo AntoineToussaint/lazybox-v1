@@ -193,7 +193,10 @@ repository.
   **Actions: read** (fine-grained token: Repository permissions → Actions).
 - **Address the review**: GitHub's review comments land in the Review tray on
   their lines (each once, marked as GitHub's, replies included), with the
-  reviewers' summaries, and go to the agent with a **PR review** chip.
+  reviewers' summaries, and go to the agent with a **PR review** chip. Only
+  the repository's owners, members and collaborators are sent; others'
+  comments are counted in a note and stay on GitHub. What GitHub wrote
+  reaches the agent quoted as data, never as instructions.
 - **Merge**: the same merge as the PR loop, after a confirmation, only the
   head you saw.
 
