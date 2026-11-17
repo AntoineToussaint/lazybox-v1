@@ -450,20 +450,28 @@ func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStream
 		return rpcError(err)
 	}
 	cursor := r.After
+	// The lineage is resolved once for the stream: a replay of thousands of
+	// records does not look the conversation up again for each.
+	var timeline *runner.Timeline
+	if r.IncludePrevious {
+		if timeline, err = s.Bench.OpenTimeline(e.ID); err != nil {
+			return rpcError(err)
+		}
+	}
 	// Each record says how far the history went when it was read, so a reader
 	// can tell replay from live records: it renders a long conversation once,
 	// when it has caught up, instead of every step of the replay.
 	var retained uint64
 	for {
 		var record journal.Record
-		if r.IncludePrevious {
-			record, err = s.Bench.Timeline(ctx, e.ID, cursor)
+		if timeline != nil {
+			record, err = timeline.Next(ctx, cursor)
 		} else {
 			record, err = e.Engine.Events(ctx, cursor)
 		}
 		if err == nil && record.Sequence >= retained {
-			if r.IncludePrevious {
-				retained, err = s.Bench.Retained(e.ID)
+			if timeline != nil {
+				retained = timeline.Retained()
 			} else {
 				retained = e.Retained()
 			}
@@ -481,27 +489,68 @@ func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStream
 		if err != nil {
 			return rpcError(err)
 		}
-		var ev agent.Event
-		var envelope struct {
-			Receipt *agent.Receipt `json:"receipt"`
-		}
-		if err = json.Unmarshal(record.Value, &ev); err != nil {
+		w, err := journalEvent(record, retained)
+		if err != nil {
 			return rpcError(err)
-		}
-		_ = json.Unmarshal(record.Value, &envelope)
-		w := &pb.JournalEvent{Cursor: record.Sequence, CapturedAt: record.Time.Format(time.RFC3339Nano), Event: wireEvent(ev), Retained: max(retained, record.Sequence)}
-		if envelope.Receipt != nil {
-			v := envelope.Receipt
-			w.Receipt = &pb.Receipt{OperationId: v.ID, Delivery: v.Delivery, ProviderId: v.ProviderID, Error: v.Error}
-		}
-		if ev.Type == "session_opened" || ev.Type == "execution_context" || ev.Type == "continuation_requested" {
-			w.MetadataJson = record.Value
 		}
 		if err = stream.Send(w); err != nil {
 			return err
 		}
 		cursor = record.Sequence
 	}
+}
+
+// journalEvent is a journal record as clients read it.
+func journalEvent(record journal.Record, retained uint64) (*pb.JournalEvent, error) {
+	var ev agent.Event
+	var envelope struct {
+		Receipt *agent.Receipt `json:"receipt"`
+	}
+	if err := json.Unmarshal(record.Value, &ev); err != nil {
+		return nil, err
+	}
+	_ = json.Unmarshal(record.Value, &envelope)
+	w := &pb.JournalEvent{Cursor: record.Sequence, CapturedAt: record.Time.Format(time.RFC3339Nano), Event: wireEvent(ev), Retained: max(retained, record.Sequence)}
+	if envelope.Receipt != nil {
+		v := envelope.Receipt
+		w.Receipt = &pb.Receipt{OperationId: v.ID, Delivery: v.Delivery, ProviderId: v.ProviderID, Error: v.Error}
+	}
+	if ev.Type == "session_opened" || ev.Type == "execution_context" || ev.Type == "continuation_requested" {
+		w.MetadataJson = record.Value
+	}
+	return w, nil
+}
+
+// Turn-aligned pages are bounded to about a mebibyte of journal unless the
+// reader asks for less; a reader asking for more gets at most 8 MiB.
+const tailBytes, maxTailBytes = 1 << 20, 8 << 20
+
+func (s *Service) ReadSessionTail(ctx context.Context, r *pb.ReadSessionTailRequest) (*pb.ReadSessionTailResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	timeline, err := s.Bench.OpenTimeline(e.ID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	budget := int64(r.MaxBytes)
+	if budget == 0 {
+		budget = tailBytes
+	}
+	records, start, retained, err := timeline.Page(r.Before, int(r.Turns), min(budget, maxTailBytes))
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	page := &pb.ReadSessionTailResponse{Start: start, Retained: retained, Events: make([]*pb.JournalEvent, 0, len(records))}
+	for _, record := range records {
+		w, err := journalEvent(record, retained)
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		page.Events = append(page.Events, w)
+	}
+	return page, nil
 }
 
 func (s *Service) ContinueSession(ctx context.Context, r *pb.ContinueSessionRequest) (*pb.SessionResponse, error) {

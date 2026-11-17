@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -58,7 +57,7 @@ func profileBinding(p accounts.Profile) string {
 }
 func (b *Bench) restore(r sessionstore.Record) (*Execution, error) {
 	// Use an immutable read view; recovery must never append to an old execution.
-	spool, err := journal.OpenExisting(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget)
+	spool, err := journal.OpenExisting(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
 	if err != nil {
 		return nil, err
 	}
@@ -217,15 +216,11 @@ func (b *Bench) lineage(id string) ([]*Execution, error) {
 // Retained is the last cursor of the timeline Timeline replays for id: the
 // records of every attempt in its lineage, numbered contiguously.
 func (b *Bench) Retained(id string) (uint64, error) {
-	chain, err := b.lineage(id)
+	t, err := b.OpenTimeline(id)
 	if err != nil {
 		return 0, err
 	}
-	var total uint64
-	for _, e := range chain {
-		total += e.spool.Count()
-	}
-	return total, nil
+	return t.Retained(), nil
 }
 
 // Retained is the last cursor of this attempt's own journal.
@@ -234,25 +229,11 @@ func (e *Execution) Retained() uint64 { return e.spool.Count() }
 // Timeline replays immutable predecessors before the current attempt. Cursor
 // numbering remains contiguous for the whole chain; only the last can grow.
 func (b *Bench) Timeline(ctx context.Context, id string, cursor uint64) (journal.Record, error) {
-	chain, err := b.lineage(id)
+	t, err := b.OpenTimeline(id)
 	if err != nil {
 		return journal.Record{}, err
 	}
-	var offset uint64
-	for i := len(chain) - 1; i >= 0; i-- {
-		e := chain[i]
-		count := e.spool.Count()
-		if cursor < offset+count || i == 0 {
-			if cursor < offset {
-				return journal.Record{}, journal.ErrCursor
-			}
-			r, err := e.Engine.Events(ctx, cursor-offset)
-			r.Sequence += offset
-			return r, err
-		}
-		offset += count
-	}
-	return journal.Record{}, io.EOF
+	return t.Next(ctx, cursor)
 }
 
 // importLegacy preserves old transcripts without pretending missing account/

@@ -108,7 +108,7 @@ func TestDeviceAllowlistIsPinned(t *testing.T) {
 	sort.Strings(got)
 	want := []string{
 		"Apply:respond", "GetCollection:read", "GetPushSettings:read", "GetSession:read", "ImportPullRequestReview:respond", "Info:read", "ListCollections:read", "ListCommands:read",
-		"ListHistory:read", "ListLinks:read", "ListWorkspaceChanges:read", "OpenSession:start", "PinConversation:respond", "ReadAttachment:read", "ReadCommand:read", "ReadWorkspaceDiff:read",
+		"ListHistory:read", "ListLinks:read", "ListWorkspaceChanges:read", "OpenSession:start", "PinConversation:respond", "ReadAttachment:read", "ReadCommand:read", "ReadSessionTail:read", "ReadWorkspaceDiff:read",
 		"ResumeSession:start", "SendPullRequestFailures:respond", "SendTestPush:read", "SetPushSettings:read", "WatchEvents:read:stream", "WatchOutput:read:stream",
 	}
 	if strings.Join(got, " ") != strings.Join(want, " ") {

@@ -92,6 +92,7 @@ const (
 	RunnerService_DeleteWorkspace_FullMethodName              = "/lazybox.bench.v1.RunnerService/DeleteWorkspace"
 	RunnerService_ContinueSession_FullMethodName              = "/lazybox.bench.v1.RunnerService/ContinueSession"
 	RunnerService_WatchEvents_FullMethodName                  = "/lazybox.bench.v1.RunnerService/WatchEvents"
+	RunnerService_ReadSessionTail_FullMethodName              = "/lazybox.bench.v1.RunnerService/ReadSessionTail"
 	RunnerService_StartCommand_FullMethodName                 = "/lazybox.bench.v1.RunnerService/StartCommand"
 	RunnerService_RegisterPipe_FullMethodName                 = "/lazybox.bench.v1.RunnerService/RegisterPipe"
 	RunnerService_Publish_FullMethodName                      = "/lazybox.bench.v1.RunnerService/Publish"
@@ -328,6 +329,12 @@ type RunnerServiceClient interface {
 	DeleteWorkspace(ctx context.Context, in *DeleteWorkspaceRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	ContinueSession(ctx context.Context, in *ContinueSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	WatchEvents(ctx context.Context, in *WatchEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JournalEvent], error)
+	// The latest turns of a conversation in one response, or an earlier page:
+	// a window shows the latest at once and reads the rest in a few pages
+	// instead of a record-per-message replay. Turn starts come from an index the
+	// Runner keeps as journals open and grow, so no journal is parsed to find
+	// them.
+	ReadSessionTail(ctx context.Context, in *ReadSessionTailRequest, opts ...grpc.CallOption) (*ReadSessionTailResponse, error)
 	StartCommand(ctx context.Context, in *StartCommandRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	RegisterPipe(ctx context.Context, in *RegisterPipeRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*CommandStatus, error)
@@ -1386,6 +1393,16 @@ func (c *runnerServiceClient) WatchEvents(ctx context.Context, in *WatchEventsRe
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnerService_WatchEventsClient = grpc.ServerStreamingClient[JournalEvent]
+
+func (c *runnerServiceClient) ReadSessionTail(ctx context.Context, in *ReadSessionTailRequest, opts ...grpc.CallOption) (*ReadSessionTailResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReadSessionTailResponse)
+	err := c.cc.Invoke(ctx, RunnerService_ReadSessionTail_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 func (c *runnerServiceClient) StartCommand(ctx context.Context, in *StartCommandRequest, opts ...grpc.CallOption) (*CommandStatus, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -2746,6 +2763,12 @@ type RunnerServiceServer interface {
 	DeleteWorkspace(context.Context, *DeleteWorkspaceRequest) (*CollectionResponse, error)
 	ContinueSession(context.Context, *ContinueSessionRequest) (*SessionResponse, error)
 	WatchEvents(*WatchEventsRequest, grpc.ServerStreamingServer[JournalEvent]) error
+	// The latest turns of a conversation in one response, or an earlier page:
+	// a window shows the latest at once and reads the rest in a few pages
+	// instead of a record-per-message replay. Turn starts come from an index the
+	// Runner keeps as journals open and grow, so no journal is parsed to find
+	// them.
+	ReadSessionTail(context.Context, *ReadSessionTailRequest) (*ReadSessionTailResponse, error)
 	StartCommand(context.Context, *StartCommandRequest) (*CommandStatus, error)
 	RegisterPipe(context.Context, *RegisterPipeRequest) (*CommandStatus, error)
 	Publish(context.Context, *PublishRequest) (*CommandStatus, error)
@@ -3282,6 +3305,9 @@ func (UnimplementedRunnerServiceServer) ContinueSession(context.Context, *Contin
 }
 func (UnimplementedRunnerServiceServer) WatchEvents(*WatchEventsRequest, grpc.ServerStreamingServer[JournalEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchEvents not implemented")
+}
+func (UnimplementedRunnerServiceServer) ReadSessionTail(context.Context, *ReadSessionTailRequest) (*ReadSessionTailResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadSessionTail not implemented")
 }
 func (UnimplementedRunnerServiceServer) StartCommand(context.Context, *StartCommandRequest) (*CommandStatus, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartCommand not implemented")
@@ -4948,6 +4974,24 @@ func _RunnerService_WatchEvents_Handler(srv interface{}, stream grpc.ServerStrea
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnerService_WatchEventsServer = grpc.ServerStreamingServer[JournalEvent]
+
+func _RunnerService_ReadSessionTail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReadSessionTailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ReadSessionTail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ReadSessionTail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ReadSessionTail(ctx, req.(*ReadSessionTailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 
 func _RunnerService_StartCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StartCommandRequest)
@@ -7385,6 +7429,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ContinueSession",
 			Handler:    _RunnerService_ContinueSession_Handler,
+		},
+		{
+			MethodName: "ReadSessionTail",
+			Handler:    _RunnerService_ReadSessionTail_Handler,
 		},
 		{
 			MethodName: "StartCommand",

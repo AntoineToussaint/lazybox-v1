@@ -114,7 +114,9 @@ notices in the conversation.
   conversation goes on in the next Runner. So a `WatchEvents` stream it cuts
   ends `Unavailable`, and the app reconnects from its cursor; only a
   conversation that is over (closed, or read-only history) ends its stream
-  cleanly, which tells a reader to stop following.
+  cleanly, which tells a reader to stop following. A `ReadSessionTail` page a
+  restart interrupts is read again from the next Runner: journals keep their
+  cursors across restarts, and their turn index is rebuilt as they open.
 - Cancelling a hosted process's context stops it, exactly as for a local pipe.
   Only an explicit `Detach`, or the Runner dying outright, leaves it running.
 - Opening the command registry re-attaches every unfinished command with a host.

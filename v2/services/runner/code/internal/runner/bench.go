@@ -774,7 +774,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	if workID == "" {
 		workID = id
 	}
-	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", id+".jsonl"), b.Config.EventBudget)
+	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", id+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
 	if err != nil {
 		return nil, err
 	}

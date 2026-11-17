@@ -219,7 +219,7 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 	if err = b.writeAgentEndpoint(r.ID); err != nil {
 		return err
 	}
-	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget)
+	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (b *Bench) agentLost(ctx context.Context, r sessionstore.Record) error {
 	if err = b.saveCarried(r.ID, record.Queue); err != nil {
 		return err
 	}
-	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget)
+	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
 	if err != nil {
 		return err
 	}

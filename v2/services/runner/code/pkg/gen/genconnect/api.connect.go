@@ -246,6 +246,9 @@ const (
 	// RunnerServiceWatchEventsProcedure is the fully-qualified name of the RunnerService's WatchEvents
 	// RPC.
 	RunnerServiceWatchEventsProcedure = "/lazybox.bench.v1.RunnerService/WatchEvents"
+	// RunnerServiceReadSessionTailProcedure is the fully-qualified name of the RunnerService's
+	// ReadSessionTail RPC.
+	RunnerServiceReadSessionTailProcedure = "/lazybox.bench.v1.RunnerService/ReadSessionTail"
 	// RunnerServiceStartCommandProcedure is the fully-qualified name of the RunnerService's
 	// StartCommand RPC.
 	RunnerServiceStartCommandProcedure = "/lazybox.bench.v1.RunnerService/StartCommand"
@@ -717,6 +720,12 @@ type RunnerServiceClient interface {
 	DeleteWorkspace(context.Context, *connect.Request[gen.DeleteWorkspaceRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ContinueSession(context.Context, *connect.Request[gen.ContinueSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	WatchEvents(context.Context, *connect.Request[gen.WatchEventsRequest]) (*connect.ServerStreamForClient[gen.JournalEvent], error)
+	// The latest turns of a conversation in one response, or an earlier page:
+	// a window shows the latest at once and reads the rest in a few pages
+	// instead of a record-per-message replay. Turn starts come from an index the
+	// Runner keeps as journals open and grow, so no journal is parsed to find
+	// them.
+	ReadSessionTail(context.Context, *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error)
 	StartCommand(context.Context, *connect.Request[gen.StartCommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	RegisterPipe(context.Context, *connect.Request[gen.RegisterPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	Publish(context.Context, *connect.Request[gen.PublishRequest]) (*connect.Response[gen.CommandStatus], error)
@@ -1471,6 +1480,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceWatchEventsProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("WatchEvents")),
+			connect.WithClientOptions(opts...),
+		),
+		readSessionTail: connect.NewClient[gen.ReadSessionTailRequest, gen.ReadSessionTailResponse](
+			httpClient,
+			baseURL+RunnerServiceReadSessionTailProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReadSessionTail")),
 			connect.WithClientOptions(opts...),
 		),
 		startCommand: connect.NewClient[gen.StartCommandRequest, gen.CommandStatus](
@@ -2276,6 +2291,7 @@ type runnerServiceClient struct {
 	deleteWorkspace              *connect.Client[gen.DeleteWorkspaceRequest, gen.CollectionResponse]
 	continueSession              *connect.Client[gen.ContinueSessionRequest, gen.SessionResponse]
 	watchEvents                  *connect.Client[gen.WatchEventsRequest, gen.JournalEvent]
+	readSessionTail              *connect.Client[gen.ReadSessionTailRequest, gen.ReadSessionTailResponse]
 	startCommand                 *connect.Client[gen.StartCommandRequest, gen.CommandStatus]
 	registerPipe                 *connect.Client[gen.RegisterPipeRequest, gen.CommandStatus]
 	publish                      *connect.Client[gen.PublishRequest, gen.CommandStatus]
@@ -2757,6 +2773,11 @@ func (c *runnerServiceClient) ContinueSession(ctx context.Context, req *connect.
 // WatchEvents calls lazybox.bench.v1.RunnerService.WatchEvents.
 func (c *runnerServiceClient) WatchEvents(ctx context.Context, req *connect.Request[gen.WatchEventsRequest]) (*connect.ServerStreamForClient[gen.JournalEvent], error) {
 	return c.watchEvents.CallServerStream(ctx, req)
+}
+
+// ReadSessionTail calls lazybox.bench.v1.RunnerService.ReadSessionTail.
+func (c *runnerServiceClient) ReadSessionTail(ctx context.Context, req *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error) {
+	return c.readSessionTail.CallUnary(ctx, req)
 }
 
 // StartCommand calls lazybox.bench.v1.RunnerService.StartCommand.
@@ -3475,6 +3496,12 @@ type RunnerServiceHandler interface {
 	DeleteWorkspace(context.Context, *connect.Request[gen.DeleteWorkspaceRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ContinueSession(context.Context, *connect.Request[gen.ContinueSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	WatchEvents(context.Context, *connect.Request[gen.WatchEventsRequest], *connect.ServerStream[gen.JournalEvent]) error
+	// The latest turns of a conversation in one response, or an earlier page:
+	// a window shows the latest at once and reads the rest in a few pages
+	// instead of a record-per-message replay. Turn starts come from an index the
+	// Runner keeps as journals open and grow, so no journal is parsed to find
+	// them.
+	ReadSessionTail(context.Context, *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error)
 	StartCommand(context.Context, *connect.Request[gen.StartCommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	RegisterPipe(context.Context, *connect.Request[gen.RegisterPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	Publish(context.Context, *connect.Request[gen.PublishRequest]) (*connect.Response[gen.CommandStatus], error)
@@ -4225,6 +4252,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceWatchEventsProcedure,
 		svc.WatchEvents,
 		connect.WithSchema(runnerServiceMethods.ByName("WatchEvents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReadSessionTailHandler := connect.NewUnaryHandler(
+		RunnerServiceReadSessionTailProcedure,
+		svc.ReadSessionTail,
+		connect.WithSchema(runnerServiceMethods.ByName("ReadSessionTail")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceStartCommandHandler := connect.NewUnaryHandler(
@@ -5099,6 +5132,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceContinueSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceWatchEventsProcedure:
 			runnerServiceWatchEventsHandler.ServeHTTP(w, r)
+		case RunnerServiceReadSessionTailProcedure:
+			runnerServiceReadSessionTailHandler.ServeHTTP(w, r)
 		case RunnerServiceStartCommandProcedure:
 			runnerServiceStartCommandHandler.ServeHTTP(w, r)
 		case RunnerServiceRegisterPipeProcedure:
@@ -5636,6 +5671,10 @@ func (UnimplementedRunnerServiceHandler) ContinueSession(context.Context, *conne
 
 func (UnimplementedRunnerServiceHandler) WatchEvents(context.Context, *connect.Request[gen.WatchEventsRequest], *connect.ServerStream[gen.JournalEvent]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchEvents is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReadSessionTail(context.Context, *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReadSessionTail is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) StartCommand(context.Context, *connect.Request[gen.StartCommandRequest]) (*connect.Response[gen.CommandStatus], error) {

@@ -113,6 +113,12 @@ service RunnerService {
   rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (CollectionResponse);
   rpc ContinueSession(ContinueSessionRequest) returns (SessionResponse);
   rpc WatchEvents(WatchEventsRequest) returns (stream JournalEvent);
+  // The latest turns of a conversation in one response, or an earlier page:
+  // a window shows the latest at once and reads the rest in a few pages
+  // instead of a record-per-message replay. Turn starts come from an index the
+  // Runner keeps as journals open and grow, so no journal is parsed to find
+  // them.
+  rpc ReadSessionTail(ReadSessionTailRequest) returns (ReadSessionTailResponse);
   rpc StartCommand(StartCommandRequest) returns (CommandStatus);
   rpc RegisterPipe(RegisterPipeRequest) returns (CommandStatus);
   rpc Publish(PublishRequest) returns (CommandStatus);
@@ -1404,6 +1410,31 @@ message JournalEvent {
   // reader whose cursor reaches it has replayed the history that existed when
   // it asked; later records are live. Zero when the Runner does not say.
   uint64 retained = 6;
+}
+// A page of a conversation's timeline (the records WatchEvents replays with
+// include_previous), read backward from `before`.
+message ReadSessionTailRequest {
+  string session_id = 1;
+  // The page ends just before this cursor; 0 means at the latest record.
+  uint64 before = 2;
+  // When positive, the page starts where one of the person's messages starts
+  // a turn, at most this many turns back (fewer when the size bound is
+  // reached). Zero: the page is bounded by size alone.
+  uint32 turns = 3;
+  // About how many bytes of journal the page may hold; 0 selects the Runner's
+  // default (1 MiB). A turn larger than this is cut to its latest records.
+  // At least one record is returned when any precedes `before`.
+  uint32 max_bytes = 4;
+}
+message ReadSessionTailResponse {
+  // Contiguous and ascending, from `start` up to just before `before`. Each
+  // record's `retained` is the response's.
+  repeated JournalEvent events = 1;
+  // The cursor of the first record: 1 when nothing precedes the page.
+  uint64 start = 2;
+  // The timeline's last cursor when it was read. WatchEvents with `after` set
+  // to the last record's cursor continues the page with no gap.
+  uint64 retained = 3;
 }
 message Checkpoint {
   string objective = 1;

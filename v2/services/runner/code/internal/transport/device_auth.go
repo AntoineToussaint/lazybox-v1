@@ -49,6 +49,9 @@ var deviceRPCs = map[string]deviceRule{
 	// Images a sent message carried are part of reading its conversation; the
 	// attachment store serves only retained message images, at most 20 MiB.
 	pb.RunnerService_ReadAttachment_FullMethodName: {grant: devices.GrantRead},
+	// The latest turns of a conversation, and earlier pages: what WatchEvents
+	// replays, in fewer, larger reads.
+	pb.RunnerService_ReadSessionTail_FullMethodName: {grant: devices.GrantRead},
 	pb.RunnerService_Apply_FullMethodName: {grant: devices.GrantRespond, allow: func(req any) bool {
 		r, ok := req.(*pb.ApplyRequest)
 		if !ok {
