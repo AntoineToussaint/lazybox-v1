@@ -319,6 +319,12 @@ export function useKeyboardAction(id: Action, callback: () => void, enabled?: ()
 function eventKey(e: KeyboardEvent) {
   return `${e.ctrlKey ? "Ctrl+" : ""}${e.metaKey ? "Meta+" : ""}${e.altKey ? "Alt+" : ""}${e.shiftKey && (e.key.length > 1 || /^[a-z]$/i.test(e.key)) ? "Shift+" : ""}${e.key === " " ? "Space" : e.key.length === 1 ? e.key.toLowerCase() : e.key}`;
 }
+/**
+ * A key that belongs to an input method (Japanese, Chinese, Korean…): while it
+ * composes, and the Enter that commits its text. WebKit sends that Enter after
+ * compositionend, with `isComposing` false and only keyCode 229 to tell.
+ */
+export const imeKey = (e: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>) => e.isComposing || e.keyCode === 229;
 export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
   const [hint, setHint] = useState<KeyHint | null>(null);
   useEffect(() => {
@@ -341,7 +347,7 @@ export function useKeyboardNavigation(store?: ViewStateStore, enabled = true) {
       // A key another handler consumed (a Vim command, say) still ends a pending sequence.
       if (e.defaultPrevented && sequence.length) reset();
       if (
-        e.isComposing ||
+        imeKey(e) ||
         e.repeat ||
         e.defaultPrevented ||
         document.querySelector("dialog[open]")

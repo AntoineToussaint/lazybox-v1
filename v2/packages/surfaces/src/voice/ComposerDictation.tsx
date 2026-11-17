@@ -42,7 +42,7 @@ export function useComposerDictation({ textarea, value, enabled, onPreview, onCo
     const own: DictationTarget = {
       kind: 'composer',
       element: () => textarea.current,
-      available: () => latest.current.enabled && !!textarea.current && !textarea.current.disabled,
+      available: () => latest.current.enabled && !!textarea.current && !textarea.current.disabled && !textarea.current.readOnly,
       begin(): DictationSink | null {
         const box = textarea.current;
         if (!box) return null;

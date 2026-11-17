@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {keyboardPreset,validateKeymap,migrateKeymap,chordBindings,leaderKeys} from '../packages/surfaces/src/keyboard';import {actionDefinition,displayBinding} from '../packages/surfaces/src/actions';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {keyboardPreset,validateKeymap,migrateKeymap,chordBindings,leaderKeys,imeKey} from '../packages/surfaces/src/keyboard';import {actionDefinition,displayBinding} from '../packages/surfaces/src/actions';
 test('Vim, tmux and arrow presets remain valid and hierarchical',()=>{for(const preset of ['vim','tmux','arrows'])for(const mac of [true,false])assert.equal(validateKeymap(keyboardPreset(preset,mac)),'',`${preset} mac=${mac}`);assert.equal(keyboardPreset('tmux')['snippets.open'],'Ctrl+b s');assert.equal(keyboardPreset()['navigation.exit'],'] ]');assert.equal(keyboardPreset('tmux',true)['palette.open'],'Meta+k or Meta+Shift+p or Ctrl+b p');});
 test('shortcut configuration rejects conflicts and unrecognized keys; only required actions need a key',()=>{const map=keyboardPreset();assert.match(validateKeymap({...map,'workspace.new':map['chat.send']}),/conflicts/);assert.match(validateKeymap({...map,'workspace.new':'nonsense'}),/Invalid key/);assert.match(validateKeymap({...map,'navigation.exit':''}),/Set a shortcut/);assert.equal(validateKeymap({...map,'workspace.new':''}),'');
  // An alternative conflicts as much as a whole value, whatever the modifier order.
@@ -55,3 +55,8 @@ test('Send now: ⌘↵ from the message box, in the palette, rebindable; a saved
  const taken=migrateKeymap({...before,'chat.send':'Enter','conversation.new':'Meta+Enter',__version:9},[],true);
  assert.equal(taken['conversation.new'],'Meta+Enter');assert.equal(taken['chat.send-now'],'');assert.equal(validateKeymap(taken),'');
  assert.equal(migrateKeymap({...mac,'chat.send-now':'',__version:10},[],true)['chat.send-now'],'','a current save without it stays without it');});
+
+test('an input method keeps its keys: composing, and the Enter that commits its text (WebKit: keyCode 229, isComposing false)',()=>{
+ assert.equal(imeKey({isComposing:true,keyCode:13}),true);
+ assert.equal(imeKey({isComposing:false,keyCode:229}),true,'the commit Enter sends nothing');
+ assert.equal(imeKey({isComposing:false,keyCode:13}),false,'a plain Enter sends');});

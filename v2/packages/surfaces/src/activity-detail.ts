@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import { ACTIVITY_DETAILS, DEFAULT_ACTIVITY_DETAIL, isActivityDetail, type ActivityDetail } from './tool-lines';
 import { readPreference, writePreference } from './view-state';
@@ -88,6 +88,12 @@ export function useActivityDetail(store: ViewStateStore | undefined, conversatio
  * person interacts with it; `current()` says whether it is that chat.
  */
 const chats: symbol[] = [];
+/**
+ * Whether the chat around a component is the one in front (`useCurrentChat`):
+ * keys that reach the page itself, not a chat, mean that one. Outside a chat,
+ * always.
+ */
+export const CurrentChatContext = createContext<() => boolean>(() => true);
 const touch = (id: symbol) => { const i = chats.indexOf(id); if (i >= 0) chats.splice(i, 1); chats.push(id); };
 export function useCurrentChat(): { mark(): void; current(): boolean } {
   const id = useRef(Symbol('chat')).current;

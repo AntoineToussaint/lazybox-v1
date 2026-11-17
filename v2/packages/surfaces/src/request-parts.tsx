@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, type ReactNode } from 'react';
+import { CurrentChatContext } from './activity-detail';
 
 /** What every request card (RequestCards.tsx, RepositoryRequestCard.tsx) shares: keys, focus, header. */
 
@@ -9,16 +10,20 @@ export const editable = (target: EventTarget | null) => target instanceof HTMLEl
 /**
  * Keys for the first waiting request of a chat, while focus is in that chat's
  * messages (not in a field) or on the page itself. The card handles its own.
+ * A key on the page itself is the chat in front's (the one last clicked or
+ * focused): with two chats side by side, `y` answers one approval, never both.
  */
 export function useChatKeys(card: React.RefObject<HTMLElement | null>, onKey: (event: KeyboardEvent) => boolean) {
   const handler = useRef(onKey); handler.current = onKey;
+  const current = useContext(CurrentChatContext);
+  const front = useRef(current); front.current = current;
   useEffect(() => {
     const listen = (event: KeyboardEvent) => {
       const node = card.current;
       if (!node || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || editable(event.target)) return;
       if (node.contains(event.target as Node) || document.querySelector('dialog[open]')) return;
       const chat = node.closest('.messages');
-      const inChat = event.target === document.body || (!!chat && chat.contains(event.target as Node));
+      const inChat = event.target === document.body ? front.current() : !!chat && chat.contains(event.target as Node);
       if (!inChat || chat?.querySelector('.request') !== node) return;
       if (handler.current(event)) event.preventDefault();
     };

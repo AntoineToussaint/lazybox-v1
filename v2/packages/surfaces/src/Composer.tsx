@@ -141,7 +141,11 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
       className={dictation.active ? 'is-dictating' : undefined}
       aria-busy={dictation.active || undefined}
       onChange={e => { dictation.takeOver(); onChange(e.target.value); }}
-      disabled={!canCompose || sending}
+      // Read-only, not disabled, while a send is in flight: WebKit blurs a
+      // disabled field, and the box would lose the keyboard after every send.
+      disabled={!canCompose}
+      readOnly={sending}
+      aria-disabled={sending || undefined}
       {...vim.textareaProps}
       {...slash?.textareaProps}
       onKeyDown={keyDown}

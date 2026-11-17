@@ -57,7 +57,7 @@ import { Composer } from './Composer';
 import { ComposerInfo } from './ComposerInfo';
 import { ConsoleWindow, EventLog, SessionCommands } from './SessionCommands';
 import { faultSentence, sessionLimit, subscriptionName, turnFault } from './subscription-model';
-import { useConversationActivity } from './activity-detail';
+import { CurrentChatContext, useConversationActivity } from './activity-detail';
 import { bindings, displayBinding, useActions } from './actions';
 import { CodeRunContext, CodeRuns, type RunActions } from './code-runs';
 import { shellBlocksIn } from './code-run';
@@ -141,7 +141,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       else { const next = message + (message && !message.endsWith('\n') ? '\n' : '') + snippet.body; setMessage(next); persistDraft(next, files, missingFiles); requestAnimationFrame(() => composer.current?.focus()); }
     }, error => setError(String(error)));
   });
-  useKeyboardAction('chat.send', () => { const focused = document.activeElement as HTMLTextAreaElement; if (focused === composer.current && (canSend || missingFiles.length > 0 || !!message.trim())) focused.form?.requestSubmit(); });
+  // Enter while a send is in flight (the box is read-only meanwhile) does nothing: the send under way says how it went.
+  useKeyboardAction('chat.send', () => { const focused = document.activeElement as HTMLTextAreaElement; if (focused === composer.current && !sendingRef.current && (canSend || missingFiles.length > 0 || !!message.trim())) focused.form?.requestSubmit(); });
 
   const assistant = purpose !== 'coding';
   const [sessionID, setSessionID] = useState(initialSessionId);
@@ -201,11 +202,13 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     try { const draft = readDraft(viewState, claimedFor); writeDraft(viewState, claimedFor, { ...draft, text: appendToDraft(draft.text, text) }); }
     catch (e) { setError(`Could not keep the shared run in its draft: ${String(e)}`); }
   });
-  // Another panel (Changes: failing checks) puts text after any draft, for
-  // the person to review and send; it is never sent for them.
-  // The saved draft is current (every edit persists it) even when this render
-  // has not seen it yet, and saving now survives this view remounting.
-  useComposeRequests(sessionID, canCompose, text => {
+  // Another panel (Changes: failing checks, Quote in reply, Ask to fix) puts
+  // text after any draft, for the person to review and send; it is never sent
+  // for them. The saved draft is current (every edit persists it) even when
+  // this render has not seen it yet, and saving now survives this view
+  // remounting. While a send is in flight the text waits: the send empties the
+  // box when it is confirmed, and would erase it (and the draft it retries).
+  useComposeRequests(sessionID, canCompose && !sending, text => {
     const current = viewState ? readDraft(viewState, sessionID).text : message;
     const next = current + (current.trim() ? '\n\n' : '') + text;
     setMessage(next); persistDraft(next, files, missingFiles); setUncertainSend(''); sendAttempt.current = null;
@@ -500,7 +503,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       ? <div className="empty">Select an existing session to view its chat.</div>
       : !sessionID
         ? <NewSessionForm launcher={launcher} info={info} purpose={purpose} emptyWorkspace={emptyWorkspace} collectionId={collectionId} agentName={agentName}/>
-        : <SubagentContext.Provider value={subagents}><section className="single-session">
+        : <SubagentContext.Provider value={subagents}><CurrentChatContext.Provider value={activity.current}><section className="single-session">
           {embedded
             ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} statusText={live.text + (session?.queued ? ` · ${session.queued} queued` : '')} statusBusy={live.tone === 'busy' || live.tone === 'waiting'}
               modelLabel={modelLabel} stats={stats} realTitle={realTitle} branch={branch} shownAccount={headerAccount} onOpenChat={onOpenChat} origin={assistant ? undefined : <ItemOriginChip workspace={workspace}/>}
@@ -535,7 +538,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             slash={slash}
             info={embedded && session && !firstMessage ? <ComposerInfo agentName={agentName} modelLabel={modelLabel} modelRequested={!!session.model && !session.modelReported && !transcript.reportedModel} sessionID={sessionID} onPickModel={session.closed ? undefined : slash.models.pick}/> : undefined}
             onSubmit={send}
-            onChange={text => { recall.reset(); setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); }}
+            onChange={text => { if (sendingRef.current) return; recall.reset(); setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); }}
             onDictate={setMessage}
             onRecallKey={recall.onKeyDown}
             onRemoveMissingFile={i => { const next = missingFiles.filter((_, index) => index !== i); setMissingFiles(next); setUncertainSend(''); setError(''); persistDraft(message, files, next); }}
@@ -551,6 +554,6 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             onSendToAgent={canCompose && !sending ? text => { addToDraft(text, HANDOVER_NOTICE); return ''; } : undefined}/>}
           {!embedded && <EventLog events={events}/>}
           <SubagentPanel/>
-        </section></SubagentContext.Provider>}
+        </section></CurrentChatContext.Provider></SubagentContext.Provider>}
   </main>;
 }
