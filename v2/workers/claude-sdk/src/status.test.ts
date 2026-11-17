@@ -134,3 +134,58 @@ test("a slash command's printed output is the agent's answer, bounded", () => {
   assert.ok(long.text!.length < 66000 && long.text!.endsWith('[Output truncated]'));
   assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'local_command_output', content: '' })), []);
 });
+
+test('a forked Skill is a sub-agent from its first word to its call\'s result', () => {
+  // Claude reports no task for a Skill run with `context: fork`: only the
+  // call, the child's own messages under it, and the call's result.
+  const status = new NativeStatus();
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: null, message: { id: 'm1', model: 'm', content: [{ type: 'tool_use', id: 'skill-1', name: 'Skill', input: { skill: 'code-review', args: 'medium' } }] } }));
+  const first = status.normalize(message({ type: 'assistant', parent_tool_use_id: 'skill-1', message: { id: 'm2', model: 'm', content: [{ type: 'tool_use', id: 'grep-1', name: 'Bash', input: { command: 'grep -n x' } }] } }));
+  assert.deepEqual(first[0], { sessionId: '', type: 'agent_status', agentId: 'claude-tool:skill-1', parentAgentId: 'root', status: 'running', name: 'code-review', agentKind: 'skill', data: { toolUseId: 'skill-1' } }, 'its start comes before its first step');
+  assert.equal(first.filter(e => e.type === 'agent_status').length, 1);
+  const again = status.normalize(message({ type: 'user', parent_tool_use_id: 'skill-1', message: { content: [{ type: 'tool_result', tool_use_id: 'grep-1', content: 'x' }] } }));
+  assert.equal(again.some(e => e.type === 'agent_status'), false, 'said once');
+  const end = status.normalize(message({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: 'skill-1', content: 'Skill "code-review" completed (forked execution).' }] } }));
+  assert.deepEqual(end.filter(e => e.type === 'agent_status').map(e => [e.agentId, e.status]), [['claude-tool:skill-1', 'done']]);
+  const turn = status.normalize(message({ type: 'result', subtype: 'success', is_error: false, uuid: 'r', modelUsage: {} }));
+  assert.equal(turn.some(e => e.type === 'agent_status'), false, 'nothing is left to end');
+});
+
+test('a Task\'s own events before its task_started do not make a forked run', () => {
+  const status = new NativeStatus();
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: null, message: { id: 'm1', model: 'm', content: [{ type: 'tool_use', id: 'spawn', name: 'Task', input: { description: 'Find' } }] } }));
+  const early = status.normalize(message({ type: 'assistant', parent_tool_use_id: 'spawn', message: { id: 'm2', model: 'm', content: [{ type: 'text', text: 'hi' }] } }));
+  assert.equal(early.some(e => e.type === 'agent_status'), false);
+});
+
+test('the end of a turn ends what it blocked on, never background work', () => {
+  const status = new NativeStatus();
+  const start = (task: string, call: string, extra: object) => status.normalize(message({ type: 'system', subtype: 'task_started', task_id: task, tool_use_id: call, description: task, task_type: 'local_agent', ...extra }));
+  start('fg', 'call-fg', { is_backgrounded: false });
+  start('bg', 'call-bg', { is_backgrounded: true });
+  start('moved', 'call-moved', { is_backgrounded: false });
+  start('unsaid', 'call-unsaid', {});
+  start('cmd', 'call-cmd', { is_backgrounded: false, task_type: 'local_bash' });
+  start('done', 'call-done', { is_backgrounded: false });
+  status.normalize(message({ type: 'system', subtype: 'task_notification', task_id: 'done', tool_use_id: 'call-done', status: 'completed', summary: '' }));
+  // Moved to the background while it ran: the clients are told, and it outlives the turn.
+  const [moved] = status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 'moved', patch: { is_backgrounded: true } }));
+  assert.deepEqual([moved.agentId, moved.status, moved.data], ['claude-tool:call-moved', 'running', { backgrounded: true }]);
+  // A forked run still going when the turn ends (an interrupted turn) ends too.
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: null, message: { id: 'm1', model: 'm', content: [{ type: 'tool_use', id: 'skill', name: 'Skill', input: { skill: 'review' } }] } }));
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: 'skill', message: { id: 'm2', model: 'm', content: [{ type: 'text', text: 'Looking' }] } }));
+  const turn = status.normalize(message({ type: 'result', subtype: 'error_during_execution', is_error: true, uuid: 'r', modelUsage: {}, errors: [] }));
+  const ended = turn.filter(e => e.type === 'agent_status');
+  assert.deepEqual(ended.map(e => [e.agentId, e.status, (e.data as { reason?: string }).reason]), [
+    ['claude-tool:skill', 'unknown', 'turn_ended'], ['claude-tool:call-fg', 'unknown', 'turn_ended'], ['claude-tool:call-cmd', 'unknown', 'turn_ended'],
+  ]);
+  assert.ok(turn.findIndex(e => e.type === 'turn_ended') > turn.findIndex(e => e.type === 'agent_status'), 'ended before the turn says it ended');
+  // Said once: the next turn's end has nothing left to end.
+  assert.equal(status.normalize(message({ type: 'result', subtype: 'success', is_error: false, uuid: 'r2', modelUsage: {} })).some(e => e.type === 'agent_status'), false);
+  // A task the level lists as background is never ended by a turn.
+  const level = new NativeStatus();
+  level.normalize(message({ type: 'system', subtype: 'task_started', task_id: 'x', tool_use_id: 'cx', description: 'x', task_type: 'local_agent', is_backgrounded: false }));
+  const [listed] = level.normalize(message({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'x', task_type: 'local_agent', description: 'x' }] }));
+  assert.deepEqual(listed.data, { backgrounded: true });
+  assert.equal(level.normalize(message({ type: 'result', subtype: 'success', is_error: false, uuid: 'r', modelUsage: {} })).some(e => e.type === 'agent_status'), false);
+});

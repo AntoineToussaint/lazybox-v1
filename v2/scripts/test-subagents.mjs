@@ -12,7 +12,9 @@ const A='claude-tool:toolu_explore',B='claude-tool:toolu_audit',C='claude-tool:t
 Object.assign(f.sessions[0],{title:'Make sub-agents visible',provider:'claude',model:'claude-fable-5-1',modelReported:true,busy:true,status:'running',
  capabilities:{...f.sessions[0].capabilities,stopAgent:true},
  agents:[{id:'root',status:'running',phase:'thinking',phaseSinceUnixMillis:String(now-4000),turnStartedAtUnixMillis:String(now-300000)},
-  ...[[A,'running'],[B,'running'],[C,'running'],[D,'failed'],[E,'done']].map(([id,status])=>({id,parentId:id===C?B:'root',status,name:'Sub-agent',kind:'local_agent'})),{id:'claude-tool:toolu_bg',parentId:'root',status:'running',name:'cd /work/api && source .venv/bin/activate',kind:'local_bash'}]});
+  ...[[A,'running'],[B,'running'],[C,'running'],[D,'failed'],[E,'done']].map(([id,status])=>({id,parentId:id===C?B:'root',status,name:'Sub-agent',kind:'local_agent',nativeId:'task-'+id})),{id:'claude-tool:toolu_bg',parentId:'root',status:'running',name:'cd /work/api && source .venv/bin/activate',kind:'local_bash',nativeId:'bash_3'},
+  // The Runner knows it running, but by the time a stop reaches it, it has ended (the race the card must survive).
+  {id:'claude-tool:toolu_gone',parentId:'root',status:'running',name:'Sub-agent',kind:'local_agent',nativeId:'task-gone',notRunning:true}]});
 const ch=f.openEvents('alpha-session');
 const push=(offset,event)=>ch.push(event.data===undefined?event:{...Object.fromEntries(Object.entries(event).filter(([k])=>k!=='data')),providerDataJson:b64(event.data)},at(offset));
 const call=(id,name,status,extra={})=>({type:'tool_call',id,name,status,...extra});
@@ -268,16 +270,51 @@ try{
  await page.keyboard.press('Escape');
  await expect(panel).toHaveCount(0);
 
- // Stop one sub-agent: asked once more, then sent to the Runner.
+ // ■ Stop on a running card, in its header beside the panel button: one click sends it to the Runner.
  const stop=card(A).getByRole('button',{name:'Stop sub-agent Map the transcript pipeline'});
+ await expect(stop).toHaveText('Stop');
+ await expect(stop).toHaveAttribute('title','Stop this sub-agent; the main agent continues');
+ {const head=await card(A).locator(':scope > .subagent-head').boundingBox(),box=await stop.boundingBox();assert.ok(box.y>=head.y&&box.y+box.height<=head.y+head.height+0.5,'Stop sits in the header row');}
+ await expect(card(D).getByRole('button',{name:/^Stop /}),'an ended one has no Stop').toHaveCount(0);
+ // The same on its chip and its row in Background work, and for a background command.
+ await expect(tray.locator('.subagent-chip-item').filter({hasText:'Map the transcript'}).getByRole('button',{name:'Stop sub-agent Map the transcript pipeline'})).toHaveCount(1);
+ await expect(tray.locator('.subagent-chip-item').filter({has:page.locator('.subagent-chip.command')}).getByRole('button',{name:/^Stop background command pytest/})).toHaveCount(1);
+ await tray.locator('.subagent-tray-all').click();
+ {const list=page.getByRole('dialog',{name:'Background work',exact:true});
+  await expect(list.locator('li[data-status="running"]').getByRole('button',{name:/^Stop /})).toHaveCount(4);
+  await expect(list.locator('li[data-status="failed"], li[data-status="done"]').getByRole('button',{name:/^Stop /})).toHaveCount(0);
+  await page.keyboard.press('Escape');}
  await stop.click();
- await card(A).getByRole('button',{name:/Confirm: stop/}).click();
  await expect.poll(()=>f.mutations.findLast(m=>m.method==='Apply'&&m.body.stopAgent)?.body.stopAgent.agentId).toBe(A);
+ await expect(card(A).getByRole('button',{name:/^Stopping sub-agent/})).toHaveText('Stopping…');
+ await expect(card(A).getByRole('button',{name:/^Stopping sub-agent/})).toBeDisabled();
+ await expect(card(A)).toHaveAttribute('data-status','running');
+ // The Runner journals the stop it accepted, then Claude reports the end.
+ push(25,{type:'operation_accepted',agentId:A});
  push(30,{type:'agent_status',agentId:A,status:'stopped',data:{toolUseId:'toolu_explore'}});
  await expect(card(A)).toHaveAttribute('data-status','stopped');
- await expect(card(A).locator('.subagent-outcome')).toContainText('Stopped');
+ await expect(card(A).locator('.subagent-outcome strong')).toHaveText('Stopped by you');
  await expect(card(A).getByRole('button',{name:/Stop sub-agent/})).toHaveCount(0);
  await expect(tray.locator('.subagent-chip:not(.command)')).toHaveCount(1);
+ // From the keyboard: Delete on a running card's header stops it too.
+ const stopsBefore=f.mutations.filter(m=>m.method==='Apply'&&m.body.stopAgent).length;
+ await card(B).locator(':scope > .subagent-head > .subagent-toggle').focus();
+ await expect(card(B).locator(':scope > .subagent-head > .subagent-toggle')).toHaveAttribute('aria-keyshortcuts',/Delete/);
+ await page.keyboard.press('Delete');
+ await expect.poll(()=>f.mutations.filter(m=>m.method==='Apply'&&m.body.stopAgent).length).toBe(stopsBefore+1);
+ assert.equal(f.mutations.findLast(m=>m.method==='Apply'&&m.body.stopAgent).body.stopAgent.agentId,B);
+ await expect(card(B).getByRole('button',{name:/^Stopping sub-agent/})).toBeVisible();
+ // A stop the Runner answers "not running": the card ends at once, quietly; no raw error anywhere.
+ const G='claude-tool:toolu_gone';
+ push(40,{type:'tool_activity',data:call('toolu_gone','Task','running',{input:{description:'Count the call sites',prompt:'Count them.'}})});
+ push(50,{type:'tool_activity',agentId:G,data:call('g1','Grep','running',{input:{pattern:'stopAgent'}})});
+ await card(G).getByRole('button',{name:'Stop sub-agent Count the call sites'}).click();
+ await expect(card(G)).toHaveAttribute('data-status','unreported');
+ await expect(card(G).locator('.subagent-outcome')).toContainText('Ended without a report');
+ await expect(card(G).locator('.subagent-outcome')).toContainText('no longer running when you asked to stop it');
+ await expect(card(G).locator('.subagent-mark')).toHaveAttribute('data-status','unreported');
+ await expect(page.getByText(/ConnectError|failed_precondition|Could not stop/)).toHaveCount(0);
+ await page.screenshot({path:'.cache/subagents-stop.png'});
 
  // The failed one is in the parent's status line until it is looked at.
  const attention=chat.locator('.chat-heading .subagent-attention');
@@ -293,6 +330,65 @@ try{
  assert.equal(await card(B).locator('.subagent-mark').first().evaluate(n=>getComputedStyle(n).animationName),'none');
  assert.equal(await card(B).locator('.subagent-now-text').first().evaluate(n=>getComputedStyle(n).animationName),'none');
  await page.emulateMedia({reducedMotion:'no-preference'});
+
+ // The turn ends under work nobody reported the end of. A foreground sub-agent left "running" ends
+ // without a report: no spinner, its clock frozen at its last step. A forked skill whose call was
+ // stopped (Claude's "doesn't want to proceed") is stopped, and its line says so quietly.
+ const F='claude-tool:toolu_fg',SK='attempt-0:claude-tool:toolu_fork';
+ const REJECTED="The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.";
+ push(60,{type:'tool_activity',data:call('toolu_fg','Task','running',{input:{description:'Trace the stale timer',prompt:'Find why the clock grows.'}})});
+ push(70,{type:'tool_activity',agentId:F,data:call('f1','Bash','running',{input:{command:'grep -n agentElapsed packages/surfaces/src'}})});
+ push(80,{type:'tool_activity',agentId:F,data:call('f1',undefined,'completed',{output:'subagent-model.ts:611'})});
+ push(90,{type:'tool_activity',data:call('toolu_fork','Skill','running',{input:{skill:'code-review',args:'xhigh'}})});
+ push(100,{type:'tool_activity',agentId:SK,data:call('s1','Bash','running',{input:{command:'git diff main...HEAD --stat'}})});
+ push(110,{type:'tool_activity',agentId:SK,data:call('s1',undefined,'completed',{output:' 3 files changed'})});
+ await expect(card(F)).toHaveAttribute('data-status','running');
+ await expect(messages.locator('.subagent-card').filter({hasText:'code-review'})).toHaveAttribute('data-status','running');
+ push(200,{type:'operation_accepted',data:{kind:'interrupt'}});
+ push(210,{type:'tool_activity',data:{type:'tool_call',id:'toolu_fork',status:'failed',output:REJECTED}});
+ push(220,{type:'turn_ended',status:'interrupted'});
+ await expect(card(F)).toHaveAttribute('data-status','unreported');
+ await expect(card(F).locator('.subagent-outcome strong')).toHaveText('Ended without a report');
+ assert.equal(await card(F).locator('.subagent-mark').evaluate(n=>getComputedStyle(n).animationName),'none','no spinner');
+ await expect(card(F).getByRole('button',{name:/^Stop /})).toHaveCount(0);
+ {const first=await card(F).locator('.subagent-stats time').textContent();await page.waitForTimeout(2200);assert.equal(await card(F).locator('.subagent-stats time').textContent(),first,'the clock is frozen');}
+ const fork=messages.locator('.subagent-card').filter({hasText:'code-review'});
+ await expect(fork).toHaveAttribute('data-status','stopped');
+ await expect(fork.locator('.subagent-who')).toHaveText('skill · code-review');
+ const skillLine=chat.locator('.tool-line[data-tool-id="toolu_fork"]');
+ await expect(skillLine).toHaveAttribute('data-state','stopped');
+ await expect(skillLine.locator('.tool-line-stopped')).toHaveText('Stopped');
+ await expect(skillLine.locator('.tool-line-problem')).toHaveCount(0);
+ await expect(chat.locator('.messages')).not.toContainText("doesn't want to proceed");
+ await skillLine.locator(':scope > .tool-line-row').click();
+ await expect(skillLine.locator('.tool-details')).toContainText("doesn't want to proceed");
+ // A background command outlives the turn: still live, its clock still running.
+ await expect(bgChip).toBeVisible();
+ {const first=await bgChip.locator('time').textContent();await expect.poll(()=>bgChip.locator('time').textContent(),{timeout:4000}).not.toBe(first);}
+ await page.screenshot({path:'.cache/subagents-stale.png'});
+
+ // Clear finished: the list leaves out what ended, counts follow, Undo brings it back; running work stays.
+ await tray.locator('.subagent-tray-all').click();
+ {const list=page.getByRole('dialog',{name:'Background work',exact:true});
+  const rows=()=>list.locator('li[data-id]').count();
+  const before=await rows();
+  await list.getByRole('button',{name:'Clear finished'}).click();
+  await expect(list.locator('li[data-id]')).toHaveCount(1);
+  await expect(list.locator('li[data-id]')).toContainText('pytest tests/test_mcp.py');
+  await expect(list.locator('.subagent-tree-cleared')).toContainText(/^Cleared \d+ · Undo$/);
+  await expect(list.locator('.subagent-tree-summary')).toContainText('1 command');
+  await expect(list.locator('.subagent-tree-summary')).not.toContainText('sub-agent');
+  await expect(list.getByRole('button',{name:'Clear finished'})).toHaveCount(0);
+  await expect(card(E),'the conversation keeps them').toBeVisible();
+  await list.getByRole('button',{name:'Undo'}).click();
+  await expect.poll(rows).toBe(before);
+  await list.getByRole('button',{name:'Clear finished'}).click();
+  await page.keyboard.press('Escape');}
+ // Per conversation, kept across a reload.
+ await page.reload();
+ await tray.locator('.subagent-tray-all').click();
+ await expect(page.getByRole('dialog',{name:'Background work',exact:true}).locator('li[data-id]')).toHaveCount(1);
+ await page.keyboard.press('Escape');
 
  // Phone width: the tray scrolls, a panel covers the chat as a sheet.
  await page.setViewportSize({width:390,height:844});

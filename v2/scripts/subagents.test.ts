@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyTranscript, foldTranscript, type Transcript } from '../packages/surfaces/src/transcript-model.ts';
 import { describeGroup, describeTool } from '../packages/surfaces/src/tool-lines.ts';
-import { actionLabel, agentElapsed, ancestry, backgroundCommands, commandTitle, currentAction, mergedStatus, resultPreview, stepRows, subagentLabel, subagentTree, tokenLabel, toolTotal, type Subagent } from '../packages/surfaces/src/subagent-model.ts';
+import { actionLabel, agentElapsed, ancestry, backgroundCommands, canStopSubagent, commandTitle, currentAction, endsWithTurn, finishedWork, hiddenFromWork, mergedStatus, resultPreview, statusWord, stepRows, subagentLabel, subagentTree, tokenLabel, toolTotal, type Subagent } from '../packages/surfaces/src/subagent-model.ts';
+import { noteStops } from '../packages/surfaces/src/tool-stops.ts';
 
 let cursor = 0n;
 const T0 = Date.parse('2026-11-16T10:00:00Z');
@@ -322,4 +323,193 @@ test('a timeline reads as the chat\'s tool lines: reads grouped, a file read aga
   // Under a second says nothing.
   assert.deepEqual(describeTool((bash.item as { entry: never }).entry).meta, ['exit 0']);
   assert.equal(stepRows(t.subagents.byId[child].items), rows, 'rows are computed once per timeline');
+});
+
+test('a forked Skill (no task of its own) ends with its call: done, named, its result without the fork line', () => {
+  // What an older Claude worker journals for `/code-review` run with `context: fork`:
+  // the Skill call, the fork's own steps under it, and the call's result. No agent_status.
+  cursor = 0n;
+  const fork = 'attempt-0:claude-tool:toolu_skill';
+  let t = fold(emptyTranscript(),
+    record(0, { type: 'turn_started' }),
+    record(10, { type: 'tool_activity', data: call('toolu_skill', 'Skill', 'running', { input: { skill: 'code-review', args: 'medium' } }) }),
+    record(1000, { type: 'tool_activity', agentId: fork, data: call('g1', 'Bash', 'running', { input: { command: 'grep -n refusal src' } }) }),
+    record(1100, { type: 'tool_activity', agentId: fork, data: call('g1', undefined as never, 'completed', { output: 'src/a.py:1' }) }),
+  );
+  const id = t.messages.find(m => m.type === 'subagent')!.agentId!;
+  assert.equal(t.subagents.byId[id].status, 'running');
+  assert.deepEqual(subagentLabel(t.subagents.byId[id]), { kind: 'skill', title: 'code-review' });
+  t = fold(t, record(9000, { type: 'tool_activity', data: { type: 'tool_call', id: 'toolu_skill', status: 'completed', output: 'Skill "code-review" completed (forked execution).\n\nResult:\nI found 10 findings.' } }));
+  const done = t.subagents.byId[id];
+  assert.equal(done.status, 'done');
+  assert.equal(done.result, 'I found 10 findings.');
+  assert.equal(agentElapsed(done, T0 + 99_999_999), 8000, 'it ran from its first step to its call\'s result');
+  // A context report for it the next day is not its own event, and changes nothing.
+  t = fold(t, record(86_400_000, { type: 'context', agentId: fork, data: { used: 1 } }));
+  assert.equal(agentElapsed(t.subagents.byId[id], T0 + 99_999_999), 8000);
+});
+
+test('the end of the main turn ends a foreground sub-agent left running, at its last event; background work runs on', () => {
+  cursor = 0n;
+  const fg = 'claude-tool:toolu_fg', bg = 'claude-tool:toolu_bg', inner = 'claude-tool:toolu_inner', cmd = 'claude-tool:toolu_cmd', codex = 'codex:thread-1', task = 'claude-task:t9';
+  let t = fold(emptyTranscript(),
+    record(0, { type: 'turn_started' }),
+    record(10, { type: 'tool_activity', data: call('toolu_fg', 'Task', 'running', { input: { description: 'Foreground', prompt: 'p' } }) }),
+    record(20, { type: 'tool_activity', data: call('toolu_bg', 'Task', 'running', { input: { description: 'Background', prompt: 'p', run_in_background: true } }) }),
+    record(30, { type: 'tool_activity', agentId: bg, data: call('toolu_inner', 'Task', 'running', { input: { description: 'Inside the background one', prompt: 'p' } }) }),
+    record(40, { type: 'agent_status', agentId: cmd, nativeId: 'b1', status: 'running', name: 'npm test', agentKind: 'local_bash', data: { toolUseId: 'toolu_cmd' } }),
+    record(50, { type: 'agent_status', agentId: codex, nativeId: 'thread-1', status: 'running', name: 'Codex helper', agentKind: 'agent' }),
+    record(60, { type: 'agent_status', agentId: task, nativeId: 't9', status: 'running', name: 'Found running', agentKind: 'local_agent' }),
+    record(5000, { type: 'tool_activity', agentId: fg, data: call('f1', 'Read', 'running', { input: { file_path: 'a.ts' } }) }),
+    record(60_000, { type: 'turn_ended', status: 'interrupted' }),
+  );
+  const by = t.subagents.byId;
+  assert.equal(by[fg].status, 'unreported');
+  assert.equal(by[fg].endedAt, T0 + 5000, 'ended at its last own event, not at the turn\'s end');
+  assert.equal(agentElapsed(by[fg], T0 + 999_999), 5000 - 10, 'the clock is frozen');
+  assert.equal(currentAction(by[fg]), undefined, 'nothing is "now"');
+  assert.equal(by[fg].items[0].kind === 'tool' && by[fg].items[0].call.status, 'Result not reported');
+  for (const id of [bg, inner, cmd, codex, task]) assert.ok(['running', 'starting'].includes(by[id].status), `${id} outlives the turn`);
+  assert.equal(endsWithTurn(by[inner], by), false, 'inside a background sub-agent');
+  // A later report that it still runs (moved to the background) is believed.
+  t = fold(t, record(61_000, { type: 'agent_status', agentId: fg, nativeId: 'task-fg', status: 'running', data: { toolUseId: 'toolu_fg', backgrounded: true } }));
+  assert.equal(t.subagents.byId[fg].status, 'running');
+  assert.equal(t.subagents.byId[fg].backgrounded, true);
+});
+
+test('the worker\'s word that a turn ended under a sub-agent reads as ended without a report', () => {
+  let { t, child } = claudeRun();
+  t = fold(t,
+    record(2000, { type: 'tool_activity', agentId: child, data: call('c1', 'Read', 'running', { input: { file_path: 'a.ts' } }) }),
+    record(9000, { type: 'agent_status', agentId: child, status: 'unknown', data: { reason: 'turn_ended' } }),
+  );
+  const agent = t.subagents.byId[child];
+  assert.equal(agent.status, 'unreported');
+  assert.equal(statusWord[agent.status], 'Ended without a report');
+  assert.equal(agentElapsed(agent, T0 + 1e9), 9000 - 20, 'its own status report is its last event');
+  // Without that reason, unknown is still unknown.
+  const other = fold(claudeRun().t, record(9000, { type: 'agent_status', agentId: child, status: 'unknown' }));
+  assert.equal(other.subagents.byId[child].status, 'unknown');
+});
+
+test('an end nobody dated is put at the last event: never a clock that keeps growing', () => {
+  let { t, child } = claudeRun();
+  t = fold(t, record(4000, { type: 'tool_activity', agentId: child, data: call('c1', 'Read', 'running', { input: { file_path: 'a.ts' } }) }));
+  const agent = t.subagents.byId[child];
+  // The Runner says it ended; the journal never did.
+  const status = mergedStatus(agent, { [child]: 'unknown' });
+  assert.equal(status, 'unknown');
+  assert.equal(agentElapsed({ ...agent, status }, T0 + 1e9), 4000 - 20);
+  assert.equal(agentElapsed({ ...agent, status: mergedStatus(agent, { [child]: 'unreported' }) }, T0 + 1e9), 4000 - 20);
+  // A worker lost hours later: the end is its last event, not the loss.
+  t = fold(t, record(3_600_000, { type: 'process_exit', status: 'unknown' }));
+  assert.equal(agentElapsed(t.subagents.byId[child], T0 + 1e9), 4000 - 20);
+});
+
+test('Stop is offered for a running sub-agent the Runner can address, when the provider can stop one', () => {
+  let { t, child } = claudeRun();
+  const agent = t.subagents.byId[child];
+  const native = new Set([child]);
+  assert.equal(canStopSubagent(agent, 'running', { canStop: true, native }), true);
+  assert.equal(canStopSubagent(agent, 'waiting', { canStop: true, native }), true);
+  assert.equal(canStopSubagent(agent, 'running', { canStop: false, native }), false, 'no stopAgent capability');
+  assert.equal(canStopSubagent(agent, 'done', { canStop: true, native }), false, 'ended');
+  assert.equal(canStopSubagent(agent, 'unreported', { canStop: true, native }), false, 'ended without a report');
+  assert.equal(canStopSubagent(agent, 'running', { canStop: true, native: new Set() }), false, 'the Runner has no provider id for it (a forked Skill)');
+  assert.equal(canStopSubagent({ ...agent, runnerId: 'attempt-1:' + child }, 'running', { canStop: true, native: new Set(['attempt-1:' + child]) }), true, 'by the id the Runner knows');
+  // The accepted stop is in the journal: it was the person's.
+  t = fold(t, record(5000, { type: 'operation_accepted', agentId: child }));
+  assert.equal(t.subagents.byId[child].stopRequested, true);
+});
+
+test('Clear finished hides what ended, never what runs or what a running one started from', () => {
+  cursor = 0n;
+  const parent = 'claude-tool:p', child = 'claude-tool:c', done = 'claude-tool:d';
+  const t = fold(emptyTranscript(),
+    record(0, { type: 'tool_activity', data: call('p', 'Task', 'running', { input: { description: 'Parent' } }) }),
+    record(10, { type: 'tool_activity', agentId: parent, data: call('c', 'Task', 'running', { input: { description: 'Child' } }) }),
+    record(20, { type: 'tool_activity', data: call('d', 'Task', 'running', { input: { description: 'Done' } }) }),
+    record(30, { type: 'tool_activity', data: { type: 'tool_call', id: 'd', status: 'completed', output: 'ok' } }),
+  );
+  const by = t.subagents.byId;
+  const status = (a: Subagent) => a.id === parent ? 'done' as const : a.status;
+  assert.deepEqual(finishedWork(Object.values(by), status).sort(), [done, parent].sort());
+  const cleared = new Set([parent, done, child]);
+  assert.equal(hiddenFromWork(by[done], cleared, status, by), true);
+  assert.equal(hiddenFromWork(by[parent], cleared, status, by), false, 'something it started still runs');
+  assert.equal(hiddenFromWork(by[child], cleared, status, by), false, 'running work always shows');
+  assert.equal(hiddenFromWork(by[done], new Set(), status, by), false);
+});
+
+const REJECTED = "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.";
+const toolOf = (t: Transcript, id: string) => t.messages.flatMap(m => m.tools ?? []).find(entry => entry.id === id);
+
+test('a call the person stopped reads Stopped, a declined one Denied; a real failure stays a failure', () => {
+  cursor = 0n;
+  let t = fold(emptyTranscript(),
+    record(0, { type: 'operation_accepted', text: 'Review it' }),
+    record(10, { type: 'turn_started' }),
+    record(20, { type: 'tool_activity', data: call('broken', 'Bash', 'running', { input: { command: 'make test' } }) }),
+    record(30, { type: 'tool_activity', data: call('broken', undefined as never, 'failed', { output: 'Exit code 2\nmake: *** [test] Error 2' }) }),
+    record(40, { type: 'tool_activity', data: call('skill', 'Skill', 'running', { input: { skill: 'code-review' } }) }),
+    // An interrupt as a Runner from before operation kinds journals it: no text, no request, no sub-agent.
+    record(50, { type: 'operation_accepted' }),
+    record(60, { type: 'tool_activity', data: call('skill', undefined as never, 'failed', { output: REJECTED }) }),
+    record(70, { type: 'turn_ended', status: 'interrupted' }),
+  );
+  assert.equal(toolOf(t, 'broken')?.status, 'failed');
+  const stopped = toolOf(t, 'skill')!;
+  assert.equal(stopped.status, 'stopped');
+  assert.equal(describeTool(stopped).problem, undefined, 'no red problem line');
+  assert.match(stopped.output!, /doesn't want to proceed/, 'the provider\'s words stay in the details');
+  // Declined in Ask mode: the approval's response is in the journal, and the worker's words say so.
+  t = fold(t,
+    record(1000, { type: 'operation_accepted', text: 'Edit it' }),
+    record(1010, { type: 'turn_started' }),
+    record(1020, { type: 'tool_activity', data: call('edit', 'Edit', 'running', { input: { file_path: 'a.ts', old_string: 'a', new_string: 'b' } }) }),
+    record(1030, { type: 'approval', requestId: 'r1', data: { tool: 'Edit', toolUseId: 'edit' } }),
+    record(1040, { type: 'operation_accepted', requestId: 'r1', data: { response: { kind: 'approve', decision: 'decline' } } }),
+    record(1050, { type: 'tool_activity', data: call('edit', undefined as never, 'failed', { output: 'Declined by operator' }) }),
+    // An interrupt the Runner names, in a turn with nothing declined.
+    record(1060, { type: 'tool_activity', data: call('grep', 'Grep', 'running', { input: { pattern: 'x' } }) }),
+  );
+  assert.equal(toolOf(t, 'edit')?.status, 'denied');
+  t = fold(t,
+    record(2000, { type: 'turn_ended' }),
+    record(2010, { type: 'turn_started' }),
+    record(2020, { type: 'tool_activity', data: call('read', 'Read', 'running', { input: { file_path: 'b.ts' } }) }),
+    record(2030, { type: 'operation_accepted', data: { kind: 'interrupt' } }),
+    record(2040, { type: 'tool_activity', data: call('read', undefined as never, 'failed', { output: REJECTED }) }),
+  );
+  assert.equal(toolOf(t, 'read')?.status, 'stopped');
+  assert.deepEqual(noteStops(undefined, create(JournalEventSchema, { event: { type: 'operation_accepted', agentId: 'claude-tool:x' } }).event!), undefined, 'a sub-agent stop is not a turn interrupt');
+});
+
+test('a sub-agent whose call was stopped is stopped, with everything it started; a background one runs on', () => {
+  cursor = 0n;
+  const fork = 'attempt-0:claude-tool:toolu_skill', nested = 'claude-tool:toolu_nested', bg = 'claude-tool:toolu_bgn';
+  let t = fold(emptyTranscript(),
+    record(0, { type: 'turn_started' }),
+    record(10, { type: 'tool_activity', data: call('toolu_skill', 'Skill', 'running', { input: { skill: 'code-review' } }) }),
+    record(100, { type: 'tool_activity', agentId: fork, data: call('g1', 'Bash', 'running', { input: { command: 'git diff' } }) }),
+    record(110, { type: 'tool_activity', agentId: fork, data: call('toolu_nested', 'Task', 'running', { input: { description: 'Check one file' } }) }),
+    record(120, { type: 'tool_activity', agentId: fork, data: call('toolu_bgn', 'Task', 'running', { input: { description: 'Long survey', run_in_background: true } }) }),
+    record(130, { type: 'tool_activity', agentId: nested, data: call('n1', 'Read', 'running', { input: { file_path: 'a.ts' } }) }),
+    record(200, { type: 'operation_accepted', data: { kind: 'interrupt' } }),
+    record(210, { type: 'tool_activity', agentId: fork, data: call('g1', undefined as never, 'failed', { output: REJECTED }) }),
+    record(220, { type: 'tool_activity', data: call('toolu_skill', undefined as never, 'failed', { output: REJECTED }) }),
+  );
+  const id = t.messages.find(m => m.type === 'subagent')!.agentId!;
+  const by = t.subagents.byId;
+  assert.equal(by[id].status, 'stopped');
+  assert.equal(by[id].error, '', 'a stop is not an error');
+  assert.equal(by[id].result, '');
+  assert.equal(by[nested].status, 'stopped');
+  assert.equal(by[nested].endedAt, T0 + 130, 'at its last own event');
+  assert.equal(by[bg].status, 'starting', 'a background one outlives its parent\'s stop');
+  const step = stepRows(by[id].items).find(row => row.kind === 'tool' && row.ids.includes('g1'));
+  assert.equal(step?.kind === 'tool' && step.item.kind === 'call' && step.item.entry.status, 'stopped', 'its own stopped step reads Stopped');
+  // The turn's end changes nothing more.
+  t = fold(t, record(300, { type: 'turn_ended', status: 'interrupted' }));
+  assert.equal(t.subagents.byId[id].status, 'stopped');
 });

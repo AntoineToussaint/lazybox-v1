@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from 'react';
-import type { RunnerClient } from '@lazybox/client-core';
+import { Code, ConnectError, type RunnerClient } from '@lazybox/client-core';
 import type { Session } from '@lazybox/protocol';
 import type { OpenModifiers } from './file-links';
 import type { FileLink } from './file-reference';
@@ -19,12 +19,20 @@ export function useSubagentHost({ api, sessionID, session, index, revealMessage,
 }): SubagentView {
   const [view] = useState(() => new SubagentView());
   // Read during this render by the cards it mounts; announced once committed.
+  view.setConversation(sessionID);
   view.setIndex(index);
   view.actions = {
     revealMessage, openFile,
     stop: async agentId => {
-      try { await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'stopAgent', value: { agentId } } }); }
-      catch (error) { onError(`Could not stop the sub-agent: ${String(error)}`); }
+      try { await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'stopAgent', value: { agentId } } }); return 'stopping'; }
+      catch (error) {
+        const failure = ConnectError.from(error);
+        // "sub-agent is not running": the Runner has nothing to stop. Not an error to
+        // the person: the card says it ended, quietly, where they are looking.
+        if (failure.code === Code.FailedPrecondition) return 'gone';
+        onError(`Could not stop the sub-agent: ${failure.rawMessage || 'the Runner refused.'}`);
+        return 'failed';
+      }
     },
   };
   useLayoutEffect(() => { view.notify(); }, [view, index]);

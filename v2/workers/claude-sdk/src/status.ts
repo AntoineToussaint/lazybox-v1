@@ -19,6 +19,10 @@ const usage=(u:TaskUsage|undefined)=>u?{totalTokens:u.total_tokens,toolUses:u.to
 // Drop absent fields, so the journal holds only what the provider reported.
 const compact=(value:Record<string,unknown>)=>Object.fromEntries(Object.entries(value).filter(([,v])=>v!==undefined&&v!==''));
 const TERMINAL=['done','failed','stopped'];
+// The tools whose child runs are tasks: the provider reports their lifecycle.
+const SPAWN_TOOLS=new Set(['Task','Agent']);
+// Tool calls remembered for naming a forked run, and forked runs at once: the newest.
+const CALL_LIMIT=512, FORK_LIMIT=256;
 export function limitState(code: string): string {
   if (['authentication_failed', 'oauth_org_not_allowed', 'cloud_credential_error', 'gateway_signin_required', 'org_config_refused'].includes(code)) return 'auth_required';
   if (code === 'rate_limit') return 'throttled';
@@ -33,9 +37,18 @@ export class NativeStatus {
   reference = '';
   private active = false;
   private failure = '';
-  private tasks = new Map<string, { id: string; run?: string; status: string }>();
+  // `background` is what the provider said: true for a task that outlives the
+  // tool call that started it, false for one that call blocks on, undefined
+  // when it did not say.
+  private tasks = new Map<string, { id: string; run?: string; status: string; background?: boolean }>();
   private background = new Set<string>();
   private tools = new Map<string, string>();
+  // Every tool call by id, until its result: who made it, with what.
+  private calls = new Map<string, { name: string; input: unknown; agent: string }>();
+  // Forked runs in progress (a Skill with `context: fork`), by the call that
+  // runs them: a child the provider reports no task for, only the call and
+  // its result. Their lifecycle is the call's.
+  private forks = new Map<string, string>();
   private contexts = new Map<string, { model: string; used: number }>();
   private capacities = new Map<string, number>();
   // Children whose text arrived as stream deltas since their last complete
@@ -52,6 +65,7 @@ export class NativeStatus {
     }
     if (m.type === 'system' && m.subtype === 'init' && !child) emit({type:'tool_catalog',data:{tools:m.tools}});
     const begin = () => { if (!this.active && !child) { this.active = true; emit({ type: 'turn_started' }); } };
+    if (child && 'parent_tool_use_id' in m && m.parent_tool_use_id) this.fork(m.parent_tool_use_id, child, emit);
     if (m.type === 'stream_event') {
       begin();
       const e = m.event;
@@ -108,11 +122,19 @@ export class NativeStatus {
         const streamed = this.streamed.delete(child);
         if (!streamed) for (const content of m.message.content) if (content.type === 'text' && content.text) emit({ type: 'message_delta', agentId: child, parentAgentId: 'root', text: content.text });
       }
-      for (const content of m.message.content) if (content.type === 'tool_use') emit({ type: 'tool_activity', agentId: child, data: {type:'tool_call',id:content.id,name:content.name,status:'running',input:toolPreview(content.input)} });
+      for (const content of m.message.content) if (content.type === 'tool_use') {
+        if (this.calls.size >= CALL_LIMIT) this.calls.delete(this.calls.keys().next().value!);
+        this.calls.set(content.id, { name: content.name, input: content.input, agent: child || 'root' });
+        emit({ type: 'tool_activity', agentId: child, data: {type:'tool_call',id:content.id,name:content.name,status:'running',input:toolPreview(content.input)} });
+      }
     } else if (m.type === 'user') {
       if(Array.isArray(m.message.content)) for (const content of m.message.content) if(content.type==='tool_result') {
         emit({type:'tool_activity',agentId:child,data:{type:'tool_call',id:content.tool_use_id,status:content.is_error?'failed':'completed',output:toolPreview(content.content)}});
         emit({type:'activity',agentId:child,status:'working'});
+        // A forked run ends with the call that ran it.
+        const fork = this.forks.get(content.tool_use_id);
+        if (fork) { this.forks.delete(content.tool_use_id); emit({ type: 'agent_status', agentId: fork, status: content.is_error ? 'failed' : 'done', data: { toolUseId: content.tool_use_id } }); }
+        this.calls.delete(content.tool_use_id);
       }
     } else if (m.type === 'result') {
       for(const [model,usage] of Object.entries(m.modelUsage||{})) if(usage.contextWindow>0)this.capacities.set(model,usage.contextWindow);
@@ -122,6 +144,7 @@ export class NativeStatus {
         const state = limitState(('startup_failure_reason' in m ? m.startup_failure_reason : '') || m.subtype);
         emit({ type: 'failure', status: state === 'unknown' ? 'provider_error' : state, account: { state, reason: m.subtype }, text: 'errors' in m ? m.errors.join('\n') : m.result });
       }
+      if (!child) this.endTurn(emit);
       emit({ type: 'turn_ended', status: m.is_error ? 'failed' : 'completed', data: { subtype: m.subtype, resultUUID: m.uuid } });
       this.active = false; this.failure = '';
     } else if (m.type === 'system' && (m.subtype === 'task_started' || m.subtype === 'task_progress' || m.subtype === 'task_notification')) {
@@ -132,7 +155,10 @@ export class NativeStatus {
       const status = m.subtype === 'task_notification' ? ({ completed: 'done', failed: 'failed', stopped: 'stopped' }[m.status]) : 'running';
       if (this.tasks.size >= 256 && !old) return out;
       if (m.tool_use_id) this.tools.set(m.tool_use_id, id);
-      this.tasks.set(m.task_id, { id, run: m.run_id || old?.run, status });
+      const background = m.subtype === 'task_started' && typeof m.is_backgrounded === 'boolean' ? m.is_backgrounded : old?.background;
+      this.tasks.set(m.task_id, { id, run: m.run_id || old?.run, status, background });
+      // A task is not also a forked run.
+      if (m.tool_use_id) this.forks.delete(m.tool_use_id);
       const parent = 'parent_task_id' in m && m.parent_task_id ? this.tasks.get(m.parent_task_id)?.id : undefined;
       const data = m.subtype === 'task_started'
         ? compact({ toolUseId: m.tool_use_id, prompt: bounded(m.prompt), subagentType: m.subagent_type, backgrounded: m.is_backgrounded, depth: m.spawn_depth, taskType: m.task_type })
@@ -146,12 +172,15 @@ export class NativeStatus {
       if (!old || (m.run_id && old.run && m.run_id < old.run)) return out;
       const status = ({ completed: 'done', failed: 'failed', killed: 'stopped', running: 'running', pending: 'starting' } as Record<string, string>)[m.patch.status || ''];
       const error = m.patch.error;
-      if ((!status || status === old.status) && !error) return out;
+      // A foreground task moved to the background outlives the turn.
+      const backgrounded = m.patch.is_backgrounded === true && old.background !== true;
+      if (backgrounded) old.background = true;
+      if ((!status || status === old.status) && !error && !backgrounded) return out;
       // A finished run is not restarted by a late patch of the same run.
       if (status && TERMINAL.includes(old.status) && !TERMINAL.includes(status) && (!m.run_id || m.run_id === old.run)) return out;
       const next = status || old.status;
       this.tasks.set(m.task_id, { ...old, run: m.run_id || old.run, status: next });
-      emit({ type: 'agent_status', agentId: old.id, nativeId: m.task_id, status: next, data: error ? { error } : undefined });
+      emit({ type: 'agent_status', agentId: old.id, nativeId: m.task_id, status: next, data: error || backgrounded ? compact({ error, backgrounded: backgrounded || undefined }) : undefined });
     } else if (m.type === 'system' && m.subtype === 'background_tasks_changed') {
       const next = new Set(m.tasks.filter(t => !t.ambient).map(t => t.task_id));
       for (const id of this.background) if (!next.has(id)) {
@@ -164,11 +193,43 @@ export class NativeStatus {
         if (old && ['done', 'failed', 'stopped'].includes(old.status) && (!task.run_id || task.run_id === old.run)) continue;
         if (task.run_id && old?.run && task.run_id < old.run) continue;
         const id = old?.id || `claude-task:${task.task_id}`;
-        this.tasks.set(task.task_id, { id, run: task.run_id || old?.run, status: 'running' });
-        emit({ type: 'agent_status', agentId: id, parentAgentId: this.tasks.get(task.parent_task_id || '')?.id || 'root', nativeId: task.task_id, name: task.description, agentKind: task.task_type, status: 'running' });
+        this.tasks.set(task.task_id, { id, run: task.run_id || old?.run, status: 'running', background: true });
+        emit({ type: 'agent_status', agentId: id, parentAgentId: this.tasks.get(task.parent_task_id || '')?.id || 'root', nativeId: task.task_id, name: task.description, agentKind: task.task_type, status: 'running', data: { backgrounded: true } });
       }
       this.background = next;
     }
     return out;
+  }
+
+  /**
+   * The first word of a child no task names: a run the call `id` forked (a
+   * Skill with `context: fork`). It is a sub-agent from now until the
+   * call's result; the provider reports nothing else of it.
+   */
+  private fork(id: string, child: string, emit: (e: Event) => void) {
+    if (this.tools.has(id) || this.forks.has(id) || this.forks.size >= FORK_LIMIT) return;
+    const call = this.calls.get(id);
+    // A task's own events may come before its task_started: it reports itself.
+    if (!call || SPAWN_TOOLS.has(call.name)) return;
+    this.forks.set(id, child);
+    const input = call.input && typeof call.input === 'object' ? call.input as Record<string, unknown> : {};
+    const skill = typeof input.skill === 'string' && input.skill.trim() ? input.skill.trim() : '';
+    emit({ type: 'agent_status', agentId: child, parentAgentId: call.agent, status: 'running', name: skill || call.name, agentKind: skill ? 'skill' : call.name, data: { toolUseId: id } });
+  }
+
+  /**
+   * The main agent's turn ended: what the turn blocked on cannot still run.
+   * A foreground task (the spawning call waits for it) and a forked run end
+   * with it; one the provider did not report the end of ended unreported.
+   * Background tasks and commands outlive the turn and are left alone.
+   */
+  private endTurn(emit: (e: Event) => void) {
+    for (const [call, id] of this.forks) emit({ type: 'agent_status', agentId: id, status: 'unknown', data: { toolUseId: call, reason: 'turn_ended' } });
+    this.forks.clear();
+    for (const [taskId, task] of this.tasks) {
+      if (task.background !== false || this.background.has(taskId) || !['running', 'starting'].includes(task.status)) continue;
+      task.status = 'unknown';
+      emit({ type: 'agent_status', agentId: task.id, nativeId: taskId, status: 'unknown', data: { reason: 'turn_ended' } });
+    }
   }
 }

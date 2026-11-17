@@ -32,8 +32,12 @@
 @container subagent-card (max-width:560px){
   .subagent-stat-tokens,.subagent-stat-tokens+.subagent-sep,.subagent-stats>.subagent-sep:has(+.subagent-stat-tokens){display:none}
 }
-.subagent-stop{display:inline-flex;align-items:center;gap:5px;padding:4px 7px!important;color:var(--danger)!important;font-size:calc(11px * var(--text-scale))!important}
-.subagent-stop.confirming{background:var(--danger-bg-strong)!important;color:var(--danger-strong)!important;border-color:var(--danger-line)!important}
+/* ■ Stop: quiet until hovered, red once it means it. */
+.embedded-chat .subagent-stop,.subagent-stop{display:inline-flex;align-items:center;gap:5px;flex:none;height:24px;padding:0 8px!important;border:1px solid var(--line)!important;border-radius:6px!important;background:transparent!important;color:var(--text-subtle)!important;font-size:calc(11px * var(--text-scale))!important;font-weight:500!important;white-space:nowrap}
+.subagent-stop:hover:not(:disabled),.subagent-stop:focus-visible{color:var(--danger)!important;border-color:var(--danger-line,var(--danger))!important;background:var(--danger-bg,transparent)!important}
+.subagent-stop:disabled{opacity:.75;cursor:default}
+.subagent-stop-square{display:inline-block;flex:none;width:8px;height:8px;border-radius:1.5px;background:currentColor}
+.embedded-chat .subagent-stop[data-compact],.subagent-stop[data-compact]{height:20px;min-width:20px;padding:0 5px!important;justify-content:center;border-color:transparent!important}
 
 /* The status mark: a turning ring, then a check, a cross or a square. */
 .subagent-mark{--mark-size:14px;flex:none;display:inline-grid;place-items:center;box-sizing:border-box;width:var(--mark-size);height:var(--mark-size);border-radius:50%;font-size:calc(9px * var(--text-scale));font-weight:700;color:var(--on-info)}
@@ -43,6 +47,8 @@
 .subagent-mark[data-status=failed]{background:var(--attention-failed,var(--danger))}
 .subagent-mark[data-status=stopped]{border:1.4px solid var(--text-faint)}
 .subagent-mark[data-status=unknown]{border:1.4px dashed var(--text-faint);color:var(--text-subtle)}
+/* Ended without a report: muted, still, nothing to claim. */
+.subagent-mark[data-status=unreported]{border:1.4px dashed var(--text-faint)}
 .subagent-mark svg{stroke-width:2.6}
 .subagent-mark-square{width:40%;height:40%;background:var(--text-subtle);border-radius:1px}
 
@@ -59,7 +65,8 @@
 .subagent-outcome>p{margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .subagent-outcome>p>strong{font-weight:600;margin-right:8px;color:var(--sa-done,var(--running))}
 .subagent-outcome[data-status=failed]>p>strong{color:var(--sa-failed,var(--danger))}
-.subagent-outcome[data-status=stopped]>p>strong,.subagent-outcome[data-status=unknown]>p>strong{color:var(--text-subtle)}
+.subagent-outcome[data-status=stopped]>p>strong,.subagent-outcome[data-status=unknown]>p>strong,.subagent-outcome[data-status=unreported]>p>strong{color:var(--text-subtle)}
+.subagent-card[data-status=unreported] .subagent-who{color:var(--text-secondary)}
 .embedded-chat .subagent-link,.subagent-link{padding:2px 0!important;margin-top:4px;font-size:calc(11px * var(--text-scale))!important;color:var(--accent,var(--accent))!important;background:transparent!important;border:0}
 .subagent-link:hover{text-decoration:underline}
 .subagent-result{margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-height:420px;overflow:auto;overscroll-behavior:contain}
@@ -109,6 +116,7 @@
 .subagent-tray-root+.subagent-tray-count::before{content:'·';margin-right:10px;color:var(--text-disabled)}
 .subagent-chips{display:flex;gap:6px;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none;padding:1px}
 .subagent-chips::-webkit-scrollbar{display:none}
+.subagent-chip-item{display:inline-flex;align-items:center;gap:1px;flex:none;min-width:0}
 .embedded-chat .subagent-chip,.subagent-chip{display:inline-flex;align-items:center;gap:7px;flex:none;max-width:280px;padding:4px 10px!important;border:1px solid var(--line-strong)!important;border-radius:999px!important;background:var(--surface-hover)!important;color:var(--text-soft)!important;font-size:calc(11.5px * var(--text-scale))!important;font-weight:400!important}
 .subagent-chip:hover{border-color:var(--accent-line)!important;background:var(--surface-selected)!important}
 .subagent-chip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -119,6 +127,11 @@
 .subagent-tree{position:absolute;right:16px;bottom:calc(100% + 6px);z-index:20;width:min(420px,calc(100% - 32px));max-height:min(420px,60dvh);display:flex;flex-direction:column;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-hover);box-shadow:0 12px 40px color-mix(in srgb,var(--shadow) calc(53% * var(--shadow-strength)),transparent);color:var(--text-soft)}
 .subagent-tree>header{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--line)}
 .subagent-tree>header>small{flex:1;color:var(--text-muted)}
+/* Clear finished: quiet, beside the close button; its Undo for a moment below the header. */
+.embedded-chat .subagent-tree-clear,.subagent-tree-clear{flex:none;height:24px;padding:0 8px!important;border:1px solid transparent!important;border-radius:6px!important;background:transparent!important;color:var(--text-subtle)!important;font-size:calc(11px * var(--text-scale))!important;font-weight:500!important;white-space:nowrap}
+.subagent-tree-clear:hover,.subagent-tree-clear:focus-visible{border-color:var(--line)!important;color:var(--text)!important}
+.subagent-tree-cleared{display:flex;align-items:center;gap:2px;margin:0;padding:5px 14px;border-bottom:1px solid var(--line-subtle);font-size:calc(11px * var(--text-scale));color:var(--text-muted)}
+.subagent-tree-cleared .subagent-link{margin:0}
 .subagent-tree ul{list-style:none;margin:0;padding:4px;overflow:auto}
 .subagent-tree li{display:flex;align-items:center;gap:2px;padding-left:calc(var(--depth,0) * 18px)}
 .subagent-tree li[data-depth]:not([data-depth="0"])>.subagent-tree-row::before{content:'└';color:var(--text-disabled);margin-right:-2px}

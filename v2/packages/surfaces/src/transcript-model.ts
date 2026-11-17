@@ -3,6 +3,7 @@ import { providerData } from '@lazybox/client-core';
 import { failureSentence, isLimitState, isProviderDiagnostic, switchNote, type SwitchNote } from './subscription-model';
 import { emptySubagents, SubagentFold, subagentRelevant, type Subagents } from './subagent-model';
 import { applyToolPayload, hiddenTool, THINKING, type ToolEntry } from './tool-lines';
+import { noteStops, stoppedEntry, type TurnStops } from './tool-stops';
 import { answerNote, requestNote, type AnswerNote, type RequestNote } from './request-model';
 import { commandLine, emptyCatalog, mergeCatalog, parseSlash, COMMAND_NAME, type CommandCatalog } from './slash-commands';
 import { legacyOrigin, messageOrigin, type MessageOrigin, type RunnerNotice } from './system-events';
@@ -51,7 +52,10 @@ export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]
    * operation ID, in the order accepted. The Queued strip shows them; the
    * conversation shows each once, where its receipt says the agent got it.
    */
-  pending?: Record<string, TranscriptMessage> };
+  pending?: Record<string, TranscriptMessage>;
+  /** Whether this turn was interrupted or an approval declined: a call that then failed was stopped or denied. */
+  stops?: TurnStops };
+
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {}, catalog: emptyCatalog() });
 
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
@@ -139,6 +143,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       // A receipt during a turn is its start's, or later than it.
       if (next.turnRunning) next.turnStart = undefined;
     }
+    next.stops = noteStops(next.stops, event);
     if (event.type === 'session_ready' || event.type === 'context' || event.type === 'usage') {
       const model = providerData(event.providerDataJson).model;
       if (typeof model === 'string' && model.trim()) next.reportedModel = model;
@@ -185,7 +190,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
     }
     if (THINKING_ENDS.has(event.type)) endThinking(messages ?? state.messages, replaceAt, owned, Number.isFinite(at) ? at : undefined);
     if (event.type === 'tool_activity') {
-      foldTool(messages ?? state.messages, record, list, replaceAt, add, owned);
+      foldTool(messages ?? state.messages, record, list, replaceAt, add, owned, next.stops);
       next.appendToLast = false;
       continue;
     }
@@ -293,7 +298,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
 }
 /** How far back a tool result looks for its call: past the calls of a long parallel run. */
 const TOOL_LOOKBACK = 24;
-function foldTool(messages: TranscriptMessage[], record: JournalEvent, list: () => TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, add: (message: TranscriptMessage) => void, owned: Set<TranscriptMessage>) {
+function foldTool(messages: TranscriptMessage[], record: JournalEvent, list: () => TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, add: (message: TranscriptMessage) => void, owned: Set<TranscriptMessage>, stops?: TurnStops) {
   const event = record.event!;
   const payload = providerData(event.providerDataJson);
   const id = payload.type === 'tool_result' ? payload.tool_use_id : payload.id;
@@ -304,8 +309,9 @@ function foldTool(messages: TranscriptMessage[], record: JournalEvent, list: () 
     if (message.type === 'operation_accepted' && !message.steered) break;
     const index = message.tools?.findIndex(t => t.id === id) ?? -1;
     if (index < 0) continue;
-    const entry = applyToolPayload(message.tools![index], payload, at);
-    if (!entry) return;
+    const applied = applyToolPayload(message.tools![index], payload, at);
+    if (!applied) return;
+    const entry = stoppedEntry(applied, stops);
     if (owned.has(message)) message.tools![index] = entry;
     else { const tools = [...message.tools!]; tools[index] = entry; replaceAt(i, { ...message, tools }); }
     return;

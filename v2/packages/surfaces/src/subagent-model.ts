@@ -2,6 +2,7 @@ import type { JournalEvent } from '@lazybox/protocol';
 import type { ToolCall } from './tool-activity';
 import { applyToolPayload, groupTools, type ToolEntry, type ToolItem } from './tool-lines';
 import { toolLabel } from './live-status';
+import { stoppedEntry, stopText } from './tool-stops';
 
 /**
  * Sub-agents a conversation's agent spawned, folded from its journal: who
@@ -11,9 +12,14 @@ import { toolLabel } from './live-status';
  * Attribution is the providers': the Claude worker names a sub-agent after
  * the tool call that spawned it (`claude-tool:<tool_use_id>`) and tags its
  * messages and tool calls with that id; Codex sub-threads are `codex:<thread>`.
- * Nothing here is inferred from text.
+ * Nothing here is inferred from text, but Claude's fixed words for a call it
+ * did not run because it was stopped (tool-stops.ts).
  */
-export type SubagentStatus = 'starting' | 'running' | 'waiting' | 'done' | 'failed' | 'stopped' | 'unknown';
+/**
+ * `unreported`: it cannot still be running (the turn it belonged to ended)
+ * but no end was ever reported: no outcome to show, and no clock running.
+ */
+export type SubagentStatus = 'starting' | 'running' | 'waiting' | 'done' | 'failed' | 'stopped' | 'unknown' | 'unreported';
 export const activeSubagent = (status: SubagentStatus) => status === 'starting' || status === 'running' || status === 'waiting';
 
 export type SubagentItem =
@@ -44,6 +50,10 @@ export type Subagent = {
   error: string;
   startedAt?: number;
   endedAt?: number;
+  /** Its last own event: an end nobody reported is put here, never later. */
+  lastAt?: number;
+  /** The person asked the Runner to stop it (an accepted stopAgent). */
+  stopRequested?: boolean;
   /** Its own step: working, thinking, responding, tool… and since when. */
   phase: string;
   phaseTool: string;
@@ -94,12 +104,16 @@ export type Subagents = {
   aliases: Readonly<Record<string, string>>;
   /** Background shell calls (`run_in_background`) by tool call id: what a background command runs, and what the agent said it does. */
   commandCalls?: Readonly<Record<string, CommandCall>>;
+  /** Skill calls by tool call id → the skill: names the run a forked one starts, which the provider may not name. */
+  skillCalls?: Readonly<Record<string, string>>;
   truncated: boolean;
 };
 export type CommandCall = { command: string; description: string };
-export const emptySubagents = (): Subagents => ({ byId: {}, order: [], spawns: {}, aliases: {}, commandCalls: {}, truncated: false });
+export const emptySubagents = (): Subagents => ({ byId: {}, order: [], spawns: {}, aliases: {}, commandCalls: {}, skillCalls: {}, truncated: false });
 /** Background shell calls remembered for naming their commands: the newest. */
 const COMMAND_CALLS = 256;
+/** Skill calls remembered for naming a forked run: the newest. */
+const SKILL_CALLS = 64;
 /** A background command's description is kept whole, up to this. */
 const DESCRIPTION = 400;
 
@@ -155,8 +169,9 @@ export function resultText(value: unknown): string {
   if (value && typeof value === 'object' && 'content' in value) return resultText((value as { content: unknown }).content);
   return value === undefined || value === null ? '' : JSON.stringify(value, null, 2);
 }
-// Claude's sub-agent result ends with a resume handle for the model, not the reader.
-const cleanResult = (value: string) => value.replace(/\n*agentId: [\w-]+[^\n]*\s*$/, '').trim().slice(0, MAX_RESULT);
+// Claude's sub-agent result ends with a resume handle for the model, not the
+// reader; a forked Skill's starts with a line saying it was one.
+const cleanResult = (value: string) => value.replace(/\n*agentId: [\w-]+[^\n]*\s*$/, '').replace(/^Skill "[^"\n]*" completed \(forked execution\)\.\s*(?:Result:\s*)?/, '').trim().slice(0, MAX_RESULT);
 
 function mapStatus(status: string, current: SubagentStatus): SubagentStatus | undefined {
   switch (status) {
@@ -169,6 +184,8 @@ function mapStatus(status: string, current: SubagentStatus): SubagentStatus | un
     // An idle sub-thread that worked has finished.
     case 'ready': return current === 'running' || current === 'waiting' ? 'done' : undefined;
     case 'unknown': return activeSubagent(current) ? 'unknown' : undefined;
+    // The view's word for one the Runner said was not running when asked to stop it.
+    case 'unreported': return activeSubagent(current) ? 'unreported' : undefined;
   }
   return;
 }
@@ -185,6 +202,7 @@ export class SubagentFold {
   private spawns?: Record<string, string>;
   private aliases?: Record<string, string>;
   private commandCalls?: Record<string, CommandCall>;
+  private skillCalls?: Record<string, string>;
   private truncated: boolean;
   private owned = new Set<object>();
   private cards: string[] = [];
@@ -261,6 +279,11 @@ export class SubagentFold {
     if (agent.phase !== phase || agent.phaseTool !== tool) { agent.phase = phase; agent.phaseTool = tool; agent.phaseSince = at; }
   }
 
+  /** Its own event at `at`: the latest it is known to have done anything. */
+  private touch(agent: Subagent, at: number | undefined) {
+    if (at !== undefined && (agent.lastAt === undefined || at > agent.lastAt)) agent.lastAt = at;
+  }
+
   private settle(agent: Subagent, status: SubagentStatus, at: number | undefined) {
     agent.status = status;
     if (activeSubagent(status)) { agent.endedAt = undefined; return; }
@@ -327,11 +350,23 @@ export class SubagentFold {
     const agent = this.edit(known);
     // A background sub-agent's call returns at once; its result comes when it settles.
     if (agent.backgrounded) return;
+    this.touch(agent, at);
     const output = data.output !== undefined ? data.output : payload(bytes)?.output;
-    const result = cleanResult(resultText(output));
+    const text = resultText(output);
+    // Its call was stopped (an interrupt, Send now): it was stopped, with all it started; nothing failed.
+    if (data.status === 'failed' && stopText(text)) { this.stopTree(agent.id, at); return; }
+    const result = cleanResult(text);
     if (result) agent.result = result;
     if (activeSubagent(agent.status)) this.settle(agent, data.status === 'failed' ? 'failed' : 'done', at);
     if (data.status === 'failed' && !agent.error) agent.error = result.split('\n')[0].slice(0, 300);
+  }
+
+  /** A sub-agent stopped under its call, and every one it started that still runs, each at its last event. */
+  private stopTree(id: string, at: number | undefined, depth = 0) {
+    const agent = this.get(id);
+    if (!agent || depth > 16) return;
+    if (activeSubagent(agent.status)) { const owned = this.edit(id); this.settle(owned, 'stopped', depth ? owned.lastAt ?? at : at); }
+    for (const child of agent.children) { const nested = this.get(child); if (nested && !nested.backgrounded) this.stopTree(child, at, depth + 1); }
   }
 
   record(record: JournalEvent): void {
@@ -351,6 +386,11 @@ export class SubagentFold {
             const call = payload(e.providerDataJson);
             if (call) this.commandCall(call);
             return;
+          } else if (/"name"\s*:\s*"Skill"/.test(head) && /"status"\s*:\s*"running"/.test(head)) {
+            // A skill's call names the run it may fork.
+            const call = payload(e.providerDataJson);
+            if (call) this.skillCall(call);
+            return;
           } else {
             const id = /"id"\s*:\s*"([^"]+)"/.exec(head)?.[1];
             if (id && pending[id]) data = payload(e.providerDataJson);
@@ -360,18 +400,26 @@ export class SubagentFold {
         }
         case 'session_closed': case 'profile_switching': this.endAll('stopped', at); return;
         case 'process_exit': this.endAll('unknown', at); return;
+        case 'turn_ended': this.endTurn(at); return;
       }
       return;
     }
     const id = this.resolve(e.agentId);
     if (e.type === 'agent_status') { this.status(id, e, at); return; }
+    // The only operation that names a sub-agent: the person asked to stop it.
+    if (e.type === 'operation_accepted') { if (this.get(id)) this.edit(id).stopRequested = true; return; }
     if (!CHILD_TYPES.has(e.type)) return;
-    if (!this.get(id) && !this.create(id, e.parentAgentId || 'root', at)) return;
+    if (!this.get(id)) {
+      if (!this.create(id, e.parentAgentId || 'root', at)) return;
+      this.adoptCall(id);
+    }
     let agent = this.edit(id);
+    this.touch(agent, at);
     switch (e.type) {
       case 'tool_activity': {
         const data = payload(e.providerDataJson);
         if (!data || data.type !== 'tool_call' || typeof data.id !== 'string') return;
+        if (data.name === 'Skill' && data.status === 'running') this.skillCall(data);
         if (SPAWN_TOOLS.has(data.name) || READ_TOOLS.has(data.name) || this.spawnOf(data.id)) { this.spawnCall(id, data, at, e.providerDataJson); if (!READ_TOOLS.has(data.name) && !(this.spawnOf(data.id) && this.get(this.spawnOf(data.id)!)?.kind === 'command')) return; }
         agent = this.edit(id);
         if (agent.status === 'starting') agent.status = 'running';
@@ -447,6 +495,31 @@ export class SubagentFold {
     if (agent?.kind === 'command') this.nameCommand(this.edit(known!), agent.description || agent.command);
   }
 
+  /** A Skill call: the skill names the run it forks, if it forks one. */
+  private skillCall(data: Record<string, any>) {
+    const skill = data.input && typeof data.input === 'object' ? text(data.input.skill).trim() : '';
+    if (data.type !== 'tool_call' || typeof data.id !== 'string' || !skill) return;
+    const calls = this.skillCalls ??= { ...(this.state.skillCalls ?? {}) };
+    calls[data.id] = skill;
+    const ids = Object.keys(calls);
+    for (const old of ids.slice(0, Math.max(0, ids.length - SKILL_CALLS))) delete calls[old];
+  }
+
+  /**
+   * A sub-agent first heard of by its own events, under the call that runs it
+   * (`claude-tool:<call>`): that call's result is its end (a forked Skill
+   * reports no other), and a Skill call names it.
+   */
+  private adoptCall(id: string) {
+    const call = /(?:^|:)claude-tool:(.+)$/.exec(id)?.[1];
+    if (!call || this.spawnOf(call)) return;
+    (this.spawns ??= { ...this.state.spawns })[call] = id;
+    const agent = this.edit(id);
+    agent.toolUseId ||= call;
+    const skill = (this.skillCalls ?? this.state.skillCalls ?? {})[call];
+    if (skill) { agent.name ||= skill; agent.type ||= 'skill'; }
+  }
+
   /**
    * A background command's name: what the agent said it does, whole, else
    * what runs ("pytest tests/test_mcp.py"), never a description cut as if
@@ -478,6 +551,7 @@ export class SubagentFold {
       if (toolUseId) (this.spawns ??= { ...this.state.spawns })[toolUseId] = id;
     }
     const agent = this.edit(id);
+    this.touch(agent, at);
     if (toolUseId) agent.toolUseId ||= toolUseId;
     if (e.name) {
       if (agent.kind === 'command') this.nameCommand(agent, e.name);
@@ -502,7 +576,8 @@ export class SubagentFold {
     if (lastTool && !agent.runningTool && activeSubagent(agent.status)) this.phase(agent, 'tool', lastTool, at);
     if (text(data.error)) agent.error = data.error;
     if (text(data.message) && !agent.result) agent.progress = data.message;
-    const status = mapStatus(e.status, agent.status);
+    // The worker's word that the turn it belonged to ended without its end reported.
+    const status = e.status === 'unknown' && data.reason === 'turn_ended' ? (activeSubagent(agent.status) ? 'unreported' : undefined) : mapStatus(e.status, agent.status);
     if (status) {
       if (activeSubagent(status)) { agent.status = status; agent.endedAt = undefined; if (status === 'running' && agent.phase === 'starting') this.phase(agent, 'working', '', at); }
       else this.settle(agent, status, at);
@@ -512,16 +587,30 @@ export class SubagentFold {
     if (!activeSubagent(agent.status)) agent.progress = '';
   }
 
+  /** The session ended under them: each ended no later than its last own event. */
   private endAll(status: SubagentStatus, at: number | undefined) {
     for (const id of this.order ?? this.state.order) {
       const agent = this.get(id);
-      if (agent && activeSubagent(agent.status)) this.settle(this.edit(id), status, at);
+      if (agent && activeSubagent(agent.status)) this.settle(this.edit(id), status, agent.lastAt ?? at);
+    }
+  }
+
+  /**
+   * The main agent's turn ended: a sub-agent the turn waited on cannot still
+   * run. One whose end was never reported (an older worker, a forked run, an
+   * interrupted turn) ended unreported, at its last own event. Background
+   * work outlives the turn and is left alone.
+   */
+  private endTurn(at: number | undefined) {
+    for (const id of this.order ?? this.state.order) {
+      const agent = this.get(id);
+      if (agent && activeSubagent(agent.status) && endsWithTurn(agent, this.byId ?? this.state.byId)) this.settle(this.edit(id), 'unreported', agent.lastAt ?? at);
     }
   }
 
   result(): Subagents {
-    if (!this.byId && !this.order && !this.spawns && !this.aliases && !this.commandCalls && this.truncated === this.state.truncated) return this.state;
-    return { byId: this.byId ?? this.state.byId, order: this.order ?? this.state.order, spawns: this.spawns ?? this.state.spawns, aliases: this.aliases ?? this.state.aliases, commandCalls: this.commandCalls ?? this.state.commandCalls ?? {}, truncated: this.truncated };
+    if (!this.byId && !this.order && !this.spawns && !this.aliases && !this.commandCalls && !this.skillCalls && this.truncated === this.state.truncated) return this.state;
+    return { byId: this.byId ?? this.state.byId, order: this.order ?? this.state.order, spawns: this.spawns ?? this.state.spawns, aliases: this.aliases ?? this.state.aliases, commandCalls: this.commandCalls ?? this.state.commandCalls ?? {}, skillCalls: this.skillCalls ?? this.state.skillCalls ?? {}, truncated: this.truncated };
   }
 }
 
@@ -529,7 +618,7 @@ export class SubagentFold {
 export function subagentRelevant(event: JournalEvent['event']): boolean {
   if (!event) return false;
   if (event.agentId && event.agentId !== 'root') return true;
-  return event.type === 'tool_activity' || event.type === 'session_closed' || event.type === 'process_exit' || event.type === 'profile_switching';
+  return event.type === 'tool_activity' || event.type === 'session_closed' || event.type === 'process_exit' || event.type === 'profile_switching' || event.type === 'turn_ended';
 }
 
 const shortPath = (path: string) => {
@@ -611,7 +700,8 @@ export const toolTotal = (agent: Subagent) => Math.max(agent.toolCount, agent.re
 export function agentElapsed(agent: Subagent, now: number): number | undefined {
   if (!activeSubagent(agent.status) && agent.durationMs !== undefined) return agent.durationMs;
   if (agent.startedAt === undefined) return;
-  const end = activeSubagent(agent.status) ? now : agent.endedAt;
+  // Ended without a word of when (the Runner says so, the journal never did): at its last own event.
+  const end = activeSubagent(agent.status) ? now : agent.endedAt ?? agent.lastAt;
   return end !== undefined && end >= agent.startedAt ? end - agent.startedAt : undefined;
 }
 
@@ -656,6 +746,7 @@ export function toolEntry(call: ToolCall): ToolEntry {
   entry = applyToolPayload(undefined, { type: 'tool_call', id: call.id, name: call.name, status, input: call.input, output: call.output }, call.startedAt ?? call.endedAt) || { id: call.id, name: call.name, status };
   // The journal's own times: when the call was seen to start, and to end.
   entry.status = status; entry.startedAt = call.startedAt; entry.endedAt = call.endedAt;
+  entry = stoppedEntry(entry, undefined);
   entries.set(call, entry);
   return entry;
 }
@@ -688,7 +779,32 @@ export function stepRows(items: readonly SubagentItem[]): StepRow[] {
   return rows;
 }
 
-export const statusWord: Record<SubagentStatus, string> = { starting: 'Starting', running: 'Running', waiting: 'Waiting', done: 'Done', failed: 'Failed', stopped: 'Stopped', unknown: 'Status unknown' };
+export const statusWord: Record<SubagentStatus, string> = { starting: 'Starting', running: 'Running', waiting: 'Waiting', done: 'Done', failed: 'Failed', stopped: 'Stopped', unknown: 'Status unknown', unreported: 'Ended without a report' };
+
+/**
+ * Whether a sub-agent ends with the main agent's turn. A Claude sub-agent the
+ * spawning call waits on (`claude-tool:<call>`, not run in the background,
+ * nor inside one that was) cannot outlive the turn. Background commands,
+ * background sub-agents, tasks the provider found running on its own
+ * (`claude-task:`) and other providers' sub-threads (Codex keeps them across
+ * turns) can.
+ */
+export function endsWithTurn(agent: Subagent, byId: Readonly<Record<string, Subagent>>): boolean {
+  for (let node: Subagent | undefined = agent, depth = 0; node && depth < 32; node = byId[node.parentId], depth++) {
+    if (node.kind !== 'agent' || node.backgrounded || !/(?:^|:)claude-tool:/.test(node.runnerId || node.id)) return false;
+    if (node.parentId === 'root') return true;
+  }
+  return false;
+}
+
+/**
+ * Whether a Stop is offered for it: the provider can stop one sub-agent, it
+ * is running, and the Runner knows it by the provider's id (what a stop
+ * addresses: a forked Skill has none, and only interrupting the turn ends it).
+ */
+export function canStopSubagent(agent: Subagent, status: SubagentStatus, session: { canStop: boolean; native: ReadonlySet<string> }): boolean {
+  return session.canStop && activeSubagent(status) && (session.native.has(agent.runnerId) || session.native.has(agent.id));
+}
 
 /**
  * The Runner's view of a sub-agent is fresher than the journal for a
@@ -702,6 +818,21 @@ function mergedWith(agent: Subagent, runner?: string): SubagentStatus {
   if (!runner || !activeSubagent(agent.status)) return agent.status;
   const mapped = mapStatus(runner, agent.status);
   return mapped && !activeSubagent(mapped) ? mapped : agent.status;
+}
+
+/**
+ * Whether Background work leaves it out: the person cleared it, and neither
+ * it nor anything it started runs. Running work is never hidden.
+ */
+export function hiddenFromWork(agent: Subagent, cleared: ReadonlySet<string>, status: (agent: Subagent) => SubagentStatus, byId: Readonly<Record<string, Subagent>>): boolean {
+  if (!cleared.has(agent.id)) return false;
+  const running = (node: Subagent, depth: number): boolean => activeSubagent(status(node)) || (depth < 16 && node.children.some(id => { const child = byId[id]; return !!child && running(child, depth + 1); }));
+  return !running(agent, 0);
+}
+
+/** What Clear finished clears: every listed item that ended (done, failed, stopped or otherwise). */
+export function finishedWork(agents: readonly Subagent[], status: (agent: Subagent) => SubagentStatus): string[] {
+  return agents.filter(agent => !activeSubagent(status(agent))).map(agent => agent.id);
 }
 
 /** Background commands, running first, newest first. */

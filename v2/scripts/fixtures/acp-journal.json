@@ -38,7 +38,8 @@
     },
     {
       "data": {
-        "files": null
+        "files": null,
+        "kind": "message"
       },
       "imageCount": 0,
       "kind": "message",
@@ -441,7 +442,8 @@
     },
     {
       "data": {
-        "files": null
+        "files": null,
+        "kind": "message"
       },
       "imageCount": 0,
       "kind": "message",

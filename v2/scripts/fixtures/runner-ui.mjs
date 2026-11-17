@@ -932,6 +932,9 @@ actions:
         // Like the Runner: at a subscription limit a message is accepted and
         // waits in the queue (journaled once), delivered after the switch.
         const session=sessions.find(s=>s.id===body.sessionId);
+        // Like the Runner: a stop names a sub-agent it knows running, by the provider's id; else nothing is running.
+        // `notRunning`: the Runner's own state moved on after the snapshot the client shows.
+        if(session&&body.stopAgent){const agent=(session.agents||[]).find(a=>a.id===body.stopAgent.agentId);if(!agent||!agent.nativeId||agent.notRunning||!['running','starting','waiting_input','waiting_approval'].includes(agent.status))return error('failed_precondition','sub-agent is not running');}
         // Like the Runner: a live model switch is a setting, recorded as one line in the conversation.
         if(session&&body.model){if(!session.capabilities?.liveModel)return error('unimplemented','operation unsupported by adapter');session.model=body.model.model;session.modelReported=true;eventStreams.get(session.id)?.push({type:'model_changed',text:body.model.model,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}
         if(session&&body.permission){session.permission=body.permission.mode;eventStreams.get(session.id)?.push({type:'permission_changed',text:body.permission.mode,status:'live'});return json({operationId:body.operationId,delivery:'acknowledged'});}

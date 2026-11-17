@@ -55,17 +55,31 @@ export function SubagentStats({ agent, status, now }: { agent: Subagent; status:
   return <span className="subagent-stats">{parts.flatMap((part, i) => i ? [<span key={i} className="subagent-sep" aria-hidden="true"> · </span>, part] : [part])}</span>;
 }
 
-/** Stop asks once more before it acts: a sub-agent's work is not undone by a resend. */
-export function StopSubagent({ view, agent, status }: { view: SubagentView; agent: Subagent; status: SubagentStatus }) {
-  const [confirming, setConfirming] = useState(false);
-  useEffect(() => { if (!confirming) return; const timer = setTimeout(() => setConfirming(false), 4000); return () => clearTimeout(timer); }, [confirming]);
-  if (!view.canStop || !view.actions.stop || !activeSubagent(status)) return null;
-  const stopping = view.stopping.has(agent.id), noun = agent.kind === 'command' ? 'background command' : 'sub-agent';
-  return <button type="button" className={'subagent-stop' + (confirming ? ' confirming' : '')} disabled={stopping}
-    aria-label={stopping ? `Stopping ${noun}` : confirming ? `Confirm: stop ${subagentTitle(agent, view)}` : `Stop ${noun} ${subagentTitle(agent, view)}`}
-    title={confirming ? `Click again to stop this ${noun}. The main agent keeps working.` : `Stop this ${noun}`}
-    onClick={() => { if (!confirming) { setConfirming(true); return; } setConfirming(false); void view.stop(agent); }}>
-    <Icon name="stop" size={12}/>{stopping ? <span>Stopping…</span> : confirming ? <span>Stop?</span> : null}
+const nounOf = (agent: Subagent) => agent.kind === 'command' ? 'background command' : 'sub-agent';
+
+/** Delete or Backspace, alone, on a sub-agent's card, chip or row: stop it. */
+export function stopKeys(view: SubagentView, agent: Subagent, status: SubagentStatus) {
+  return (event: KeyboardEvent) => {
+    if ((event.key !== 'Delete' && event.key !== 'Backspace') || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat) return;
+    if (!view.canStopAgent(agent, status) || view.isStopping(agent)) return;
+    event.preventDefault(); event.stopPropagation();
+    void view.stop(agent);
+  };
+}
+
+/**
+ * ■ Stop: ends one sub-agent (or background command); the main agent keeps
+ * working. Offered while it runs and the Runner can address it; it reads
+ * Stopping… until its end is reported. `compact` is the square alone (a chip, a row).
+ */
+export function StopSubagent({ view, agent, status, compact = false }: { view: SubagentView; agent: Subagent; status: SubagentStatus; compact?: boolean }) {
+  if (!view.canStopAgent(agent, status)) return null;
+  const stopping = view.isStopping(agent), noun = nounOf(agent), title = subagentTitle(agent, view);
+  return <button type="button" className="subagent-stop" data-compact={compact || undefined} disabled={stopping} aria-keyshortcuts="Delete Backspace"
+    aria-label={stopping ? `Stopping ${noun} ${title}` : `Stop ${noun} ${title}`}
+    title={stopping ? `Stopping this ${noun}…` : `Stop this ${noun}; the main agent continues`}
+    onClick={event => { event.stopPropagation(); void view.stop(agent); }}>
+    <span className="subagent-stop-square" aria-hidden="true"/>{(!compact || stopping) && <span>{stopping ? 'Stopping…' : 'Stop'}</span>}
   </button>;
 }
 
@@ -143,8 +157,10 @@ export function SubagentPrompt({ agent, open = false }: { agent: Subagent; open?
 export function SubagentOutcome({ view, agent, status }: { view: SubagentView; agent: Subagent; status: SubagentStatus }) {
   const full = view.results.has(agent.id);
   const preview = agent.result ? resultPreview(agent.result) : '';
-  const word = status === 'stopped' ? 'Stopped' : status === 'failed' ? 'Failed' : status === 'unknown' ? 'Status unknown' : 'Done';
-  const line = status === 'failed' ? agent.error || agent.summary || preview : preview || agent.summary;
+  const word = status === 'stopped' ? (view.isStopping(agent) ? 'Stopped by you' : 'Stopped') : status === 'done' ? 'Done' : statusWord[status];
+  const line = status === 'failed' ? agent.error || agent.summary || preview
+    : status === 'unreported' ? preview || agent.summary || (view.gone.has(agent.id) ? 'It was no longer running when you asked to stop it; how it ended was never reported.' : 'Its turn ended, and how it ended was never reported.')
+    : preview || agent.summary;
   return <div className="subagent-outcome" data-status={status}>
     <p><strong>{word}</strong>{line && <span className="subagent-outcome-text">{line}</span>}</p>
     {agent.result && <button type="button" className="subagent-link" aria-expanded={full} onClick={() => view.toggleResult(agent.id)}>{full ? 'Hide full result' : 'Show full result'}</button>}
@@ -181,8 +197,8 @@ export const SubagentCard = memo(function SubagentCard({ id }: { id: string }) {
   const keys = (event: KeyboardEvent) => { if (event.key === 'Escape' && expanded) { event.stopPropagation(); view.toggle(id, false); } };
   return <section ref={card} className="subagent-card" data-status={status} data-nested={agent.depth > 0 || undefined} data-agent-id={id} aria-label={`Sub-agent: ${title}`} onKeyDown={keys}
     onContextMenu={contextMenu<SubagentMenuDetail>('subagent', () => subagentItems(view, agent, title), { agentId: id, kind: agent.kind }, `${title} actions`)}>
-    <div className="subagent-head">
-      <button type="button" className="subagent-toggle" aria-expanded={expanded} aria-controls={bodyId} aria-keyshortcuts="Alt+Click Space"
+    <div className="subagent-head" onKeyDown={stopKeys(view, agent, status)}>
+      <button type="button" className="subagent-toggle" aria-expanded={expanded} aria-controls={bodyId} aria-keyshortcuts={view.canStopAgent(agent, status) ? 'Alt+Click Space Delete Backspace' : 'Alt+Click Space'}
         onClick={event => { if (event.altKey) { event.preventDefault(); view.open(id, 'float'); return; } toggle(); }}
         onKeyDown={event => { if (event.key === ' ' && !event.repeat) { event.preventDefault(); view.open(id, 'float'); } }}>
         <SubagentMark status={status}/>

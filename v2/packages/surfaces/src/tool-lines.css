@@ -11,6 +11,10 @@
 .tool-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;flex:none;color:var(--text-faint)}
 .tool-line[data-state=failed]>.tool-line-row .tool-icon{color:var(--danger-soft)}
 .tool-line[data-state=unknown]>.tool-line-row .tool-icon{color:var(--text-disabled)}
+/* Stopped or denied: not run, not failed. A still square and a word, muted. */
+.tool-stop-square{display:inline-block;width:7px;height:7px;border-radius:1.5px;background:currentColor}
+.tool-line[data-state=stopped]>.tool-line-row .tool-icon,.tool-line[data-state=denied]>.tool-line-row .tool-icon{color:var(--text-disabled)}
+.tool-line-stopped{flex:none;margin-left:8px;color:var(--text-muted);font-size:calc(11px * var(--text-scale));white-space:nowrap}
 .tool-spinner{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--info-line);border-top-color:var(--accent);animation:tool-spin .9s linear infinite}
 @keyframes tool-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.tool-spinner{animation:none;border-color:var(--accent)}}

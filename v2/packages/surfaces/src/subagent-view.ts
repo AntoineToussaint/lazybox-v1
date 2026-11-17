@@ -1,15 +1,23 @@
 import { createContext, useContext, useSyncExternalStore } from 'react';
 import type { Session } from '@lazybox/protocol';
-import { ancestry, emptySubagents, type Subagent, type Subagents } from './subagent-model';
+import { ancestry, canStopSubagent, emptySubagents, type Subagent, type SubagentStatus, type Subagents } from './subagent-model';
 import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 
 export type SubagentPanelMode = 'float' | 'dock';
+export type StopOutcome = 'stopping' | 'gone' | 'failed';
+/** Cleared items remembered per conversation: the newest. */
+const CLEARED_LIMIT = 1000;
+const clearedKey = (conversation: string) => `lazybox.background-work.cleared.${conversation}`;
 export type SubagentActions = {
   /** Scroll the conversation to a transcript message (a top-level card). */
   revealMessage(messageId: string): void;
-  /** Stop one running sub-agent; present only when the provider supports it. */
-  stop?(agentId: string): Promise<void>;
+  /**
+   * Stop one running sub-agent; present only when the provider supports it.
+   * 'stopping': the Runner took it; 'gone': the Runner says it is not running
+   * (its end was never reported here); 'failed': refused, and said so.
+   */
+  stop?(agentId: string): Promise<StopOutcome>;
   openFile?(reference: FileLink, how: OpenModifiers): void;
 };
 
@@ -25,14 +33,28 @@ export class SubagentView {
   results = new Set<string>();
   /** Failed sub-agents the person has looked at. */
   seen = new Set<string>();
+  /** Sub-agents the person asked to stop here: Stopping… until they end, then Stopped by you. */
   stopping = new Set<string>();
   panel: { agentId: string; mode: SubagentPanelMode } | null = null;
   /** A nested card to scroll to once its parent is open. */
   flash: { agentId: string; nonce: number } | null = null;
   runner: Record<string, string> = {};
+  /**
+   * Sub-agents the Runner said were not running when asked to stop them,
+   * though the journal never said they ended: ended unreported, at once,
+   * whatever the next session snapshot says.
+   */
+  gone = new Set<string>();
+  /** Finished items cleared from Background work in this conversation; the transcript keeps them. */
+  cleared = new Set<string>();
+  /** The last clear, for its Undo. */
+  lastCleared: string[] = [];
+  private conversation = '';
   /** The Runner's names, for a sub-agent whose journal never named it. */
   names: Record<string, string> = {};
   canStop = false;
+  /** Runner ids of the sub-agents it knows by the provider's id: the ones a stop can address. */
+  native = new Set<string>();
   /** The conversation's folder: tool lines show paths inside it relative to it. */
   root = '';
   actions: SubagentActions = { revealMessage() {} };
@@ -47,14 +69,46 @@ export class SubagentView {
   setSession(session: Session | undefined) {
     const runner: Record<string, string> = {};
     const names: Record<string, string> = {};
-    for (const agent of session?.agents || []) if (agent.id !== 'root') { runner[agent.id] = agent.status; if (agent.name && agent.name !== 'Agent') names[agent.id] = agent.name; }
+    const native = new Set<string>();
+    for (const agent of session?.agents || []) if (agent.id !== 'root') {
+      runner[agent.id] = agent.status;
+      if (agent.name && agent.name !== 'Agent') names[agent.id] = agent.name;
+      if (agent.nativeId) native.add(agent.id);
+    }
     const canStop = !!session?.capabilities?.stopAgent && !session.closed;
-    const changed = canStop !== this.canStop || Object.keys(runner).length !== Object.keys(this.runner).length || Object.entries(runner).some(([id, status]) => this.runner[id] !== status);
+    const changed = canStop !== this.canStop || native.size !== this.native.size || [...native].some(id => !this.native.has(id))
+      || Object.keys(runner).length !== Object.keys(this.runner).length || Object.entries(runner).some(([id, status]) => this.runner[id] !== status);
+    this.native = native;
     const renamed = Object.entries(names).some(([id, name]) => this.names[id] !== name);
     const root = session?.workingDirectory || '', moved = root !== this.root;
+    for (const id of this.gone) if (!runner[id] || ['running', 'starting', 'waiting_input', 'waiting_approval'].includes(runner[id])) runner[id] = 'unreported';
     this.runner = runner; this.names = names; this.canStop = canStop; this.root = root;
     return changed || renamed || moved;
   }
+  /** A different conversation: its own cleared items, nothing else carried over. */
+  setConversation(conversation: string) {
+    if (conversation === this.conversation) return;
+    this.conversation = conversation; this.gone.clear(); this.stopping.clear(); this.lastCleared = [];
+    let ids: unknown = [];
+    try { ids = JSON.parse(localStorage.getItem(clearedKey(conversation)) || '[]'); } catch { /* nothing cleared, or storage unavailable */ }
+    this.cleared = new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []);
+  }
+  private saveCleared() {
+    try { localStorage.setItem(clearedKey(this.conversation), JSON.stringify([...this.cleared].slice(-CLEARED_LIMIT))); } catch { /* holds for this window */ }
+  }
+  /** Hides finished items from Background work; the transcript keeps them. Undo brings them back. */
+  clearFinished(ids: readonly string[]) {
+    if (!ids.length) return;
+    for (const id of ids) this.cleared.add(id);
+    this.lastCleared = [...ids];
+    this.saveCleared(); this.notify();
+  }
+  undoClear() {
+    for (const id of this.lastCleared) this.cleared.delete(id);
+    this.lastCleared = [];
+    this.saveCleared(); this.notify();
+  }
+  dismissUndo() { if (this.lastCleared.length) { this.lastCleared = []; this.notify(); } }
   toggle(id: string, open = !this.expanded.has(id)) {
     if (open) { this.expanded.add(id); this.seen.add(id); } else this.expanded.delete(id);
     this.notify();
@@ -76,13 +130,26 @@ export class SubagentView {
     this.notify();
     if (top?.anchor) this.actions.revealMessage(top.anchor);
   }
-  /** Stops one sub-agent, by the id the Runner knows it by. */
+  /** Whether its Stop is offered: see `canStopSubagent`. */
+  canStopAgent(agent: Subagent, status: SubagentStatus): boolean {
+    return !!this.actions.stop && canStopSubagent(agent, status, this);
+  }
+  /** Asked to stop and not ended yet: here, or (from the journal) anywhere. */
+  isStopping(agent: Subagent): boolean { return this.stopping.has(agent.id) || !!agent.stopRequested; }
+  /**
+   * Stops one sub-agent, by the id the Runner knows it by. It reads as
+   * stopping until its end is reported; a refused stop is said and undone.
+   */
   async stop(agent: Subagent) {
     const id = agent.id;
-    if (!this.actions.stop || this.stopping.has(id)) return;
+    if (!this.actions.stop || this.isStopping(agent)) return;
     this.stopping.add(id); this.notify();
-    try { await this.actions.stop(agent.runnerId || id); }
-    finally { this.stopping.delete(id); this.notify(); }
+    const outcome = await this.actions.stop(agent.runnerId || id);
+    if (outcome === 'stopping') return;
+    this.stopping.delete(id);
+    // The Runner has nothing running by that name: it ended, unreported. Say so here at once.
+    if (outcome === 'gone') for (const known of new Set([id, agent.runnerId || id])) { this.gone.add(known); this.runner = { ...this.runner, [known]: 'unreported' }; }
+    this.notify();
   }
 }
 

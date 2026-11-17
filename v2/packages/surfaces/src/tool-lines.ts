@@ -11,7 +11,8 @@
 import { browserVerb, describeBrowserCall } from './browser-model';
 import { plainLazybox } from './lazybox-cli';
 
-export type ToolStatus = 'running' | 'completed' | 'failed' | 'unknown';
+/** `stopped` and `denied`: not run because the person (or Lazybox) stopped it or declined it; see tool-stops.ts. */
+export type ToolStatus = 'running' | 'completed' | 'failed' | 'unknown' | 'stopped' | 'denied';
 export type DiffStat = { added: number; removed: number; files: string[] };
 export type ToolEntry = {
   id: string;
@@ -157,7 +158,7 @@ export function applyToolPayload(previous: ToolEntry | undefined, payload: Recor
   const next: ToolEntry = previous ? { ...previous } : { id, name: name || 'Tool', status: status || 'running' };
   if (name) next.name = name;
   // A result never goes back to running.
-  if (status && !(previous && (previous.status === 'completed' || previous.status === 'failed') && status === 'running')) next.status = status;
+  if (status && !(previous && ['completed', 'failed', 'stopped', 'denied'].includes(previous.status) && status === 'running')) next.status = status;
   if (input !== undefined && input !== null) {
     const change = changeOf(next.name, input);
     if (change) { next.diff = change.diff; next.patch = change.patch; }

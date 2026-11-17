@@ -203,14 +203,25 @@ A sub-agent is a card where its parent started it: its task, live state, the
 step it is on (*Reading platform/bin/devbox*), elapsed time, tool count and
 tokens; once it ends, its outcome and the result it handed back. Open a card to
 follow its own messages and tool calls in a panel docked beside the chat, or
-floating. Stop one sub-agent from its card (Claude) without stopping the rest.
+floating. **■ Stop** on a running sub-agent's card, its chip or its row in
+Background work (or `Delete` / `⌫` there) stops that one sub-agent (Claude);
+the main agent continues. It reads *Stopping…* until Claude reports the end,
+then *Stopped by you*. A skill Claude runs in a sub-agent of its own (a forked
+`/code-review`) has no stop of its own: interrupt the turn to end it. A
+sub-agent the turn waited on cannot outlive the turn: if its end was never
+reported, its card says *Ended without a report*, its clock stopped at its
+last step. A step Claude did not run because you interrupted reads
+*Stopped*, and one you declined *Denied*; Claude's own words are in its
+details.
 
 Beside the message box, one chip per running sub-agent or background command
 takes you to it; **All**, and the background-work button in the chat header,
 list everything that ran. Each kind is counted apart (*2 sub-agents · 17
 commands · 0 running · 1 failed*), newest first, sub-agents as a tree under
 who started them; older finished items fold behind **Show 12 earlier**, but
-anything running or failed always shows. A background command (Claude's
+anything running or failed always shows. **Clear finished** hides what ended
+from that list for this conversation (*Cleared 12 · Undo*); the conversation
+keeps it, and running work always shows. A background command (Claude's
 `run_in_background`) is not a sub-agent: it reads as what the agent said it
 does (*Generate the protobuf code*), whole, with what runs beneath it, and
 opens a panel with its script and the output the agent last read.

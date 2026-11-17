@@ -360,8 +360,10 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 		}
 		e.state.Opening = string(opening)
 	}
-	// Do not retain image bytes or credentials in journal events.
-	record := map[string]any{"type": "operation_accepted", "operationId": op.ID, "kind": op.Kind, "text": op.Text, "imageCount": len(op.Images), "requestId": op.RequestID, "data": map[string]any{"files": op.Files}}
+	// Do not retain image bytes or credentials in journal events. Clients read
+	// the operation's kind from its data: an interrupt explains a tool call
+	// that then fails as one the person stopped.
+	record := map[string]any{"type": "operation_accepted", "operationId": op.ID, "kind": op.Kind, "text": op.Text, "imageCount": len(op.Images), "requestId": op.RequestID, "data": map[string]any{"files": op.Files, "kind": op.Kind}}
 	// A response's decision and answers are journaled so a request redelivered
 	// after a restart can be answered as the user did.
 	if op.Decision != "" {
@@ -370,7 +372,7 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	// A message Lazybox wrote says so, for clients to show it as an event of
 	// the conversation rather than as the person's words.
 	if op.Kind == agent.Message && op.Origin != nil {
-		record["data"] = map[string]any{"files": op.Files, "origin": op.Origin}
+		record["data"] = map[string]any{"files": op.Files, "kind": op.Kind, "origin": op.Origin}
 	}
 	if op.AgentID != "" {
 		record["agentId"] = op.AgentID

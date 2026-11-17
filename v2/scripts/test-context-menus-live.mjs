@@ -18,8 +18,8 @@ const SA='claude-tool:toolu_sa',BG='claude-tool:toolu_bg';
 const SCRIPT='cd /work/api && uv run pytest tests/test_mcp.py -x -q';
 Object.assign(session,{title:'Ship the front door',provider:'claude',busy:true,status:'running',capabilities:{...session.capabilities,stopAgent:true},agents:[
  {id:'root',status:'running',phase:'tool',tool:'Bash',phaseSinceUnixMillis:String(now-321000),turnStartedAtUnixMillis:String(now-400000)},
- {id:SA,parentId:'root',status:'running',name:'Review the API',kind:'local_agent'},
- {id:BG,parentId:'root',status:'running',name:SCRIPT,kind:'local_bash'}]});
+ {id:SA,parentId:'root',status:'running',name:'Review the API',kind:'local_agent',nativeId:'task-sa'},
+ {id:BG,parentId:'root',status:'running',name:SCRIPT,kind:'local_bash',nativeId:'bash-bg'}]});
 const output='step one\nCHECK_TAIL_LINE\n';
 f.commands.push({id:'cmd-check',sessionId:session.id,title:'pnpm run check',argv:['pnpm','run','check'],mode:'managed',done:false,offset:String(output.length),output});
 const ch=f.openEvents(session.id);

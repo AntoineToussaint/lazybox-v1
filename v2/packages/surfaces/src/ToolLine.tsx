@@ -32,7 +32,9 @@ export function openToolDetails(id: string) { window.dispatchEvent(new CustomEve
 
 const ICONS: Record<ToolKind, string> = { read: 'file', search: 'search', list: 'folder', edit: 'pencil', command: 'terminal', web: 'external', browser: 'globe', agent: 'branch', plan: 'checklist', thinking: 'sparkle', mcp: 'activity', other: 'activity' };
 const CATEGORY_ICONS: Record<ActivityCategory, string> = { explore: 'search', test: 'play', check: 'shield', build: 'processes', install: 'download', git: 'branch', web: 'external', browser: 'globe', command: 'terminal', tool: 'activity', plan: 'checklist', edit: 'pencil', thinking: 'sparkle' };
-const stateLabel = (entry: ToolEntry) => entry.status === 'running' ? 'Running' : entry.status === 'failed' ? 'Failed' : entry.status === 'unknown' ? 'No result reported' : 'Done';
+const stateLabel = (entry: ToolEntry) => entry.status === 'running' ? 'Running' : entry.status === 'failed' ? 'Failed' : entry.status === 'unknown' ? 'No result reported' : entry.status === 'stopped' ? 'Stopped' : entry.status === 'denied' ? 'Denied' : 'Done';
+/** Not run: stopped or declined. Said in a word, quietly; the provider's own words are in the details. */
+const notRun = (entry: ToolEntry) => entry.status === 'stopped' || entry.status === 'denied';
 const itemKey = (item: ToolItem | BriefItem) => item.kind === 'call' ? item.entry.id : `${item.kind}:${item.entries[0].id}`;
 const lastRunning = (entries: readonly ToolEntry[]) => { for (let i = entries.length - 1; i >= 0; i--) if (entries[i].status === 'running') return entries[i]; return undefined; };
 
@@ -142,10 +144,11 @@ export const ToolLine = memo(function ToolLine({ entry }: { entry: ToolEntry }) 
       <Chevron open={open}/><StateIcon kind={kind} state={entry.status}/>
       <span className="tool-line-title" onPointerEnter={titleWhenTruncated(label)}><span className="tool-verb">{title.verb}</span>{title.target && <> {title.code ? <code className={title.aside ? 'tool-target tool-aside' : 'tool-target'}>{title.target}</code> : <span className="tool-target">{title.target}</span>}</>}</span>
       <Meta meta={title.meta} failed={entry.status === 'failed'}/>
+      {notRun(entry) && <span className="tool-line-stopped">{stateLabel(entry)}</span>}
     </button>
     {title.problem && !open && <p className="tool-line-problem" role="note">{title.problem}</p>}
     {!open && kind === 'plan' && entry.id === latestPlan && <div className="tool-inline"><PlanList input={entry.input && typeof entry.input === 'object' ? entry.input as Record<string, any> : undefined}/></div>}
-    {!open && !brief && kind === 'edit' && entry.patch && entry.status !== 'failed' && <InlineDiff patch={entry.patch} onMore={() => setOpen(true)}/>}
+    {!open && !brief && kind === 'edit' && entry.patch && entry.status !== 'failed' && !notRun(entry) && <InlineDiff patch={entry.patch} onMore={() => setOpen(true)}/>}
     {open && <ToolDetails entry={entry} kind={kind} root={root} file={title.file} onOpenFile={onOpenFile}/>}
   </div>;
 });
@@ -166,7 +169,7 @@ function Chevron({ open }: { open: boolean }) {
   return <span className="tool-chevron" data-open={open || undefined} aria-hidden="true"><Icon name="chevronRight" size={12}/></span>;
 }
 function StateIcon({ kind, state }: { kind: ToolKind; state: string }) {
-  return <span className="tool-icon" data-state={state} aria-hidden="true">{state === 'running' ? <span className="tool-spinner"/> : state === 'thinking' ? <span className="tool-thinking-dot"><Icon name="sparkle" size={13}/></span> : <Icon name={state === 'failed' ? 'alert' : ICONS[kind]} size={13}/>}</span>;
+  return <span className="tool-icon" data-state={state} aria-hidden="true">{state === 'running' ? <span className="tool-spinner"/> : state === 'thinking' ? <span className="tool-thinking-dot"><Icon name="sparkle" size={13}/></span> : state === 'stopped' || state === 'denied' ? <span className="tool-stop-square"/> : <Icon name={state === 'failed' ? 'alert' : ICONS[kind]} size={13}/>}</span>;
 }
 function Meta({ meta, failed }: { meta: string[]; failed?: boolean }) {
   if (!meta.length) return null;
@@ -191,7 +194,7 @@ function ToolDetails({ entry, kind, root, file, onOpenFile }: { entry: ToolEntry
     {entry.patch && <CodeBlock text={relativePatch(entry.patch, root)} language="diff" label="Changes"/>}
     {kind === 'plan' && <PlanList input={input}/>}
     {showInput && <CodeBlock text={JSON.stringify(input, null, 2)} language="json" label="Input"/>}
-    {entry.output !== undefined && entry.output !== '' && kind !== 'plan' && !(kind === 'edit' && entry.status !== 'failed') && <ToolOutput text={entry.output} lines={entry.outputLines || 0} failed={entry.status === 'failed'}/>}
+    {entry.output !== undefined && entry.output !== '' && kind !== 'plan' && !(kind === 'edit' && entry.status !== 'failed' && !notRun(entry)) && <ToolOutput text={entry.output} lines={entry.outputLines || 0} failed={entry.status === 'failed'}/>}
     {entry.outputImages ? <small className="tool-note">{entry.outputImages} image{entry.outputImages === 1 ? '' : 's'} returned</small> : null}
     {entry.output === undefined && entry.status === 'running' && <small className="tool-note">Waiting for the result…</small>}
     {entry.output === undefined && entry.status === 'unknown' && <small className="tool-note">The agent never reported a result for this call.</small>}

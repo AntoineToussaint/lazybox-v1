@@ -581,7 +581,7 @@ shot('subagents', async ({ f, open }) => {
   const A = 'claude-tool:toolu_explore', B = 'claude-tool:toolu_audit', D = 'claude-tool:toolu_bench';
   Object.assign(f.sessions[0], { title: 'Find what slows /products', busy: true, status: 'running', capabilities: { ...f.sessions[0].capabilities, stopAgent: true },
     agents: [{ id: 'root', status: 'running', phase: 'thinking', phaseSinceUnixMillis: String(now - 4000), turnStartedAtUnixMillis: String(now - 300000) },
-      ...[[A, 'running'], [B, 'running'], [D, 'done']].map(([id, status]) => ({ id, parentId: 'root', status, name: 'Sub-agent', kind: 'local_agent' }))] });
+      ...[[A, 'running'], [B, 'running'], [D, 'done']].map(([id, status]) => ({ id, parentId: 'root', status, name: 'Sub-agent', kind: 'local_agent', nativeId: 'task-' + id }))] });
   const ch = f.openEvents('alpha-session');
   const push = (offset, event) => ch.push(event.data === undefined ? event : { ...Object.fromEntries(Object.entries(event).filter(([k]) => k !== 'data')), providerDataJson: b64(event.data) }, at(offset));
   const call = (id, name, status, extra = {}) => ({ type: 'tool_call', id, name, status, ...extra });
