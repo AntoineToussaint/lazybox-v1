@@ -5,7 +5,11 @@ click through a flow — and you watch every step beside the chat. It is a
 separate Chromium, never your Chrome: it has none of your sign-ins, and the
 ones made in it stay in its workspace.
 
-Install its Chromium once: `make -C v2 browser`.
+**For now the agent browser is a developer-build feature.** The installed
+Lazybox app does not include it yet: Settings → Browser says so, and an agent
+that tries to browse is told it cannot. To use it, run Lazybox from source,
+install its Chromium once with `make -C v2 browser`, and start Lazybox with
+`make -C v2 dev` or `make -C v2 working`.
 
 ## Watch it
 

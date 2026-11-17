@@ -180,7 +180,7 @@ func (s *Service) GetBrowserSettings(context.Context, *pb.InfoRequest) (*pb.Brow
 func (s *Service) browserSettings(v browser.Settings) *pb.BrowserSettings {
 	w := &pb.BrowserSettings{Revision: v.Revision, DefaultPermission: v.DefaultPermission, AllowedSites: v.AllowedSites, Downloads: v.Downloads, ShowPanel: v.ShowPanel}
 	if !s.Bench.Browser.Available() {
-		w.Problem = "This Runner was started without the agent browser service, so agents cannot browse. Start Lazybox with make dev or make working."
+		w.Problem = "The agent browser is a developer-build feature for now: the installed app does not include it, so agents cannot browse. In a developer build, run make -C v2 browser once, then start Lazybox with make -C v2 dev or make -C v2 working. The Web panel is not affected."
 	}
 	names := map[string]string{}
 	if s.Bench.Collections != nil {

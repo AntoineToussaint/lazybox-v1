@@ -67,8 +67,10 @@ type Caller struct {
 // ErrNotFound: no such browser request.
 var ErrNotFound = errors.New("not found")
 
-// ErrUnavailable: this Runner cannot run the agent browser.
-var ErrUnavailable = errors.New("the agent browser is not available")
+// ErrUnavailable: this Runner cannot run the agent browser. An installed
+// release never can for now (it bundles neither the service nor Chromium);
+// the message says so to the agent, which tells the person.
+var ErrUnavailable = errors.New("the agent browser is not available on this Runner: for now it is a developer-build feature, not part of the installed Lazybox app. Tell the person you cannot open a browser here, and carry on without it")
 
 const (
 	maxLog      = 300
