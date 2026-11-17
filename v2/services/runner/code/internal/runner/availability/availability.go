@@ -10,6 +10,7 @@ package availability
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,6 +53,10 @@ type Program struct {
 	// Models are the models the program itself lists (Codex's model/list),
 	// nil when it lists none or was not asked.
 	Models []agent.ModelChoice
+	// LaunchProblem, for a built-in ACP agent, says its help does not name
+	// the flags Lazybox starts it with (acp.Agent.LaunchProblem); a hint for
+	// Settings, not a reason it cannot run.
+	LaunchProblem string
 }
 
 // Subscription is one saved profile and whether it can take work now.
@@ -81,6 +86,8 @@ type ACPAgent struct {
 	Homepage string
 	// Custom: the person added it, or changed a built-in one's command.
 	Custom bool
+	// LaunchProblem: the program's help does not name how Lazybox starts it.
+	LaunchProblem string
 }
 
 // Provider is one provider's program and subscriptions, with their summary.
@@ -155,6 +162,9 @@ type Probe struct {
 	LookPath func(string) (string, error)
 	// Version runs `program --version` and returns its first line.
 	Version func(ctx context.Context, program string) (string, error)
+	// Help runs `program --help` and returns what it printed; nil checks no
+	// ACP agent's launch flags.
+	Help func(ctx context.Context, program string) (string, error)
 	// Models lists the models a provider's program offers, without any
 	// account (Codex: an app-server's model/list); nil asks nothing, and the
 	// report offers BuiltinModels.
@@ -164,7 +174,28 @@ type Probe struct {
 // DefaultProbe probes with the Runner's own PATH and runs each program.
 // running is the Claude Code the Runner's adapter runs.
 func DefaultProbe(worker, node, claude, codex, running string) Probe {
-	return Probe{Worker: worker, Node: node, ClaudeBinary: claude, CodexBinary: codex, ClaudeRunning: running, LookPath: exec.LookPath, Version: RunVersion}
+	return Probe{Worker: worker, Node: node, ClaudeBinary: claude, CodexBinary: codex, ClaudeRunning: running, LookPath: exec.LookPath, Version: RunVersion, Help: RunHelp}
+}
+
+// RunHelp runs `program --help`, bounded, with no input, and returns what it
+// printed on either stream (at most 256 KiB). Some programs print their help
+// on stderr or exit non-zero after printing it: whatever was printed counts.
+func RunHelp(ctx context.Context, program string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, program, "--help")
+	cmd.Env = append(os.Environ(), "NO_COLOR=1", "CI=1")
+	out, err := cmd.CombinedOutput()
+	if len(out) > 256<<10 {
+		out = out[:256<<10]
+	}
+	if len(strings.TrimSpace(string(out))) > 0 {
+		return string(out), nil
+	}
+	if err == nil {
+		err = errors.New("printed no help")
+	}
+	return "", err
 }
 
 // RunVersion runs `program --version`, bounded, and returns its first line.
@@ -275,6 +306,14 @@ func (p Probe) agentProgram(ctx context.Context, a acp.Agent) Program {
 	if p.Version != nil {
 		if line, err := p.Version(ctx, path); err == nil {
 			program.Version = version(line)
+		}
+	}
+	// The built-in launch flags follow the ACP registry, not the installed
+	// version: check them against what this one says of itself. A help that
+	// cannot be read checks nothing.
+	if p.Help != nil {
+		if help, err := p.Help(ctx, path); err == nil {
+			program.LaunchProblem = a.LaunchProblem(help)
 		}
 	}
 	return program
@@ -440,7 +479,7 @@ func Build(programs map[string]Program, subscriptions map[string][]Subscription,
 			program = Probe{LookPath: exec.LookPath}.agentProgram(context.Background(), a)
 		}
 		subs := subscriptions[provider]
-		p := Provider{Provider: provider, Title: a.Title, Program: program, Subscriptions: subs, State: summary(program, subs), ACP: &ACPAgent{ID: a.ID, Icon: a.Icon, Command: a.Command, Args: append([]string(nil), a.Args...), Env: a.EnvNames(), Homepage: a.Homepage, Custom: a.Custom}}
+		p := Provider{Provider: provider, Title: a.Title, Program: program, Subscriptions: subs, State: summary(program, subs), ACP: &ACPAgent{ID: a.ID, Icon: a.Icon, Command: a.Command, Args: append([]string(nil), a.Args...), Env: a.EnvNames(), Homepage: a.Homepage, Custom: a.Custom, LaunchProblem: program.LaunchProblem}}
 		if !program.Installed {
 			p.InstallCommand = a.Install
 		}

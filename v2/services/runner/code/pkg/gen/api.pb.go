@@ -2859,7 +2859,11 @@ type AcpAgentInfo struct {
 	EnvNames []string `protobuf:"bytes,5,rep,name=env_names,json=envNames,proto3" json:"env_names,omitempty"`
 	Homepage string   `protobuf:"bytes,6,opt,name=homepage,proto3" json:"homepage,omitempty"`
 	// The person added it, or changed a built-in one's command.
-	Custom        bool `protobuf:"varint,7,opt,name=custom,proto3" json:"custom,omitempty"`
+	Custom bool `protobuf:"varint,7,opt,name=custom,proto3" json:"custom,omitempty"`
+	// A built-in agent's installed program does not name, in its --help, the
+	// flags Lazybox starts it with: a sentence for Settings, empty when they
+	// are all named or it was not checked. A hint; the agent may still start.
+	LaunchProblem string `protobuf:"bytes,8,opt,name=launch_problem,json=launchProblem,proto3" json:"launch_problem,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2941,6 +2945,13 @@ func (x *AcpAgentInfo) GetCustom() bool {
 		return x.Custom
 	}
 	return false
+}
+
+func (x *AcpAgentInfo) GetLaunchProblem() string {
+	if x != nil {
+		return x.LaunchProblem
+	}
+	return ""
 }
 
 type AcpEnvVar struct {
@@ -32982,7 +32993,7 @@ const file_api_proto_rawDesc = "" +
 	"\rProviderModel\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\"\xb1\x01\n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"\xd8\x01\n" +
 	"\fAcpAgentInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04icon\x18\x02 \x01(\tR\x04icon\x12\x18\n" +
@@ -32990,7 +33001,8 @@ const file_api_proto_rawDesc = "" +
 	"\x04args\x18\x04 \x03(\tR\x04args\x12\x1b\n" +
 	"\tenv_names\x18\x05 \x03(\tR\benvNames\x12\x1a\n" +
 	"\bhomepage\x18\x06 \x01(\tR\bhomepage\x12\x16\n" +
-	"\x06custom\x18\a \x01(\bR\x06custom\"5\n" +
+	"\x06custom\x18\a \x01(\bR\x06custom\x12%\n" +
+	"\x0elaunch_problem\x18\b \x01(\tR\rlaunchProblem\"5\n" +
 	"\tAcpEnvVar\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"\x98\x01\n" +

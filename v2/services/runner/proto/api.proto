@@ -691,6 +691,10 @@ message AcpAgentInfo {
   string homepage = 6;
   // The person added it, or changed a built-in one's command.
   bool custom = 7;
+  // A built-in agent's installed program does not name, in its --help, the
+  // flags Lazybox starts it with: a sentence for Settings, empty when they
+  // are all named or it was not checked. A hint; the agent may still start.
+  string launch_problem = 8;
 }
 message AcpEnvVar {
   string name = 1;

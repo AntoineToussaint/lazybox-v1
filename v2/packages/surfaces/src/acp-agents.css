@@ -28,3 +28,6 @@
 .acp-agent-form-actions{display:flex;justify-content:flex-end;gap:8px}
 .acp-agents .settings-inline-error,.acp-agents .settings-saved{padding:0 16px 12px}
 @container settings-group (max-width:520px){.acp-agent{grid-template-columns:auto minmax(0,1fr)}.acp-agent-actions{grid-column:2}}
+.acp-preview{display:inline-block;font-size:calc(9.5px * var(--text-scale));font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--warn-soft);border:1px solid currentColor;border-radius:100px;padding:0 6px;line-height:1.5;vertical-align:1px}
+.acp-preview-note{display:block;margin-top:6px}
+.acp-preview-note .acp-preview{margin-right:6px}

@@ -8,13 +8,25 @@ its messages stream into the chat, its tool calls are the same quiet lines,
 its permission requests are approval cards, its plan is a checklist, and the
 commands it runs are in the conversation's console.
 
+> **Preview.** Support for ACP agents is tested against Lazybox's own fake
+> agent, not against each real one, so New conversation, the agent picker and
+> Settings mark them **Preview**. Known limits: Lazybox starts each built-in
+> agent the way the ACP registry says (`gemini --acp`…), whatever version you
+> have installed; it speaks ACP version 1 only; it passes the agent no MCP
+> servers; and an agent's questions arrive as its message, not as question
+> cards.
+
 ## Install and sign in
 
 Lazybox finds the agents installed on the Runner's computer. Open
 **Settings → Agents & workspaces → Agent programs**:
 
 - **On this Runner** lists each agent it found, with its version and the
-  command Lazybox starts it with (`gemini --acp`, `goose acp`…).
+  command Lazybox starts it with (`gemini --acp`, `goose acp`…). Lazybox
+  checks that command against the installed agent's `--help` when it looks
+  for agents; if the help does not mention a flag Lazybox uses, the agent's
+  row says so, with the command that updates it. **Edit** changes how
+  Lazybox starts it.
 - **Not installed** lists the others with the command that installs one —
   **Copy** it, run it in your terminal, then **Check again**.
 

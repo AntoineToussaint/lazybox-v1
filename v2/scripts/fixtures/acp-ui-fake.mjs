@@ -13,6 +13,8 @@ const BUILTINS = [
 export function createAcpFake({ profiles, mutations }) {
   /** Installed built-ins, by id, with their version. */
   const installed = new Map();
+  /** What a built-in's --help says of its launch flags, by id (the Runner's launch check). */
+  const launchProblems = new Map();
   /** The person's agents (and changed built-ins), by id: { title, command, args, env }. */
   const custom = new Map();
   const agents = () => {
@@ -32,14 +34,14 @@ export function createAcpFake({ profiles, mutations }) {
       path: present ? `/fixture/bin/${a.command.split('/').pop()}` : '', version: installed.get(a.id) || '', source: a.custom ? 'configured' : 'path',
       error: present ? '' : `${a.title} is not installed on the Runner's computer (no ${a.command} on its PATH).`, installCommand: present ? '' : a.install,
       subscriptions: profile ? [{ profileId: profile.id, label: a.title, state: 'unverified', resetAt: '0', detail: 'Signs in with its own account', managed: false, isolation: 'inherited' }] : [],
-      acp: { id: a.id, icon: a.icon, command: a.command, args: a.args, envNames: Object.keys(a.env || {}).sort(), homepage: a.homepage, custom: a.custom },
+      acp: { id: a.id, icon: a.icon, command: a.command, args: a.args, envNames: Object.keys(a.env || {}).sort(), homepage: a.homepage, custom: a.custom, launchProblem: present && !a.custom ? launchProblems.get(a.id) || '' : '' },
     };
   });
   return {
     providers,
     custom,
-    /** A built-in agent found on the Runner's PATH. */
-    install(id, version) { installed.set(id, version); syncProfiles(); },
+    /** A built-in agent found on the Runner's PATH; `launchProblem`, what its --help check found. */
+    install(id, version, launchProblem = '') { installed.set(id, version); if (launchProblem) launchProblems.set(id, launchProblem); syncProfiles(); },
     /** RPCs this fake answers, or undefined. `report` is the whole availability report. */
     handle(method, body, report) {
       if (method === 'SaveAcpAgent') {

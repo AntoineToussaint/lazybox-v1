@@ -2,10 +2,15 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { revealAcpAgents } from './AcpAgentsSettings';
 import { actionEnabled, runAction } from './actions';
 import { Icon } from './Icons';
-import { agentChoices, agentTitle, type AgentChoice } from './providers';
+import { agentChoices, agentTitle, isAcp, type AgentChoice } from './providers';
 import { useRunner } from './RunnerContext';
 import { useProviderAvailability } from './useProviderAvailability';
 import './agent-picker.css';
+
+/** ACP agents are a preview: tested against Lazybox's fixtures, not each real agent (ACP.md). */
+export function PreviewTag() {
+  return <span className="agent-preview" title="Preview: ACP agents are tested against Lazybox’s own fixtures; a real agent may differ">Preview</span>;
+}
 
 /**
  * The agent a new conversation runs on: Claude, Codex, and every ACP agent
@@ -76,6 +81,7 @@ export function AgentPicker({ value, disabled, onChange }: { value: string; disa
       <Icon name={current?.icon || 'agent'} size={16}/>
       <span className="agent-picker-title">{current?.title || agentTitle(value, profiles)}</span>
       {current?.version && <small className="agent-picker-version">{current.version}</small>}
+      {isAcp(value) && <PreviewTag/>}
       <Icon name="chevron" size={14}/>
     </button>
     {open && <div className="agent-picker-popover">
@@ -83,11 +89,12 @@ export function AgentPicker({ value, disabled, onChange }: { value: string; disa
         {choices.map((choice, index) => <li key={choice.provider} id={`${id}-option-${index}`} data-index={index} role="option" aria-selected={choice.provider === value} aria-disabled={!choice.ready || undefined}
           className={[index === active ? 'active' : '', index === firstAcp ? 'first-acp' : ''].filter(Boolean).join(' ') || undefined}
           onPointerMove={() => choice.ready && setActive(index)} onMouseDown={event => event.preventDefault()} onClick={() => pick(choice)}>
-          {index === firstAcp && <span className="agent-picker-group" aria-hidden="true">ACP agents</span>}
+          {index === firstAcp && <span className="agent-picker-group" aria-hidden="true">ACP agents · Preview</span>}
           <span className="agent-picker-row">
             <Icon name={choice.icon} size={16}/>
             <span className="agent-picker-name">{choice.title}</span>
             {choice.version && <small>{choice.version}</small>}
+            {choice.acp && <PreviewTag/>}
             {choice.provider === value && <span className="agent-picker-check"><Icon name="check" size={13}/></span>}
           </span>
           {choice.detail && <small className="agent-picker-detail">{choice.detail}</small>}

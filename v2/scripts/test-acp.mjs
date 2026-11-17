@@ -14,6 +14,8 @@ import {acpJournal} from './fixtures/acp-ui-fake.mjs';
 
 const fixture=await startRunnerFixture();
 fixture.acp.install('gemini','0.68.0');
+const launchProblem="OpenCode's help does not mention `acp`, which Lazybox starts it with: this version may not run in ACP mode. Update it (`npm install -g opencode-ai`), or edit how Lazybox starts it.";
+fixture.acp.install('opencode','0.9.0',launchProblem);
 const collection=fixture.collections[0],root=collection.root;
 const {events,pending}=acpJournal(root);
 const session={id:'acp-session',collectionId:collection.id,workId:collection.id,profileId:'acp-gemini',provider:'acp:gemini',workingDirectory:root,title:'Fake tour',
@@ -57,6 +59,10 @@ try{
  await expect(section).toBeVisible();
  const gemini=section.locator('.acp-agent').filter({hasText:'Gemini CLI'});
  await expect(gemini).toContainText('0.68.0');await expect(gemini).toContainText('Ready');await expect(gemini.locator('code')).toHaveText('gemini --acp');
+ // ACP agents are a preview, and a built-in whose --help does not name its launch flags says so.
+ await expect(section.locator('.acp-preview')).toHaveText('Preview');
+ await expect(gemini.getByRole('note')).toHaveCount(0);
+ await expect(section.locator('.acp-agent').filter({hasText:'OpenCode'}).getByRole('note')).toHaveText(launchProblem);
  const goose=section.locator('.is-missing .acp-agent').filter({hasText:'Goose'});
  await expect(goose.locator('code')).toHaveText('brew install block-goose-cli');
  await expect(goose.getByRole('button',{name:'Copy the command that installs Goose'})).toBeVisible();
@@ -96,12 +102,15 @@ try{
  const picker=setup.getByRole('combobox',{name:'Agent',exact:true});
  await picker.focus();await page.keyboard.press('ArrowDown');
  const list=setup.getByRole('listbox',{name:'Agent'});
- await expect(list.getByRole('option')).toHaveText([/^Claude/,/^Codex/,/Gemini CLI\s*0\.68\.0/,/Team agent/]);
+ await expect(list.getByRole('option')).toHaveText([/^Claude/,/^Codex/,/Gemini CLI\s*0\.68\.0\s*Preview/,/OpenCode\s*0\.9\.0\s*Preview/,/Team agent\s*Preview/]);
+ await expect(list.locator('.agent-picker-group')).toHaveText('ACP agents · Preview');
+ await expect(list.getByRole('option').filter({hasText:/^(Claude|Codex)/}).locator('.agent-preview')).toHaveCount(0);
  await expect(list.locator('svg').first()).toBeVisible();
  await page.screenshot({path:'.cache/acp-picker.png'});
  await page.keyboard.press('g');await expect(picker).toHaveAttribute('aria-activedescendant',/option-2$/);
  await page.keyboard.press('Enter');await expect(list).toHaveCount(0);await expect(picker).toBeFocused();
  await expect(picker).toContainText('Gemini CLI');await expect(setup.getByLabel('Account profile')).toHaveValue('acp-gemini');
+ await expect(picker.locator('.agent-preview')).toHaveText('Preview');
  // Escape closes the list without changing the agent.
  await page.keyboard.press('ArrowDown');await expect(list).toBeVisible();await page.keyboard.press('Escape');await expect(list).toHaveCount(0);await expect(picker).toContainText('Gemini CLI');
  await setup.getByRole('button',{name:'Start Gemini CLI ↗',exact:true}).click();
@@ -118,5 +127,5 @@ try{
  await expect.poll(()=>fixture.mutations.findLast(m=>m.method==='RemoveAcpAgent')?.body.id).toBe('team-agent');
  await expect(page.getByRole('region',{name:'Agent programs'}).locator('.acp-agent').filter({hasText:'Team agent'})).toHaveCount(0);
  assert.deepEqual(errors,[]);
- console.log('PASS: ACP conversation from the real adapter journal (tool lines, plan, command, reply, approval with the agent’s Always), Settings → Agents (installed with version, missing with install command, custom agent added/edited/removed, env values never shown), keyboard agent picker with icons. Fixture only.');
+ console.log('PASS: ACP agents labelled Preview (picker, Settings) and a failed launch-flag check shown in Settings; ACP conversation from the real adapter journal (tool lines, plan, command, reply, approval with the agent’s Always), Settings → Agents (installed with version, missing with install command, custom agent added/edited/removed, env values never shown), keyboard agent picker with icons. Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}

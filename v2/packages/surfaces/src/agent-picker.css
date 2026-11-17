@@ -20,3 +20,4 @@
 .agent-picker-detail{padding-left:24px;font-size:calc(10.5px * var(--text-scale))}
 .agent-picker-add{display:flex;align-items:center;gap:6px;margin-top:4px;background:transparent;border:0;border-top:1px solid var(--line-subtle);border-radius:0 0 6px 6px;color:var(--text-muted);font-size:calc(11.5px * var(--text-scale));padding:8px 9px}
 .agent-picker-add:hover{background:var(--surface-active);color:var(--text)}
+.agent-preview{flex:none;font-size:calc(9.5px * var(--text-scale));font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--warn-soft);border:1px solid currentColor;border-radius:100px;padding:0 6px;line-height:1.5}

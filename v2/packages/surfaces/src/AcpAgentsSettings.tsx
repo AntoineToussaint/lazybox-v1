@@ -64,7 +64,7 @@ export function AcpAgentsSettings() {
     catch (e) { setError(settingsError(e)); } finally { setBusy(false); }
   };
   return <section ref={section} className="acp-agents" aria-labelledby="acp-agents-title">
-    <SettingsHeader id="acp-agents-title" title="Agent programs" description={<>Besides Claude and Codex, Lazybox runs any agent that speaks the <a href="https://agentclientprotocol.com" target="_blank" rel="noreferrer">Agent Client Protocol</a> as a conversation: its approvals on cards, its tool calls as lines, its plan, and its commands in the console.</>}
+    <SettingsHeader id="acp-agents-title" title="Agent programs" description={<>Besides Claude and Codex, Lazybox runs any agent that speaks the <a href="https://agentclientprotocol.com" target="_blank" rel="noreferrer">Agent Client Protocol</a> as a conversation: its approvals on cards, its tool calls as lines, its plan, and its commands in the console. <span className="acp-preview-note"><span className="acp-preview">Preview</span> ACP agents are tested against Lazybox’s own fixtures; each real agent may differ.</span></>}
       actions={<button type="button" disabled={availability.checking} onClick={() => void availability.refresh()}><Icon name="refresh" size={13}/>{availability.checking ? 'Checking…' : 'Check again'}</button>}/>
     {!report && !availability.error && <p className="settings-empty" role="status">Looking for agents on the Runner…</p>}
     {availability.error && !report && <p className="settings-error" role="alert">{settingsError(availability.error, 'load')}</p>}
@@ -77,6 +77,7 @@ export function AcpAgentsSettings() {
             <code className="acp-agent-command" title={a.path || undefined}>{commandLine(a)}</code>
             {a.acp?.envNames.length ? <small>Environment: {a.acp.envNames.join(', ')}</small> : null}
             {a.error && <small className="acp-agent-error">{a.error}</small>}
+            {!a.error && a.acp?.launchProblem && <small className="acp-agent-error" role="note"><Icon name="alert" size={11}/> {a.acp.launchProblem}</small>}
           </div>
           <div className="acp-agent-actions">
             <button type="button" disabled={busy} onClick={() => edit(a)} aria-label={`Change how ${a.title} starts`}><Icon name="pencil" size={13}/>Edit</button>

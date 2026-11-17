@@ -12,6 +12,7 @@ import (
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/acp"
 )
 
 func program(t *testing.T, path string) string {
@@ -286,5 +287,64 @@ func TestUnverifiedSubscriptionsAreUsable(t *testing.T) {
 	}
 	if state := Build(map[string]Program{"codex": {Installed: true}}, got, time.Now()).Providers[1].State; state != "ready" {
 		t.Fatalf("state %s", state)
+	}
+}
+
+// A built-in ACP agent's launch flags are checked against the installed
+// program's --help: a flag or subcommand it does not name is said, with the
+// fix; a custom command (a launcher such as npx) is not checked; a help that
+// cannot be read checks nothing.
+func TestACPAgentLaunchFlagsAreCheckedAgainstTheirHelp(t *testing.T) {
+	bin := t.TempDir()
+	for _, name := range []string{"gemini", "goose", "qwen", "opencode"} {
+		program(t, filepath.Join(bin, name))
+	}
+	helps := map[string]string{
+		"gemini":   "Usage: gemini [options]\n  --experimental-acp  Starts the agent in ACP mode\n  -m, --model",
+		"goose":    "Commands:\n  session  Start a session\n  acp      Run goose as an ACP agent\n",
+		"qwen":     "Options:\n  [--acp]  Agent Client Protocol mode",
+		"opencode": "",
+	}
+	probe := fakeProbe(bin, map[string]string{})
+	probe.Help = func(_ context.Context, path string) (string, error) {
+		help := helps[filepath.Base(path)]
+		if help == "" {
+			return "", errors.New("printed no help")
+		}
+		return help, nil
+	}
+	var agents []acp.Agent
+	for _, a := range acp.Builtins {
+		if _, ok := helps[a.ID]; ok && a.ID != "qwen" {
+			agents = append(agents, a)
+		}
+	}
+	// The person changed how Qwen Code starts: their command is not checked.
+	custom := acp.Agent{ID: "qwen", Title: "Qwen Code", Command: "qwen", Args: []string{"--not-in-help"}, Custom: true}
+	probe.Agents = func() []acp.Agent { return append(append([]acp.Agent(nil), agents...), custom) }
+	got := probe.Programs(context.Background())
+	if p := got[acp.Provider("gemini")].LaunchProblem; p != "Gemini CLI's help does not mention `--acp`, which Lazybox starts it with: this version may not run in ACP mode. Update it (`npm install -g @google/gemini-cli`), or edit how Lazybox starts it." {
+		t.Fatalf("gemini: %q", p)
+	}
+	for _, id := range []string{"goose", "opencode", "qwen"} {
+		if p := got[acp.Provider(id)].LaunchProblem; p != "" {
+			t.Fatalf("%s: %q", id, p)
+		}
+	}
+	// A built-in Qwen whose help names --acp in brackets passes.
+	for _, a := range acp.Builtins {
+		if a.ID == "qwen" && a.LaunchProblem(helps["qwen"]) != "" {
+			t.Fatal("[--acp] is named")
+		}
+	}
+	report := Build(got, nil, time.Now(), probe.Agents()...)
+	found := false
+	for _, p := range report.Providers {
+		if p.ACP != nil && p.ACP.ID == "gemini" {
+			found = strings.Contains(p.ACP.LaunchProblem, "`--acp`")
+		}
+	}
+	if !found {
+		t.Fatal("the report does not carry the problem")
 	}
 }

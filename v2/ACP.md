@@ -23,6 +23,14 @@ The person-facing guide is
   (`jsonl.Options`): every message carries `"jsonrpc":"2.0"`, and a reply to no
   call of the Process is delivered to the reader instead of dropped.
 
+**Status: Preview.** The adapter is exercised against Lazybox's fake agents
+(`scripts/fixtures/acp-fake.mjs`) and one real agent on request
+(`TestRealACPAgent`), not against each built-in; every surface that offers an
+ACP agent (New conversation, the agent picker, Settings → Agents, the guide)
+labels it Preview. The gaps behind the label are below: launch commands come
+from the registry, not the installed version (checked, below, not enforced);
+protocol v1 only; `mcpServers: []`; questions are not mapped.
+
 Built-in agents (`adapters/acp/catalog.go`), found on the Runner's PATH:
 Gemini CLI (`gemini --acp`), Goose (`goose acp`), OpenCode (`opencode acp`),
 Qwen Code (`qwen --acp`), GitHub Copilot (`copilot --acp`), Cursor Agent
@@ -44,6 +52,20 @@ ACP bridges (`claude-agent-acp`, `codex-acp`) can be added as custom agents.
 | Cost and context | `internal/runner/telemetry/acp.go` |
 | Client | `providers.ts` (names, icons, choices), `AgentPicker.tsx`, `AcpAgentsSettings.tsx`, icons in `Icons.tsx` |
 | Fake agent | `scripts/fixtures/acp-fake.mjs` (Go tests and the UI suite), `acp-ui-fake.mjs`, `acp-journal.json` |
+
+## The launch check
+
+The built-in launch commands follow the ACP registry, not the version the
+person installed, and an agent that renamed or dropped its ACP flag would
+fail only when a conversation starts. When the Runner looks for agents
+(`availability.Probe`, at start and on **Check again**), it runs each
+installed built-in agent's `--help` (bounded, no input, `NO_COLOR`) and checks
+that every argument Lazybox starts it with (`--acp`, `acp`) is named there as
+a whole word (`acp.Agent.LaunchProblem`). A missing one is reported in
+`AcpAgentInfo.launch_problem` and shown on the agent's row in Settings →
+Agents with the command that updates it. It is a hint, never a refusal: help
+text is free-form. A custom command is not checked (it may be a launcher such
+as `npx`). Checked by hand on 2026-11-17: Gemini CLI 0.68.0 names `--acp`.
 
 ## Providers and profiles
 
@@ -178,8 +200,12 @@ commands outlived the Runner too).
   `TestACPJournalFixtureIsCurrent`, which keeps `acp-journal.json` equal to
   what the adapter journals (`LAZYBOX_UPDATE_ACP_JOURNAL=1` regenerates it).
 - `npm run test:acp` — the UI on that journal: tool lines, plan, command,
-  reply, the approval card with the agent's Always choice, Settings → Agents,
-  and the keyboard agent picker. `scripts/acp-agents.test.ts` (in
+  reply, the approval card with the agent's Always choice, Settings → Agents
+  (with a failed launch check), the Preview labels, and the keyboard agent
+  picker.
+- `go test ./internal/runner/availability -run Launch` — the launch check
+  against fake `--help` output: a missing flag, a subcommand, a bracketed
+  flag, an unreadable help, a custom command. `scripts/acp-agents.test.ts` (in
   `test:client`) covers names, choices and command-line parsing.
 - `LAZYBOX_V2_REAL=1 LAZYBOX_V2_REAL_ACP=gemini go test ./tests/integration -run TestRealACPAgent`
   — one real turn with a real, signed-in agent. Live and billable.
