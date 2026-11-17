@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
 )
 
 // DeleteConversation stops owned execution before deleting Lazybox transcripts.
@@ -105,7 +107,8 @@ func (b *Bench) purgeConversation(ids []string) error {
 		if id == "" || filepath.Base(id) != id || id == "." || id == ".." {
 			return errors.New("invalid stored execution identity")
 		}
-		if err := os.Remove(filepath.Join(b.Config.State, "sessions", id+".jsonl")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		// Every segment of the journal, and what was torn from it.
+		if err := journal.Remove(b.journalPath(id)); err != nil {
 			return err
 		}
 		// The re-attachment record can hold queued message text and image bytes.

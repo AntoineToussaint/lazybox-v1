@@ -1,14 +1,11 @@
 package runner
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
@@ -29,7 +26,7 @@ import (
 const (
 	// backfillEvents bounds what is read of one conversation's journals.
 	backfillEvents = 5000
-	// backfillBytes bounds what is read of one journal file (its end).
+	// backfillBytes bounds what is read of one journal (its end).
 	backfillBytes = 32 << 20
 	// backfillConversations bounds the conversations read on one start.
 	backfillConversations = 500
@@ -106,7 +103,7 @@ func (b *Bench) backfillConversation(ctx context.Context, head sessionstore.Reco
 func (b *Bench) backfillAttempt(id, workspace, conversation string, limit int) int {
 	store := b.workItems.store
 	after := store.Backfilled(id)
-	records, err := journalTail(filepath.Join(b.Config.State, "sessions", id+".jsonl"), limit)
+	records, err := journal.Tail(b.journalPath(id), limit, backfillBytes)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			log.Printf("tracked items: backfill %s: %v", id, err)
@@ -151,50 +148,4 @@ func (b *Bench) backfillAttempt(id, workspace, conversation string, limit int) i
 		_ = store.SetBackfilled(id, last)
 	}
 	return read
-}
-
-// journalTail reads the last limit complete records of a journal file,
-// without opening it as a journal: an agent may be appending to it, and its
-// last line may not be complete yet.
-func journalTail(path string, limit int) ([]journal.Record, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	start := max(info.Size()-backfillBytes, 0)
-	data := make([]byte, info.Size()-start)
-	if _, err = f.ReadAt(data, start); err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
-	}
-	if start > 0 {
-		// The first line read is the end of a record.
-		if cut := bytes.IndexByte(data, '\n'); cut >= 0 {
-			data = data[cut+1:]
-		} else {
-			data = nil
-		}
-	}
-	// A last line without its newline is still being written.
-	if cut := bytes.LastIndexByte(data, '\n'); cut >= 0 {
-		data = data[:cut]
-	} else {
-		data = nil
-	}
-	lines := bytes.Split(data, []byte{'\n'})
-	if len(lines) > limit {
-		lines = lines[len(lines)-limit:]
-	}
-	out := make([]journal.Record, 0, len(lines))
-	for _, line := range lines {
-		var record journal.Record
-		if len(line) > 0 && json.Unmarshal(line, &record) == nil {
-			out = append(out, record)
-		}
-	}
-	return out, nil
 }

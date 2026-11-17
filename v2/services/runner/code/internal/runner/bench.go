@@ -126,6 +126,13 @@ type Config struct {
 	WorktreeRoot    string                   `json:"worktreeRoot,omitempty"`
 	Repositories    []collections.Repository `json:"repositories,omitempty"`
 
+	// EventBudget (above) is the size of one segment of a conversation's
+	// event journal: a journal that reaches it continues in a new segment.
+	// EventHistoryBudget bounds every segment of one attempt's journal
+	// together; zero selects 2 GiB. Past it, events are no longer recorded
+	// and the conversation shows the fault; its agent keeps running.
+	EventHistoryBudget int64 `json:"eventHistoryBudget,omitempty"`
+
 	// TerminalHostRoot holds the session hosts of workspace terminals (a
 	// person's shells). Empty selects <State>/terminal-hosts.
 	TerminalHostRoot string `json:"-"`
@@ -316,6 +323,12 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if cfg.EventBudget > 64<<20 || cfg.CommandBudget > 64<<20 {
 		return nil, errors.New("per-stream budget must not exceed 64 MiB")
+	}
+	if cfg.EventHistoryBudget == 0 {
+		cfg.EventHistoryBudget = 2 << 30
+	}
+	if cfg.EventHistoryBudget < cfg.EventBudget || cfg.EventHistoryBudget > 64<<30 {
+		return nil, errors.New("event history budget must be at least the event budget and at most 64 GiB")
 	}
 	if len(cfg.Profiles) == 0 {
 		cfg.Profiles = []accounts.Profile{{ID: "codex-default", Provider: "codex", Isolation: "inherited"}, {ID: "claude-default", Provider: "claude", Isolation: "inherited"}}
@@ -783,7 +796,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	if workID == "" {
 		workID = id
 	}
-	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", id+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
+	spool, err := b.openJournal(id)
 	if err != nil {
 		return nil, err
 	}

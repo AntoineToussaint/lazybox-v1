@@ -57,9 +57,11 @@ func profileBinding(p accounts.Profile) string {
 }
 func (b *Bench) restore(r sessionstore.Record) (*Execution, error) {
 	// Use an immutable read view; recovery must never append to an old execution.
-	spool, err := journal.OpenExisting(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
+	// A journal that cannot be read in full still leaves the conversation
+	// listed, readable up to the damage, and deletable: the fault says why.
+	spool, err := b.readJournal(r.ID)
 	if err != nil {
-		return nil, err
+		spool = journal.Unreadable(err)
 	}
 	spool.Close()
 	state := r.Snapshot
@@ -72,6 +74,9 @@ func (b *Bench) restore(r sessionstore.Record) (*Execution, error) {
 	if uncertain {
 		state.Status = agent.Interrupted
 		state.Fault = ""
+	}
+	if damage := spool.Damage(); damage != nil {
+		state.Fault = fmt.Sprintf("transcript unreadable past cursor %d: %v", spool.Count(), damage)
 	}
 	state.Closed = true
 	state.Busy = false

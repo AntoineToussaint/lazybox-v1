@@ -15,7 +15,6 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/docstool"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
-	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/rotation"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/settingstool"
@@ -235,7 +234,7 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 	if err = b.writeAgentEndpoint(r.ID); err != nil {
 		return err
 	}
-	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
+	spool, err := b.openJournal(r.ID)
 	if err != nil {
 		return err
 	}
@@ -420,7 +419,7 @@ func (b *Bench) endLost(ctx context.Context, r sessionstore.Record, why string) 
 	if err = b.saveCarried(r.ID, record.Queue); err != nil {
 		return err
 	}
-	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget, journal.Marking(turnStart))
+	spool, err := b.openJournal(r.ID)
 	if err != nil {
 		return err
 	}
