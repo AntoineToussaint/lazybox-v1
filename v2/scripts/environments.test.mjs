@@ -43,10 +43,10 @@ test('source snapshots exclude credentials, runtime state, and mutable build out
   for (const file of ['services/runner/code/work.go', 'services/runner/code/go.sum', 'package-lock.json', 'workers/claude-sdk/src/main.ts', 'apps/desktop/src-tauri/Cargo.lock', '.env.example']) assert.equal(includeSource(file), true, file);
 });
 
-import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink, realpath } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink, realpath, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copySource, digestTree, promote, acquireLock, readValidatedRelease } from './environments.mjs';
+import { copySource, digestTree, promote, acquireLock, readValidatedRelease, buildCLI, watchCLI, runnerSourceFingerprint, runnerSourceFile } from './environments.mjs';
 
 test('snapshot inside the source excludes runtime credentials and survives subsequent source edits', async t => {
   const root = await mkdtemp(join(tmpdir(), 'lazybox-environments-'));
@@ -285,4 +285,64 @@ test('a permission-denied existence probe is not mistaken for failed termination
  let probes=0;const signals=[];
  await stopProcessGroup({pid:123},100,(_pid,signal)=>{signals.push(signal);if(signal===0){const error=new Error('probe');error.code=++probes===1?'EPERM':'ESRCH';throw error;}});
  assert.deepEqual(signals,['SIGTERM',0,0]);
+});
+
+test('Dev rebuilds the CLI agents run whenever the Runner source changes, never exposing a partial binary', async t => {
+  assert.ok(runnerSourceFile('internal/runner/items.go') && runnerSourceFile('go.mod') && runnerSourceFile('go.sum'));
+  assert.ok(!runnerSourceFile('internal/runner/items_test.go') && !runnerSourceFile('README.md'));
+  const source = await mkdtemp(join(tmpdir(), 'lazybox-cli-watch-'));
+  t.after(() => rm(source, { recursive: true, force: true }));
+  const code = join(source, 'services/runner/code'), bin = join(source, 'bin');
+  await mkdir(join(code, 'internal'), { recursive: true });
+  await writeFile(join(code, 'go.mod'), 'module fixture\n');
+  await writeFile(join(code, 'main.go'), 'package main\n');
+  let builds = 0, failing = false;
+  // A build writes its output in two pieces, as a linker does.
+  const build = async (_source, output) => {
+    if (failing) throw new Error('go build failed');
+    const n = ++builds;
+    await writeFile(output, `build ${n} start\n`);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    await writeFile(output, `build ${n} start\nbuild ${n} end\n`);
+  };
+  await buildCLI(source, bin, build);
+  const cli = join(bin, 'lazybox');
+  assert.equal(await readFile(cli, 'utf8'), 'build 1 start\nbuild 1 end\n');
+  const since = await runnerSourceFingerprint(source);
+  const logs = [];
+  const watch = watchCLI({ source, directory: bin, since, build, interval: 20, debounce: 80, log: line => logs.push(line) });
+  t.after(() => watch.close());
+  // Whoever runs the CLI meanwhile only ever finds a whole build.
+  let reading = true, torn = '';
+  const reader = (async () => {
+    while (reading) {
+      const text = await readFile(cli, 'utf8');
+      if (!/^build (\d+) start\nbuild \1 end\n$/.test(text)) torn = text;
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  })();
+  const settle = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const until = async (what, ok) => { for (const end = Date.now() + 5000; !(await ok());) { if (Date.now() > end) assert.fail(what); await settle(10); } };
+  // Not what the CLI is built from: nothing to build.
+  await writeFile(join(code, 'README.md'), 'notes');
+  await writeFile(join(code, 'internal', 'x_test.go'), 'package internal\n');
+  await settle(300);
+  assert.equal(builds, 1);
+  // A burst of Go edits is one build, once they settle.
+  for (let i = 0; i < 4; i++) { await writeFile(join(code, 'internal', 'x.go'), `package internal\n// ${i}\n`); await settle(20); }
+  await until('the CLI was not rebuilt', async () => (await readFile(cli, 'utf8')).includes('build 2 end'));
+  await settle(300);
+  assert.equal(builds, 2);
+  // go.mod counts too.
+  await writeFile(join(code, 'go.mod'), 'module fixture\n\ngo 1.25\n');
+  await until('go.mod did not rebuild the CLI', async () => (await readFile(cli, 'utf8')).includes('build 3 end'));
+  // A broken build keeps the previous CLI and says so.
+  failing = true;
+  await writeFile(join(code, 'main.go'), 'package main\nbroken(\n');
+  await until('the failure is not said', () => logs.some(line => line.includes('previous one stays')));
+  assert.equal(await readFile(cli, 'utf8'), 'build 3 start\nbuild 3 end\n');
+  reading = false; await reader;
+  assert.equal(torn, '', 'an agent could run a half-written CLI');
+  assert.deepEqual((await readdir(bin)).filter(name => name !== 'lazybox'), [], 'no temporary build is left behind');
+  await watch.close();
 });

@@ -27,7 +27,12 @@ in the launcher stops that Runner and its development watchers.
 Dev reloads automatically: Vite/React refreshes UI edits inside Tauri; `tauri dev`
 rebuilds and relaunches the native shell when Rust changes; Codefly's go-grpc
 `hot-reload` watcher rebuilds and restarts the Runner when Go sources change.
-The desktop rereads its selected private endpoint file and adopts the new bearer
+The launcher rebuilds the `lazybox` CLI agents run (`<dev>/bin/lazybox`) from
+the same change: it polls `services/runner/code` (Go files other than tests,
+`go.mod`, `go.sum`), waits for edits to settle, builds beside the binary and
+renames it over, so an agent never runs a half-written CLI nor one older than
+its Runner. A failed build keeps the previous CLI and says so; it never stops
+Dev. The desktop rereads its selected private endpoint file and adopts the new bearer
 on the same resolved origin. No credential is put in the Vite URL or public assets.
 Vite binds a loopback port assigned by the OS and serves only UI source/dependencies.
 UI watchers share the explicit macOS compatibility policy in

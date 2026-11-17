@@ -83,10 +83,64 @@ async function buildSnippetAdapter(source) {
   await run('cargo', ['build', '-p', 'lazybox-config', '--bin', 'lazybox-snippets'], workspace, {...buildEnv, CARGO_TARGET_DIR:target});
   return join(target, 'debug', 'lazybox-snippets');
 }
-// The CLI agents call (`lazybox run`) is built from the same source as the Runner.
-async function buildCLI(source, directory) {
-  await run('go', ['build', '-o', join(directory, 'lazybox'), './cmd/lazybox'], join(source, 'services/runner/code'));
+// The CLI agents call (`lazybox run`, `lazybox link`) is built from the same
+// source as the Runner. It is built beside its final path and renamed over
+// it, so an agent never executes a half-written binary.
+const goBuildCLI = (source, output) => run('go', ['build', '-o', output, './cmd/lazybox'], join(source, 'services/runner/code'));
+export async function buildCLI(source, directory, build = goBuildCLI) {
+  await mkdir(directory, { recursive: true });
+  const temporary = join(directory, `.lazybox-${randomUUID()}`);
+  try {
+    await build(source, temporary);
+    await rename(temporary, join(directory, 'lazybox'));
+  } finally {
+    await rm(temporary, { force: true });
+  }
   return directory;
+}
+// What the CLI is built from: the Runner module's Go files (tests aside) and
+// its go.mod/go.sum. Codefly rebuilds the Runner when they change.
+export function runnerSourceFile(path) {
+  return (path.endsWith('.go') && !path.endsWith('_test.go')) || /(^|\/)go\.(mod|sum)$/.test(path);
+}
+export async function runnerSourceFingerprint(source) {
+  const code = join(source, 'services/runner/code'), hash = createHash('sha256');
+  const walk = async path => {
+    for (const entry of (await readdir(path, { withFileTypes: true })).sort((a, b) => a.name < b.name ? -1 : 1)) {
+      if (entry.name.startsWith('.') || entry.name === 'testdata' || entry.name === 'node_modules') continue;
+      const full = join(path, entry.name), rel = relative(code, full);
+      if (entry.isDirectory()) await walk(full);
+      else if (entry.isFile() && runnerSourceFile(rel)) {
+        try { const stat = await lstat(full); hash.update(JSON.stringify([rel, stat.size, stat.mtimeMs])); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      }
+    }
+  };
+  await walk(code); return hash.digest('hex');
+}
+// Dev builds the CLI at launch, and Codefly rebuilds and restarts the Runner
+// on every Go change: rebuild the CLI with it, or agents run a CLI older than
+// their Runner. The source is polled (directory fs.watch is unreliable on
+// macOS, ui-watch.mjs); a change is built once it has settled for debounce
+// ms. A failed build keeps the previous CLI and is said; it never stops Dev.
+export function watchCLI({ source, directory, since, build = goBuildCLI, interval = 1000, debounce = 1500, log = console.log }) {
+  let last = since, changedAt = 0, pending = false, stopped = false, timer, current = Promise.resolve();
+  const tick = async () => {
+    try {
+      const now = await runnerSourceFingerprint(source);
+      if (last === undefined) last = now;
+      else if (now !== last) { last = now; changedAt = Date.now(); pending = true; }
+      if (pending && !stopped && Date.now() - changedAt >= debounce) {
+        pending = false;
+        await buildCLI(source, directory, build);
+        log('Rebuilt the lazybox CLI agents run, from the Runner source that changed.');
+      }
+    } catch (error) {
+      log(`The lazybox CLI agents run was not rebuilt; the previous one stays: ${error.message}`);
+    }
+  };
+  const loop = () => { if (!stopped) timer = setTimeout(() => { current = tick().finally(loop); }, interval); };
+  loop();
+  return { async close() { stopped = true; clearTimeout(timer); await current; } };
 }
 async function buildDesktop(source, paths, target) {
   await run('npm', ['run', 'build:ui', '-w', '@lazybox/desktop'], source);
@@ -249,7 +303,7 @@ export async function superviseRunner({ start, restartRequest, stopping, onReady
 async function launch(environmentRoot, channel) {
   const paths = environmentPaths(environmentRoot, channel);
   const unlock = await acquireLock(paths.lock);
-  let runner, desktop, worker, ui, finished, stopping = false;
+  let runner, desktop, worker, ui, cliWatch, finished, stopping = false;
   const stop = () => { if (stopping) return; stopping = true; runner?.kill('SIGINT'); };
   try {
     const subscriptionState = await sharedSubscriptionState(environmentRoot);
@@ -265,7 +319,9 @@ async function launch(environmentRoot, channel) {
       cliDir=join(source,'resources','bin');
     } else {
       snippetAdapter=await buildSnippetAdapter(source);
+      const cliSource = await runnerSourceFingerprint(source);
       cliDir=await buildCLI(source, join(paths.directory, 'bin'));
+      cliWatch = watchCLI({ source, directory: cliDir, since: cliSource });
       await run('make', ['deps', 'build-worker', 'build-web'], source);
       ui = await startDesktopDevServer(source);
       worker = spawn(join(source, 'node_modules/.bin/tsc'), ['-p', 'workers/claude-sdk', '--watch', '--preserveWatchOutput'], { cwd: source, env: buildEnv, stdio: 'inherit', detached: true });
@@ -317,11 +373,11 @@ async function launch(environmentRoot, channel) {
         : spawn(join(app, 'Contents/MacOS/lazybox-v2-desktop'), ['--endpoint', paths.endpoint], { env: buildEnv, stdio: 'inherit' });
       desktop.on('error', error => console.error(`Desktop launch failed: ${error.message}`));
       console.log(`${paths.productName} is running. State: ${paths.state}\nClosing the desktop leaves this Runner alive. Ctrl+C here stops this environment's Runner; Restart Runner in the app starts it again here.`);
-      if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, and Codefly rebuilds/restarts Go. A Runner restart does not stop Dev agents or their managed commands: the restarted Runner re-attaches to their session hosts.`);
+      if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, Codefly rebuilds/restarts Go, and the lazybox CLI agents run is rebuilt with it. A Runner restart does not stop Dev agents or their managed commands: the restarted Runner re-attaches to their session hosts.`);
     };
     await superviseRunner({ start, restartRequest, stopping: () => stopping, onReady });
   } finally {
-    await Promise.all([stopProcessGroup(channel === 'dev' ? desktop : undefined), stopProcessGroup(worker)]);
+    await Promise.all([stopProcessGroup(channel === 'dev' ? desktop : undefined), stopProcessGroup(worker), cliWatch?.close()]);
     await ui?.server.close();
     runner?.kill('SIGINT');
     if (finished) await finished;
