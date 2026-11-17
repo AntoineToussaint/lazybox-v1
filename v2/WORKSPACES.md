@@ -162,9 +162,11 @@ offers each member's home and **Home folder (~)**.
 
 **Agents.** The briefing says a home is the person's and read-only for the
 agent (read files and run read-only commands; never edit, commit, reset, stash,
-pull, switch branches or start servers there), and asks it to hand logins and
-long-lived commands back as "run in the home checkout of <repo>: `<cmd>`" or
-"run in your home folder: `<cmd>`". A new conversation's workspace context names
+pull, switch branches or start servers there), to use it rather than a
+temporary clone to run a repository's own tools at the latest main, that
+commands needing a terminal (logins, browser sign-in) cannot run from its
+shell, and to hand them back explicitly, whole (`env -u VAR …`), as "run in the
+home checkout of <repo>: `<cmd>`" or "run in your home folder: `<cmd>`". A new conversation's workspace context names
 each member's home; `ListWorkspaceRepositories` (so `lazybox workspace repos`,
 `lazybox repos`, `lazybox repo home`) returns it to an agent's credential.
 `ListRepositoryHomes`, `SetRepositoryHome` and `OpenRepositoryHome` are the
@@ -173,13 +175,30 @@ owner's alone.
 **Run in … home.** The conversation's last message, once its turn is over,
 gets one button per command it hands to the person (`home-run.ts`): the
 briefing's phrase is read for certain; otherwise a command the message plainly
-hands over ("run … yourself", "you'll need to run", a login) is offered, at
-most three, never one the agent says it ran or one for later. A click opens a
-shell there in the Terminal panel and runs a one-line command at once; a
-multi-line script or one with placeholders is typed for review. A repository
-without a home gets one first ("Create api home and run"). A global tool's
-login (`gcloud`, `aws`, `gh`…) runs in the home folder. Each code block's Run
-menu also offers every home and the home folder.
+hands over ("run … yourself", "you'll need to run", "needs a real terminal",
+a login) is offered, at most three, never one the agent says it ran or one for
+later. The command is kept exactly (`env -u VAR`, every argument; in a fenced
+`sh` block too), less a leading `cd` into another absolute folder (a temporary
+checkout the home replaces, whose name also picks the repository). A click
+opens a shell there in the Terminal panel (a real PTY: logins and browser
+sign-ins work, which an agent's commands, without a TTY, cannot do) and types
+the command at the prompt; it never runs by itself. The ⌄ beside it offers the
+other places, the person's own terminal app (`open` at the folder, the command
+copied) and Copy. A repository without a home gets one first ("Create api home
+and run"). A global tool's login (`gcloud`, `aws`, `gh`…) goes to the home
+folder. When the shell's command-end mark arrives (`TerminalStatus.command_ends`,
+see [command output](COMMAND_OUTPUT.md)), the button says *Finished · exit N*
+and offers **Tell <agent> it's done**, which sends "Done: `<cmd>` finished
+(exit N)." to the conversation.
+
+**Update to latest main.** `UpdateRepositoryHome` (owner only; the row, its ⋯
+menu, `lazybox repo home <name> --update`) fetches origin with the person's own
+credentials (Git never prompts), then fast-forwards the default branch only
+when it is checked out, has no tracked changes and no commits of its own;
+otherwise it says why and changes nothing. A fast-forward that would
+overwrite an untracked file is Git's to refuse. `RepositoryHome.behind` (as
+last fetched) shows *N behind origin/main*. Agents are told to use the home,
+not a temporary clone, for a repository's own tools at the latest main.
 
 **Storage.** The home path is the repository record's `home` in the library
 (`repositories.json`), so it survives restarts. Libraries written before it

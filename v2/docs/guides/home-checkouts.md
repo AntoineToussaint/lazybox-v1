@@ -10,6 +10,7 @@ path such as `~/lazybox/repos/acme/api`, outside every workspace.
 - [Give a repository a home](#give-a-repository-a-home)
 - [Open it](#open-it)
 - [Run what an agent hands back](#run-what-an-agent-hands-back)
+- [Keep it at the latest main](#keep-it-at-the-latest-main)
 - [What agents know](#what-agents-know)
 - [From the command line](#from-the-command-line)
 - [What Lazybox never does there](#what-lazybox-never-does-there)
@@ -53,25 +54,47 @@ moments. For long sessions, **Open in Terminal** opens your own terminal app.
 When an agent ends its turn with something only you can run, its last
 message gets one button per command:
 
-- **Run in api home `make playground`** opens a shell in the api home and
-  runs it.
+- **Run in api home `make playground`** opens a shell in the api home.
 - **Run in your home folder `gcloud auth application-default login`**: a
-  login that belongs to no repository runs in your home folder.
+  login that belongs to no repository goes to your home folder.
 - **Create api home and run** when the repository has no home yet: it clones
   one first.
 
-A one-line command runs at once, in a shell that has the keyboard, so a login
-can ask its questions. A script of several lines, or one with something to
-fill in (`<your-token>`), is typed at the prompt for you to review; press
-Return to run it.
+The command is typed at the shell's prompt exactly as the agent wrote it,
+`env -u SOME_VAR` and every argument included, and waits there: read it, edit
+it if you like, and press Return. Nothing runs by itself. The shell is a real
+terminal, so a login can ask for a password or open a browser sign-in, which
+an agent's own commands cannot (they have no terminal). If the agent wrote a
+`cd` into a temporary checkout (`cd /tmp/api-main && …`), that `cd` is left
+out: the home checkout is the place it stood for.
+
+When the command ends, the button says *Finished in api home · exit 0* and
+offers **Tell Claude it's done**: it sends *Done: `<command>` finished (exit
+0).* to the conversation, so an agent waiting for your login goes on. The
+**⌄** beside the button runs it in another home or your home folder, opens
+**your own terminal app** at the home with the command copied to paste, or
+just copies it.
 
 Agents are told to write these as "run in the home checkout of api:
 `make playground`", which Lazybox reads for certain. Other wording is read on
 a best-effort basis: a command the message plainly hands to you ("run …
-yourself", "you'll need to run …", a login). A command the agent says it ran
-is never offered, nor one for later (`make stop` when done). Every code
-block's **Run** menu (its ⌄) also has **Run in … home** and **Run in your
-home folder**.
+yourself", "you'll need to run …", "needs a real terminal", a login). A
+command the agent says it ran is never offered, nor one for later (`make stop`
+when done). Every code block's **Run** also opens the terminal (in the
+workspace), and its **⌄** has **Run in … home** and **Run in your home
+folder**; see [Run the commands it gives you](chat.md#run-the-commands-it-gives-you).
+
+## Keep it at the latest main
+
+A home is yours, so Lazybox never moves it by itself. When it is behind, its
+row says *3 behind origin/main* and offers **Update to latest main** (also in
+the row's ⋯ menu, or `lazybox repo home api --update`): it fetches, then
+fast-forwards `main` only when `main` is checked out and has no changes and no
+commits of its own. Otherwise it says why — *the home is on experiment, not
+main*, *main has uncommitted changes* — and changes nothing: nothing is ever
+reset, stashed, discarded or switched. Agents are told to use the home, not a
+temporary clone, to run a repository's own tools at the latest main, and to
+ask you to update it when it is behind.
 
 ## What agents know
 
@@ -88,6 +111,7 @@ lazybox repos                          # every repository, its home, branch and 
 cd "$(lazybox repo home api)"          # the path alone, for scripts
 lazybox repo home api --create         # clone one at the suggested place (--path P for another)
 lazybox repo home api --adopt ~/src/api
+lazybox repo home api --update         # fetch, then fast-forward a clean main
 lazybox repo home api --forget         # no file changes
 ```
 

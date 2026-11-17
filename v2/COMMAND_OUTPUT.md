@@ -200,8 +200,10 @@ text is JetBrains Mono (bundled), or the code font from Settings → Appearance.
 output lines are dropped) has a **Run** split button beside Copy
 (`code-runs.tsx`, rules in `code-run.ts`):
 
-- **Run** (also Enter on the focused block) sends the agent "Run this and tell
-  me the result:" and the block, fenced, as its own message: the draft in the
+- **Run** (also Enter on the focused block) opens a shell of the Terminal
+  panel with the command at its prompt; see "Run is the terminal" below.
+- **Ask the agent to run it (no terminal)**, in the ▾ menu, sends the agent
+  "Run this and tell me the result:" and the block, fenced, as its own message: the draft in the
   message box is untouched. The agent runs it with `lazybox run`, so it sees a
   failure and reacts. During a turn the message waits in the Runner's queue and
   the block says "Queued — runs after the current turn". The block then shows
@@ -214,7 +216,7 @@ output lines are dropped) has a **Run** split button beside Copy
   `start_action`. Its chip reads *Sent to Claude · starting…*, then *running
   in the background · port 5173* with **Open preview**, from the agent's tool
   call (a `lazybox run` report, or a `start`/`start_action` that returned).
-- **Run myself…** (the ▾ menu, the block's right-click menu, ⌥Enter) opens a
+- **Run as command output (no terminal)…** (the ▾ menu, the block's right-click menu, ⌥Enter) opens a
   confirm card under the block: the script, editable; the folder (the
   workspace root or one of its repositories, by default the conversation's);
   Run (Enter) and Cancel (Escape). A script with a placeholder (`<your-token>`,
@@ -238,13 +240,31 @@ output lines are dropped) has a **Run** split button beside Copy
 a person's command too: the mode bounds the agent, and the person could type
 the same command in a workspace terminal. The confirm card says so. An
 agent's own start in such a conversation is still refused. Nothing runs
-without a click or key, and Run myself always confirms.
+without a click or key, and Run as command output always confirms.
+
+**Run is the terminal (2026-11-17).** A block's **Run** (its main button,
+`Enter` on the focused block, `] ] r`, `/run`) used to ask the agent. An
+interactive command then failed there: an agent's commands have no TTY, so a
+login or browser sign-in cannot run through it, and an agent said as much when
+a Run arrived. Run now opens a shell of the workspace's Terminal panel (a real
+PTY) in the conversation's folder with the command typed at the prompt, never
+run by itself (`home-shell.ts`); the ▾ adds each repository's
+[home checkout](WORKSPACES.md#home-checkouts), the home folder, the person's
+own terminal app and Copy. Asking the agent and command output come last,
+labelled *no terminal*, and are not offered for a command that needs a
+terminal (`needsTerminal` in `home-run.ts`: a login, `auth`, a sign-in,
+`--no-launch-browser`). The shell marks each command line's end (OSC
+133;D;<status>, agentshell's zsh integration); the Runner counts the marks on
+the terminal (`TerminalStatus.command_ends`, `last_command_status`), so the
+block says *Finished · exit N* and offers **Tell Claude it's done** without
+the window following the output itself.
 
 Inline code that reads as a command (`make lint`, `bin/devbox check`, or a
 bare subcommand such as `build` next to a program the message runs by path,
 read as `bin/devbox build`) offers the same two in its right-click menu only,
-so prose stays calm. **Run the last command block** (`] ] r`) and **Run the
-last command block myself…** are in the command palette.
+so prose stays calm. **Run the last command block in the terminal** (`] ] r`)
+and **Run the last command block as command output…** are in the command
+palette.
 
 The hand-over of a failed run carries the end of its output, not a gortk
 view: only `lazybox run` builds one, and a person's run is not wrapped in it.

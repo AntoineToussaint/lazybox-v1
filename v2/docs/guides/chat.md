@@ -245,30 +245,41 @@ a [Web panel](run-your-app.md#browse-beside-your-work-the-web-panel).
 A shell block in the agent's answer (`bash`, `sh`, `zsh`, `console`…) has
 **Run** beside **Copy**:
 
-- **Run** asks the agent to run it: *Run this and tell me the result:* and the
-  block go as their own message, so your draft stays. The agent runs it, sees a
-  failure and reacts. While a turn is running it waits behind it (*Queued —
-  runs after the current turn*). The block then says how it went: *Sent to
-  Claude · ran ✓* or *failed ✗*.
-- **Run myself…** (the **▾** next to Run, or the block's right-click menu)
-  shows the exact script, which you can edit, and the folder to run it in: the
-  workspace or one of its repositories. `Enter` runs it, `Esc` cancels. A
-  script with a placeholder such as `<your-token>` waits until you fill it in.
-  It runs in [Command output](#follow-what-it-does), and the block shows
-  *Running*, *✓ exit 0* or *✗ exit 2*; after a failure, **Ask Claude to fix**
-  adds the script and the end of its output to your message.
+- **Run** opens a shell in the workspace's Terminal panel, in the
+  conversation's folder, with the command typed at the prompt: read it, edit
+  it if you like, and press Return. It is a real terminal, so a login can ask
+  for a password or open a browser sign-in. Nothing runs by itself, and
+  nothing goes to the agent. When the command ends, the block says
+  *Finished · exit 0* and offers **Tell Claude it's done**, which sends
+  *Done: `make seed` finished (exit 0).* so the agent can go on.
+- The **▾** next to Run (or the block's right-click menu) also runs it in a
+  repository's [home checkout](home-checkouts.md) or your home folder, opens
+  **your own terminal app** at the folder with the command copied, or copies
+  it. Last, marked *no terminal*: **Ask Claude to run it** (the block goes as
+  its own message, queued behind a running turn; the block then says *Sent to
+  Claude · ran ✓* or *failed ✗*) and **Run as command output…** (the exact
+  script, editable, and the folder; `Enter` runs it in
+  [Command output](#follow-what-it-does), *✓ exit 0* or *✗ exit 2* on the
+  block, and after a failure **Ask Claude to fix** adds the script and the end
+  of its output to your message; a placeholder such as `<your-token>` must be
+  filled in first).
+- **A command that needs a terminal** (a login, `auth`, a sign-in,
+  `--no-launch-browser`) is marked *needs a terminal*: it is only opened in
+  the Terminal panel or your own terminal, or copied. An agent's commands have
+  no terminal, so it is never sent to the agent or run as command output.
 - **A server or watcher** (`npm run dev`, `docker compose up`, `--watch`…)
-  never ends, so nothing waits for it: **Run** asks the agent to start it in
-  the background and tell you when it is ready, and **Run myself** starts it in
-  the background. The block then reads *Running · port 3000* with **Open
-  preview** and **Stop**. If a workspace action runs the same command, Run
-  myself starts that action instead, on the workspace's own port.
+  runs in the Terminal panel like anything else (Ctrl+C stops it). Asking
+  Claude starts it in the background and tells you when it is ready; Run as
+  command output starts it in the background too, with *Running · port 3000*,
+  **Open preview** and **Stop**, or the workspace action that runs the same
+  command, on the workspace's own port.
 
-Focus a block (`Tab`) and press `Enter` to run it through the agent, `⌥Enter`
-to run it yourself. `]] r` runs the latest block of the conversation. Commands
-an agent writes inline, such as `make lint`, offer the same two in their
-right-click menu. Nothing runs without your click or key. In a read-only or
-Plan conversation, Run myself still works — it runs as you — and says so first.
+Focus a block (`Tab`) and press `Enter` to open it in the terminal, `⌥Enter`
+to run it as command output. `]] r` opens the latest block of the conversation
+in the terminal. Commands an agent writes inline, such as `make lint`, offer
+the same in their right-click menu. In a read-only or Plan conversation, your
+own runs still work — they run as you — and the command-output card says so
+first.
 
 ## Sub-agents and background commands
 
