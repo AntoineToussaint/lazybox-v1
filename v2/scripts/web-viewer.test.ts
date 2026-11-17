@@ -104,3 +104,21 @@ test('a native view steps aside for menus and dialogs, and stays inside the wind
   // Clipped to the window.
   assert.deepEqual(placement(rect(800, 40, 500, 900), viewport, [], false), { x: 800, y: 40, width: 200, height: 760 });
 });
+
+test('a native view is placed exactly over the page area, fractions and all, and clipped to its panel', () => {
+  const rect = (x: number, y: number, width: number, height: number) => ({ left: x, top: y, right: x + width, bottom: y + height, width, height, x, y, toJSON() {} }) as DOMRect;
+  const viewport = { width: 1512, height: 916 };
+  // The page area under the address bar on fractional CSS pixels (a sidebar
+  // 261.5 wide, the interface's text size): passed on as is, for the host to
+  // convert to points with the app page's zoom and snap inward, once (viewer.rs).
+  assert.deepEqual(placement(rect(262.5, 113.25, 700.5, 760.5), viewport, [], false), { x: 262.5, y: 113.25, width: 700.5, height: 760.5 });
+  // An ancestor that clips (a dock group, a scrolled container) clips the
+  // view: it never draws outside its panel.
+  const group = { left: 262, top: 80, right: 900, bottom: 700 };
+  assert.deepEqual(placement(rect(262.5, 113.25, 700.5, 760.5), viewport, [], false, [group]), { x: 262.5, y: 113.25, width: 637.5, height: 586.75 });
+  // Scrolled out of its container: hidden.
+  assert.equal(placement(rect(262, 760, 700, 300), viewport, [], false, [group]), undefined);
+  // A menu over the part of the panel a clip hides leaves the view on screen; one over the rest does not.
+  assert.ok(placement(rect(262.5, 113.25, 700.5, 760.5), viewport, [rect(920, 300, 200, 200)], false, [group]));
+  assert.equal(placement(rect(262.5, 113.25, 700.5, 760.5), viewport, [rect(880, 300, 200, 200)], false, [group]), undefined);
+});

@@ -497,6 +497,19 @@ The costs of the child webview, and what pays for them:
   panel is dragged, a collapsed panel, another page or Settings. A view whose
   panel goes away is hidden at once and closed a minute later, so a visit to
   Settings and back keeps the page as it was (`native-web-view.ts`).
+- Its frame is the page area under the panel's address bar, clipped to every
+  ancestor that clips the panel, in the app page's CSS pixels with the viewport
+  it was measured in. The host converts it to points against the app webview's
+  own size (so the app page's ⌘+ zoom and the display's scale cancel out) and
+  snaps the edges inward to whole points, so a fractional edge never overlaps
+  the sidebar or the address bar (`viewer.rs`, `logical`). Never against the
+  window's `inner_size()`: on macOS, once a window has a child webview, Tauri
+  answers that from tao's original content view, which wry replaced and which
+  stops following the window, so a window resized or maximized after its first
+  viewer kept its creation size and every page was drawn too high and too far
+  left, over the address bar. The panel and all its ancestors are watched for
+  size changes (a sidebar, a split, the Agents panel closing move it), as are
+  the window, the root's appearance attributes and the display's pixel ratio.
 - A window with a child webview is no longer a single-webview "WebviewWindow"
   to Tauri, so the host's commands take the calling webview and window instead
   (`host.rs`). `unstable` is pinned with Tauri (`=2.12.5`); an upgrade re-checks it.
@@ -536,16 +549,22 @@ apps*, with **Open in browser**. Links followed inside a page from another
 origin stay that page's own history (in the desktop app every load is history).
 
 Not verified: the desktop app with the native viewer was compiled, unit-tested
-and linted, not run in a built app: placement over a docked panel, hiding under
-menus, the separate data store and the icon fetch are unexercised in WKWebView.
+and linted, not run in a built app: the separate data store and the icon fetch
+are unexercised in WKWebView. Placement and hiding are tested up to the host
+call (a recording host in `scripts/fixtures/web-view-host`, and `logical` in
+`viewer.rs`); that WKWebView then draws at that frame is checked by eye.
 Windows and Linux (the `data_directory` store) were not built.
 
 **Tests**: `npm run test:web-viewer` (the panel in the browser build: link
 routing by click, ⌥-click and menu, the address bar, search, history, zoom,
 copy, the stalled-page fallback, Settings, a new panel, moving to a window and
-back, persistence, phone width); `node --import tsx --test
+back, persistence, phone width; and with a recording native host on a Retina
+display, the frame over the page area through sidebar, window, notice, text
+size, split and maximize changes, hidden under menus, context menus and other
+pages); `node --import tsx --test
 scripts/web-viewer.test.ts` (addresses, search, history, zoom, link hints,
-placement); `make check-desktop` (URL and navigation policy, frame scaling,
+placement and clipping); `make check-desktop` (URL and navigation policy, frame
+scaling against the app webview, zoom, Retina and inward snapping,
 icon rules, the web window surface, capability isolation).
 
 ## Review and conversation continuity

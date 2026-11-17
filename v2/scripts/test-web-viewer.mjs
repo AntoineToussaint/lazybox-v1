@@ -20,6 +20,10 @@ const site = `http://127.0.0.1:${fixture.previewPort}`;
 // The chat links to the fixture's little site: one link in a sentence.
 fixture.openEvents('alpha-session').push({ type: 'message_delta', text: `The docs are on [the fixture site](${site}/about).` });
 const server = await createServer({ ...testViteCache(import.meta.url), configFile: false, logLevel: 'error', root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
+// The workspace with native web views, whose host records where it would draw them.
+const nativeServer = await createServer({ ...testViteCache(import.meta.url), configFile: false, logLevel: 'error', root: fileURLToPath(new URL('./fixtures/web-view-host', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
+// The dock tab of the nth Web panel.
+const webTabIn = (page, n) => page.locator('.dv-tab').filter({ has: page.locator('[data-kind="web"]') }).nth(n);
 const engine = process.env.TEST_WEBKIT ? webkit : chromium;
 const alt = process.platform === 'darwin' ? '⌥' : 'Alt';
 let browser;
@@ -209,11 +213,101 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'no horizontal overflow on a phone');
   await page.screenshot({ path: '.cache/web-viewer-phone.png' });
 
+  // Native web views (the desktop app), on a Retina display: the host records
+  // where it is asked to draw each page. The frame is exactly the page area
+  // under the address bar, in every layout, and the view steps aside for
+  // anything of the app's own over it.
+  await nativeServer.listen();
+  const native = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+  const host = await native.newPage();
+  host.on('pageerror', error => errors.push(String(error)));
+  await host.goto(`http://127.0.0.1:${nativeServer.httpServer.address().port}/?collection=alpha&session=alpha-session#token=${fixture.token}`);
+  await host.locator('.panel-chat').getByRole('link', { name: 'the fixture site' }).click({ modifiers: ['Alt'] });
+  const nativeViewer = host.getByRole('region', { name: 'Web page' }).first();
+  await expect(nativeViewer.locator('.web-surface')).toBeVisible();
+  await expect(nativeViewer.locator('iframe')).toHaveCount(0);
+  // Every page area on screen has a view shown exactly over it (and no other view is shown).
+  const placed = () => host.evaluate(() => {
+    const near = (a, b) => Math.abs(a - b) < 0.01;
+    const views = Object.values(window.nativeWebViews).filter(view => view.shown);
+    const surfaces = [...document.querySelectorAll('.panel-web .web-surface')].filter(surface => surface.checkVisibility());
+    if (!surfaces.length || views.length !== surfaces.length) return `${views.length} views shown for ${surfaces.length} pages`;
+    const results = surfaces.map(surface => {
+      const r = surface.getBoundingClientRect(), bar = surface.closest('.web-viewer').querySelector('.web-toolbar').getBoundingClientRect();
+      const want = { x: r.left, y: r.top, width: Math.min(r.right, document.documentElement.clientWidth) - r.left, height: Math.min(r.bottom, document.documentElement.clientHeight) - r.top };
+      const view = views.find(({ frame: f }) => near(f.x, want.x) && near(f.y, want.y) && near(f.width, want.width) && near(f.height, want.height));
+      if (!view) return `no view at ${JSON.stringify(want)}: ${JSON.stringify(views.map(v => v.frame))}`;
+      if (!near(view.frame.viewportWidth, innerWidth) || !near(view.frame.viewportHeight, innerHeight)) return `measured in ${view.frame.viewportWidth}×${view.frame.viewportHeight}, not ${innerWidth}×${innerHeight}`;
+      return view.frame.y >= bar.bottom - 0.01 ? 'placed' : `over the address bar (${view.frame.y} < ${bar.bottom})`;
+    });
+    return results.every(result => result === 'placed') ? 'placed' : results.join('; ');
+  });
+  const hidden = () => host.evaluate(() => Object.values(window.nativeWebViews).every(view => !view.shown));
+  await expect.poll(placed).toBe('placed');
+  // The sidebar made wider: the panel moves and narrows, the view with it.
+  const sidebar = await host.getByRole('separator', { name: 'Resize Workspaces sidebar' }).boundingBox();
+  await host.mouse.move(sidebar.x + sidebar.width / 2, sidebar.y + sidebar.height / 2); await host.mouse.down();
+  await host.mouse.move(sidebar.x + sidebar.width / 2 + 60, sidebar.y + sidebar.height / 2, { steps: 6 }); await host.mouse.up();
+  await expect.poll(placed).toBe('placed');
+  // The window restored smaller, then maximized.
+  await host.setViewportSize({ width: 1180, height: 740 });
+  await expect.poll(placed).toBe('placed');
+  await host.setViewportSize({ width: 1680, height: 1010 });
+  await expect.poll(placed).toBe('placed');
+  // A notice under the address bar pushes the page down.
+  const nativeAddress = nativeViewer.getByRole('textbox', { name: 'Address', exact: true });
+  await nativeAddress.fill('javascript:alert(1)'); await nativeAddress.press('Enter');
+  await expect(nativeViewer.getByRole('alert')).toBeVisible();
+  await expect.poll(placed).toBe('placed');
+  await nativeViewer.getByRole('alert').getByRole('button', { name: 'Dismiss' }).click();
+  await expect.poll(placed).toBe('placed');
+  // The interface's text made larger.
+  await host.evaluate(() => document.documentElement.style.setProperty('--text-scale', '1.5'));
+  await expect.poll(placed).toBe('placed');
+  await host.evaluate(() => document.documentElement.style.removeProperty('--text-scale'));
+  // A second Web panel beside the first: both pages are placed.
+  await host.locator('summary[aria-label="Panels"]').click();
+  await host.getByRole('button', { name: 'New Web panel', exact: true }).click();
+  const secondNative = host.locator('.panel-web').nth(1);
+  await secondNative.getByRole('textbox', { name: 'Address' }).fill(`${site}/`);
+  await secondNative.getByRole('textbox', { name: 'Address' }).press('Enter');
+  await expect(secondNative.locator('.web-surface')).toBeVisible();
+  await expect.poll(placed).toBe('placed');
+  await webTabIn(host, 1).locator('.dock-tab-close').click();
+  await expect.poll(placed).toBe('placed');
+  // Maximized (double-click its tab), then restored.
+  const restoredBox = await nativeViewer.locator('.web-surface').boundingBox();
+  await webTabIn(host, 0).dblclick();
+  await expect(host.getByRole('button', { name: 'Restore layout' }).first()).toBeVisible();
+  await expect.poll(async () => (await nativeViewer.locator('.web-surface').boundingBox()).width).toBeGreaterThan(restoredBox.width);
+  await expect.poll(placed).toBe('placed');
+  await webTabIn(host, 0).dblclick();
+  await expect(host.getByRole('button', { name: 'Restore layout' })).toHaveCount(0);
+  await expect.poll(placed).toBe('placed');
+  // The panel's ⋯ menu, and a context menu over the page: the page steps aside, and comes back.
+  await nativeViewer.getByLabel('Web page actions', { exact: true }).click();
+  await expect(host.getByRole('group', { name: 'Web page actions menu' })).toBeVisible();
+  await expect.poll(hidden).toBe(true);
+  await host.keyboard.press('Escape');
+  await expect.poll(placed).toBe('placed');
+  await webTabIn(host, 0).click({ button: 'right' });
+  await expect(host.getByRole('menu').first()).toBeVisible();
+  await expect.poll(hidden).toBe(true);
+  await host.keyboard.press('Escape');
+  await expect(host.getByRole('menu')).toHaveCount(0);
+  await expect.poll(placed).toBe('placed');
+  // Another page (Settings) hides it; back at work it is where it was.
+  await host.getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: 'Settings' }).click();
+  await expect.poll(hidden).toBe(true);
+  await host.getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: 'Work' }).click();
+  await expect.poll(placed).toBe('placed');
+  await host.screenshot({ path: '.cache/web-viewer-native.png' });
+
   assert.deepEqual(errors, []);
-  console.log('Web viewer: links routed by click, ⌥-click and menu; address bar, search, history, zoom, copy, fallback, settings, detach and dock, persistence.');
+  console.log('Web viewer: links routed by click, ⌥-click and menu; address bar, search, history, zoom, copy, fallback, settings, detach and dock, persistence; native views placed over the page area through sidebar, window, notice, text size, split and maximize changes, and hidden under menus and other pages.');
 } catch (error) {
   for (const p of browser?.contexts().flatMap(c => c.pages()) || []) await p.screenshot({ path: '.cache/web-viewer-failure.png', fullPage: true }).catch(() => {});
   throw error;
 } finally {
-  await browser?.close(); await server.close(); await fixture.close();
+  await browser?.close(); await server.close(); await nativeServer.close(); await fixture.close();
 }

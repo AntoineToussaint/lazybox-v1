@@ -24,69 +24,118 @@ function covers(): Element[] {
   try { return [...document.querySelectorAll(`:popover-open, dialog[open], ${fixed}`)]; }
   catch { return [...document.querySelectorAll(`dialog[open], ${fixed}`)]; }
 }
-const overlaps = (a: DOMRect, b: DOMRect) => a.width > 0 && a.height > 0 && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-
-/** Where a view goes, or undefined when it must be hidden. */
-export function placement(rect: DOMRect, viewport: { width: number; height: number }, blockers: DOMRect[], modal: boolean): Omit<WebViewFrame, 'viewportWidth' | 'viewportHeight'> | undefined {
-  if (modal) return undefined;
-  const x = Math.max(0, rect.left), y = Math.max(0, rect.top), right = Math.min(viewport.width, rect.right), bottom = Math.min(viewport.height, rect.bottom);
-  if (right - x < 8 || bottom - y < 8) return undefined;
-  if (blockers.some(blocker => overlaps(blocker, rect))) return undefined;
-  return { x: Math.round(x), y: Math.round(y), width: Math.round(right - x), height: Math.round(bottom - y) };
+/**
+ * Where an overlay draws. A layer with no box of its own (the context menu's
+ * top-layer holder is 0 × 0, its menu fixed inside it) draws where its children do.
+ */
+function drawn(element: Element, depth = 0): DOMRect[] {
+  const rect = element.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0) return [rect];
+  return depth < 3 ? [...element.children].flatMap(child => drawn(child, depth + 1)) : [];
 }
+export type Box = { left: number; top: number; right: number; bottom: number };
+const overlaps = (a: DOMRect, b: Box) => a.width > 0 && a.height > 0 && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+/** The boxes of the ancestors that clip `element` (a dock group, a scrolled container). */
+function clipsOf(element: Element): Box[] {
+  const clips: Box[] = [];
+  // Not the body or the root: their overflow is the viewport's, which already clips.
+  for (let node = element.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (style.overflowX === 'visible' && style.overflowY === 'visible' && !/paint|strict|content/.test(style.contain)) continue;
+    // Overflow does not apply to a box that is not there (display: contents) or inline.
+    if (style.display === 'contents' || style.display === 'inline') continue;
+    // Inside its borders and scroll bars, where its content shows.
+    const box = node.getBoundingClientRect(), left = box.left + node.clientLeft, top = box.top + node.clientTop;
+    clips.push({ left, top, right: left + node.clientWidth, bottom: top + node.clientHeight });
+  }
+  return clips;
+}
+
+/**
+ * Where a view goes, in the app page's CSS pixels, or undefined when it must
+ * be hidden. `rect` is the page area under the panel's address bar; the view
+ * is clipped to what of it is on screen, the viewport and every ancestor that
+ * clips it, so it never draws outside its panel. The edges stay fractional:
+ * the host converts them to points (the app page may be zoomed) and snaps
+ * them inward there, once (viewer.rs, `logical`).
+ */
+export function placement(rect: Box, viewport: { width: number; height: number }, blockers: DOMRect[], modal: boolean, clips: Box[] = []): Omit<WebViewFrame, 'viewportWidth' | 'viewportHeight'> | undefined {
+  if (modal) return undefined;
+  let x = Math.max(0, rect.left), y = Math.max(0, rect.top), right = Math.min(viewport.width, rect.right), bottom = Math.min(viewport.height, rect.bottom);
+  for (const clip of clips) { x = Math.max(x, clip.left); y = Math.max(y, clip.top); right = Math.min(right, clip.right); bottom = Math.min(bottom, clip.bottom); }
+  if (right - x < 8 || bottom - y < 8) return undefined;
+  if (blockers.some(blocker => overlaps(blocker, { left: x, top: y, right, bottom }))) return undefined;
+  return { x, y, width: right - x, height: bottom - y };
+}
+const frameKey = (f: WebViewFrame) => [f.x, f.y, f.width, f.height, f.viewportWidth, f.viewportHeight].map(n => n.toFixed(2)).join(',');
 
 function sync() {
   frame = 0;
   const found = covers();
   // While a panel is dragged the drop preview can land anywhere: every view steps aside.
   const modal = document.documentElement.classList.contains('dock-dragging') || found.some(element => { try { return element.matches('dialog:modal'); } catch { return false; } });
-  const boxes = found.map(element => ({ element, rect: element.getBoundingClientRect() }));
+  const boxes = found.map(element => ({ element, rects: drawn(element) }));
+  // Clipped to what is on screen (without scroll bars), measured against the
+  // whole viewport: that is the host's app webview, in points.
   const viewport = { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight };
+  const measured = { viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
   for (const slot of slots.values()) {
     const element = slot.element;
     // A panel moved into a window of its own is not where this window's view can be.
     const visible = element.isConnected && element.ownerDocument === document && document.visibilityState === 'visible' && (element.checkVisibility?.({ visibilityProperty: true } as CheckVisibilityOptions) ?? true);
+    if (visible) watch?.(element);
     // What covers a view is anything of the app's own over it, except the floating group it is in.
-    const blockers = boxes.filter(box => !box.element.contains(element)).map(box => box.rect);
-    const place = visible ? placement(element.getBoundingClientRect(), viewport, blockers, modal) : undefined;
-    const key = place ? `${place.x},${place.y},${place.width},${place.height},${window.innerWidth},${window.innerHeight}` : 'hidden';
+    const blockers = boxes.filter(box => !box.element.contains(element)).flatMap(box => box.rects);
+    const place = visible ? placement(element.getBoundingClientRect(), viewport, blockers, modal, clipsOf(element)) : undefined;
+    const target: WebViewFrame | undefined = place && { ...place, ...measured };
+    const key = target ? frameKey(target) : 'hidden';
     if (key === slot.shown) continue;
     const wasShown = slot.shown !== 'hidden' && slot.shown !== '';
     slot.shown = key;
-    if (place) { const url = slot.placed ? '' : slot.url; slot.placed = true; void slot.views.show(slot.id, url, { ...place, viewportWidth: window.innerWidth, viewportHeight: window.innerHeight }, slot.zoom).catch(slot.report); }
+    if (target) { const url = slot.placed ? '' : slot.url; slot.placed = true; void slot.views.show(slot.id, url, target, slot.zoom).catch(slot.report); }
     else void slot.views.hide(slot.id).catch(slot.report);
-    if (wasShown !== !!place) slot.onShown(!!place);
+    if (wasShown !== !!target) slot.onShown(!!target);
   }
 }
 const schedule = () => { if (!frame) frame = requestAnimationFrame(sync); };
 
 function observe() {
   if (stop) return;
+  // A panel moves without changing size when something around it does (the
+  // sidebar, a split, the Agents panel closing): its ancestors are watched too.
   const resize = new ResizeObserver(schedule);
-  for (const slot of slots.values()) resize.observe(slot.element);
+  const watched = new WeakSet<Element>();
+  watch = element => { for (let node: Element | null = element; node; node = node.parentElement) if (!watched.has(node)) { watched.add(node); resize.observe(node); } };
+  for (const slot of slots.values()) watch(slot.element);
   const mutations = new MutationObserver(schedule);
   mutations.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open', 'class', 'style', 'hidden', 'popover'] });
+  // The appearance (text size, density, theme) is set on the root.
+  mutations.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
   // A popover opening is not a mutation: measure as it toggles, not a frame later.
   const toggled = () => sync();
   window.addEventListener('resize', schedule);
   document.addEventListener('scroll', schedule, true);
   document.addEventListener('toggle', toggled, true);
   document.addEventListener('visibilitychange', schedule);
+  // A display of another scale, or the app page zoomed (⌘+): the pixel ratio changes.
+  let ratio: MediaQueryList | undefined;
+  const rescaled = () => { ratio?.removeEventListener('change', rescaled); ratio = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`); ratio.addEventListener('change', rescaled); schedule(); };
+  rescaled();
   stop = () => {
     resize.disconnect(); mutations.disconnect();
     window.removeEventListener('resize', schedule); document.removeEventListener('scroll', schedule, true);
     document.removeEventListener('toggle', toggled, true); document.removeEventListener('visibilitychange', schedule);
-    stop = undefined;
+    ratio?.removeEventListener('change', rescaled);
+    watch = undefined; stop = undefined;
   };
-  observeElements = element => resize.observe(element);
 }
-let observeElements: ((element: HTMLElement) => void) | undefined;
+let watch: ((element: Element) => void) | undefined;
 
 function acquire(slot: Slot) {
   const timer = closing.get(slot.id);
   if (timer) { clearTimeout(timer); closing.delete(slot.id); }
   slots.set(slot.id, slot);
-  observe(); observeElements?.(slot.element);
+  observe(); watch?.(slot.element);
   schedule();
 }
 function release(slot: Slot) {

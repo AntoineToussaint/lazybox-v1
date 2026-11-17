@@ -308,7 +308,8 @@ fn monitors(app: &tauri::AppHandle) -> Result<Vec<Display>, String> {
 fn geometry(window: &tauri::Window) -> Result<Geometry, String> {
     let position = window.outer_position().map_err(|e| e.to_string())?;
     let outer = window.outer_size().map_err(|e| e.to_string())?;
-    let inner = window.inner_size().map_err(|e| e.to_string())?;
+    // Not `inner_size()`: it goes stale once a Web panel's viewer is in the window.
+    let inner = crate::viewer::content_size(window)?;
     let monitor = window
         .current_monitor()
         .map_err(|e| e.to_string())?

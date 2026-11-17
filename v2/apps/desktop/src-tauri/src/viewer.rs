@@ -113,7 +113,8 @@ fn view_id(id: &str) -> Result<&str, String> {
     }
 }
 
-/// Where the panel is, in the app page's CSS pixels and the viewport it was measured in.
+/// Where the panel's page area is, in the app page's CSS pixels, and the
+/// viewport (`innerWidth` × `innerHeight`) it was measured in.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Frame {
@@ -124,12 +125,45 @@ pub struct Frame {
     pub viewport_width: f64,
     pub viewport_height: f64,
 }
-/// The frame in the window's logical pixels. The app page may be zoomed
-/// (⌘+), so a CSS pixel is the window's width over the page's viewport.
-pub fn logical(
-    frame: &Frame,
-    window: (f64, f64),
-) -> Option<(LogicalPosition<f64>, LogicalSize<f64>)> {
+
+/// The size, in logical points, of the app webview that owns the viewers.
+///
+/// A viewer is a sibling of that webview in the window's content view, which
+/// the app webview fills from its top-left corner; its page's viewport is the
+/// whole webview. So the webview's own size is what a CSS pixel is measured
+/// against, whatever the app page's zoom (⌘+), the display's scale (Retina or
+/// not) or the window's title bar.
+///
+/// Never the window's `inner_size()`: on macOS, wry replaces the window's
+/// content view with the app webview's, and once a window has a second
+/// (child) webview Tauri answers `inner_size()` from tao's original view,
+/// which stopped following the window at that moment. A window resized,
+/// maximized or restored after its first viewer appeared kept reporting the
+/// size it was created at, and every viewer was scaled by the difference:
+/// drawn too high and too far left, over the panel's own address bar.
+pub fn content_size(window: &tauri::Window) -> Result<tauri::PhysicalSize<u32>, String> {
+    match window
+        .webviews()
+        .into_iter()
+        .find(|view| view.label() == window.label())
+    {
+        Some(app) => app.size().map_err(|e| e.to_string()),
+        None => window.inner_size().map_err(|e| e.to_string()),
+    }
+}
+
+/// Less than this past a whole point is a rounding error, not a fraction.
+const SNAP: f64 = 1.0 / 64.0;
+
+/// The frame in logical points of the window's content view, which the app
+/// webview of size `app` (logical points) fills. The app page may be zoomed
+/// (⌘+), so a CSS pixel is the webview's width over the page's viewport.
+///
+/// The edges are snapped inward to whole points (WebKit places a view on
+/// whole points), so a fractional panel edge never lets the page overlap the
+/// sidebar, the address bar or the next panel; and the frame never leaves the
+/// app webview. `None` when there is no room to show a page.
+pub fn logical(frame: &Frame, app: (f64, f64)) -> Option<(LogicalPosition<f64>, LogicalSize<f64>)> {
     let values = [
         frame.x,
         frame.y,
@@ -137,27 +171,32 @@ pub fn logical(
         frame.height,
         frame.viewport_width,
         frame.viewport_height,
-        window.0,
-        window.1,
+        app.0,
+        app.1,
     ];
     if values.iter().any(|v| !v.is_finite())
         || frame.viewport_width < 1.0
         || frame.viewport_height < 1.0
-        || window.0 < 1.0
-        || window.1 < 1.0
+        || frame.width <= 0.0
+        || frame.height <= 0.0
+        || app.0 < 1.0
+        || app.1 < 1.0
     {
         return None;
     }
-    let (sx, sy) = (
-        window.0 / frame.viewport_width,
-        window.1 / frame.viewport_height,
-    );
-    let x = (frame.x * sx).clamp(0.0, window.0);
-    let y = (frame.y * sy).clamp(0.0, window.1);
-    let width = (frame.width * sx).min(window.0 - x);
-    let height = (frame.height * sy).min(window.1 - y);
-    (width >= 1.0 && height >= 1.0)
-        .then(|| (LogicalPosition::new(x, y), LogicalSize::new(width, height)))
+    let (sx, sy) = (app.0 / frame.viewport_width, app.1 / frame.viewport_height);
+    let inward = |edge: f64, bound: f64| (edge - SNAP).ceil().clamp(0.0, bound.floor());
+    let outward = |edge: f64, bound: f64| (edge + SNAP).floor().clamp(0.0, bound.floor());
+    let left = inward(frame.x * sx, app.0);
+    let top = inward(frame.y * sy, app.1);
+    let right = outward((frame.x + frame.width) * sx, app.0);
+    let bottom = outward((frame.y + frame.height) * sy, app.1);
+    (right - left >= 1.0 && bottom - top >= 1.0).then(|| {
+        (
+            LogicalPosition::new(left, top),
+            LogicalSize::new(right - left, bottom - top),
+        )
+    })
 }
 
 #[derive(Clone, Serialize)]
@@ -389,11 +428,12 @@ pub async fn web_view_show(
     let label = label(&owner, view_id(&id)?);
     let window = webview.window();
     let scale = window.scale_factor().map_err(|e| e.to_string())?;
-    let inner = window
-        .inner_size()
+    // The webview asking is the page the frame was measured in.
+    let measured = webview
+        .size()
         .map_err(|e| e.to_string())?
         .to_logical::<f64>(scale);
-    let (position, size) = logical(&frame, (inner.width, inner.height))
+    let (position, size) = logical(&frame, (measured.width, measured.height))
         .ok_or("The panel has no room to show a page")?;
     if let Some(view) = app.get_webview(&label) {
         view.set_bounds(Rect {
@@ -601,30 +641,92 @@ mod tests {
         assert!(view_id("../x").is_err() && view_id("").is_err());
     }
 
+    fn frame(x: f64, y: f64, width: f64, height: f64, viewport: (f64, f64)) -> Frame {
+        Frame {
+            x,
+            y,
+            width,
+            height,
+            viewport_width: viewport.0,
+            viewport_height: viewport.1,
+        }
+    }
+    fn placed(frame: &Frame, app: (f64, f64)) -> (f64, f64, f64, f64) {
+        let (p, s) = logical(frame, app).expect("placed");
+        (p.x, p.y, s.width, s.height)
+    }
+
+    #[test]
+    fn a_frame_is_measured_against_the_app_webview_not_a_stale_window_size() {
+        // The page area of a Web panel under its address bar, in a 1512 × 916
+        // window (a maximized 14-inch MacBook): the native page goes exactly there.
+        let page = frame(262.0, 113.0, 700.0, 760.0, (1512.0, 916.0));
+        assert_eq!(placed(&page, (1512.0, 916.0)), (262.0, 113.0, 700.0, 760.0));
+        // What scaling by the window's `inner_size()` did once the window had
+        // been resized after its first viewer: that size is the one the window
+        // was created at (here 1500 × 640), so the page was drawn 34 points too
+        // high, over the address bar, and 2 points too far left, over the
+        // sidebar's edge.
+        let (x, y, ..) = placed(&page, (1500.0, 640.0));
+        assert_eq!((262.0 - x, 113.0 - y), (2.0, 34.0));
+    }
+
+    #[test]
+    fn a_frame_is_the_same_on_retina_and_standard_displays() {
+        // `web_view_show` reads the app webview's size in physical pixels and
+        // converts it with the window's scale: a window moved between a Retina
+        // and a standard display keeps every viewer where its panel is.
+        let page = frame(262.5, 113.25, 700.5, 760.0, (1512.0, 916.0));
+        let standard = tauri::PhysicalSize::new(1512_u32, 916).to_logical::<f64>(1.0);
+        let retina = tauri::PhysicalSize::new(3024_u32, 1832).to_logical::<f64>(2.0);
+        let one = placed(&page, (standard.width, standard.height));
+        assert_eq!(one, placed(&page, (retina.width, retina.height)));
+        // Fractional CSS edges are snapped inward: never over the sidebar
+        // (262.5 → 263) or the address bar (113.25 → 114), never past the
+        // panel (963 stays, 873.25 → 873).
+        assert_eq!(one, (263.0, 114.0, 700.0, 759.0));
+        // A float's rounding error is not a fraction.
+        let close = frame(99.999_999, 50.000_001, 400.000_001, 300.0, (1000.0, 800.0));
+        assert_eq!(placed(&close, (1000.0, 800.0)), (100.0, 50.0, 400.0, 300.0));
+    }
+
+    #[test]
+    fn a_zoomed_app_page_scales_by_its_own_viewport() {
+        // ⌘+ to 110% in a 1512 × 916 webview: WebKit reports a whole-pixel
+        // 1375 × 833 CSS viewport for the exact 1374.5 × 832.7.
+        let page = frame(240.0, 103.0, 636.0, 691.0, (1375.0, 833.0));
+        let (x, y, w, h) = placed(&page, (1512.0, 916.0));
+        // Within a point of the exact 110% box (264, 113.3, 699.6 × 760.1), and inside it.
+        assert!(
+            (x - 264.0).abs() <= 1.0 && (y - 113.3).abs() <= 1.0,
+            "{x},{y}"
+        );
+        assert!(x + w <= 963.6 && y + h <= 873.4, "{w}×{h}");
+        assert!(w >= 698.0 && h >= 758.0, "{w}×{h}");
+    }
+
     #[test]
     fn a_frame_follows_the_app_pages_zoom_and_stays_in_the_window() {
-        let frame = Frame {
-            x: 100.0,
-            y: 50.0,
-            width: 400.0,
-            height: 300.0,
-            viewport_width: 1000.0,
-            viewport_height: 800.0,
-        };
-        // Unzoomed: CSS pixels are logical pixels.
-        let (p, s) = logical(&frame, (1000.0, 800.0)).expect("frame");
-        assert_eq!((p.x, p.y, s.width, s.height), (100.0, 50.0, 400.0, 300.0));
-        // The app page zoomed to 125%: the same CSS box is larger on screen.
-        let (p, s) = logical(&frame, (1250.0, 1000.0)).expect("zoomed");
-        assert_eq!((p.x, p.y, s.width, s.height), (125.0, 62.5, 500.0, 375.0));
-        // Never past the window's edge.
+        let frame = frame(100.0, 50.0, 400.0, 300.0, (1000.0, 800.0));
+        // Unzoomed: CSS pixels are logical points.
+        assert_eq!(placed(&frame, (1000.0, 800.0)), (100.0, 50.0, 400.0, 300.0));
+        // The app page zoomed to 125%: the same CSS box is larger on screen,
+        // and the half point is snapped inward (62.5 → 63, 437.5 → 437).
+        assert_eq!(
+            placed(&frame, (1250.0, 1000.0)),
+            (125.0, 63.0, 500.0, 374.0)
+        );
+        // Never past the app webview's edge.
         let wide = Frame {
             width: 5000.0,
             ..frame.clone()
         };
-        let (_, s) = logical(&wide, (1000.0, 800.0)).expect("clamped");
-        assert_eq!(s.width, 900.0);
+        assert_eq!(placed(&wide, (1000.0, 800.0)), (100.0, 50.0, 900.0, 300.0));
         for bad in [
+            Frame {
+                height: 0.0,
+                ..frame.clone()
+            },
             Frame {
                 viewport_width: 0.0,
                 ..frame.clone()
