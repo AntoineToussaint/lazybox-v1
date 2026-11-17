@@ -81,8 +81,11 @@ try{
  assert.equal(await page.locator('.mermaid-measure').evaluate(node=>node.childElementCount),0,'the measuring box is emptied after each render');
 
  // 2. Pushed into a group that is folded (the app's own minimized state), then unfolded.
- const content=page.locator('.messages:visible').locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," dock-panel-content ")][1]');
- assert.equal(await content.count(),1,'the conversation sits in a dock panel');
+ // The panel is pinned by its id: once hidden below, `.messages:visible` no longer finds it.
+ const shownPanel=page.locator('.messages:visible').locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," dock-panel-content ")][1]');
+ assert.equal(await shownPanel.count(),1,'the conversation sits in a dock panel');
+ const content=page.locator(`.dock-panel-content[data-dock-panel="${await shownPanel.getAttribute('data-dock-panel')}"]`);
+ assert.equal(await content.count(),1,'the dock panel is found by its id');
  // What DockLayout does to a minimized group's always-rendered panel content.
  await content.evaluate(node=>node.classList.add('dock-content-hidden'));
  say('folded','```mermaid\n'+flows[0]+'\n```\n\nMARK_FOLDED');
