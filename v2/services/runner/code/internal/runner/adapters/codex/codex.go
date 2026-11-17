@@ -465,10 +465,6 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 			s.mu.Unlock()
 			return r, errors.New("unknown or already answered native request")
 		}
-		if p.message.Method == "item/permissions/requestApproval" && op.Decision == "accept" {
-			s.mu.Unlock()
-			return r, agent.ErrUnsupported
-		}
 		p.answered = true
 		s.requests[op.RequestID] = p
 		s.mu.Unlock()
@@ -525,11 +521,25 @@ func nativeResponse(method string, params json.RawMessage, op agent.Operation) (
 		}
 		return map[string]any{"answers": answers}, nil
 	}
-	if method == "item/permissions/requestApproval" {
-		if op.Decision == "accept" {
-			return nil, errors.New("permission-subset grants require a supported explicit grant UI")
+	if method == permissionsMethod {
+		// PermissionsRequestApprovalResponse: the access granted, for this
+		// turn or (always) the rest of the conversation. A decline grants
+		// nothing. Accepting grants exactly what was asked, never more.
+		if op.Decision != "accept" {
+			return map[string]any{"permissions": map[string]any{}, "scope": "turn"}, nil
 		}
-		return map[string]any{"permissions": map[string]any{}}, nil
+		granted, _ := requestedAccess(params)
+		if granted == nil {
+			return nil, fmt.Errorf("%w: this request asks for no access Lazybox can grant", agent.ErrUnsupported)
+		}
+		scope := "turn"
+		if op.Always != "" {
+			if op.Always != "session" {
+				return nil, fmt.Errorf("%w: this request does not offer %q", agent.ErrUnsupported, op.Always)
+			}
+			scope = "session"
+		}
+		return map[string]any{"permissions": granted, "scope": scope}, nil
 	}
 	decision, err := approvalDecision(method, params, op)
 	if err != nil {
@@ -638,7 +648,7 @@ func (s *session) read() {
 					Arguments json.RawMessage `json:"arguments"`
 				}
 				switch m.Method {
-				case "item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval":
+				case "item/commandExecution/requestApproval", "item/fileChange/requestApproval", permissionsMethod:
 					ev.Type = "approval"
 					ev.Text = m.Method
 					ev.Data = withAlways(m.Method, m.Params)

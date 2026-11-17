@@ -111,7 +111,8 @@ export function approvalOf(data: Record<string, any>, requestText: string, root:
     risks: risksOf(command, paths, root, { network, outside: text(data.blockedPath) || text(data.grantRoot) }),
     always: (Array.isArray(data.always) ? data.always : []).map(object).filter(c => typeof c.id === 'string' && typeof c.label === 'string').map(c => ({ id: c.id, scope: text(c.scope) || 'conversation', label: c.label, detail: text(c.detail) || undefined })),
     defaultToNo: !!data.defaultToNo,
-    acceptUnsupported: requestText === 'item/permissions/requestApproval',
+    // Codex asking for more access: a Runner that can grant it says so (grantable).
+    acceptUnsupported: requestText === 'item/permissions/requestApproval' && data.grantable !== true,
     input,
   };
 }

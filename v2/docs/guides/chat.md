@@ -164,6 +164,11 @@ workspace. Then:
 | **Always allow …** | `a` | Allows this kind of call for this conversation or this workspace, at a scope the provider supports. |
 | **Deny** | `n` | Optionally tell the agent what to do instead; it receives your reason. |
 
+When Codex asks for **more access** than its sandbox gives (the network, a
+folder to read or write), the card names exactly what: **Allow once** grants
+it for this turn, **Always allow** for the rest of the conversation, and
+nothing beyond what it asked.
+
 Keys work while the chat has focus, never while you are typing. With two
 conversations side by side, a key pressed on the page answers the one you
 last clicked or typed in, never both.

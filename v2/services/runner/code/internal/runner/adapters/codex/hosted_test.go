@@ -71,6 +71,10 @@ func fixtureAppServer() {
 				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
 				continue
 			}
+			if os.Getenv("FIXTURE_PERMISSIONS_APPROVAL") != "" {
+				send(map[string]any{"id": 43, "method": "item/permissions/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "itemId": "item-1", "environmentId": nil, "startedAtMs": 1, "cwd": "/w", "reason": nil, "permissions": map[string]any{"network": map[string]any{"enabled": true}, "fileSystem": nil}}})
+				continue
+			}
 			if os.Getenv("FIXTURE_NATIVE_APPROVAL") != "" {
 				send(map[string]any{"id": 42, "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "command": "rm -rf build", "proposedExecpolicyAmendment": []string{"rm", "-rf"}}})
 				switch os.Getenv("FIXTURE_APPROVAL_ENDS") {
@@ -113,6 +117,14 @@ func fixtureAppServer() {
 				}, "nextCursor": nil}})
 			}
 		case "":
+			if string(m.ID) == "43" {
+				var reply struct {
+					Result json.RawMessage `json:"result"`
+				}
+				_ = json.Unmarshal(s.Bytes(), &reply)
+				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": "permissions=" + string(reply.Result)}})
+				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
+			}
 			if string(m.ID) == "42" {
 				decision := string(m.Result.Decision)
 				_ = json.Unmarshal(m.Result.Decision, &decision)

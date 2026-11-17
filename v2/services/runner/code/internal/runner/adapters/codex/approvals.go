@@ -30,15 +30,98 @@ type approvalParams struct {
 	GrantRoot                       string            `json:"grantRoot"`
 }
 
+// permissionsMethod is Codex asking for more access than its sandbox gives
+// (network, folders to read or write): PermissionsRequestApprovalParams.
+const permissionsMethod = "item/permissions/requestApproval"
+
+// requestedAccess is what a permissions request asks for, as Codex grants it
+// back (GrantedPermissionProfile: the requested profile's non-null parts),
+// and the same in words. Nothing grantable: nil.
+func requestedAccess(params json.RawMessage) (map[string]json.RawMessage, []string) {
+	var p struct {
+		Permissions struct {
+			Network    json.RawMessage `json:"network"`
+			FileSystem json.RawMessage `json:"fileSystem"`
+		} `json:"permissions"`
+	}
+	if json.Unmarshal(params, &p) != nil {
+		return nil, nil
+	}
+	granted := map[string]json.RawMessage{}
+	var words []string
+	if present(p.Permissions.Network) {
+		var network struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if json.Unmarshal(p.Permissions.Network, &network) == nil && network.Enabled != nil && *network.Enabled {
+			granted["network"] = p.Permissions.Network
+			words = append(words, "network access")
+		}
+	}
+	if present(p.Permissions.FileSystem) {
+		var fs struct {
+			Read    []string `json:"read"`
+			Write   []string `json:"write"`
+			Entries []struct {
+				Path struct {
+					Type    string          `json:"type"`
+					Path    string          `json:"path"`
+					Pattern string          `json:"pattern"`
+					Value   json.RawMessage `json:"value"`
+				} `json:"path"`
+				Access string `json:"access"`
+			} `json:"entries"`
+		}
+		if json.Unmarshal(p.Permissions.FileSystem, &fs) == nil {
+			read, write := append([]string(nil), fs.Read...), append([]string(nil), fs.Write...)
+			for _, e := range fs.Entries {
+				where := e.Path.Path
+				if e.Path.Type == "glob_pattern" {
+					where = e.Path.Pattern
+				} else if e.Path.Type == "special" {
+					where = strings.Trim(string(e.Path.Value), `"`)
+				}
+				switch e.Access {
+				case "read":
+					read = append(read, where)
+				case "write":
+					write = append(write, where)
+				}
+			}
+			if len(read)+len(write) > 0 {
+				granted["fileSystem"] = p.Permissions.FileSystem
+			}
+			if len(write) > 0 {
+				words = append(words, "writing "+strings.Join(write, ", "))
+			}
+			if len(read) > 0 {
+				words = append(words, "reading "+strings.Join(read, ", "))
+			}
+		}
+	}
+	if len(granted) == 0 {
+		return nil, nil
+	}
+	return granted, words
+}
+
+func present(raw json.RawMessage) bool { return len(raw) > 0 && string(raw) != "null" }
+
 // alwaysChoices are the "always allow" answers Codex accepts for a request:
-// acceptForSession, an exec-policy amendment it proposed, and a network
-// rule per proposed host. Permission requests and Lazybox tools have none.
+// acceptForSession, an exec-policy amendment it proposed, a network rule per
+// proposed host, and for more access the rest of the conversation (its
+// `session` scope). Lazybox tools have none.
 func alwaysChoices(method string, params json.RawMessage) []AlwaysChoice {
 	var p approvalParams
 	if json.Unmarshal(params, &p) != nil {
 		return nil
 	}
 	switch method {
+	case permissionsMethod:
+		if _, words := requestedAccess(params); len(words) > 0 {
+			return []AlwaysChoice{{ID: "session", Scope: "conversation", Label: strings.Join(words, " and "), Detail: "Codex keeps this access for the rest of this conversation."}}
+		}
+		return nil
 	case "item/commandExecution/requestApproval":
 		var out []AlwaysChoice
 		if prefix := strings.TrimSpace(strings.Join(p.ProposedExecpolicyAmendment, " ")); prefix != "" {
@@ -70,17 +153,29 @@ func networkOnly(p approvalParams) bool {
 	return len(p.ProposedNetworkPolicyAmendments) > 0 && (len(p.Command) == 0 || string(p.Command) == "null")
 }
 
-// withAlways adds the request's choices to its data, as `always`.
+// withAlways adds the request's choices to its data, as `always`. A
+// permissions request also says what it asks for (`title`) and whether
+// Lazybox can grant it (`grantable`): one asking for nothing it can name is
+// only declined.
 func withAlways(method string, params json.RawMessage) json.RawMessage {
 	choices := alwaysChoices(method, params)
-	if len(choices) == 0 {
+	if len(choices) == 0 && method != permissionsMethod {
 		return params
 	}
 	var data map[string]json.RawMessage
 	if json.Unmarshal(params, &data) != nil || data == nil {
 		return params
 	}
-	data["always"], _ = json.Marshal(choices)
+	if method == permissionsMethod {
+		_, words := requestedAccess(params)
+		data["grantable"], _ = json.Marshal(len(words) > 0)
+		if len(words) > 0 {
+			data["title"], _ = json.Marshal("More access: " + strings.Join(words, " and "))
+		}
+	}
+	if len(choices) > 0 {
+		data["always"], _ = json.Marshal(choices)
+	}
 	out, err := json.Marshal(data)
 	if err != nil {
 		return params

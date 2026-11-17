@@ -129,7 +129,10 @@ test('questions and approvals read the same for Claude and Codex', () => {
   const codexCommand = approvalOf({ threadId: 't', command: 'git push --force', cwd: '/w', always: [{ id: 'prefix', scope: 'prefix', label: 'commands starting with `git push`' }] }, 'item/commandExecution/requestApproval', '/w');
   assert.deepEqual([codexCommand.tool, codexCommand.command, codexCommand.risks.map(r => r.kind)], ['commandExecution', 'git push --force', ['discard', 'network']]);
   assert.deepEqual(risksOf('ls', [], ROOT), []);
+  // Codex asking for more access: Allow only where the Runner says it can grant what was asked.
   assert.equal(approvalOf({}, 'item/permissions/requestApproval', '').acceptUnsupported, true);
+  const access = approvalOf({ grantable: true, title: 'More access: network access', reason: 'needs the registry', always: [{ id: 'session', scope: 'conversation', label: 'network access' }] }, 'item/permissions/requestApproval', '/w');
+  assert.deepEqual([access.acceptUnsupported, access.title, access.description, access.always.map(a => a.id)], [false, 'More access: network access', 'needs the registry', ['session']]);
 });
 
 test('how a request was answered becomes one line of the conversation', () => {
