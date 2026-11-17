@@ -336,6 +336,10 @@ rules, FILE_SAME_GO_PACKAGE included, in force.
   { file: '.github/workflows/ci.yml', find: '    shell: bash\n    working-directory: v2\n', replace: '    shell: bash\n' },
   { file: '.github/workflows/ci.yml', find: /\n {8}working-directory: \.\n/g, replace: '\n', all: true },
   { file: '.github/workflows/ci.yml', find: 'name: v2-ui-${{ matrix.shard }}', replace: 'name: ui-${{ matrix.shard }}' },
+  // The gate report and most screenshots are under .cache/, a hidden folder,
+  // which upload-artifact leaves out unless told; a failed shard then uploads
+  // only /tmp's screenshots.
+  { file: '.github/workflows/ci.yml', find: '          if-no-files-found: warn\n', replace: '          include-hidden-files: true\n          if-no-files-found: warn\n' },
   { file: '.github/workflows/ci.yml', find: /\n {2}# One stable check name for branch protection: it fails unless every job\n {2}# above passed\.[^]*?\n {2}v2-ci:\n {4}name: v2 ci\n/, replace: `
   typos:
     name: typos
