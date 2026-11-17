@@ -418,7 +418,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     openOutput: openCommand,
   };
   useLayoutEffect(() => { codeRuns?.update({ session, workspace, messages: conversation, agentName, actions: runActions }); });
-  const lastShellBlock = () => {
+  // The agent's latest shell block, found once per change of the conversation, not on every render (every key typed).
+  const lastShellBlock = useMemo(() => {
     for (let i = conversation.length - 1; i >= 0; i--) {
       const m = conversation[i];
       if (m.type !== 'message_delta') continue;
@@ -426,17 +427,17 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       if (block) return { messageId: m.id, ...block };
     }
     return undefined;
-  };
+  }, [conversation]);
   const lastBlock = useRef(lastShellBlock); lastBlock.current = lastShellBlock;
   const runLast = (myself: boolean) => {
-    const block = lastBlock.current();
+    const block = lastBlock.current;
     if (!codeRuns || !block) return;
     const why = myself && codeRuns.whyNotRunMyself();
     if (why) { showMenuNotice(why); return; }
     scroll.revealMessage(block.messageId);
     if (myself) codeRuns.openConfirm(block.messageId, block.script); else void codeRuns.askAgent(block.messageId, block.script, block.language);
   };
-  const canRunLast = () => !!codeRuns && activity.current() && !!lastBlock.current();
+  const canRunLast = () => !!codeRuns && activity.current() && !!lastBlock.current;
   useActions({
     'code.run-last': !!codeRuns && { run: () => runLast(false), enabled: canRunLast },
     'code.run-last-myself': !!codeRuns && { run: () => runLast(true), enabled: canRunLast },
@@ -448,7 +449,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const provider = activeProfile?.provider || session?.provider || launcher.provider;
   const slash = useSlashCommands({
     api, viewState, enabled: mode === 'agent' && !!sessionID, session, sessionID, agentName, provider, catalog: transcript.catalog,
-    model: transcript.reportedModel || session?.model || '', conversation, shellBlock: !!codeRuns && !!lastShellBlock(), detail: activity.detail,
+    model: transcript.reportedModel || session?.model || '', conversation, shellBlock: !!codeRuns && !!lastShellBlock, detail: activity.detail,
     subscriptions: (profileList || []).filter(p => p.provider === provider).length, canCompose, message,
     setText: text => { setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); },
     textarea: composer, front: activity.current, onError: setError, reviewLauncher: chatReview.launcher,

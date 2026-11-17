@@ -18,7 +18,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
 import type { Collection, CommandStatus, Session, WorkspaceAction, WorkspaceRuntime } from '@lazybox/protocol';
-import { agentRun, fixRequestMessage, matchingAction, placeholdersIn, runArgv, runRequestMessage, runTitle, scriptOf, serverLike, shellScript, isShellLanguage } from './code-run';
+import { agentRun, fixRequestMessage, matchingAction, placeholdersIn, requestedScript, runArgv, runRequestMessage, runTitle, scriptOf, serverLike, shellScript, isShellLanguage } from './code-run';
 import { openInBrowser, openInViewer } from './web-links';
 import { openContextMenu, showMenuNotice } from './ContextMenu';
 import type { MenuItem } from './context-menu-model';
@@ -51,6 +51,9 @@ export type SelfRunView = { commandId: string; state: 'running' | 'ok' | 'failed
 export type RunView = { agent?: AgentRunView; self?: SelfRunView; confirming: boolean };
 export type Folder = { label: string; path: string };
 
+/** What blocks read of the session (folders, read-only, why Run myself cannot run, queued): a poll that changes none of it is no change. */
+const sessionFacts = (session?: Session) => session ? JSON.stringify([session.permission, session.workflow, session.closed, !!session.fault, session.workingDirectory, session.collectionId, session.busy, session.queued]) : '';
+
 /**
  * One conversation's runs. The chat that shows the conversation creates it and
  * keeps it current (`update`); code blocks subscribe to their own view.
@@ -79,10 +82,16 @@ export class CodeRuns {
 
   // ---- Inputs, from the chat ------------------------------------------------
 
+  /**
+   * The chat calls this on every render. Blocks are told only when something
+   * they show may have changed: a session poll (every 1.5 s) or a batch of
+   * streamed text that changes none of it re-renders no block, and no block
+   * rescans the conversation.
+   */
   update({ session, workspace, messages, agentName, actions }: { session?: Session; workspace?: Collection; messages: readonly TranscriptMessage[]; agentName: string; actions: RunActions }) {
     this.actions = actions;
     let changed = false;
-    if (messages !== this.messages) { this.messages = messages; changed = true; }
+    if (messages !== this.messages) { this.messages = messages; if (this.readsMessages()) changed = true; }
     if (workspace !== this.workspace) {
       this.workspace = workspace; changed = true;
       // A workspace known now: read its actions, to match blocks to them.
@@ -90,14 +99,28 @@ export class CodeRuns {
     }
     if (agentName !== this.agentName) { this.agentName = agentName; changed = true; }
     if (session !== this.session) {
-      this.session = session; changed = true;
+      const before = sessionFacts(this.session);
+      this.session = session;
+      if (sessionFacts(session) !== before) changed = true;
       // A request sent during a turn waits in the Runner's queue: it runs once that queue empties, or the turn ends.
       for (const run of this.memory.agent) if (run.queued && session) {
         if (session.queued > 0) run.sawQueue = true;
-        else if (run.sawQueue || !session.busy) run.queued = false;
+        else if (run.sawQueue || !session.busy) { run.queued = false; changed = true; }
       }
     }
     if (changed) this.emit();
+  }
+  /** A Run request was seen in this conversation: from then on its messages say how runs went. */
+  private requested = false;
+  /**
+   * Whether the conversation's messages can change what a block shows: only
+   * once something was run from it (asked of the agent, a command of the
+   * conversation, a Run request in it). Until then every block shows Run.
+   */
+  private readsMessages(): boolean {
+    if (this.memory.agent.length || this.commands.size) return true;
+    this.requested ||= this.messages.some(message => message.type === 'operation_accepted' && requestedScript(message.text) !== undefined);
+    return this.requested;
   }
   /** Reads this conversation's earlier person runs once, and follows running ones. */
   attach() { this.attached = true; void this.refresh(); return () => { this.attached = false; clearInterval(this.timer); this.timer = undefined; }; }
@@ -135,9 +158,8 @@ export class CodeRuns {
     let command = local && this.commands.get(local.commandId);
     if (!local) {
       // After a reload: the conversation's latest run of this script belongs to the latest message that has it.
-      if (this.lastMessageWith(script) !== messageId) return undefined;
       command = [...this.commands.values()].filter(value => scriptOf(value.argv) === script).at(-1);
-      if (!command) return undefined;
+      if (!command || this.lastMessageWith(script) !== messageId) return undefined;
     }
     const folder = this.folderLabel(command?.cwd || local?.cwd || '');
     if (!command || !command.done) {
