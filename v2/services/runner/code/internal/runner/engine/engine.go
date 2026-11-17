@@ -97,10 +97,10 @@ type Engine struct {
 	turnOp string
 	// queuedAt is when each queued message was accepted.
 	queuedAt map[string]time.Time
-	// interrupting: Lazybox asked the provider to stop the turn in progress
-	// (Stop, Send now). How that turn ends is the interrupt, not a provider
-	// error (see stopReport). Cleared when the main agent's turn ends.
-	interrupting bool
+	// stop: Lazybox asked the provider to stop a turn (Stop, Send now), keyed
+	// to that turn (stop.go). How it ends is the interrupt, not a provider
+	// error (see stopReport).
+	stop turnStop
 	// storageErr is why the Runner cannot save this conversation right now
 	// (a full disk), nil when it can; storageJournal says the journal itself
 	// refuses writes, so the notice waits until it takes one (storage.go).
@@ -434,8 +434,9 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 		e.responses[op.RequestID] = true
 	}
 	// Set before the provider is asked: the turn can end before its receipt.
+	var stopped uint64
 	if op.Kind == agent.Interrupt {
-		e.interrupting = true
+		stopped = e.stop.ask()
 	}
 	e.mu.Unlock()
 	r, err := e.control(op)
@@ -451,7 +452,7 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	}
 	if op.Kind == agent.Interrupt && err != nil {
 		// Not stopped: the turn goes on, and an error in it is an error.
-		e.interrupting = false
+		e.stop.forget(stopped)
 	}
 	e.appendLocked(map[string]any{"type": "receipt", "receipt": r})
 	// A local submission is not request resolution: only the adapter's
@@ -626,6 +627,8 @@ func (e *Engine) dispatch() {
 	e.appendLocked(map[string]any{"type": "receipt", "receipt": r})
 	if err != nil {
 		e.state.Busy = false
+		// Its turn never starts: a stop that waited for it has nothing to stop.
+		e.stop.undelivered()
 		e.state.Fault = "provider delivery failed; reconcile before continuing"
 		e.observe(agent.Event{Type: "failure", Status: "delivery_failed"})
 	}
@@ -728,16 +731,16 @@ func (e *Engine) receive() {
 		case "turn_started":
 			if rootEvent {
 				e.state.Busy = true
+				e.stop.started()
 			}
 		case "turn_ended":
 			if !rootEvent {
 				break
 			}
 			e.state.Busy = false
-			if e.interrupting && (ev.Status == "failed" || ev.Status == "") {
+			if e.stop.ended() && (ev.Status == "failed" || ev.Status == "") {
 				ev.Status = "interrupted"
 			}
-			e.interrupting = false
 			for id, pending := range e.state.Pending {
 				if pending.AgentID == "" || pending.AgentID == "root" {
 					e.appendLocked(agent.Event{Type: "request_resolved", RequestID: id, Status: "turn_ended"})
@@ -765,7 +768,7 @@ func (e *Engine) receive() {
 		case "profile_changed":
 			// A new native session: no stop is pending in it.
 			if rootEvent {
-				e.interrupting = false
+				e.stop.clear()
 			}
 			// A checkpoint or a retry delivered now is a turn: queued messages
 			// wait for it. Otherwise the next queued message carries it.
@@ -776,7 +779,7 @@ func (e *Engine) receive() {
 			if !rootEvent {
 				break
 			}
-			if e.interrupting && stopReport(ev) {
+			if e.stop.stopping() && stopReport(ev) {
 				// The provider's report of the stop Lazybox asked for (Claude:
 				// "[ede_diagnostic] … stop_reason=tool_use"): the turn was
 				// interrupted, nothing failed. It is not recorded, faults

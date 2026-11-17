@@ -225,7 +225,7 @@ func Adopt(ctx context.Context, adapter agent.Adapter, open agent.Open, spool *j
 	e.replayed, e.replayedAfter = scan.partial, scan.cursor
 	// A stop the previous Runner asked for is still the stop that ends the
 	// turn in progress: its report is not a provider error here either.
-	e.interrupting = scan.interrupting != "" && e.state.Busy
+	e.stop.adopted(scan.lastStarted > scan.lastEnded, scan.interrupting != "" && e.state.Busy)
 	// The previous Runner lost its stream from the agent, or could not record
 	// it (a full disk once ended it so): this is the agent's live process
 	// again, so that fault is settled and what the agent reports from here
