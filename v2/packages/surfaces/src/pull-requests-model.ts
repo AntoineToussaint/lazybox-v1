@@ -91,7 +91,7 @@ const byUrgency = (a: TrackedPull, b: TrackedPull) => rank(a) - rank(b) || b.at 
 
 /** The pull requests delivered (or started from), not mentions. */
 export function deliveredPulls(links: readonly ItemLink[]): TrackedPull[] {
-  return links.filter(link => link.role !== 'mentions' && (!link.item?.kind || link.item.kind === 'pull_request')).map(trackedPull);
+  return links.filter(link => link.role !== 'mentions' && link.role !== 'origin' && (!link.item?.kind || link.item.kind === 'pull_request')).map(trackedPull);
 }
 
 const WEEK = 7 * 24 * 3600_000;

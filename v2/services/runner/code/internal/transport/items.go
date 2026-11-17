@@ -34,11 +34,20 @@ func (s *Service) links(workspace string, all bool) (*pb.Links, error) {
 	if all {
 		filter = workitems.Filter{}
 	}
-	// TODO(merge): once collections stores Collection.origin (starting a
-	// workspace from an issue, built in parallel), record it as an `origin`
-	// link when the workspace is created (Link{Role: RoleOrigin, Source:
-	// SourceStartedFrom}), so it lists here with the workspace's pull requests.
 	out := &pb.Links{}
+	// A workspace started from an issue lists it first, as its origin. It is
+	// read from the workspace's record (collections.Origin), not tracked.
+	if !all && s.Bench.Collections != nil {
+		if c, err := s.Bench.Collections.Get(workspace); err == nil && c.Origin != nil {
+			o := c.Origin
+			link := &pb.ItemLink{CollectionId: workspace, Role: "origin", Source: "started-from",
+				Item: &pb.Item{Ref: &pb.ItemRef{Provider: o.Provider, Key: o.Key}, Kind: o.Kind, Title: o.Title, Url: o.URL, ClosingReference: o.ClosingReference}}
+			if !o.StartedAt.IsZero() {
+				link.LinkedAtUnixMillis = o.StartedAt.UnixMilli()
+			}
+			out.Links = append(out.Links, link)
+		}
+	}
 	for _, l := range store.Links(filter) {
 		out.Links = append(out.Links, wireLink(l))
 	}
