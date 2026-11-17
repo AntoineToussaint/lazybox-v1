@@ -14,14 +14,14 @@ import (
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 )
 
-// The real failure (obin-ai/platform#1121): a workspace repository is a
+// The real failure (here acme/platform#1121): a workspace repository is a
 // worktree of a bare source with no fetch refspec. The agent ran
 // `git push -u origin <branch> && gh pr create`; git recorded the upstream
 // but no refs/remotes/origin/<branch>, so the branch was never asked about,
 // and the pull request was opened before tracking existed, so no detector
 // saw its URL either.
 
-const realBranch = "feature/strangely-handy-hyena"
+const realBranch = "feature/quietly-brave-otter"
 
 // agentPushed makes the fixture's source look like a workspace's bare source
 // (origin names a private org repository on GitHub, no fetch refspec), and
@@ -36,7 +36,7 @@ func (f *itemsFixture) agentPushed(t *testing.T, repository string) {
 	runGit(t, source, "config", "--unset-all", "remote.origin.fetch")
 	runGit(t, source, "config", "remote.origin.pushurl", remote)
 	runGit(t, f.worktree, "checkout", "-q", "-b", realBranch)
-	runGit(t, f.worktree, "-c", "user.name=Agent", "-c", "user.email=agent@example.invalid", "commit", "-q", "--allow-empty", "-m", "Ask your devbox's agents")
+	runGit(t, f.worktree, "-c", "user.name=Agent", "-c", "user.email=agent@example.invalid", "commit", "-q", "--allow-empty", "-m", "Retry failed uploads")
 	runGit(t, f.worktree, "push", "-q", "-u", "origin", realBranch)
 	if err := exec.Command("git", "-C", f.worktree, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+realBranch).Run(); err == nil {
 		t.Fatal("the push recorded a remote-tracking ref: the fixture is not the shape of a workspace's bare source")
@@ -58,7 +58,7 @@ func (f *itemsFixture) head() string {
 func (f *itemsFixture) openPullRequestAt(repository string, number int, head string) {
 	f.github.Update(func(s *githubtest.Server) {
 		s.Repos[repository] = "main"
-		s.Pulls[repository] = append(s.Pulls[repository], &githubtest.PR{Number: number, Title: "Ask your devbox's agents from Claude Code", Head: realBranch, Base: "main", HeadSHA: head,
+		s.Pulls[repository] = append(s.Pulls[repository], &githubtest.PR{Number: number, Title: "Retry failed uploads from the worker", Head: realBranch, Base: "main", HeadSHA: head,
 			State: "open", MergeableState: "blocked", Requested: 1, CreatedAt: time.Now().Add(-18 * time.Hour)})
 		s.Checks[head] = []githubtest.Check{{ID: 1, Name: "build", Status: "completed", Conclusion: "success"}, {ID: 2, Name: "test", Status: "completed", Conclusion: "success"}}
 	})
@@ -70,19 +70,19 @@ func (f *itemsFixture) openPullRequestAt(repository string, number int, head str
 func TestBranchDoesNotAdoptAnOlderStrangersPullRequest(t *testing.T) {
 	f := newItemsFixture(t)
 	b, ctx := f.bench, context.Background()
-	f.agentPushed(t, "obin-ai/platform")
-	f.openPullRequestAt("obin-ai/platform", 1121, strings.Repeat("ab", 20))
+	f.agentPushed(t, "acme/platform")
+	f.openPullRequestAt("acme/platform", 1121, strings.Repeat("ab", 20))
 	b.TrackItems(ctx)
-	if pr := f.links(t)["obin-ai/platform#1121"]; pr != nil {
+	if pr := f.links(t)["acme/platform#1121"]; pr != nil {
 		t.Fatalf("an older pull request whose head is not on the branch was adopted: %+v", pr)
 	}
 	// A pull request opened from it since is the workspace's, wherever its head is.
 	f.github.Update(func(s *githubtest.Server) {
-		s.Pulls["obin-ai/platform"] = append(s.Pulls["obin-ai/platform"], &githubtest.PR{Number: 1122, Title: "New", Head: realBranch, Base: "main", HeadSHA: strings.Repeat("cd", 20), State: "open", CreatedAt: time.Now()})
+		s.Pulls["acme/platform"] = append(s.Pulls["acme/platform"], &githubtest.PR{Number: 1122, Title: "New", Head: realBranch, Base: "main", HeadSHA: strings.Repeat("cd", 20), State: "open", CreatedAt: time.Now()})
 	})
 	b.WorkItems().Now = func() time.Time { return time.Now().Add(-time.Hour) }
 	b.TrackItems(ctx)
-	if pr := f.links(t)["obin-ai/platform#1122"]; pr == nil || pr.Role != "delivers" {
+	if pr := f.links(t)["acme/platform#1122"]; pr == nil || pr.Role != "delivers" {
 		t.Fatalf("a pull request opened since: %v", f.links(t))
 	}
 }
@@ -90,11 +90,11 @@ func TestBranchDoesNotAdoptAnOlderStrangersPullRequest(t *testing.T) {
 func TestBranchAnAgentPushedItselfFindsItsPullRequest(t *testing.T) {
 	f := newItemsFixture(t)
 	b, ctx := f.bench, context.Background()
-	f.agentPushed(t, "obin-ai/platform")
-	f.openPullRequest("obin-ai/platform", 1121)
+	f.agentPushed(t, "acme/platform")
+	f.openPullRequest("acme/platform", 1121)
 
 	b.TrackItems(ctx)
-	pr := f.links(t)["obin-ai/platform#1121"]
+	pr := f.links(t)["acme/platform#1121"]
 	if pr == nil {
 		t.Fatalf("the pull request opened from the branch the agent pushed is not tracked: %v", f.links(t))
 	}
@@ -112,11 +112,11 @@ func TestBranchAnAgentPushedItselfFindsItsPullRequest(t *testing.T) {
 func TestBranchNotKnownToBePushedIsStillAskedAbout(t *testing.T) {
 	f := newItemsFixture(t)
 	b, ctx := f.bench, context.Background()
-	f.agentPushed(t, "obin-ai/platform")
+	f.agentPushed(t, "acme/platform")
 	runGit(t, f.worktree, "branch", "--unset-upstream")
-	f.openPullRequest("obin-ai/platform", 1121)
+	f.openPullRequest("acme/platform", 1121)
 	b.TrackItems(ctx)
-	if f.links(t)["obin-ai/platform#1121"] == nil {
+	if f.links(t)["acme/platform#1121"] == nil {
 		t.Fatal("a branch whose push left no trace locally is never asked about")
 	}
 }
@@ -127,16 +127,16 @@ func TestFailedBranchLookupIsSaid(t *testing.T) {
 	f := newItemsFixture(t)
 	b, ctx := f.bench, context.Background()
 	// The connection cannot see the private repository: GitHub answers 404.
-	f.agentPushed(t, "obin-ai/platform")
+	f.agentPushed(t, "acme/platform")
 	b.TrackItems(ctx)
 	mine, err := f.service.ListLinks(ctx, &pb.ListLinksRequest{CollectionId: f.mine.Id})
-	if err != nil || !strings.Contains(mine.TrackingError, "obin-ai/platform") || !strings.Contains(mine.TrackingError, "404") {
+	if err != nil || !strings.Contains(mine.TrackingError, "acme/platform") || !strings.Contains(mine.TrackingError, "404") {
 		t.Fatalf("the failed lookup is not said: %q %v", mine.GetTrackingError(), err)
 	}
 	if !strings.Contains(mine.TrackingError, realBranch) {
 		t.Fatalf("names the branch: %q", mine.TrackingError)
 	}
-	if all, _ := f.service.ListLinks(ctx, &pb.ListLinksRequest{All: true}); !strings.Contains(all.TrackingError, "obin-ai/platform") {
+	if all, _ := f.service.ListLinks(ctx, &pb.ListLinksRequest{All: true}); !strings.Contains(all.TrackingError, "acme/platform") {
 		t.Fatalf("every workspace's list: %q", all.TrackingError)
 	}
 	// The other workspace (on the same repository) says its own branch.
@@ -144,7 +144,7 @@ func TestFailedBranchLookupIsSaid(t *testing.T) {
 		t.Fatalf("another workspace says this one's: %q", theirs.TrackingError)
 	}
 	// Access granted: the next lookup answers, and the note goes.
-	f.openPullRequest("obin-ai/platform", 1121)
+	f.openPullRequest("acme/platform", 1121)
 	b.WorkItems().Now = func() time.Time { return time.Now().Add(-time.Hour) }
 	b.TrackItems(ctx)
 	mine, _ = f.service.ListLinks(ctx, &pb.ListLinksRequest{CollectionId: f.mine.Id})

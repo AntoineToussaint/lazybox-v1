@@ -36,8 +36,8 @@ f.tracked.links.push(
   link({key: 'acme/api#61', checks: 'pending', title: 'Speed up tests'}),
   link({key: 'acme/api#60', state: 'merged', checks: 'success', closedAt: now - 2 * 24 * 3_600_000, title: 'Old work'}),
   link({key: 'acme/api#9', role: 'mentions'}),
-  // obin-ai/platform#1121 as an agent's gh pr create left it: open, checks green, a review required.
-  link({key: 'obin-ai/platform#1121', workspace: 'beta', session: 'beta-session', member: 'platform', head: 'feature/strangely-handy-hyena', checks: 'success', review: 'review_required', mergeableState: 'blocked', total: 69, title: "Ask your devbox's agents from Claude Code"}),
+  // acme/platform#1121 as an agent's gh pr create left it: open, checks green, a review required.
+  link({key: 'acme/platform#1121', workspace: 'beta', session: 'beta-session', member: 'platform', head: 'feature/quietly-brave-otter', checks: 'success', review: 'review_required', mergeableState: 'blocked', total: 69, title: "Retry failed uploads from the worker"}),
 );
 
 const proxy = {'/lazybox.bench.v1.RunnerService/': {target: f.url}, '/remote/v1/': {target: f.url}};
@@ -89,11 +89,11 @@ try {
   await expect(panel.locator('.group-needs .pr-item').first().locator('.pr-meta em')).toHaveText('lint, unit-api (2 of 14)');
   await expect(panel.locator('.pr-mentioned summary')).toContainText('1');
   // A pull request waiting on a required review, checks green: waiting on others, and it says why.
-  await expect(panel.locator('.group-waiting .pr-title strong')).toHaveText(['acme/api#61', 'obin-ai/platform#1121']);
-  const waiting = panel.locator('.group-waiting .pr-item', {hasText: 'obin-ai/platform#1121'});
+  await expect(panel.locator('.group-waiting .pr-title strong')).toHaveText(['acme/api#61', 'acme/platform#1121']);
+  const waiting = panel.locator('.group-waiting .pr-item', {hasText: 'acme/platform#1121'});
   await expect(waiting.locator('.pr-meta em')).toHaveText('Review required · checks passed');
   await expect(waiting.locator('.pr-status')).toHaveClass(/is-success/);
-  await expect(waiting.getByRole('link', {name: 'Open obin-ai/platform#1121 on GitHub'})).toHaveAttribute('href', 'https://github.com/obin-ai/platform/pull/1121');
+  await expect(waiting.getByRole('link', {name: 'Open acme/platform#1121 on GitHub'})).toHaveAttribute('href', 'https://github.com/acme/platform/pull/1121');
   if (await page.locator('.collection-list').count()) assert.equal(await page.locator('.collection-list').evaluate(e => e.getBoundingClientRect().width), sidebarWidth, 'nothing resizes the sidebar');
   await page.screenshot({path: '.cache/pull-requests-panel.png'});
 
@@ -131,7 +131,7 @@ try {
   await expect(page.locator('.workspace-row[aria-current], .workspace-link[aria-current=page]').first()).toContainText('Beta release');
   // Its header: #1121's pill, green checks dot, review required, opening GitHub.
   const betaPill = page.getByRole('group', {name: 'Pull requests of this workspace'}).getByRole('link', {name: 'Pull request #1121, review required, checks passed: open on GitHub'});
-  await expect(betaPill).toHaveAttribute('href', 'https://github.com/obin-ai/platform/pull/1121');
+  await expect(betaPill).toHaveAttribute('href', 'https://github.com/acme/platform/pull/1121');
   await expect(betaPill).toHaveText('#1121review required');
   await expect(betaPill.locator('.pr-dot')).toHaveClass(/is-success/);
   await page.screenshot({path: '.cache/pull-requests-review-required.png'});

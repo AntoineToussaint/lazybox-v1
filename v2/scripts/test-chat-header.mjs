@@ -23,7 +23,7 @@ const FALLBACK = 'Start a plan, we want to look at SOTA but the goal…';
 const GENERATED = 'Conversation titles and chat header layout';
 
 const f = await startRunnerFixture();
-f.profiles.push(...['Obin Subscription', 'Personal'].map((label, i) => ({ id: `claude-${i}`, provider: 'claude', label, managed: true, isolation: 'environment' })));
+f.profiles.push(...['Work subscription', 'Personal'].map((label, i) => ({ id: `claude-${i}`, provider: 'claude', label, managed: true, isolation: 'environment' })));
 for (const member of f.collections[0].members) member.spec.branch = 'feature/strongly-tight-collie';
 const session = f.sessions[0];
 Object.assign(session, { title: FALLBACK, provider: 'claude', model: 'claude-opus-5-5', modelReported: true, profileId: 'claude-0', status: 'done', busy: false,
@@ -89,7 +89,7 @@ try {
     await expect(header.locator('.chat-status')).toHaveText('Turn done');
     await expect(header.locator('.chat-meta-branch')).toHaveText('feature/strongly-tight-collie');
     await expect(header.locator('.chat-model')).toHaveText('Claude · Opus 5.5');
-    await expect(header.locator('.chat-account')).toHaveText('Obin Subscription');
+    await expect(header.locator('.chat-account')).toHaveText('Work subscription');
     await expect(header.getByRole('button', { name: 'Your prompts' })).toContainText('26');
     await expect(header.getByRole('button', { name: /^Background work: .*\d+ (sub-agents?|commands?)/ })).toBeVisible();
     await expect(header.getByRole('button', { name: 'Context and token cost' })).toContainText('40.4%');

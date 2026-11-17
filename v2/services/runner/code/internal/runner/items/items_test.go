@@ -75,11 +75,11 @@ func TestDetectorsTellDeliveredFromMentioned(t *testing.T) {
 	}
 }
 
-// What agents really run and print (obin-ai/platform#1121): the command
+// What agents really run and print (here acme/platform#1121): the command
 // after a heredoc on its own line, the push's hint before the new URL, and
 // `lazybox run`'s view.
 func TestDetectorsReadRealPullRequestCreation(t *testing.T) {
-	input, _ := json.Marshal(map[string]any{"command": "cat > /tmp/pr-body.md <<'EOF'\n## Summary\nEOF\ngh pr create --repo obin-ai/platform --base main --title x --body-file /tmp/pr-body.md", "description": "Open the pull request"})
+	input, _ := json.Marshal(map[string]any{"command": "cat > /tmp/pr-body.md <<'EOF'\n## Summary\nEOF\ngh pr create --repo acme/platform --base main --title x --body-file /tmp/pr-body.md", "description": "Open the pull request"})
 	if !CreatesPullRequest(ToolCommand("Bash", input)) {
 		t.Fatal("gh pr create on its own line after a heredoc")
 	}
@@ -87,12 +87,12 @@ func TestDetectorsReadRealPullRequestCreation(t *testing.T) {
 		t.Fatal("gh pr view")
 	}
 	for name, output := range map[string]string{
-		"push and create": "remote:      https://github.com/obin-ai/platform/pull/new/feature/strangely-handy-hyena        \nremote: \nhttps://github.com/obin-ai/platform/pull/1121",
-		"progress first":  "Warning: 1 uncommitted change\n\nCreating pull request for feature/strangely-handy-hyena into main in obin-ai/platform\n\nhttps://github.com/obin-ai/platform/pull/1121\n",
-		"lazybox run":     "[lazybox] gh pr create --repo obin-ai/platform --fill → exit 0 (2.3s)\nCreating pull request for feature/strangely-handy-hyena into main in obin-ai/platform\n\nhttps://github.com/obin-ai/platform/pull/1121\n",
+		"push and create": "remote:      https://github.com/acme/platform/pull/new/feature/quietly-brave-otter        \nremote: \nhttps://github.com/acme/platform/pull/1121",
+		"progress first":  "Warning: 1 uncommitted change\n\nCreating pull request for feature/quietly-brave-otter into main in acme/platform\n\nhttps://github.com/acme/platform/pull/1121\n",
+		"lazybox run":     "[lazybox] gh pr create --repo acme/platform --fill → exit 0 (2.3s)\nCreating pull request for feature/quietly-brave-otter into main in acme/platform\n\nhttps://github.com/acme/platform/pull/1121\n",
 	} {
 		found := Scan(output, true)
-		if len(found) != 1 || found[0].Role != RoleDelivers || found[0].Ref.Key != "obin-ai/platform#1121" {
+		if len(found) != 1 || found[0].Role != RoleDelivers || found[0].Ref.Key != "acme/platform#1121" {
 			t.Errorf("%s: %+v", name, found)
 		}
 	}

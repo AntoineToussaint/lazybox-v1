@@ -11,7 +11,7 @@ const report = (...providers: ProviderStatus[]) => ({ providers, checkedAtUnixMi
 
 test('Ask Lazybox uses the preferred provider’s best subscription', () => {
   const r = report(
-    provider('claude', 'ready', [sub('claude-work', 'available', { label: 'Obin Subscription', managed: true, isolation: 'environment' }), sub('claude-default', 'available')]),
+    provider('claude', 'ready', [sub('claude-work', 'available', { label: 'Work subscription', managed: true, isolation: 'environment' }), sub('claude-default', 'available')]),
     provider('codex', 'ready', [sub('codex-default', 'available')]),
   );
   const pick = pickHelp(r, 'claude', '', now);
@@ -19,7 +19,7 @@ test('Ask Lazybox uses the preferred provider’s best subscription', () => {
   if (pick.kind !== 'ready') return;
   assert.equal(pick.choice.profileId, 'claude-work');
   assert.equal(pick.fallback, false);
-  assert.equal(usingLine(pick.choice), 'using Claude (Obin Subscription)');
+  assert.equal(usingLine(pick.choice), 'using Claude (Work subscription)');
   // A person who uses Codex gets Codex.
   const codex = pickHelp(r, 'codex', '', now);
   assert.equal(codex.kind === 'ready' && codex.choice.profileId, 'codex-default');

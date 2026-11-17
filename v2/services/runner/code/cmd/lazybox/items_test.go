@@ -25,14 +25,14 @@ func TestAgentLinksAndListsItsPullRequests(t *testing.T) {
 		t.Fatalf("agent environment: %v", env)
 	}
 
-	// The workspace's repository comes from obin-ai/platform: an agent
+	// The workspace's repository comes from acme/platform: an agent
 	// delivers only a pull request of a repository its members come from.
 	source := r.bench.Collections.Repositories()[0].Path
-	if raw, err := exec.Command("git", "-C", source, "remote", "add", "origin", "https://github.com/obin-ai/platform.git").CombinedOutput(); err != nil {
+	if raw, err := exec.Command("git", "-C", source, "remote", "add", "origin", "https://github.com/acme/platform.git").CombinedOutput(); err != nil {
 		t.Fatalf("git remote add: %v %s", err, raw)
 	}
-	out := r.cli(env, "", "link", "https://github.com/obin-ai/platform/pull/1121")
-	if out.code != 0 || !strings.Contains(out.stdout, "Tracking obin-ai/platform#1121 in this workspace") {
+	out := r.cli(env, "", "link", "https://github.com/acme/platform/pull/1121")
+	if out.code != 0 || !strings.Contains(out.stdout, "Tracking acme/platform#1121 in this workspace") {
 		t.Fatalf("link: %+v", out)
 	}
 	out = r.cli(env, "", "link", "https://github.com/someone/else/pull/5")
@@ -40,8 +40,8 @@ func TestAgentLinksAndListsItsPullRequests(t *testing.T) {
 		t.Fatalf("link to a repository the workspace is not: %+v", out)
 	}
 	// Without its scheme, after a flag, as a mention.
-	out = r.cli(env, "", "link", "--role", "mentions", "github.com/obin-ai/platform/issues/7")
-	if out.code != 0 || !strings.Contains(out.stdout, "Listed (not tracked) obin-ai/platform#7") {
+	out = r.cli(env, "", "link", "--role", "mentions", "github.com/acme/platform/issues/7")
+	if out.code != 0 || !strings.Contains(out.stdout, "Listed (not tracked) acme/platform#7") {
 		t.Fatalf("link a mention: %+v", out)
 	}
 	links := r.bench.WorkItems().Links(workitems.Filter{Workspace: r.collection.Id})
@@ -55,7 +55,7 @@ func TestAgentLinksAndListsItsPullRequests(t *testing.T) {
 	}
 
 	out = r.cli(env, "", "items")
-	if out.code != 0 || !strings.Contains(out.stdout, "obin-ai/platform#1121  not read yet") || !strings.Contains(out.stdout, "https://github.com/obin-ai/platform/pull/1121") || !strings.Contains(out.stdout, "Mentioned (not tracked):") {
+	if out.code != 0 || !strings.Contains(out.stdout, "acme/platform#1121  not read yet") || !strings.Contains(out.stdout, "https://github.com/acme/platform/pull/1121") || !strings.Contains(out.stdout, "Mentioned (not tracked):") {
 		t.Fatalf("items: %+v", out)
 	}
 	// Why it is not read yet is said.
@@ -69,7 +69,7 @@ func TestAgentLinksAndListsItsPullRequests(t *testing.T) {
 		t.Fatalf("link alone: %+v", out)
 	}
 	// Another workspace is out of an agent's reach.
-	if out = r.cli(env, "", "link", "https://github.com/obin-ai/platform/pull/9", "--workspace", "Other"); out.code == 0 {
+	if out = r.cli(env, "", "link", "https://github.com/acme/platform/pull/9", "--workspace", "Other"); out.code == 0 {
 		t.Fatalf("another workspace: %+v", out)
 	}
 }

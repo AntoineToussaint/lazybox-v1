@@ -12,12 +12,12 @@ const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 const noon = new Date(2026, 10, 16, 12, 0, 0).getTime();
 const at = (hours: number, minutes = 0) => new Date(2026, 10, 16, hours, minutes).getTime() / 1000;
 const time = (seconds: number) => new Date(seconds * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-const session = (init: Partial<Session> = {}): Session => create(SessionSchema, { id: 's', status: 'failed', provider: 'claude', profileId: 'obin-2', ...init });
+const session = (init: Partial<Session> = {}): Session => create(SessionSchema, { id: 's', status: 'failed', provider: 'claude', profileId: 'work-2', ...init });
 const profile = (id: string, label: string, availability?: Record<string, unknown>, isolation = 'environment'): Profile => create(ProfileSchema, { id, label, provider: 'claude', isolation, managed: true, availability: availability as any });
 const profiles = [
-  profile('obin-1', 'Obin Subscription 1', { state: 'available', windows: [{ name: 'five_hour', usedPercent: 37 }] }),
-  profile('obin-2', 'Obin Subscription 2', { state: 'exhausted', resetAt: BigInt(at(18)) }),
-  profile('obin-3', 'Obin Subscription 3', { state: 'exhausted', resetAt: BigInt(at(15)) }),
+  profile('work-1', 'Work subscription 1', { state: 'available', windows: [{ name: 'five_hour', usedPercent: 37 }] }),
+  profile('work-2', 'Work subscription 2', { state: 'exhausted', resetAt: BigInt(at(18)) }),
+  profile('work-3', 'Work subscription 3', { state: 'exhausted', resetAt: BigInt(at(15)) }),
   profile('claude-default', '', { state: 'unknown' }, 'inherited'),
 ];
 
@@ -48,8 +48,8 @@ test('a limited subscription says when it is back, the same way everywhere', () 
 });
 
 test('a limit is one plain sentence, never a provider token', () => {
-  assert.equal(limitHeadline('Obin Subscription 2', 'exhausted', BigInt(at(18)), noon), `Obin Subscription 2 reached its limit · back at ${time(at(18))} (in 6h)`);
-  assert.equal(limitHeadline('Obin Subscription 2', 'exhausted', 0n, noon), 'Obin Subscription 2 reached its limit');
+  assert.equal(limitHeadline('Work subscription 2', 'exhausted', BigInt(at(18)), noon), `Work subscription 2 reached its limit · back at ${time(at(18))} (in 6h)`);
+  assert.equal(limitHeadline('Work subscription 2', 'exhausted', 0n, noon), 'Work subscription 2 reached its limit');
   assert.equal(limitHeadline('Work', 'throttled', BigInt(at(12, 2)), noon), `Work is rate limited · back at ${time(at(12, 2))} (in 2m)`);
   assert.equal(limitHeadline('Work', 'auth_required', 0n, noon), 'Work needs you to sign in again');
   for (const [status, text] of [['throttled', 'rate_limit'], ['provider_error', ''], ['sdk_error', 'unknown_error'], ['context_full', 'context_length_exceeded']]) {
@@ -83,17 +83,17 @@ test('the header says what the conversation waits for, not "Needs attention"', (
 });
 
 test('the best other subscription is the ready one; a picker lists the rest by reset', () => {
-  const choices = subscriptionChoices(profiles, 'claude', 'obin-2', noon);
-  assert.deepEqual(choices.map(c => c.id), ['obin-1', 'claude-default', 'obin-3', 'obin-2']);
-  assert.equal(bestChoice(choices)?.id, 'obin-1', 'known to be available first');
-  assert.equal(choices.find(c => c.id === 'obin-1')?.detail, 'Available · 37% used');
-  assert.equal(choices.find(c => c.id === 'obin-3')?.detail, `Limit reached · back at ${time(at(15))}`);
+  const choices = subscriptionChoices(profiles, 'claude', 'work-2', noon);
+  assert.deepEqual(choices.map(c => c.id), ['work-1', 'claude-default', 'work-3', 'work-2']);
+  assert.equal(bestChoice(choices)?.id, 'work-1', 'known to be available first');
+  assert.equal(choices.find(c => c.id === 'work-1')?.detail, 'Available · 37% used');
+  assert.equal(choices.find(c => c.id === 'work-3')?.detail, `Limit reached · back at ${time(at(15))}`);
   assert.equal(choices.at(-1)?.current, true);
   assert.equal(subscriptionName(profiles[3], 'claude-default'), 'Claude CLI sign-in');
-  const onlyLimited = subscriptionChoices(profiles.slice(1, 3), 'claude', 'obin-2', noon);
+  const onlyLimited = subscriptionChoices(profiles.slice(1, 3), 'claude', 'work-2', noon);
   assert.equal(bestChoice(onlyLimited), undefined, 'nothing ready: no automatic best');
   // A reset that passed makes a subscription ready again.
-  assert.equal(subscriptionChoices(profiles.slice(1, 3), 'claude', 'obin-2', at(16) * 1000)[0].ready, true);
+  assert.equal(subscriptionChoices(profiles.slice(1, 3), 'claude', 'work-2', at(16) * 1000)[0].ready, true);
 });
 
 test('an automatic switch is one quiet line; the limit itself adds nothing to the conversation', () => {
@@ -103,20 +103,20 @@ test('an automatic switch is one quiet line; the limit itself adds nothing to th
     { cursor: 2n, event: { type: 'failure', status: 'exhausted', text: 'rate_limit', account: { state: 'exhausted', resetAt: BigInt(at(18)) } } },
     { cursor: 3n, event: { type: 'capacity_observation', status: 'exhausted' } },
     { cursor: 4n, event: { type: 'profile_switching', status: 'exhausted' } },
-    { cursor: 5n, event: { type: 'profile_changed', text: 'obin-1', status: 'checkpoint_handoff', providerDataJson: json({ from: 'obin-2', fromState: 'exhausted', resetAt: at(18), requested: false }) } },
+    { cursor: 5n, event: { type: 'profile_changed', text: 'work-1', status: 'checkpoint_handoff', providerDataJson: json({ from: 'work-2', fromState: 'exhausted', resetAt: at(18), requested: false }) } },
     { cursor: 6n, event: { type: 'message_delta', text: 'Picking up where I stopped.' } },
     { cursor: 7n, event: { type: 'failure', status: 'provider_error', text: 'sdk_error' } },
   ].map(r => create(JournalEventSchema, r as any));
   const folded = foldTranscript(emptyTranscript(), records);
   assert.deepEqual(folded.messages.map(m => m.type), ['operation_accepted', 'switched', 'message_delta', 'failure']);
   const line = folded.messages[1];
-  assert.equal(switchedLine(line.switched!, names, noon), `Switched to Obin Subscription 1 · Obin Subscription 2 is back at ${time(at(18))}`);
+  assert.equal(switchedLine(line.switched!, names, noon), `Switched to Work subscription 1 · Work subscription 2 is back at ${time(at(18))}`);
   assert.doesNotMatch(folded.messages[3].text, /sdk_error/);
   // A switch the person asked for while nothing was limited, and a retry after the reset.
-  assert.equal(switchedLine(switchNote('obin-3', 'checkpoint_next_message', { from: 'obin-1', fromState: 'available' }), names, noon), 'Switched to Obin Subscription 3');
-  assert.equal(switchedLine(switchNote('obin-2', 'retry_same_profile', { from: 'obin-2' }), names, noon), 'Continued on Obin Subscription 2');
+  assert.equal(switchedLine(switchNote('work-3', 'checkpoint_next_message', { from: 'work-1', fromState: 'available' }), names, noon), 'Switched to Work subscription 3');
+  assert.equal(switchedLine(switchNote('work-2', 'retry_same_profile', { from: 'work-2' }), names, noon), 'Continued on Work subscription 2');
   // A journal written before switches carried their origin still reads.
-  assert.equal(switchedLine(switchNote('obin-1', 'checkpoint_handoff', {}), names, noon), 'Switched to Obin Subscription 1');
+  assert.equal(switchedLine(switchNote('work-1', 'checkpoint_handoff', {}), names, noon), 'Switched to Work subscription 1');
 });
 
 test('a new Codex subscription signs in with the browser only from the Runner\'s computer', () => {

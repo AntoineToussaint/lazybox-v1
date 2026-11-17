@@ -14,13 +14,13 @@ const fixture=await startRunnerFixture();const session=fixture.sessions[0];sessi
 const root=session.workingDirectory;
 const channel=fixture.openEvents(session.id);
 const push=event=>channel.push({turnId:'t1',...event});
-const setup='obin login --profile dev\nclaude mcp add obin -- obin mcp';
-push({type:'operation_accepted',text:'How do I connect obin?'});
+const setup='acme login --profile dev\nclaude mcp add acme -- acme mcp';
+push({type:'operation_accepted',text:'How do I connect acme?'});
 push({type:'message_delta',text:[
  'Sign in, then register the MCP server:',
  '','```bash',setup,'```','',
  'Then run `bin/devbox check`, then `build`, then `up --solutions none`.',
- '','With a token instead:','','```sh','obin login --token <your-token>','```','',
+ '','With a token instead:','','```sh','acme login --token <your-token>','```','',
  'And the tests:','','```console','$ make test','PASS ok','```','',
  '```json','{"profile":"dev"}','```',
 ].join('\n')});
@@ -57,7 +57,7 @@ try{
  await expect(first.locator('.code-run-chip')).toHaveText('Sent to Claude');
  // The agent runs it: the block follows its tool call.
  push({type:'operation_accepted',text:request,operationId:applies()[0].body.operationId});
- push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'run-1',name:'Bash',status:'running',input:{command:`cd ${root} && lazybox run -- obin login --profile dev`}})});
+ push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'run-1',name:'Bash',status:'running',input:{command:`cd ${root} && lazybox run -- acme login --profile dev`}})});
  await expect(first.locator('.code-run-chip')).toHaveText('Sent to Claude · running…');
  push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'run-1',status:'completed',output:'Signed in as dev',exitCode:0})});
  await expect(first.locator('.code-run-chip')).toHaveText('Sent to Claude · ran ✓');
@@ -89,7 +89,7 @@ try{
  await folder.selectOption(`${root}/api`);
  await card.getByRole('textbox',{name:'Script'}).focus();await page.keyboard.press('Enter');
  await expect.poll(()=>starts().length).toBe(1);
- assert.deepEqual(starts()[0].body,{sessionId:session.id,title:'obin login --profile dev',argv:['/bin/sh','-lc',setup],cwd:`${root}/api`});
+ assert.deepEqual(starts()[0].body,{sessionId:session.id,title:'acme login --profile dev',argv:['/bin/sh','-lc',setup],cwd:`${root}/api`});
  await expect(card).toHaveCount(0);
  const mine=first.locator('.code-run-self .code-run-chip');
  await expect(mine).toHaveText(/^Running/);
@@ -132,7 +132,7 @@ try{
  await expect(fill.getByRole('note').filter({hasText:'Placeholders'})).toHaveText('Placeholders filled in.');
  await page.keyboard.press('Enter');
  await expect.poll(()=>starts().length).toBe(3);
- assert.equal(starts()[2].body.argv[2],'obin login --token tok_123');
+ assert.equal(starts()[2].body.argv[2],'acme login --token tok_123');
  await expect(token.locator('.code-run-self .code-run-chip')).toHaveText(/^✓ exit 0/);
 
  // ── Inline commands: Run from their menu only; a bare subcommand reads as the program beside it.

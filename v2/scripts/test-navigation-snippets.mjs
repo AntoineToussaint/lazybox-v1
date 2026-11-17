@@ -8,7 +8,7 @@ import { startRunnerFixture } from "./fixtures/runner-ui.mjs";
 const f = await startRunnerFixture();
 Object.assign(f.library[0], {
   name: "handbook",
-  gitIdentity: "github:obin-ai/handbook",
+  gitIdentity: "github:acme/handbook",
 });
 Object.assign(f.sessions[0], {
   title: "what is this repo?",
@@ -47,7 +47,7 @@ try {
   await expect(alpha).toContainText("lazybox/alpha/api");
   await expect(alpha).not.toContainText("claude-fable-5-1");
   await expect(page.locator(".workspace-conversations")).toHaveCount(0);
-  await expect(alpha).toContainText("obin-ai/handbook");
+  await expect(alpha).toContainText("acme/handbook");
   await expect(
     alpha.getByRole("button", { name: "New conversation", exact: true }),
   ).toHaveCount(0);

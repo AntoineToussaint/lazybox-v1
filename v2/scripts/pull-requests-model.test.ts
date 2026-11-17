@@ -88,15 +88,15 @@ test('the sidebar row has one badge: the most urgent pull request, and how many 
 });
 
 test('one waiting on a required review with green checks says so, with a green dot, and waits on others', () => {
-  // obin-ai/platform#1121 as GitHub reported it.
-  const links = [link({ key: 'obin-ai/platform#1121', checks: 'success', review: 'review_required', mergeableState: 'blocked', title: 'Ask your devbox\'s agents' })];
+  // acme/platform#1121 as GitHub reported it.
+  const links = [link({ key: 'acme/platform#1121', checks: 'success', review: 'review_required', mergeableState: 'blocked', title: 'Retry failed uploads' })];
   const pull = trackedPull(links[0]);
   assert.deepEqual([pull.status, pull.tone, pull.detail], ['waiting', 'success', 'Review required · checks passed']);
   assert.deepEqual(groupPulls(links, now).waiting.map(p => p.number), [1121]);
   assert.equal(pullInboxRows(links, new Set()).length, 0, 'nothing for the person to do');
   const row = rowPull(links, 'w1', now)!;
   assert.equal(row.tone, 'success');
-  assert.equal(row.label, 'Pull request #1121 · review required, checks passed — Ask your devbox\'s agents');
+  assert.equal(row.label, 'Pull request #1121 · review required, checks passed — Retry failed uploads');
   // Still running, or no checks: the dot is not green.
   assert.equal(trackedPull(link({ checks: 'none', review: 'review_required', mergeableState: 'blocked' })).tone, 'none');
   assert.equal(trackedPull(link({ checks: 'none', review: 'review_required', mergeableState: 'blocked' })).detail, 'Review required');

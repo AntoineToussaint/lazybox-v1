@@ -78,6 +78,6 @@
   {"script": "tsc --noEmit", "server": false},
   {"script": "jest --watch=false", "server": false},
   {"script": "kubectl get pods", "server": false},
-  {"script": "obin login --profile dev\nclaude mcp add obin -- obin mcp", "server": false},
+  {"script": "acme login --profile dev\nclaude mcp add acme -- acme mcp", "server": false},
   {"script": "", "server": false}
 ]
