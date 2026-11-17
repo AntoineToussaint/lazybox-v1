@@ -434,6 +434,20 @@ type Cache struct {
 	checked  time.Time
 }
 
+// Cached returns the last probe without probing; nil when there was none.
+func (c *Cache) Cached() map[string]Program {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.programs == nil {
+		return nil
+	}
+	copied := make(map[string]Program, len(c.programs))
+	for k, v := range c.programs {
+		copied[k] = v
+	}
+	return copied
+}
+
 // Programs returns the cached probe, probing first when there is none or
 // refresh asks for a new one.
 func (c *Cache) Programs(ctx context.Context, refresh bool) (map[string]Program, time.Time) {

@@ -470,6 +470,16 @@ message ReviewSettings {
   string loop = 5;
   // Rounds before a loop stops and asks you; 0 is 3.
   uint32 max_rounds = 6;
+  // Who reviews by default: "other" (the other agent than the author's:
+  // Codex reviews Claude's work and Claude reviews Codex's; the default),
+  // "same" (the author's own agent, in a fresh conversation) or "fixed"
+  // (reviewer, and reviewer_model when set). "" is "fixed" when reviewer is
+  // set, else "other", as before this field. An agent that is not available
+  // (not installed, or not signed in) gives way to the author's own agent,
+  // and the review says so.
+  string reviewer_mode = 7;
+  // fixed: the model the reviewer runs on; "" is its agent's default.
+  string reviewer_model = 8;
 }
 message SetModelPriceRequest { uint64 revision = 1; ModelPrice price = 2; bool remove = 3; }
 message ListThemesRequest {}
@@ -2082,6 +2092,11 @@ message ReviewRun {
   string stop_reason = 32;
   repeated ReviewRound rounds = 33;
   repeated ReviewTimelineEntry timeline = 34;
+  // Why the reviewer is not the one asked for, in one quiet sentence ("Codex
+  // is not available, so a fresh Claude conversation reviews."); "" when it is.
+  string fallback = 35;
+  // The focus the person gave (`/review <focus>`), if any.
+  string focus = 36;
 }
 message WorkspaceReview {
   repeated ReviewComment comments = 1;
@@ -2109,6 +2124,12 @@ message StartReviewRequest {
   // "codex"), else the default reviewer setting (the other provider).
   string profile_id = 7;
   string provider = 8;
+  // What the person asked the reviewer to look at in particular
+  // (`/review <focus>`); added to the brief. At most 2 KiB.
+  string focus = 9;
+  // The model the reviewer runs on; "" is the setting's (fixed), else its
+  // agent's default.
+  string model = 10;
 }
 message StartReviewResponse {
   ReviewRun run = 1;

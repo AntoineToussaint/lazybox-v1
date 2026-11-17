@@ -398,15 +398,47 @@ one it reviews — a review is never itself reviewed):
 | A turn's ⋯ menu (and its messages' context menu) **Review this turn with Codex / with Claude** | exactly what that turn changed (its checkpoints) |
 | The PR card **Review the PR with Codex ▾** | the pull request, from where it left its base |
 | The Changes file list's context menu **Review the changes with Codex / with Claude** | the page's comparison |
-| ⌘K **Review changes with Codex / with Claude** | the workspace's changes since it started |
-| The message box **`/review [codex\|claude]`** (`/review` alone: the default reviewer; `/review tray` opens the tray) | the workspace's changes since it started; nothing is sent to the agent |
+| The conversation header's **Review** (`ReviewFromChat.tsx`; its tooltip names the reviewer, its chevron picks another for one run; in a slim panel it folds into the ⋯ menu) | the workspace's changes since it started (committed, uncommitted, untracked) |
+| ⌘K **Review this workspace's changes** (`] ] ⇧R`), **Review changes with Codex / with Claude** | the workspace's changes since it started |
+| The message box **`/review [codex\|claude] [focus…]`** (`/review` alone: the default reviewer; words that name no reviewer are the focus; `/review tray` opens the tray) | the workspace's changes since it started; nothing is sent to the agent |
 
 The default reviewer is **Settings → Agents & workspaces → Review by another
-agent → Default reviewer**: a subscription, or (the default) the other
-provider than the author's, so Codex reviews Claude's work and Claude reviews
-Codex's. The ▾ lists every signed-in agent and, for a provider with several,
-each subscription. With only one provider signed in, a fresh conversation of
-that provider reviews, and the review says so.
+agent → Default reviewer** (`ReviewSettings.reviewer_mode`): `other` (the
+default) is the other agent than the author's — Codex reviews Claude's work,
+Claude reviews Codex's and an ACP agent's; `same` is the author's agent in a
+fresh conversation; `fixed` is `reviewer` (a profile id or a provider, ACP
+agents included) on `reviewer_model` ("" its default). A setting saved before
+the mode existed is `fixed` when it names a reviewer, else `other`. An entry
+point that starts the default reviewer names none in `StartReview`, so the
+Runner applies the setting (`reviewerProfile`); the client mirrors it to name
+the reviewer (`review-model.ts reviewerChoices`). The chevrons list every
+agent that can run and, for one with several, each subscription; naming one
+starts exactly it, or fails when it is not available.
+
+**When the default is not available** — its program is missing or cannot run
+in the last probe (none is run to start a review), it has no profile, or all
+of its subscriptions need a new sign-in — the other agent stands in for a
+fixed one, and the author's own agent, in a fresh conversation, for the other
+or the same one. The run's `fallback` says so in one sentence (*Codex is not
+available, so a fresh Claude conversation reviews.*), shown quietly on the
+review's card and in the button's tooltip, and appended to its `detail`.
+
+**The focus** (`StartReviewRequest.focus`, at most 2 KiB; `/review <focus>`)
+is a section of the brief (`{{focus}}`, or before `{{report}}` when the
+template has no `{{focus}}`) and is kept on the run.
+
+**Where the reviewer shows.** The client opens the reviewer conversation as a
+background tab (`openReviewTab`, `workspace-model.ts openBesideChat`): a chat
+pinned to it, right after the tab of the chat that shows the reviewed
+conversation, in that chat's group, on the page that shows it (the selected
+page first; else beside the page's conversation). The tab in front, the page's
+conversation and the focus do not move; a chat already showing the reviewer
+is kept (one panel per conversation), and a full page (`PANEL_LIMIT`) says the
+review is in the sidebar. The tab is titled `Review · Codex` and its badge
+(`reviewTabBadge`) is a live dot while it reviews, then `3 findings` (red with
+a blocker open), `done` or `failed`. A conversation row that names a
+conversation shown in a pinned tab brings that tab to the front and focuses
+it, rather than switching the page's conversation.
 
 **What starting does** (`StartReview`, owner only). The Runner opens a
 conversation in the same workspace with permission **read-only** (Codex's
@@ -426,7 +458,7 @@ and sends it a brief generated from what it already records:
 The brief is a template (**Review brief** in the same settings; Reset returns
 to the built-in one, stored as empty so it improves with Lazybox).
 Placeholders: `{{goal}}`, `{{plan}}`, `{{scope}}`, `{{diff}}`, `{{files}}`,
-`{{evidence}}`, `{{author}}`, `{{reviewer}}`, `{{conversation}}`,
+`{{evidence}}`, `{{author}}`, `{{reviewer}}`, `{{conversation}}`, `{{focus}}`,
 `{{report}}`; a template without `{{report}}` still gets the reporting
 instructions at its end, or no finding would arrive. The brief is a message
 Lazybox sent (prompt source `review`), shown in the reviewer conversation,
@@ -502,7 +534,11 @@ structured channels only, and you see every step.
    Silence is not a disposition: a finding it leaves alone counts as still
    open. New problems are new findings; open ones are not filed again.
 5. **It ends** — always with its reason on the review card, in the tray and in
-   the timeline: **Clean ✓** (no blocker open), **max rounds** (a blocker open
+   the timeline: **Clean ✓** (no blocker open; said only when no major is
+   open either — with majors open it reads *No blockers · 2 major open*, the
+   detail *No blocker open after 1 round; 2 major still open.*, and the card
+   offers **Send 2 findings to Claude**, which puts the unsent ones in the
+   author's message box as the tray's Send does), **max rounds** (a blocker open
    after the limit, 3 by default, 1–10), **stuck** (the same blocker still open
    after two fixes), **error** (a message could not be delivered), or you
    **stopped** or **took over**. Max rounds, stuck and error ask you: the tray

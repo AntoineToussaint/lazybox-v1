@@ -392,7 +392,17 @@ type ReviewSettings struct {
 	// accept and send them; the default), "auto" or "off" (one pass).
 	Loop string `protobuf:"bytes,5,opt,name=loop,proto3" json:"loop,omitempty"`
 	// Rounds before a loop stops and asks you; 0 is 3.
-	MaxRounds     uint32 `protobuf:"varint,6,opt,name=max_rounds,json=maxRounds,proto3" json:"max_rounds,omitempty"`
+	MaxRounds uint32 `protobuf:"varint,6,opt,name=max_rounds,json=maxRounds,proto3" json:"max_rounds,omitempty"`
+	// Who reviews by default: "other" (the other agent than the author's:
+	// Codex reviews Claude's work and Claude reviews Codex's; the default),
+	// "same" (the author's own agent, in a fresh conversation) or "fixed"
+	// (reviewer, and reviewer_model when set). "" is "fixed" when reviewer is
+	// set, else "other", as before this field. An agent that is not available
+	// (not installed, or not signed in) gives way to the author's own agent,
+	// and the review says so.
+	ReviewerMode string `protobuf:"bytes,7,opt,name=reviewer_mode,json=reviewerMode,proto3" json:"reviewer_mode,omitempty"`
+	// fixed: the model the reviewer runs on; "" is its agent's default.
+	ReviewerModel string `protobuf:"bytes,8,opt,name=reviewer_model,json=reviewerModel,proto3" json:"reviewer_model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -467,6 +477,20 @@ func (x *ReviewSettings) GetMaxRounds() uint32 {
 		return x.MaxRounds
 	}
 	return 0
+}
+
+func (x *ReviewSettings) GetReviewerMode() string {
+	if x != nil {
+		return x.ReviewerMode
+	}
+	return ""
+}
+
+func (x *ReviewSettings) GetReviewerModel() string {
+	if x != nil {
+		return x.ReviewerModel
+	}
+	return ""
 }
 
 type SetModelPriceRequest struct {
@@ -17480,9 +17504,14 @@ type ReviewRun struct {
 	Paused bool   `protobuf:"varint,31,opt,name=paused,proto3" json:"paused,omitempty"`
 	// Why the loop ended: clean, max_rounds, stuck, error, stopped, taken_over;
 	// "" while it runs.
-	StopReason    string                 `protobuf:"bytes,32,opt,name=stop_reason,json=stopReason,proto3" json:"stop_reason,omitempty"`
-	Rounds        []*ReviewRound         `protobuf:"bytes,33,rep,name=rounds,proto3" json:"rounds,omitempty"`
-	Timeline      []*ReviewTimelineEntry `protobuf:"bytes,34,rep,name=timeline,proto3" json:"timeline,omitempty"`
+	StopReason string                 `protobuf:"bytes,32,opt,name=stop_reason,json=stopReason,proto3" json:"stop_reason,omitempty"`
+	Rounds     []*ReviewRound         `protobuf:"bytes,33,rep,name=rounds,proto3" json:"rounds,omitempty"`
+	Timeline   []*ReviewTimelineEntry `protobuf:"bytes,34,rep,name=timeline,proto3" json:"timeline,omitempty"`
+	// Why the reviewer is not the one asked for, in one quiet sentence ("Codex
+	// is not available, so a fresh Claude conversation reviews."); "" when it is.
+	Fallback string `protobuf:"bytes,35,opt,name=fallback,proto3" json:"fallback,omitempty"`
+	// The focus the person gave (`/review <focus>`), if any.
+	Focus         string `protobuf:"bytes,36,opt,name=focus,proto3" json:"focus,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -17755,6 +17784,20 @@ func (x *ReviewRun) GetTimeline() []*ReviewTimelineEntry {
 	return nil
 }
 
+func (x *ReviewRun) GetFallback() string {
+	if x != nil {
+		return x.Fallback
+	}
+	return ""
+}
+
+func (x *ReviewRun) GetFocus() string {
+	if x != nil {
+		return x.Focus
+	}
+	return ""
+}
+
 type WorkspaceReview struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Comments []*ReviewComment       `protobuf:"bytes,1,rep,name=comments,proto3" json:"comments,omitempty"`
@@ -17842,8 +17885,14 @@ type StartReviewRequest struct {
 	Member string `protobuf:"bytes,6,opt,name=member,proto3" json:"member,omitempty"`
 	// The reviewer: a subscription (profile id), else a provider ("claude" or
 	// "codex"), else the default reviewer setting (the other provider).
-	ProfileId     string `protobuf:"bytes,7,opt,name=profile_id,json=profileId,proto3" json:"profile_id,omitempty"`
-	Provider      string `protobuf:"bytes,8,opt,name=provider,proto3" json:"provider,omitempty"`
+	ProfileId string `protobuf:"bytes,7,opt,name=profile_id,json=profileId,proto3" json:"profile_id,omitempty"`
+	Provider  string `protobuf:"bytes,8,opt,name=provider,proto3" json:"provider,omitempty"`
+	// What the person asked the reviewer to look at in particular
+	// (`/review <focus>`); added to the brief. At most 2 KiB.
+	Focus string `protobuf:"bytes,9,opt,name=focus,proto3" json:"focus,omitempty"`
+	// The model the reviewer runs on; "" is the setting's (fixed), else its
+	// agent's default.
+	Model         string `protobuf:"bytes,10,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -17930,6 +17979,20 @@ func (x *StartReviewRequest) GetProfileId() string {
 func (x *StartReviewRequest) GetProvider() string {
 	if x != nil {
 		return x.Provider
+	}
+	return ""
+}
+
+func (x *StartReviewRequest) GetFocus() string {
+	if x != nil {
+		return x.Focus
+	}
+	return ""
+}
+
+func (x *StartReviewRequest) GetModel() string {
+	if x != nil {
+		return x.Model
 	}
 	return ""
 }
@@ -32320,7 +32383,7 @@ const file_api_proto_rawDesc = "" +
 	" \x03(\tR\x1arotationExcludedProfileIds\x120\n" +
 	"\x14claude_ai_connectors\x18\v \x01(\bR\x12claudeAiConnectors\x128\n" +
 	"\x06review\x18\f \x01(\v2 .lazybox.bench.v1.ReviewSettingsR\x06review\x12!\n" +
-	"\fplain_titles\x18\r \x01(\bR\vplainTitles\"\xc5\x01\n" +
+	"\fplain_titles\x18\r \x01(\bR\vplainTitles\"\x91\x02\n" +
 	"\x0eReviewSettings\x12\x1a\n" +
 	"\breviewer\x18\x01 \x01(\tR\breviewer\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x1d\n" +
@@ -32329,7 +32392,9 @@ const file_api_proto_rawDesc = "" +
 	"\x10default_template\x18\x04 \x01(\tR\x0fdefaultTemplate\x12\x12\n" +
 	"\x04loop\x18\x05 \x01(\tR\x04loop\x12\x1d\n" +
 	"\n" +
-	"max_rounds\x18\x06 \x01(\rR\tmaxRounds\"~\n" +
+	"max_rounds\x18\x06 \x01(\rR\tmaxRounds\x12#\n" +
+	"\rreviewer_mode\x18\a \x01(\tR\freviewerMode\x12%\n" +
+	"\x0ereviewer_model\x18\b \x01(\tR\rreviewerModel\"~\n" +
 	"\x14SetModelPriceRequest\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x122\n" +
 	"\x05price\x18\x02 \x01(\v2\x1c.lazybox.bench.v1.ModelPriceR\x05price\x12\x16\n" +
@@ -33791,7 +33856,7 @@ const file_api_proto_rawDesc = "" +
 	"\x04text\x18\x04 \x01(\tR\x04text\x12\x1d\n" +
 	"\n" +
 	"finding_id\x18\x05 \x01(\tR\tfindingId\x12\x14\n" +
-	"\x05round\x18\x06 \x01(\rR\x05round\"\xed\b\n" +
+	"\x05round\x18\x06 \x01(\rR\x05round\"\x9f\t\n" +
 	"\tReviewRun\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
 	"\rcollection_id\x18\x02 \x01(\tR\fcollectionId\x12.\n" +
@@ -33831,12 +33896,14 @@ const file_api_proto_rawDesc = "" +
 	"\vstop_reason\x18  \x01(\tR\n" +
 	"stopReason\x125\n" +
 	"\x06rounds\x18! \x03(\v2\x1d.lazybox.bench.v1.ReviewRoundR\x06rounds\x12A\n" +
-	"\btimeline\x18\" \x03(\v2%.lazybox.bench.v1.ReviewTimelineEntryR\btimeline\"\xbd\x01\n" +
+	"\btimeline\x18\" \x03(\v2%.lazybox.bench.v1.ReviewTimelineEntryR\btimeline\x12\x1a\n" +
+	"\bfallback\x18# \x01(\tR\bfallback\x12\x14\n" +
+	"\x05focus\x18$ \x01(\tR\x05focus\"\xbd\x01\n" +
 	"\x0fWorkspaceReview\x12;\n" +
 	"\bcomments\x18\x01 \x03(\v2\x1f.lazybox.bench.v1.ReviewCommentR\bcomments\x12!\n" +
 	"\fauto_resolve\x18\x02 \x01(\bR\vautoResolve\x12\x19\n" +
 	"\badded_id\x18\x03 \x01(\tR\aaddedId\x12/\n" +
-	"\x04runs\x18\x04 \x03(\v2\x1b.lazybox.bench.v1.ReviewRunR\x04runs\"\xfc\x01\n" +
+	"\x04runs\x18\x04 \x03(\v2\x1b.lazybox.bench.v1.ReviewRunR\x04runs\"\xa8\x02\n" +
 	"\x12StartReviewRequest\x12#\n" +
 	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12*\n" +
 	"\x11source_session_id\x18\x02 \x01(\tR\x0fsourceSessionId\x12\x14\n" +
@@ -33846,7 +33913,10 @@ const file_api_proto_rawDesc = "" +
 	"\x06member\x18\x06 \x01(\tR\x06member\x12\x1d\n" +
 	"\n" +
 	"profile_id\x18\a \x01(\tR\tprofileId\x12\x1a\n" +
-	"\bprovider\x18\b \x01(\tR\bprovider\"y\n" +
+	"\bprovider\x18\b \x01(\tR\bprovider\x12\x14\n" +
+	"\x05focus\x18\t \x01(\tR\x05focus\x12\x14\n" +
+	"\x05model\x18\n" +
+	" \x01(\tR\x05model\"y\n" +
 	"\x13StartReviewResponse\x12-\n" +
 	"\x03run\x18\x01 \x01(\v2\x1b.lazybox.bench.v1.ReviewRunR\x03run\x123\n" +
 	"\asession\x18\x02 \x01(\v2\x19.lazybox.bench.v1.SessionR\asession\"\xde\x01\n" +

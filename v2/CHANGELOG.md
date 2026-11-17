@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.22] - 2026-11-17 · Review from the chat
+
+- **Review from the chat** The conversation's header has Review: another agent reviews the workspace's changes, read-only, without a detour through Changes. /review in the message box and ] ] ⇧R (⌘K Review this workspace's changes) do the same; /review the retry loop tells the reviewer what to look at first.
+- **The other agent reviews by default** Codex reviews Claude's work and Claude reviews Codex's; the Review button's tooltip names who will. Its chevron picks another agent for one run. Settings → Agents & workspaces → Default reviewer: the other agent, the same agent in a fresh conversation, or always one agent (an ACP agent too) on a model you choose. When the other agent is not installed or signed in, a fresh conversation of yours reviews, and the review says so.
+- **Watch the review in a tab** A review opens as a tab beside the conversation it reviews, Review · Codex, and you stay in your message box. The tab shows a live dot while it works, then 3 findings or done; the review's row in the sidebar brings its tab to the front.
+- **Clean means clean** A review that ends with majors still open no longer says Clean ✓: it says No blockers · 2 major open, and Send 2 findings to Claude puts them in the author's message box for you to send.
+
 ## [2026-11-17.21] - 2026-11-17 · Resize the sides inside panels
 
 - **Drag the divider inside a panel** In Changes, drag the edge between the file list and the diff, and between the diff and the review tray; when Changes is narrow, the Files / Review column. The same divider sizes the Artifacts list and its version history, the Settings sections, the Documentation's page list, the snippet list and the agent browser's steps. It lights up under the pointer; double-click it for the default size.

@@ -125,6 +125,22 @@ func kinds(r Run) string {
 	return strings.Join(out, " ")
 }
 
+// The loop iterates on blockers: it ends with majors still open, but never
+// calls that clean, and says how many are left. Minors and nits stay clean.
+func TestLoopEndingWithMajorsOpenIsNotClean(t *testing.T) {
+	f := newLoop(t, LoopAsk, 3)
+	f.file("logged", "major")
+	f.file("naming", "minor")
+	if a := f.roundEnded(); a.Escalate != "" || f.run.StopReason != StopClean || f.run.Detail != "No blocker open after 1 round; 1 major still open." {
+		t.Fatalf("majors open: %+v %+v", a, f.run)
+	}
+	g := newLoop(t, LoopAsk, 3)
+	g.file("naming", "minor")
+	if g.roundEnded(); g.run.Detail != "Clean: no blocker open after 1 round." {
+		t.Fatalf("minors only: %+v", g.run)
+	}
+}
+
 // Two rounds: a blocker is sent, the author fixes it, the reviewer resolves
 // it, the loop ends clean. Turns that do not count are ignored on the way.
 func TestLoopEndsCleanWhenTheReviewerResolvesTheBlocker(t *testing.T) {

@@ -69,7 +69,13 @@ type BriefInput struct {
 	Evidence    []string
 	// Template is the person's; "" is DefaultTemplate.
 	Template string
+	// Focus is what the person asked the reviewer to look at in particular
+	// (`/review <focus>`): the {{focus}} section, else one before {{report}}.
+	Focus string
 }
+
+// FocusLimit bounds the focus a person gives a review.
+const FocusLimit = 2 << 10
 
 const (
 	goalLimit  = 6 << 10
@@ -108,6 +114,13 @@ func Brief(in BriefInput) string {
 	if !strings.Contains(template, "{{report}}") {
 		template += "\n\n{{report}}"
 	}
+	focus := ""
+	if f := clip(in.Focus, FocusLimit); f != "" {
+		focus = "## What the person asked you to focus on\n\n" + quote(f) + "\n\nLook at this first; still report anything else you find."
+		if !strings.Contains(template, "{{focus}}") {
+			template = strings.Replace(template, "{{report}}", "{{focus}}\n\n{{report}}", 1)
+		}
+	}
 	goal := "(The conversation has no recorded first message.)"
 	if g := clip(in.Goal, goalLimit); g != "" {
 		goal = "Its first message:\n\n" + quote(g)
@@ -138,7 +151,7 @@ func Brief(in BriefInput) string {
 	replacer := strings.NewReplacer(
 		"{{reviewer}}", in.Reviewer, "{{author}}", firstNonEmpty(in.Author, "another agent"), "{{conversation}}", firstNonEmpty(in.Conversation, "untitled"),
 		"{{goal}}", goal, "{{plan}}", plan, "{{scope}}", in.Scope, "{{diff}}", strings.TrimSpace(in.Diff),
-		"{{files}}", files, "{{evidence}}", evidence, "{{report}}", ReportInstructions)
+		"{{files}}", files, "{{evidence}}", evidence, "{{focus}}", focus, "{{report}}", ReportInstructions)
 	out := replacer.Replace(template)
 	// An empty section leaves blank lines behind; keep at most one.
 	for strings.Contains(out, "\n\n\n") {

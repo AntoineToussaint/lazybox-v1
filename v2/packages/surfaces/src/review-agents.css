@@ -6,6 +6,18 @@
 .review-with .review-with-more>summary::-webkit-details-marker{display:none}
 .review-with .review-with-more>summary:hover{background:var(--surface-selected)}
 .review-with .review-with-more>summary:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* The conversation header's Review button: quiet like the header's icons, a chevron for another reviewer.
+   In a slim panel it folds into the conversation's ⋯ menu, which always holds it (ReviewFromChat.tsx). */
+.chat-heading .chat-review{height:28px;margin-right:2px}
+.chat-heading .chat-review>.chat-review-button{height:28px;min-height:0;padding:0 8px 0 7px;gap:5px;border:1px solid transparent;border-radius:6px 0 0 6px;background:transparent;color:var(--text-subtle);font-size:calc(12px * var(--text-scale));white-space:nowrap}
+.chat-heading .chat-review>.chat-review-button:hover:not(:disabled),.chat-heading .chat-review>.chat-review-button:focus-visible{background:var(--surface-active);color:var(--text)}
+.chat-heading .chat-review .review-with-more>summary{height:28px;box-sizing:border-box;padding:0 5px;border:1px solid transparent;border-left:0;background:transparent;color:var(--text-muted)}
+.chat-heading .chat-review:hover>.chat-review-button,.chat-heading .chat-review:hover .review-with-more>summary{border-color:var(--line)}
+.chat-heading .chat-review .review-with-more>summary:hover{background:var(--surface-active);color:var(--text)}
+.chat-heading .chat-review .live-indicator{flex:none}
+/* Narrower, the title keeps its two lines: the button keeps its icon (its name is in its tooltip), then folds. */
+@container chat-heading (max-width:720px){.chat-heading .chat-review>.chat-review-button>span{display:none}.chat-heading .chat-review>.chat-review-button{padding:0 6px}}
+@container chat-heading (max-width:600px){.chat-heading .chat-review{display:none}}
 
 .review-severity{font:700 10px/1.6 var(--font-ui);letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:4px;white-space:nowrap;background:var(--surface-selected);color:var(--text-tertiary)}
 .review-severity.sev-blocker{background:var(--danger-bg-strong);color:var(--danger)}
@@ -89,6 +101,7 @@
 .review-timeline li.is-escalated span,.review-timeline li.is-escalated b{color:var(--warn)}
 .review-timeline li.is-stopped span{color:var(--ok)}
 .review-card-loop{display:block;margin-top:2px;color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
+.review-card-note{display:block;margin-top:2px;color:var(--text-faint);font-size:calc(11px * var(--text-scale))}
 .review-card.needs-you{border-color:var(--warn)}
 .review-card.needs-you .review-card-loop{color:var(--warn);font-weight:600}
 

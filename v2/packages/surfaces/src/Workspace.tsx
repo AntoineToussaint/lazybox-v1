@@ -17,7 +17,7 @@ import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { consolePlace, followConsole, noteConsoleUse, readFollowRuns, useRunFollowing } from './console-follow';
 import { requestTerminal } from './TerminalPanel';
-import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, openBesideChat, pageShowing, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
@@ -52,7 +52,7 @@ import { lastWebPanel, requestWebPage, WebWindowContext } from './WebPanel';
 import { PowerLayer } from './PowerLayer';
 import { DockLayout, type DockHandle } from './DockLayout';
 import { GroupActions, GroupAdd, groupMenuItems, LayoutMenu, PanelsMenu, type AddCommands, type GroupCommands } from './DockMenus';
-import { useContextMenuContribution } from './ContextMenu';
+import { showMenuNotice, useContextMenuContribution } from './ContextMenu';
 import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBinding, layoutDirections, useActions, type LayoutDirection } from './actions';
 import { movePanel } from './dock-keyboard';
 import { showToast } from './toasts';
@@ -62,7 +62,9 @@ import { LayoutImportDialog, useLayoutFiles } from './layout-files';
 import { requestAsk } from './help-requests';
 import { useProvideConversationOpeners } from './conversation-requests';
 import { ReviewActions } from './ReviewActions';
-import { useConversationRequests, useReviewHost } from './review-client';
+import { useConversationRequests, useReviewHost, useReviewTabRequests } from './review-client';
+import { useWorkspaceReview } from './useWorkspaceReview';
+import { reviewTabBadge } from './review-model';
 import { useMissionsPageHost } from './navigate-requests';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
@@ -289,6 +291,13 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (selection.collectionId !== workspaceID) { select(selection); setSettings(false); setNewSession(false); return; }
     const live = livePage();
     const open = detachedFor(live, selection);
+    // A conversation already in a tab of its own (a review beside the work, one opened beside):
+    // that tab comes to the front and takes the focus; the page's conversation stays.
+    const tab = shownPanels(live).find(panel => panel.kind === 'chat' && !panel.detached && panel.binding.mode === 'pinned' && panel.binding.target.sessionId === selection.sessionId);
+    if (tab && live.selection.sessionId !== selection.sessionId) {
+      if (changePage(activatePanel(live, tab.id))) { setSettings(false); setNewSession(false); setMobilePanelId(tab.id); revealAfter.current = tab.id; focusAfter.current = { panel: tab.id }; }
+      return;
+    }
     if (open && chatHost) { if (changePage({ ...live, selection })) { setSettings(false); setNewSession(false); } void chatHost.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
     // Reuse the page's chat panel; never stack a second panel on the same conversation.
     const shown = routeChat({ ...live, selection }, selection, () => crypto.randomUUID());
@@ -318,6 +327,21 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   // A review started anywhere shows its reviewer conversation; "Open review" its findings.
   useConversationRequests(workspaceID, request => showSession({ collectionId: request.collectionId, sessionId: request.sessionId, commandId: '' }));
   useReviewHost(workspaceID, showChanges);
+  // A review started from here opens as a background tab beside the conversation it reviews,
+  // on the page that shows it: the person stays in their chat and can watch it.
+  useReviewTabRequests(workspaceID, request => {
+    if (locked) return false;
+    const all = current.current, host = pageShowing(all, request.beside) || all.pages.find(value => value.id === all.selectedPage);
+    if (!host) return false;
+    const opened = openBesideChat(host, { collectionId: request.collectionId, sessionId: request.sessionId, commandId: '' }, request.beside, () => crypto.randomUUID());
+    if (!opened) {
+      if (allPanels(host).length < PANEL_LIMIT) return false;
+      showMenuNotice(`The review is under way; this page already has ${PANEL_LIMIT} panels, so open it from the sidebar.`);
+      return true;
+    }
+    if (opened.added) commit({ ...all, pages: all.pages.map(value => value.id === host.id ? opened.page : value) });
+    return true;
+  });
   // The edge a person last docked each kind of panel at is a personal preference,
   // shared by every workspace and window: a terminal they moved left opens left.
   const dockKey = (kind: string) => `${viewState?.root || viewState?.key}:dock:${kind}`;
@@ -625,12 +649,18 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const terminalReady = !!workspaceID && collections.find(value => value.id === workspaceID)?.state === 'ready';
   const mobilePanel = mobilePanels.find(panel => panel.id === mobilePanelId) || mobilePanels.find(panel => panel.kind === 'chat') || mobilePanels[0];
   const detachedPanels = allPanels(page).filter(p => p.detached);
+  // A review conversation's tab is named for who reviews ("Review · Codex") and says how it went.
+  const reviewRuns = useWorkspaceReview(workspaceID).review?.runs;
+  const reviewOf = (panel: Panel) => panel.kind === 'chat' ? reviewRuns?.find(run => run.reviewerSessionId === resolveTarget(panel, page.selection).sessionId) : undefined;
   const titleOf = (panel: Panel) => {
     const base = liveTitles[panel.id]?.text || registry[panel.kind]?.title || panel.kind;
     if (panel.kind !== 'chat') return base;
+    const run = reviewOf(panel);
+    if (run) return `Review · ${run.reviewerLabel}`;
     const session = info?.sessions.find(value => value.id === resolveTarget(panel, page.selection).sessionId);
     return conversationTitle(session) || base;
   };
+  const badgeOf = (panel: Panel) => { const run = reviewOf(panel); return run ? reviewTabBadge(run) : undefined; };
   const iconOf = (panel: Panel) => registry[panel.kind]?.icon || 'file';
   // Panels of this workspace in windows of their own: chats (of any page) and the page's popped-out groups.
   const later = useRef({ bringBack }); later.current = { bringBack };
@@ -902,7 +932,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         <div className="page-layout" data-page-id={page.id}>
           {narrow
             ? mobilePanel ? <MobilePanel host={panelHosts.hostFor(mobilePanel)} title={titleOf(mobilePanel)} onClose={mobilePanel.kind === 'chat' || mobilePanel.detached ? undefined : () => closePanel(mobilePanel)}/> : <p className="module-empty">Your conversations are open in separate windows.</p>
-            : <DockLayout ref={dock} page={page} hostFor={panelHosts.hostFor} titleOf={titleOf} iconOf={iconOf} imageOf={panel => liveTitles[panel.id]?.icon} canClose={groupCommands.canClose}
+            : <DockLayout ref={dock} page={page} hostFor={panelHosts.hostFor} titleOf={titleOf} badgeOf={badgeOf} iconOf={iconOf} imageOf={panel => liveTitles[panel.id]?.icon} canClose={groupCommands.canClose}
               sidebarWidth={sidebarWidth} onSidebarWidth={saveSidebarWidth} popoutUrl={POPOUT_URL}
               closeLabel={(panel, title) => layout.pages.length > 1 && shownPanels(page).length === 1 && !page.detached.length && shownPanels(page)[0].id === panel.id ? `Close ${title} page` : `Close ${title} panel`}
               onArrange={next => changePage({ ...livePage(), ...next })}

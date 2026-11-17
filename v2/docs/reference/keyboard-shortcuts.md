@@ -72,6 +72,7 @@ Open the parts of the workspace in front.
 | New workspace | `]] w` | `]] w` |
 | New conversation | `⇧⌘N` or `]] c` | `Ctrl+Shift+N` or `]] c` |
 | Review changes | `]] d` | `]] d` |
+| Review this workspace’s changes | `]] ⇧r` | `]] Shift+r` |
 | Review changes with Codex | — | — |
 | Review changes with Claude | — | — |
 | Browse files | `]] e` | `]] e` |

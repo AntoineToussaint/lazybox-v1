@@ -214,7 +214,19 @@ func RoundEnded(rv *Review, runID string, now int64) (Action, error) {
 			r.Phase = PhaseDone
 			return Action{}, nil
 		}
-		r.stop(now, StopClean, fmt.Sprintf("Clean: no blocker open after %s.", plural(r.Round, "round", "rounds")))
+		// The loop iterates on blockers only, so it ends here with majors
+		// possibly still open: "clean" is said only when none is.
+		majors := 0
+		for _, c := range rv.Comments {
+			if c.ReviewID == r.ID && c.Live() && c.Severity == SeverityMajor {
+				majors++
+			}
+		}
+		why := fmt.Sprintf("Clean: no blocker open after %s.", plural(r.Round, "round", "rounds"))
+		if majors > 0 {
+			why = fmt.Sprintf("No blocker open after %s; %d major still open.", plural(r.Round, "round", "rounds"), majors)
+		}
+		r.stop(now, StopClean, why)
 		return Action{}, nil
 	case r.Loop == LoopOff:
 		r.Phase = PhaseDone

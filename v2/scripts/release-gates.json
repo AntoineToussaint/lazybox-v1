@@ -45,6 +45,7 @@
     { "id": "pull-requests", "scope": "ui", "script": "test:pull-requests" },
     { "id": "review-comments", "scope": "ui", "script": "test:review-comments" },
     { "id": "agent-review", "scope": "ui", "script": "test:agent-review" },
+    { "id": "review-from-chat", "scope": "ui", "script": "test:review-from-chat" },
     { "id": "review-loop", "scope": "ui", "script": "test:review-loop" },
     { "id": "processes", "scope": "ui", "script": "test:processes" },
     { "id": "transcript-performance", "scope": "ui", "script": "test:transcript-performance" },

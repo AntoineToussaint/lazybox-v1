@@ -272,7 +272,8 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
     { key: 'lazybox:clear', name: 'clear', group: 'lazybox', icon: 'plus', description: 'New conversation in this workspace (this one is kept)', aliases: ['new'], disabled: unless(!ctx.workspace && 'Only in a workspace'), keywords: 'reset fresh start' },
     { key: 'lazybox:cost', name: 'cost', group: 'lazybox', icon: 'activity', description: 'Token cost of this conversation', aliases: ['usage'], keywords: 'tokens price money spend' },
     { key: 'lazybox:context', name: 'context', group: 'lazybox', icon: 'activity', description: 'How full the context window is', keywords: 'tokens window memory' },
-    // `/review` has the default reviewer review this conversation's changes; `/review claude` names one; `/review tray` opens the tray.
+    // `/review` has the default reviewer review this conversation's changes; `/review claude` names one; `/review <focus>`
+    // (or `/review codex <focus>`) adds what to look at to the brief; `/review tray` opens the tray.
     { key: 'lazybox:review', name: 'review', group: 'lazybox', icon: 'review', argumentHint: reviewHint(ctx), description: ctx.reviewers?.length ? `${ctx.reviewers[0].label} reviews this conversation’s changes, read-only` : 'Open the review tray of this workspace', freeArgument: true,
       choices: [...(ctx.reviewers || []).map((reviewer, index) => ({ value: reviewer.key, label: `Review with ${reviewer.label}`, detail: index === 0 ? 'Default reviewer · a read-only conversation; findings land in the Review tray' : 'A read-only conversation; findings land in the Review tray', keywords: reviewer.label.toLowerCase() })),
         { value: 'tray', label: 'Open the review tray', detail: 'Comments and findings of this workspace', keywords: 'comments findings diff' }],
@@ -289,15 +290,22 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
 }
 function reviewHint(ctx: SlashContext): string {
   const names = [...new Set((ctx.reviewers || []).filter(r => !r.key.startsWith('profile:')).map(r => r.key))];
-  return names.length ? `[${[...names, 'tray'].join('|')}]` : '';
+  return names.length ? `[${[...names, 'tray'].join('|')}] [focus…]` : '';
 }
-/** The reviewer `/review <word>` names: a provider, a subscription's label, or the default with no word. */
-export function reviewerFor<T extends { key: string; label: string }>(reviewers: readonly T[], args: string): T | 'tray' | undefined {
-  const word = args.trim().toLowerCase();
-  if (!word) return reviewers[0];
-  if (word === 'tray' || word === 'comments') return 'tray';
-  return reviewers.find(r => r.key.toLowerCase() === word || r.label.toLowerCase() === word || `profile:${word}` === r.key.toLowerCase())
-    || reviewers.find(r => !r.key.startsWith('profile:') && r.label.toLowerCase().startsWith(word));
+/**
+ * What `/review <args>` asks for: the tray, or a review by the reviewer its
+ * first word names (else the default) with the rest as its focus — so
+ * `/review the retry loop` is the default reviewer, focused on the retry loop.
+ */
+export function reviewRequest<T extends { key: string; label: string }>(reviewers: readonly T[], args: string): { tray: true } | { tray?: false; reviewer: T | undefined; focus: string } {
+  const text = args.trim(), [first = '', ...rest] = text.split(/\s+/);
+  if (!text) return { reviewer: reviewers[0], focus: '' };
+  if (!rest.length && (first.toLowerCase() === 'tray' || first.toLowerCase() === 'comments')) return { tray: true };
+  const word = first.toLowerCase();
+  const named = reviewers.find(r => r.key.toLowerCase() === word || r.label.toLowerCase() === word || `profile:${word}` === r.key.toLowerCase())
+    // One word that starts a reviewer's name (`/review cla`): that reviewer.
+    || (!rest.length ? reviewers.find(r => !r.key.startsWith('profile:') && r.label.toLowerCase().startsWith(word)) : undefined);
+  return named ? { reviewer: named, focus: rest.join(' ') } : { reviewer: reviewers[0], focus: text };
 }
 /** A listed model is the session's: by id, by the id an alias resolves to, or by its name. */
 export function sameModel(model: ProviderModel, current: string): boolean {

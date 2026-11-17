@@ -70,6 +70,8 @@ type Props = {
   iconOf(panel: Panel): string;
   /** An image a panel shows for itself (a web page's icon), in place of its kind's icon. */
   imageOf?(panel: Panel): string | undefined;
+  /** A badge on a panel's tab ("3 findings", a live dot), beside its title. */
+  badgeOf?(panel: Panel): { text: string; tone: string; label: string } | undefined;
   canClose(panel: Panel): boolean;
   /** What closing it does, for its × ("Close Changes page" when it is the last panel of a page that goes with it). */
   closeLabel?(panel: Panel, title: string): string;
@@ -146,6 +148,18 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const contents = useRef(new Map<string, HTMLElement>());
   /** Each tab's close button, whose label follows what closing does. */
   const closes = useRef(new Map<string, HTMLButtonElement>());
+  const badges = useRef(new Map<string, HTMLElement>());
+  /** A tab's badge as its panel says now: shown with its text and tone, or hidden. */
+  const paintBadge = (id: string, panel: Panel) => {
+    const element = badges.current.get(id);
+    if (!element) return;
+    const badge = latest.current.badgeOf?.(panel);
+    element.hidden = !badge;
+    if (!badge) return;
+    if (element.textContent !== badge.text) element.textContent = badge.text;
+    if (element.dataset.tone !== badge.tone) element.dataset.tone = badge.tone;
+    if (element.title !== badge.label) { element.title = badge.label; element.setAttribute('aria-label', badge.label); }
+  };
   const size = useRef({ width: 0, height: 0 });
   const [actionHosts, setActionHosts] = useState(() => new Map<string, HTMLElement>());
   /** Where each group's `+` is drawn, right after its tabs. */
@@ -423,7 +437,10 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
               if (!src) return iconElement(latest.current.iconOf(panel), 14);
               const image = tab.ownerDocument.createElement('img'); image.className = 'dock-tab-image'; image.src = src; image.alt = ''; return image;
             };
-            tab.replaceChildren(icon(), title);
+            const badge = document.createElement('span'); badge.className = 'dock-tab-badge'; badge.setAttribute('role', 'status'); badge.hidden = true;
+            badges.current.set(id, badge); disposers.push(() => { if (badges.current.get(id) === badge) badges.current.delete(id); });
+            tab.replaceChildren(icon(), title, badge);
+            paintBadge(id, panel);
             const name = () => parameters.api.title || latest.current.titleOf(panel);
             tab.title = `${name()} · drag to move, double-click to maximize`;
             if (latest.current.canClose(panel)) {
@@ -551,6 +568,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
         if (panel.id === EMPTY_CONTENT) continue;
         const saved = panelFrom(panel.id, panel.params), title = latest.current.titleOf(saved);
         if (panel.title !== title) panel.api.setTitle(title);
+        paintBadge(panel.id, saved);
         const close = closes.current.get(panel.id), label = latest.current.closeLabel?.(saved, title) ?? `Close ${title} panel`;
         if (close && close.getAttribute('aria-label') !== label) close.setAttribute('aria-label', label);
       }

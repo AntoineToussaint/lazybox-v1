@@ -3,7 +3,7 @@ import { SessionSchema } from '@lazybox/protocol';
 import { mergeConversations } from '../packages/surfaces/src/conversation-model.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activatePanel, adoptGeometry, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedChats, detachedFor, largestGroup, returnDetached, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapGroups, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, fitSidebarAgents, fitAgentsEverywhere, sidebarAgentsGroup, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, sidebarGroupIDs, minimumWidth, fitWidth, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
+import { activatePanel, adoptGeometry, openBesideChat, pageShowing, PANEL_LIMIT, groupOf, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedChats, detachedFor, largestGroup, returnDetached, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapGroups, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, fitSidebarAgents, fitAgentsEverywhere, sidebarAgentsGroup, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, sidebarGroupIDs, minimumWidth, fitWidth, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
 import { applyTemplate, builtinPresets, parseSavedLayouts } from '../packages/surfaces/src/layout-presets.ts';
 
 const sidebar = ['column', ['collections', 'agents']];
@@ -114,6 +114,39 @@ test('chats: one panel per conversation, routed, detached into their own window 
   // Brought back where another panel shows that conversation: it goes, rather than duplicating.
   const dup = { ...away, layout: insertDocked(away.layout, follow('f', 'chat'), 'right') };
   assert.equal(allPanels(returnChat(dup, 'w-work-chat', target('s'))).some(panel => panel.id === 'w-work-chat'), false);
+});
+
+test('a review opens as a background tab beside the chat it reviews, once, within the page limit', () => {
+  const base = work(target('s'));
+  const opened = openBesideChat(base, target('review-1'), 's', id)!;
+  assert.ok(opened.added);
+  const group = groupOf(opened.page, opened.id)!;
+  // In the reviewed chat's group, right after its tab; the chat stays in front, and stays on its conversation.
+  assert.deepEqual(group.panels.map(panel => panel.id), ['w-work-chat', opened.id]);
+  assert.equal(group.active, 'w-work-chat');
+  assert.deepEqual(opened.page.selection, base.selection);
+  assert.deepEqual(resolveTarget(group.panels[1], opened.page.selection), target('review-1'));
+  assert.doesNotThrow(() => reparse(opened.page));
+  // Asked again (a second click, a restart): the tab it has, nothing added.
+  const again = openBesideChat(opened.page, target('review-1'), 's', id)!;
+  assert.equal(again.added, false); assert.equal(again.id, opened.id); assert.equal(again.page, opened.page);
+  // Beside a pinned chat of the reviewed conversation, in that chat's group.
+  const beside = { ...base, layout: insertDocked(base.layout, pinnedChat('pinned-a', 'a'), 'right') };
+  const next = openBesideChat(beside, target('review-2'), 'a', id)!;
+  assert.deepEqual(groupOf(next.page, next.id)!.panels.map(panel => panel.id), ['pinned-a', next.id]);
+  // The reviewed conversation is not on the page: beside the page's conversation.
+  assert.equal(groupOf(openBesideChat(base, target('review-3'), 'elsewhere', id)!.page, 'w-work-chat')!.panels.length, 2);
+  // No chat to join, or a full page: nothing (the caller says so).
+  const noChat = { ...base, layout: removeFromPage(base, 'w-work-chat').layout };
+  assert.equal(openBesideChat(noChat, target('review-4'), 's', id), undefined);
+  let full = base;
+  while (allPanels(full).length < PANEL_LIMIT) full = { ...full, layout: insertDocked(full.layout, follow(`x-${allPanels(full).length}`, 'editor'), 'right') };
+  assert.equal(openBesideChat(full, target('review-5'), 's', id), undefined);
+  // The page that shows a conversation: the selected one first.
+  const layout = { version: 2 as const, selectedPage: 'p2', pages: [{ ...base, id: 'p1' }, { ...beside, id: 'p2', selection: target('t') }] };
+  assert.equal(pageShowing(layout, 'a')?.id, 'p2');
+  assert.equal(pageShowing(layout, 's')?.id, 'p1');
+  assert.equal(pageShowing(layout, 'nowhere'), undefined);
 });
 
 test('a chat put back from its window returns where it was', () => {

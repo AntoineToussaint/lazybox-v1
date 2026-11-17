@@ -1,4 +1,3 @@
-import { reviewerFor } from './slash-commands';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
 import type { Artifact, Session, Snippet } from '@lazybox/protocol';
@@ -16,7 +15,7 @@ import { saveSnippetUse } from './snippet-usage';
 import { SlashMenu, SlashWarning, SLASH_MENU_ID, slashOptionId } from './SlashMenu';
 import { useDismiss } from './dismiss';
 import {
-  decideSend, findCommand, lazyboxCommands, providerCommands, resolveModel, slashMenu, snippetCommands,
+  decideSend, findCommand, lazyboxCommands, reviewRequest, providerCommands, resolveModel, slashMenu, snippetCommands,
   type CommandCatalog, type SlashChoice, type SlashCommand, type SlashContext, type SlashMenuState,
 } from './slash-commands';
 import { openUsage } from './TelemetryPanel';
@@ -206,11 +205,13 @@ export function useSlashCommands(o: Options) {
         if (!openUsage(latest.current.sessionID, command.name)) notice('The usage of this conversation shows in its header');
         break;
       case 'review': {
-        const reviewer = reviewerFor(reviewLauncher.choices, args);
-        if (reviewer === 'tray' || (!reviewer && !args)) { requestReviewTray(workspaceId); if (!runAction('changes.show')) notice('Open the Changes panel to see the review tray'); break; }
-        if (!reviewer) { onError(`“${args}” is not a reviewer: ${reviewLauncher.choices.filter(c => !c.profileId).map(c => c.label.toLowerCase()).join(', ') || 'no agent is signed in'}.`); break; }
-        notice(`Starting ${reviewer.label}’s review…`);
-        void reviewLauncher.start({ scope: 'changes' }, reviewer);
+        const request = reviewRequest(reviewLauncher.choices, args);
+        if (request.tray || !request.reviewer) {
+          if (!request.tray && args) { onError(`No agent is available to review with: ${reviewLauncher.unavailable || 'sign one in under Settings → Subscriptions'}.`); break; }
+          requestReviewTray(workspaceId); if (!runAction('changes.show')) notice('Open the Changes panel to see the review tray'); break;
+        }
+        notice(`Starting ${request.reviewer.label}’s review${request.focus ? ', with your focus' : ''}…`);
+        void reviewLauncher.start({ scope: 'changes' }, request.reviewer, request.focus);
         break;
       }
       case 'artifact': void startTracking(); break;

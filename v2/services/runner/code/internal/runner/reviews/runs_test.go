@@ -24,6 +24,23 @@ func TestParseSeverityRefusesWhatItCannotPlace(t *testing.T) {
 	}
 }
 
+// `/review <focus>`: the person's focus is in the brief, before how to
+// report, or where the template puts {{focus}}; no focus, no section.
+func TestBriefCarriesThePersonsFocus(t *testing.T) {
+	brief := Brief(BriefInput{Reviewer: "Codex", Scope: "Changes", Focus: "the retry loop in handler.go"})
+	focus, report := strings.Index(brief, "## What the person asked you to focus on\n\n> the retry loop in handler.go"), strings.Index(brief, "## How to report")
+	if focus < 0 || report < 0 || focus > report {
+		t.Fatalf("focus before reporting:\n%s", brief)
+	}
+	placed := Brief(BriefInput{Scope: "Changes", Focus: "races", Template: "{{focus}}\n\nReview {{scope}}."})
+	if !strings.HasPrefix(placed, "## What the person asked you to focus on\n\n> races") || strings.Count(placed, "focus on") != 1 {
+		t.Fatalf("the template's own {{focus}}:\n%s", placed)
+	}
+	if bare := Brief(BriefInput{Scope: "Changes", Template: "{{focus}}\n\nReview {{scope}}."}); strings.Contains(bare, "focus on") || strings.Contains(bare, "{{") {
+		t.Fatalf("no focus, no section:\n%s", bare)
+	}
+}
+
 func TestBriefCarriesTheGoalScopeEvidenceAndAlwaysTheReportingInstructions(t *testing.T) {
 	in := BriefInput{Reviewer: "Codex", Author: "Claude", Conversation: "Harden the handler", Goal: "Return errors from Handle instead of logging them.",
 		Plan: "“Handler plan” (artifact a1, version 2):\n\n1. Return the error\n2. Test it", Scope: "Turn 3", Diff: "    git -C /w/api diff aaa bbb",

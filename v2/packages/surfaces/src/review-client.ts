@@ -4,7 +4,8 @@ import type { ReviewRun, Session, StartReviewRequest } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { useRunnerSettings } from './RunnerSettings';
 import { errorText } from './PullRequestFlow';
-import { reviewerChoices, type ReviewerChoice } from './review-model';
+import { reviewerChoices, unavailableAgents, type ReviewerChoice } from './review-model';
+import { useProviderAvailability } from './useProviderAvailability';
 import { refreshWorkspaceReview } from './useWorkspaceReview';
 
 /**
@@ -68,13 +69,37 @@ export function useReviewTrayRequests(workspaceId: string, open: (request: Revie
   }, [workspaceId]);
 }
 
+// The reviewer conversation as a background tab beside the work it reviews.
+const REVIEW_TAB = 'lazybox-review-tab';
+/** `beside`: the conversation reviewed, whose panel group the tab joins. */
+export type ReviewTabRequest = { collectionId: string; sessionId: string; beside: string };
+/** Ask the workspace to open a reviewer conversation as a tab beside the work, without taking the focus. */
+export function openReviewTab(request: ReviewTabRequest) {
+  const event = new CustomEvent<ReviewTabRequest>(REVIEW_TAB, { detail: request, cancelable: true });
+  // No workspace took it (a phone, a detached chat window): show it the old way.
+  if (window.dispatchEvent(event)) showConversation({ collectionId: request.collectionId, sessionId: request.sessionId });
+}
+/** The workspace opens review tabs asked for in it. */
+export function useReviewTabRequests(workspaceId: string, open: (request: ReviewTabRequest) => boolean) {
+  const ref = useRef(open); ref.current = open;
+  useEffect(() => {
+    const listener = (event: Event) => { const request = (event as CustomEvent<ReviewTabRequest>).detail; if (workspaceId && request.collectionId === workspaceId && ref.current(request)) event.preventDefault(); };
+    window.addEventListener(REVIEW_TAB, listener);
+    return () => window.removeEventListener(REVIEW_TAB, listener);
+  }, [workspaceId]);
+}
+
 // ---- Starting one -----------------------------------------------------------
 
-/** Starts a review on the Runner; the reviewer conversation opens beside the work. */
+/**
+ * Starts a review on the Runner. Its conversation opens as a background tab
+ * in the panel group of the conversation it reviews: the person stays where
+ * they are and can watch it.
+ */
 export async function startReview(api: RunnerClient, request: Omit<StartReviewRequest, '$typeName' | '$unknown'>): Promise<{ run?: ReviewRun; session?: Session }> {
   const started = await api.startReview(request, { timeoutMs: 60000 });
   refreshWorkspaceReview(request.collectionId);
-  if (started.session) showConversation({ collectionId: started.session.collectionId || request.collectionId, sessionId: started.session.id });
+  if (started.session) openReviewTab({ collectionId: started.session.collectionId || request.collectionId, sessionId: started.session.id, beside: request.sourceSessionId });
   return started;
 }
 
@@ -89,13 +114,23 @@ export function useReviewLauncher(workspaceId: string, source?: Pick<Session, 'i
   const { settings } = useRunnerSettings(!!source);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
   const authorProvider = source?.provider || info?.profiles.find(p => p.id === source?.profileId)?.provider || '';
-  const choices = useMemo(() => reviewerChoices(info?.profiles || [], authorProvider, settings?.review?.reviewer || ''), [info?.profiles, authorProvider, settings?.review?.reviewer]);
-  const unavailable = !workspaceId ? 'Choose a workspace first' : !source ? 'No conversation in this workspace to review yet' : !choices.length ? 'No subscription is signed in to review with' : '';
-  const start = async (scope: ReviewScope, choice: ReviewerChoice | undefined = choices[0]) => {
+  // Agents that cannot review now (not installed, no account): never offered, and the default gives way.
+  const availability = useProviderAvailability(!!source);
+  const missing = useMemo(() => [...unavailableAgents(availability.report)].sort().join(','), [availability.report]);
+  const review = settings?.review;
+  const choices = useMemo(() => reviewerChoices(info?.profiles || [], authorProvider, { reviewerMode: review?.reviewerMode, reviewer: review?.reviewer, reviewerModel: review?.reviewerModel }, new Set(missing ? missing.split(',') : [])),
+    [info?.profiles, authorProvider, review?.reviewerMode, review?.reviewer, review?.reviewerModel, missing]);
+  const unavailable = !workspaceId ? 'Choose a workspace first' : !source ? 'No conversation in this workspace to review yet' : !choices.length ? 'No agent is available to review with' : '';
+  /** `focus`: what the reviewer should look at in particular (`/review <focus>`). */
+  const start = async (scope: ReviewScope, choice: ReviewerChoice | undefined = choices[0], focus = '') => {
     if (!source || !choice || busy) return;
     setBusy(choice.key); setError('');
     try {
-      const started = await startReview(api, { collectionId: workspaceId, sourceSessionId: source.id, scope: scope.scope, compare: scope.scope === 'changes' ? scope.compare || '' : '', turn: scope.scope === 'turn' ? scope.turn : 0, member: scope.scope === 'pr' ? scope.member : '', profileId: choice.profileId, provider: choice.profileId ? '' : choice.provider });
+      // The default reviewer is left to the Runner, which applies the setting the same way and
+      // records why another agent stands in; one picked for this run is named.
+      const named = !choice.isDefault;
+      const started = await startReview(api, { collectionId: workspaceId, sourceSessionId: source.id, scope: scope.scope, compare: scope.scope === 'changes' ? scope.compare || '' : '', turn: scope.scope === 'turn' ? scope.turn : 0, member: scope.scope === 'pr' ? scope.member : '',
+        profileId: named ? choice.profileId : '', provider: named && !choice.profileId ? choice.provider : '', focus: focus.trim(), model: '' });
       if (started.run?.state === 'failed') setError(started.run.detail);
       return started;
     } catch (e) { setError(errorText(e)); }

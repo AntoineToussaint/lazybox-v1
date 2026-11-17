@@ -210,7 +210,7 @@ func TestStartReviewBriefsAReadOnlyReviewerWhoseFindingsLandInTheTray(t *testing
 		time.Sleep(20 * time.Millisecond)
 	}
 	// The blocker was dismissed: no blocker is open, so the loop ends clean.
-	if r := tray.Runs[0]; r.StopReason != "clean" || r.Detail != "Clean: no blocker open after 1 round." || r.Majors != 1 {
+	if r := tray.Runs[0]; r.StopReason != "clean" || r.Detail != "No blocker open after 1 round; 1 major still open." || r.Majors != 1 {
 		t.Fatalf("finished: %+v", r)
 	}
 	seen := events(t, f.bench, f.conversation.ID, "review_started", "review_finished")

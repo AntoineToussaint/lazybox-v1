@@ -434,6 +434,33 @@ export function routeChat(page: WorkspacePage, selection: ViewTarget, newID: () 
   const next = mapPagePanels(activatePanel(page, chosen.id), panel => panel.id !== chosen.id ? panel : { ...panel, binding: chosen.binding.mode === 'follow' || pinnedHere ? panel.binding : { mode: 'follow' } });
   return { page: dedupeChats({ ...next, selection }, selection), id: chosen.id };
 }
+/**
+ * A conversation opened as a background tab beside another (a review beside
+ * the work it reviews): a chat pinned to it, right after the tab of the chat
+ * that shows `beside` (else the page's following chat) in that chat's group,
+ * behind the tab in front — nothing else moves and the focus stays. A chat
+ * that already shows the conversation is kept as it is (one panel per
+ * conversation). Undefined when the page has no chat to join or is full.
+ */
+export function openBesideChat(page: WorkspacePage, target: ViewTarget, beside: string, newID: () => string): { page: WorkspacePage; id: string; added: boolean } | undefined {
+  const chats = visibleChats(page);
+  const shown = chats.find(panel => resolveTarget(panel, page.selection).sessionId === target.sessionId);
+  if (shown) return { page, id: shown.id, added: false };
+  const anchor = chats.find(panel => resolveTarget(panel, page.selection).sessionId === beside) || chats.find(panel => panel.binding.mode === 'follow') || chats[0];
+  const group = anchor && groupOf(page, anchor.id);
+  if (!anchor || !group || allPanels(page).length >= PANEL_LIMIT) return undefined;
+  const panel: Panel = { id: newID(), kind: 'chat', binding: { mode: 'pinned', target: { ...target, commandId: '' } }, detached: false };
+  return { page: mapPageGroups(page, value => {
+    if (value.id !== group.id) return value;
+    const at = value.panels.findIndex(other => other.id === anchor.id) + 1;
+    return { ...value, panels: [...value.panels.slice(0, at), panel, ...value.panels.slice(at)] };
+  }), id: panel.id, added: true };
+}
+/** The page whose visible chat shows a conversation: the selected page first. */
+export function pageShowing(layout: WorkspaceLayout, sessionId: string): WorkspacePage | undefined {
+  const ordered = [...layout.pages.filter(page => page.id === layout.selectedPage), ...layout.pages.filter(page => page.id !== layout.selectedPage)];
+  return ordered.find(page => visibleChats(page).some(panel => resolveTarget(panel, page.selection).sessionId === sessionId));
+}
 /** Content panels: what the page shows besides the workspace list and command output. */
 const content = (panel: Panel) => !sidebarKinds.has(panel.kind) && panel.kind !== 'console';
 /**

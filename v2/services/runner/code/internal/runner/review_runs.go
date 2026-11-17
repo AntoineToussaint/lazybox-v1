@@ -15,6 +15,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitinspect"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/collections"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/preferences"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	"github.com/AntoineToussaint/lazybox/v2/internal/work"
 )
@@ -48,6 +49,10 @@ type ReviewRequest struct {
 	Member  string
 	// Profile, else Provider, else the default reviewer setting.
 	Profile, Provider string
+	// Model the reviewer runs on; "" is the setting's (fixed), else its agent's default.
+	Model string
+	// Focus is what the person asked the reviewer to look at in particular.
+	Focus string
 	// PullRequest is what the PR loop knows of the member's pull request.
 	PullRequest *ReviewPullRequest
 	// Auto: started because a turn ended with changes, not by a click.
@@ -70,24 +75,77 @@ func ProviderLabel(provider string) string {
 	case "claude":
 		return "Claude"
 	}
-	if provider == "" {
+	if provider = strings.TrimPrefix(provider, "acp:"); provider == "" {
 		return "the agent"
 	}
 	return strings.ToUpper(provider[:1]) + provider[1:]
 }
 
+// otherProvider is the agent that reviews provider's work by default:
+// Codex reviews Claude's, Claude reviews Codex's and an ACP agent's.
 func otherProvider(provider string) string {
-	if provider == "codex" {
-		return "claude"
+	if provider == "claude" {
+		return "codex"
 	}
-	return "codex"
+	return "claude"
+}
+
+// agentLabel names the agent a profile runs: its provider's name, or an ACP
+// agent's own (its profile's label).
+func agentLabel(p accounts.Profile) string {
+	if accounts.ACPProvider(p.Provider) && p.Label != "" {
+		return p.Label
+	}
+	return ProviderLabel(p.Provider)
+}
+
+// reviewer is who reviews: the profile, the model ("" its default) and, when
+// it is not the one asked for, why (one sentence the review shows).
+type reviewer struct {
+	profile  accounts.Profile
+	model    string
+	fallback string
+}
+
+// reviewerReady reports whether a provider's agent can review now: it has a
+// profile, its program is not known to be missing (the last probe; none is
+// run here) and not every one of its subscriptions is known to need a new
+// sign-in. The best such profile comes back: a subscription Lazybox manages
+// first (it can switch at a limit).
+func (b *Bench) reviewerReady(provider string) (accounts.Profile, bool) {
+	if b.Availability != nil {
+		if program, probed := b.Availability.Cached()[provider]; probed && (!program.Installed || program.Error != "") {
+			return accounts.Profile{}, false
+		}
+	}
+	var chosen *accounts.Profile
+	profiles := b.Profiles()
+	for i, p := range profiles {
+		if p.Provider != provider || (b.Accounts != nil && b.Accounts.Observation(p.ID).State == "auth_required") {
+			continue
+		}
+		if chosen == nil || (p.Managed && !chosen.Managed) {
+			chosen = &profiles[i]
+		}
+	}
+	if chosen == nil {
+		return accounts.Profile{}, false
+	}
+	return *chosen, true
+}
+
+// knownProvider: Claude, Codex or an ACP agent ("acp:<id>").
+func knownProvider(provider string) bool {
+	return provider == "claude" || provider == "codex" || accounts.ACPProvider(provider)
 }
 
 // reviewerProfile picks who reviews: the profile asked for, else one of the
-// provider asked for, else the default reviewer setting, else the other
-// provider than the source's; a provider with no subscription falls back to
-// the source's own provider (a fresh, independent context still), and says so.
-func (b *Bench) reviewerProfile(source *Execution, req ReviewRequest) (accounts.Profile, string, error) {
+// provider asked for, else the default reviewer setting (Settings → Agents &
+// workspaces → Review by another agent → Default reviewer): the other agent
+// than the author's (the default), the author's own agent, or a fixed one.
+// A default reviewer that is not available gives way to the author's own
+// agent, in a fresh, independent conversation, and the review says so.
+func (b *Bench) reviewerProfile(source *Execution, req ReviewRequest) (reviewer, error) {
 	profiles := b.Profiles()
 	byID := func(id string) (accounts.Profile, bool) {
 		for _, p := range profiles {
@@ -97,54 +155,72 @@ func (b *Bench) reviewerProfile(source *Execution, req ReviewRequest) (accounts.
 		}
 		return accounts.Profile{}, false
 	}
-	ofProvider := func(provider string) (accounts.Profile, bool) {
-		var chosen *accounts.Profile
-		for i, p := range profiles {
-			if p.Provider != provider {
-				continue
-			}
-			// A subscription Lazybox manages first: it can switch at a limit.
-			if chosen == nil || (p.Managed && !chosen.Managed) {
-				chosen = &profiles[i]
-			}
-		}
-		if chosen == nil {
-			return accounts.Profile{}, false
-		}
-		return *chosen, true
-	}
 	if req.Profile != "" {
 		p, ok := byID(req.Profile)
 		if !ok {
-			return accounts.Profile{}, "", fmt.Errorf("subscription %q is not signed in on this Runner", req.Profile)
+			return reviewer{}, fmt.Errorf("subscription %q is not signed in on this Runner", req.Profile)
 		}
-		return p, "", nil
+		return reviewer{profile: p, model: req.Model}, nil
 	}
 	if req.Provider != "" {
-		if req.Provider != "claude" && req.Provider != "codex" {
-			return accounts.Profile{}, "", errors.New(`the reviewer is "claude" or "codex"`)
+		if !knownProvider(req.Provider) {
+			return reviewer{}, errors.New(`the reviewer is "claude", "codex" or an ACP agent ("acp:<id>")`)
 		}
-		p, ok := ofProvider(req.Provider)
+		p, ok := b.reviewerReady(req.Provider)
 		if !ok {
-			return accounts.Profile{}, "", fmt.Errorf("no %s subscription is signed in on this Runner; add one in Settings → Subscriptions", ProviderLabel(req.Provider))
+			return reviewer{}, fmt.Errorf("%s is not available on this Runner (not installed, or not signed in); add it in Settings → Subscriptions or Agents", ProviderLabel(req.Provider))
 		}
-		return p, "", nil
+		return reviewer{profile: p, model: req.Model}, nil
 	}
+	var prefs preferences.Review
 	if b.Preferences != nil {
-		if id := b.Preferences.Snapshot().Review.Reviewer; id != "" {
-			if p, ok := byID(id); ok {
-				return p, "", nil
+		prefs = b.Preferences.Snapshot().Review
+	}
+	author := source.Profile.Provider
+	// The agent the setting asks for; a fixed reviewer that is not available
+	// is named in the fallback sentence, and the other agent stands in.
+	wanted, missing := otherProvider(author), ""
+	switch prefs.ReviewerModeOf() {
+	case preferences.ReviewerSame:
+		wanted = author
+	case preferences.ReviewerFixed:
+		model := firstOf(req.Model, prefs.ReviewerModel)
+		if p, ok := byID(prefs.Reviewer); ok {
+			if _, ready := b.reviewerReady(p.Provider); ready && (b.Accounts == nil || b.Accounts.Observation(p.ID).State != "auth_required") {
+				return reviewer{profile: p, model: model}, nil
 			}
+			missing = agentLabel(p)
+			if p.Label != "" && !accounts.ACPProvider(p.Provider) {
+				missing += " · " + p.Label
+			}
+		} else if knownProvider(prefs.Reviewer) {
+			if p, ok := b.reviewerReady(prefs.Reviewer); ok {
+				return reviewer{profile: p, model: model}, nil
+			}
+			missing = ProviderLabel(prefs.Reviewer)
+		} else {
+			missing = "The reviewer you chose"
 		}
 	}
-	want := otherProvider(source.Profile.Provider)
-	if p, ok := ofProvider(want); ok {
-		return p, "", nil
+	fallback := func(p accounts.Profile) reviewer {
+		who := firstOf(missing, ProviderLabel(wanted))
+		if p.Provider == author {
+			return reviewer{profile: p, model: req.Model, fallback: fmt.Sprintf("%s is not available, so a fresh %s conversation reviews.", who, agentLabel(p))}
+		}
+		return reviewer{profile: p, model: req.Model, fallback: fmt.Sprintf("%s is not available, so %s reviews.", who, agentLabel(p))}
 	}
-	if p, ok := ofProvider(source.Profile.Provider); ok {
-		return p, fmt.Sprintf("No %s subscription is signed in, so another %s conversation reviews, with a fresh context.", ProviderLabel(want), ProviderLabel(p.Provider)), nil
+	if p, ok := b.reviewerReady(wanted); ok {
+		if missing != "" {
+			return fallback(p), nil
+		}
+		return reviewer{profile: p, model: req.Model}, nil
 	}
-	return accounts.Profile{}, "", errors.New("no subscription is signed in on this Runner to review with")
+	for _, provider := range []string{author, "claude", "codex"} {
+		if p, ok := b.reviewerReady(provider); ok {
+			return fallback(p), nil
+		}
+	}
+	return reviewer{}, errors.New("no agent is available on this Runner to review with")
 }
 
 // reviewScope is what the brief says about the scope.
@@ -463,24 +539,29 @@ func (b *Bench) StartReview(ctx context.Context, req ReviewRequest) (*Execution,
 	if req.Scope != reviews.ScopeChanges && req.Scope != reviews.ScopeTurn && req.Scope != reviews.ScopePR {
 		return nil, reviews.Run{}, errors.New(`the scope is "changes", "turn" or "pr"`)
 	}
-	profile, fallback, err := b.reviewerProfile(source, req)
+	chosen, err := b.reviewerProfile(source, req)
 	if err != nil {
 		return nil, reviews.Run{}, err
+	}
+	profile, fallback := chosen.profile, chosen.fallback
+	focus := strings.TrimSpace(req.Focus)
+	if len(focus) > reviews.FocusLimit {
+		return nil, reviews.Run{}, fmt.Errorf("a review's focus is limited to %d bytes", reviews.FocusLimit)
 	}
 	scope, err := b.scopeOf(ctx, source, workspace, req)
 	if err != nil {
 		return nil, reviews.Run{}, err
 	}
-	label, authorLabel := ProviderLabel(profile.Provider), ProviderLabel(source.Profile.Provider)
+	label, authorLabel := agentLabel(profile), agentLabel(source.Profile)
 	sourceTitle := b.executionTitle(ctx, source)
 	template := ""
 	if b.Preferences != nil {
 		template = b.Preferences.Snapshot().Review.Template
 	}
 	brief := reviews.Brief(reviews.BriefInput{Reviewer: label, Author: authorLabel, Conversation: sourceTitle, Goal: b.reviewGoal(source), Plan: b.reviewPlan(workspace.ID),
-		Scope: scope.label, Diff: scope.diff, Files: scope.files, Evidence: b.reviewEvidence(source), Template: template})
+		Scope: scope.label, Diff: scope.diff, Files: scope.files, Evidence: b.reviewEvidence(source), Template: template, Focus: focus})
 
-	e, err := b.OpenCollection(profile.ID, workspace.ID, "", accounts.Options{Permission: "read-only"}, "", "")
+	e, err := b.OpenCollection(profile.ID, workspace.ID, "", accounts.Options{Permission: "read-only", Model: chosen.model}, "", "")
 	if err != nil {
 		return nil, reviews.Run{}, err
 	}
@@ -498,6 +579,7 @@ func (b *Bench) StartReview(ctx context.Context, req ReviewRequest) (*Execution,
 	if fallback != "" {
 		run.Detail += " " + fallback
 	}
+	run.Fallback, run.Focus = fallback, focus
 	if b.Work != nil {
 		for _, at := range b.Work.Attempts() {
 			if at.Attempt.Conversation == run.SourceConversation {

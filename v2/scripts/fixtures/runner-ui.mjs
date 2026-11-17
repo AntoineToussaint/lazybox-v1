@@ -227,7 +227,7 @@ export async function startRunnerFixture() {
       loopNote(run,'round_ended',run.reviewerLabel,run.round===1?`Round 1 ended: ${plural(filed,'finding','findings')}; ${plural(blockers,'blocker','blockers')} open.`:`Round ${run.round} ended: ${filed} filed, ${resolved} resolved, ${stillOpen} still open; ${plural(blockers,'blocker','blockers')} open.`);
       const stuck=r.comments.find(c=>c.reviewId===run.id&&liveFinding(c)&&c.severity==='blocker'&&(c.stillOpenRounds||0)>=2);
       if(stuck)stopLoop(collectionId,run,'stuck',`The blocker “${stuck.title}” (${stuck.id}) is still open after two fixes: decide how to proceed.`,true);
-      else if(!blockers){if(run.loop==='off')run.phase='done';else stopLoop(collectionId,run,'clean',`Clean: no blocker open after ${plural(run.round,'round','rounds')}.`,false);}
+      else if(!blockers){const majors=r.comments.filter(c=>c.reviewId===run.id&&liveFinding(c)&&c.severity==='major').length;if(run.loop==='off')run.phase='done';else stopLoop(collectionId,run,'clean',majors?`No blocker open after ${plural(run.round,'round','rounds')}; ${majors} major still open.`:`Clean: no blocker open after ${plural(run.round,'round','rounds')}.`,false);}
       else if(run.loop==='off')run.phase='done';
       else if(run.round>=run.maxRounds)stopLoop(collectionId,run,'max_rounds',`${plural(blockers,'blocker','blockers')} still open after ${plural(run.round,'round','rounds')}, the limit: decide how to proceed.`,true);
       else if(run.loop==='auto'&&!run.paused){const ids=r.comments.filter(c=>c.reviewId===run.id&&['proposed','open'].includes(c.disposition)).map(c=>c.id);run.phase='triage';
@@ -513,21 +513,30 @@ actions:
         const collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Workspace missing');
         const source=sessions.find(s=>s.id===body.sourceSessionId);if(!source||source.collectionId!==collection.id)return error('failed_precondition','that conversation works in another workspace');
         if(reviewOf(collection.id).runs.some(run=>run.reviewerSessionId===source.id))return error('failed_precondition','this conversation is itself a review; review the conversation it reviews instead');
-        const authorProvider=providerOf(source);const configured=profiles.find(p=>p.id===runnerSettings.review?.reviewer);
-        const profile=body.profileId?profiles.find(p=>p.id===body.profileId):body.provider?profiles.find(p=>p.provider===body.provider):configured||profiles.find(p=>p.provider!==authorProvider);
+        // Who reviews, as the Runner decides (review_runs.go reviewerProfile): the one named, else the
+        // setting: the other agent (default), the same one, or a fixed one; one not installed gives way, said in `fallback`.
+        const authorProvider=providerOf(source),setting=runnerSettings.review||{},ready=provider=>(availability[provider]?.installed??true)&&profiles.some(p=>p.provider===provider);
+        const mode=setting.reviewerMode||(setting.reviewer?'fixed':'other'),configured=profiles.find(p=>p.id===setting.reviewer);
+        let profile,fallback='',model=body.model||'';
+        if(body.profileId)profile=profiles.find(p=>p.id===body.profileId);
+        else if(body.provider){if(!ready(body.provider))return error('failed_precondition',`${providerName(body.provider)} is not available on this Runner (not installed, or not signed in)`);profile=profiles.find(p=>p.provider===body.provider);}
+        else if(mode==='fixed'&&configured&&ready(configured.provider)){profile=configured;model=model||setting.reviewerModel||'';}
+        else{const wanted=mode==='same'?authorProvider:authorProvider==='claude'?'codex':'claude',stand=[wanted,authorProvider,'claude','codex'].find(ready);profile=stand&&profiles.find(p=>p.provider===stand);
+          const missing=mode==='fixed'?(configured?providerName(configured.provider)+(configured.label?` · ${configured.label}`:''):'The reviewer you chose'):'';
+          if(profile&&(missing||stand!==wanted))fallback=`${missing||providerName(wanted)} is not available, so ${stand===authorProvider?`a fresh ${providerName(stand)} conversation reviews`:`${providerName(stand)} reviews`}.`;}
         if(!profile)return error('failed_precondition',`subscription ${body.profileId||body.provider} is not signed in on this Runner`);
         const scope=body.scope||'changes';let scopeLabel;
         if(scope==='turn'){const turn=checkpointState(source.id).turns.find(t=>t.turn===body.turn);if(!turn)return error('failed_precondition',`this conversation has no turn ${body.turn}`);scopeLabel=`Turn ${body.turn}`;}
         else if(scope==='pr'){const pr=shipState(collection.id,body.member).pr;if(!pr)return error('failed_precondition','this branch has no pull request to review');scopeLabel=`PR #${pr.number}`;}
         else scopeLabel=!body.compare?'Changes':body.compare===':uncommitted'?'Uncommitted changes':`Changes vs ${body.compare}`;
         const label=providerName(profile.provider),title=`Review · ${scopeLabel} · ${label}`;
-        const reviewer={id:`review-${sessions.length}`,collectionId:collection.id,workId:collection.id,profileId:profile.id,provider:profile.provider,permission:'read-only',title,status:'running',busy:true,capabilities:{files:true},pending:[]};sessions.push(reviewer);
+        const reviewer={id:`review-${sessions.length}`,collectionId:collection.id,workId:collection.id,profileId:profile.id,provider:profile.provider,model,permission:'read-only',title,status:'running',busy:true,capabilities:{files:true},pending:[]};sessions.push(reviewer);
         const now=String(Math.floor(Date.now()/1000));
         const loop=runnerSettings.review?.loop||'ask',maxRounds=Math.min(10,Math.max(1,runnerSettings.review?.maxRounds||3));
-        const run={loop,maxRounds,round:1,phase:'reviewing',paused:false,stopReason:'',rounds:[{number:1,trigger:'start',startedAtUnix:now}],timeline:[],id:'rv-'+randomUUID().slice(0,8),reviewerSessionId:reviewer.id,reviewerTitle:title,reviewerLabel:label,reviewerProvider:profile.provider,reviewerProfileId:profile.id,sourceSessionId:source.id,sourceTitle:source.title||'',sourceLabel:providerName(authorProvider),sourceProvider:authorProvider,scope,scopeLabel,turn:body.turn||0,compare:body.compare||'',state:'running',detail:`${label} is reviewing ${scopeLabel.toLowerCase()}.`,createdAtUnix:now,updatedAtUnix:now};
+        const run={loop,maxRounds,round:1,phase:'reviewing',paused:false,stopReason:'',rounds:[{number:1,trigger:'start',startedAtUnix:now}],timeline:[],id:'rv-'+randomUUID().slice(0,8),reviewerSessionId:reviewer.id,reviewerTitle:title,reviewerLabel:label,reviewerProvider:profile.provider,reviewerProfileId:profile.id,sourceSessionId:source.id,sourceTitle:source.title||'',sourceLabel:providerName(authorProvider),sourceProvider:authorProvider,scope,scopeLabel,turn:body.turn||0,compare:body.compare||'',state:'running',detail:`${label} is reviewing ${scopeLabel.toLowerCase()}.${fallback?' '+fallback:''}`,fallback,focus:(body.focus||'').trim(),createdAtUnix:now,updatedAtUnix:now};
         reviewOf(collection.id).runs.push(run);
         loopNote(run,'round_started','Lazybox',`Round 1: ${label} reviews ${scopeLabel.toLowerCase()} (${loop==='off'?'one pass':loop==='auto'?`up to ${maxRounds} rounds; findings go to ${run.sourceLabel} automatically`:`up to ${maxRounds} rounds; you send findings between rounds`}).`);
-        reviewBriefs.set(reviewer.id,`You are an independent reviewer (${label}) of work ${run.sourceLabel} did in this workspace, in the conversation “${run.sourceTitle}”.\n\n## What to review: ${scopeLabel}\n\nlazybox review add --file <repository>/<path> --line <N> --severity blocker|major|minor|nit --title "…"`);
+        reviewBriefs.set(reviewer.id,`You are an independent reviewer (${label}) of work ${run.sourceLabel} did in this workspace, in the conversation “${run.sourceTitle}”.\n\n## What to review: ${scopeLabel}\n\nlazybox review add --file <repository>/<path> --line <N> --severity blocker|major|minor|nit --title "…"${run.focus?`\n\n## What the person asked you to focus on\n\n> ${run.focus}`:''}`);
         // The brief is the reviewer's first message, journaled as the Runner does.
         openEvents(reviewer.id).push({type:'operation_accepted',text:reviewBriefs.get(reviewer.id),operationId:'review-brief-'+run.id,providerDataJson:originData({kind:'review_brief',summary:`Asked ${label} to review ${run.sourceLabel}'s work`,detail:scopeLabel})});
         reviewEvent('review_started',collection.id,run);

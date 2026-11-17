@@ -64,6 +64,16 @@
 .dock-tab>svg{flex:none;opacity:.8}
 .dock-tab-image{flex:none;width:14px;height:14px;border-radius:3px;object-fit:contain}
 .dock-tab-title{overflow:hidden;text-overflow:ellipsis;font-size:calc(11px * var(--text-scale))}
+/* A tab's badge (a review's "3 findings", a live dot while it works): small, beside the title. */
+.dock-tab-badge{flex:none;display:inline-flex;align-items:center;gap:4px;height:15px;padding:0 5px;border-radius:8px;background:var(--surface-selected);color:var(--text-subtle);font-size:calc(10px * var(--text-scale));font-variant-numeric:tabular-nums;line-height:1}
+.dock-tab-badge[hidden]{display:none}
+.dock-tab-badge[data-tone=busy]{padding:0 4px;background:transparent;color:var(--attention-working,var(--running))}
+.dock-tab-badge[data-tone=busy]::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;animation:dock-tab-badge-pulse 1.4s ease-in-out infinite}
+.dock-tab-badge[data-tone=done]{color:var(--ok)}
+.dock-tab-badge[data-tone=warn]{background:var(--warn-bg-strong,var(--surface-selected));color:var(--warn)}
+.dock-tab-badge[data-tone=failed]{background:var(--danger-bg-strong,var(--surface-selected));color:var(--danger)}
+@keyframes dock-tab-badge-pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.dock-tab-badge[data-tone=busy]::before{animation:none}}
 /* Quiet, but never so faint that a panel looks like it cannot be closed. */
 .workspace-shell .dock-tab-close,.dock-tab-close{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:1px;border:0;border-radius:4px;background:transparent;color:inherit;opacity:.85;transition:opacity .12s,background .12s}
 .dock-tab-close:hover{opacity:1!important;background:var(--surface-selected)}

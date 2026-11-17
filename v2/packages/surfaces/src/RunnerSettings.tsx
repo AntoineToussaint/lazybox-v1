@@ -5,7 +5,11 @@ import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { SettingsGroup, SettingsHeader, SettingsRow, settingsError } from './settings-parts';
 import './review-agents.css';
-import { loopModes } from './review-model';
+import { loopModes, reviewerModeOf } from './review-model';
+import { agentTitle, isAcp } from './providers';
+
+/** Claude, then Codex, then ACP agents. */
+const rank = (provider: string) => provider === 'claude' ? 0 : provider === 'codex' ? 1 : 2;
 import './pricing.css';
 
 /**
@@ -25,7 +29,7 @@ function SettingsLoading({ error, what }: { error: string; what: string }) {
   return error ? <div className="settings-error" role="alert">{error} <button type="button" onClick={announce}>Try again</button></div> : <p className="settings-empty" role="status">Loading {what}…</p>;
 }
 
-const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors, s.plainTitles, s.review?.reviewer || '', s.review?.template || '', !!s.review?.autoStart, s.review?.loop || '', s.review?.maxRounds || 0]);
+const editable = (s: RunnerSettings) => JSON.stringify([s.naming, s.permission, s.context, s.claudeContext, s.codexContext, s.claudeAiConnectors, s.plainTitles, s.review?.reviewerMode || '', s.review?.reviewer || '', s.review?.reviewerModel || '', s.review?.template || '', !!s.review?.autoStart, s.review?.loop || '', s.review?.maxRounds || 0]);
 
 export function AgentSettings() {
   const { api, info } = useRunner();
@@ -36,10 +40,16 @@ export function AgentSettings() {
   if (!settings) return <><SettingsHeader title="Agents & workspaces"/><SettingsLoading error={error} what="agent settings"/></>;
   const dirty = !!baseline && editable(settings) !== baseline;
   const change = (patch: Partial<RunnerSettings>) => { setSettings({ ...settings, ...patch }); setSaved(false); };
-  const review: ReviewSettings = settings.review || { $typeName: 'lazybox.bench.v1.ReviewSettings', reviewer: '', template: '', autoStart: false, defaultTemplate: '', loop: 'ask', maxRounds: 3 };
+  const review: ReviewSettings = settings.review || { $typeName: 'lazybox.bench.v1.ReviewSettings', reviewer: '', reviewerMode: 'other', reviewerModel: '', template: '', autoStart: false, defaultTemplate: '', loop: 'ask', maxRounds: 3 };
   // The built-in template is stored as none, so a later release's improvements reach it.
   const changeReview = (patch: Partial<ReviewSettings>) => { const next = { ...review, ...patch }; if (next.template.trim() === review.defaultTemplate.trim()) next.template = ''; change({ review: next }); };
-  const reviewers = (info?.profiles || []).filter(p => p.provider === 'claude' || p.provider === 'codex');
+  // A fixed reviewer: an agent (its best subscription), or one subscription; ACP agents have one each.
+  const profiles = info?.profiles || [];
+  const agents = [...new Set(profiles.map(p => p.provider).filter(p => p === 'claude' || p === 'codex' || isAcp(p)))].sort((a, b) => rank(a) - rank(b));
+  const subscriptions = profiles.filter(p => p.provider === 'claude' || p.provider === 'codex');
+  const mode = reviewerModeOf(review);
+  const reviewerValue = mode === 'fixed' ? `fixed:${review.reviewer}` : mode;
+  const pickReviewer = (value: string) => value.startsWith('fixed:') ? changeReview({ reviewerMode: 'fixed', reviewer: value.slice(6) }) : changeReview({ reviewerMode: value, reviewer: '', reviewerModel: '' });
   return <form className="runner-preferences agent-settings" onSubmit={async event => {
     event.preventDefault(); setBusy(true); setSaved(false); setError('');
     try { const next = await api.saveRunnerSettings(settings); setSettings(next); setBaseline(editable(next)); announce(); setSaved(true); }
@@ -71,12 +81,20 @@ export function AgentSettings() {
       <SettingsRow stacked label="Additional Codex context" htmlFor="setting-codex-context"><textarea id="setting-codex-context" rows={3} maxLength={16384} placeholder="Only for Codex agents" value={settings.codexContext} onChange={e => change({ codexContext: e.target.value })}/></SettingsRow>
     </SettingsGroup>
     <SettingsGroup title="Review by another agent" description="Review with… on the Changes page, a turn’s ⋯ menu and a pull request opens a read-only conversation on another agent, briefed with the goal, the diff and what ran. Its findings land in the Review tray for you to accept or dismiss.">
-      <SettingsRow label="Default reviewer" htmlFor="setting-reviewer" description="Who reviews with one click. The other provider gives a second opinion with a different model; the menu beside the button offers every subscription.">
-        <select id="setting-reviewer" value={review.reviewer} onChange={e => changeReview({ reviewer: e.target.value })}>
-          <option value="">The other provider than the author’s</option>
-          {reviewers.map(p => <option key={p.id} value={p.id}>{p.provider === 'codex' ? 'Codex' : 'Claude'} · {p.label || p.id}</option>)}
+      <SettingsRow label="Default reviewer" htmlFor="setting-reviewer" description="Who reviews with one click (the Review button, /review, ] ] ⇧R). The other agent gives a second opinion from a different model: Codex reviews Claude’s work, Claude reviews Codex’s. When it is not installed or signed in, a fresh conversation of the author’s agent reviews, and the review says so. The chevron beside each Review button picks another for one run.">
+        <select id="setting-reviewer" value={reviewerValue} onChange={e => pickReviewer(e.target.value)}>
+          <option value="other">The other agent (recommended)</option>
+          <option value="same">The same agent, in a fresh conversation</option>
+          <optgroup label="Always">
+            {agents.map(provider => <option key={provider} value={`fixed:${provider}`}>{agentTitle(provider, profiles)}</option>)}
+            {subscriptions.map(p => <option key={p.id} value={`fixed:${p.id}`}>{agentTitle(p.provider)} · {p.label || p.id}</option>)}
+            {mode === 'fixed' && review.reviewer && !agents.includes(review.reviewer) && !subscriptions.some(p => p.id === review.reviewer) && <option value={reviewerValue}>{review.reviewer} (not signed in)</option>}
+          </optgroup>
         </select>
       </SettingsRow>
+      {mode === 'fixed' && <SettingsRow label="Reviewer model" htmlFor="setting-reviewer-model" description="The model the reviewer runs on. Empty: its agent’s default.">
+        <input id="setting-reviewer-model" type="text" spellCheck={false} maxLength={128} placeholder="The agent’s default" value={review.reviewerModel} onChange={e => changeReview({ reviewerModel: e.target.value.trim() })}/>
+      </SettingsRow>}
       <SettingsRow label="Between rounds" htmlFor="setting-review-loop" description="After a review, its findings go to the author; when the author's turn then changes files, the reviewer re-reviews that change against its open findings, until no blocker is open. Ask me: you accept and send the findings each round. Automatically: Lazybox sends them. One pass: no re-review.">
         <select id="setting-review-loop" value={review.loop || 'ask'} onChange={e => changeReview({ loop: e.target.value })}>
           {loopModes.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -88,7 +106,7 @@ export function AgentSettings() {
       <SettingsRow label="Review every turn that changes files" htmlFor="setting-review-auto" description="When an agent’s turn ends with changes, the default reviewer reviews that turn on its own. Off by default: each review is a conversation and costs tokens.">
         <input id="setting-review-auto" type="checkbox" checked={review.autoStart} onChange={e => changeReview({ autoStart: e.target.checked })}/>
       </SettingsRow>
-      <SettingsRow stacked label="Review brief" htmlFor="setting-review-template" description={<>What the reviewer is told. {'{{goal}}'}, {'{{plan}}'}, {'{{scope}}'}, {'{{diff}}'}, {'{{files}}'}, {'{{evidence}}'}, {'{{author}}'}, {'{{reviewer}}'} and {'{{conversation}}'} are filled in; {'{{report}}'} is how findings reach Lazybox and is added at the end if you leave it out.</>}>
+      <SettingsRow stacked label="Review brief" htmlFor="setting-review-template" description={<>What the reviewer is told. {'{{goal}}'}, {'{{plan}}'}, {'{{scope}}'}, {'{{diff}}'}, {'{{files}}'}, {'{{evidence}}'}, {'{{author}}'}, {'{{reviewer}}'}, {'{{conversation}}'} and {'{{focus}}'} (what you asked it to look at, with {'/review <focus>'}) are filled in; {'{{report}}'} is how findings reach Lazybox and is added at the end if you leave it out.</>}>
         <textarea id="setting-review-template" rows={10} maxLength={32768} spellCheck={false} value={review.template || review.defaultTemplate} onChange={e => changeReview({ template: e.target.value })}/>
       </SettingsRow>
       <div className="settings-inline-actions">

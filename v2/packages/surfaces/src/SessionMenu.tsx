@@ -74,8 +74,10 @@ export function withHandoff(items: MenuItem[], handoff: MenuItem[]): MenuItem[] 
 }
 
 /** The ⋯ menu of a chat: what it runs on, its permissions and subscription, and ending or deleting it. */
-export function SessionMenu({ session, sessionID, accountName, stream, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, activity, models }: {
+export function SessionMenu({ session, sessionID, accountName, stream, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, activity, models, extra = [] }: {
   session?: Session;
+  /** Actions of the header that fold here in a slim panel (Review), listed first. */
+  extra?: MenuItem[];
   sessionID: string;
   accountName: string;
   stream: string;
@@ -116,7 +118,7 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
     </div>}
     {activity && <ActivityDetailChoice activity={activity}/>}
     {session?.closed && !allowStart && <span>Saved conversation</span>}
-    <ActionMenuItems items={withHandoff(sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, sessionID }).filter(item => !item || item === 'separator' || !item.submenu), handoff)}/>
+    <ActionMenuItems items={[...extra, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, sessionID }).filter(item => !item || item === 'separator' || !item.submenu), handoff)]}/>
   </ActionMenu>;
 }
 

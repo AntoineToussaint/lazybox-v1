@@ -52,7 +52,33 @@ type Review struct {
 	// person sends them; "" too), "auto" or "off". MaxRounds: 0 is 3.
 	Loop      string `json:"loop,omitempty"`
 	MaxRounds int    `json:"maxRounds,omitempty"`
+	// ReviewerMode is who reviews by default: "other" (the other agent than
+	// the author's), "same" (the author's agent, a fresh conversation) or
+	// "fixed" (Reviewer, a profile id or a provider, on ReviewerModel). ""
+	// is "fixed" when Reviewer is set, else "other" (ReviewerModeOf).
+	ReviewerMode  string `json:"reviewerMode,omitempty"`
+	ReviewerModel string `json:"reviewerModel,omitempty"`
 }
+
+// Reviewer modes.
+const (
+	ReviewerOther = "other"
+	ReviewerSame  = "same"
+	ReviewerFixed = "fixed"
+)
+
+// ReviewerModeOf is the mode a review setting means, an older one without a
+// mode included: a reviewer named is a fixed one.
+func (r Review) ReviewerModeOf() string {
+	if r.ReviewerMode != "" {
+		return r.ReviewerMode
+	}
+	if r.Reviewer != "" {
+		return ReviewerFixed
+	}
+	return ReviewerOther
+}
+
 type Store struct {
 	mu   sync.RWMutex
 	path string
@@ -95,6 +121,15 @@ func validate(d Data) error {
 	}
 	if len(d.Review.Reviewer) > 128 || strings.ContainsAny(d.Review.Reviewer, " \t\r\n") {
 		return errors.New("invalid default reviewer")
+	}
+	if m := d.Review.ReviewerMode; m != "" && m != ReviewerOther && m != ReviewerSame && m != ReviewerFixed {
+		return errors.New("the default reviewer is other, same or fixed")
+	}
+	if d.Review.ReviewerMode == ReviewerFixed && d.Review.Reviewer == "" {
+		return errors.New("choose the agent that reviews")
+	}
+	if len(d.Review.ReviewerModel) > 128 || strings.ContainsAny(d.Review.ReviewerModel, " \t\r\n") {
+		return errors.New("invalid reviewer model")
 	}
 	if d.Review.Loop != "" && d.Review.Loop != "ask" && d.Review.Loop != "auto" && d.Review.Loop != "off" {
 		return errors.New("the review loop is ask, auto or off")

@@ -66,7 +66,9 @@ function textWidth(text: string, font: string): number {
  * when it is not the only one, then the numbers as compact chips. What does
  * not fit folds whole into "⋯" — nothing on the line is cut.
  */
-export function ChatHeader({ agentName, session, sessionID, title, status, statusText, statusBusy, modelLabel, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu, onContextMenu, onPickModel, stats, origin }: Omit<HeaderProps, 'inspection'> & {
+export function ChatHeader({ agentName, session, sessionID, title, status, statusText, statusBusy, modelLabel, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu, onContextMenu, onPickModel, stats, origin, review }: Omit<HeaderProps, 'inspection'> & {
+  /** Review this conversation's work (ReviewFromChat.tsx): first of the actions; folds into ⋯ in a slim panel. */
+  review?: ReactNode;
   /** Where the workspace's work started (an issue), as a chip beside the actions. */
   origin?: ReactNode;
   /** The conversation's actions on a right-click, the same as its ⋯ menu. */
@@ -175,6 +177,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
     <span className={'agent-avatar ' + agentName.toLowerCase()} aria-hidden="true">{agentName === 'Claude' ? '✳︎' : '›'}</span>
     <div className="chat-heading-title">{title}</div>
     <div className="chat-heading-actions">
+      {review}
       {origin}
       {/* Where this conversation sits in an agent tree: its Orchestrator grant, or the orchestrator that started it. */}
       <OrchestratorBadge session={session} sessionID={sessionID}/>

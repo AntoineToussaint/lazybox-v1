@@ -44,6 +44,10 @@ type Run struct {
 	ReviewerLabel        string `json:"reviewerLabel"`
 	ReviewerProvider     string `json:"reviewerProvider,omitempty"`
 	ReviewerProfile      string `json:"reviewerProfile,omitempty"`
+	// Fallback says why the reviewer is not the one asked for ("" when it is);
+	// Focus is what the person asked it to look at in particular.
+	Fallback string `json:"fallback,omitempty"`
+	Focus    string `json:"focus,omitempty"`
 	// The conversation whose work is reviewed.
 	SourceSession      string `json:"sourceSession"`
 	SourceConversation string `json:"sourceConversation,omitempty"`

@@ -68,6 +68,7 @@
     "test:pull-requests": "node scripts/test-pull-requests.mjs",
     "test:review-comments": "node scripts/test-review-comments.mjs",
     "test:agent-review": "node scripts/test-agent-review.mjs",
+    "test:review-from-chat": "node scripts/test-review-from-chat.mjs",
     "test:review-loop": "node scripts/test-review-loop.mjs",
     "test:processes": "node scripts/test-processes.mjs",
     "test:transcript-performance": "node scripts/test-transcript-performance.mjs",

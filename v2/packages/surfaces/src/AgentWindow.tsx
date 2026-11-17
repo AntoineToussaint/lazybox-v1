@@ -33,6 +33,7 @@ import { useFileDrop } from './useFileDrop';
 import { NewSessionForm, useSessionLauncher } from './NewSessionForm';
 import { agentTitle } from './providers';
 import { ChatHeader, ChatStatus, SessionHeader, SessionInspection, WindowTopbar, type HeaderStats } from './ChatHeader';
+import { ReviewChatButton, useChatReview } from './ReviewFromChat';
 import { TelemetryPanel } from './TelemetryPanel';
 import { ToolActivity } from './ToolActivity';
 import { BrowsingBadge } from './BrowserPanel';
@@ -475,6 +476,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
 
   // Settings → Voice → Read aloud: a reply that finishes while this conversation is shown.
   useReadAloudReplies(mode === 'agent' ? sessionID : '', transcript);
+  // Review from the chat: the header's Review button, its ⋯ item and the right-click menu.
+  const chatReview = useChatReview({ session: assistant ? undefined : session, sessionID, onError: setError });
   const subagents = useSubagentHost({ api, sessionID, session, index: transcript.subagents, revealMessage: scroll.revealMessage, openFile: session?.collectionId ? openFile : undefined, onError: setError });
   // The agent starts browsing: its browser shows beside the chat (Settings → Browser).
   useBrowserAutoShow(api, session?.conversationId || session?.id || '', session?.closed ? undefined : session?.browser, onShowBrowser);
@@ -506,14 +509,15 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} statusText={live.text + (session?.queued ? ` · ${session.queued} queued` : '')} statusBusy={live.tone === 'busy' || live.tone === 'waiting'}
               modelLabel={modelLabel} stats={stats} realTitle={realTitle} branch={branch} shownAccount={headerAccount} onOpenChat={onOpenChat} origin={assistant ? undefined : <ItemOriginChip workspace={workspace}/>}
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
-              onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart,
+              review={!assistant && <ReviewChatButton review={chatReview} keys={keymap['review.start']}/>}
+              onContextMenu={contextMenu('session', () => [...chatReview.menuItems, onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart,
                 onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),
                 onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true), activity, models: slash.models, sessionID }), conversationHandoffItems(api, session, info))], { sessionId: sessionID })}
               onPickModel={session && !session.closed ? slash.models.pick : undefined}
               menu={<SessionMenu session={session} sessionID={sessionID} accountName={accountName} stream={stream} allowStart={allowStart}
                 onChangePermission={mode => void changePermission(mode)} onRestartWithPermission={setRestartTo}
                 onSwitchSubscription={() => setSwitchingSubscription(true)}
-                onNewSession={newSession} onClose={() => void close()} onDelete={() => setDeleting(true)} activity={activity} models={slash.models}/>}/>
+                onNewSession={newSession} onClose={() => void close()} onDelete={() => setDeleting(true)} activity={activity} models={slash.models} extra={chatReview.menuItems}/>}/>
             : <SessionHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} modelLabel={modelLabel} inspection={inspection}
               accountName={accountName} lifecycle={lifecycle}/>}
           {drop.dragging && <div className="file-drop-hint" role="status">Drop files to attach</div>}

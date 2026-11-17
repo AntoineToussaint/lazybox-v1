@@ -5,7 +5,9 @@
 // send the accepted one to the author's message box exactly as filed; the
 // author's conversation shows the review live, then its outcome. Then the
 // other ways in: a turn's ⋯ menu, the PR card, the file list's context menu,
-// ⌘K, and Settings → Agents & workspaces → Review by another agent.
+// ⌘K, and Settings → Agents & workspaces → Review by another agent. The
+// header button, `/review <focus>`, the default reviewer and the review tab
+// are test-review-from-chat.mjs's.
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {chromium,expect} from '@playwright/test';
@@ -57,19 +59,11 @@ try{
  await page.screenshot({path:'.cache/agent-review-start.png'});
  await reviewWith.getByRole('button',{name:'Review with Codex'}).click();
  await expect.poll(()=>starts().length).toBe(1);
- assert.deepEqual((({collectionId,sourceSessionId,scope,compare='',provider,profileId=''})=>({collectionId,sourceSessionId,scope,compare,provider,profileId}))(starts()[0]),{collectionId:'alpha',sourceSessionId:author.id,scope:'changes',compare:'',provider:'codex',profileId:''});
+ // The default reviewer is left to the Runner, which applies the setting (the other agent).
+ assert.deepEqual((({collectionId,sourceSessionId,scope,compare='',provider='',profileId=''})=>({collectionId,sourceSessionId,scope,compare,provider,profileId}))(starts()[0]),{collectionId:'alpha',sourceSessionId:author.id,scope:'changes',compare:'',provider:'',profileId:''});
  const reviewer=fixture.sessions.find(s=>s.title==='Review · Changes · Codex');
  assert.equal(reviewer.permission,'read-only');assert.equal(reviewer.provider,'codex');
- // The reviewer conversation opens beside the work, its brief its first message:
- // an event from Lazybox, never the person's words, that opens to the brief as sent.
  const chat=page.locator('section.panel-chat');
- const briefEvent=chat.locator('.system-event[data-kind=review_brief]');
- await expect(briefEvent.locator('.system-event-text')).toHaveText("Asked Codex to review Claude's work");
- await expect(briefEvent.locator('.system-event-detail')).toHaveText('Changes');
- await expect(chat.locator('article.message.operation_accepted')).toHaveCount(0);
- await briefEvent.locator('.system-event-toggle').click();
- await expect(briefEvent.locator('.system-event-body')).toContainText('You are an independent reviewer (Codex) of work Claude did');
- await expect(briefEvent.locator('.system-event-body')).toContainText('lazybox review add');
  // The tray follows the review live.
  const tray=changes.getByRole('complementary',{name:'Review'});
  await expect(tray.getByRole('list',{name:'Agent reviews'})).toContainText('Codex is reviewing changes');
@@ -113,6 +107,15 @@ try{
  await tray.locator('.review-tray-list').getByRole('listitem').filter({hasText:'The error is logged, not returned'}).getByRole('button',{name:'Ask Codex'}).click();
  const box=chat.getByRole('textbox',{name:'Message',exact:true});
  await expect(box).toHaveValue(`About your finding ${blocker.id} (blocker at api/src/handler.go:3–4, “The error is logged, not returned”): `);
+ // The reviewer's conversation: its brief is its first message, an event from Lazybox,
+ // never the person's words, that opens to the brief as sent.
+ const briefEvent=chat.locator('.system-event[data-kind=review_brief]');
+ await expect(briefEvent.locator('.system-event-text')).toHaveText("Asked Codex to review Claude's work");
+ await expect(briefEvent.locator('.system-event-detail')).toHaveText('Changes');
+ await expect(chat.locator('article.message.operation_accepted')).toHaveCount(0);
+ await briefEvent.locator('.system-event-toggle').click();
+ await expect(briefEvent.locator('.system-event-body')).toContainText('You are an independent reviewer (Codex) of work Claude did');
+ await expect(briefEvent.locator('.system-event-body')).toContainText('lazybox review add');
 
  // 5. Send the accepted finding to the author, exactly as filed; never sent for the person.
  const applies=fixture.mutations.filter(m=>m.method==='Apply').length;
@@ -160,8 +163,34 @@ try{
  await marker.getByLabel('Turn 1 actions',{exact:true}).click();
  await marker.getByRole('button',{name:'Review this turn with Codex'}).click();
  await expect.poll(()=>starts().length).toBe(4);
- assert.deepEqual((({scope,turn,provider})=>({scope,turn,provider}))(starts()[3]),{scope:'turn',turn:1,provider:'codex'});
- await expect(page.locator('section.panel-chat .system-event[data-kind=review_brief] .system-event-detail')).toHaveText('Turn 1');
+ assert.deepEqual((({scope,turn,provider=''})=>({scope,turn,provider}))(starts()[3]),{scope:'turn',turn:1,provider:''});
+ // The reviewer opens as a tab beside the work; its brief says what it reviews.
+ await page.locator('[data-panel-tab]').filter({hasText:'Review · Codex'}).last().click();
+ await expect(page.locator('section.panel-chat .system-event[data-kind=review_brief] .system-event-detail').filter({hasText:'Turn 1'})).toHaveCount(1);
+
+ // 9a. A review whose loop ends with majors still open is not "clean": it says what is left,
+ // and hands those findings to the author in one click (into its message box; you send them).
+ const turnRun=fixture.reviewOf('alpha').runs.at(-1);
+ fixture.fileFinding(turnRun.id,{path:'src/handler.go',startLine:3,snippet:['func Handle() error {'],severity:'major',title:'Wrap the error',body:'Say which request failed.'});
+ fixture.fileFinding(turnRun.id,{path:'src/handler.go',startLine:4,snippet:['\tlog.Print("handle")'],severity:'major',title:'Drop the log line',body:'It duplicates the error.'});
+ fixture.finishReview(turnRun.id);
+ await page.locator('[data-panel-tab]').filter({hasText:'Harden the handler'}).click();
+ const turnCard=page.locator('.messages:visible').getByRole('group',{name:'Codex review'}).filter({hasText:'turn 1'});
+ await expect(turnCard).toContainText('Codex reviewed turn 1 · 2 major',{timeout:15000});
+ await expect(turnCard).toContainText('No blockers · 2 major open');
+ await expect(turnCard).not.toContainText('Clean');
+ await expect(turnCard.getByRole('button',{name:'Send 2 findings to Claude'})).toHaveClass(/primary/);
+ await expect(turnCard.getByRole('button',{name:'Open review'})).not.toHaveClass(/primary/);
+ await page.screenshot({path:'.cache/agent-review-majors-open.png'});
+ const sentBefore=fixture.mutations.filter(m=>m.method==='Apply').length;
+ await turnCard.getByRole('button',{name:'Send 2 findings to Claude'}).click();
+ const authorBox=page.locator('section.panel-chat:visible').getByRole('textbox',{name:'Message',exact:true});
+ await expect(authorBox).toHaveValue(/^Please address these 2 review comments/);
+ await expect(authorBox).toHaveValue(/\*\*Major: Wrap the error\*\*/);
+ await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SetReviewDisposition').at(-1)?.body).toMatchObject({disposition:'sent',sessionId:author.id});
+ assert.equal(fixture.mutations.filter(m=>m.method==='Apply').length,sentBefore,'the findings are never sent for the person');
+ await expect(turnCard.getByRole('button',{name:/^Send \d+ finding/})).toHaveCount(0);
+ await authorBox.fill('');
 
  // 9b. The message box: `/review claude` (and `/review` alone is the default reviewer).
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${author.id}#token=${fixture.token}`);
@@ -180,19 +209,26 @@ try{
  await pr.getByRole('button',{name:'Review the PR with Codex'}).click();
  await expect.poll(()=>starts().length).toBe(6);
  assert.deepEqual((({scope,member})=>({scope,member}))(starts()[5]),{scope:'pr',member:'api'});
- await expect(page.locator('section.panel-chat .system-event[data-kind=review_brief] .system-event-detail')).toHaveText('PR #7');
+ assert.ok(fixture.sessions.some(s=>s.title==='Review · PR #7 · Codex'));
+ // Its conversation is a tab beside the work, on the page that shows the work: three reviews, three tabs.
+ await page.getByRole('navigation',{name:'Pages'}).getByRole('button',{name:'Work'}).click();
+ await expect(page.locator('[data-panel-tab]').filter({hasText:/^Review · /})).toHaveCount(3);
 
  // 11. Settings: the default reviewer, automatic reviews, the brief, and its reset.
  await page.keyboard.press(`${mod}+,`);
  await page.getByRole('tab',{name:'Agents & workspaces'}).click();
- await page.getByRole('combobox',{name:'Default reviewer'}).selectOption('codex-saved');
+ const reviewerSetting=page.getByRole('combobox',{name:'Default reviewer'});
+ await expect(reviewerSetting).toHaveValue('other');
+ await expect(reviewerSetting.locator('option[value=other]')).toHaveText('The other agent (recommended)');
+ await reviewerSetting.selectOption('fixed:codex-saved');
+ await page.getByRole('textbox',{name:'Reviewer model'}).fill('gpt-5.2-codex');
  const auto=page.getByRole('checkbox',{name:'Review every turn that changes files'});
  await expect(auto).not.toBeChecked();await auto.check();
  const brief=page.getByRole('textbox',{name:'Review brief'});
  await expect(brief).toHaveValue(/You are an independent reviewer/);
  await brief.fill('Be terse. Review {{scope}}.');
  await page.getByRole('button',{name:'Save agent settings'}).click();
- await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SaveRunnerSettings').at(-1)?.body.review).toMatchObject({reviewer:'codex-saved',autoStart:true,template:'Be terse. Review {{scope}}.'});
+ await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SaveRunnerSettings').at(-1)?.body.review).toMatchObject({reviewerMode:'fixed',reviewer:'codex-saved',reviewerModel:'gpt-5.2-codex',autoStart:true,template:'Be terse. Review {{scope}}.'});
  await page.getByRole('button',{name:'Reset the brief to the built-in one'}).click();
  await expect(brief).toHaveValue(/You are an independent reviewer/);
  await page.getByRole('button',{name:'Save agent settings'}).click();

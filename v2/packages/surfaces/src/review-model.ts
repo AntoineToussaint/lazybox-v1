@@ -1,4 +1,5 @@
 import type { ReviewComment, ReviewRun } from '@lazybox/protocol';
+import { bindings, displayBinding } from './actions';
 
 /** Inline review comments: the pure half. Parsing a diff into commentable
  * lines, turning a selection into an anchor, placing saved comments back in
@@ -194,12 +195,26 @@ export function runSummary(run: Pick<ReviewRun, 'state' | 'reviewerLabel' | 'sco
 
 // ---- The review loop -------------------------------------------------------
 
-type LoopRun = Pick<ReviewRun, 'loop' | 'phase' | 'round' | 'maxRounds' | 'paused' | 'stopReason' | 'detail' | 'sourceLabel'>;
+type LoopRun = Pick<ReviewRun, 'loop' | 'phase' | 'round' | 'maxRounds' | 'paused' | 'stopReason' | 'detail' | 'sourceLabel'> & Partial<Pick<ReviewRun, 'blockers' | 'majors' | 'minors' | 'nits'>>;
 const rounds = (n: number) => `${n} round${n === 1 ? '' : 's'}`;
-/** Where a review's loop is, in one line; '' for a one-pass review. */
+/** The findings below blocker still open, in the tray's words: "2 major, 1 minor"; '' for none. */
+export function openBelowBlocker(run: Partial<Pick<ReviewRun, 'majors' | 'minors' | 'nits'>>): string {
+  const counts = countsSummary({ blockers: 0, majors: run.majors || 0, minors: run.minors || 0, nits: run.nits || 0 });
+  return counts === 'no open findings' ? '' : counts;
+}
+/**
+ * Where a review's loop is, in one line; '' for a one-pass review. The loop
+ * iterates on blockers only, so it can end with majors open: that is "No
+ * blockers · 2 major open", never "Clean" — Clean ✓ is kept for nothing at
+ * major or above (minors and nits are worth fixing, not worth a round).
+ */
 export function loopLine(run: LoopRun): string {
   switch (run.stopReason) {
-    case 'clean': return `Clean ✓ after ${rounds(run.round)}`;
+    case 'clean': {
+      const left = openBelowBlocker(run);
+      if (run.majors) return `No blockers · ${left} open`;
+      return `Clean ✓ after ${rounds(run.round)}${left ? ` · ${left} open` : ''}`;
+    }
     case 'max_rounds': return `Stopped at its ${rounds(run.maxRounds)} with a blocker open · needs you`;
     case 'stuck': return 'Stuck: the same blocker is still open after two fixes · needs you';
     case 'error': return `Stopped: ${run.detail || 'an error'} · needs you`;
@@ -215,6 +230,19 @@ export function loopLine(run: LoopRun): string {
   }
   return '';
 }
+/** A badge on a tab: its short text, its tone, and its words for a screen reader and the tooltip. */
+export type TabBadge = { text: string; tone: 'busy' | 'done' | 'warn' | 'failed'; label: string };
+/**
+ * A review conversation's tab badge: a live dot while it reviews, then "3
+ * findings" (red when a blocker is open) or "done", or "failed".
+ */
+export function reviewTabBadge(run: Pick<ReviewRun, 'state' | 'reviewerLabel' | 'blockers' | 'majors' | 'minors' | 'nits' | 'detail'>): TabBadge {
+  const findings = run.blockers + run.majors + run.minors + run.nits;
+  if (run.state === 'running') return { text: findings ? String(findings) : '', tone: 'busy', label: `${run.reviewerLabel} is reviewing${findings ? ` · ${countsSummary(run)} so far` : ''}` };
+  if (run.state === 'failed') return { text: 'failed', tone: 'failed', label: run.detail || `${run.reviewerLabel} could not review` };
+  if (!findings) return { text: 'done', tone: 'done', label: `${run.reviewerLabel} is done · no open findings` };
+  return { text: `${findings} finding${findings === 1 ? '' : 's'}`, tone: run.blockers ? 'failed' : 'warn', label: `${run.reviewerLabel} is done · ${countsSummary(run)}` };
+}
 /** The loop asks the person: findings to send, or it stopped and needs a decision. */
 export const loopNeedsYou = (run: LoopRun) => ['max_rounds', 'stuck', 'error'].includes(run.stopReason) || (run.phase === 'triage' && !run.stopReason && (run.loop === 'ask' || run.paused));
 /** Whether the person can still steer the loop. */
@@ -223,25 +251,82 @@ export const loopModes: { value: string; label: string }[] = [
   { value: 'ask', label: 'Ask me between rounds' }, { value: 'auto', label: 'Send findings automatically' }, { value: 'off', label: 'One pass, no re-review' },
 ];
 
-/** A reviewer to pick: a provider (its default subscription) or one subscription. */
-export type ReviewerChoice = { key: string; label: string; provider: string; profileId: string };
-const providerName = (provider: string) => provider === 'codex' ? 'Codex' : provider === 'claude' ? 'Claude' : provider;
+/** A reviewer to pick: an agent (its best subscription) or one subscription. */
+export type ReviewerChoice = {
+  key: string; label: string; provider: string; profileId: string;
+  /** The default reviewer (the setting's): started without naming it, so the Runner decides as the setting says. */
+  isDefault?: boolean;
+  /** The model it runs on ("" its agent's default): a fixed reviewer's. */
+  model?: string;
+  /** Why the default is not the one the setting asks for, in one quiet sentence. */
+  note?: string;
+};
+/** Settings → Review by another agent → Default reviewer (ReviewSettings). */
+export type ReviewerSetting = { reviewerMode?: string; reviewer?: string; reviewerModel?: string };
+export type ReviewerMode = 'other' | 'same' | 'fixed';
+/** The mode a setting means; one from before the mode is fixed when it names a reviewer. */
+export function reviewerModeOf(setting: ReviewerSetting | undefined): ReviewerMode {
+  const mode = setting?.reviewerMode;
+  return mode === 'other' || mode === 'same' || mode === 'fixed' ? mode : setting?.reviewer ? 'fixed' : 'other';
+}
+/** Who reviews an agent's work by default: Codex reviews Claude's; Claude reviews Codex's and an ACP agent's. */
+export const otherAgent = (author: string) => author === 'claude' ? 'codex' : 'claude';
+const isAcpProvider = (provider: string) => provider.startsWith('acp:') && provider.length > 4;
+const knownProvider = (provider: string) => provider === 'claude' || provider === 'codex' || isAcpProvider(provider);
+type ReviewerProfile = { id: string; provider: string; label?: string };
+const agentName = (provider: string, profiles: readonly ReviewerProfile[]) => {
+  if (provider === 'codex') return 'Codex';
+  if (provider === 'claude') return 'Claude';
+  const label = profiles.find(p => p.provider === provider && p.label)?.label;
+  if (label) return label;
+  const id = provider.replace(/^acp:/, '');
+  return id.charAt(0).toUpperCase() + id.slice(1);
+};
+/** Report states in which an agent cannot review (GetProviderAvailability): not installed, cannot run, no account. */
+const UNAVAILABLE = new Set(['not_installed', 'unusable', 'no_subscription']);
+/** The agents that cannot review now, from the availability report (none without one). */
+export function unavailableAgents(report: { providers: readonly { provider: string; state: string }[] } | undefined): Set<string> {
+  return new Set((report?.providers || []).filter(p => UNAVAILABLE.has(p.state)).map(p => p.provider));
+}
 /**
- * Who can review: each provider with a subscription, then each subscription
- * when a provider has more than one. The default comes first: the setting's
- * subscription, else the other provider than the author's.
+ * Who can review: each agent with a profile that can run (Codex, Claude,
+ * then ACP agents), then each subscription when an agent has more than one.
+ * The default comes first, marked: as the setting says, the other agent than
+ * the author's (the default), the author's own agent, or a fixed one. One
+ * that is not available gives way (the other agent for a fixed one, else the
+ * author's own agent in a fresh conversation), and the default says why in
+ * its note — as the Runner decides (review_runs.go reviewerProfile).
  */
-export function reviewerChoices(profiles: readonly { id: string; provider: string; label?: string }[], authorProvider: string, settingReviewer = ''): ReviewerChoice[] {
-  const providers = (['codex', 'claude'] as const).filter(provider => profiles.some(p => p.provider === provider));
-  const choices: ReviewerChoice[] = providers.map(provider => ({ key: provider, label: providerName(provider), provider, profileId: '' }));
+export function reviewerChoices(profiles: readonly ReviewerProfile[], authorProvider: string, setting: string | ReviewerSetting = '', unavailable: ReadonlySet<string> = new Set()): ReviewerChoice[] {
+  const wanted: ReviewerSetting = typeof setting === 'string' ? { reviewer: setting } : setting;
+  const ready = (provider: string) => knownProvider(provider) && !unavailable.has(provider) && profiles.some(p => p.provider === provider);
+  const acp = [...new Set(profiles.map(p => p.provider).filter(isAcpProvider))];
+  const providers = ['codex', 'claude', ...acp].filter(ready);
+  const choices: ReviewerChoice[] = providers.map(provider => ({ key: provider, label: agentName(provider, profiles), provider, profileId: '' }));
   for (const provider of providers) {
     const own = profiles.filter(p => p.provider === provider);
-    if (own.length > 1) choices.push(...own.map(p => ({ key: `profile:${p.id}`, label: `${providerName(provider)} · ${p.label || p.id}`, provider, profileId: p.id })));
+    if (own.length > 1 && !isAcpProvider(provider)) choices.push(...own.map(p => ({ key: `profile:${p.id}`, label: `${agentName(provider, profiles)} · ${p.label || p.id}`, provider, profileId: p.id })));
   }
-  const configured = profiles.find(p => p.id === settingReviewer && (p.provider === 'codex' || p.provider === 'claude'));
-  const preferred = configured ? choices.find(c => c.profileId === configured.id) || { key: `profile:${configured.id}`, label: `${providerName(configured.provider)} · ${configured.label || configured.id}`, provider: configured.provider, profileId: configured.id }
-    : choices.find(c => c.key === (authorProvider === 'codex' ? 'claude' : 'codex')) || choices[0];
-  return preferred ? [preferred, ...choices.filter(c => c.key !== preferred.key)] : choices;
+  if (!choices.length) return [];
+  const mode = reviewerModeOf(wanted);
+  const target = mode === 'same' ? authorProvider : otherAgent(authorProvider);
+  let missing = '';
+  let preferred: ReviewerChoice | undefined;
+  if (mode === 'fixed') {
+    const profile = profiles.find(p => p.id === wanted.reviewer);
+    if (profile && ready(profile.provider)) preferred = { ...(choices.find(c => c.profileId === profile.id) || { key: `profile:${profile.id}`, label: `${agentName(profile.provider, profiles)} · ${profile.label || profile.id}`, provider: profile.provider, profileId: profile.id }), model: wanted.reviewerModel || '' };
+    else if (!profile && wanted.reviewer && ready(wanted.reviewer)) preferred = { ...choices.find(c => c.key === wanted.reviewer)!, model: wanted.reviewerModel || '' };
+    else missing = profile ? `${agentName(profile.provider, profiles)}${profile.label && !isAcpProvider(profile.provider) ? ` · ${profile.label}` : ''}` : knownProvider(wanted.reviewer || '') ? agentName(wanted.reviewer!, profiles) : 'The reviewer you chose';
+  }
+  if (!preferred) {
+    const who = missing || agentName(target, profiles);
+    const stand = [target, authorProvider, 'claude', 'codex'].find(ready) || choices[0].provider;
+    const choice = choices.find(c => c.key === stand) || choices[0];
+    const note = !missing && stand === target ? '' : stand === authorProvider ? `${who} is not available, so a fresh ${choice.label} conversation reviews.` : `${who} is not available, so ${choice.label} reviews.`;
+    preferred = { ...choice, ...(note ? { note } : {}) };
+  }
+  const first: ReviewerChoice = { ...preferred, isDefault: true };
+  return [first, ...choices.filter(c => c.key !== first.key)];
 }
 
 /** Comments by file (workspace order: member, then path), each file's by line. */
@@ -308,3 +393,11 @@ export function reviewExcerpt(body: string, limit = 140): string {
     .replace(/\s+/g, ' ').trim();
   return text.length > limit ? text.slice(0, limit - 1) + '…' : text;
 }
+
+/** "Review with Codex (]] ⇧R)": who reviews, and the key that does it. */
+export function reviewButtonTitle(choice: Pick<ReviewerChoice, 'label' | 'note'> | undefined, keys: string): string {
+  if (!choice) return 'Review this workspace’s changes';
+  const key = bindings(keys)[0];
+  return `Review with ${choice.label}${key ? ` (${displayBinding(key).join(' ')})` : ''}${choice.note ? `\n${choice.note}` : ''}`;
+}
+

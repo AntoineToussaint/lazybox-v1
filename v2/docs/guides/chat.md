@@ -5,6 +5,7 @@ do there — answer, approve, steer, stop — is here, plus a clearer view of wh
 it did.
 
 - [Send, steer and stop](#send-steer-and-stop)
+- [Have another agent review the work](#have-another-agent-review-the-work)
 - [Answer questions and approvals](#answer-questions-and-approvals)
 - [Follow what it does](#follow-what-it-does)
 - [Sub-agents and background commands](#sub-agents-and-background-commands)
@@ -53,6 +54,30 @@ it did.
 - **End session** stops the agent but keeps the conversation; sending a new
   message resumes it. **Delete conversation…** removes it.
 
+## Have another agent review the work
+
+**Review** in the conversation's header starts a second agent on the
+workspace's changes — committed, uncommitted and untracked, the same review as
+**Changes → Review with Codex** — without leaving the chat. So do `/review` in
+the message box and `] ] ⇧R` (⌘K *Review this workspace's changes*).
+
+- **Who reviews:** by default the other agent — Codex reviews Claude's work,
+  Claude reviews Codex's. The button's tooltip names it (*Review with Codex*).
+  Its chevron picks another agent or subscription for this run;
+  **Settings → Agents & workspaces → Default reviewer** sets the default:
+  the other agent, the same agent in a fresh conversation, or always one agent
+  (on a model you choose). When the other agent is not installed or signed in,
+  a fresh conversation of the author's agent reviews, and the review says so.
+- **A focus:** `/review the retry loop in handler.go` adds what to look at to
+  the brief; `/review claude races` names the reviewer too.
+- **Watch it:** the review opens as a tab beside the conversation, in the
+  same group, without taking you away from your message box. Its tab is
+  *Review · Codex*, with a live dot while it works, then *3 findings* (or
+  *done*). The conversation shows the review's card, and its findings land in
+  the [Review tray](review-agent-work.md#let-another-agent-review-it). The
+  review's row in the sidebar brings its tab to the front.
+- In a slim panel the button folds into the conversation's ⋯ menu.
+
 ## Slash commands
 
 Type `/` at the start of the message box for a menu of what you can run, in
@@ -63,7 +88,8 @@ runs and `Esc` closes it and leaves your text. It works in Vim insert mode too.
   `/permissions ask|read-only|yolo`, `/subscription`, `/compact` (the agent
   summarizes its context; the conversation shows "Compacted context: 156k → 61k
   tokens"), `/clear` (a new conversation in this workspace; this one is kept),
-  `/cost` and `/context` (the usage popover), `/review` (the review tray),
+  `/cost` and `/context` (the usage popover), `/review [codex|claude] [focus…]`
+  (another agent reviews the workspace's changes; `/review tray` opens the tray),
   `/artifact` (track the agent's last message), `/mission`, `/run` (the last
   command block), `/stop`, `/detail quiet|smart|verbose`, `/rename <title>` and
   `/help`. A command that takes a choice lists it (models, modes) with the

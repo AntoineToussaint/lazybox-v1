@@ -49,7 +49,7 @@ try{
  await page.getByRole('button',{name:'Review changes',exact:true}).click();
  const changes=page.getByRole('region',{name:'Workspace changes'});
  const tray=changes.getByRole('complementary',{name:'Review'});
- const chat=page.locator('section.panel-chat');
+ const chat=page.locator('section.panel-chat:visible');
  const start=async(label='Review with Codex')=>{const before=fixture.reviewOf('alpha').runs.length;await changes.getByRole('group',{name:'Review with another agent'}).getByRole('button',{name:label}).click();await expect.poll(()=>fixture.reviewOf('alpha').runs.length).toBe(before+1);return fixture.reviewOf('alpha').runs.at(-1);};
  const reviewRow=run=>tray.locator(`li[data-review="${run.id}"]`);
  const sendAccepted=async n=>{await tray.getByRole('button',{name:`Send ${n} comment${n===1?'':'s'} to the agent`}).click();};
@@ -61,8 +61,6 @@ try{
  // Round 1: a blocker; the reviewer asks the author, and gets the reply.
  const blocker=fixture.fileFinding(run.id,{...blockerAt,title:'The error is logged, not returned',body:'Return it so callers can retry.'});
  fixture.exchange(run.id,{from:'reviewer',question:'Should Handle ever log?',answer:'No: return the error.'});
- await expect(chat.getByRole('note').filter({hasText:'Codex asked Claude:'})).toContainText('Should Handle ever log?');
- await expect(chat.getByRole('note').filter({hasText:'Claude answered Codex:'})).toContainText('No: return the error.');
  fixture.finishReview(run.id);
  await expect(row).toContainText('Round 1 of 3 · waiting for you to send findings',{timeout:15000});
  await expect(row.getByRole('group',{name:'Codex review loop'})).toBeVisible();
@@ -70,6 +68,9 @@ try{
  await tray.getByRole('button',{name:/^Pending/}).click();
  await sendAccepted(1);
  await expect(chat.getByRole('textbox',{name:'Message',exact:true})).toHaveValue(/To ask about one, run `lazybox ask reviewer/);
+ // The reviewer's conversation is a tab beside the work, on its page; the author's shows the exchange too.
+ await expect(chat.getByRole('note').filter({hasText:'Codex asked Claude:'})).toContainText('Should Handle ever log?');
+ await expect(chat.getByRole('note').filter({hasText:'Claude answered Codex:'})).toContainText('No: return the error.');
  await expect(row).toContainText('Round 1 of 3 · Claude is fixing',{timeout:15000});
  // The author's turn ends with changes: round 2 re-reviews only that turn.
  fixture.authorFixed(run.id,2);
@@ -110,7 +111,7 @@ try{
  // The author's conversation says so too, with the way to the review.
  await page.locator('.messages').first().waitFor();
  await chat.getByRole('textbox',{name:'Message',exact:true}).fill('');
- await expect(page.locator('section.panel-chat .review-alert')).toContainText('Review needs you. The blocker “Errors are swallowed”',{timeout:15000});
+ await expect(page.locator('section.panel-chat:visible .review-alert')).toContainText('Review needs you. The blocker “Errors are swallowed”',{timeout:15000});
  await page.screenshot({path:'.cache/review-loop-stuck.png'});
 
  // ---- Your controls: pause, resume, mode, take over -----------------------

@@ -108,7 +108,7 @@ func (s *Service) wireReviewRun(review reviews.Review, run reviews.Run, workspac
 		SourceSessionId: run.SourceSession, SourceTitle: run.SourceTitle, SourceLabel: run.SourceLabel, Scope: run.Scope, ScopeLabel: run.ScopeLabel, Turn: uint32(run.Turn), Compare: run.Compare, PullRequestUrl: run.PullRequestURL,
 		State: run.State, Detail: run.Detail, CreatedAtUnix: run.CreatedAt, UpdatedAtUnix: run.UpdatedAt,
 		Blockers: uint32(counts.Blockers), Majors: uint32(counts.Majors), Minors: uint32(counts.Minors), Nits: uint32(counts.Nits), MissionId: run.Mission, TaskId: run.Task, SourceProvider: run.SourceProvider,
-		Loop: run.Loop, MaxRounds: uint32(run.MaxRounds), Round: uint32(run.Round), Phase: run.Phase, Paused: run.Paused, StopReason: run.StopReason}
+		Loop: run.Loop, MaxRounds: uint32(run.MaxRounds), Round: uint32(run.Round), Phase: run.Phase, Paused: run.Paused, StopReason: run.StopReason, Fallback: run.Fallback, Focus: run.Focus}
 	if out.Loop == "" {
 		// A review from before the loop: one pass.
 		out.Loop, out.Round, out.MaxRounds = reviews.LoopOff, 1, 1
@@ -279,7 +279,7 @@ func (s *Service) StartReview(ctx context.Context, r *pb.StartReviewRequest) (*p
 	if _, err := s.reviewStore(r.CollectionId); err != nil {
 		return nil, err
 	}
-	req := runner.ReviewRequest{Workspace: r.CollectionId, Source: r.SourceSessionId, Scope: r.Scope, Compare: r.Compare, Turn: int(r.Turn), Member: r.Member, Profile: r.ProfileId, Provider: r.Provider}
+	req := runner.ReviewRequest{Workspace: r.CollectionId, Source: r.SourceSessionId, Scope: r.Scope, Compare: r.Compare, Turn: int(r.Turn), Member: r.Member, Profile: r.ProfileId, Provider: r.Provider, Focus: r.Focus, Model: r.Model}
 	if r.Scope == reviews.ScopePR {
 		pr, err := s.GetPullRequest(ctx, &pb.GetPullRequestRequest{CollectionId: r.CollectionId, Member: r.Member})
 		if err != nil {

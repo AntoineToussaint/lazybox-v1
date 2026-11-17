@@ -57,11 +57,23 @@ kept by the Runner, so every window sees them and they survive restarts.
 
 ## Let another agent review it
 
-**Review with Codex** in the Changes header (or **Review with Claude**: by
-default the other agent than the one that did the work) starts a second
-agent on what the page compares, **read-only**. It is a conversation of its
-own in the workspace, briefed with the goal, the plan, the diff and the test
-runs; you can talk to it like any other.
+**Review** in the conversation's header — or **Review with Codex** in the
+Changes header — starts a second agent on the work, **read-only**. By default
+it is the other agent than the one that did the work: Codex reviews Claude's
+work, Claude reviews Codex's. It is a conversation of its own in the
+workspace, briefed with the goal, the plan, the diff and the test runs; you
+can talk to it like any other.
+
+- **From the chat:** the header's **Review** (its tooltip names the reviewer),
+  `/review` in the message box, or `] ] ⇧R` (⌘K *Review this workspace's
+  changes*) review the workspace's changes — committed, uncommitted and
+  untracked, as Changes does — without opening Changes. `/review <focus>`
+  tells the reviewer what to look at first. The chevron beside the button
+  picks another reviewer for one run.
+- **It opens as a tab** beside the conversation it reviews, in the same panel
+  group, and you stay in your message box. The tab reads *Review · Codex*,
+  with a live dot while it works, then *3 findings* (or *done*). Its row in
+  the sidebar brings the tab to the front.
 
 ![Changes with Codex's findings: the Review tray lists them to triage, each with its severity, and a finding's card sits on its lines in the diff](../images/agent-review.webp)
 
@@ -74,13 +86,23 @@ runs; you can talk to it like any other.
 - **Send** them with your own comments, as above: the author receives each
   finding exactly as filed. Nothing is sent for you.
 - The author's conversation shows the review while it runs, then what it
-  found, with **Open review**.
+  found, with **Open review**. When it ends with findings you have not sent,
+  **Send N findings to Claude** puts them in the author's message box, as
+  filed, for you to send.
+- **Clean ✓** means nothing at major or above is open (a minor or a nit may
+  be, and it says so). The loop works on blockers, so it can end with majors
+  open: the card then says *No blockers · 2 major open*.
 
 Other ways in: a turn's ⋯ menu (**Review this turn with Codex**), the pull
-request card (**Review the PR with Codex**), ⌘K, and `/review` in the message
-box. **Settings → Agents & workspaces → Review by another agent** picks the
-default reviewer, whether findings go back to the author between rounds, and
-can review every turn that changes files.
+request card (**Review the PR with Codex**) and ⌘K.
+
+**Settings → Agents & workspaces → Review by another agent** sets the
+**Default reviewer** — *The other agent (recommended)*, *The same agent, in a
+fresh conversation*, or always one agent or subscription (an ACP agent too),
+with the model it runs on — whether findings go back to the author between
+rounds, and can review every turn that changes files. When the default
+reviewer is not installed or signed in, a fresh conversation of the author's
+agent reviews, and the review's card says so in a quiet line.
 
 ## Undo a turn: checkpoints
 

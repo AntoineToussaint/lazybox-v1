@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.22',
+    date: '2026-11-17',
+    title: 'Review from the chat',
+    items: [
+      { title: 'Review from the chat', body: 'The conversation\'s header has Review: another agent reviews the workspace\'s changes, read-only, without a detour through Changes. /review in the message box and ] ] ⇧R (⌘K Review this workspace\'s changes) do the same; /review the retry loop tells the reviewer what to look at first.' },
+      { title: 'The other agent reviews by default', body: 'Codex reviews Claude\'s work and Claude reviews Codex\'s; the Review button\'s tooltip names who will. Its chevron picks another agent for one run. Settings → Agents & workspaces → Default reviewer: the other agent, the same agent in a fresh conversation, or always one agent (an ACP agent too) on a model you choose. When the other agent is not installed or signed in, a fresh conversation of yours reviews, and the review says so.' },
+      { title: 'Watch the review in a tab', body: 'A review opens as a tab beside the conversation it reviews, Review · Codex, and you stay in your message box. The tab shows a live dot while it works, then 3 findings or done; the review\'s row in the sidebar brings its tab to the front.' },
+      { title: 'Clean means clean', body: 'A review that ends with majors still open no longer says Clean ✓: it says No blockers · 2 major open, and Send 2 findings to Claude puts them in the author\'s message box for you to send.' },
+    ],
+  },
+  {
     id: '2026-11-17.21',
     date: '2026-11-17',
     title: 'Resize the sides inside panels',
