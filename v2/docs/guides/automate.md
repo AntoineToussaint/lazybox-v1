@@ -1,7 +1,8 @@
 # Automate with the CLI, actions and hooks
 
 Lazybox gives power users three things, all declarative and scoped — no plugin
-code runs inside the app:
+code runs inside the app (panels of your own run beside it, sandboxed:
+[Extensions](extensions.md)):
 
 1. **The `lazybox` CLI** does what you do in the window, from any terminal or script.
 2. **Actions:** your own named steps, in the palette and the `]]` menu.

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cost dashboard</title>
+<link rel="stylesheet" href="_lazybox/lazybox.css">
+<link rel="stylesheet" href="dashboard.css">
+<script src="_lazybox/lazybox.js"></script>
+<script src="dashboard.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <h1>Spend so far</h1>
+  <span class="muted" id="updated" aria-live="polite">Loading…</span>
+</header>
+<p class="notice" id="notice" role="status" hidden></p>
+<main class="dashboard">
+  <section class="tiles" aria-label="Totals">
+    <div class="tile"><small>Spent</small><strong id="total" class="tabular">–</strong><span class="muted" id="unpriced"></span></div>
+    <div class="tile"><small>Tokens in</small><strong id="input" class="tabular">–</strong><span class="muted" id="cached"></span></div>
+    <div class="tile"><small>Tokens out</small><strong id="output" class="tabular">–</strong><span class="muted" id="turns"></span></div>
+  </section>
+  <section class="chart" aria-labelledby="by-model-title"><h2 id="by-model-title">By model</h2><ol class="bars" id="by-model"></ol></section>
+  <section class="chart" aria-labelledby="by-workspace-title"><h2 id="by-workspace-title">By workspace</h2><ol class="bars" id="by-workspace"></ol></section>
+  <section class="chart" aria-labelledby="by-conversation-title"><h2 id="by-conversation-title">Most expensive conversations</h2><ol class="bars" id="by-conversation"></ol></section>
+</main>
+</body>
+</html>

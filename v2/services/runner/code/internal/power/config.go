@@ -598,7 +598,12 @@ preset: vim
 # Lazybox settings you may keep in a file. Lazybox reloads it when you save,
 # and the app writes to it (keeping your comments). Credentials,
 # subscriptions, devices and the Runner's own settings are never here.
-version: 1
+# What the file leaves out is the default.
+#
+# notifications:             # Settings → Notifications writes here
+#   needs-input: true
+#   review: false
+` + appearanceStarter() + `version: 1
 `
 	case KindLayout:
 		return `# yaml-language-server: $schema=../layout.schema.json
@@ -664,6 +669,7 @@ func SchemaFor(kind string) string {
 			"properties": map[string]any{
 				"version":       map[string]any{"const": 1},
 				"notifications": map[string]any{"type": "object", "additionalProperties": false, "properties": props},
+				"appearance":    appearanceSchema(),
 			},
 		}
 	case KindLayout:

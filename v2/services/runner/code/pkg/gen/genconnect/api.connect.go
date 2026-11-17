@@ -529,6 +529,24 @@ const (
 	// RunnerServiceUpdateConfigFileProcedure is the fully-qualified name of the RunnerService's
 	// UpdateConfigFile RPC.
 	RunnerServiceUpdateConfigFileProcedure = "/lazybox.bench.v1.RunnerService/UpdateConfigFile"
+	// RunnerServiceListExtensionsProcedure is the fully-qualified name of the RunnerService's
+	// ListExtensions RPC.
+	RunnerServiceListExtensionsProcedure = "/lazybox.bench.v1.RunnerService/ListExtensions"
+	// RunnerServiceApproveExtensionProcedure is the fully-qualified name of the RunnerService's
+	// ApproveExtension RPC.
+	RunnerServiceApproveExtensionProcedure = "/lazybox.bench.v1.RunnerService/ApproveExtension"
+	// RunnerServiceSetExtensionEnabledProcedure is the fully-qualified name of the RunnerService's
+	// SetExtensionEnabled RPC.
+	RunnerServiceSetExtensionEnabledProcedure = "/lazybox.bench.v1.RunnerService/SetExtensionEnabled"
+	// RunnerServiceRemoveExtensionProcedure is the fully-qualified name of the RunnerService's
+	// RemoveExtension RPC.
+	RunnerServiceRemoveExtensionProcedure = "/lazybox.bench.v1.RunnerService/RemoveExtension"
+	// RunnerServiceInstallExampleExtensionProcedure is the fully-qualified name of the RunnerService's
+	// InstallExampleExtension RPC.
+	RunnerServiceInstallExampleExtensionProcedure = "/lazybox.bench.v1.RunnerService/InstallExampleExtension"
+	// RunnerServiceOpenExtensionPanelProcedure is the fully-qualified name of the RunnerService's
+	// OpenExtensionPanel RPC.
+	RunnerServiceOpenExtensionPanelProcedure = "/lazybox.bench.v1.RunnerService/OpenExtensionPanel"
 	// RunnerServiceListWorkspaceRepositoriesProcedure is the fully-qualified name of the
 	// RunnerService's ListWorkspaceRepositories RPC.
 	RunnerServiceListWorkspaceRepositoriesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceRepositories"
@@ -909,6 +927,26 @@ type RunnerServiceClient interface {
 	// whole new content (import), or removal (a layout). Nothing is written
 	// when the result would not load; the refusal names each problem by line.
 	UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Sandboxed panel extensions (EXTENSIONS.md): the folders in the
+	// config folder's extensions/, each with what its manifest asks for, what
+	// the person approved, and its state. Reloaded every second.
+	ListExtensions(context.Context, *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Approves exactly the grants and hosts the person was shown and
+	// turns the extension on; refused when its manifest asks for anything else
+	// now, or does not load.
+	ApproveExtension(context.Context, *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Turns an approved extension off, or back on (refused when it
+	// asks for more than was approved: that needs ApproveExtension).
+	SetExtensionEnabled(context.Context, *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Deletes an extension's folder and its approval.
+	RemoveExtension(context.Context, *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Copies one of the bundled examples into the folder, not yet approved.
+	InstallExampleExtension(context.Context, *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Opens one panel of a running extension: the address of its
+	// sandboxed page on the extension content origin, and the credential the
+	// app's bridge calls the Runner with for it, which admits its approved
+	// grants alone and is revoked when they change.
+	OpenExtensionPanel(context.Context, *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -1960,6 +1998,42 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("UpdateConfigFile")),
 			connect.WithClientOptions(opts...),
 		),
+		listExtensions: connect.NewClient[gen.ListExtensionsRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceListExtensionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListExtensions")),
+			connect.WithClientOptions(opts...),
+		),
+		approveExtension: connect.NewClient[gen.ApproveExtensionRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceApproveExtensionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ApproveExtension")),
+			connect.WithClientOptions(opts...),
+		),
+		setExtensionEnabled: connect.NewClient[gen.SetExtensionEnabledRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceSetExtensionEnabledProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetExtensionEnabled")),
+			connect.WithClientOptions(opts...),
+		),
+		removeExtension: connect.NewClient[gen.RemoveExtensionRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceRemoveExtensionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RemoveExtension")),
+			connect.WithClientOptions(opts...),
+		),
+		installExampleExtension: connect.NewClient[gen.InstallExampleExtensionRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceInstallExampleExtensionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("InstallExampleExtension")),
+			connect.WithClientOptions(opts...),
+		),
+		openExtensionPanel: connect.NewClient[gen.OpenExtensionPanelRequest, gen.ExtensionPanelSession](
+			httpClient,
+			baseURL+RunnerServiceOpenExtensionPanelProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("OpenExtensionPanel")),
+			connect.WithClientOptions(opts...),
+		),
 		listWorkspaceRepositories: connect.NewClient[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories](
 			httpClient,
 			baseURL+RunnerServiceListWorkspaceRepositoriesProcedure,
@@ -2198,6 +2272,12 @@ type runnerServiceClient struct {
 	completeUiRequest            *connect.Client[gen.CompleteUiRequestRequest, gen.UiRequest]
 	getConfigFiles               *connect.Client[gen.GetConfigFilesRequest, gen.ConfigFiles]
 	updateConfigFile             *connect.Client[gen.UpdateConfigFileRequest, gen.ConfigFiles]
+	listExtensions               *connect.Client[gen.ListExtensionsRequest, gen.Extensions]
+	approveExtension             *connect.Client[gen.ApproveExtensionRequest, gen.Extensions]
+	setExtensionEnabled          *connect.Client[gen.SetExtensionEnabledRequest, gen.Extensions]
+	removeExtension              *connect.Client[gen.RemoveExtensionRequest, gen.Extensions]
+	installExampleExtension      *connect.Client[gen.InstallExampleExtensionRequest, gen.Extensions]
+	openExtensionPanel           *connect.Client[gen.OpenExtensionPanelRequest, gen.ExtensionPanelSession]
 	listWorkspaceRepositories    *connect.Client[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories]
 	requestRepository            *connect.Client[gen.RequestRepositoryRequest, gen.RepositoryRequest]
 	waitRepositoryRequest        *connect.Client[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest]
@@ -3046,6 +3126,36 @@ func (c *runnerServiceClient) UpdateConfigFile(ctx context.Context, req *connect
 	return c.updateConfigFile.CallUnary(ctx, req)
 }
 
+// ListExtensions calls lazybox.bench.v1.RunnerService.ListExtensions.
+func (c *runnerServiceClient) ListExtensions(ctx context.Context, req *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.listExtensions.CallUnary(ctx, req)
+}
+
+// ApproveExtension calls lazybox.bench.v1.RunnerService.ApproveExtension.
+func (c *runnerServiceClient) ApproveExtension(ctx context.Context, req *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.approveExtension.CallUnary(ctx, req)
+}
+
+// SetExtensionEnabled calls lazybox.bench.v1.RunnerService.SetExtensionEnabled.
+func (c *runnerServiceClient) SetExtensionEnabled(ctx context.Context, req *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.setExtensionEnabled.CallUnary(ctx, req)
+}
+
+// RemoveExtension calls lazybox.bench.v1.RunnerService.RemoveExtension.
+func (c *runnerServiceClient) RemoveExtension(ctx context.Context, req *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.removeExtension.CallUnary(ctx, req)
+}
+
+// InstallExampleExtension calls lazybox.bench.v1.RunnerService.InstallExampleExtension.
+func (c *runnerServiceClient) InstallExampleExtension(ctx context.Context, req *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.installExampleExtension.CallUnary(ctx, req)
+}
+
+// OpenExtensionPanel calls lazybox.bench.v1.RunnerService.OpenExtensionPanel.
+func (c *runnerServiceClient) OpenExtensionPanel(ctx context.Context, req *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error) {
+	return c.openExtensionPanel.CallUnary(ctx, req)
+}
+
 // ListWorkspaceRepositories calls lazybox.bench.v1.RunnerService.ListWorkspaceRepositories.
 func (c *runnerServiceClient) ListWorkspaceRepositories(ctx context.Context, req *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {
 	return c.listWorkspaceRepositories.CallUnary(ctx, req)
@@ -3446,6 +3556,26 @@ type RunnerServiceHandler interface {
 	// whole new content (import), or removal (a layout). Nothing is written
 	// when the result would not load; the refusal names each problem by line.
 	UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Sandboxed panel extensions (EXTENSIONS.md): the folders in the
+	// config folder's extensions/, each with what its manifest asks for, what
+	// the person approved, and its state. Reloaded every second.
+	ListExtensions(context.Context, *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Approves exactly the grants and hosts the person was shown and
+	// turns the extension on; refused when its manifest asks for anything else
+	// now, or does not load.
+	ApproveExtension(context.Context, *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Turns an approved extension off, or back on (refused when it
+	// asks for more than was approved: that needs ApproveExtension).
+	SetExtensionEnabled(context.Context, *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Deletes an extension's folder and its approval.
+	RemoveExtension(context.Context, *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Copies one of the bundled examples into the folder, not yet approved.
+	InstallExampleExtension(context.Context, *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Opens one panel of a running extension: the address of its
+	// sandboxed page on the extension content origin, and the credential the
+	// app's bridge calls the Runner with for it, which admits its approved
+	// grants alone and is revoked when they change.
+	OpenExtensionPanel(context.Context, *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -4493,6 +4623,42 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("UpdateConfigFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListExtensionsHandler := connect.NewUnaryHandler(
+		RunnerServiceListExtensionsProcedure,
+		svc.ListExtensions,
+		connect.WithSchema(runnerServiceMethods.ByName("ListExtensions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceApproveExtensionHandler := connect.NewUnaryHandler(
+		RunnerServiceApproveExtensionProcedure,
+		svc.ApproveExtension,
+		connect.WithSchema(runnerServiceMethods.ByName("ApproveExtension")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetExtensionEnabledHandler := connect.NewUnaryHandler(
+		RunnerServiceSetExtensionEnabledProcedure,
+		svc.SetExtensionEnabled,
+		connect.WithSchema(runnerServiceMethods.ByName("SetExtensionEnabled")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRemoveExtensionHandler := connect.NewUnaryHandler(
+		RunnerServiceRemoveExtensionProcedure,
+		svc.RemoveExtension,
+		connect.WithSchema(runnerServiceMethods.ByName("RemoveExtension")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceInstallExampleExtensionHandler := connect.NewUnaryHandler(
+		RunnerServiceInstallExampleExtensionProcedure,
+		svc.InstallExampleExtension,
+		connect.WithSchema(runnerServiceMethods.ByName("InstallExampleExtension")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceOpenExtensionPanelHandler := connect.NewUnaryHandler(
+		RunnerServiceOpenExtensionPanelProcedure,
+		svc.OpenExtensionPanel,
+		connect.WithSchema(runnerServiceMethods.ByName("OpenExtensionPanel")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListWorkspaceRepositoriesHandler := connect.NewUnaryHandler(
 		RunnerServiceListWorkspaceRepositoriesProcedure,
 		svc.ListWorkspaceRepositories,
@@ -4895,6 +5061,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetConfigFilesHandler.ServeHTTP(w, r)
 		case RunnerServiceUpdateConfigFileProcedure:
 			runnerServiceUpdateConfigFileHandler.ServeHTTP(w, r)
+		case RunnerServiceListExtensionsProcedure:
+			runnerServiceListExtensionsHandler.ServeHTTP(w, r)
+		case RunnerServiceApproveExtensionProcedure:
+			runnerServiceApproveExtensionHandler.ServeHTTP(w, r)
+		case RunnerServiceSetExtensionEnabledProcedure:
+			runnerServiceSetExtensionEnabledHandler.ServeHTTP(w, r)
+		case RunnerServiceRemoveExtensionProcedure:
+			runnerServiceRemoveExtensionHandler.ServeHTTP(w, r)
+		case RunnerServiceInstallExampleExtensionProcedure:
+			runnerServiceInstallExampleExtensionHandler.ServeHTTP(w, r)
+		case RunnerServiceOpenExtensionPanelProcedure:
+			runnerServiceOpenExtensionPanelHandler.ServeHTTP(w, r)
 		case RunnerServiceListWorkspaceRepositoriesProcedure:
 			runnerServiceListWorkspaceRepositoriesHandler.ServeHTTP(w, r)
 		case RunnerServiceRequestRepositoryProcedure:
@@ -5592,6 +5770,30 @@ func (UnimplementedRunnerServiceHandler) GetConfigFiles(context.Context, *connec
 
 func (UnimplementedRunnerServiceHandler) UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateConfigFile is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListExtensions(context.Context, *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListExtensions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ApproveExtension(context.Context, *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ApproveExtension is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetExtensionEnabled(context.Context, *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetExtensionEnabled is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RemoveExtension(context.Context, *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RemoveExtension is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) InstallExampleExtension(context.Context, *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.InstallExampleExtension is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) OpenExtensionPanel(context.Context, *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.OpenExtensionPanel is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {

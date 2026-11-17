@@ -216,6 +216,82 @@ try {
   await expect(page.locator('html')).toHaveAttribute('data-scheme', 'dark');
   await light.close();
 
+  // settings.yaml (POWER.md, "Config files"): Settings → Appearance writes its
+  // section at the right paths; a save in an editor applies live within the
+  // poll; a mistake is shown by line in Appearance (not in Notifications);
+  // removing a value puts its default back; a change made just before the
+  // window goes away is not lost to the file's older value. Dark and light.
+  const settingsWrites = () => fixture.mutations.filter(m => m.method === 'UpdateConfigFile' && m.body.name === 'settings');
+  for (const scheme of ['dark', 'light']) {
+    fixture.config.setFile('settings', { value: { notifications: {}, appearance: {} } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
+    page = await context.newPage(); page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(String(e)));
+    const css = name => page.evaluate(n => getComputedStyle(document.documentElement).getPropertyValue(`--${n}`).trim(), name);
+    await page.goto(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
+    await expect(page.getByRole('heading', { name: 'Parser fix' })).toBeVisible();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+    const panel = page.locator('.appearance-settings').first();
+    const status = panel.locator('.config-file');
+    await expect(status).toContainText('Your appearance settings are kept in settings.yaml');
+    await expect(status.locator('code')).toHaveText('/fixture/config/lazybox/settings.yaml');
+
+    // A click writes one value at its path; the file then says it.
+    const before = settingsWrites().length;
+    await panel.getByRole('radio', { name: 'Teal', exact: true }).click();
+    await expect.poll(() => settingsWrites().slice(before).map(m => m.body.edits)).toEqual([[{ path: ['appearance', 'accent'], json: '"#6fcfc4"' }]]);
+    assert.equal(fixture.config.value('settings').appearance.accent, '#6fcfc4');
+    // A dragged slider is one write, of where it stopped.
+    const dragged = settingsWrites().length;
+    for (const size of ['14', '15', '16']) await panel.getByLabel('appearance code size value').fill(size);
+    await expect.poll(() => fixture.config.value('settings').appearance.codeFontSize).toBe(16);
+    assert.equal(settingsWrites().length - dragged, 1, 'one write for a burst of changes');
+
+    // Saved in an editor: applied live, no reload.
+    const started = Date.now();
+    fixture.config.setFile('settings', { value: { notifications: {}, appearance: { accent: '#e2b765', density: 'compact', chatLineHeight: 1.4, mode: scheme === 'dark' ? 'light' : 'dark' } } });
+    await expect(page.locator('html')).toHaveAttribute('data-density', 'compact', { timeout: 4000 });
+    assert.ok(Date.now() - started < 4000, 'applied within the poll');
+    await expect(page.locator('html')).toHaveAttribute('data-scheme', scheme === 'dark' ? 'light' : 'dark');
+    await expect(panel.getByRole('radio', { name: 'Amber', exact: true })).toHaveAttribute('aria-checked', 'true');
+    assert.equal(await css('chat-line-height'), '1.4');
+    await expect(panel.getByLabel('appearance code size value')).toHaveValue('12', { timeout: 1000 }).catch(() => undefined);
+    assert.equal(await panel.getByLabel('appearance code size value').inputValue(), '12', 'what the file leaves out is the default');
+    assert.equal(settingsWrites().length - dragged, 1, 'applying the file writes nothing back');
+
+    // A mistake: by line in Settings → Appearance and in a toast; Notifications does not show it.
+    fixture.config.setFile('settings', { value: { notifications: {}, appearance: { accent: '#e2b765', density: 'compact', mode: scheme } }, issues: [{ path: 'appearance.acent', line: 6, message: 'unknown setting "acent" (did you mean "accent"?)', severity: 'error' }] });
+    await expect(page.locator('html')).toHaveAttribute('data-scheme', scheme, { timeout: 4000 });
+    const problems = page.getByRole('list', { name: 'Problems in settings.yaml' });
+    await expect(problems).toContainText('line 6');
+    await expect(problems).toContainText('did you mean "accent"?');
+    await expect(page.getByText('settings.yaml: a problem')).toBeVisible();
+    await panel.evaluate(n => { for (let p = n.parentElement; p; p = p.parentElement) if (/auto|scroll/.test(getComputedStyle(p).overflowY)) p.scrollTop = 0; window.scrollTo(0, 0); });
+    await page.screenshot({ path: `.cache/appearance-file-${scheme}.png` });
+    await page.getByRole('tab', { name: 'Notifications', exact: true }).click();
+    await expect(page.getByText('settings.yaml', { exact: true })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Problems in settings.yaml' })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+
+    // Removed from the file: back to the defaults (the theme's accent, comfortable rows).
+    fixture.config.setFile('settings', { value: { notifications: {}, appearance: { mode: scheme } } });
+    await expect(page.locator('html')).toHaveAttribute('data-density', 'comfortable', { timeout: 4000 });
+    await expect(panel.getByRole('radio', { name: 'Theme accent' })).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByText('settings.yaml: a problem'), 'a fixed mistake takes its toast with it').toHaveCount(0);
+    await panel.evaluate(n => { for (let p = n.parentElement; p; p = p.parentElement) if (/auto|scroll/.test(getComputedStyle(p).overflowY)) p.scrollTop = 0; window.scrollTo(0, 0); });
+    await page.screenshot({ path: `.cache/appearance-file-defaults-${scheme}.png` });
+
+    // A change, then the window reloads at once: the change wins over the file's older value.
+    await panel.getByRole('radio', { name: 'Rose', exact: true }).click();
+    await page.reload();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+    await expect.poll(() => fixture.config.value('settings').appearance.accent, { timeout: 6000 }).toBe('#ea9ac0');
+    await expect(panel.getByRole('radio', { name: 'Rose', exact: true })).toHaveAttribute('aria-checked', 'true');
+    await context.close();
+  }
+  fixture.config.setFile('settings', { value: { notifications: {}, appearance: {} } });
+
   assert.deepEqual(errors, []);
   console.log('PASS: dark and light key pages use only theme tokens with body text ≥ 4.5:1; System follows the computer; theme, accent, contrast, chat text, density, motion and text size apply live and persist; user theme files are listed, applied, hot reloaded and their errors shown; New theme from current. Fixture only.');
 } finally { await browser?.close(); await server.close(); await fixture.close(); }

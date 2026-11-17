@@ -40,6 +40,7 @@ Task by task:
 | Switch to light, make my own theme, change fonts, zoom, notifications | [Appearance and notifications](guides/appearance.md) |
 | Talk instead of typing: dictate, say commands, hear replies | [Voice](guides/voice.md) |
 | Script Lazybox, add my own actions and hooks | [Automate with the CLI, actions and hooks](guides/automate.md) |
+| Add a panel of my own (a board, a dashboard), sandboxed | [Extensions](guides/extensions.md) |
 
 ## Reference
 
@@ -48,6 +49,8 @@ Task by task:
 - [The `lazybox` CLI](reference/cli.md) — every command, exit codes, completions.
 - [Voice settings](reference/voice-settings.md) — every option of Settings →
   Voice, with its default.
+- [Extensions](reference/extensions.md) — `extension.yaml`, every bridge call
+  and the grant it needs, what an extension's page may load.
 - [Configuration files](reference/configuration.md) — `.lazybox/workspace.yaml`,
   `.lazybox/process.yaml`, `~/.config/lazybox/actions.yaml`, with examples and
   their JSON Schemas.

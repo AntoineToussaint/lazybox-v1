@@ -24,6 +24,7 @@ import type { ViewTarget } from './workspace-model';
 import { WorkspaceHome } from './WorkspaceHome';
 import { NewTaskStart } from './NewTaskSheet';
 import { HelpAssistant } from './HelpAssistant';
+import { ExtensionModule } from './ExtensionPanel';
 import { useAskRequests } from './help-requests';
 
 /** What a panel's header shows while its module has something better than its kind's title: a web page's title and icon. */
@@ -117,6 +118,8 @@ export const builtinPanels: Readonly<Record<string, PanelModule>> = {
   files: { title: 'Files', icon: 'folder', Component: ({ workspaceId, collections }) => <FileExplorer workspaceId={workspaceId} collections={collections}/> },
   editor: { title: 'Editor', icon: 'file', Component: ({ workspaceId, viewState }) => <EditorArea workspaceId={workspaceId} viewState={viewState}/> },
   artifacts: { title: 'Artifacts', icon: 'artifact', Component: ({ workspaceId, collections, viewState, target, onShowSession }) => <ArtifactsPanel workspaceId={workspaceId} collections={collections} viewState={viewState} target={target} onShowSession={onShowSession}/> },
+  // The person's sandboxed extensions (EXTENSIONS.md): each panel shows one of them, or chooses.
+  extension: { title: 'Extensions', icon: 'puzzle', multiple: true, Component: ExtensionModule },
 };
 
 

@@ -129,6 +129,7 @@ configuration are resolved explicitly and stay isolated during development.
 | [ACP agents](../../ACP.md) | Any Agent Client Protocol agent as a conversation: the adapter, the protocol mapping, files and terminals served by Lazybox, restarts, gaps. |
 | [Computer control](../../COMPUTER_CONTROL.md) | Design only: agents driving other Mac apps, its permissions, risks and smallest safe first step. |
 | [Power users](../../POWER.md) | CLI parity, `actions.yaml` actions and hooks, hook credentials, `lazybox open` / `shot`. |
+| [Extensions](../../EXTENSIONS.md) | Sandboxed panel extensions: manifest and grants, the approval sheet, the content origin and its policies, the bridge and the extension credential, the threat model. |
 | [The `lazybox` CLI](../../services/runner/code/cmd/lazybox/README.md) | Every verb, its flags, exit codes and credentials. |
 
 ### Running, releasing, evidence

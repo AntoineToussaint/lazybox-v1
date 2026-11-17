@@ -71,6 +71,7 @@ Panels for `--panel` and `shot`: `chat`, `console`, `terminal`, `assistant`,
 | `lazybox config get FILE [KEY]` | The file, or one value: `config get keys palette.open` prints its keys and where they come from (the file and line, or the preset). |
 | `lazybox config set FILE KEY VALUE` · `--remove` | Change one value, keeping comments: `config set keys palette.open Mod+y`, `config set settings notifications.review true`. A change with a problem (a key already taken) is refused and nothing is written. |
 | `lazybox config export [--out F] [--actions]` · `import F\|- [--dry-run]` | Every config file in one YAML bundle (actions.yaml only with `--actions`: its webhook headers may be secrets), and back: each file is checked first, a replaced one is kept as `.bak`. |
+| `lazybox extension new <id> [--example E]` · `validate [<id>\|PATH…]` · `list` · `path` | Your [extensions](extensions.md#lazybox-extension): a starter (or an example) in the extensions folder, each checked by `file:line`, what each may do and whether it is on. Approving is in the app. |
 | `lazybox process validate\|show\|explain EVENT\|events\|schema` | Check [`.lazybox/process.yaml`](configuration.md#lazyboxprocessyaml-how-missions-run) from files, no Runner needed. |
 
 ## Command output

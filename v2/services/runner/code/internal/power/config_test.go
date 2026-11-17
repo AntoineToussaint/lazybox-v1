@@ -167,6 +167,102 @@ func TestSettingsParse(t *testing.T) {
 	}
 }
 
+func TestSettingsAppearanceParse(t *testing.T) {
+	s, issues, err := ParseSettings([]byte(`appearance:
+  mode: dark
+  dark-theme: dark-high-contrast
+  light-theme: user:paper
+  accent: "#7fb0f0"
+  density: compact
+  interface-font: Inter, sans-serif
+  code-font-size: 14
+  ligatures: true
+  chat-line-height: 1.4
+  chat-line-width: 100
+  zoom: 1.25
+  min-contrast: 7
+`))
+	want := map[string]any{"mode": "dark", "darkTheme": "dark-high-contrast", "lightTheme": "user:paper", "accent": "#7fb0f0", "density": "compact", "uiFont": "Inter, sans-serif", "codeFontSize": 14.0, "ligatures": true, "chatLineHeight": 1.4, "chatMaxWidth": 100.0, "zoom": 1.25, "minContrast": 7.0}
+	if err != nil || len(issues) != 0 || len(s.Appearance) != len(want) {
+		t.Fatalf("%+v %+v %v", s.Appearance, issues, err)
+	}
+	for k, v := range want {
+		if s.Appearance[k] != v {
+			t.Fatalf("%s: %v, want %v", k, s.Appearance[k], v)
+		}
+	}
+	// Each mistake is left out, by line; the rest applies.
+	s, issues, err = ParseSettings([]byte(`appearance:
+  mode: dim
+  dark-theme: light
+  light-theme: solarised-light
+  accent: red
+  density: compact
+  interface-font: "Inter; } body { x"
+  chat-font-size: 40
+  zoom: big
+  acent: "#fff"
+  motion: reduce
+`))
+	if err != nil || len(s.Appearance) != 2 || s.Appearance["density"] != "compact" || s.Appearance["motion"] != "reduce" ||
+		!issueAt(issues, 2, `"dim" is not one of system, light, dark`) ||
+		!issueAt(issues, 3, `"light" is a light theme; dark-theme takes a dark one`) ||
+		!issueAt(issues, 4, `did you mean "solarized-light"?`) ||
+		!issueAt(issues, 5, "is not a colour") ||
+		!issueAt(issues, 7, "must be a font list") ||
+		!issueAt(issues, 8, "40 is outside 11 to 22") ||
+		!issueAt(issues, 9, "must be a number from 0.5 to 2") ||
+		!issueAt(issues, 10, `did you mean "accent"?`) {
+		t.Fatalf("%+v %+v %v", s.Appearance, issues, err)
+	}
+	// An unquoted #colour is a YAML comment: the value is null, which is the theme's accent.
+	s, issues, _ = ParseSettings([]byte("appearance:\n  accent: #7fb0f0\n"))
+	if _, set := s.Appearance["accent"]; set || len(issues) != 0 {
+		t.Fatalf("%+v %+v", s.Appearance, issues)
+	}
+}
+
+func TestSettingsAppearanceEditsKeepComments(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.yaml")
+	_ = os.WriteFile(path, []byte("# mine\nnotifications:\n  review: true # keep\n"), 0o600)
+	c := NewConfig(dir)
+	snap, err := c.Update("settings", []Edit{{Path: []string{"appearance", "accent"}, JSON: `"#7fb0f0"`}, {Path: []string{"appearance", "chat-line-height"}, JSON: "1.4"}, {Path: []string{"appearance", "mode"}, JSON: `"dark"`}}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, _ := snap.Doc("settings")
+	a := doc.Value.(Settings).Appearance
+	if a["accent"] != "#7fb0f0" || a["chatLineHeight"] != 1.4 || a["mode"] != "dark" || !doc.Value.(Settings).Notifications["review"] {
+		t.Fatalf("%+v", doc.Value)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "# mine") || !strings.Contains(string(data), "# keep") || !strings.Contains(string(data), `accent: '#7fb0f0'`) && !strings.Contains(string(data), `accent: "#7fb0f0"`) {
+		t.Fatalf("%s", data)
+	}
+	// A value the app would refuse is refused before anything is written.
+	var refused *RefusedError
+	if _, err = c.Update("settings", []Edit{{Path: []string{"appearance", "zoom"}, JSON: "9"}}, nil, false); !errors.As(err, &refused) || !strings.Contains(err.Error(), "outside 0.5 to 2") {
+		t.Fatalf("%v", err)
+	}
+	// Removing a key puts that setting back to its default.
+	snap, _ = c.Update("settings", []Edit{{Path: []string{"appearance", "mode"}}}, nil, false)
+	doc, _ = snap.Doc("settings")
+	if _, set := doc.Value.(Settings).Appearance["mode"]; set {
+		t.Fatalf("%+v", doc.Value)
+	}
+	// The starter parses, and the schema lists every field.
+	if _, issues, err := ParseSettings([]byte(Starter(KindSettings))); err != nil || len(issues) != 0 {
+		t.Fatalf("starter: %v %v", issues, err)
+	}
+	schema := SchemaFor(KindSettings)
+	for _, f := range AppearanceFields {
+		if !strings.Contains(schema, `"`+f.Name+`"`) {
+			t.Fatalf("schema lacks %s", f.Name)
+		}
+	}
+}
+
 func TestConfigReloadsKeepsLastGoodAndWatchesLayouts(t *testing.T) {
 	dir := t.TempDir()
 	c := NewConfig(dir)

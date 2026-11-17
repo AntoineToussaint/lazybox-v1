@@ -12,7 +12,10 @@ Lazybox gets it from declarative, scoped pieces:
    menus and run with the owner's own rules.
 3. **Hooks**: programs, shell lines or webhooks the Runner starts on events,
    as managed commands, with no Runner credential unless granted one.
-4. **Everything else a person sets is a file too**: keys, layouts and
+4. **Panels of your own**: sandboxed extensions, folders of HTML, JavaScript
+   and CSS that read and do only what the person approved in a sheet
+   ([EXTENSIONS.md](EXTENSIONS.md)).
+5. **Everything else a person sets is a file too**: keys, layouts and
    settings, hot-reloaded, written back by Settings with the comments kept
    ([Config files](#config-files)).
 
@@ -193,7 +196,7 @@ Beside `actions.yaml`, in the same folder (`lazybox config path`):
 | File | Holds | Written by |
 |---|---|---|
 | `keys.yaml` | the preset, every changed binding (by section: `global`, `navigation`, `agent`), the `]]` menu, Vim editing | Settings → Shortcuts, the reset chord, Voice settings |
-| `settings.yaml` | notifications and sounds | Settings → Notifications |
+| `settings.yaml` | notifications and sounds; appearance: theme, accent, contrast, fonts and sizes, chat text, density, motion, desktop zoom | Settings → Notifications, → Appearance, → Chat (chat text), the View menu zoom |
 | `layouts/<name>.yaml` | one whole-window layout each | the Layout menu (save, rename, delete with Undo, import) |
 
 Field by field: [configuration reference](docs/reference/configuration.md#your-config-files-keys-settings-layouts).
@@ -210,7 +213,7 @@ Field by field: [configuration reference](docs/reference/configuration.md#your-c
   every action id and panel.
 - **The app reads** them through `GetConfigFiles` (the parsed value as JSON,
   issues, stale) every two seconds and when the window regains focus
-  (`useConfigFiles.ts`); the main window applies keys and notifications (the
+  (`useConfigFiles.ts`); the main window applies keys, notifications and appearance (the
   view-state store stays the fast local copy every window starts from).
 - **The app writes** them through `UpdateConfigFile`: edits at paths, applied
   to the YAML tree so comments stay, or a whole layout file. Nothing is written
@@ -218,7 +221,7 @@ Field by field: [configuration reference](docs/reference/configuration.md#your-c
   the refusal names each problem. A file that does not load now is never
   overwritten from the app.
 - **What a file leaves out is the default**, and a removed file puts the
-  defaults back. Shortcuts, notifications and saved layouts set before files
+  defaults back. Shortcuts, notifications, appearance and saved layouts set before files
   existed become their files once (the main window, `config-files:seen:v1`).
 - **Mistakes are reported where a person looks**: a toast with the first
   problem and its line (once per change), a banner in the Settings section the
@@ -292,7 +295,7 @@ step shipped here (`lazybox runners`, `lazybox ls --all`).
   their line, last good version kept on a broken save, Init never replacing,
   hot reload, schema in step with the parser; config files: keys parsed and
   checked by line with conflicts, presets and the reset chord, layouts and
-  settings, the last good version kept, layout files appearing and going,
+  settings (appearance values checked as the app bounds them, by line), the last good version kept, layout files appearing and going,
   edits keeping comments, a breaking edit refused with nothing written, the
   layout the app writes read back; `do:` steps against the registry;
   dispatch filters, once per event,
@@ -307,12 +310,16 @@ step shipped here (`lazybox runners`, `lazybox ls --all`).
   included; see the CLI README); `internal/transport` also covers the config
   RPCs, `do` requests and a hook running only safe actions.
 - UI: `scripts/user-actions.test.ts` (the executor, `do:` steps),
-  `scripts/config-files.test.ts` (keys and layouts to and from their files,
+  `scripts/config-files.test.ts` (keys, appearance and layouts to and from their files, the appearance names the same as the Runner's,
   both platforms), `scripts/action-manifest.test.ts` (the manifest current,
   what is safe, the panel kinds), `test:power-actions` and `test:config-files`
   (Playwright against the fake Runner: a key changed in keys.yaml works within
   two seconds, problems by line, Settings writing the files, `lazybox do`
-  driving the window, ⌘⇧L, a layout file appearing, copy and import).
+  driving the window, ⌘⇧L, a layout file appearing, copy and import);
+  `test:appearance` (Settings → Appearance writing settings.yaml at its paths,
+  a burst of slider changes as one write, an editor save applied within the
+  poll, a mistake by line in Appearance only, a removed value back to its
+  default, a change just before a reload winning over the file).
 - Desktop: `capture.rs` region scaling and clipping (`cargo test`).
 
 **Known gaps:** `WatchEvents` does not put an accepted operation's kind on the

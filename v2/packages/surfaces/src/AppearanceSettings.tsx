@@ -12,6 +12,8 @@ import { themeTemplate } from './appearance/user-themes';
 import { normalizeColor, parseColor } from './appearance/color';
 import { useRunner } from './RunnerContext';
 import { runAction } from './actions';
+import { ConfigFileStatus } from './ConfigFileStatus';
+import { writeConfigSoon } from './config-writer';
 import './appearance-settings.css';
 
 const ACCENTS: { name: string; value: string }[] = [
@@ -76,6 +78,8 @@ export function AppearanceSettings({ store, zoom }: { store?: ViewStateStore; zo
   const [filter, setFilter] = useState('');
   const [zoomLevel, setZoomLevel] = useState<number>();
   useEffect(() => { if (user.loaded) adoptUserThemes(store, user.files); }, [user.files, user.loaded, store]);
+  /** The desktop zoom, set here: kept by the host, and in settings.yaml. */
+  const setZoom = (level: number) => { if (!zoom) return; void zoom.set(level).then(set => { setZoomLevel(set); writeConfigSoon('zoom', { file: 'settings', zoom: set }); }, () => undefined); };
   useEffect(() => {
     if (!zoom) return;
     void zoom.get().then(setZoomLevel, () => {});
@@ -116,8 +120,9 @@ export function AppearanceSettings({ store, zoom }: { store?: ViewStateStore; zo
   const groups = [...new Set(TOKENS.map(t => t.group))] as TokenGroup[];
 
   return <section className="appearance-settings">
-    <SettingsHeader title="Appearance" description="How Lazybox looks on this device. Every change shows at once, in every window."
+    <SettingsHeader title="Appearance" description="How Lazybox looks. Every change shows at once, in every window. Colour overrides stay on this device."
       actions={<button type="button" onClick={() => { update(p => ({ ...DEFAULT_PREFERENCES, userThemes: p.userThemes })); setStatus('Appearance reset to the defaults.'); }}><Icon name="refresh" size={14}/> Reset all</button>}/>
+    <ConfigFileStatus name="settings" what="Your appearance settings" section="appearance"/>
     {error && <p className="settings-error" role="alert">{error}</p>}
     <p className="appearance-status" role="status">{status}</p>
 
@@ -207,13 +212,13 @@ export function AppearanceSettings({ store, zoom }: { store?: ViewStateStore; zo
       <SettingsRow label="Ligatures" description="Join character pairs such as => and != when the code font has them.">
         <span className="settings-row-control settings-switch"><input type="checkbox" role="switch" aria-label="Ligatures" checked={typography.ligatures} onChange={e => type({ ligatures: e.target.checked })}/></span>
       </SettingsRow>
-      <SettingsRow label="Zoom" htmlFor="appearance-zoom" description={zoom ? <>Everything, in every window. <kbd>⌘=</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd> from anywhere; kept across launches.</> : <>Use your browser's zoom: <kbd>⌘+</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd>.</>}>
+      <SettingsRow label="Zoom" htmlFor="appearance-zoom" description={zoom ? <>Everything, in every window. <kbd>⌘=</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd> from anywhere; kept across launches.</> : <>Use your browser's zoom: <kbd>⌘+</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd>. The desktop app keeps its zoom in settings.yaml.</>}>
         {zoom ? <span className="appearance-inline appearance-zoom">
-          <button type="button" aria-label="Zoom out" onClick={() => void zoom.set(Math.round(((zoomLevel ?? 1) - 0.1) * 100) / 100).then(setZoomLevel)}><Icon name="zoomOut" size={14}/></button>
-          <input id="appearance-zoom" type="range" min={50} max={200} step={5} value={Math.round((zoomLevel ?? 1) * 100)} onChange={e => void zoom.set(Number(e.target.value) / 100).then(setZoomLevel)}/>
+          <button type="button" aria-label="Zoom out" onClick={() => setZoom(Math.round(((zoomLevel ?? 1) - 0.1) * 100) / 100)}><Icon name="zoomOut" size={14}/></button>
+          <input id="appearance-zoom" type="range" min={50} max={200} step={5} value={Math.round((zoomLevel ?? 1) * 100)} onChange={e => setZoom(Number(e.target.value) / 100)}/>
           <output aria-live="polite">{Math.round((zoomLevel ?? 1) * 100)}%</output>
-          <button type="button" aria-label="Zoom in" onClick={() => void zoom.set(Math.round(((zoomLevel ?? 1) + 0.1) * 100) / 100).then(setZoomLevel)}><Icon name="zoomIn" size={14}/></button>
-          <Reset shown={(zoomLevel ?? 1) !== 1} what="zoom" onClick={() => void zoom.set(1).then(setZoomLevel)}/>
+          <button type="button" aria-label="Zoom in" onClick={() => setZoom(Math.round(((zoomLevel ?? 1) + 0.1) * 100) / 100)}><Icon name="zoomIn" size={14}/></button>
+          <Reset shown={(zoomLevel ?? 1) !== 1} what="zoom" onClick={() => setZoom(1)}/>
         </span> : <span className="appearance-hint">Browser zoom</span>}
       </SettingsRow>
     </SettingsGroup>
@@ -245,7 +250,7 @@ export function ChatTextSettings({ store }: { store?: ViewStateStore }) {
   const unset = (...keys: (keyof Typography)[]) => update(p => { const next = { ...p.typography }; for (const k of keys) delete next[k]; return { ...p, typography: next }; });
   const lineHeightChoice = SPACING.find(s => DENSITY_PRESETS[s.id].chatLineHeight === typography.chatLineHeight)?.id;
   return <div className="appearance-settings chat-text-settings">
-    <SettingsGroup title="Chat text" description="How conversations read, on this device. The sample is drawn exactly as a message is.">
+    <SettingsGroup title="Chat text" description="How conversations read, kept in settings.yaml with your appearance. The sample is drawn exactly as a message is.">
       <SettingsRow label="Size" htmlFor="appearance-chat-size">
         <span className="appearance-inline"><NumberField id="appearance-chat-size" value={typography.chatFontSize} limits={TYPOGRAPHY_LIMITS.chatFontSize} onChange={v => type({ chatFontSize: v })} unit="px"/><Reset shown={typography.chatFontSize !== themeTypography.chatFontSize} what="chat text size" onClick={() => unset('chatFontSize')}/></span>
       </SettingsRow>

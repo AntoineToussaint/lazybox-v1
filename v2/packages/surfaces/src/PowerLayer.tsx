@@ -53,7 +53,7 @@ export function PowerLayer(props: PowerLayerProps) {
   const live = useRef(props); live.current = props;
   const pending = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // keys.yaml, settings.yaml and layouts/: read here, applied by the main window.
-  useConfigFilesBridge(props.primary, props.viewState);
+  useConfigFilesBridge(props.primary, props.viewState, props.host?.zoom);
 
   /**
    * Runs an action of the app's registry, as its key or the palette would:

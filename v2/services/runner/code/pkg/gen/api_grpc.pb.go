@@ -187,6 +187,12 @@ const (
 	RunnerService_CompleteUiRequest_FullMethodName            = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
 	RunnerService_GetConfigFiles_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetConfigFiles"
 	RunnerService_UpdateConfigFile_FullMethodName             = "/lazybox.bench.v1.RunnerService/UpdateConfigFile"
+	RunnerService_ListExtensions_FullMethodName               = "/lazybox.bench.v1.RunnerService/ListExtensions"
+	RunnerService_ApproveExtension_FullMethodName             = "/lazybox.bench.v1.RunnerService/ApproveExtension"
+	RunnerService_SetExtensionEnabled_FullMethodName          = "/lazybox.bench.v1.RunnerService/SetExtensionEnabled"
+	RunnerService_RemoveExtension_FullMethodName              = "/lazybox.bench.v1.RunnerService/RemoveExtension"
+	RunnerService_InstallExampleExtension_FullMethodName      = "/lazybox.bench.v1.RunnerService/InstallExampleExtension"
+	RunnerService_OpenExtensionPanel_FullMethodName           = "/lazybox.bench.v1.RunnerService/OpenExtensionPanel"
 	RunnerService_ListWorkspaceRepositories_FullMethodName    = "/lazybox.bench.v1.RunnerService/ListWorkspaceRepositories"
 	RunnerService_RequestRepository_FullMethodName            = "/lazybox.bench.v1.RunnerService/RequestRepository"
 	RunnerService_WaitRepositoryRequest_FullMethodName        = "/lazybox.bench.v1.RunnerService/WaitRepositoryRequest"
@@ -547,6 +553,26 @@ type RunnerServiceClient interface {
 	// whole new content (import), or removal (a layout). Nothing is written
 	// when the result would not load; the refusal names each problem by line.
 	UpdateConfigFile(ctx context.Context, in *UpdateConfigFileRequest, opts ...grpc.CallOption) (*ConfigFiles, error)
+	// Owner only. Sandboxed panel extensions (EXTENSIONS.md): the folders in the
+	// config folder's extensions/, each with what its manifest asks for, what
+	// the person approved, and its state. Reloaded every second.
+	ListExtensions(ctx context.Context, in *ListExtensionsRequest, opts ...grpc.CallOption) (*Extensions, error)
+	// Owner only. Approves exactly the grants and hosts the person was shown and
+	// turns the extension on; refused when its manifest asks for anything else
+	// now, or does not load.
+	ApproveExtension(ctx context.Context, in *ApproveExtensionRequest, opts ...grpc.CallOption) (*Extensions, error)
+	// Owner only. Turns an approved extension off, or back on (refused when it
+	// asks for more than was approved: that needs ApproveExtension).
+	SetExtensionEnabled(ctx context.Context, in *SetExtensionEnabledRequest, opts ...grpc.CallOption) (*Extensions, error)
+	// Owner only. Deletes an extension's folder and its approval.
+	RemoveExtension(ctx context.Context, in *RemoveExtensionRequest, opts ...grpc.CallOption) (*Extensions, error)
+	// Owner only. Copies one of the bundled examples into the folder, not yet approved.
+	InstallExampleExtension(ctx context.Context, in *InstallExampleExtensionRequest, opts ...grpc.CallOption) (*Extensions, error)
+	// Owner only. Opens one panel of a running extension: the address of its
+	// sandboxed page on the extension content origin, and the credential the
+	// app's bridge calls the Runner with for it, which admits its approved
+	// grants alone and is revoked when they change.
+	OpenExtensionPanel(ctx context.Context, in *OpenExtensionPanelRequest, opts ...grpc.CallOption) (*ExtensionPanelSession, error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -2308,6 +2334,66 @@ func (c *runnerServiceClient) UpdateConfigFile(ctx context.Context, in *UpdateCo
 	return out, nil
 }
 
+func (c *runnerServiceClient) ListExtensions(ctx context.Context, in *ListExtensionsRequest, opts ...grpc.CallOption) (*Extensions, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Extensions)
+	err := c.cc.Invoke(ctx, RunnerService_ListExtensions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ApproveExtension(ctx context.Context, in *ApproveExtensionRequest, opts ...grpc.CallOption) (*Extensions, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Extensions)
+	err := c.cc.Invoke(ctx, RunnerService_ApproveExtension_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SetExtensionEnabled(ctx context.Context, in *SetExtensionEnabledRequest, opts ...grpc.CallOption) (*Extensions, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Extensions)
+	err := c.cc.Invoke(ctx, RunnerService_SetExtensionEnabled_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RemoveExtension(ctx context.Context, in *RemoveExtensionRequest, opts ...grpc.CallOption) (*Extensions, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Extensions)
+	err := c.cc.Invoke(ctx, RunnerService_RemoveExtension_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) InstallExampleExtension(ctx context.Context, in *InstallExampleExtensionRequest, opts ...grpc.CallOption) (*Extensions, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Extensions)
+	err := c.cc.Invoke(ctx, RunnerService_InstallExampleExtension_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) OpenExtensionPanel(ctx context.Context, in *OpenExtensionPanelRequest, opts ...grpc.CallOption) (*ExtensionPanelSession, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExtensionPanelSession)
+	err := c.cc.Invoke(ctx, RunnerService_OpenExtensionPanel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListWorkspaceRepositories(ctx context.Context, in *ListWorkspaceRepositoriesRequest, opts ...grpc.CallOption) (*WorkspaceRepositories, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkspaceRepositories)
@@ -2774,6 +2860,26 @@ type RunnerServiceServer interface {
 	// whole new content (import), or removal (a layout). Nothing is written
 	// when the result would not load; the refusal names each problem by line.
 	UpdateConfigFile(context.Context, *UpdateConfigFileRequest) (*ConfigFiles, error)
+	// Owner only. Sandboxed panel extensions (EXTENSIONS.md): the folders in the
+	// config folder's extensions/, each with what its manifest asks for, what
+	// the person approved, and its state. Reloaded every second.
+	ListExtensions(context.Context, *ListExtensionsRequest) (*Extensions, error)
+	// Owner only. Approves exactly the grants and hosts the person was shown and
+	// turns the extension on; refused when its manifest asks for anything else
+	// now, or does not load.
+	ApproveExtension(context.Context, *ApproveExtensionRequest) (*Extensions, error)
+	// Owner only. Turns an approved extension off, or back on (refused when it
+	// asks for more than was approved: that needs ApproveExtension).
+	SetExtensionEnabled(context.Context, *SetExtensionEnabledRequest) (*Extensions, error)
+	// Owner only. Deletes an extension's folder and its approval.
+	RemoveExtension(context.Context, *RemoveExtensionRequest) (*Extensions, error)
+	// Owner only. Copies one of the bundled examples into the folder, not yet approved.
+	InstallExampleExtension(context.Context, *InstallExampleExtensionRequest) (*Extensions, error)
+	// Owner only. Opens one panel of a running extension: the address of its
+	// sandboxed page on the extension content origin, and the credential the
+	// app's bridge calls the Runner with for it, which admits its approved
+	// grants alone and is revoked when they change.
+	OpenExtensionPanel(context.Context, *OpenExtensionPanelRequest) (*ExtensionPanelSession, error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -3320,6 +3426,24 @@ func (UnimplementedRunnerServiceServer) GetConfigFiles(context.Context, *GetConf
 }
 func (UnimplementedRunnerServiceServer) UpdateConfigFile(context.Context, *UpdateConfigFileRequest) (*ConfigFiles, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateConfigFile not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListExtensions(context.Context, *ListExtensionsRequest) (*Extensions, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListExtensions not implemented")
+}
+func (UnimplementedRunnerServiceServer) ApproveExtension(context.Context, *ApproveExtensionRequest) (*Extensions, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveExtension not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetExtensionEnabled(context.Context, *SetExtensionEnabledRequest) (*Extensions, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetExtensionEnabled not implemented")
+}
+func (UnimplementedRunnerServiceServer) RemoveExtension(context.Context, *RemoveExtensionRequest) (*Extensions, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveExtension not implemented")
+}
+func (UnimplementedRunnerServiceServer) InstallExampleExtension(context.Context, *InstallExampleExtensionRequest) (*Extensions, error) {
+	return nil, status.Error(codes.Unimplemented, "method InstallExampleExtension not implemented")
+}
+func (UnimplementedRunnerServiceServer) OpenExtensionPanel(context.Context, *OpenExtensionPanelRequest) (*ExtensionPanelSession, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenExtensionPanel not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListWorkspaceRepositories(context.Context, *ListWorkspaceRepositoriesRequest) (*WorkspaceRepositories, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceRepositories not implemented")
@@ -6346,6 +6470,114 @@ func _RunnerService_UpdateConfigFile_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_ListExtensions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListExtensionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListExtensions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListExtensions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListExtensions(ctx, req.(*ListExtensionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ApproveExtension_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveExtensionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ApproveExtension(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ApproveExtension_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ApproveExtension(ctx, req.(*ApproveExtensionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SetExtensionEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetExtensionEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetExtensionEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetExtensionEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetExtensionEnabled(ctx, req.(*SetExtensionEnabledRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RemoveExtension_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveExtensionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RemoveExtension(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RemoveExtension_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RemoveExtension(ctx, req.(*RemoveExtensionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_InstallExampleExtension_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InstallExampleExtensionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).InstallExampleExtension(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_InstallExampleExtension_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).InstallExampleExtension(ctx, req.(*InstallExampleExtensionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_OpenExtensionPanel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenExtensionPanelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).OpenExtensionPanel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_OpenExtensionPanel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).OpenExtensionPanel(ctx, req.(*OpenExtensionPanelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListWorkspaceRepositories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListWorkspaceRepositoriesRequest)
 	if err := dec(in); err != nil {
@@ -7191,6 +7423,30 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateConfigFile",
 			Handler:    _RunnerService_UpdateConfigFile_Handler,
+		},
+		{
+			MethodName: "ListExtensions",
+			Handler:    _RunnerService_ListExtensions_Handler,
+		},
+		{
+			MethodName: "ApproveExtension",
+			Handler:    _RunnerService_ApproveExtension_Handler,
+		},
+		{
+			MethodName: "SetExtensionEnabled",
+			Handler:    _RunnerService_SetExtensionEnabled_Handler,
+		},
+		{
+			MethodName: "RemoveExtension",
+			Handler:    _RunnerService_RemoveExtension_Handler,
+		},
+		{
+			MethodName: "InstallExampleExtension",
+			Handler:    _RunnerService_InstallExampleExtension_Handler,
+		},
+		{
+			MethodName: "OpenExtensionPanel",
+			Handler:    _RunnerService_OpenExtensionPanel_Handler,
 		},
 		{
 			MethodName: "ListWorkspaceRepositories",

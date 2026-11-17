@@ -38,7 +38,7 @@ export function NotificationSettings() {
   };
   return <section className="notification-settings" aria-labelledby="notification-settings-title">
     <SettingsHeader id="notification-settings-title" title="Notifications" description="Lazybox tells you when a conversation you are not looking at needs you: a small toast while Lazybox is in front, a system notification when it is not. Every conversation, notified or not, is in the Inbox."/>
-    <ConfigFileStatus name="settings" what="These settings"/>
+    <ConfigFileStatus name="settings" what="These settings" section="notifications"/>
     {!supported && <p className="settings-error tone-note" role="note">This window does not send notifications; the main Lazybox window does.</p>}
     {permission === 'denied' && <p className="settings-error" role="alert">Notifications are blocked for this site. Allow them in your browser’s site settings, then come back.</p>}
     {permission === 'default' && host?.requestNotificationPermission && <p className="settings-error tone-note">Your browser asks before showing notifications. <button onClick={() => void host.requestNotificationPermission!().then(setPermission)}>Allow notifications</button></p>}

@@ -347,6 +347,26 @@ service RunnerService {
   // whole new content (import), or removal (a layout). Nothing is written
   // when the result would not load; the refusal names each problem by line.
   rpc UpdateConfigFile(UpdateConfigFileRequest) returns (ConfigFiles);
+  // Owner only. Sandboxed panel extensions (EXTENSIONS.md): the folders in the
+  // config folder's extensions/, each with what its manifest asks for, what
+  // the person approved, and its state. Reloaded every second.
+  rpc ListExtensions(ListExtensionsRequest) returns (Extensions);
+  // Owner only. Approves exactly the grants and hosts the person was shown and
+  // turns the extension on; refused when its manifest asks for anything else
+  // now, or does not load.
+  rpc ApproveExtension(ApproveExtensionRequest) returns (Extensions);
+  // Owner only. Turns an approved extension off, or back on (refused when it
+  // asks for more than was approved: that needs ApproveExtension).
+  rpc SetExtensionEnabled(SetExtensionEnabledRequest) returns (Extensions);
+  // Owner only. Deletes an extension's folder and its approval.
+  rpc RemoveExtension(RemoveExtensionRequest) returns (Extensions);
+  // Owner only. Copies one of the bundled examples into the folder, not yet approved.
+  rpc InstallExampleExtension(InstallExampleExtensionRequest) returns (Extensions);
+  // Owner only. Opens one panel of a running extension: the address of its
+  // sandboxed page on the extension content origin, and the credential the
+  // app's bridge calls the Runner with for it, which admits its approved
+  // grants alone and is revoked when they change.
+  rpc OpenExtensionPanel(OpenExtensionPanelRequest) returns (ExtensionPanelSession);
   // Agents ask for a repository instead of reaching outside their workspace
   // (WORKSPACES.md, "When an agent needs another repository"). An agent
   // credential may list its own execution's workspace repositories, ask to
@@ -3261,4 +3281,86 @@ message BrowserSettings {
 }
 message ClearBrowserDataRequest {
   string collection_id = 1;
+}
+message ListExtensionsRequest {}
+message Extensions {
+  // The config folder's extensions/ (it may not exist yet).
+  string directory = 1;
+  repeated Extension extensions = 2;
+  // Bundled examples, and whether each is in the folder.
+  repeated ExtensionExample examples = 3;
+  uint64 revision = 4;
+  // The extension protocol this Runner serves.
+  uint32 protocol = 5;
+}
+message Extension {
+  // Its folder's name.
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string description = 4;
+  string author = 5;
+  string homepage = 6;
+  string path = 7;
+  // new (never approved), enabled, disabled, review (asks for more than was
+  // approved; runs with what was), or broken (does not load).
+  string state = 8;
+  repeated ExtensionPanel panels = 9;
+  // What its manifest asks for now.
+  repeated string grants = 10;
+  repeated string hosts = 11;
+  // What the person approved.
+  repeated string approved_grants = 12;
+  repeated string approved_hosts = 13;
+  int64 approved_at_unix_millis = 14;
+  // Why it does not load, and its manifest's problems by line.
+  string error = 15;
+  repeated UserActionIssue issues = 16;
+  // Changes whenever one of its files does: open panels reload.
+  string digest = 17;
+}
+message ExtensionPanel {
+  string id = 1;
+  string title = 2;
+  string icon = 3;
+  string entry = 4;
+  string description = 5;
+}
+message ExtensionExample {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool installed = 4;
+}
+message ApproveExtensionRequest {
+  string id = 1;
+  // Exactly what the approval sheet showed.
+  repeated string grants = 2;
+  repeated string hosts = 3;
+}
+message SetExtensionEnabledRequest {
+  string id = 1;
+  bool enabled = 2;
+}
+message RemoveExtensionRequest { string id = 1; }
+message InstallExampleExtensionRequest { string example = 1; }
+message OpenExtensionPanelRequest {
+  string id = 1;
+  // A panel id; empty opens its first.
+  string panel = 2;
+  // The app's own origin, which may frame the page.
+  string origin = 3;
+}
+message ExtensionPanelSession {
+  // The shell page to frame (sandbox="allow-scripts").
+  string url = 1;
+  // The extension content origin.
+  string content_origin = 2;
+  // What the bridge calls the Runner with for this panel.
+  string credential = 3;
+  // What this panel may do: what it asks for and the person approved.
+  repeated string grants = 4;
+  repeated string hosts = 5;
+  string digest = 6;
+  uint32 protocol = 7;
 }

@@ -1561,7 +1561,8 @@
   "browser",
   "files",
   "editor",
-  "artifacts"
+  "artifacts",
+  "extension"
  ],
  "builtinLayouts": [
   {

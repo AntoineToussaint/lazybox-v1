@@ -38,6 +38,9 @@ type powerState struct {
 	UI *power.Broker
 	// Config is keys.yaml, settings.yaml and layouts/*.yaml beside the actions file.
 	Config *power.Config
+	// Extensions are the sandboxed panels in the config folder's extensions/
+	// (EXTENSIONS.md), with the person's approvals kept in the Runner's state.
+	Extensions *power.Extensions
 
 	credMu sync.Mutex
 	// hookCreds: the grants of each running hook that holds a credential.
@@ -60,6 +63,7 @@ func (b *Bench) openPower() {
 	}
 	b.power.Actions = power.NewManager(path)
 	b.power.Config = power.NewConfig(filepath.Dir(path))
+	b.power.Extensions = power.NewExtensions(filepath.Join(filepath.Dir(path), "extensions"), filepath.Join(b.Config.State, "extensions.json"))
 	b.power.UI = power.NewBroker()
 	b.power.Hooks = power.NewDispatcher(b.power.Actions, b.launchHook)
 	b.power.hookCreds = map[string][]string{}
@@ -81,6 +85,7 @@ func (b *Bench) openPower() {
 			case <-ticker.C:
 				b.power.Actions.Reload()
 				b.power.Config.Reload()
+				b.power.Extensions.Reload()
 				b.ObserveHookEvents()
 			}
 		}
@@ -98,6 +103,19 @@ func (b *Bench) UI() *power.Broker { return b.power.UI }
 
 // ConfigFiles are the person's config files beside the actions file.
 func (b *Bench) ConfigFiles() *power.Config { return b.power.Config }
+
+// Extensions are the person's sandboxed panel extensions.
+func (b *Bench) Extensions() *power.Extensions { return b.power.Extensions }
+
+// ExtensionScope returns the extension and approved grants of a live
+// extension credential (transport/extension_auth.go), or an error for a
+// forged, revoked or expired one.
+func (b *Bench) ExtensionScope(token string) (string, []string, error) {
+	if b.power.Extensions == nil {
+		return "", nil, power.ErrExtensionCredential
+	}
+	return b.power.Extensions.Scope(token)
+}
 
 // hookObserver turns state changes into events. Its first pass only records
 // what is already there: a Runner restart replays nothing.

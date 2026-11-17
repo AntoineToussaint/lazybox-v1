@@ -17,6 +17,7 @@ import { actionDefinition, actionDefinitions, bindings, canonicalBinding, isMac,
 import { keyboardPreset, validateKeymap, withFixedKeys, type Keymap, type MenuEntry, type VimPreferences } from './keyboard';
 import { builtinPresets, stackTemplateSidebar, type LayoutPreset, type TemplateNode } from './layout-presets';
 import { defaultNotificationPreferences, type NotificationPreferences } from './attention';
+import { DEFAULT_PREFERENCES, parsePreferences, type AppearancePreferences, type Typography } from './appearance/preferences';
 
 export type Issue = { path: string; line: number; message: string; severity: string };
 export type KeysValue = {
@@ -25,7 +26,7 @@ export type KeysValue = {
   menu: (MenuEntry & { line: number })[];
   vim: { messageBox: boolean; fileEditor: boolean };
 };
-export type SettingsValue = { notifications: Partial<NotificationPreferences> };
+export type SettingsValue = { notifications: Partial<NotificationPreferences>; appearance?: AppearanceFile };
 export type LayoutValue = { name: string; description: string; layout: TemplateNode };
 
 /** A config file with what it declares, parsed. */
@@ -127,6 +128,74 @@ export function settingsEdits(next: NotificationPreferences, file: SettingsValue
   return notificationFields.filter(([, key]) => next[key] !== current[key]).map(([name, key]) => ({ path: ['notifications', name], json: JSON.stringify(next[key]) }));
 }
 export const defaultNotifications = (p: NotificationPreferences) => notificationFields.every(([, key]) => p[key] === defaultNotificationPreferences[key]);
+
+// ---- settings.yaml: appearance -------------------------------------------
+
+type TopField = 'mode' | 'darkTheme' | 'lightTheme' | 'accent' | 'minContrast' | 'motion';
+/** The appearance section as the Runner hands it over: the app's names, only what the file sets. */
+export type AppearanceFile = Partial<Pick<AppearancePreferences, TopField> & Typography & { zoom: number }>;
+/**
+ * The file's names for the appearance preferences, in its order
+ * (internal/power/settings.go, AppearanceFields). `top`: a field of the
+ * preferences with a default; `type`: a typography field, absent meaning "the
+ * theme's"; `zoom`: the desktop app's zoom.
+ */
+export const appearanceFields: [string, keyof AppearanceFile, 'top' | 'type' | 'zoom'][] = [
+  ['mode', 'mode', 'top'], ['dark-theme', 'darkTheme', 'top'], ['light-theme', 'lightTheme', 'top'], ['accent', 'accent', 'top'], ['min-contrast', 'minContrast', 'top'], ['motion', 'motion', 'top'],
+  ['density', 'density', 'type'], ['interface-font', 'uiFont', 'type'], ['interface-font-size', 'uiFontSize', 'type'], ['code-font', 'codeFont', 'type'], ['code-font-size', 'codeFontSize', 'type'], ['ligatures', 'ligatures', 'type'],
+  ['chat-font-size', 'chatFontSize', 'type'], ['chat-line-height', 'chatLineHeight', 'type'], ['chat-paragraph-gap', 'chatParagraphGap', 'type'], ['chat-line-width', 'chatMaxWidth', 'type'],
+  ['zoom', 'zoom', 'zoom'],
+];
+const zoomLevel = (value: unknown) => typeof value === 'number' && value >= 0.5 && value <= 2 ? value : undefined;
+
+/** What the file would say for these preferences (and zoom): every value that is not its default. */
+export function appearanceToFile(preferences: AppearancePreferences, zoom?: number): AppearanceFile {
+  const out: Record<string, unknown> = {};
+  for (const [, key, scope] of appearanceFields) {
+    const value = scope === 'type' ? preferences.typography[key as keyof Typography] : scope === 'zoom' ? zoom : preferences[key as TopField];
+    if (value === undefined || (scope === 'top' && value === DEFAULT_PREFERENCES[key as TopField]) || (scope === 'zoom' && value === 1)) continue;
+    out[key] = value;
+  }
+  return out as AppearanceFile;
+}
+
+/**
+ * The preferences a file's appearance section means, over the device's own
+ * colour overrides and cached user themes (which stay on the device). Values
+ * the app would refuse are dropped, as a stored preference would be.
+ */
+export function appearanceFromFile(file: AppearanceFile | undefined, current: AppearancePreferences): { preferences: AppearancePreferences; zoom: number } {
+  const value = file || {};
+  const typography: Record<string, unknown> = {};
+  for (const [, key, scope] of appearanceFields) if (scope === 'type' && value[key] !== undefined) typography[key] = value[key];
+  const top = Object.fromEntries(appearanceFields.filter(([, key, scope]) => scope === 'top' && value[key] !== undefined).map(([, key]) => [key, value[key]]));
+  const preferences = parsePreferences(JSON.stringify({ ...top, typography }));
+  if (current.tokens) preferences.tokens = current.tokens;
+  if (current.userThemes) preferences.userThemes = current.userThemes;
+  return { preferences, zoom: zoomLevel(value.zoom) ?? 1 };
+}
+
+/** Whether two appearance sections say the same. */
+export const sameAppearance = (a: AppearanceFile, b: AppearanceFile) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+
+/**
+ * The edits that make settings.yaml's appearance section say `next`: a value
+ * whose meaning changed is written, one back at its default is removed. A
+ * value the file states that still means the same (mode: system) is left as
+ * the person wrote it.
+ */
+export function appearanceEdits(next: AppearanceFile, file: AppearanceFile | undefined): ConfigEdit[] {
+  const had = file || {};
+  const effective = (value: AppearanceFile, key: keyof AppearanceFile, scope: string) => value[key] ?? (scope === 'top' ? DEFAULT_PREFERENCES[key as TopField] : scope === 'zoom' ? 1 : undefined);
+  const edits: ConfigEdit[] = [];
+  for (const [name, key, scope] of appearanceFields) {
+    if (effective(next, key, scope) === effective(had, key, scope)) continue;
+    edits.push({ path: ['appearance', name], json: next[key] === undefined ? '' : JSON.stringify(next[key]) });
+  }
+  return edits;
+}
+/** Whether nothing in these preferences (and zoom) is worth a line in the file. */
+export const defaultAppearance = (preferences: AppearancePreferences, zoom?: number) => !Object.keys(appearanceToFile(preferences, zoom)).length;
 
 // ---- layouts/*.yaml -------------------------------------------------------
 

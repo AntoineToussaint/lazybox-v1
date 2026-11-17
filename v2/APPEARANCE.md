@@ -11,21 +11,38 @@ motion. Everything applies at once, in every window, and is kept.
 
 | Setting | What it does | Kept where |
 |---|---|---|
-| Appearance | *System* follows the computer's light or dark mode; *Light* and *Dark* fix it. | This device |
-| Dark / light theme | The theme used for each mode: Dark, Dark high contrast, Light, Solarized light, and your own (below). | This device |
-| Accent colour | Buttons, selection, focus, links. The whole accent family (tints, borders, solid fills) follows it. | This device |
-| Minimum contrast | Off, 3:1, 4.5:1 (default, WCAG AA) or 7:1. Text too faint against its background is moved just far enough in lightness to reach it, keeping its hue. Surfaces and fills never change. | This device |
+| Appearance | *System* follows the computer's light or dark mode; *Light* and *Dark* fix it. | settings.yaml |
+| Dark / light theme | The theme used for each mode: Dark, Dark high contrast, Light, Solarized light, and your own (below). | settings.yaml |
+| Accent colour | Buttons, selection, focus, links. The whole accent family (tints, borders, solid fills) follows it. | settings.yaml |
+| Minimum contrast | Off, 3:1, 4.5:1 (default, WCAG AA) or 7:1. Text too faint against its background is moved just far enough in lightness to reach it, keeping its hue. Surfaces and fills never change. | settings.yaml |
 | Colour overrides | Any token, on top of every theme. | This device |
-| Interface font and text size | Any installed font; 11–16 px. Every UI text size scales with it. | This device |
-| Code font, size, ligatures | The editor, code blocks, diffs, command output and the terminal. Empty: the system monospace, and for command output the bundled JetBrains Mono. | This device |
-| Zoom | Desktop app: everything, every window, 50–200 %. **View → Zoom In / Zoom Out / Actual Size** (`⌘=` `⌘−` `⌘0`) from anywhere; kept across launches. In a browser, use the browser's zoom. | Desktop app data folder |
-| Chat text (Settings → Chat) | Size, line spacing (Compact 1.35, Comfortable 1.5, Relaxed 1.7 or any value), paragraph spacing, and a line width cap (70–120 characters, centred) for wide windows. A sample message shows the result. | This device |
-| Density | Compact, comfortable or relaxed rows in lists and the sidebar; also sets chat line and paragraph spacing. | This device |
-| Motion | *System* follows the computer's reduced-motion setting; *Reduce* turns off animations and smooth scrolling. | This device |
+| Interface font and text size | Any installed font; 11–16 px. Every UI text size scales with it. | settings.yaml |
+| Code font, size, ligatures | The editor, code blocks, diffs, command output and the terminal. Empty: the system monospace, and for command output the bundled JetBrains Mono. | settings.yaml |
+| Zoom | Desktop app: everything, every window, 50–200 %. **View → Zoom In / Zoom Out / Actual Size** (`⌘=` `⌘−` `⌘0`) from anywhere; kept across launches. In a browser, use the browser's zoom. | settings.yaml (`zoom`), and the desktop app data folder |
+| Chat text (Settings → Chat) | Size, line spacing (Compact 1.35, Comfortable 1.5, Relaxed 1.7 or any value), paragraph spacing, and a line width cap (70–120 characters, centred) for wide windows. A sample message shows the result. | settings.yaml |
+| Density | Compact, comfortable or relaxed rows in lists and the sidebar; also sets chat line and paragraph spacing. | settings.yaml |
+| Motion | *System* follows the computer's reduced-motion setting; *Reduce* turns off animations and smooth scrolling. | settings.yaml |
 
-Preferences are kept per device under the Runner authority, like keyboard
-shortcuts (`ViewStateStore`, `appearance:v1`); a window opening applies the
-last ones before it draws, so it never flashes the wrong theme.
+Everything but colour overrides is kept in **`settings.yaml`**, beside your
+other Lazybox files, under `appearance:` ([POWER.md](POWER.md#config-files),
+[every field](docs/reference/configuration.md#settingsyaml-settings-you-may-keep-in-a-file)).
+Settings → Appearance shows the file's path and its problems by line; a save
+in an editor applies within two seconds in every window, a value with a
+mistake is left out (the rest applies), and a value you remove goes back to
+its default. Settings writes one value at a time and keeps your comments; a
+slider dragged is one write, of where it stopped.
+
+Each window also keeps the last preferences applied on the device
+(`ViewStateStore`, `appearance:v1`) and applies them before it draws, so it
+never flashes the wrong theme; the file then applies over them. A change made
+just before a window closed, which had not reached the file yet, wins over the
+file at the next start and is written to it (`appearance:unsynced:v1`). What
+you set before the file existed moves into it once.
+
+Zoom belongs to the desktop app: it is applied from the file's `zoom` and
+written there when you zoom (the View menu, `⌘=` `⌘−` `⌘0`, Settings). A
+browser tab neither reads nor changes it: use the browser's own zoom, and the
+file's `zoom` stays as the desktop app left it.
 
 ### Your own themes
 
@@ -102,4 +119,7 @@ Tests: `npm run test:client` (theme parsing and validation, derivation,
 contrast of every built-in theme, the token sweep, the stylesheet guard) and
 `npm run test:appearance` (key pages in Dark and Light use only tokens with
 body text at 4.5:1 or better; every setting applies live and persists; user
-themes load, hot reload and report errors), against the fake Runner.
+themes load, hot reload and report errors; the appearance section of
+settings.yaml written from Settings, applied from an editor save, its mistakes
+by line, a change just before a reload kept), against the fake Runner. The
+Runner's parser of the section is `internal/power` (`TestSettingsAppearance*`).

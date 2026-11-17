@@ -48,6 +48,16 @@ func TestConfigVerbs(t *testing.T) {
 	if out := r.cli(r.owner(), "", "config", "get", "settings", "notifications.review"); strings.TrimSpace(out.stdout) != "true" {
 		t.Fatalf("get setting: %+v", out)
 	}
+	// A colour typed bare is the colour, not a YAML comment that would clear it.
+	if out := r.cli(r.owner(), "", "config", "set", "settings", "appearance.accent", "#7fb0f0"); out.code != 0 {
+		t.Fatalf("set accent: %+v", out)
+	}
+	if out := r.cli(r.owner(), "", "config", "get", "settings", "appearance.accent"); strings.TrimSpace(out.stdout) != "#7fb0f0" {
+		t.Fatalf("get accent: %+v", out)
+	}
+	if out := r.cli(r.owner(), "", "config", "set", "settings", "appearance.zoom", "3"); out.code != exitUsage || !strings.Contains(out.stdout, "outside 0.5 to 2") {
+		t.Fatalf("zoom out of range: %+v", out)
+	}
 	// A conflict is refused by line and nothing is written.
 	before, _ := os.ReadFile(path)
 	out := r.cli(r.owner(), "", "config", "set", "keys", "inbox.open", "Mod+y")

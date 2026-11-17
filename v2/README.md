@@ -62,7 +62,8 @@ code over Tailscale *(preview)* ([guide](docs/guides/phone.md)) · light, dark a
 themes ([guide](docs/guides/appearance.md)) · voice: hold `⌥Space` to dictate,
 say commands, hear replies — on-device on the Mac ([guide](docs/guides/voice.md)) · a `lazybox`
 CLI that does what the app does, plus your own actions and hooks in one YAML
-file ([guide](docs/guides/automate.md)).
+file ([guide](docs/guides/automate.md)) · panels of your own — a board, a dashboard — sandboxed, doing only what you
+allowed ([guide](docs/guides/extensions.md)).
 
 ## Install
 

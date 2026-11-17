@@ -119,6 +119,10 @@ func (s *Service) PostUiRequest(ctx context.Context, r *pb.UiRequest) (*pb.UiReq
 		if who.hook != "" && !a.Safe {
 			return nil, grpcError(codes.PermissionDenied, errors.New(a.ID+" is not one a hook may run: hooks run only actions that show, focus or arrange (lazybox do --list marks them safe)"))
 		}
+		// So may an extension, and only the actions approved by name (extension_auth.go).
+		if who.extension != "" && !a.Safe {
+			return nil, grpcError(codes.PermissionDenied, errors.New(a.ID+" is not one an extension may run: only actions that show, focus or arrange"))
+		}
 	}
 	// Reread first: an action saved a moment ago is there.
 	snap, _ := s.Bench.Actions().Reload()
@@ -128,7 +132,7 @@ func (s *Service) PostUiRequest(ctx context.Context, r *pb.UiRequest) (*pb.UiReq
 	if r.Kind == power.UIOpen && r.CollectionId == "" && r.SessionId == "" && r.Panel == "" {
 		return nil, grpcError(codes.InvalidArgument, errors.New("open a workspace, a conversation, a file or a panel"))
 	}
-	posted, err := s.Bench.UI().Post(power.UIRequest{Kind: r.Kind, CollectionID: r.CollectionId, SessionID: r.SessionId, File: r.File, Line: int(r.Line), Panel: r.Panel, ActionID: r.ActionId, Argument: r.Argument, Poster: who.hook})
+	posted, err := s.Bench.UI().Post(power.UIRequest{Kind: r.Kind, CollectionID: r.CollectionId, SessionID: r.SessionId, File: r.File, Line: int(r.Line), Panel: r.Panel, ActionID: r.ActionId, Argument: r.Argument, Poster: who.poster()})
 	if errors.Is(err, power.ErrNoWindow) {
 		return nil, grpcError(codes.Unavailable, err)
 	}
@@ -145,7 +149,7 @@ func (s *Service) WaitUiRequest(ctx context.Context, r *pb.WaitUiRequestRequest)
 	}
 	timeout = min(timeout, 2*time.Minute)
 	who, _ := ctx.Value(principalKey{}).(principal)
-	got, err := s.Bench.UI().Wait(ctx, r.Id, who.hook, timeout)
+	got, err := s.Bench.UI().Wait(ctx, r.Id, who.poster(), timeout)
 	if err != nil {
 		return nil, rpcError(err)
 	}

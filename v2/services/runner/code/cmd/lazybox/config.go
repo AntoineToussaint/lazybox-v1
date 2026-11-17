@@ -361,7 +361,9 @@ func (c *cli) configSet(dir string, args []string, remove bool) error {
 	if !remove {
 		// The value is YAML: true, 3, [Mod+k, Ctrl+k], or text ("] ] p" stays text).
 		var v any
-		if err := yaml.Unmarshal([]byte(rest[1]), &v); err != nil {
+		// A value YAML reads as nothing but was not written as null ("#7fb0f0",
+		// a comment to YAML) is the text typed.
+		if err := yaml.Unmarshal([]byte(rest[1]), &v); err != nil || (v == nil && !slices.Contains([]string{"", "null", "~", "Null", "NULL"}, strings.TrimSpace(rest[1]))) {
 			v = rest[1]
 		}
 		data, err := json.Marshal(v)

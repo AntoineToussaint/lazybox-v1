@@ -91,6 +91,9 @@ const paths: Record<string, string[]> = {
   pin: ['M12 17v5', 'M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V17h14v-1.8a2 2 0 0 0-1.1-1.8l-1.8-.9a2 2 0 0 1-1.1-1.8V6.5a1.5 1.5 0 0 0 0-3.5H9a1.5 1.5 0 0 0 0 3.5z'],
   archive: ['M2 3h20v5H2z', 'M4 8v12h16V8', 'M10 12h4'],
   columns: ['M3 4h18v16H3z', 'M12 4v16'],
+  // An extension: a puzzle piece.
+  puzzle: ['M10 4h4v3a2 2 0 1 0 4 0V4h2v6h-3a2 2 0 1 0 0 4h3v6h-6v-3a2 2 0 1 0-4 0v3H4v-6h3a2 2 0 1 0 0-4H4V4z'],
+  chart: ['M4 20h16', 'M7 16v-5', 'M12 16V7', 'M17 16v-8'],
   // The Web panel: a globe, a padlock for a secure page, a page that is not.
   globe: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3'],
   // The agent browser: a window with a pointer in it.

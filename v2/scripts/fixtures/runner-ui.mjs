@@ -11,6 +11,7 @@ const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-pr
 import { createMissionFake } from './missions-fake.mjs';
 import { createPowerFake } from './power-fake.mjs';
 import { createConfigFake } from './config-fake.mjs';
+import { createExtensionsFake, extensionAllows } from './extensions-fake.mjs';
 import { createBrowserFake } from './browser-fake.mjs';
 import { createAcpFake } from './acp-ui-fake.mjs';
 import { artifactFixture } from './artifacts.mjs';
@@ -284,6 +285,7 @@ export async function startRunnerFixture() {
   const runtimeCommands = [];
   const power = createPowerFake({ frame, commands, runtimeCommands, sessions, mutations });
   const config = createConfigFake({ mutations });
+  const extensions = await createExtensionsFake({ mutations });
   const runCommand = (collectionId, origin, title, output) => { const command = { id: `${origin}-${collectionId}-${runtimeCommands.length}`, sessionId: '', collectionId, origin, title, mode: 'managed', done: false, offset: String(Buffer.byteLength(output)), output, argv: ['/bin/sh', '-lc', title] }; runtimeCommands.push(command); return command; };
   const runState = (command, extra = {}) => ({ state: 'running', commandId: command.id, startedAtUnixMillis: now(), lastLine: command.output.trim().split('\n').at(-1), ...extra });
   const finished = (command, state, extra = {}) => { command.done = true; Object.assign(command, extra.exitCode !== undefined ? { exitCode: extra.exitCode } : {}, extra.signal ? { signal: extra.signal } : {}); return { state, commandId: command.id, startedAtUnixMillis: String(Date.now() - 60000), ...extra }; };
@@ -439,7 +441,18 @@ actions:
     }
     // The device gateway's pairing and sign-in endpoints (REMOTE.md), checked as the Runner checks them.
     if (req.url.startsWith('/remote/v1/')) return remoteEndpoint(req, res);
-    let device;
+    let device, extension;
+    if (req.headers.authorization?.startsWith('Bearer lbx-ext.')) {
+      // An extension panel's credential (EXTENSIONS.md): only what its grants allow, as the Runner checks it.
+      const method = req.url.split('/').at(-1);
+      extension = extensions.scope(req.headers.authorization.slice(7));
+      if (!extension) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unauthenticated', message: 'not a live extension credential' })); return; }
+      const chunks = []; for await (const chunk of req) chunks.push(chunk);
+      req.extensionBody = Buffer.concat(chunks);
+      let parsed = {}; try { parsed = JSON.parse(req.extensionBody.toString() || '{}'); } catch { /* refused below */ }
+      extensions.calls.push({ method, extension: extension.id });
+      if (!extensionAllows(extension.grants, method, parsed)) { extensions.denied.push(method); res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'permission_denied', message: 'this extension was not given that' })); return; }
+    } else
     if (req.headers.authorization?.startsWith('Bearer lbx-device.')) {
       const method = req.url.split('/').at(-1);
       device = remote.deviceFor(req.headers.authorization.slice(7));
@@ -452,13 +465,13 @@ actions:
     if (runner.down) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'unavailable', message: 'Fixture Runner is restarting' })); return; }
     const method = req.url.split('/').at(-1); let body;
     try {
-      const chunks = []; for await (const chunk of req) chunks.push(chunk);
-      let data = Buffer.concat(chunks);
+      const chunks = []; if (!req.extensionBody) for await (const chunk of req) chunks.push(chunk);
+      let data = req.extensionBody || Buffer.concat(chunks);
       if (req.headers['content-type']?.startsWith('application/connect+json')) data = data.subarray(5, 5 + data.readUInt32BE(1));
       body = JSON.parse(data.toString() || '{}');
     }
     catch { res.writeHead(400); res.end(); return; }
-    calls.push({ method, body, ...(device ? { device: device.id } : {}) });
+    calls.push({ method, body, ...(device ? { device: device.id } : {}), ...(extension ? { extension: extension.id } : {}) });
     if (device && method === 'Apply' && body.permission) { remote.deviceDenied.push('Apply:permission'); res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'permission_denied', message: 'this device is not allowed to do that' })); return; }
     const json = value => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(device && method === 'Info' ? { ...value, profiles: value.profiles.map(({ id, provider, label, managed, isolation }) => ({ id, provider, label, managed, isolation })), pendingEnrollments: [], gateways: [], restartAvailable: false } : value)); };
     const error = (code, message) => { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code, message })); };
@@ -982,7 +995,7 @@ actions:
         runtimeSettings = { revision: String(Number(runtimeSettings.revision) + 1), portRangeStart: body.portRangeStart, portRangeEnd: body.portRangeEnd, repositories };
         return json(runtimeSettingsView());
       }
-      default: { const answer = missions.handle(method, body) || acp.handle(method, body, availabilityReport) || browser.handle(method, body, res) || config.handle(method, body) || await power.handle(method, body, res); if (answer === true) return; if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
+      default: { const answer = missions.handle(method, body) || acp.handle(method, body, availabilityReport) || browser.handle(method, body, res) || config.handle(method, body) || await extensions.handle(method, body) || await power.handle(method, body, res); if (answer === true) return; if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
     }
   };
   const listen = async () => { const next = createServer(handle); await new Promise(resolve => next.listen(0, '127.0.0.1', resolve)); return next; };
@@ -993,11 +1006,11 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, acp, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */
     async moveToNewPort() { const previous = server; server = await listen(); url = `http://127.0.0.1:${server.address().port}`; token = randomUUID(); runner.instanceId = randomUUID(); await stop(previous); await publish(); },
-    async close() { await stop(server); await stop(previewServer); await rm(directory, { recursive: true, force: true }); } };
+    async close() { await stop(server); await stop(previewServer); await extensions.close(); await rm(directory, { recursive: true, force: true }); } };
 }

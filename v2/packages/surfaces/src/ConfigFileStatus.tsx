@@ -6,6 +6,9 @@ import './config-files.css';
 
 const ago = (ms: number) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 5 ? 'just now' : s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`; };
 
+/** settings.yaml's sections, each shown in its own Settings tab. */
+const SETTINGS_SECTIONS = ['notifications', 'appearance'];
+
 /** A path as a person reads it: ~/.config/lazybox/keys.yaml. */
 export const homePath = (path: string) => path.replace(/^\/(?:Users|home)\/[^/]+(?=\/)/, '~');
 
@@ -38,9 +41,11 @@ export function ConfigIssues({ doc, appProblem }: { doc: ConfigDoc; appProblem?:
  * path, whether it exists, and what is wrong with it by line. A file that does
  * not load says so; the last version that loaded stays in force.
  */
-export function ConfigFileStatus({ name, what }: { name: string; what: string }) {
+export function ConfigFileStatus({ name, what, section }: { name: string; what: string; /** Only this part of the file's problems ("appearance"): a file several Settings sections share. */ section?: string }) {
   const files = useConfigFiles();
-  const doc = files.docs.find(d => d.name === name);
+  const whole = files.docs.find(d => d.name === name);
+  // A problem of another section is that section's; one of the file as a whole shows everywhere.
+  const doc = whole && section ? { ...whole, issues: whole.issues.filter(i => { const top = i.path.split(/[.[]/)[0]; return top === section || !SETTINGS_SECTIONS.includes(top); }) } : whole;
   if (!files.loaded || !doc) return files.error ? <p className="config-file-line is-muted" role="status"><Icon name="file" size={14}/><span>{what} are kept in this app; their file could not be read ({files.error})</span></p> : null;
   const errors = errorCount(doc), appProblem = files.appProblems[name];
   const state = !doc.exists ? 'Not created yet: your first change here creates it' : doc.error ? 'Does not load' : `Loaded ${ago(doc.loadedAt)}${errors ? ` · ${errors === 1 ? '1 problem' : `${errors} problems`}` : ''}`;

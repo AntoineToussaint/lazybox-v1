@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { keyboardPreset } from '../packages/surfaces/src/keyboard';
 import { builtinPresets, sameTemplate } from '../packages/surfaces/src/layout-presets';
-import { cycleLayouts, defaultKeys, keysEdits, keysFromFile, layoutFileName, layoutNameOf, layoutsFromFiles, layoutYaml, looksLikeLayoutYaml, notificationsFromFile, settingsEdits, yamlString, type ConfigDoc, type KeysValue } from '../packages/surfaces/src/config-files';
+import { DEFAULT_PREFERENCES } from '../packages/surfaces/src/appearance/preferences';
+import { appearanceEdits, appearanceFields, appearanceFromFile, appearanceToFile, defaultAppearance, cycleLayouts, defaultKeys, keysEdits, keysFromFile, layoutFileName, layoutNameOf, layoutsFromFiles, layoutYaml, looksLikeLayoutYaml, notificationsFromFile, settingsEdits, yamlString, type ConfigDoc, type KeysValue } from '../packages/surfaces/src/config-files';
 import { defaultNotificationPreferences } from '../packages/surfaces/src/attention';
 import { readLayout } from './fixtures/config-fake.mjs';
 
@@ -60,6 +61,31 @@ test('settings.yaml ↔ notification preferences', () => {
     { path: ['notifications', 'review'], json: 'true' }, { path: ['notifications', 'sound-needs-you'], json: 'false' },
   ]);
   assert.deepEqual(settingsEdits({ ...defaultNotificationPreferences, review: true }, { notifications: { review: true } }), []);
+});
+
+test('settings.yaml ↔ appearance preferences: only what differs, kept as written, device-only parts kept', () => {
+  const current = { ...DEFAULT_PREFERENCES, tokens: { accent: '#ff0000' }, typography: {} };
+  // The file's section means these preferences; what it leaves out is the default; colour overrides stay the device's.
+  const { preferences, zoom } = appearanceFromFile({ mode: 'dark', accent: '#7fb0f0', density: 'compact', chatLineHeight: 1.4, zoom: 1.25, uiFontSize: 99 }, current);
+  assert.equal(preferences.mode, 'dark');
+  assert.equal(preferences.accent, '#7fb0f0');
+  assert.deepEqual(preferences.typography, { density: 'compact', chatLineHeight: 1.4 }, 'a size out of range is dropped');
+  assert.deepEqual(preferences.tokens, { accent: '#ff0000' });
+  assert.equal(zoom, 1.25);
+  assert.equal(appearanceFromFile(undefined, current).zoom, 1);
+  // The file the app would write: only values that are not defaults.
+  assert.deepEqual(appearanceToFile(preferences, 1.25), { mode: 'dark', accent: '#7fb0f0', density: 'compact', chatLineHeight: 1.4, zoom: 1.25 });
+  assert.ok(defaultAppearance(DEFAULT_PREFERENCES, 1));
+  assert.ok(!defaultAppearance(DEFAULT_PREFERENCES, 1.1));
+  // Edits: a change is written at its path, a value back at its default is removed,
+  // and a line that still means the same (mode: system) stays as the person wrote it.
+  assert.deepEqual(appearanceEdits({ mode: 'dark', accent: '#7fb0f0' }, undefined), [{ path: ['appearance', 'mode'], json: '"dark"' }, { path: ['appearance', 'accent'], json: '"#7fb0f0"' }]);
+  assert.deepEqual(appearanceEdits({ accent: '#7fb0f0' }, { mode: 'system', accent: '#000000', zoom: 1.5 }), [{ path: ['appearance', 'accent'], json: '"#7fb0f0"' }, { path: ['appearance', 'zoom'], json: '' }]);
+  assert.deepEqual(appearanceEdits({ chatMaxWidth: 100 }, { chatMaxWidth: 100 }), []);
+  assert.deepEqual(appearanceEdits({}, { density: 'comfortable' }), [{ path: ['appearance', 'density'], json: '' }], 'an explicit density is not the theme’s');
+  // Every field the app writes is one the Runner reads (internal/power/settings.go).
+  const goFields = [...readFileSync(new URL('../services/runner/code/internal/power/settings.go', import.meta.url), 'utf8').matchAll(/\{Name: "([a-z-]+)", App: "([A-Za-z]+)"/g)].map(m => [m[1], m[2]]);
+  assert.deepEqual(goFields, appearanceFields.map(([name, key]) => [name, key]));
 });
 
 test('a layout as YAML reads back as the same layout, for every preset', () => {

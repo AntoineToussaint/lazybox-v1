@@ -265,6 +265,9 @@ type principal struct {
 	// (hook_auth.go).
 	hook   string
 	grants []string
+	// extension is an open extension panel's extension id, and grants what
+	// the person approved for it (extension_auth.go).
+	extension string
 }
 
 type principalKey struct{}
@@ -298,6 +301,9 @@ func authenticate(ctx context.Context, owner string, agents AgentCredentials) (p
 	if who, ok := authenticateHook(agents, token); ok {
 		return who, nil
 	}
+	if who, ok := authenticateExtension(agents, token); ok {
+		return who, nil
+	}
 	session, err := agents.AgentSession(ctx, token)
 	if err != nil || session == "" {
 		return principal{}, unauthenticated
@@ -322,6 +328,9 @@ func authorize(ctx context.Context, owner string, agents AgentCredentials, metho
 	}
 	if who.hook != "" {
 		return authorizeHook(who, method, req)
+	}
+	if who.extension != "" {
+		return authorizeExtension(who, method, req)
 	}
 	if who.terminal != "" {
 		if allowed := terminalRPCs[method]; req != nil && allowed != nil && allowed(agents, who, req) {

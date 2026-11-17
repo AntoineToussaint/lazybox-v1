@@ -10,6 +10,8 @@ const now = () => String(Date.now());
 const DIR = '/fixture/config/lazybox';
 const PANELS = ['collections', 'agents', 'chat', 'console', 'terminal', 'assistant', 'changes', 'usage', 'sessions', 'missions', 'processes', 'actions', 'preview', 'web', 'browser', 'files', 'editor', 'artifacts'];
 const NOTIFICATIONS = { 'needs-input': 'needsInput', failed: 'failed', review: 'review', 'dock-badge': 'badge', 'sound-needs-you': 'soundNeedsYou', 'sound-done': 'soundDone' };
+// settings.yaml's appearance names → the app's (internal/power/settings.go, AppearanceFields).
+const APPEARANCE = { mode: 'mode', 'dark-theme': 'darkTheme', 'light-theme': 'lightTheme', accent: 'accent', 'min-contrast': 'minContrast', motion: 'motion', density: 'density', 'interface-font': 'uiFont', 'interface-font-size': 'uiFontSize', 'code-font': 'codeFont', 'code-font-size': 'codeFontSize', ligatures: 'ligatures', 'chat-font-size': 'chatFontSize', 'chat-line-height': 'chatLineHeight', 'chat-paragraph-gap': 'chatParagraphGap', 'chat-line-width': 'chatMaxWidth', zoom: 'zoom' };
 
 /** The subset of YAML the app writes for a layout: returns [value, lineOf(text)]. */
 export function parseLayoutYaml(text) {
@@ -122,8 +124,13 @@ export function createConfigFake({ mutations }) {
           } else if (path[0] === 'leader-menu') keys.menu = (value || []).map((e, i) => ({ mode: 'send', ...e, line: 40 + i }));
           else if (path[0] === 'vim') keys.vim = { ...keys.vim, [path[1] === 'message-box' ? 'messageBox' : 'fileEditor']: !!value };
         } else if (kind === 'settings') {
-          const settings = doc.value = doc.value || { notifications: {} };
-          if (value === undefined) delete settings.notifications[NOTIFICATIONS[path[1]]]; else settings.notifications[NOTIFICATIONS[path[1]]] = value;
+          const settings = doc.value = { notifications: {}, appearance: {}, ...doc.value };
+          settings.notifications = { ...settings.notifications }; settings.appearance = { ...settings.appearance };
+          const [section, names] = path[0] === 'appearance' ? [settings.appearance, APPEARANCE] : [settings.notifications, NOTIFICATIONS];
+          if (!names[path[1]]) return { error: { code: 'failed_precondition', message: `the change has problems: error: line 1 (${path.join('.')}): unknown setting "${path[1]}"` } };
+          // The Runner's range check (internal/power/settings.go), for the one a test refuses.
+          if (path[1] === 'zoom' && value !== undefined && (value < 0.5 || value > 2)) return { error: { code: 'failed_precondition', message: `the change has problems: error: line 1 (appearance.zoom): ${value} is outside 0.5 to 2` } };
+          if (value === undefined) delete section[names[path[1]]]; else section[names[path[1]]] = value;
         } else if (path[0] === 'name' && doc.value) doc.value = { ...doc.value, name: value };
       }
       docs.set(name, doc);

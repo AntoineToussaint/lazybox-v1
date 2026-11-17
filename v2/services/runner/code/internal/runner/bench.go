@@ -1080,6 +1080,10 @@ func (b *Bench) shutdown(detach bool) error {
 			}
 		}
 		b.cancel()
+		if b.power.Extensions != nil {
+			// Open panels lose their pages and credentials with the Runner.
+			b.power.Extensions.Close()
+		}
 		if b.Browser != nil {
 			// The agent browser is the Runner's: it closes with it (BROWSER.md).
 			b.closeErr = errors.Join(b.closeErr, b.Browser.Close())

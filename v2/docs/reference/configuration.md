@@ -9,7 +9,8 @@ repositories and reviewed like code; the rest are yours.
 | [`.lazybox/process.yaml`](#lazyboxprocessyaml-how-missions-run) | each repository | the team, by PR | how missions run: roles, gates, budgets (**Preview**) |
 | [`actions.yaml`](#actionsyaml-your-actions-and-hooks) | `~/.config/lazybox/` | you | your own actions and hooks |
 | [`keys.yaml`](#keysyaml-your-shortcuts) | `~/.config/lazybox/` | you, or Settings → Shortcuts | your keyboard shortcuts, `]]` menu and Vim editing |
-| [`settings.yaml`](#settingsyaml-settings-you-may-keep-in-a-file) | `~/.config/lazybox/` | you, or Settings → Notifications | notifications and sounds |
+| [`settings.yaml`](#settingsyaml-settings-you-may-keep-in-a-file) | `~/.config/lazybox/` | you, or Settings → Notifications, Appearance and Chat | notifications and sounds; appearance (theme, accent, fonts, chat text, density, motion, zoom) |
+| [`extensions/<id>/extension.yaml`](extensions.md) | `~/.config/lazybox/extensions/` | you, or `lazybox extension new` | a sandboxed panel extension: its panels, the grants it asks for, its network hosts |
 | [`layouts/*.yaml`](#layoutsyaml-your-layouts) | `~/.config/lazybox/layouts/` | you, or the Layout menu | your whole-window layouts |
 | [Theme files](#themes) (`*.toml`, `*.json`) | `<Runner state>/themes/` | you | your own colour themes |
 
@@ -318,9 +319,39 @@ notifications:
   dock-badge: true
   sound-needs-you: true
   sound-done: false
+appearance:                  # Settings → Appearance and Settings → Chat (chat text)
+  mode: system               # system, light or dark
+  dark-theme: dark           # dark, dark-high-contrast, or user:<file> for one of your themes
+  light-theme: light         # light, solarized-light, or user:<file>
+  accent: "#7fb0f0"          # #rgb, #rrggbb, #rrggbbaa, rgb() or hsl(); quote it
+  min-contrast: 4.5          # 0 (off), 3, 4.5 or 7; any value 0–21
+  motion: system             # system, reduce or full
+  density: comfortable       # compact, comfortable or relaxed
+  interface-font: Inter      # a font list; "" for the system font
+  interface-font-size: 13    # 11–16 px
+  code-font: JetBrains Mono  # "" for the system monospace
+  code-font-size: 12         # 10–20 px
+  ligatures: false
+  chat-font-size: 14         # 11–22 px
+  chat-line-height: 1.5      # 1.1–2.2
+  chat-paragraph-gap: 8      # 0–32 px
+  chat-line-width: 0         # characters per line, centred; 0 for the full width
+  zoom: 1                    # the desktop app, every window: 0.5–2
 ```
 
-Settings → Notifications writes it.
+Settings → Notifications writes `notifications`; Settings → Appearance and
+Settings → Chat write `appearance`, a value at a time, keeping your comments (a
+value set back to its default is removed). What the section leaves out is the
+default; a typography value you leave out follows the theme's suggestion, then
+the density's. A value with a mistake is reported by line in Settings →
+Appearance (and a toast) and left out; the rest applies. Quote a colour: YAML
+reads an unquoted `#` as a comment, which leaves the theme's accent.
+
+Not in the file, by design: colour overrides (any token, Settings → Appearance)
+and the copies of your user themes the windows draw from stay on the device.
+`zoom` is the desktop app's: the View menu and `⌘=` `⌘−` `⌘0` write it, and a
+save applies it in every window; a browser has its own zoom, which Lazybox
+neither reads nor sets, so a browser tab leaves the file's `zoom` alone.
 
 ### `layouts/*.yaml`: your layouts
 
