@@ -1012,3 +1012,52 @@ through its fixture suites only.
   ended and the conversation resumed, and was once taken back. Not run
   against a real Claude account.
 
+## 2026-11-17 — Claude compliance: an API key, sign-in gated, switching as an account policy
+
+What [CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md) changed, and how it was
+checked. Every check is a fixture: no real key, sign-in, subscription or
+inference was used.
+
+- **The API key reaches the agent, alone.** `internal/transport`
+  (`TestClaudeAPIKeyIsWhatTheAgentRunsOn`): with a key saved, a
+  `claude-default` agent's environment has `ANTHROPIC_API_KEY` and no
+  inherited `CLAUDE_CODE_OAUTH_TOKEN`; without one it keeps the person's own
+  sign-in; Codex never gets the key; the reply carries only the last four
+  characters; a subscription token (`sk-ant-oat…`) is refused; the file is
+  `0600`. `internal/accounts` (`TestAPIKeyIsKeptPrivateAndNeverASubscriptionToken`,
+  `TestWithAPIKeyIsTheOnlyClaudeCredential`). The worker passes it through
+  unchanged for every purpose and permission (`workers/claude-sdk/src/options.test.ts`).
+  **Not verified:** a real Claude Code turn billed to a real key.
+- **Claude sign-in in Lazybox, off.** `TestClaudeSignInInLazyboxIsOffByDefault`:
+  a Claude subscription saved through Lazybox's sign-in does not start, adding
+  one and importing a token are refused, and both work once it is turned on.
+  `TestClaudeSubscriptionTokenIsNeverStored`: `account-login --token-stdin` is
+  refused before writing anything, and an account imported earlier no longer
+  resolves.
+- **No switching without an account policy.** `internal/runner/rotation`
+  (`TestNoAccountPolicyNeverSwitchesByItself`: a pool switches nothing with no
+  policy or one turned off, and switches once it is on);
+  `TestAutomaticSwitchingIsTheAccountPolicys` (no pool and no switch at a limit
+  by default; the person's explicit switch works; with Subscription rotation
+  approved the conversation moves at the limit; turned off, a running
+  conversation stops at its next limit); `TestAccountsMigrationNoticesOnce`
+  (the notices raised once, dismissed for good, none on a fresh Runner);
+  `internal/power` (`TestAccountPolicyIsWhatThePersonApproved`).
+- **UI.** `npm run test:claude-compliance` (new, WebKit, fake Runner): the
+  notices; the Claude section's sign-in line; a key saved, shown by its last
+  four characters, never in the page again, and forgotten; a subscription
+  token refused; no Claude sign-in offered while it is off and a saved Claude
+  subscription marked unused; turning it on with its warning; Install Claude
+  Code typing Anthropic's installer into a workspace's shell panel; adding and
+  allowing Subscription rotation through the sheet with its Claude warning and
+  link, after which automatic switching shows. `test:subscription-switch`
+  (Switch to, no automatic offer without a policy, the everywhere question
+  with one), `test:onboarding` (the API key recommended), `test:startup`,
+  `test:settings`, `test:extensions` and `test:cost-dashboard` pass.
+  Screenshots `.cache/claude-compliance-*.png`.
+- **Release without Claude Code.** `scripts/release/release.test.mjs`: the
+  package filter and the flag. **Not verified:** a full `make release
+  RELEASE_FLAGS=--without-claude-code` build and an install that finds a
+  person's own `claude` (the Runner's PATH fallback is the existing
+  `claudeProgram`, unchanged).
+

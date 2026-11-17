@@ -168,7 +168,7 @@ func run() error {
 	session := flags.String("session", os.Getenv("LAZYBOX_V2_SESSION_ID"), "execution id")
 	id := flags.String("id", "", "command id, or idempotent operation id for agent operations")
 	profile := flags.String("profile", "", "configured account profile id")
-	rotate := flags.String("rotate-profiles", "", "comma-separated isolated profiles this conversation may switch to (default: every other signed-in subscription of the provider)")
+	rotate := flags.String("rotate-profiles", "", "comma-separated isolated profiles this conversation may switch to (only with an account policy, EXTENSIONS.md; default: its accounts)")
 	noRotate := flags.Bool("no-rotate", false, "keep this conversation on --profile; never switch subscriptions automatically")
 	purpose := flags.String("purpose", "help", "assistant purpose: help, planning, summary")
 	contextFile := flags.String("context", "", "assistant context text file")
