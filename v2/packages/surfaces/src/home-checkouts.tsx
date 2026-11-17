@@ -178,7 +178,7 @@ function HomeRow({ home, label = home.name, workspaceId, chooseFolder, onChanged
           onClick={event => menu(event.currentTarget, event.detail === 0)}><Icon name="more" size={13}/></button>
       </> : <>
         <button type="button" className="primary" disabled={!!busy || !home.suggestedPath} title={home.suggestedPath ? `A regular clone at ${home.suggestedPath}` : 'No default folder: use an existing one'}
-          onClick={() => void act('create')}>{busy === 'create' ? 'Cloning…' : <>Create at <code>{shortPath(home.suggestedPath)}</code></>}</button>
+          onClick={() => void act('create')}>{busy === 'create' ? 'Cloning…' : <>Create at <code className="home-checkout-path-tail"><span>{shortPath(home.suggestedPath)}</span></code></>}</button>
         <button type="button" disabled={!!busy} onClick={() => void adopt()}>{busy === 'adopt' ? 'Checking…' : 'Use an existing folder…'}</button>
       </>}
     </div>
