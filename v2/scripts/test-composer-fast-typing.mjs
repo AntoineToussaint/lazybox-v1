@@ -29,7 +29,8 @@ try {
     fixture.config.remove('keys');
     const page = await browser.newPage({ viewport: { width: 1300, height: 850 } });
     page.setDefaultTimeout(30000);
-    const errors = []; page.on('pageerror', error => errors.push(String(error)));
+    // The reload below cuts in-flight polls, which WebKit reports as page errors ("access control checks") on the page being left: not failures. Anything else is.
+    const errors = []; let leaving = 0; page.on('pageerror', error => { const text = String(error); if (leaving && /access control checks/.test(text)) return; errors.push(text); });
     page.on('console', message => { if (message.type() === 'error' && /Maximum update depth/.test(message.text())) errors.push(message.text()); });
     await page.goto(url);
     const message = page.getByRole('textbox', { name: 'Message', exact: true });
@@ -81,7 +82,7 @@ try {
     await message.focus();
     await page.keyboard.type('kept draft', { delay: 0 });
     await page.waitForTimeout(200);
-    await page.reload();
+    leaving++; try { await page.reload(); } finally { leaving--; }
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('kept draft');
     assert.deepEqual(errors, [], `${engine.name()}: no page error`);
   }
