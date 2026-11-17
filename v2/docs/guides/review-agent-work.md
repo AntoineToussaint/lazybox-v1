@@ -39,6 +39,8 @@ receiving them is your agent.
    Comments are Markdown; `⌘↵` saves.
 2. **Collect:** **Review** in the Changes header opens the tray with every
    comment of the workspace, by file, filtered *Pending*, *Sent*, *Done* or *All*.
+   In a narrow Changes panel the tray and the file list share the left column:
+   switch with the **Files** and **Review** tabs above it.
 3. **Send:** **Send N comments to the agent** puts **one message** in the chosen
    conversation's message box — each comment with `repo/path:line`, the quoted
    lines and whether they are still current. Untick any you want to keep back.

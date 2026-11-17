@@ -1,6 +1,6 @@
 import { conversationName } from './conversation-model';
 import { useFileOpener } from './file-links';
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import type { ChangedFile, RepositoryChanges, ReviewComment, Session, TurnCheckpoint, WorkspaceDiff } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
@@ -10,7 +10,7 @@ import type { ViewTarget } from './workspace-model';
 import { ReviewDiff, type ReviewFocus } from './ReviewDiff';
 import { ReviewTray } from './ReviewTray';
 import { useWorkspaceReview } from './useWorkspaceReview';
-import { isPending, isProposed, type ReviewView } from './review-model';
+import { isPending, isProposed, loopNeedsYou, type ReviewView } from './review-model';
 import { Icon } from './Icons';
 import { contextMenu } from './ContextMenu';
 import type { MenuItem } from './context-menu-model';
@@ -33,6 +33,11 @@ const compareRef = (compare: string) => compare === UNCOMMITTED || compare === S
 const notices = new Map<string, string>();
 // Whether the person opened or closed the review tray, per workspace.
 const trays = new Map<string, boolean>();
+// In a narrow panel the files and the review tray share the left column as
+// two tabs; which one is in front, per workspace. Matches review.css.
+type Pane = 'files' | 'review';
+const panes = new Map<string, Pane>();
+const COMPACT_WIDTH = 1101;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const age = (unix: bigint) => {
   const minutes = Math.max(0, Math.round((Date.now() / 1000 - Number(unix)) / 60));
@@ -71,8 +76,16 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   const [trayChoice, setTrayChoice] = useState<boolean | undefined>(() => trays.get(workspaceId));
   // The tray shows itself once there are comments or reviews, unless the person closed it.
   const trayOpen = trayChoice ?? (review.comments.length > 0 || runs.length > 0);
-  const showTray = (open: boolean) => { trays.set(workspaceId, open); setTrayChoice(open); };
-  useEffect(() => { const listener = (event: Event) => { if ((event as CustomEvent<string>).detail === workspaceId) setTrayChoice(true); }; window.addEventListener(REVIEW_EVENT, listener); return () => window.removeEventListener(REVIEW_EVENT, listener); }, [workspaceId]);
+  const [pane, setPaneState] = useState<Pane>(() => panes.get(workspaceId) || 'review');
+  const setPane = (value: Pane) => { panes.set(workspaceId, value); setPaneState(value); };
+  // Opening the tray brings it to the front of a narrow panel's left column.
+  const showTray = (open: boolean) => { trays.set(workspaceId, open); setTrayChoice(open); if (open) setPane('review'); };
+  const [panel, setPanel] = useState<HTMLElement | null>(null);
+  const columnId = useId();
+  const compact = useNarrow(panel, COMPACT_WIDTH);
+  // The header's Review button: a tray behind the files comes to the front before it closes.
+  const toggleTray = () => trayOpen && compact && pane === 'files' ? setPane('review') : showTray(!trayOpen);
+  useEffect(() => { const listener = (event: Event) => { if ((event as CustomEvent<string>).detail === workspaceId) showTray(true); }; window.addEventListener(REVIEW_EVENT, listener); return () => window.removeEventListener(REVIEW_EVENT, listener); }, [workspaceId]);
   // A review's card asked for its findings: the tray opens on them.
   const [focusReview, setFocusReview] = useState('');
   useReviewTrayRequests(workspaceId, request => { showTray(true); setFocusReview(request.reviewId || ''); });
@@ -206,14 +219,15 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
     'separator',
     { label: 'Refresh changes', icon: 'refresh', run: refresh },
   ];
-  return <section className="changes-panel" aria-label="Workspace changes" onKeyDown={keys}>
-    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen} onToggleTray={() => showTray(!trayOpen)} launcher={launcher} reviewScope={reviewScope}/>
+  return <section className="changes-panel" aria-label="Workspace changes" onKeyDown={keys} ref={setPanel}>
+    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen && (!compact || pane === 'review')} onToggleTray={toggleTray} launcher={launcher} reviewScope={reviewScope}/>
     {launcher.error && <p className="error review-start-error" role="alert"><span>{launcher.error}</span><button aria-label="Dismiss" onClick={() => launcher.setError('')}>×</button></p>}
     {turnView ? <TurnChangesView key={compare} sessionId={turnView.sessionId} turn={turnView.turn}/> : <>
     {error && <p className="error" role="alert">{error}</p>}
     {notice && <p className="changes-notice" role="status"><span>{notice}</span><button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></p>}
-    <div className={`changes-columns${trayOpen ? ' with-review' : ''}`}>
-      <nav aria-label="Changed files">
+    <div className={`changes-columns${trayOpen ? ' with-review' : ''}`} data-pane={trayOpen ? pane : undefined}>
+      {trayOpen && <ColumnTabs id={columnId} pane={pane} onPane={setPane} files={listed.length} pending={pending} needsYou={runs.some(loopNeedsYou)}/>}
+      <nav aria-label="Changed files" id={`${columnId}-files`}>
         {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} launcher={launcher} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent} isViewed={viewed.isViewed} onViewed={markViewed} menu={rowItems}/>)}
       </nav>
       <div className="diff-view" ref={setDiffPane} onContextMenu={selection ? contextMenu('diff', () => fileItems(selection.member, selection.path), { member: selection.member, path: selection.path }) : undefined}>
@@ -236,7 +250,7 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
           </>
           : <div className="diff-empty"><h3>{loading ? 'Reading changes…' : 'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}
       </div>
-      {trayOpen && <ReviewTray workspaceId={workspaceId} review={review} conversation={conversation} focusReview={focusReview} onJump={jump} onSend={(text, to) => sendToAgent(text, to)} onClose={() => showTray(false)}/>}
+      {trayOpen && <ReviewTray id={`${columnId}-review`} workspaceId={workspaceId} review={review} conversation={conversation} focusReview={focusReview} onJump={jump} onSend={(text, to) => sendToAgent(text, to)} onClose={() => showTray(false)}/>}
     </div></>}
     {fileLinks.element}
   </section>;
@@ -271,6 +285,27 @@ function ChangesHeader({ summary, compare, repos, sessionId, turns, onCompare, o
     <button className="changes-review-toggle" aria-pressed={trayOpen} aria-label={`Review comments${pending ? `, ${pending} pending` : ''}`} onClick={onToggleTray}><Icon name="chat" size={14}/>Review{pending > 0 && <span aria-hidden="true">{pending}</span>}</button>
     {!turnView && <button onClick={onRefresh}>Refresh changes</button>}
   </header>;
+}
+
+/** A narrow panel's left column: the changed files or the review tray, one
+ * in front at a time with the whole height. Hidden (both shown) when wide. */
+function ColumnTabs({ id, pane, onPane, files, pending, needsYou }: { id: string; pane: Pane; onPane(pane: Pane): void; files: number; pending: number; needsYou: boolean }) {
+  const keys = (event: ReactKeyboardEvent<HTMLElement>) => {
+    const next: Pane | undefined = event.key === 'ArrowRight' || event.key === 'ArrowLeft' ? (pane === 'files' ? 'review' : 'files') : event.key === 'Home' ? 'files' : event.key === 'End' ? 'review' : undefined;
+    if (!next) return;
+    event.preventDefault(); event.stopPropagation();
+    onPane(next);
+    requestAnimationFrame(() => document.getElementById(`${id}-tab-${next}`)?.focus());
+  };
+  const tab = (value: Pane, label: string, icon: 'file' | 'chat', count: number, attention = false) =>
+    <button type="button" role="tab" id={`${id}-tab-${value}`} aria-controls={`${id}-${value}`} aria-selected={pane === value} tabIndex={pane === value ? 0 : -1} onClick={() => onPane(value)}
+      title={value === 'files' ? 'Changed files' : attention ? 'A review loop needs you' : 'Comments and agent reviews'}>
+      <Icon name={icon} size={13}/>{label}{count > 0 && <span className="changes-pane-count">{count}</span>}{attention && <span className="changes-pane-alert" role="img" aria-label="needs you"><Icon name="bell" size={11}/></span>}
+    </button>;
+  return <div className="changes-panes" role="tablist" aria-label="Left column" onKeyDown={keys}>
+    {tab('files', 'Files', 'file', files)}
+    {tab('review', 'Review', 'chat', pending, needsYou)}
+  </div>;
 }
 
 /** One repository: its PR loop, then its committed and uncommitted files. */

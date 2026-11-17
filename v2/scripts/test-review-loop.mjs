@@ -131,6 +131,66 @@ try{
  await expect(thirdRow).toContainText('You took over');
  await expect(chat).toContainText('REPLY_ONE');
 
+ // ---- A narrow Changes panel: the loop controls are always in reach -------
+ // The chat docked beside the panel (1500×1000), a small window (1024×680) and
+ // a narrower docked panel: the left column shows the files or the tray (tabs),
+ // the reviews under way stay at the top of the tray however far its findings
+ // scroll, and the diff keeps its whole height, uncovered.
+ const fourth=await start();
+ const fourthRow=reviewRow(fourth);
+ fixture.fileFinding(fourth.id,{...blockerAt,title:'Handle has no test for the error path',key:'error-path'});
+ fixture.finishReview(fourth.id);
+ await expect(fourthRow).toContainText('waiting for you to send findings',{timeout:15000});
+ const fourthControls=fourthRow.getByRole('group',{name:'Codex review loop'});
+ const hit=locator=>locator.evaluate(node=>{const r=node.getBoundingClientRect(),at=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.width>0&&r.height>0&&!!at&&(at===node||node.contains(at));});
+ const tabs=changes.getByRole('tablist',{name:'Left column'});
+ for(const [width,height,name] of [[1500,1000,'docked'],[1024,680,'1024'],[1180,760,'docked-small']]){
+  await page.setViewportSize({width,height});
+  await expect(tabs).toBeVisible();
+  await expect(tabs.getByRole('tab',{name:/^Review/})).toHaveAttribute('aria-selected','true');
+  const panelWidth=await changes.evaluate(node=>node.getBoundingClientRect().width);
+  assert.ok(panelWidth<=1100,`${name}: the Changes panel is narrow (${Math.round(panelWidth)}px)`);
+  // The diff: its whole height (≥300px), never under the tray.
+  const [diffBox,trayBox]=[await changes.locator('.diff-view').boundingBox(),await tray.boundingBox()];
+  assert.ok(diffBox.height>=300,`${name}: the diff keeps ≥300px (${Math.round(diffBox.height)}px)`);
+  assert.ok(trayBox.x+trayBox.width<=diffBox.x+1,`${name}: the tray covers no part of the diff`);
+  // Every loop control and the Send button answer a click where they are, even with the findings scrolled to their end.
+  await tray.evaluate(node=>{node.scrollTop=node.scrollHeight;});
+  for(const control of [fourthControls.getByRole('combobox',{name:'Between rounds'}),fourthControls.getByRole('button',{name:'Pause'}),fourthControls.getByRole('button',{name:'Stop loop'}),fourthControls.getByRole('button',{name:'Take over'}),fourthRow.getByRole('status'),tray.getByRole('button',{name:/^Send/}),tray.getByRole('button',{name:'Close review'})])
+   assert.ok(await hit(control),`${name}: ${await control.evaluate(node=>node.getAttribute('aria-label')||node.textContent)} is in reach`);
+  await tray.evaluate(node=>{node.scrollTop=0;});
+  await tray.getByRole('button',{name:/^To triage/}).click();
+  const finding=tray.locator('.review-tray-list').getByRole('listitem').filter({hasText:'Handle has no test for the error path'});
+  for(const action of ['Accept','Dismiss','Ask Codex']){const button=finding.getByRole('button',{name:action});await button.scrollIntoViewIfNeeded();assert.ok(await hit(button),`${name}: ${action} is in reach, scrolled to`);}
+  for(const scheme of ['dark','light']){await page.emulateMedia({colorScheme:scheme});await page.mouse.move(0,0);await page.waitForTimeout(400);await page.screenshot({path:`.cache/review-tray-narrow-${name}-${scheme}.png`});}
+  await page.emulateMedia({colorScheme:null});
+  // Files and Review share the column: one click (or ←/→) between them, each where it was.
+  await tabs.getByRole('tab',{name:/^Files/}).click();
+  await expect(changes.getByRole('navigation',{name:'Changed files'})).toBeVisible();
+  await expect(tray).toBeHidden();
+  await page.keyboard.press('ArrowRight');
+  await expect(tray).toBeVisible();
+  await expect(tabs.getByRole('tab',{name:/^Review/})).toBeFocused();
+ }
+ // A wide panel shows the files, the diff and the tray side by side: no tabs.
+ await page.setViewportSize({width:2400,height:1000});
+ await expect(tabs).toBeHidden();
+ await expect(changes.getByRole('navigation',{name:'Changed files'})).toBeVisible();
+ await expect(tray).toBeVisible();
+ assert.ok(await hit(fourthControls.getByRole('button',{name:'Take over'})),'wide: the loop controls are in reach');
+ await page.mouse.move(0,0);await page.screenshot({path:'.cache/review-tray-wide.png'});
+ await page.setViewportSize({width:1500,height:1000});
+ // The loop controls work there.
+ await fourthControls.getByRole('button',{name:'Pause'}).click();
+ await expect(fourthRow).toContainText('· paused');
+ await fourthControls.getByRole('button',{name:'Stop loop'}).click();
+ await expect(fourthControls).toHaveCount(0);
+ // With the files in front, the header's Review button brings the tray back rather than closing it.
+ await tabs.getByRole('tab',{name:/^Files/}).click();
+ await changes.getByRole('button',{name:/^Review comments/}).click();
+ await expect(tray).toBeVisible();
+ await page.setViewportSize({width:1500,height:1000});
+
  // ---- Settings: between rounds, and the round limit -----------------------
  await page.keyboard.press(`${process.platform==='darwin'?'Meta':'Control'}+,`);
  await page.getByRole('tab',{name:'Agents & workspaces'}).click();

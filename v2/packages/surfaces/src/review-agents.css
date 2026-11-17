@@ -66,17 +66,20 @@
 
 /* The review loop: where it is, its controls, its timeline. */
 .review-runs li{flex-direction:column;align-items:stretch;flex-shrink:0}
-/* Reviews never crowd out the findings: they scroll in their own band. */
-.review-tray .review-runs{flex:0 1 auto;max-height:42%;overflow:auto;min-height:0}
+/* Reviews stay at the top of the tray (.review-tray-top); many of them
+   scroll in their own band rather than crowd out the findings. */
+.review-tray .review-runs{flex:0 1 auto;overflow:auto;min-height:0;overscroll-behavior:contain}
 .review-tray .review-tray-list{min-height:120px}
 .review-run-head{display:flex;align-items:center;gap:6px;min-width:0}
 .review-runs li.needs-you{border-color:var(--warn)}
-.review-loop{display:flex;flex-direction:column;gap:4px;padding:0 4px 2px 22px}
+.review-loop{display:flex;flex-direction:column;gap:4px;padding:0 2px 2px 6px}
 .review-loop-line{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
 .review-loop.needs-you .review-loop-line{color:var(--warn);font-weight:600}
 .review-loop-controls{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
-.review-tray .review-loop-controls button{padding:2px 8px;font-size:calc(11px * var(--text-scale))}
-.review-tray .review-loop-controls select{width:auto;min-width:0;padding:2px 6px;font-size:calc(11px * var(--text-scale))}
+.review-tray .review-loop-controls button{flex:1 1 auto;justify-content:center;gap:4px;padding:2px 5px;font-size:calc(11px * var(--text-scale));white-space:nowrap}
+/* A narrow tray keeps the loop controls on one line: words over icons. */
+@container review-tray (max-width:232px){.review-tray .review-loop-controls button svg{display:none}}
+.review-tray .review-loop-controls select{flex:1 1 100%;width:auto;min-width:0;padding:2px 6px;font-size:calc(11px * var(--text-scale))}
 .review-timeline summary{cursor:pointer;color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
 .review-timeline ol{list-style:none;margin:4px 0 0;padding:0 0 0 2px;display:flex;flex-direction:column;gap:3px;max-height:220px;overflow:auto;border-left:2px solid var(--line-subtle)}
 .review-timeline li{display:grid!important;grid-template-columns:auto auto 1fr;gap:6px;align-items:baseline;padding:0 0 0 8px!important;border:0!important;background:transparent!important;font-size:calc(11px * var(--text-scale));line-height:1.45}

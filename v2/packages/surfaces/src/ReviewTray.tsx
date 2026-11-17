@@ -119,8 +119,8 @@ function ReviewRuns({ runs, workspaceId, review, focus, onFocus }: { runs: reado
 /** Every comment and finding on the workspace's changes, by file; agent
  * findings to triage; and the one action that matters: put the pending ones
  * in the author's message box as a single message, for the person to send. */
-export function ReviewTray({ workspaceId, review, conversation, focusReview = '', onJump, onSend, onClose }: {
-  workspaceId: string; review: WorkspaceReviewState; conversation?: Session; focusReview?: string;
+export function ReviewTray({ id, workspaceId, review, conversation, focusReview = '', onJump, onSend, onClose }: {
+  id?: string; workspaceId: string; review: WorkspaceReviewState; conversation?: Session; focusReview?: string;
   onJump(comment: ReviewComment): void; onSend(text: string, to: Session): void; onClose(): void;
 }) {
   const runs = review.review?.runs || [];
@@ -166,13 +166,16 @@ export function ReviewTray({ workspaceId, review, conversation, focusReview = ''
   };
   // Escape closes the tray; a field's own Escape comes first.
   const closeOnEscape = (event: KeyboardEvent<HTMLElement>) => { if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as Element).closest('select,textarea')) { event.preventDefault(); onClose(); } };
-  return <aside className="review-tray" aria-label="Review" onKeyDown={closeOnEscape}>
+  // The header and the reviews under way stay at the top, Send at the bottom; the rest scrolls between.
+  return <aside className="review-tray" id={id} aria-label="Review" onKeyDown={closeOnEscape}>
+    <div className="review-tray-top">
     <header>
       <h3><Icon name="chat" size={14}/>Review</h3>
       <small>{summary}</small>
       <button className="review-icon" aria-label="Close review" title="Close review" onClick={onClose}><Icon name="close" size={14}/></button>
     </header>
     <ReviewRuns runs={runs} workspaceId={workspaceId} review={review} focus={focusRun} onFocus={run => { setFocusRun(run.id); setQuery(q => ({ ...q, author: run.reviewerLabel, filter: 'all' })); }}/>
+    </div>
     <div className="review-filters" role="group" aria-label="Show">
       {trayFilters.filter(f => f.value !== 'proposed' || counts.proposed || hasFindings).map(f => <button key={f.value} aria-pressed={query.filter === f.value} onClick={() => setQuery(q => ({ ...q, filter: f.value }))}>{f.label}<span>{counts[f.value]}</span></button>)}
     </div>
@@ -217,7 +220,7 @@ export function ReviewTray({ workspaceId, review, conversation, focusReview = ''
         <Icon name="send" size={14}/>{chosen.length ? `Send ${plural(chosen.length, 'comment')} to the agent` : 'Send review to the agent'}
       </button>
       <small className="review-muted">{!to ? 'No conversation in this workspace yet. Start one to send it comments.' : `Goes to the message box of “${conversationName(to, 'the conversation')}” as one message, findings exactly as filed. You review it and send it; nothing is sent for you.`}</small>
-      <label className="review-auto"><input type="checkbox" checked={review.autoResolve} onChange={event => { const enabled = event.target.checked; void review.setAutoResolve(enabled).catch(e => setError(errorText(e))); }}/>Resolve sent comments when a commit changes their lines</label>
     </footer>
+    <label className="review-auto"><input type="checkbox" checked={review.autoResolve} onChange={event => { const enabled = event.target.checked; void review.setAutoResolve(enabled).catch(e => setError(errorText(e))); }}/>Resolve sent comments when a commit changes their lines</label>
   </aside>;
 }

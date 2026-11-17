@@ -199,7 +199,12 @@ takes inline comments, and the agent receives them as one message.
 - **Review tray.** **Review** in the Changes header (with the pending count)
   opens the tray: every comment of the workspace by file, filtered Pending,
   Sent, Done or All. Clicking one shows it in its diff. It opens by itself once
-  there are comments, unless you closed it.
+  there are comments, unless you closed it. The agent reviews under way, with
+  their loop controls, stay at the top of the tray and Send at its bottom while
+  the comments scroll between. In a narrow Changes panel (a chat docked beside
+  it, a small window) the diff keeps its whole height and the left column shows
+  **Files** or **Review**, tabs above it (←/→ between them; each keeps its
+  scroll); Review in the header brings the tray to the front.
 - **Send to the agent.** **Send N comments to the agent** puts one message in
   the message box of the conversation chosen in the tray (the current one by
   default), opened beside Changes: each comment with `member/path:line`, the

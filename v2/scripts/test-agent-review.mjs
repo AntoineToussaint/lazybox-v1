@@ -135,6 +135,8 @@ try{
  // the work under review is still the author's.
  await page.locator('.messages').getByRole('group',{name:'Codex review'}).getByRole('button',{name:'Open conversation'}).click();
  await expect(chat.locator('.system-event[data-kind=review_brief] .system-event-text')).toHaveText("Asked Codex to review Claude's work");
+ // A narrow Changes panel shows the files or the tray in its left column: the files come to the front.
+ await changes.getByRole('tab',{name:/^Files/}).click();
  await changes.getByRole('navigation',{name:'Changed files'}).getByRole('button',{name:/src\/handler\.go/}).first().click({button:'right'});
  const menu=page.getByRole('menu');
  await menu.getByRole('menuitem',{name:'Review the changes with Codex'}).click();

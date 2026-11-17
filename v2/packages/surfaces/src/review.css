@@ -59,16 +59,21 @@
 .review-elsewhere{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line-bold);border-radius:8px;background:var(--surface-sunken)}
 .review-elsewhere h4{margin:0;font-size:calc(12px * var(--text-scale));color:var(--warn);font-weight:600}
 
-.review-tray{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--border,var(--line-subtle));padding-left:12px;font-size:calc(12px * var(--text-scale));gap:8px}
-.review-tray>header,.changes-panel .review-tray>header{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;padding:.5rem 0 0!important}
-.review-tray>header h3{display:flex;align-items:center;gap:6px;margin:0;font-size:calc(13px * var(--text-scale));color:var(--text)}
-.review-tray>header small{grid-column:1;margin:0!important}
-.review-tray>header .review-icon{grid-row:1/span 2;grid-column:2;padding:4px;border:0;background:transparent;color:var(--text-muted)}
+.review-tray{--review-tray-bg:var(--canvas,var(--bg));container:review-tray/inline-size;display:flex;flex-direction:column;min-height:0;overflow:auto;overscroll-behavior:contain;border-left:1px solid var(--border,var(--line-subtle));padding-left:12px;font-size:calc(12px * var(--text-scale));gap:8px}
+/* The tray scrolls as one: its header and the reviews under way (with their
+   loop controls) stay at the top, Send stays at the bottom, and whatever the
+   height nothing is squeezed out of reach. */
+.review-tray>*{flex-shrink:0}
+.review-tray-top{position:sticky;top:0;z-index:1;display:flex;flex-direction:column;gap:6px;max-height:max(50%,min(184px,70%));min-height:0;padding-bottom:2px;background:var(--review-tray-bg)}
+.review-tray-top>header,.changes-panel .review-tray-top>header{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;padding:.5rem 0 0!important}
+.review-tray-top>header h3{display:flex;align-items:center;gap:6px;margin:0;font-size:calc(13px * var(--text-scale));color:var(--text)}
+.review-tray-top>header small{grid-column:1;margin:0!important}
+.review-tray-top>header .review-icon{grid-row:1/span 2;grid-column:2;padding:4px;border:0;background:transparent;color:var(--text-muted)}
 .review-filters{display:flex;gap:4px;flex-wrap:wrap}
 .review-tray .review-filters button{padding:3px 8px;font-size:calc(11px * var(--text-scale));border-radius:999px;background:transparent}
 .review-tray .review-filters button[aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent-line);color:var(--text)}
 .review-filters span{color:var(--text-muted);font-variant-numeric:tabular-nums}
-.review-tray-list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.review-tray-list{flex:1 0 auto;display:flex;flex-direction:column;gap:10px}
 .review-tray-list h4{margin:0 0 4px;font:500 11px/1.4 var(--font-mono);color:var(--accent);overflow-wrap:anywhere}
 .review-tray-list ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
 .review-tray-list li{display:flex;align-items:flex-start;gap:6px}
@@ -78,27 +83,42 @@
 .review-tray-body{color:var(--text-tertiary);line-height:1.45;overflow-wrap:anywhere}
 .review-tray li.is-resolved .review-tray-body,.review-tray li.is-wont_fix .review-tray-body{text-decoration:line-through;text-decoration-color:var(--text-disabled)}
 .review-empty{margin:0;color:var(--text-muted);line-height:1.55}
-.review-tray>footer{display:flex;flex-direction:column;gap:8px;padding:8px 0 4px;border-top:1px solid var(--line-subtle)}
+.review-tray>footer{position:sticky;bottom:0;z-index:1;display:flex;flex-direction:column;gap:8px;padding:8px 0 4px;border-top:1px solid var(--line-subtle);background:var(--review-tray-bg)}
 .review-target{display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--text-subtle)}
 .review-target select{flex:1;min-width:0;padding:4px 6px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-raised);color:var(--text);font-size:calc(12px * var(--text-scale))}
 .review-tray .review-send{justify-content:center;padding:7px 10px}
-.review-auto{display:flex;flex-direction:row;cursor:pointer;align-items:flex-start;gap:6px;color:var(--text-subtle);font-size:calc(11px * var(--text-scale));line-height:1.45}
+.review-auto{display:flex;flex-direction:row;cursor:pointer;margin:-4px 0 0;padding:0 0 4px;align-items:flex-start;gap:6px;color:var(--text-subtle);font-size:calc(11px * var(--text-scale));line-height:1.45}
 .review-auto input{width:auto;margin:1px 0 0}
 
 .changes-review-toggle{display:inline-flex;align-items:center;gap:6px}
 .changes-review-toggle span{min-width:18px;padding:0 5px;border-radius:999px;background:var(--accent-solid);color:var(--on-accent-solid);font-size:calc(11px * var(--text-scale));line-height:calc(16px * var(--text-scale));text-align:center}
 .changes-columns.with-review{grid-template-columns:minmax(200px,22%) minmax(0,1fr) minmax(250px,300px)}
-/* Narrow Changes panels (a chat docked beside it, a small window) keep the
-   diff its whole height and width: the tray takes the left column under the
-   files, which keep at most a third of it, so a comment's thread in the diff
-   is never covered and the tray stays in view while going from one to the next. */
-.changes-panel{container-type:inline-size}
-@container (max-width:1100px){
-  .changes-columns.with-review{grid-template-columns:minmax(220px,32%) minmax(0,1fr);grid-template-rows:minmax(0,auto) minmax(0,1fr)}
-  .changes-columns.with-review>nav{grid-column:1;grid-row:1;max-height:28vh}
-  .changes-columns.with-review>.diff-view{grid-column:2;grid-row:1/span 2}
-  .changes-columns.with-review .review-tray{grid-column:1;grid-row:2;min-height:0;overflow:auto;overscroll-behavior:contain;border-left:0;border-top:1px solid var(--border,var(--line-subtle));padding:0 4px 0 0}
-  /* Short of height, the tray scrolls as one: its Send button is never out of reach. */
-  .changes-columns.with-review .review-tray-list{flex:1 0 auto;min-height:48px;overflow:visible}
+/* Narrow Changes panels (a chat docked beside it, a small window): the diff
+   keeps the whole height of the right column, so no comment thread in it is
+   ever covered, and the left column shows the files or the review tray, one
+   in front at a time with the whole height (the tabs above them). */
+.changes-panel{container:changes-panel/inline-size}
+.changes-panes{display:none}
+@container changes-panel (max-width:1100px){
+  .changes-columns.with-review{grid-template-columns:minmax(224px,34%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);row-gap:8px}
+  .changes-columns.with-review>.changes-panes{display:flex;grid-column:1;grid-row:1}
+  .changes-columns.with-review>nav,.changes-columns.with-review>.review-tray{grid-column:1;grid-row:2}
+  .changes-columns.with-review>.diff-view{grid-column:2;grid-row:1/-1}
+  /* Hidden, not removed: each keeps its scroll position for the way back. */
+  .changes-columns[data-pane=review]>nav,.changes-columns[data-pane=files]>.review-tray{visibility:hidden}
+  .changes-columns.with-review>.review-tray{border-left:0;padding:0 4px 0 0}
+  /* The tab already says Review: the header is the summary and the close button. */
+  .changes-columns.with-review .review-tray-top>header{padding-top:0!important}
+  .changes-columns.with-review .review-tray-top>header h3{display:none}
+  .changes-columns.with-review .review-tray-top>header .review-icon{grid-row:1}
   .changes-columns.with-review .review-tray>footer .review-muted{display:none}
 }
+.changes-panes{gap:2px;padding:2px;border:1px solid var(--line-subtle);border-radius:8px;background:var(--surface-sunken)}
+.changes-panes [role=tab]{flex:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:4px 8px;border:0;border-radius:6px;background:transparent;color:var(--text-muted);font-size:calc(12px * var(--text-scale));line-height:calc(16px * var(--text-scale));cursor:pointer;white-space:nowrap}
+.changes-panes [role=tab]:hover{color:var(--text-soft);background:var(--surface-hover,var(--surface-selected))}
+.changes-panes [role=tab][aria-selected=true]{background:var(--surface-active);color:var(--text);box-shadow:0 0 0 1px var(--line-strong)}
+.changes-panes [role=tab]:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.changes-pane-count{min-width:16px;padding:0 5px;border-radius:999px;background:var(--surface-selected);color:var(--text-soft);font-size:calc(11px * var(--text-scale));line-height:calc(16px * var(--text-scale));text-align:center;font-variant-numeric:tabular-nums}
+.changes-panes [role=tab][id$=-tab-review] .changes-pane-count{background:var(--accent-solid);color:var(--on-accent-solid)}
+.changes-pane-alert{display:inline-flex;color:var(--warn)}
+.changes-panes svg{flex-shrink:0}
