@@ -233,7 +233,7 @@ async function install({ prefix, linkDir, open, smoke }) {
 Next:
   1. ${open ? 'Lazybox is opening' : `Open ${app}`}${wasOpen ? ' again' : ''}. ${replacing
     ? 'Your workspaces and conversations are where you left them;\n     Help → What\'s new lists what changed.'
-    : 'The welcome screen helps you connect\n     Claude Code or Codex (sign in as you usually do) and add a repository.'}
+    : 'The welcome screen helps you connect\n     Claude Code or Codex (sign in as you usually do) and start a task.'}
   2. In a new terminal, check everything: lazybox doctor
   3. What to try first, and how to report a problem: docs/testers.md
   Later: make update (pull, rebuild, reinstall; your data stays), make uninstall.

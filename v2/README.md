@@ -38,7 +38,7 @@ background service (the **Runner**, where your agents run), puts the
 `lazybox` command on your PATH and opens Lazybox. Then:
 
 1. **Welcome.** Connect a subscription (your existing `claude` or `codex`
-   sign-in already works) and add a repository.
+   sign-in already works) and start your first task.
 2. **New task:** `⌘N`, type what you want, pick a repository, **Enter**.
 3. **Check its work:** `]] d` opens Changes.
 
