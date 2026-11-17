@@ -104,9 +104,9 @@
 
 /* The panel: list and page side by side when wide, one at a time when narrow. */
 .artifacts-panel{display:flex;flex:1;min-height:0;min-width:0;background:var(--canvas,var(--surface));container-type:inline-size;container-name:artifacts}
-.artifacts-list{display:flex;flex-direction:column;width:280px;flex:none;min-height:0;border-right:1px solid var(--line,var(--line-subtle))}
+.artifacts-list{display:flex;flex-direction:column;width:var(--split-artifacts-list,280px);flex:none;min-height:0;border-right:1px solid var(--line,var(--line-subtle))}
 .artifacts-panel:not(.has-selection) .artifacts-list{width:auto;flex:1;border-right:0}
-.artifacts-panel:not(.has-selection):has(.artifact-page.is-placeholder) .artifacts-list{width:280px;flex:none;border-right:1px solid var(--line,var(--line-subtle))}
+.artifacts-panel:not(.has-selection):has(.artifact-page.is-placeholder) .artifacts-list{width:var(--split-artifacts-list,280px);flex:none;border-right:1px solid var(--line,var(--line-subtle))}
 .artifacts-list-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:6px 12px;border-bottom:1px solid var(--line,var(--line-subtle));background:var(--surface)}
 .artifacts-list-header strong{font-size:calc(12px * var(--text-scale));font-weight:600;color:var(--text,var(--text))}
 .artifacts-list-header small{font-size:calc(11px * var(--text-scale));color:var(--text-muted);font-variant-numeric:tabular-nums}
@@ -195,7 +195,7 @@
 @container artifact-reader (max-width:640px){ .artifact-changes{padding:16px 14px 80px} .artifact-changes-bar .artifact-segmented{margin-left:0} }
 
 /* History: a timeline beside the reader, or over it when the page is narrow. */
-.artifact-history{display:flex;flex-direction:column;width:300px;flex:none;min-height:0;border-left:1px solid var(--line-subtle);background:var(--surface)}
+.artifact-history{display:flex;flex-direction:column;width:var(--split-artifact-history,300px);flex:none;min-height:0;border-left:1px solid var(--line-subtle);background:var(--surface)}
 .artifact-history>header{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 8px 0 18px;border-bottom:1px solid var(--line-subtle)}
 .artifact-history>header h3{margin:0;font-size:calc(13px * var(--text-scale));font-weight:650;color:var(--text)}
 .artifact-history>header span{font-size:calc(12px * var(--text-scale));color:var(--text-muted)}

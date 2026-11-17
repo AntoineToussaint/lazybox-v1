@@ -23,7 +23,7 @@
 .draggable-dialog button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
 .snippet-picker{width:min(760px,calc(100vw - 32px));font-family:var(--font-ui)}
-.snippet-browser{display:grid;grid-template-columns:240px minmax(0,1fr);height:360px;max-height:50dvh;margin:16px 0;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.snippet-browser{display:grid;grid-template-columns:var(--split-snippet-list,240px) minmax(0,1fr);height:360px;max-height:50dvh;margin:16px 0;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .snippet-browser>[role=listbox]{overflow:auto;border-right:1px solid var(--line);padding:4px}
 .snippet-browser [role=option]{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;padding:10px;text-align:left;white-space:normal;font-size:calc(12px * var(--text-scale))}
 .snippet-browser [aria-selected=true]{background:var(--accent-bg);color:var(--accent-strong)}

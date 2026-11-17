@@ -11,6 +11,8 @@ import { useArtifacts, useArtifactsOf } from './useArtifacts';
 import { useWorkConversation } from './PullRequestFlow';
 import { Icon } from './Icons';
 import type { ViewTarget } from './workspace-model';
+import { Resizer } from './Resizer';
+import { SPLITS } from './resizable-model';
 import './artifacts.css';
 
 /**
@@ -160,6 +162,7 @@ export function ArtifactsPanel({ workspaceId, collections, viewState, target, on
         {(q || fromChat) && !shownCount && total > 0 && <p className="artifacts-none">{q ? `No artifact matches “${query}”.` : 'None from this conversation.'}</p>}
       </div>
     </section>
+    <Resizer split={SPLITS.artifactsList} label="artifact list"/>
     {current ? <ArtifactPage key={currentCollectionId + '/' + current.id} collectionId={currentCollectionId} artifactId={current.id} summary={current} collection={other ? collections.find(c => c.id === other.collectionId) : collection}
       onBack={() => { const id = current.id; if (other) setElsewhere(undefined); else setSelected(''); focusRow(id); }} onShowSession={onShowSession}
       focus={focus && !other && focus.artifactId === current.id ? focus : undefined}

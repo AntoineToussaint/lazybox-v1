@@ -6,6 +6,8 @@ import type { ViewStateStore } from "@lazybox/platform";
 import { useRunner } from "./RunnerContext";
 import { DraggableDialog, DialogHeader } from "./DraggableDialog";
 import { RichContent } from "./RichContent";
+import { Resizer } from "./Resizer";
+import { SPLITS } from "./resizable-model";
 export function SnippetPicker({
   store,
   canSend,
@@ -161,6 +163,7 @@ export function SnippetPicker({
             </button>
           ))}
         </div>
+        <Resizer split={SPLITS.snippetList} label="snippet list" store={store}/>
         <article className="snippet-preview">
           {selected && (
             <>

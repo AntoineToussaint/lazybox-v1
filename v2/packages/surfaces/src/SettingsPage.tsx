@@ -28,6 +28,8 @@ import { RunnerSection } from './RunnerControl';
 import { OrchestrationProcessSettings } from './OrchestrationProcessSettings';
 import { AboutSettings } from './AboutSettings';
 import { UpdateSettings } from './UpdateSettings';
+import { Resizer } from './Resizer';
+import { SPLITS } from './resizable-model';
 
 
 function bareWindowName(window: UsageWindow) {
@@ -333,6 +335,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
         </Fragment>)}
       </nav>
     </aside>
+    <Resizer split={SPLITS.settingsNav} label="settings sections" store={viewState}/>
     <div className="settings-content">
     {panel('chat', <ChatSettings store={viewState}/>)}
     {panel('appearance', <AppearanceSettings store={viewState} zoom={zoom}/>)}

@@ -7,6 +7,8 @@ import { Icon } from './Icons';
 import type { ModuleProps } from './PanelRegistry';
 import { useRunner } from './RunnerContext';
 import { useNow } from './settings-parts';
+import { Resizer } from './Resizer';
+import { SPLITS } from './resizable-model';
 import { useBrowserWatch } from './useBrowser';
 import { resolveAddress } from './web-address';
 import { useLinkPreferences } from './web-links';
@@ -274,7 +276,7 @@ function ActionLog({ actions, onPick }: { actions: BrowserAction[]; onPick(actio
   const [open, setOpen] = useState(true);
   useLayoutEffect(() => { const node = list.current; if (node && stick.current) node.scrollTop = node.scrollHeight; }, [actions, open]);
   const failed = useMemo(() => actions.filter(a => a.status === 'failed' || a.status === 'blocked').length, [actions]);
-  return <section className="browser-log" aria-label="Browser steps" data-open={open || undefined}>
+  return <>{open && <Resizer split={SPLITS.browserLog} label="browser steps"/>}<section className="browser-log" aria-label="Browser steps" data-open={open || undefined}>
     <button type="button" className="browser-log-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
       <Icon name="chevron" size={12}/><span>Steps</span><small>{actions.length}{failed ? ` · ${failed} refused or failed` : ''}</small>
     </button>
@@ -293,7 +295,7 @@ function ActionLog({ actions, onPick }: { actions: BrowserAction[]; onPick(actio
         </li>;
       })}
     </ol>}
-  </section>;
+  </section></>;
 }
 
 /** The chat's "Claude is browsing" chip: opens the agent browser beside the conversation. */

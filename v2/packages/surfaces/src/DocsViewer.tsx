@@ -5,6 +5,8 @@ import { RichContent, type RichDocument } from './RichContent';
 import { resolveDocImage, resolveDocLink, searchDocs, themedDocImage, type DocPage, type DocTarget } from './docs-model';
 import { loadDocImages, loadDocs } from './docs-content';
 import { getAppearance, subscribeAppearance } from './appearance/apply';
+import { Resizer } from './Resizer';
+import { SPLITS } from './resizable-model';
 import './docs.css';
 
 /**
@@ -77,6 +79,7 @@ export function DocsViewer({ initial = 'README.md', onClose }: { /** The page to
           : sections.map(([section, list]) => <section key={section}><h3>{section}</h3><ul>{list.map(p => <li key={p.path}>
             <button aria-current={p.path === page?.path ? 'page' : undefined} className={p.path === page?.path ? 'selected' : ''} onClick={() => go({ path: p.path, anchor: '' })}>{p.title}</button></li>)}</ul></section>)}
       </nav>
+      <Resizer split={SPLITS.docsNav} label="page list"/>
       <div className="docs-page" ref={content} tabIndex={-1}>
         {notice && <p className="docs-notice" role="status">{notice}<button aria-label="Dismiss" onClick={() => setNotice('')}>×</button></p>}
         {error ? <p role="alert">{error}</p> : !page ? <p role="status">Loading the documentation…</p>

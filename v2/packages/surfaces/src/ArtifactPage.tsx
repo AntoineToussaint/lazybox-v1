@@ -12,6 +12,8 @@ import { Icon } from './Icons';
 import { useRunner } from './RunnerContext';
 import { useWorkbench } from './workbench';
 import type { ViewTarget } from './workspace-model';
+import { Resizer } from './Resizer';
+import { SPLITS } from './resizable-model';
 import './artifacts.css';
 
 /** What the window offers an artifact page: its own native or browser window. */
@@ -286,6 +288,7 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
             </div>}
         </div>
       </main>
+      {historyOpen && <Resizer split={SPLITS.artifactHistory} label="version history"/>}
       {historyOpen && <aside className="artifact-history" aria-label="Version history">
         <header><h3>History</h3><span>{versions.length} version{versions.length === 1 ? '' : 's'}</span><button type="button" className="icon-button" aria-label="Close history" title="Close history (H)" onClick={() => setHistoryOpen(false)}><Icon name="close" size={13}/></button></header>
         <ol role="listbox" aria-label="Versions" onKeyDown={event => {
