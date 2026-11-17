@@ -1060,7 +1060,7 @@ inference was used.
 - **No switching without an account policy.** `internal/runner/rotation`
   (`TestNoAccountPolicyNeverSwitchesByItself`: a pool switches nothing with no
   policy or one turned off, and switches once it is on);
-  `TestAutomaticSwitchingIsTheAccountPolicys` (no pool and no switch at a limit
+  `TestAutomaticSwitchingIsAnAccountPolicy` (no pool and no switch at a limit
   by default; the person's explicit switch works; with Subscription rotation
   approved the conversation moves at the limit; turned off, a running
   conversation stops at its next limit);

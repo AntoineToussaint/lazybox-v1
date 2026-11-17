@@ -156,7 +156,7 @@ func TestClaudeSignInInLazyboxIsOffByDefault(t *testing.T) {
 // person's explicit switch still works. Approving the bundled extension
 // switches at the next limit; turning it off stops that, running
 // conversations included.
-func TestAutomaticSwitchingIsTheAccountPolicys(t *testing.T) {
+func TestAutomaticSwitchingIsAnAccountPolicy(t *testing.T) {
 	service, _ := collectionService(t)
 	b := service.Bench
 	adapter := twoSubscriptions(t, b)

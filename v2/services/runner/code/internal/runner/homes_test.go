@@ -95,7 +95,7 @@ func TestAHomeIsCreatedWhereSuggestedAndSurvivesARestart(t *testing.T) {
 	}
 }
 
-func TestAdoptingAFolderChecksItIsThisRepositorysCheckout(t *testing.T) {
+func TestAdoptingAFolderChecksItIsACheckoutOfThisRepository(t *testing.T) {
 	ctx := context.Background()
 	b, repo := homeBench(t)
 	mine := filepath.Join(t.TempDir(), "my-api")

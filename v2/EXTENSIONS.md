@@ -302,7 +302,7 @@ app window (Lazybox origin)
   policy and grants agree, a panel-less policy loads, nothing switches before
   approval or once off, a narrowed manifest stops a provider at once),
   `internal/runner/rotation` (`TestNoAccountPolicyNeverSwitchesByItself`),
-  `internal/transport` (`TestAutomaticSwitchingIsTheAccountPolicys`: no pool
+  `internal/transport` (`TestAutomaticSwitchingIsAnAccountPolicy`: no pool
   and no switch without a policy, the person's switch still works, the policy
   switching at a limit, turning it off stopping a running conversation; and
   the `TestMigration…` tests: existing switching kept through the extension,

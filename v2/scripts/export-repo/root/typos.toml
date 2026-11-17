@@ -9,6 +9,8 @@ extend-ignore-re = [
     # The unknown-action example of the keys.yaml validation tests and the
     # configuration reference: `no action "palete.open", did you mean …`.
     'palete\.open',
+    # The export check's deliberate unknown make target (scripts/export-check.test.mjs).
+    'make chek',
     # Typo'd names the did-you-mean and fuzzy-match tests type.
     '"agent-bord"',            # lazybox extension new --example agent-bord
     '"module-directroy"',      # repository catalog: a small typo still matches

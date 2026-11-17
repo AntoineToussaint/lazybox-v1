@@ -57,7 +57,8 @@ test('a README whose commands, paths and links all exist passes', () => {
 test('each missing command, file, link and anchor is named with its line', () => {
   const root = repository([
     '# Lazybox',
-    '`make -C v2 install` and `make instal`',
+    // Joined so the exporter's own `make -C v2` rewrite leaves this test input intact.
+    ['`make -C', 'v2 install` and `make instal`'].join(' '),
     '`npm run test:everything` and `node scripts/missing.mjs`',
     '`scripts/nothing.json`',
     '[gone](docs/gone.md) [anchor](docs/install.md#from-source) [out](../LICENSE)',
