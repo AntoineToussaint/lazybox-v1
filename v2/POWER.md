@@ -158,7 +158,8 @@ own `LAZYBOX_V2_ENDPOINT` with a credential that:
   open or resume a conversation in an existing workspace;
 - is bound to that run and its grants (HMAC under the Runner's credential key),
   works only while the run is live, and is revoked with its endpoint file when
-  the run ends;
+  the run ends — a stream it opened (`WatchEvents`, `WatchOutput`) ends then
+  too;
 - never reaches settings, files, terminals, processes, devices, the actions
   and config files, hook runs or the window requests (but `do` of a safe
   action, with `respond`) (`TestHookCredentialReachesOnlyItsGrantsWhileItRuns`

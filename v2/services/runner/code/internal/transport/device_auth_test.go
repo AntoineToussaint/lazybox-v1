@@ -285,6 +285,71 @@ func TestRevokedDeviceIsRefusedAtItsNextCall(t *testing.T) {
 	expectCode(t, "revoked device followed a conversation", err, codes.Unauthenticated)
 }
 
+// Revoking a device ends the streams it has open at once (audit: streams
+// outlived revocation), not at its next request.
+func TestRevokeEndsAnOpenDeviceStream(t *testing.T) {
+	f := newDeviceFixture(t)
+	ctx := timeout(t)
+	e, _, _ := f.open(t)
+	d, phone := f.pair(t)
+	stream, err := f.client.WatchEvents(bearer(ctx, phone), &pb.WatchEventsRequest{SessionId: e.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = stream.Recv(); err != nil {
+		t.Fatal(err)
+	}
+	ended := make(chan error, 1)
+	go func() {
+		for {
+			if _, err := stream.Recv(); err != nil {
+				ended <- err
+				return
+			}
+		}
+	}()
+	select {
+	case err := <-ended:
+		t.Fatalf("stream ended before revoke: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if _, err = f.service.RevokeDevice(ctx, &pb.RevokeDeviceRequest{DeviceId: d.ID}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-ended:
+		expectCode(t, "stream of a revoked device", err, codes.Unauthenticated)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the revoked device's stream is still open")
+	}
+}
+
+// A stream lasts no longer than the credential that opened it: at its
+// expiry it ends Unauthenticated, and the phone renews and reconnects.
+func TestDeviceStreamEndsAtCredentialExpiry(t *testing.T) {
+	f := newDeviceFixture(t)
+	ctx := timeout(t)
+	e, _, _ := f.open(t)
+	// A credential issued as if 15 minutes less 1 s ago expires in about a second.
+	f.devices.Now = func() time.Time { return time.Now().Add(-devices.CredentialLifetime + 1500*time.Millisecond) }
+	_, phone := f.pair(t)
+	f.devices.Now = time.Now
+	stream, err := f.client.WatchEvents(bearer(ctx, phone), &pb.WatchEventsRequest{SessionId: e.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	for {
+		if _, err = stream.Recv(); err != nil {
+			break
+		}
+	}
+	expectCode(t, "stream past its credential's expiry", err, codes.Unauthenticated)
+	if waited := time.Since(started); waited > 5*time.Second {
+		t.Fatalf("stream outlived its credential by %s", waited)
+	}
+}
+
 // Info tells a device about conversations, not accounts: no usage, email,
 // sign-in flows or gateways.
 func TestDeviceInfoLeavesAccountsOnTheOwnersScreen(t *testing.T) {

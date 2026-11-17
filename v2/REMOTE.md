@@ -72,7 +72,7 @@ machine), conversation content.
 | Another device on the owner's tailnet (or a shared tailnet) | Call the gateway | It needs a device credential. The gateway's RPC endpoint accepts device credentials only; pairing needs an unexpired, unused one-time code that only the owner's screen shows. |
 | Someone who photographs the QR code | Pair their own phone | The code works once and for 5 minutes; the owner's dialog shows which device paired, with its name and key fingerprint, and Revoke is one click. Closing the dialog withdraws an unused code. (Residual risk: a photograph used within that window before the owner's phone.) |
 | Brute-forcing a code | Guess the secret | 256-bit secret; five wrong attempts burn the offer; 30 pairing attempts per minute per gateway. |
-| A stolen access credential (logs, a proxy) | Replay it | It lasts 15 minutes and stops at once on revoke. Credentials are bearer headers, never cookies, so there is no CSRF; no CORS headers are sent. |
+| A stolen access credential (logs, a proxy) | Replay it | It lasts 15 minutes and stops at once on revoke, streams it opened included. Credentials are bearer headers, never cookies, so there is no CSRF; no CORS headers are sent. |
 | A copy of the phone's storage | Become the phone | The phone's ECDSA P-256 private key is a non-extractable WebCrypto key: script can sign with it but cannot read it. A new credential needs a fresh single-use challenge signed with it. |
 | A paired phone (lost, or a mistaken grant) | Escalate | The device allowlist (below) is exhaustive and pinned by tests; settings, subscriptions, GitHub, terminals, commands, files, deletion, processes, restart and device management are unreachable. Changing an agent's permission mode (e.g. to yolo) is refused even with every grant. Info hides account usage, emails, sign-in flows and gateways. |
 | An agent on this machine | Use the phone's authority | Agent and terminal credentials are refused by the gateway; device credentials are refused by the owner's listener. |
@@ -130,7 +130,10 @@ owner's windows ──▶ Codefly Connect/gRPC listeners on loopback ──▶ L
   The answer consumes the challenge whatever the outcome. The credential is
   `lbx-device.<device>.<expiry>.<HMAC>` under `<state>/device-credential.key`,
   checked on every call against the device record: revoking deletes the
-  record, so the next call fails. The phone renews 90 s before expiry, and on
+  record, so the next call fails. A stream (`WatchEvents`, `WatchOutput`)
+  is bound to the credential that opened it: it ends `Unauthenticated` at
+  the credential's expiry (the phone, which renewed 90 s earlier, reconnects
+  from its cursor) and at once when the device is revoked. The phone renews 90 s before expiry, and on
   any refused call through the existing `RunnerLink` renew path.
 - **Records**: `<state>/devices.json` (0600): id, name, public key, grants,
   paired and last-seen times (written at most once a minute). No credential is

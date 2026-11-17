@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -20,6 +21,10 @@ import (
 // (devices.Manager implements it).
 type DeviceVerifier interface {
 	Authenticate(token string) (devices.Device, error)
+	// Bind authenticates a credential for a stream and returns a context
+	// that ends, with cause devices.ErrCredentialEnded, at the credential's
+	// expiry or when its device is revoked; release ends the binding.
+	Bind(ctx context.Context, token string) (bound context.Context, release context.CancelFunc, d devices.Device, err error)
 }
 
 // deviceRule admits one RPC to a device holding grant, for requests allow
@@ -161,7 +166,16 @@ func DeviceAuthority(verifier DeviceVerifier) []grpc.ServerOption {
 			if _, err := authorizeDevice(stream.Context(), verifier, info.FullMethod, nil); err != nil {
 				return err
 			}
-			return handler(srv, stream)
+			// A stream lasts no longer than its credential: it ends at the
+			// credential's expiry (the phone renews and reconnects) and at once
+			// when the device is revoked.
+			token, _ := strings.CutPrefix(metadata.ValueFromIncomingContext(stream.Context(), "authorization")[0], "Bearer ")
+			ctx, release, d, err := verifier.Bind(stream.Context(), token)
+			if err != nil {
+				return status.Error(codes.Unauthenticated, "a paired device's credential is required; sign in again from the phone")
+			}
+			defer release()
+			return boundStream(ctx, devices.ErrCredentialEnded, handler(srv, &contextStream{ServerStream: stream, ctx: context.WithValue(ctx, deviceKey{}, &d)}))
 		}),
 	}
 }
@@ -195,4 +209,23 @@ func DeviceHandler(service pb.RunnerServiceServer, verifier DeviceVerifier, maxM
 		return nil, nil, err
 	}
 	return transcoder, server.Stop, nil
+}
+
+// contextStream is a server stream whose handler sees ctx.
+type contextStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *contextStream) Context() context.Context { return s.ctx }
+
+// boundStream is what a stream whose context is bound to a credential
+// returns: Unauthenticated when the credential ended under it (cause ended),
+// so the client renews and reconnects or learns it was revoked, and the
+// handler's own result otherwise.
+func boundStream(ctx context.Context, ended error, result error) error {
+	if errors.Is(context.Cause(ctx), ended) {
+		return status.Error(codes.Unauthenticated, "this credential ended (expired or revoked); sign in again")
+	}
+	return result
 }

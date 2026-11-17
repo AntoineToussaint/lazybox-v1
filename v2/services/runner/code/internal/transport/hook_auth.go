@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"slices"
 	"strings"
 
@@ -16,6 +17,10 @@ type HookCredentials interface {
 	// HookScope returns the run and grants of a live hook credential, or an
 	// error for a forged one or one whose run has ended.
 	HookScope(token string) (run string, grants []string, err error)
+	// BindHook returns a context that ends, with cause
+	// runner.ErrHookCredentialEnded, when the run's credential ends, so a
+	// stream the hook opened does not outlive it; release ends the binding.
+	BindHook(ctx context.Context, run string) (bound context.Context, release context.CancelFunc, err error)
 }
 
 // hookTokenPrefix marks a hook credential (runner.hookTokenPrefix).

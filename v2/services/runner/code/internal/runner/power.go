@@ -45,7 +45,10 @@ type powerState struct {
 	credMu sync.Mutex
 	// hookCreds: the grants of each running hook that holds a credential.
 	hookCreds map[string][]string
-	observer  hookObserver
+	// hookStreams: per hook run, the cancel funcs of the streams its
+	// credential opened (BindHook), ended by revokeHook.
+	hookStreams map[string]map[*context.CancelCauseFunc]struct{}
+	observer    hookObserver
 	// hookClient posts webhooks.
 	hookClient *http.Client
 }
@@ -67,6 +70,7 @@ func (b *Bench) openPower() {
 	b.power.UI = power.NewBroker()
 	b.power.Hooks = power.NewDispatcher(b.power.Actions, b.launchHook)
 	b.power.hookCreds = map[string][]string{}
+	b.power.hookStreams = map[string]map[*context.CancelCauseFunc]struct{}{}
 	b.power.hookClient = &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error {
 		if len(via) >= 3 || (r.URL.Scheme != "http" && r.URL.Scheme != "https") {
 			return errors.New("webhook redirect refused")
@@ -519,6 +523,11 @@ func (b *Bench) grantHook(run string, grants []string) (string, error) {
 func (b *Bench) revokeHook(run string) {
 	b.power.credMu.Lock()
 	delete(b.power.hookCreds, run)
+	// The streams the hook opened end with its credential.
+	for cancel := range b.power.hookStreams[run] {
+		(*cancel)(ErrHookCredentialEnded)
+	}
+	delete(b.power.hookStreams, run)
 	b.power.credMu.Unlock()
 	if validExecutionID(run) {
 		if err := os.Remove(filepath.Join(b.hookEndpointDir(), run+".json")); err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -550,4 +559,35 @@ func (b *Bench) HookScope(token string) (string, []string, error) {
 		return "", nil, errors.New("invalid or expired hook credential")
 	}
 	return run, slices.Clone(grants), nil
+}
+
+// ErrHookCredentialEnded is the cause of a context bound to a hook's
+// credential (BindHook) ending because the hook's run ended.
+var ErrHookCredentialEnded = errors.New("this hook's run ended; its credential is no longer valid")
+
+// BindHook returns a context derived from parent that ends, with cause
+// ErrHookCredentialEnded, when the hook run's credential is revoked (its run
+// ended), so a stream it opened does not outlive it. It fails for a run whose
+// credential already ended. release must be called when the call ends.
+func (b *Bench) BindHook(parent context.Context, run string) (context.Context, context.CancelFunc, error) {
+	b.power.credMu.Lock()
+	defer b.power.credMu.Unlock()
+	if _, live := b.power.hookCreds[run]; !live {
+		return nil, nil, ErrHookCredentialEnded
+	}
+	ctx, cancel := context.WithCancelCause(parent)
+	key := &cancel
+	if b.power.hookStreams[run] == nil {
+		b.power.hookStreams[run] = map[*context.CancelCauseFunc]struct{}{}
+	}
+	b.power.hookStreams[run][key] = struct{}{}
+	return ctx, func() {
+		b.power.credMu.Lock()
+		delete(b.power.hookStreams[run], key)
+		if len(b.power.hookStreams[run]) == 0 {
+			delete(b.power.hookStreams, run)
+		}
+		b.power.credMu.Unlock()
+		cancel(context.Canceled)
+	}, nil
 }

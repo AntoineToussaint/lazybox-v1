@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"strings"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -370,10 +371,21 @@ func LocalAuthority(owner string, agents AgentCredentials) []grpc.ServerOption {
 			return handler(context.WithValue(ctx, principalKey{}, who), req)
 		}),
 		grpc.ChainStreamInterceptor(func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-			if _, err := authorize(stream.Context(), owner, agents, info.FullMethod, nil); err != nil {
+			who, err := authorize(stream.Context(), owner, agents, info.FullMethod, nil)
+			if err != nil {
 				return err
 			}
-			return handler(srv, stream)
+			if who.hook == "" {
+				return handler(srv, stream)
+			}
+			// A hook's stream ends with its run's credential (revokeHook).
+			verifier, _ := agents.(HookCredentials)
+			ctx, release, err := verifier.BindHook(stream.Context(), who.hook)
+			if err != nil {
+				return status.Error(codes.Unauthenticated, "this hook's run ended; its credential is no longer valid")
+			}
+			defer release()
+			return boundStream(ctx, runner.ErrHookCredentialEnded, handler(srv, &contextStream{ServerStream: stream, ctx: context.WithValue(ctx, principalKey{}, who)}))
 		}),
 	}
 }

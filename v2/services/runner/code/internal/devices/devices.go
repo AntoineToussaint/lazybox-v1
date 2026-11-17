@@ -8,10 +8,12 @@
 // non-extractable WebCrypto key). Every access credential afterwards is issued
 // only against a fresh, single-use challenge signed with that key, lives
 // fifteen minutes, and is checked against the device record on every call, so
-// revoking a device ends its access at its next request.
+// revoking a device ends its access at its next request and ends the streams
+// it has open (Bind).
 package devices
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/hmac"
@@ -101,6 +103,9 @@ var (
 	ErrBadChallenge   = errors.New("the sign-in challenge is unknown, used or expired")
 	ErrBadCredential  = errors.New("invalid device credential")
 	ErrTooMany        = errors.New("too many pending requests; try again shortly")
+	// ErrCredentialEnded is the cause of a bound context (Bind) ending
+	// because its credential expired or its device was revoked.
+	ErrCredentialEnded = errors.New("this device's credential ended; sign in again from the phone")
 )
 
 // Device is one paired phone or tablet.
@@ -183,7 +188,13 @@ type Manager struct {
 	persisted  map[string]time.Time
 	offers     map[string]*offer
 	challenges map[string]challenge
+	// streams: per device, the cancel funcs of every context bound to one
+	// of its credentials (Bind), ended by Revoke.
+	streams map[string]map[*binding]struct{}
 }
+
+// binding is one context bound to a device credential.
+type binding struct{ cancel context.CancelCauseFunc }
 
 // Open loads the devices paired with the Runner whose state directory is
 // state, creating the credential key on first use.
@@ -192,7 +203,7 @@ func Open(state string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Manager{path: filepath.Join(state, "devices.json"), key: key, Now: time.Now, devices: map[string]*Device{}, persisted: map[string]time.Time{}, offers: map[string]*offer{}, challenges: map[string]challenge{}}
+	m := &Manager{path: filepath.Join(state, "devices.json"), key: key, Now: time.Now, devices: map[string]*Device{}, persisted: map[string]time.Time{}, offers: map[string]*offer{}, challenges: map[string]challenge{}, streams: map[string]map[*binding]struct{}{}}
 	data, err := os.ReadFile(m.path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return m, nil
@@ -576,37 +587,91 @@ func (m *Manager) token(device string, expires time.Time) string {
 	return TokenPrefix + device + "." + strconv.FormatInt(unix, 10) + "." + base64.RawURLEncoding.EncodeToString(m.mac(device, unix))
 }
 
-// Authenticate resolves an access credential to its device. It fails for a
-// forged, expired or revoked one, and records that the device was seen.
-func (m *Manager) Authenticate(token string) (Device, error) {
+// parseToken checks an access credential's signature and returns its device
+// and expiry (Unix seconds). It does not look the device up.
+func (m *Manager) parseToken(token string) (string, int64, error) {
 	rest, ok := strings.CutPrefix(token, TokenPrefix)
 	if !ok {
-		return Device{}, ErrBadCredential
+		return "", 0, ErrBadCredential
 	}
 	parts := strings.Split(rest, ".")
 	if len(parts) != 3 || !validID(parts[0]) {
-		return Device{}, ErrBadCredential
+		return "", 0, ErrBadCredential
 	}
 	expires, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return Device{}, ErrBadCredential
+		return "", 0, ErrBadCredential
 	}
 	presented, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil || !hmac.Equal(presented, m.mac(parts[0], expires)) {
-		return Device{}, ErrBadCredential
+		return "", 0, ErrBadCredential
+	}
+	return parts[0], expires, nil
+}
+
+// Authenticate resolves an access credential to its device. It fails for a
+// forged, expired or revoked one, and records that the device was seen.
+func (m *Manager) Authenticate(token string) (Device, error) {
+	id, expires, err := m.parseToken(token)
+	if err != nil {
+		return Device{}, err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.live(id, expires)
+}
+
+// live returns the device of an unexpired credential and records that it was
+// seen. Caller holds mu.
+func (m *Manager) live(id string, expires int64) (Device, error) {
 	now := m.Now()
 	if now.Unix() >= expires {
 		return Device{}, errors.New("device credential expired")
 	}
-	d := m.devices[parts[0]]
+	d := m.devices[id]
 	if d == nil {
 		return Device{}, errors.New("device credential revoked")
 	}
 	m.touch(d, now)
 	return d.clone(), nil
+}
+
+// Bind authenticates an access credential for a long-lived call (a stream)
+// and returns a context derived from parent that ends, with cause
+// ErrCredentialEnded, when the credential expires or its device is revoked:
+// a stream opened with a credential lasts no longer than the credential
+// would on its next request. release must be called when the call ends.
+func (m *Manager) Bind(parent context.Context, token string) (ctx context.Context, release context.CancelFunc, d Device, err error) {
+	id, expires, err := m.parseToken(token)
+	if err != nil {
+		return nil, nil, Device{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if d, err = m.live(id, expires); err != nil {
+		return nil, nil, Device{}, err
+	}
+	// The deadline follows the Manager's clock (tests replace it) on the
+	// real one a context uses.
+	deadline := time.Now().Add(time.Unix(expires, 0).Sub(m.Now()))
+	expiring, stopDeadline := context.WithDeadlineCause(parent, deadline, ErrCredentialEnded)
+	bound, cancel := context.WithCancelCause(expiring)
+	b := &binding{cancel: cancel}
+	if m.streams[id] == nil {
+		m.streams[id] = map[*binding]struct{}{}
+	}
+	m.streams[id][b] = struct{}{}
+	release = func() {
+		m.mu.Lock()
+		delete(m.streams[id], b)
+		if len(m.streams[id]) == 0 {
+			delete(m.streams, id)
+		}
+		m.mu.Unlock()
+		cancel(context.Canceled)
+		stopDeadline()
+	}
+	return bound, release, d, nil
 }
 
 // touch records activity, writing it at most once a minute. Caller holds mu.
@@ -655,6 +720,11 @@ func (m *Manager) Revoke(id string) error {
 			delete(m.challenges, value)
 		}
 	}
+	// Streams it opened end now, not at their credential's expiry.
+	for b := range m.streams[id] {
+		b.cancel(ErrCredentialEnded)
+	}
+	delete(m.streams, id)
 	return nil
 }
 
