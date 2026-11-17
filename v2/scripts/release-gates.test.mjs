@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { loadGateCatalog, selectGates, shardGates, runGateCatalog, validateReleaseReceipt, executeGate } from './release-gates.mjs';
+import { loadGateCatalog, selectGates, shardGates, runGateCatalog, validateReleaseReceipt, executeGate, summarizeGateReport } from './release-gates.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'lazybox-gates-'));
@@ -134,4 +134,41 @@ test('CI shards cover every gate of a profile exactly once and run only named ga
   assert.deepEqual(seen, ['two']); assert.deepEqual(subset.only, ['two']); assert.equal(subset.status, 'passed');
   const fixtureCatalog = await loadGateCatalog(f.root);
   assert.throws(() => validateReleaseReceipt(subset, fixtureCatalog, 'source-digest'), /complete passing/, 'a shard can never promote');
+});
+
+test('CI retries a failed UI gate once and reports it flaky; staging never retries and a flaky gate never promotes', async t => {
+  const f = await fixture(t);
+  f.policy.gates.push({ id: 'three', scope: 'ui', script: 'test:three' }, { id: 'four', scope: 'ui', script: 'test:four' });
+  f.pkg.scripts['test:three'] = 'node three.mjs'; f.pkg.scripts['test:four'] = 'node four.mjs'; await f.save();
+  // two: fails, then passes (a flake). three: fails twice. four: runs out of time (never retried).
+  const runs = {}, outcome = { two: ['failed', 'passed'], three: ['failed', 'failed'], four: ['timed-out'] };
+  const execute = async gate => { const n = runs[gate.id] = (runs[gate.id] || 0) + 1, status = outcome[gate.id]?.[n - 1] || 'passed'; return { status, exitCode: status === 'passed' ? 0 : status === 'failed' ? 1 : null }; };
+  const report = await runGateCatalog(f.root, 'ui', { snapshot, execute, retryFlaky: true, only: ['two', 'three', 'four'] });
+  assert.deepEqual(runs, { two: 2, three: 2, four: 1 });
+  const [two, three, four] = report.results;
+  assert.equal(two.status, 'flaky'); assert.equal(two.exitCode, 0);
+  assert.deepEqual(two.attempts.map(a => a.status), ['failed', 'passed']);
+  assert.equal(three.status, 'failed'); assert.equal(three.exitCode, 1); assert.equal(three.attempts.length, 2);
+  assert.equal(four.status, 'timed-out'); assert.equal(four.attempts, undefined);
+  assert.equal(report.status, 'failed'); assert.equal(report.retryFlaky, true);
+  // Only the flake: the run passes, and says so.
+  for (const key of Object.keys(runs)) delete runs[key];
+  const flaky = await runGateCatalog(f.root, 'ui', { snapshot, execute, retryFlaky: true, only: ['two'] });
+  assert.equal(flaky.status, 'passed'); assert.equal(flaky.results[0].status, 'flaky');
+  const summary = summarizeGateReport(flaky);
+  assert.match(summary, /1 flaky \(passed on retry\)/); assert.match(summary, /`two` \| flaky \(passed on retry\) \| failed \(\d+ s\), passed \(\d+ s\)/);
+  assert.match(summarizeGateReport(report), /`three` \| failed/);
+  // Without the option a failure is a failure, and staging's release profile refuses it outright.
+  for (const key of Object.keys(runs)) delete runs[key];
+  const strict = await runGateCatalog(f.root, 'ui', { snapshot, execute, only: ['two'] });
+  assert.deepEqual(runs, { two: 1 }); assert.equal(strict.status, 'failed'); assert.equal(strict.results[0].attempts, undefined);
+  await assert.rejects(runGateCatalog(f.root, 'release', { snapshot, execute: pass, retryFlaky: true }), /clean first pass/);
+  // A flaky result, or a retrying run, can never stand in for a release receipt.
+  const catalog = await loadGateCatalog(f.root);
+  const release = await runGateCatalog(f.root, 'release', { snapshot, execute: pass });
+  validateReleaseReceipt(release, catalog, 'source-digest');
+  const forged = structuredClone(release); forged.results[1] = { ...forged.results[1], status: 'flaky' };
+  assert.throws(() => validateReleaseReceipt(forged, catalog, 'source-digest'), /two/);
+  const retried = structuredClone(release); retried.retryFlaky = true;
+  assert.throws(() => validateReleaseReceipt(retried, catalog, 'source-digest'), /complete passing/);
 });

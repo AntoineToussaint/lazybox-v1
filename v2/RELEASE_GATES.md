@@ -16,6 +16,7 @@ node scripts/release-gates.mjs run core
 node scripts/release-gates.mjs run native
 node scripts/release-gates.mjs run ui --only inbox,chat-scroll   # named gates
 node scripts/release-gates.mjs shards ui 3                       # CI's matrix
+node scripts/release-gates.mjs run ui --only inbox --retry-flaky # CI: a failed UI gate runs once more
 ```
 
 The `reboot` gate kills the Runner, every session host and their programs as
@@ -69,7 +70,8 @@ The UI matrix comes from this catalog, never a copy of it:
 `release-gates.mjs shards ui <count>` splits the UI gates into disjoint shards,
 and each shard runs `release-gates.mjs run ui --only <ids>`, so it gets the same
 environment scrubbing, process groups and deadlines as staging. An `--only`
-report records its selection and can never promote a release. Adding a gate to
+report records its selection and can never promote a release. CI adds
+`--retry-flaky` ([Flaky in CI](#flaky-in-ci)). Adding a gate to
 the catalog adds it to CI with no workflow edit; an unclassified `test:` script
 fails the first job, as it fails staging. A failed shard uploads the
 screenshots its suites saved (`v2/.cache/*.png`, `/tmp/lazybox-*.png`) and its
@@ -171,6 +173,39 @@ suites with different configs otherwise rewrite one shared cache under each
 other. `test:transcript-performance` bounds a long conversation's opening
 relative to a short calibration conversation opened alongside it. The
 absolute budgets apply only with `PERF_STRICT=1`, on a quiet machine.
+
+### Flaky in CI
+
+GitHub's macOS runners are slower than a development machine (3 cores, a
+cold Vite dependency cache for every suite), and a UI suite that waits on the
+wrong signal fails there first. So that one such flake does not fail a pull
+request while staying in sight, CI's UI shards run the gate runner with
+`--retry-flaky`:
+
+- a UI gate that **fails** runs once more. A deadline or a cancellation is not
+  retried, and neither is any `core` or `native` gate;
+- passing on that second run, its result is `flaky`, not `passed`, with both
+  attempts in the receipt (`attempts`), and the run passes;
+- failing again, it is `failed`, with both attempts;
+- the log says `[<gate>] flaky (passed on retry)`; on GitHub Actions each flaky
+  gate is a warning annotation on the run, and the job summary lists the run's
+  flaky and failed gates with their attempts.
+
+Staging and `make check-release` never retry: `--retry-flaky` is refused for
+any profile but `ui`, a receipt from a retrying run is marked `retryFlaky`, and
+`promote` admits only a receipt whose every gate `passed` on its first run. A
+flaky gate is still a bug to fix, as above. What has held on a slow runner:
+
+- wait for the state the next step needs (a switch enabled once its save is
+  answered, a panel switcher rendered), never a count taken at once;
+- time what the test does from when it does it, not from when the fixture was
+  made: a cold dev server can take more than 10 s to show the page;
+- a card that lasts a moment is recorded by the page as it comes
+  (a `MutationObserver`), not read twice from the test;
+- a reload or a closed context cuts in-flight polls, which WebKit reports as
+  page errors ("access control checks"): ignore those while leaving, only;
+- a fixture answers as the Runner does: proto3 JSON leaves out a field at its
+  zero value, which the Runner saves as that value.
 
 ## Watcher diagnostic
 

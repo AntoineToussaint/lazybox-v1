@@ -243,12 +243,14 @@ jobs:
           browsers: chromium webkit
       # The gate runner, not `npm run` directly: same env scrubbing, process
       # groups and per-gate deadlines as staging, and every gate in the shard
-      # runs even after one fails.
+      # runs even after one fails. --retry-flaky runs a failed UI gate once
+      # more: passing then, it is reported flaky (a warning, the job summary,
+      # the receipt) rather than failing the build. Staging never retries.
       - name: Run ${{ matrix.gates }}
         env:
           GATES: ${{ matrix.gates }}
           SHARD: ${{ matrix.shard }}
-        run: node scripts/release-gates.mjs run ui --only "$GATES" --report ".cache/gates-ui-$SHARD.json"
+        run: node scripts/release-gates.mjs run ui --only "$GATES" --report ".cache/gates-ui-$SHARD.json" --retry-flaky
       # The suites drive Playwright as a library and save screenshots (several
       # only on failure) to v2/.cache and /tmp; they record no traces.
       - name: Upload screenshots and gate report
