@@ -14,6 +14,12 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.11] - 2026-11-17 · Dictation that keeps up with your pauses
+
+- **Pause while you dictate** Stop to think mid-sentence and go on: what you said before the pause stays in the message box, and the new words follow it. Listening no longer ends on a long pause when you tapped to keep listening; it stops when you do, or after a minute of silence.
+- **Hold Right ⌥ to talk** The Option key on the right, alone, is the dictation key: hold it and speak, tap it twice to keep listening, tap it once to stop. With any other key it is still an ordinary ⌥ (⌥e, ⌥←). ⌥Space still works; if it does nothing, another app (ChatGPT, Raycast, Alfred) may use it, and the pill says so. Pick any key in Settings → Voice, now also Right ⌥ or Right ⌘ alone.
+- **⌘↵ sends** In the message box ⌘↵ sends, as ↵ does. While you dictate, ⌘↵ (or ↵, or Send) waits for your last words, then sends.
+
 ## [2026-11-17.10] - 2026-11-17 · Start a task from a GitHub issue
 
 - **Paste an issue's link** Paste a GitHub issue's link (or acme/api#812) into New task's message box: it becomes the issue's chip, its repository is chosen, and the workspace is named after it on a branch like 812-fix-refund-rounding.

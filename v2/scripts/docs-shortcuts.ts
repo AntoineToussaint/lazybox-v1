@@ -39,9 +39,9 @@ const groupIntro: Record<string, string> = {
     'On Windows and Linux, where Ctrl stands for both ⌘ and ⌃, the keys differ: see the right-hand column.',
   ].join(' '),
   'Conversation': 'Act on the conversation you last clicked or focused.',
-  'Voice': 'Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). See [Voice](../guides/voice.md).',
+  'Voice': 'Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). `Right ⌥` is the Option key on the right, alone: hold it to talk, tap it twice to keep listening, tap it once to stop; with any other key it stays an ordinary ⌥. While dictating, `⌘↵` sends once the last words are in. See [Voice](../guides/voice.md).',
   'Sidebar': 'After `]]` puts the keyboard in the sidebar. The *Arrows* preset uses the arrow keys instead.',
-  'Message box': 'While you type a message.',
+  'Message box': 'While you type a message. `⌘↵` sends too, also while you dictate.',
 };
 
 export function renderShortcuts(): string {

@@ -21,7 +21,7 @@ it did.
   next (it asks first and names the step; `Esc` keeps waiting), and, for
   Codex, **Steer**, which hands it to the running turn without stopping it.
   Claude cannot take a message mid-turn, and the strip says so.
-- **Dictate** instead of typing: hold `⌥Space` and speak, or click the
+- **Dictate** instead of typing: hold `Right ⌥` (or `⌥Space`) and speak, or click the
   microphone in the message box — see [Voice](voice.md).
 - **Attach** files with the paperclip, by dropping them on the chat, or by
   pasting a screenshot. Up to four files, 20 MiB per message. Images show as

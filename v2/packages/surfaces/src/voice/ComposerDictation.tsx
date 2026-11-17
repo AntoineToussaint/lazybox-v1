@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { mergeDictation } from './voice-model';
-import { registerDictationTarget, startDictation, stopDictation, takeOverDictation, useVoiceState, voiceState, recognizers, type DictationSink, type DictationTarget } from './voice-session';
+import { finishAndSend, registerDictationTarget, startDictation, stopDictation, takeOverDictation, useVoiceState, voiceState, recognizers, type DictationSink, type DictationTarget } from './voice-session';
 
 /** The span of the draft still being recognized, drawn over the message box. */
 export type LiveRange = { start: number; end: number };
@@ -28,6 +28,15 @@ export function useComposerDictation({ textarea, value, enabled, onPreview, onCo
   const [active, setActive] = useState(false);
   const pendingSend = useRef<string | null>(null);
   const target = useRef<DictationTarget | null>(null);
+  /** Send once the box holds `text` (the chat sends what it shows); now, if it already does. */
+  const sendWhenShown = (text: string) => {
+    pendingSend.current = text;
+    requestAnimationFrame(() => {
+      if (pendingSend.current !== text || latest.current.value !== text) return;
+      pendingSend.current = null;
+      latest.current.onSend();
+    });
+  };
 
   useEffect(() => {
     const own: DictationTarget = {
@@ -57,11 +66,16 @@ export function useComposerDictation({ textarea, value, enabled, onPreview, onCo
             setActive(false); setLive(null);
             if (reason === 'takeover') return;
             // Nothing said: the draft stays exactly as it was (a selection is not replaced by silence).
-            if (reason === 'cancel' || reason === 'error' || !view.text) { latest.current.onCommit(original); place(to); return; }
+            if (reason === 'cancel' || reason === 'error' || !view.text) {
+              latest.current.onCommit(original); place(to);
+              // ⌘↵ with nothing new said still sends what the box holds.
+              if (reason === 'send') sendWhenShown(original);
+              return;
+            }
             const merged = mergeDictation(before, after, view.text);
             latest.current.onCommit(merged.text);
             place(merged.end);
-            if (reason === 'send') pendingSend.current = merged.text;
+            if (reason === 'send') sendWhenShown(merged.text);
           },
         };
       },
@@ -88,8 +102,14 @@ export function useComposerDictation({ textarea, value, enabled, onPreview, onCo
       if (active && voiceState().phase !== 'idle') { void stopDictation(); return; }
       if (target.current) void startDictation({ mode: 'toggle', target: target.current });
     },
-    /** The person typed or sent: their text stands. */
+    /** The person typed: their text stands. */
     takeOver() { if (active) takeOverDictation(); },
+    /**
+     * The person sent (↵, ⌘↵, the Send button) while this box was listening:
+     * the last words settle, then the message is sent. False when it was not
+     * listening (send as usual).
+     */
+    finishAndSend() { return active && voiceState().phase !== 'idle' && finishAndSend(); },
     /** Whether this window can dictate at all (a recognizer exists). */
     supported: recognizers().length > 0,
   };

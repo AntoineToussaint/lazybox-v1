@@ -11,11 +11,18 @@ none of it is ever saved.
 ## Dictate a message
 
 1. Click into a conversation's message box (or just have one on screen).
-2. **Hold `⌥Space`** and speak. A small pill shows a red recording light, the
-   microphone level and the time; your words appear in the message box,
-   underlined while they are still being recognized.
-3. **Release `⌥Space`.** The words settle into ordinary text. Edit them, then
-   press `↵` to send.
+2. **Hold `Right ⌥`** — the Option key on the right of the space bar, on its
+   own — and speak. A small pill shows a red recording light, the microphone
+   level and the time; your words appear in the message box, underlined while
+   they are still being recognized.
+3. **Release it.** The words settle into ordinary text. Edit them, then press
+   `↵` (or `⌘↵`) to send.
+
+`⌥Space` works too, held or tapped, as before. Pausing to think is fine: what
+you said before the pause stays, and the words after it follow.
+
+`Right ⌥` with any other key is still an ordinary `⌥`: `⌥e` for an accent or
+`⌥←` to move by word starts nothing, and a quick tap does nothing either.
 
 Dictated words go where the cursor was, with spaces and capitals as if you had
 typed them: "Look at" + *the logs* gives "Look at the logs"; after a full stop
@@ -23,7 +30,8 @@ the next word gets a capital.
 
 | To… | Do this |
 | --- | --- |
-| Keep listening without holding the key | **Tap** `⌥Space`; tap it again (or click ■ in the pill) to finish |
+| Keep listening without holding the key | **Tap `Right ⌥` twice** (or tap `⌥Space` once); tap `Right ⌥` once more (or click ■ in the pill) to finish |
+| Send what you said | `⌘↵` (or `↵`) while listening or after: the last words settle, then the message goes |
 | Use the mouse | The **microphone button** next to Snippets in the message box |
 | Throw away what you just said | `Esc`, the **×** in the pill, or say "cancel" / "annule" |
 | Take over with the keyboard | Just type: the words stay and listening stops |
@@ -32,6 +40,15 @@ the next word gets a capital.
 Dictation never sends anything on its own. With Vim editing on, it works in
 any mode: in normal mode the words go after the cursor, as with `a`, and `Esc`
 cancels the dictation without changing your mode.
+
+### When the key does nothing
+
+Another app's global shortcut takes a key before Lazybox sees it: `⌥Space` is
+the launcher of the ChatGPT app, and a common choice for Raycast and Alfred
+(`⌘Space` is Spotlight, `⌃Space` switches the input source). Lazybox cannot
+tell, so until the key has worked once the pill says so when you start from
+the microphone button. Use `Right ⌥`, or pick another key in **Settings →
+Voice → Keys**.
 
 ### Spoken commands
 
@@ -129,7 +146,9 @@ To dictate in a language on-device, it must be installed for dictation:
 
 Every option, with its default, is in the [Voice settings
 reference](../reference/voice-settings.md). The keys can be changed there (or in
-**Settings → Shortcuts**): one key held with `⌥`, `⌃` or `⌘`, or a function key.
+**Settings → Shortcuts**): one key held with `⌥`, `⌃` or `⌘`, a function key,
+or `Right ⌥` or `Right ⌘` alone (`AltRight`, `MetaRight` in `keys.yaml`). A
+left modifier alone is refused: it is pressed with other keys all the time.
 
 ## When something is wrong
 
@@ -138,5 +157,6 @@ reference](../reference/voice-settings.md). The keys can be changed there (or in
 | "Allow speech recognition for Lazybox…" or "…the microphone…" | Settings → Voice → the button next to the blocked permission |
 | "This Mac cannot recognize that language on-device" | Add it in System Settings → Keyboard → Dictation, pick another language, or allow Apple's server |
 | "Nothing was heard" | Check the input device in System Settings → Sound, then hold the key and speak |
+| The dictation key does nothing | Another app has it (see [When the key does nothing](#when-the-key-does-nothing)): use `Right ⌥` or pick another key |
 | "This browser has no speech recognition" | Use Chrome, Edge or Safari, the desktop app, or the keyboard's microphone |
 | Words go to the wrong conversation | Click into the message box you want first: dictation goes to the one with the focus, else the one you used last |

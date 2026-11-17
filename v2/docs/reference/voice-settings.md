@@ -20,13 +20,19 @@ Shortcuts). The two voice keys are part of your shortcuts.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Dictate | `⌥Space` | Hold to dictate into the message box you are working in. **Change…** records a new key; **Reset** goes back to the default. |
+| Dictate | `Right ⌥` or `⌥Space` | Hold to dictate into the message box you are working in. **Change…** records a new key (press a chord, or press and release `Right ⌥` or `Right ⌘` alone); **Reset** goes back to the default. If `⌥Space` does nothing, another app (ChatGPT, Raycast, Alfred) may use it: pick another key. |
 | Say a command | `⌥⇧Space` | Hold to open the command palette and say what to run. |
-| How the key works | Hold to talk, tap to keep listening | *Hold to talk*: listening stops when you release. *Press to start, press again to stop*: listening goes on until the next press, "stop", or `Esc`. |
+| How the key works | Hold to talk, tap to keep listening | *Hold to talk*: listening stops when you release. *Press to start, press again to stop*: listening goes on until the next press, "stop", or `Esc`. With `Right ⌥` alone, a tap is a double tap: tap it twice to keep listening, once to stop. |
 
-A voice key must be one key held with `⌥`, `⌃` or `⌘` (`Ctrl+Alt+M`), or a
-function key (`F5`). A plain letter or a `]]` sequence is refused: you could
-not type it.
+A voice key must be one key held with `⌥`, `⌃` or `⌘` (`Ctrl+Alt+M`), a
+function key (`F5`), or `Right ⌥` or `Right ⌘` alone (`AltRight`, `MetaRight`
+in `keys.yaml`). A plain letter or a `]]` sequence is refused (you could not
+type it), and so is a left modifier alone (it is pressed with other keys all
+the time). `Fn` cannot be one: the app never sees it.
+
+`Right ⌥` alone talks only when held about 0.2 s with no other key: `⌥e`, `⌥←`
+or an `⌥`-click stay what they are. Keymaps saved before it existed gain it,
+first, beside the key they had.
 
 ## Text
 
@@ -64,6 +70,7 @@ command palette, and never happens while you dictate.
 
 | Action | Keys | Palette |
 | --- | --- | --- |
-| Dictate | `⌥Space` (held) | *Dictate* starts or stops listening (toggle) |
+| Dictate | `Right ⌥` or `⌥Space` (held) | *Dictate* starts or stops listening (toggle) |
+| Send message | `↵` or `⌘↵`, also while listening (the last words settle first) | — |
 | Say a command | `⌥⇧Space` (held) | *Say a command* |
 | Stop reading aloud | — | *Stop reading aloud*, while something is read |

@@ -136,12 +136,22 @@ type Run = {
   settleTimer?: ReturnType<typeof setTimeout>;
   stopTimer?: ReturnType<typeof setTimeout>;
   over: boolean;
+  /** Send once the last words are in (⌘↵ or ↵ while listening). */
+  sendWhenDone?: boolean;
 };
 let run: Run | undefined;
 let runs = 0;
 /** The dictation key is down (a hold released before the engine started still stops it). */
 let keyHeld = false;
 export function setDictationKeyHeld(held: boolean) { keyHeld = held; }
+/**
+ * The dictation key has started a dictation here before. Until it has, the
+ * pill says that another app may have taken it: a key swallowed by another
+ * app's global shortcut never reaches the window, so nothing can tell.
+ */
+const keyUsedName = 'lazybox:voice:key-used';
+export function voiceKeyUsed(): boolean { try { return localStorage.getItem(keyUsedName) === '1'; } catch { return true; } }
+export function markVoiceKeyUsed() { try { localStorage.setItem(keyUsedName, '1'); } catch { /* a convenience */ } }
 /** Settings is recording a new voice key: the current one must not start dictation. */
 let keysSuspended = false;
 export function setVoiceKeysSuspended(suspended: boolean) { keysSuspended = suspended; }
@@ -287,6 +297,7 @@ function act(current: Run, command: 'send' | 'stop' | 'cancel') {
 function end(current: Run, reason: EndReason, saidSendWithoutAutoSend = false) {
   if (current.over) return;
   current.over = true;
+  if (current.sendWhenDone && reason === 'stop') { reason = 'send'; saidSendWithoutAutoSend = false; }
   clearTimeout(current.settleTimer); clearTimeout(current.stopTimer);
   const view = dictationView(reason === 'cancel' ? current.dictation : settleAll(current.dictation, current.options).dictation, current.options);
   try { current.sink.end(reason, view); } catch (error) { console.error('Dictation target failed', error); }
@@ -303,6 +314,18 @@ export async function stopDictation(): Promise<void> {
   set({ phase: 'stopping' });
   current.stopTimer = setTimeout(() => end(current, 'stop'), STOP_GRACE_MS);
   try { await current.session.stop(); } catch { end(current, 'stop'); }
+}
+/**
+ * Send what was said (⌘↵ or ↵ while listening): the recognizer settles its
+ * last words, then the message goes through the message box's own send,
+ * as if ↵ had been pressed after the dictation.
+ */
+export function finishAndSend(): boolean {
+  const current = run;
+  if (!current || current.over || state.kind !== 'composer') return false;
+  current.sendWhenDone = true;
+  void stopDictation();
+  return true;
 }
 /** Stop listening and put back what was there before. */
 export function cancelDictation() { if (run) end(run, 'cancel'); }

@@ -8,7 +8,7 @@ import { Icon } from './Icons';
 import { leaderKeys, useVimPreferences, type Keymap } from './keyboard';
 import { useComposerVim } from './useComposerVim';
 import { DictationOverlay, useComposerDictation } from './voice/ComposerDictation';
-import { bindings, displayBinding } from './actions';
+import { bindings, displayBinding, isLoneModifier } from './actions';
 import type { FileReference } from './view-state';
 
 /**
@@ -77,9 +77,11 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   };
   const sendLabel = sending ? 'Sending…' : session?.busy ? 'Queue follow-up' : 'Send message';
 
+  const sendKey = bindings(keymap['chat.send'])[0] || 'Enter';
   const dictateKey = bindings(keymap['voice.dictate'])[0];
-  const dictateHint = dictateKey ? `Dictate · hold ${displayBinding(dictateKey).join(' ')} to talk, tap it to keep listening` : 'Dictate';
-  return <form className="composer" onSubmit={event => { dictation.takeOver(); onSubmit(event); }}>
+  const dictateHint = dictateKey ? `Dictate · hold ${displayBinding(dictateKey).join(' ')} to talk, tap it ${isLoneModifier(dictateKey) ? 'twice ' : ''}to keep listening` : 'Dictate';
+  // Sending while listening (↵, ⌘↵, Send) waits for the last words, then sends through this same form.
+  return <form className="composer" onSubmit={event => { if (dictation.finishAndSend()) { event.preventDefault(); return; } onSubmit(event); }}>
     {files.length > 0 && <ul className="attached-files" aria-label="Attached files">
       {files.map((file, i) => <ComposerAttachment key={fileKey(file, i, files)} file={file} disabled={sending} onRemove={() => onRemoveFile(i)}/>)}
     </ul>}
@@ -114,7 +116,7 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
       <button type="button" className="icon-button" aria-label="Snippets" title={`Snippets · ${keymap['snippets.open']}`} disabled={!canCompose || sending} onClick={onOpenSnippets}><Icon name="snippets"/></button>
       <button type="button" className="attachment" aria-label={embedded ? 'Attach files' : undefined} disabled={!canAttach} onClick={() => fileInput.current?.click()}>{embedded ? <><Icon name="attach"/> Attach</> : '+ Attach files'}</button>
       <input ref={fileInput} hidden aria-label="Attach files" type="file" multiple onChange={e => { onSelectFiles(e.target.files); e.target.value = ''; }}/>
-      <small className="composer-hint keyboard-hint">{vim.mode === 'insert' ? `${keymap['chat.send']} to send · Esc for normal mode` : vim.mode ? vim.hint : `${keymap['chat.send']} to send · Shift+Enter for a new line`}</small>
+      <small className="composer-hint keyboard-hint">{vim.mode === 'insert' ? `${sendKey} to send · Esc for normal mode` : vim.mode ? vim.hint : `${sendKey} to send · Shift+Enter for a new line`}</small>
       {!interruptInBar && (!embedded || session?.busy) && <button type="button" onClick={onInterrupt} disabled={!session?.busy || session.closed}>Interrupt</button>}
       <button className="primary send-button" aria-label={sendLabel} disabled={!canSend}>{embedded ? <Icon name="send" size={18}/> : sendLabel}</button>
     </div>

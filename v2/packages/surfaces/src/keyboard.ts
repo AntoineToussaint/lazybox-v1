@@ -1,7 +1,7 @@
 import { readPreference, writePreference } from "./view-state";
 import { useEffect, useRef, useState } from "react";
 import type { ViewStateStore } from "@lazybox/platform";
-import { actionDefinition, actionDefinitions, bindings, canonicalBinding, canonicalKey, defaultKeys, isChord, isMac, joinBindings, resolveMod, runAction, useAction, type ActionId } from "./actions";
+import { actionDefinition, actionDefinitions, bindings, canonicalBinding, canonicalKey, defaultKeys, isChord, isLoneModifier, isMac, joinBindings, resolveMod, runAction, useAction, type ActionId } from "./actions";
 import { writeConfig, type ConfigWriteResult } from "./config-writer";
 /** Every keyboard action, from the action registry (actions.ts). */
 export const keyboardActions = actionDefinitions.map((definition) => ({ id: definition.id as Action, label: definition.title as string, scope: definition.scope as string, keys: definition.keys as string, group: definition.group as string }));
@@ -23,7 +23,7 @@ export function keyboardPreset(preset = "vim", mac = isMac): Keymap {
 function withLeader(value: string, leader: string): string {
   return joinBindings(bindings(value).map((binding) => (binding === "] ]" ? leader : binding.startsWith("] ] ") ? `${leader} ${binding.slice(4)}` : binding)));
 }
-const keyPattern = /^(?:(?:Ctrl|Meta|Alt|Shift)\+)*(?:[^\s+]|\+|Enter|Escape|Tab|Space|ArrowDown|ArrowUp|ArrowLeft|ArrowRight|Backspace|Delete|Home|End|PageUp|PageDown|F[1-9][0-9]?)$/;
+const keyPattern = /^(?:(?:(?:Ctrl|Meta|Alt|Shift)\+)*(?:[^\s+]|\+|Enter|Escape|Tab|Space|ArrowDown|ArrowUp|ArrowLeft|ArrowRight|Backspace|Delete|Home|End|PageUp|PageDown|F[1-9][0-9]?)|AltRight|MetaRight)$/;
 /** Two actions can fire from the same place: one of them global, or both in one scope. */
 const overlaps = (a: { scope: string }, b: { scope: string }) => a.scope === b.scope || a.scope === "global" || b.scope === "global";
 export function validateKeymap(map: Keymap): string {
@@ -37,7 +37,10 @@ export function validateKeymap(map: Keymap): string {
       if (binding.split(/\s+/).some((key) => !keyPattern.test(key))) return `Invalid key in ${action.label}. Use a character or a key such as Ctrl+b or ArrowDown.`;
       if (binding.split(/\s+/).length > 4) return "Shortcuts support up to four keys.";
       // A key held down to talk cannot be a sequence, nor a key you type.
-      if (actionDefinition(action.id)?.hold && (binding.includes(" ") || !/(?:^|\+)(?:Ctrl|Meta|Alt)\+|^F\d+$/.test(binding))) return `${action.label} needs one key held with ⌥, ⌃ or ⌘ (or a function key), such as Alt+Space.`;
+      const hold = actionDefinition(action.id)?.hold;
+      if (hold && (binding.includes(" ") || !(/(?:^|\+)(?:Ctrl|Meta|Alt)\+|^F\d+$/.test(binding) || isLoneModifier(binding)))) return `${action.label} needs one key held with ⌥, ⌃ or ⌘, a function key, or Right ⌥ or Right ⌘ alone, such as Alt+Space.`;
+      // A modifier alone is a key held to talk, nothing else.
+      if (!hold && binding.split(/\s+/).some(isLoneModifier)) return `${action.label} cannot be a modifier alone: only a key held to talk can be Right ⌥ or Right ⌘.`;
     }
   }
   const owners: { binding: string; action: (typeof keyboardActions)[number] }[] = [];
@@ -71,9 +74,9 @@ const storageKey = "keyboard:v2";
  * voice keys (⌥Space, ⌥⇧Space); version 5 predates the panel-group keys (⌘⌥ arrows,
  * ⌘⌥⇧ arrows, ⌃⌘ arrows, ⌃1–9, ⌘T) and the reset chord; version 6 predates ⌘N
  * (a new task) and ⌘⇧N (a new conversation in this workspace); version 7 predates ⌘⇧L
- * (next layout).
+ * (next layout); version 8 predates Right ⌥ alone for dictation and ⌘↵ to send.
  */
-const keymapVersion = 8;
+const keymapVersion = 9;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
@@ -95,12 +98,14 @@ export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac
   if (!kept.size || version >= keymapVersion) return withFixedKeys(map, mac);
   const leader = map["navigation.exit"];
   const menuKeys = new Set(menu.map((entry) => canonicalBinding(`${leader} ${entry.key}`)));
-  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : a.id === "conversation.new" && version < 7 ? [resolveMod("Mod+Shift+n", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
+  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : a.id === "conversation.new" && version < 7 ? [resolveMod("Mod+Shift+n", mac)] : a.id === "voice.dictate" && version < 9 ? ["AltRight"] : a.id === "chat.send" && version < 9 ? [resolveMod("Mod+Enter", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
   for (const { action } of added) if (!kept.has(action.id)) map[action.id] = "";
   for (const { action, candidates } of added)
     for (const binding of candidates) {
       const clash = menuKeys.has(binding) || keyboardActions.some((other) => other.id !== action.id && overlaps(action, other) && bindings(map[other.id]).some((value) => canonicalBinding(value) === binding));
-      if (!clash && !bindings(map[action.id]).includes(binding)) map[action.id] = joinBindings([...bindings(map[action.id]), binding]);
+      // Right ⌥ comes first: it is the key the app names (⌥Space is often another app's).
+      const first = isLoneModifier(binding) && kept.has(action.id);
+      if (!clash && !bindings(map[action.id]).includes(binding)) map[action.id] = joinBindings(first ? [binding, ...bindings(map[action.id])] : [...bindings(map[action.id]), binding]);
     }
   return withFixedKeys(map, mac);
 }

@@ -219,10 +219,14 @@ const render = (text: string, options: DictationOptions) => {
   const trimmed = text.trim();
   return options.spokenPunctuation ? applySpokenPunctuation(trimmed, options.language).trim() : trimmed;
 };
-/** Settles a stretch's unsettled words: its command, if any, applies. */
-function settleSegment(segment: Segment, options: DictationOptions, onlyWithCommand: boolean): { segment: Segment; command?: SpokenCommand } {
+/**
+ * Settles a stretch's unsettled words. Its command, if any, applies only
+ * with `commands` (the stretch is the end of what was said); otherwise the
+ * words stay text.
+ */
+function settleSegment(segment: Segment, options: DictationOptions, onlyWithCommand: boolean, commands = true): { segment: Segment; command?: SpokenCommand } {
   const rest = remainder(segment);
-  const parsed = options.spokenCommands ? parseSpokenCommand(rest, options.words) : { text: rest };
+  const parsed = options.spokenCommands && commands ? parseSpokenCommand(rest, options.words) : { text: rest };
   if (onlyWithCommand && !parsed.command) return { segment };
   const pieces = [...segment.pieces];
   const text = render(parsed.text, options);
@@ -230,33 +234,41 @@ function settleSegment(segment: Segment, options: DictationOptions, onlyWithComm
   if (parsed.command === 'newline') pieces.push('\n');
   return { segment: { ...segment, pieces, consumed: segment.raw }, command: parsed.command };
 }
+/** Something was said after the stretch at `index`: a command in it is not at the end. */
+const saidAfter = (segments: readonly Segment[], index: number) => segments.slice(index + 1).some(s => s.pieces.length > 0 || !!remainder(s).trim());
 
 /**
- * One recognizer result. A final stretch settles: its trailing command
- * applies. "new line" adds a line and dictation goes on; send, stop and
- * cancel are returned for the caller to act on.
+ * One recognizer result. Each stretch of speech is a segment of its own,
+ * kept in order: a later one never replaces an earlier one (macOS starts a
+ * new one after a pause). A final stretch settles, and its trailing command
+ * applies when nothing was said after it. "new line" adds a line and
+ * dictation goes on; send, stop and cancel are returned for the caller to
+ * act on.
  */
 export function applyResult(dictation: Dictation, result: { segment: number; text: string; final: boolean }, options: DictationOptions): DictationStep {
   const index = dictation.segments.findIndex(s => s.id === result.segment);
   const previous = index >= 0 ? dictation.segments[index] : { id: result.segment, raw: '', final: false, pieces: [], consumed: '' };
   // A settled stretch does not change again (a late duplicate final).
   if (previous.final) return { dictation };
-  let segment: Segment = { ...previous, raw: result.text, final: result.final };
-  let command: SpokenCommand | undefined;
-  if (result.final) ({ segment, command } = settleSegment(segment, options, false));
-  const segments = index >= 0 ? dictation.segments.map((s, i) => i === index ? segment : s) : [...dictation.segments, segment].sort((a, b) => a.id - b.id);
+  const updated: Segment = { ...previous, raw: result.text, final: result.final };
+  const segments = (index >= 0 ? dictation.segments.map((s, i) => i === index ? updated : s) : [...dictation.segments, updated]).sort((a, b) => a.id - b.id);
+  if (!result.final) return { dictation: { segments } };
+  const at = segments.indexOf(updated);
+  const { segment, command } = settleSegment(updated, options, false, !saidAfter(segments, at));
+  segments[at] = segment;
   return { dictation: { segments }, command: command === 'newline' ? undefined : command };
 }
 
 /**
  * A pause: the words still being recognized have not changed for a moment.
- * If they end with a command, it applies now (an engine that reports one
- * growing stretch never sends a final until it stops).
+ * If the last words said end with a command, it applies now (an engine that
+ * reports one growing stretch never sends a final until it stops).
  */
 export function settleDictation(dictation: Dictation, options: DictationOptions): DictationStep {
   if (!options.spokenCommands) return { dictation };
-  const index = dictation.segments.findIndex(s => !s.final && remainder(s).trim());
-  if (index < 0) return { dictation };
+  let index = -1;
+  dictation.segments.forEach((s, i) => { if (s.pieces.length || remainder(s).trim()) index = i; });
+  if (index < 0 || dictation.segments[index].final || !remainder(dictation.segments[index]).trim()) return { dictation };
   const { segment, command } = settleSegment(dictation.segments[index], options, true);
   if (!command) return { dictation };
   return { dictation: { segments: dictation.segments.map((s, i) => i === index ? segment : s) }, command: command === 'newline' ? undefined : command };

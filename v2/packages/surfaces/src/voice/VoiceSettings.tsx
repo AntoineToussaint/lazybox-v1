@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import type { RecognizerLanguage, RecognizerStatus, SpeechVoice, ViewStateStore, VoicePermission } from '@lazybox/platform';
-import { bindings, canonicalKey, chordFromEvent, displayBinding, resolveMod, actionDefinition } from '../actions';
+import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBinding, isLoneModifier, resolveMod, actionDefinition } from '../actions';
 import { Icon } from '../Icons';
 import { saveKeymap, useKeymap, validateKeymap, type Action } from '../keyboard';
 import { SettingsGroup, SettingsHeader, SettingsRow } from '../settings-parts';
@@ -10,9 +10,9 @@ import './voice.css';
 
 const permissionText: Record<VoicePermission, string> = { granted: 'Allowed', denied: 'Blocked', restricted: 'Restricted', 'not-determined': 'Not asked yet', unsupported: 'Not available' };
 const behaviours: { value: KeyBehaviour; label: string; detail: string }[] = [
-  { value: 'both', label: 'Hold to talk, tap to keep listening', detail: 'Hold the key while you speak and release it to finish; a quick tap keeps listening until you press it again. Recommended.' },
+  { value: 'both', label: 'Hold to talk, tap to keep listening', detail: 'Hold the key while you speak and release it to finish; a quick tap keeps listening until you press it again (Right ⌥ alone: tap it twice). Recommended.' },
   { value: 'hold', label: 'Hold to talk', detail: 'Listening stops as soon as you release the key.' },
-  { value: 'toggle', label: 'Press to start, press again to stop', detail: 'Listening goes on until you press the key again, say “stop”, or press Esc.' },
+  { value: 'toggle', label: 'Press to start, press again to stop', detail: 'Listening goes on until you press the key again, say “stop”, or press Esc (Right ⌥ alone: tap it twice to start, once to stop).' },
 ];
 const commandLabels: Record<SpokenCommand, { label: string; detail: string }> = {
   send: { label: 'Send', detail: 'Sends the message when “Send when I say send” is on; otherwise stops listening so you can press ↵.' },
@@ -104,7 +104,7 @@ export function VoiceSettings({ store }: { store?: ViewStateStore }) {
     </SettingsGroup>
 
     <SettingsGroup title="Keys" description="Both keys work from anywhere in the window, also while you type.">
-      <SettingsRow label="Dictate" description="Into the message box you are working in."><VoiceKey store={store} id="voice.dictate"/></SettingsRow>
+      <SettingsRow label="Dictate" description={<>Into the message box you are working in. Right ⌥ alone: hold it to talk, tap it twice to keep listening. If ⌥Space does nothing, another app (ChatGPT, Raycast, Alfred) may use it. Pick another key.</>}><VoiceKey store={store} id="voice.dictate"/></SettingsRow>
       <SettingsRow label="Say a command" description="Opens the command palette and runs what you say: “next agent that needs me”, “open changes”, “switch to Beta”."><VoiceKey store={store} id="voice.command"/></SettingsRow>
       <div role="radiogroup" aria-label="How the key works">
         {behaviours.map(choice => <label key={choice.value} className="settings-row">
@@ -182,35 +182,58 @@ function CommandWords({ id, words, disabled, onChange }: { id: SpokenCommand; wo
   </SettingsRow>;
 }
 
-/** A voice key, and a button to record another: press the new chord, Esc to keep the old one. */
+const modifierNames: Record<string, string> = { AltLeft: 'Left ⌥', ControlLeft: 'Left ⌃', ControlRight: 'Right ⌃', MetaLeft: 'Left ⌘', ShiftLeft: 'Left ⇧', ShiftRight: 'Right ⇧' };
+
+/**
+ * A voice key, and a button to record another: press the new chord, or press
+ * and release Right ⌥ or Right ⌘ alone; Esc keeps the old one.
+ */
 function VoiceKey({ store, id, plain }: { store?: ViewStateStore; id: Action; plain?: boolean }) {
   const keymap = useKeymap(store);
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState('');
-  const current = bindings(keymap[id])[0];
-  const shown = current ? displayBinding(current).map((key, i) => <kbd key={i}>{key}</kbd>) : <em>None</em>;
+  const all = bindings(keymap[id]);
+  const keys = (binding: string) => displayBinding(binding).map((key, i) => <kbd key={i}>{key}</kbd>);
+  const shown = !all.length ? <em>None</em> : plain ? keys(all[0]) : all.map((binding, i) => <Fragment key={binding}>{i > 0 && <span className="voice-key-or">or</span>}{keys(binding)}</Fragment>);
   useEffect(() => {
     if (!recording) return;
     setVoiceKeysSuspended(true);
-    const keydown = (event: KeyboardEvent) => {
-      if (['Alt', 'Shift', 'Control', 'Meta'].includes(event.key)) return;
-      event.preventDefault(); event.stopImmediatePropagation();
-      if (event.key === 'Escape') { setRecording(false); return; }
-      const binding = canonicalKey(chordFromEvent(event));
+    const save = (binding: string) => {
       const next = { ...keymap, [id]: binding };
       const problem = validateKeymap(next);
       if (problem) { setError(problem); return; }
       try { saveKeymap(next, store); setError(''); setRecording(false); } catch (e) { setError(String(e).replace(/^Error:\s*/, '')); }
     };
+    // A modifier pressed with nothing else yet: released alone, it is the key.
+    let alone: string | null = null;
+    const keydown = (event: KeyboardEvent) => {
+      if (['Alt', 'Shift', 'Control', 'Meta'].includes(event.key)) {
+        alone = [event.altKey, event.ctrlKey, event.metaKey, event.shiftKey].filter(Boolean).length === 1 ? event.code : null;
+        return;
+      }
+      alone = null;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (event.key === 'Escape') { setRecording(false); return; }
+      save(canonicalKey(chordFromEvent(event)));
+    };
+    const keyup = (event: KeyboardEvent) => {
+      if (!alone || event.code !== alone) return;
+      alone = null;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (isLoneModifier(event.code)) save(event.code);
+      else setError(`${modifierNames[event.code] || event.key} alone is pressed with other keys all the time. Alone, only Right ⌥ or Right ⌘ can be the key.`);
+    };
     window.addEventListener('keydown', keydown, true);
-    return () => { window.removeEventListener('keydown', keydown, true); setVoiceKeysSuspended(false); };
+    window.addEventListener('keyup', keyup, true);
+    return () => { window.removeEventListener('keydown', keydown, true); window.removeEventListener('keyup', keyup, true); setVoiceKeysSuspended(false); };
   }, [recording, keymap, id, store]);
   if (plain) return <span className="voice-key">{shown}</span>;
   const fallback = resolveMod(actionDefinition(id)?.keys || '');
+  const isDefault = all.map(canonicalBinding).join(' or ') === bindings(fallback).map(canonicalBinding).join(' or ');
   return <span className="voice-key">
-    {recording ? <span role="status">Press the new key…</span> : shown}
+    {recording ? <span role="status">Press the new key, or Right ⌥ alone…</span> : shown}
     <button type="button" className={recording ? 'is-recording' : undefined} onClick={() => { setError(''); setRecording(value => !value); }}>{recording ? 'Cancel' : 'Change…'}</button>
-    {current !== fallback && !recording && <button type="button" className="quiet" onClick={() => { try { saveKeymap({ ...keymap, [id]: fallback }, store); setError(''); } catch (e) { setError(String(e).replace(/^Error:\s*/, '')); } }}>Reset</button>}
+    {!isDefault && !recording && <button type="button" className="quiet" onClick={() => { try { saveKeymap({ ...keymap, [id]: fallback }, store); setError(''); } catch (e) { setError(String(e).replace(/^Error:\s*/, '')); } }}>Reset</button>}
     {error && <small className="settings-error" role="alert">{error}</small>}
   </span>;
 }

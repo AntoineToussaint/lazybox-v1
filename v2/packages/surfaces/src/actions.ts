@@ -42,7 +42,9 @@ export type ActionDefinition = {
   /**
    * A key held down (push-to-talk): the voice layer owns its keydown and
    * keyup, so the chord and sequence dispatchers leave it alone. Its keys
-   * must be one chord with a modifier, or a function key.
+   * must be one chord with a modifier, a function key, or a right-hand
+   * modifier alone (`AltRight`, `MetaRight`: held alone to talk, tapped
+   * twice to keep listening).
    */
   hold?: boolean;
   /** Cannot be undone: voice asks before running it (VOICE.md). */
@@ -171,14 +173,14 @@ const tail = [
   { id: 'missions.open', title: 'Show missions', group: 'Workspace', icon: 'target', keys: '', scope: 'global', safe: true, palette: false, keywords: '/mission tasks goals orchestrate' },
   { id: 'missions.page', title: 'Open the missions board', group: 'Workspace', icon: 'target', keys: '', scope: 'global', safe: true, keywords: 'mission board timeline messages leases orchestrator agents plan' },
   // Voice (VOICE.md): dictation and spoken commands, held or toggled.
-  { id: 'voice.dictate', title: 'Dictate', group: 'Voice', icon: 'mic', keys: 'Alt+Space', scope: 'global', hold: true, keywords: 'voice speech speak talk microphone dictation push to talk dictée micro parler' },
+  { id: 'voice.dictate', title: 'Dictate', group: 'Voice', icon: 'mic', keys: 'AltRight or Alt+Space', scope: 'global', hold: true, keywords: 'voice speech speak talk microphone dictation push to talk dictée micro parler' },
   { id: 'voice.command', title: 'Say a command', group: 'Voice', icon: 'mic', keys: 'Alt+Shift+Space', scope: 'global', hold: true, overDialogs: true, keywords: 'voice speech command palette speak talk microphone commande vocale' },
   { id: 'voice.stop-reading', title: 'Stop reading aloud', group: 'Voice', icon: 'stop', keys: '', scope: 'global', keywords: 'voice speech read aloud text to speech silence quiet lecture' },
   { id: 'navigation.next', title: 'Next entry', group: 'Sidebar', icon: 'chevron', keys: 'j', scope: 'navigation', palette: false },
   { id: 'navigation.previous', title: 'Previous entry', group: 'Sidebar', icon: 'up', keys: 'k', scope: 'navigation', palette: false },
   { id: 'navigation.parent', title: 'Workspace / left pane', group: 'Sidebar', icon: 'back', keys: 'h', scope: 'navigation', palette: false },
   { id: 'navigation.open', title: 'Open entry / agent', group: 'Sidebar', icon: 'chevronRight', keys: 'l', scope: 'navigation', palette: false },
-  { id: 'chat.send', title: 'Send message', group: 'Message box', icon: 'send', keys: 'Enter', scope: 'agent', palette: false, required: true },
+  { id: 'chat.send', title: 'Send message', group: 'Message box', icon: 'send', keys: 'Enter or Mod+Enter', scope: 'agent', palette: false, required: true },
   // The help assistant (HelpAssistant.tsx): opens the Ask Lazybox panel and its message box.
   { id: 'help.ask', title: 'Ask Lazybox', group: 'General', icon: 'chat', keys: '] ] h', scope: 'global', keywords: 'help assistant question how docs agent claude codex support', menu: { section: 'Help', title: 'Ask Lazybox…', separatorBefore: true } },
   { id: 'help.welcome', title: 'Welcome and getting started', group: 'General', icon: 'sparkle', keys: '', scope: 'global', overDialogs: true, keywords: 'onboarding first run start tour help', menu: { section: 'Help', title: 'Welcome to Lazybox' } },
@@ -239,9 +241,19 @@ export function isChordOn(binding: string, mac: boolean): boolean {
   if (keys.length !== 1) return false;
   return /(?:^|\+)(?:Ctrl|Meta)\+/.test(keys[0]) || (!mac && /^Alt\+(?:Shift\+)?(?:\d|Arrow(?:Up|Down|Left|Right))$/.test(canonicalKey(keys[0])));
 }
+/**
+ * A modifier on the right of the keyboard, held alone (`AltRight`,
+ * `MetaRight`, the KeyboardEvent codes): only a key held to talk can be one.
+ * A left one is pressed all the time with other keys.
+ */
+export const loneModifiers = ['AltRight', 'MetaRight'] as const;
+export const isLoneModifier = (binding: string) => (loneModifiers as readonly string[]).includes(binding.trim());
+// A no-break space: a binding's keys are joined and split on spaces ("] ] i"), and this is one key.
+const loneNames: Record<string, [mac: string, other: string]> = { AltRight: ['Right\u00a0⌥', 'Right\u00a0Alt'], MetaRight: ['Right\u00a0⌘', 'Right\u00a0Win'] };
 const symbols: Record<string, string> = { ArrowDown: '↓', ArrowUp: '↑', ArrowLeft: '←', ArrowRight: '→', Enter: '↵', Escape: 'Esc', Backspace: '⌫', Delete: '⌦', Tab: '⇥', Space: 'Space', PageUp: 'Page Up', PageDown: 'Page Down' };
-/** How one key of a binding reads on screen: "Meta+Shift+p" → "⇧⌘P" on a Mac, "Ctrl+Shift+P" elsewhere. */
+/** How one key of a binding reads on screen: "Meta+Shift+p" → "⇧⌘P" on a Mac, "Ctrl+Shift+P" elsewhere; "AltRight" → "Right ⌥". */
 export function displayKey(key: string, mac = isMac): string {
+  if (loneNames[key.trim()]) return loneNames[key.trim()][mac ? 0 : 1];
   const canonical = canonicalKey(key), parts = canonical.split('+');
   let name = parts.pop() || ''; if (!name) { parts.pop(); name = '+'; }
   const modifiers = new Set(parts);

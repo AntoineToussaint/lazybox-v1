@@ -21,6 +21,9 @@
 .voice-pill kbd{font-size:calc(10px * var(--text-scale))}
 .voice-pill .icon-button{width:26px;height:26px;min-width:0;min-height:0;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .voice-pill .voice-pill-button{padding:3px 10px;border-radius:999px;white-space:nowrap}
+/* Until the dictation key has worked once: it may be another app's global shortcut. Above the pill, never over the words. */
+.voice-pill-tip{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);display:flex;align-items:baseline;gap:8px;width:max-content;max-width:min(560px,calc(100vw - 32px));padding:4px 10px;border-radius:8px;background:var(--surface-raised);border:1px solid var(--line);color:var(--text-muted);font-size:calc(11px * var(--text-scale));line-height:1.4;text-align:center;white-space:normal;cursor:default}
+.voice-pill-tip button{flex:none;min-height:0;background:none;border:0;padding:0;color:var(--accent);font-size:inherit;text-decoration:underline;cursor:pointer}
 @media (max-width:640px){.voice-pill-hint{display:none}.voice-pill{bottom:96px}}
 @keyframes voice-dot{0%,100%{opacity:1}50%{opacity:.45}}
 @keyframes voice-pill-in{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
@@ -57,6 +60,7 @@ textarea.is-dictating{caret-color:var(--accent)}
 .voice-key{display:inline-flex;align-items:center;gap:6px}
 .voice-key kbd{font-size:calc(12px * var(--text-scale))}
 .voice-key button.is-recording{border-color:var(--accent);color:var(--accent)}
+.voice-key-or{color:var(--text-faint);font-size:calc(11px * var(--text-scale))}
 .voice-words input{width:min(320px,100%)}
 .voice-rate{display:inline-flex;align-items:center;gap:8px}
 .voice-rate output{min-width:3.5em;font-variant-numeric:tabular-nums;color:var(--text-muted)}

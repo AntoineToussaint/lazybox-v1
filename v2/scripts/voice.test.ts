@@ -10,7 +10,7 @@ import {
 } from '../packages/surfaces/src/voice/voice-model';
 import { replyOfTurn } from '../packages/surfaces/src/voice/useReadAloudReplies';
 import { keyboardPreset, migrateKeymap, validateKeymap, chordBindings } from '../packages/surfaces/src/keyboard';
-import { actionDefinition } from '../packages/surfaces/src/actions';
+import { actionDefinition, displayBinding } from '../packages/surfaces/src/actions';
 
 const english: DictationOptions = { language: 'en-US', spokenPunctuation: true, spokenCommands: true, words: defaultCommandWords };
 const french: DictationOptions = { ...english, language: 'fr-FR' };
@@ -73,6 +73,48 @@ test('stretches of speech become text: finals settle, live words stay marked, "n
   const fr = applyResult(emptyDictation(), { segment: 0, text: 'corrige le test virgule puis relance point d’interrogation envoie', final: true }, french);
   assert.equal(fr.command, 'send');
   assert.equal(dictationView(fr.dictation, french).text, 'Corrige le test, puis relance ?');
+});
+
+test('a pause starts a new stretch: the words before it stay, in order', () => {
+  // macOS after a pause: segment 0 is settled, the new words are segment 1.
+  let d = emptyDictation();
+  ({ dictation: d } = applyResult(d, { segment: 0, text: 'look at the', final: false }, english));
+  ({ dictation: d } = applyResult(d, { segment: 0, text: 'look at the logs', final: false }, english));
+  ({ dictation: d } = applyResult(d, { segment: 0, text: 'look at the logs', final: true }, english));
+  ({ dictation: d } = applyResult(d, { segment: 1, text: 'and fix', final: false }, english));
+  assert.deepEqual(dictationView(d, english), { text: 'Look at the logs and fix', liveStart: 17 });
+  ({ dictation: d } = applyResult(d, { segment: 1, text: 'and fix them', final: false }, english));
+  assert.equal(dictationView(d, english).text, 'Look at the logs and fix them');
+  // A later stretch arriving first never displaces an earlier one; they read in order.
+  let out = applyResult(emptyDictation(), { segment: 2, text: 'third', final: false }, english).dictation;
+  out = applyResult(out, { segment: 0, text: 'first', final: true }, english).dictation;
+  out = applyResult(out, { segment: 1, text: 'second', final: false }, english).dictation;
+  assert.equal(dictationView(out, english).text, 'First second third');
+  // The words of a settled stretch never change again.
+  assert.equal(applyResult(d, { segment: 0, text: 'something else', final: false }, english).dictation, d);
+});
+
+test('a spoken command counts only at the end of what was said', () => {
+  // "send" before a pause, then more words: the words were not a command.
+  let d = applyResult(emptyDictation(), { segment: 0, text: 'fix the bug send', final: false }, english).dictation;
+  d = applyResult(d, { segment: 1, text: 'and the test', final: false }, english).dictation;
+  const late = applyResult(d, { segment: 0, text: 'fix the bug send', final: true }, english);
+  assert.equal(late.command, undefined);
+  assert.equal(dictationView(late.dictation, english).text, 'Fix the bug send and the test');
+  // At a pause, the command of the last words applies, not one in an earlier stretch.
+  d = applyResult(emptyDictation(), { segment: 0, text: 'please stop', final: false }, english).dictation;
+  d = applyResult(d, { segment: 1, text: 'the server', final: false }, english).dictation;
+  assert.equal(settleDictation(d, english).command, undefined);
+  d = applyResult(d, { segment: 1, text: 'the server send', final: false }, english).dictation;
+  const pause = settleDictation(d, english);
+  assert.equal(pause.command, 'send');
+  // At the end, only the last stretch's command counts.
+  const ended = settleAll(d, english);
+  assert.equal(ended.command, 'send');
+  assert.equal(dictationView(ended.dictation, english).text, 'Please stop the server');
+  // The last stretch, settled after earlier ones: its command applies.
+  d = applyResult(emptyDictation(), { segment: 0, text: 'fix the bug', final: true }, english).dictation;
+  assert.equal(applyResult(d, { segment: 1, text: 'cancel', final: true }, english).command, 'cancel');
 });
 
 test('one growing stretch (macOS) settles a command at a pause, then goes on after it', () => {
@@ -184,7 +226,12 @@ test('preferences: any saved shape reads safely; defaults never send for you', (
 
 test('voice keys: held chords owned by the voice layer, migrated into saved keymaps, validated', () => {
   const map = keyboardPreset('vim', true);
-  assert.equal(map['voice.dictate'], 'Alt+Space');
+  // Right ⌥ alone, and ⌥Space (often another app's global shortcut) still works.
+  assert.equal(map['voice.dictate'], 'AltRight or Alt+Space');
+  assert.deepEqual(displayBinding('AltRight', true), ['Right\u00a0⌥'], 'one key: its name never splits');
+  assert.deepEqual(displayBinding('MetaRight', false), ['Right\u00a0Win']);
+  // ⌘↵ sends from the message box, also while dictating.
+  assert.equal(map['chat.send'], 'Enter or Meta+Enter');
   assert.equal(map['voice.command'], 'Alt+Shift+Space');
   assert.ok(actionDefinition('voice.dictate')?.hold);
   // The chord dispatcher never runs a held key.
@@ -193,8 +240,19 @@ test('voice keys: held chords owned by the voice layer, migrated into saved keym
   // A keymap saved before voice gains its keys.
   const { ['voice.dictate']: _d, ['voice.command']: _c, ['voice.stop-reading']: _s, ...before } = map;
   const migrated = migrateKeymap({ ...before, __version: 4 }, [], true);
-  assert.equal(migrated['voice.dictate'], 'Alt+Space');
+  assert.equal(migrated['voice.dictate'], 'AltRight or Alt+Space');
   assert.equal(validateKeymap(migrated), '');
+  // A keymap saved with ⌥Space gains Right ⌥, first; one with its own key keeps it, after Right ⌥. Send gains ⌘↵.
+  assert.equal(migrateKeymap({ ...map, 'voice.dictate': 'Alt+Space', 'chat.send': 'Enter', __version: 8 }, [], true)['voice.dictate'], 'AltRight or Alt+Space');
+  assert.equal(migrateKeymap({ ...map, 'voice.dictate': 'Ctrl+Alt+m', __version: 8 }, [], true)['voice.dictate'], 'AltRight or Ctrl+Alt+m');
+  assert.equal(migrateKeymap({ ...map, 'chat.send': 'Enter', __version: 8 }, [], true)['chat.send'], 'Enter or Meta+Enter');
+  assert.equal(migrateKeymap({ ...map, 'voice.dictate': 'Alt+Space', __version: 9 }, [], true)['voice.dictate'], 'Alt+Space', 'a current save is kept as it is');
+  // Right ⌥ or Right ⌘ alone can be held to talk; a left one cannot, nor can any other action be a modifier alone.
+  assert.equal(validateKeymap({ ...map, 'voice.dictate': 'MetaRight' }), '');
+  assert.equal(validateKeymap({ ...map, 'voice.command': 'AltRight or Alt+Shift+Space', 'voice.dictate': 'MetaRight' }), '');
+  assert.match(validateKeymap({ ...map, 'voice.dictate': 'AltLeft' }), /Invalid key/);
+  assert.match(validateKeymap({ ...map, 'palette.open': 'AltRight' }), /modifier alone/);
+  assert.match(validateKeymap({ ...map, 'voice.command': 'AltRight' }), /conflicts/);
   // A key you type, or a sequence, cannot be held to talk.
   assert.match(validateKeymap({ ...map, 'voice.dictate': 'v' }), /held with/);
   assert.match(validateKeymap({ ...map, 'voice.dictate': '] ] v' }), /held with|conflicts/);

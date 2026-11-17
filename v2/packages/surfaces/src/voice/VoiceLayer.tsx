@@ -1,14 +1,20 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
-import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBinding, runAction, useActions } from '../actions';
+import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBinding, isChord, isLoneModifier, runAction, useActions } from '../actions';
 import { Icon } from '../Icons';
 import type { Keymap } from '../keyboard';
 import { elapsed } from './voice-model';
-import { canOpenVoiceSystemSettings, cancelDictation, dictating, dismissVoiceError, openVoiceSystemSettings, setDictationKeyHeld, setDictationMode, setVoicePreferencesContext, startDictation, stopDictation, stopReading, toggleDictation, useVoicePreferences, useVoiceState, voiceKeysSuspended, voiceState, type DictationKind } from './voice-session';
+import { canOpenVoiceSystemSettings, cancelDictation, dictating, dismissVoiceError, markVoiceKeyUsed, openVoiceSystemSettings, setDictationKeyHeld, setDictationMode, setVoicePreferencesContext, startDictation, stopDictation, stopReading, toggleDictation, useVoicePreferences, useVoiceState, voiceKeysSuspended, voiceKeyUsed, voiceState, type DictationKind } from './voice-session';
 import './voice.css';
 
 /** How long a press of the dictation key may last and still be a tap (it then keeps listening). */
 export const TAP_MS = 350;
+/** How long Right ⌥ (or Right ⌘) must be held alone before it talks: a quicker ⌥e or ⌥→ never starts anything. */
+export const LONE_HOLD_MS = 180;
+/** Two taps of Right ⌥ this close together keep listening. */
+export const DOUBLE_TAP_MS = 400;
+/** A key pressed this soon after a lone hold started, before any word: a slow ⌥ chord, so the dictation is dropped. */
+export const LONE_GRACE_MS = 1000;
 
 /**
  * One per window: the voice actions, the push-to-talk keys, Esc, and the
@@ -45,8 +51,61 @@ export function VoiceLayer({ viewState, keymap, onOpenSettings }: { viewState?: 
     const keysOf = (id: 'voice.dictate' | 'voice.command') => bindings(latest.current.keymap[id]).map(canonicalBinding);
     let pressed: { kind: DictationKind; at: number; code: string; modifiers: string[]; stops: boolean } | null = null;
     const behaviour = () => latest.current.preferences.keyBehaviour;
+    const begin = (kind: DictationKind, mode: 'hold' | 'toggle') => {
+      markVoiceKeyUsed();
+      // In the palette, either key talks to the palette.
+      if (kind === 'palette' || document.querySelector('dialog.command-palette[open]')) listenForCommand(mode);
+      else void startDictation({ mode });
+    };
+
+    // Right ⌥ (or Right ⌘) alone: held for LONE_HOLD_MS with no other key, it
+    // talks; tapped twice, it keeps listening; tapped while listening, it
+    // stops. Any other key while it is down (⌥e, ⌥→, ⌥-click) makes it that
+    // key's modifier: nothing starts, and the key goes through untouched.
+    type Lone = { kind: DictationKind; code: string; at: number; timer?: ReturnType<typeof setTimeout>; started: number; toggled: boolean; stops: boolean };
+    let lone: Lone | null = null;
+    let lastTap: { code: string; at: number } | null = null;
+    const dropLone = () => { if (lone) clearTimeout(lone.timer); lone = null; };
+    const loneKind = (event: KeyboardEvent): DictationKind | null => {
+      const alone = event.code === 'AltRight' ? event.key === 'Alt' && !event.ctrlKey && !event.metaKey && !event.shiftKey
+        : event.code === 'MetaRight' ? event.key === 'Meta' && !event.ctrlKey && !event.altKey && !event.shiftKey : false;
+      if (!alone) return null;
+      return keysOf('voice.dictate').includes(event.code) ? 'composer' : keysOf('voice.command').includes(event.code) ? 'palette' : null;
+    };
+    /** Another key (or a click) while the lone modifier is down. */
+    const interrupt = () => {
+      if (!lone) return;
+      if (!lone.started) { dropLone(); lastTap = null; return; }
+      // Started a moment ago and nothing said yet: that was a slow ⌥ chord, not speech.
+      if (!lone.toggled && Date.now() - lone.started < LONE_GRACE_MS && !voiceState().text) { dropLone(); setDictationKeyHeld(false); cancelDictation(); }
+    };
+
     const keydown = (event: KeyboardEvent) => {
       if (event.isComposing) return;
+      if (lone && event.code !== lone.code) interrupt();
+      // Two taps are two in a row: any other key between them makes the next one a first tap.
+      if (!lone && lastTap && event.code !== lastTap.code) lastTap = null;
+      const lonely = !voiceKeysSuspended() && loneKind(event);
+      if (lonely) {
+        if (event.repeat || lone || pressed || otherDialogOpen()) return;
+        const now = Date.now();
+        const current: Lone = { kind: lonely, code: event.code, at: now, started: 0, toggled: false, stops: false };
+        lone = current;
+        // Pressed while listening: released alone, it stops.
+        if (dictating()) { current.stops = true; return; }
+        if (behaviour() !== 'hold' && lastTap?.code === event.code && now - lastTap.at < DOUBLE_TAP_MS) {
+          lastTap = null; current.started = now; current.toggled = true;
+          begin(lonely, 'toggle');
+          return;
+        }
+        current.timer = setTimeout(() => {
+          if (lone !== current) return;
+          current.started = Date.now();
+          setDictationKeyHeld(true);
+          begin(current.kind, behaviour() === 'toggle' ? 'toggle' : 'hold');
+        }, LONE_HOLD_MS);
+        return;
+      }
       if (event.key === 'Escape') {
         const phase = voiceState().phase;
         if (dictating()) { event.preventDefault(); event.stopImmediatePropagation(); cancelDictation(); return; }
@@ -67,10 +126,7 @@ export function VoiceLayer({ viewState, keymap, onOpenSettings }: { viewState?: 
       setDictationKeyHeld(true);
       // Pressed while listening (a tap started it): this press stops it.
       if (dictating()) { pressed.stops = true; void stopDictation(); return; }
-      const mode = behaviour() === 'toggle' ? 'toggle' : 'hold';
-      // In the palette, either key talks to the palette.
-      if (kind === 'palette' || document.querySelector('dialog.command-palette[open]')) listenForCommand(mode);
-      else void startDictation({ mode });
+      begin(kind, behaviour() === 'toggle' ? 'toggle' : 'hold');
     };
     const release = (held: number, stops: boolean) => {
       setDictationKeyHeld(false);
@@ -79,6 +135,21 @@ export function VoiceLayer({ viewState, keymap, onOpenSettings }: { viewState?: 
       void stopDictation();
     };
     const keyup = (event: KeyboardEvent) => {
+      if (lone && event.code === lone.code) {
+        const { at, started, toggled, stops } = lone; dropLone();
+        const now = Date.now();
+        if (stops) { event.preventDefault(); event.stopImmediatePropagation(); if (dictating()) void stopDictation(); return; }
+        if (toggled) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+        if (started) {
+          event.preventDefault(); event.stopImmediatePropagation();
+          setDictationKeyHeld(false);
+          if (voiceState().mode === 'hold') void stopDictation();
+          return;
+        }
+        // Released before it was a hold: a tap, maybe the first of two.
+        lastTap = now - at < TAP_MS ? { code: event.code, at: now } : null;
+        return;
+      }
       if (!pressed) return;
       const ends = event.code === pressed.code || pressed.modifiers.includes(event.key);
       if (!ends) return;
@@ -87,11 +158,22 @@ export function VoiceLayer({ viewState, keymap, onOpenSettings }: { viewState?: 
       release(Date.now() - at, stops);
     };
     // The window lost the keyboard with the key down: the keyup will not come.
-    const blur = () => { if (pressed) { const { at, stops } = pressed; pressed = null; release(Math.max(TAP_MS, Date.now() - at), stops); } };
+    const blur = () => {
+      if (pressed) { const { at, stops } = pressed; pressed = null; release(Math.max(TAP_MS, Date.now() - at), stops); }
+      if (lone) {
+        const { started, toggled } = lone; dropLone(); lastTap = null;
+        if (started && !toggled) { setDictationKeyHeld(false); if (voiceState().mode === 'hold') void stopDictation(); }
+      }
+    };
+    const pointerdown = () => interrupt();
     window.addEventListener('keydown', keydown, true);
     window.addEventListener('keyup', keyup, true);
     window.addEventListener('blur', blur);
-    return () => { window.removeEventListener('keydown', keydown, true); window.removeEventListener('keyup', keyup, true); window.removeEventListener('blur', blur); };
+    window.addEventListener('pointerdown', pointerdown, true);
+    return () => {
+      dropLone();
+      window.removeEventListener('keydown', keydown, true); window.removeEventListener('keyup', keyup, true); window.removeEventListener('blur', blur); window.removeEventListener('pointerdown', pointerdown, true);
+    };
   }, []);
 
   // Leaving the window (unmount) never leaves a microphone open.
@@ -133,6 +215,8 @@ export function VoicePill({ state, keymap, onOpenSettings, inline }: { state: Re
     const timer = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(timer);
   }, [listening]);
+  // Started from the mic button and the key never worked here: it may be another app's.
+  const keyUnproven = useMemo(() => !voiceKeyUsed(), [state.startedAt]);
   if (!listening && state.phase !== 'error' && !state.reading) return null;
 
   const down = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -169,8 +253,11 @@ export function VoicePill({ state, keymap, onOpenSettings, inline }: { state: Re
     </div>;
   }
   const what = state.phase === 'starting' ? 'Starting the microphone…' : state.phase === 'stopping' ? 'Finishing…' : state.kind === 'palette' ? 'Say a command' : 'Listening';
-  const hint = state.mode === 'hold' ? 'Release to finish' : keyText ? `${keyText} to finish` : 'Stop to finish';
+  const hint = state.mode === 'hold' ? 'Release to finish' : keyText ? `${key && isLoneModifier(key) ? 'Tap ' : ''}${keyText} to finish` : 'Stop to finish';
   const level = state.level ?? (state.hearing ? 0.6 : 0.12);
+  // Sending while listening waits for the last words (Composer, finishAndSend).
+  const sendChord = state.kind === 'composer' ? bindings(keymap?.['chat.send']).find(isChord) : undefined;
+  const tip = !inline && state.kind === 'composer' && keyUnproven && keyText;
   return <div className={'voice-pill' + (inline ? ' is-inline' : '')} data-phase={state.phase} data-kind={state.kind} role="status" aria-label={`${what}. ${state.onDevice ? 'On-device.' : ''}`} style={style} onPointerDown={down} onPointerMove={move} onPointerUp={up}>
     <span className="voice-pill-dot" aria-hidden="true"/>
     <span className={'voice-pill-meter' + (state.level === undefined ? ' is-estimated' : '')} aria-hidden="true">
@@ -181,8 +268,12 @@ export function VoicePill({ state, keymap, onOpenSettings, inline }: { state: Re
     {state.phase === 'listening' && <span className={'voice-pill-privacy' + (state.onDevice ? ' is-local' : '')} title={state.onDevice ? 'Recognized on this device: the audio never leaves it.' : `${state.engine}: the audio is sent to its speech service.`}>
       <Icon name={state.onDevice ? 'lock' : 'cloud'} size={12}/>{state.onDevice ? 'On-device' : 'Online'}
     </span>}
-    <span className="voice-pill-hint">{hint} · <kbd>Esc</kbd> cancel</span>
+    <span className="voice-pill-hint">{hint}{sendChord && <> · <kbd>{displayBinding(sendChord).join(' ')}</kbd> send</>} · <kbd>Esc</kbd> cancel</span>
     <button type="button" className="icon-button voice-pill-stop" aria-label="Stop dictation" title={`Stop and keep the text${keyText ? ` · ${keyText}` : ''}`} onClick={() => void stopDictation()} disabled={state.phase !== 'listening'}><Icon name="stop" size={13}/></button>
     <button type="button" className="icon-button voice-pill-close" aria-label="Cancel dictation" title="Cancel · Esc" onClick={cancelDictation}><Icon name="close" size={13}/></button>
+    {tip && <span className="voice-pill-tip" role="note">
+      <span>If {keyText} does nothing, another app (ChatGPT, Raycast, Alfred) may use it.</span>
+      {onOpenSettings && <button type="button" onClick={() => { void stopDictation(); onOpenSettings(); }}>Pick another key</button>}
+    </span>}
   </div>;
 }

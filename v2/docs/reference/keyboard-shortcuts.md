@@ -155,11 +155,11 @@ Act on the conversation you last clicked or focused.
 
 ## Voice
 
-Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). See [Voice](../guides/voice.md).
+Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). `Right ⌥` is the Option key on the right, alone: hold it to talk, tap it twice to keep listening, tap it once to stop; with any other key it stays an ordinary ⌥. While dictating, `⌘↵` sends once the last words are in. See [Voice](../guides/voice.md).
 
 | Action | macOS | Windows / Linux |
 | --- | --- | --- |
-| Dictate | `⌥Space` | `Alt+Space` |
+| Dictate | `Right ⌥` or `⌥Space` | `Right Alt` or `Alt+Space` |
 | Say a command | `⌥⇧Space` | `Alt+Shift+Space` |
 | Stop reading aloud | — | — |
 
@@ -176,11 +176,11 @@ After `]]` puts the keyboard in the sidebar. The *Arrows* preset uses the arrow 
 
 ## Message box
 
-While you type a message.
+While you type a message. `⌘↵` sends too, also while you dictate.
 
 | Action | macOS | Windows / Linux |
 | --- | --- | --- |
-| Send message | `↵` | `↵` |
+| Send message | `↵` or `⌘↵` | `↵` or `Ctrl+↵` |
 
 ## Keys inside a panel
 

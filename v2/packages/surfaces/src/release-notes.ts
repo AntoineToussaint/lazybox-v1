@@ -9,6 +9,16 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.11',
+    date: '2026-11-17',
+    title: 'Dictation that keeps up with your pauses',
+    items: [
+      { title: 'Pause while you dictate', body: 'Stop to think mid-sentence and go on: what you said before the pause stays in the message box, and the new words follow it. Listening no longer ends on a long pause when you tapped to keep listening; it stops when you do, or after a minute of silence.' },
+      { title: 'Hold Right ⌥ to talk', body: 'The Option key on the right, alone, is the dictation key: hold it and speak, tap it twice to keep listening, tap it once to stop. With any other key it is still an ordinary ⌥ (⌥e, ⌥←). ⌥Space still works; if it does nothing, another app (ChatGPT, Raycast, Alfred) may use it, and the pill says so. Pick any key in Settings → Voice, now also Right ⌥ or Right ⌘ alone.' },
+      { title: '⌘↵ sends', body: 'In the message box ⌘↵ sends, as ↵ does. While you dictate, ⌘↵ (or ↵, or Send) waits for your last words, then sends.' },
+    ],
+  },
+  {
     id: '2026-11-17.10',
     date: '2026-11-17',
     title: 'Start a task from a GitHub issue',

@@ -47,6 +47,11 @@ const errors: Record<string, string> = {
   'no-speech': 'Nothing was heard.',
 };
 
+/** How long listening goes on with nothing heard, across new recognitions, before it ends by itself. */
+const QUIET_LIMIT_MS = 60_000;
+/** New recognitions in a row that hear nothing: one that ends at once is not restarted forever. */
+const QUIET_ROUNDS = 5;
+
 /** The Web Speech recognizer, or undefined where the browser has none. */
 export function webRecognizer(): SpeechRecognizerHost | undefined {
   const Recognition = recognitionClass();
@@ -68,30 +73,56 @@ export function webRecognizer(): SpeechRecognizerHost | undefined {
       return [...new Set([...own.filter(code => /^[a-z]{2,3}-[A-Z]{2}$/.test(code)), ...offered])].map(code => ({ code, name: languageName(code) }));
     },
     async start(options, listener: (event: RecognitionEvent) => void) {
-      const recognition = new Recognition();
-      recognition.lang = options.language || browserLanguage();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
-      if ('processLocally' in recognition && await locallyAvailable(Recognition, recognition.lang)) recognition.processLocally = true;
-      let ended = false;
-      recognition.onresult = event => {
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          listener({ kind: 'result', segment: i, text: result[0]?.transcript || '', final: result.isFinal });
-        }
+      const lang = options.language || browserLanguage();
+      const local = await locallyAvailable(Recognition, lang);
+      // The browser ends a recognition on its own after a pause. Until the
+      // person stops, a new one goes on listening; its results continue the
+      // segment numbers, so nothing said before the pause is replaced.
+      let recognition: Recognition | undefined;
+      let ended = false, stopped = false, failed = false, heard = false, offset = 0, quietRounds = 0, lastHeard = Date.now();
+      const finish = () => { if (!ended) { ended = true; listener({ kind: 'end' }); } };
+      const begin = () => {
+        const current = new Recognition();
+        current.lang = lang;
+        current.continuous = true;
+        current.interimResults = true;
+        current.maxAlternatives = 1;
+        if ('processLocally' in current && local) current.processLocally = true;
+        const round: { text: string; final: boolean }[] = [];
+        let heardThisRound = false;
+        current.onresult = event => {
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i], text = result[0]?.transcript || '';
+            round[i] = { text, final: result.isFinal };
+            if (text.trim()) { heard = heardThisRound = true; lastHeard = Date.now(); }
+            listener({ kind: 'result', segment: offset + i, text, final: result.isFinal });
+          }
+        };
+        current.onerror = event => {
+          if (event.error === 'aborted') return;
+          // Silence after speech is a pause, not a problem.
+          if (event.error === 'no-speech' && heard) return;
+          failed = true;
+          listener({ kind: 'error', code: event.error, message: errors[event.error] || event.message || `Speech recognition failed (${event.error}).` });
+        };
+        current.onend = () => {
+          if (current !== recognition || ended) return;
+          // What this round still had in progress is what was said.
+          round.forEach((r, i) => { if (r && !r.final && r.text.trim()) listener({ kind: 'result', segment: offset + i, text: r.text, final: true }); });
+          offset += round.length;
+          quietRounds = heardThisRound ? 0 : quietRounds + 1;
+          if (!stopped && !failed && heard && quietRounds < QUIET_ROUNDS && Date.now() - lastHeard < QUIET_LIMIT_MS) { begin(); return; }
+          finish();
+        };
+        current.onspeechstart = () => listener({ kind: 'activity', speaking: true });
+        current.onspeechend = () => listener({ kind: 'activity', speaking: false });
+        recognition = current;
+        current.start();
       };
-      recognition.onerror = event => {
-        if (event.error === 'aborted') return;
-        listener({ kind: 'error', code: event.error, message: errors[event.error] || event.message || `Speech recognition failed (${event.error}).` });
-      };
-      recognition.onend = () => { if (!ended) { ended = true; listener({ kind: 'end' }); } };
-      recognition.onspeechstart = () => listener({ kind: 'activity', speaking: true });
-      recognition.onspeechend = () => listener({ kind: 'activity', speaking: false });
-      recognition.start();
+      begin();
       return {
-        async stop() { recognition.stop(); },
-        async cancel() { recognition.abort(); if (!ended) { ended = true; listener({ kind: 'end' }); } },
+        async stop() { stopped = true; recognition?.stop(); },
+        async cancel() { stopped = true; recognition?.abort(); finish(); },
       };
     },
   };

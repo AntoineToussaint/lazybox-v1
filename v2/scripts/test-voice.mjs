@@ -2,7 +2,8 @@
 // page: a stand-in for the Web Speech API whose partial and final results the
 // test says (window.__speech.say), and a speechSynthesis that records what it
 // reads. Covers the live transcript in the message box, editing it, the send
-// and cancel commands, Esc, hold and tap of ⌥Space, Vim mode, voice commands
+// and cancel commands, Esc, hold and tap of ⌥Space and of Right ⌥ alone, a pause
+// that ends the recognition, ⌘↵ while listening, Vim mode, voice commands
 // in the palette (with a confirmation), read-aloud, Settings → Voice, and a
 // browser without speech recognition. No microphone and no model are used.
 import { testViteCache } from './fixtures/vite-cache.mjs';
@@ -55,6 +56,8 @@ function fakeSpeech({ recognition = true } = {}) {
     stop() { if (window.__speech.active === this) window.__speech.active = null; setTimeout(() => { const i = this.results.findIndex(r => !r.isFinal); if (i >= 0) { this.results[i] = result(this.results[i][0].transcript, true); this.emit(i); } this.finish(); }, 40); }
     // Aborted: it hears nothing more at once; its end follows.
     abort() { if (window.__speech.active === this) window.__speech.active = null; setTimeout(() => this.finish(), 0); }
+    // The browser ended it on its own after a pause: what was being recognized settles, then it ends.
+    pause() { const i = this.results.findIndex(r => !r.isFinal); if (i >= 0) { this.results[i] = result(this.results[i][0].transcript, true); this.emit(i); } this.finish(); }
   }
   window.__speech = {
     active: null, created: 0, lang: '',
@@ -64,6 +67,8 @@ function fakeSpeech({ recognition = true } = {}) {
       let i = r.results.findIndex(x => !x.isFinal); if (i < 0) i = r.results.length;
       r.results[i] = result(text, final); r.emit(i);
     },
+    /** A pause long enough that the browser ends the recognition by itself. */
+    pause() { const r = this.active; if (!r) throw new Error('nothing is listening'); r.pause(); },
   };
   window.SpeechRecognition = FakeRecognition; window.webkitSpeechRecognition = FakeRecognition;
 }
@@ -92,7 +97,16 @@ try {
   // The mic is in the composer row; its tooltip names the key.
   const mic = page.getByRole('button', { name: 'Dictate', exact: true });
   await expect(mic).toBeVisible();
-  await expect(mic).toHaveAttribute('title', /hold ⌥Space to talk/);
+  await expect(mic).toHaveAttribute('title', /hold Right\s⌥ to talk, tap it twice to keep listening/);
+
+  // Started from the mic before the key ever worked here: the pill says another app may have the key.
+  await mic.click();
+  await listening();
+  await expect(pill.getByRole('note')).toContainText('If Right ⌥ does nothing, another app (ChatGPT, Raycast, Alfred) may use it.');
+  await expect(pill.getByRole('note').getByRole('button', { name: 'Pick another key' })).toBeVisible();
+  await page.waitForTimeout(200); await page.screenshot({ path: '/tmp/lazybox-voice-key-tip.png' });
+  await page.keyboard.press('Escape');
+  await expect(pill).toHaveCount(0);
 
   // Hold ⌥Space: the pill shows, words appear live (marked) after what was typed, and settle on release.
   await message.fill('Note:');
@@ -125,7 +139,8 @@ try {
   await message.fill('');
   await page.keyboard.press('Alt+Space');
   await listening();
-  await expect(pill).toContainText('⌥Space to finish');
+  await expect(pill).toContainText('Tap Right ⌥ to finish');
+  await expect(pill).toContainText('⌘↵ send');
   await say('first line new line', true);
   await say('second line send', true);
   await expect(pill).toHaveCount(0);
@@ -159,9 +174,76 @@ try {
   await mic.click();
   await listening();
   await expect(page.getByRole('button', { name: 'Stop dictation', exact: true }).first()).toBeVisible();
+  await expect(pill.getByRole('note'), 'the key has worked here: no word about other apps').toHaveCount(0);
   await say('dropped');
   await pill.getByRole('button', { name: 'Cancel dictation' }).click();
   await expect(message).toHaveValue('Keep this kept by the button');
+
+  // A pause long enough that the browser ends its recognition: listening goes on in a new one, and the words before the pause stay.
+  await message.fill('');
+  await page.keyboard.press('Alt+Space');
+  await listening();
+  await say('look at the logs');
+  const recognitions = await page.evaluate(() => window.__speech.created);
+  await page.evaluate(() => window.__speech.pause());
+  await expect.poll(() => page.evaluate(() => window.__speech.created)).toBe(recognitions + 1);
+  await listening();
+  await expect(pill).toContainText('Listening');
+  await expect(message).toHaveValue('Look at the logs');
+  await say('and fix them');
+  await expect(message).toHaveValue('Look at the logs and fix them');
+  await say('and fix them', true);
+  await page.evaluate(() => window.__speech.pause());
+  await listening();
+  await say('then run the tests');
+  await expect(message).toHaveValue('Look at the logs and fix them then run the tests');
+  await pill.getByRole('button', { name: 'Stop dictation' }).click();
+  await expect(pill).toHaveCount(0);
+  await expect(message).toHaveValue('Look at the logs and fix them then run the tests');
+
+  // ⌘↵ while listening: the last words settle, then the message goes as with ↵.
+  await message.fill('');
+  await page.keyboard.press('Alt+Space');
+  await listening();
+  await say('ship the fix');
+  await page.keyboard.press('Meta+Enter');
+  await expect.poll(() => applied('Ship the fix')).toBe(true);
+  await expect(pill).toHaveCount(0);
+  await expect(message).toHaveValue('');
+
+  // Right ⌥ alone: held, it talks; released, the words settle.
+  await message.click();
+  await page.keyboard.down('AltRight');
+  await listening();
+  await expect(pill).toContainText('Release to finish');
+  await say('right option works', true);
+  await page.keyboard.up('AltRight');
+  await expect(pill).toHaveCount(0);
+  await expect(message).toHaveValue('Right option works');
+  // With another key it is an ordinary ⌥ (⌥e, ⌥←): nothing starts, the key goes through.
+  const before = await page.evaluate(() => window.__speech.created);
+  await page.keyboard.down('AltRight'); await page.keyboard.press('ArrowLeft'); await page.waitForTimeout(400); await page.keyboard.up('AltRight');
+  await page.keyboard.press('AltRight'); await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => window.__speech.created), before, 'Right ⌥ with another key, or tapped once, never listens');
+  await expect(pill).toHaveCount(0);
+  await expect(message).toHaveValue('Right option works');
+  // Held a little long before the other key (a slow ⌥ chord): the dictation it started is dropped.
+  await page.keyboard.down('AltRight');
+  await listening();
+  await page.keyboard.press('ArrowRight');
+  await expect(pill).toHaveCount(0);
+  await page.keyboard.up('AltRight');
+  await expect(message).toHaveValue('Right option works');
+  // Tapped twice, it keeps listening; tapped once more, it stops.
+  await message.evaluate(box => box.setSelectionRange(box.value.length, box.value.length));
+  await page.keyboard.press('AltRight'); await page.keyboard.press('AltRight');
+  await listening();
+  await say('and keeps listening');
+  await page.waitForTimeout(500);
+  await expect(pill).toContainText('Tap Right ⌥ to finish');
+  await page.keyboard.press('AltRight');
+  await expect(pill).toHaveCount(0);
+  await expect(message).toHaveValue('Right option works and keeps listening');
 
   // Typing while listening takes over: the words stay, the microphone closes.
   await message.fill('');
@@ -193,8 +275,15 @@ try {
   await expect(dictateRow.getByRole('alert')).toContainText('needs one key held');
   await page.keyboard.press('Control+Alt+m');
   await expect(dictateRow.locator('kbd')).toHaveText(['⌃⌥M']);
+  // A modifier alone: Right ⌥ is taken, a left one is refused.
+  await dictateRow.getByRole('button', { name: 'Change…' }).click();
+  await page.keyboard.press('AltLeft');
+  await expect(dictateRow.getByRole('alert')).toContainText('Left ⌥ alone is pressed with other keys');
+  await page.keyboard.press('AltRight');
+  await expect(dictateRow.locator('kbd')).toHaveText(['Right ⌥']);
   await dictateRow.getByRole('button', { name: 'Reset' }).click();
-  await expect(dictateRow.locator('kbd')).toHaveText(['⌥Space']);
+  await expect(dictateRow.locator('kbd')).toHaveText(['Right ⌥', '⌥Space']);
+  await expect(dictateRow).toContainText('If ⌥Space does nothing, another app (ChatGPT, Raycast, Alfred) may use it.');
   await page.getByRole('navigation', { name: 'Pages' }).getByRole('button').first().click();
 
   // Saying "envoie" (in French now) sends: the message without the command word.
@@ -327,7 +416,7 @@ try {
   await page.keyboard.press('Meta+k');
   await search.fill('>dictate');
   await expect(palette.getByRole('option').first()).toContainText('Dictate');
-  await expect(palette.getByRole('option').first().locator('kbd')).toHaveText(['⌥Space']);
+  await expect(palette.getByRole('option').first().locator('kbd')).toHaveText(['Right ⌥']);
   await page.keyboard.press('Escape');
   assert.deepEqual(errors, []);
 

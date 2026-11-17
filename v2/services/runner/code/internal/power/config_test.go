@@ -114,6 +114,11 @@ extra: 1
 	if len(issues) != 0 || len(swapped.Bindings) != 2 {
 		t.Fatalf("swap: %+v %+v", swapped, issues)
 	}
+	// Right ⌥ or Right ⌘ alone is a key held to talk, and nothing else.
+	lone, issues, _ := ParseKeys([]byte("keys:\n  global:\n    voice.dictate: [AltRight, Alt+Space]\n    voice.command: MetaRight\n    palette.open: AltRight\n    inbox.open: AltLeft\n"))
+	if len(lone.Bindings) != 2 || !issueAt(issues, 5, "modifier alone") || !issueAt(issues, 6, "is not a key") {
+		t.Fatalf("lone modifiers: %+v %+v", lone.Bindings, issues)
+	}
 	// Not YAML at all: the file as a whole does not load.
 	if _, _, err := ParseKeys([]byte("keys: [\n")); err == nil || !strings.Contains(err.Error(), "not valid YAML") {
 		t.Fatalf("broken: %v", err)

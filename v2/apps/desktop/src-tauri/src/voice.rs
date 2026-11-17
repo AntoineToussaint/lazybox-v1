@@ -234,6 +234,226 @@ pub fn level(samples: &[f32]) -> f32 {
     ((db + 55.0) / 50.0).clamp(0.0, 1.0)
 }
 
+/// The words of a transcription as they are compared: lowercase letters and
+/// digits, with where each one ends in the text (punctuation and case are
+/// what the recognizer revises most, and never make a new utterance).
+fn words(text: &str) -> Vec<(String, usize)> {
+    let mut out = Vec::new();
+    let mut word = String::new();
+    for (at, c) in text.char_indices() {
+        if c.is_alphanumeric() {
+            word.extend(c.to_lowercase());
+        } else if !word.is_empty() {
+            out.push((std::mem::take(&mut word), at));
+        }
+    }
+    if !word.is_empty() {
+        out.push((word, text.len()));
+    }
+    out
+}
+
+/// `shorter` is how `longer` begins: every word the same, the last one
+/// possibly still being said ("log" for "logs").
+fn begins(shorter: &[(String, usize)], longer: &[(String, usize)]) -> bool {
+    shorter.len() <= longer.len()
+        && shorter.iter().zip(longer).enumerate().all(|(i, (a, b))| {
+            a.0 == b.0 || (i + 1 == shorter.len() && b.0.starts_with(a.0.as_str()))
+        })
+}
+
+/// Whether `next` starts a new utterance rather than revising `previous`.
+///
+/// After a pause the recognizer starts over: on current macOS the best
+/// transcription then holds only the new utterance. A revision of the same
+/// utterance keeps its length within a word, or begins as it did; a new one
+/// is shorter (it was just started) and is not how the previous one began.
+/// `speechRecognitionMetadata` marks the end of an utterance where macOS sets
+/// it; this is the check for when it does not.
+pub fn starts_over(previous: &str, next: &str) -> bool {
+    let (previous, next) = (words(previous), words(next));
+    if previous.is_empty() || next.is_empty() {
+        return false;
+    }
+    next.len() + 1 < previous.len() || (next.len() < previous.len() && !begins(&next, &previous))
+}
+
+/// One stretch of speech as the page receives it (`Event::Result`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Piece {
+    pub segment: u32,
+    pub text: String,
+    pub is_final: bool,
+}
+
+/// Turns the recognizer's results into numbered stretches of speech, so a
+/// pause never replaces what was said before it: a new utterance (or a new
+/// recognition task after the old one ended) is the next segment, and the
+/// one before is final first.
+#[derive(Debug, Default)]
+pub struct Segmenter {
+    segment: u32,
+    /// The latest text of the open segment ('' when none is open).
+    open: String,
+    /// What this recognition task already closed: a recognizer that keeps the
+    /// whole task in one transcription repeats it before the new words.
+    closed: String,
+    heard_in_task: bool,
+    heard: bool,
+}
+
+impl Segmenter {
+    /// One result: `utterance_end` when the recognizer marks it as the last of an utterance.
+    pub fn result(&mut self, text: &str, is_final: bool, utterance_end: bool) -> Vec<Piece> {
+        let mut out = Vec::new();
+        let text = self.without_closed(text.trim());
+        let ends = is_final || utterance_end;
+        if text.is_empty() {
+            if ends {
+                self.close(&mut out);
+            }
+            return out;
+        }
+        if starts_over(&self.open, &text) {
+            self.close(&mut out);
+        }
+        self.heard = true;
+        self.heard_in_task = true;
+        out.push(Piece {
+            segment: self.segment,
+            text: text.clone(),
+            is_final: ends,
+        });
+        self.open = text;
+        if ends {
+            self.advance();
+        }
+        out
+    }
+
+    /// The recognition task is over (another may follow): an open segment is final.
+    pub fn task_over(&mut self) -> Vec<Piece> {
+        let mut out = Vec::new();
+        self.close(&mut out);
+        self.closed.clear();
+        self.heard_in_task = false;
+        out
+    }
+
+    /// The task that is ending heard something.
+    pub fn heard_in_task(&self) -> bool {
+        self.heard_in_task
+    }
+
+    /// Anything was heard since the recognition started.
+    pub fn heard(&self) -> bool {
+        self.heard
+    }
+
+    fn close(&mut self, out: &mut Vec<Piece>) {
+        if self.open.is_empty() {
+            return;
+        }
+        out.push(Piece {
+            segment: self.segment,
+            text: self.open.clone(),
+            is_final: true,
+        });
+        self.advance();
+    }
+
+    fn advance(&mut self) {
+        if !self.closed.is_empty() {
+            self.closed.push(' ');
+        }
+        self.closed.push_str(&std::mem::take(&mut self.open));
+        self.segment += 1;
+    }
+
+    /// `text` without what this task already closed, when it repeats it first.
+    fn without_closed(&self, text: &str) -> String {
+        let closed = words(&self.closed);
+        let said = words(text);
+        if closed.is_empty() || said.len() < closed.len() {
+            return text.to_string();
+        }
+        if !closed.iter().zip(&said).all(|(a, b)| a.0 == b.0) {
+            return text.to_string();
+        }
+        let end = said[closed.len() - 1].1;
+        text[end..]
+            .trim_start_matches(|c: char| !c.is_alphanumeric())
+            .to_string()
+    }
+}
+
+/// How a recognition task ended.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TaskEnd {
+    /// Its final result came (or it reported "ended": 203, 216, 301).
+    Settled,
+    /// 1110: it heard no speech.
+    NoSpeech,
+    /// 1700: macOS Dictation is off.
+    DictationOff,
+    Failed(String),
+}
+
+impl TaskEnd {
+    pub fn from_error(code: isize, description: String) -> Self {
+        match code {
+            1110 => Self::NoSpeech,
+            // kAFAssistantErrorDomain 1700: "Siri and Dictation are disabled".
+            1700 => Self::DictationOff,
+            // 203/216/301: the task was cancelled or ended early.
+            203 | 216 | 301 => Self::Settled,
+            _ => Self::Failed(description),
+        }
+    }
+}
+
+/// What happens after a recognition task ends.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Next {
+    /// The person has not stopped: a new task goes on listening, on the same microphone.
+    Listen,
+    /// The recognition is over.
+    End,
+    /// Over, with a problem to report first: (code, message).
+    Report(&'static str, String),
+}
+
+/// How long listening goes on with nothing heard, across new tasks, before
+/// it ends by itself: a forgotten microphone does not stay open.
+pub const QUIET_LIMIT_MS: u64 = 60_000;
+/// New tasks in a row that hear nothing: one that ends at once is not retried forever.
+pub const QUIET_TASKS: u32 = 5;
+
+/// The recognizer ends a task on its own after a pause (a final result, or
+/// "no speech"); unless the person stopped, listening goes on in a new task.
+/// "Nothing was heard" is said only when nothing was, since the start.
+pub fn after_task(
+    end: &TaskEnd,
+    stopping: bool,
+    heard: bool,
+    quiet_ms: u64,
+    quiet_tasks: u32,
+) -> Next {
+    match end {
+        TaskEnd::DictationOff => return Next::Report("dictation-off", DICTATION_OFF.into()),
+        TaskEnd::Failed(message) => return Next::Report("recognition", message.clone()),
+        TaskEnd::NoSpeech if !heard => {
+            return Next::Report("no-speech", "Nothing was heard.".into());
+        }
+        _ => {}
+    }
+    if stopping || quiet_ms >= QUIET_LIMIT_MS || quiet_tasks >= QUIET_TASKS {
+        Next::End
+    } else {
+        Next::Listen
+    }
+}
+
 /// System Settings' privacy pane for one permission. Only these two URLs can
 /// be opened: the page names a pane, never a URL.
 /// What to say when macOS's Dictation is off: its recognizer will not run without it.
@@ -448,7 +668,10 @@ pub async fn speech_speaking(app: AppHandle) -> Result<bool, String> {
 
 #[cfg(target_os = "macos")]
 mod native {
-    use super::{Event, Language, Permission, SpeakOptions, StartOptions, Status, Voice};
+    use super::{
+        Event, Language, Next, Permission, Piece, Segmenter, SpeakOptions, StartOptions, Status,
+        TaskEnd, Voice,
+    };
     use block2::RcBlock;
     use objc2::rc::Retained;
     use objc2::runtime::{Bool, NSObjectProtocol};
@@ -464,24 +687,59 @@ mod native {
         SFSpeechAudioBufferRecognitionRequest, SFSpeechRecognitionResult, SFSpeechRecognitionTask,
         SFSpeechRecognizer,
     };
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::ptr::NonNull;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::rc::Rc;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
     use tauri::{AppHandle, Emitter, EventTarget};
 
-    struct Active {
+    type Request = Retained<SFSpeechAudioBufferRecognitionRequest>;
+
+    /// The request the microphone tap appends to, shared with the audio thread.
+    struct Feed(Request);
+    // SAFETY: the audio tap appends buffers from its own thread, as the Speech
+    // framework intends `appendAudioPCMBuffer` to be used (the request was
+    // already shared with the tap that way); the main thread only swaps the
+    // request under the mutex and ends the old one's audio.
+    unsafe impl Send for Feed {}
+
+    /// One recognition, from the page's start to its stop or cancel. The
+    /// recognizer may end its task on a pause; the recognition then goes on
+    /// in a new task, fed by the same microphone tap (`feed`). It lives on the
+    /// main thread, where the result handlers run (the recognizer's default
+    /// queue is the main queue; `ACTIVE` already relies on it).
+    struct Recognition {
         id: u64,
+        app: AppHandle,
         /// The webview that started it, which alone hears its events.
         label: String,
-        engine: Retained<AVAudioEngine>,
-        request: Retained<SFSpeechAudioBufferRecognitionRequest>,
-        task: Retained<SFSpeechRecognitionTask>,
-        /// Kept alive for the task's lifetime.
-        _recognizer: Retained<SFSpeechRecognizer>,
+        recognizer: Retained<SFSpeechRecognizer>,
+        on_device: bool,
+        punctuation: bool,
+        /// The request the microphone tap appends to: the current task's.
+        feed: Arc<Mutex<Feed>>,
+        segmenter: RefCell<Segmenter>,
+        /// The current task; a superseded task's late callbacks are ignored.
+        generation: Cell<u32>,
         /// Set when the page cancelled: the error the cancelled task reports is not news.
-        cancelled: Arc<AtomicBool>,
+        cancelled: Cell<bool>,
+        /// Set when the page stopped: the task's final result ends the recognition.
+        stopping: Cell<bool>,
+        /// The page heard its end.
+        finished: Cell<bool>,
+        /// When something was last heard (or the recognition started).
+        last_heard: Cell<u64>,
+        /// New tasks in a row that heard nothing.
+        quiet_tasks: Cell<u32>,
+    }
+
+    struct Active {
+        id: u64,
+        engine: Retained<AVAudioEngine>,
+        recognition: Rc<Recognition>,
+        task: Retained<SFSpeechRecognitionTask>,
         listening: bool,
     }
 
@@ -637,12 +895,29 @@ mod native {
     fn release(active: &mut Active) {
         if active.listening {
             active.listening = false;
+            let request = current_request(&active.recognition);
             unsafe {
                 active.engine.inputNode().removeTapOnBus(0);
                 active.engine.stop();
-                active.request.endAudio();
+                request.endAudio();
             }
         }
+    }
+
+    fn current_request(recognition: &Recognition) -> Request {
+        lock(&recognition.feed).0.clone()
+    }
+
+    fn new_request(on_device: bool, punctuation: bool) -> Request {
+        let request = unsafe { SFSpeechAudioBufferRecognitionRequest::new() };
+        unsafe {
+            request.setShouldReportPartialResults(true);
+            request.setRequiresOnDeviceRecognition(on_device);
+            if punctuation && request.respondsToSelector(sel!(setAddsPunctuation:)) {
+                request.setAddsPunctuation(true);
+            }
+        }
+        request
     }
 
     pub fn start(app: AppHandle, label: String, options: StartOptions) -> Result<u64, String> {
@@ -675,29 +950,25 @@ mod native {
             cancel(&app, previous);
         }
         let id = SESSIONS.fetch_add(1, Ordering::Relaxed) + 1;
-        let request = unsafe { SFSpeechAudioBufferRecognitionRequest::new() };
-        unsafe {
-            request.setShouldReportPartialResults(true);
-            request.setRequiresOnDeviceRecognition(on_device);
-            if options.punctuation && request.respondsToSelector(sel!(setAddsPunctuation:)) {
-                request.setAddsPunctuation(true);
-            }
-        }
+        let request = new_request(on_device, options.punctuation);
         let engine = unsafe { AVAudioEngine::new() };
         let input = unsafe { engine.inputNode() };
         let format = unsafe { input.outputFormatForBus(0) };
         if unsafe { format.sampleRate() } <= 0.0 || unsafe { format.channelCount() } == 0 {
             return Err("no-microphone: No microphone is connected.".into());
         }
-        // The tap runs on an audio thread: it feeds the recognizer and, a
-        // few times a second, reports the level.
-        let tap_request = request.clone();
+        let feed = Arc::new(Mutex::new(Feed(request.clone())));
+        // The tap runs on an audio thread: it feeds the current task's request
+        // and, a few times a second, reports the level.
+        let tap_feed = feed.clone();
         let (tap_app, tap_label) = (app.clone(), label.clone());
         let last = Arc::new(AtomicU64::new(0));
         let tap = RcBlock::new(
             move |buffer: NonNull<AVAudioPCMBuffer>, _when: NonNull<AVAudioTime>| {
                 let buffer = unsafe { buffer.as_ref() };
-                unsafe { tap_request.appendAudioPCMBuffer(buffer) };
+                if let Ok(feed) = tap_feed.lock() {
+                    unsafe { feed.0.appendAudioPCMBuffer(buffer) };
+                }
                 let now = now_millis();
                 if now.saturating_sub(last.load(Ordering::Relaxed)) < 70 {
                     return;
@@ -731,82 +1002,199 @@ mod native {
                 error.localizedDescription()
             ));
         }
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let (result_app, result_label, result_cancelled) =
-            (app.clone(), label.clone(), cancelled.clone());
-        let handler = RcBlock::new(
-            move |result: *mut SFSpeechRecognitionResult, error: *mut NSError| {
-                let mut done = false;
-                if let Some(result) = unsafe { result.as_ref() } {
-                    let text = unsafe { result.bestTranscription().formattedString() }.to_string();
-                    let is_final = unsafe { result.isFinal() };
-                    emit(
-                        &result_app,
-                        &result_label,
-                        Event::Result {
-                            session: id,
-                            segment: 0,
-                            text,
-                            is_final,
-                        },
-                    );
-                    done = is_final;
-                }
-                if let Some(error) = unsafe { error.as_ref() } {
-                    done = true;
-                    if !result_cancelled.load(Ordering::Relaxed) {
-                        // 1110: nothing was said; 203/216: the task was cancelled or ended early.
-                        let (code, message) = match error.code() {
-                            1110 => ("no-speech", "Nothing was heard.".to_string()),
-                            // kAFAssistantErrorDomain 1700: "Siri and Dictation are disabled".
-                            1700 => ("dictation-off", super::DICTATION_OFF.to_string()),
-                            203 | 216 | 301 => ("ended", String::new()),
-                            _ => ("recognition", error.localizedDescription().to_string()),
-                        };
-                        if !message.is_empty() {
-                            emit(
-                                &result_app,
-                                &result_label,
-                                Event::Error {
-                                    session: id,
-                                    code: code.into(),
-                                    message,
-                                },
-                            );
-                        }
-                    }
-                }
-                if done {
-                    finish(&result_app, &result_label, id);
-                }
-            },
-        );
-        let task =
-            unsafe { recognizer.recognitionTaskWithRequest_resultHandler(&request, &handler) };
+        let recognition = Rc::new(Recognition {
+            id,
+            app,
+            label,
+            recognizer,
+            on_device,
+            punctuation: options.punctuation,
+            feed,
+            segmenter: RefCell::new(Segmenter::default()),
+            generation: Cell::new(0),
+            cancelled: Cell::new(false),
+            stopping: Cell::new(false),
+            finished: Cell::new(false),
+            last_heard: Cell::new(now_millis()),
+            quiet_tasks: Cell::new(0),
+        });
+        let task = begin_task(&recognition, &request, 0);
         ACTIVE.with(|a| {
             *a.borrow_mut() = Some(Active {
                 id,
-                label,
                 engine,
-                request,
+                recognition,
                 task,
-                _recognizer: recognizer,
-                cancelled,
                 listening: true,
             })
         });
         Ok(id)
     }
 
+    /// A recognition task on `request`; its results and its end come to `handle`.
+    fn begin_task(
+        recognition: &Rc<Recognition>,
+        request: &Request,
+        generation: u32,
+    ) -> Retained<SFSpeechRecognitionTask> {
+        let own = recognition.clone();
+        let handler = RcBlock::new(
+            move |result: *mut SFSpeechRecognitionResult, error: *mut NSError| {
+                handle(&own, generation, unsafe { result.as_ref() }, unsafe {
+                    error.as_ref()
+                });
+            },
+        );
+        unsafe {
+            recognition
+                .recognizer
+                .recognitionTaskWithRequest_resultHandler(request, &handler)
+        }
+    }
+
+    fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+        mutex
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn send(recognition: &Recognition, pieces: Vec<Piece>) {
+        for piece in pieces {
+            emit(
+                &recognition.app,
+                &recognition.label,
+                Event::Result {
+                    session: recognition.id,
+                    segment: piece.segment,
+                    text: piece.text,
+                    is_final: piece.is_final,
+                },
+            );
+        }
+    }
+
+    /// One callback of a task: results become numbered stretches of speech
+    /// (`Segmenter`), and the task's end either ends the recognition or
+    /// starts the next task (`after_task`).
+    fn handle(
+        recognition: &Rc<Recognition>,
+        generation: u32,
+        result: Option<&SFSpeechRecognitionResult>,
+        error: Option<&NSError>,
+    ) {
+        if recognition.cancelled.get()
+            || recognition.finished.get()
+            || recognition.generation.get() != generation
+        {
+            return;
+        }
+        let mut over = false;
+        if let Some(result) = result {
+            let text = unsafe { result.bestTranscription().formattedString() }.to_string();
+            let is_final = unsafe { result.isFinal() };
+            // Set on the last result of an utterance (macOS 10.15 and later).
+            let utterance_end = result.respondsToSelector(sel!(speechRecognitionMetadata))
+                && unsafe { result.speechRecognitionMetadata() }.is_some();
+            if !text.trim().is_empty() {
+                recognition.last_heard.set(now_millis());
+            }
+            let pieces = recognition
+                .segmenter
+                .borrow_mut()
+                .result(&text, is_final, utterance_end);
+            send(recognition, pieces);
+            over = is_final;
+        }
+        let mut end = TaskEnd::Settled;
+        if let Some(error) = error {
+            over = true;
+            end = TaskEnd::from_error(error.code(), error.localizedDescription().to_string());
+        }
+        if !over {
+            return;
+        }
+        let (pieces, heard_in_task, heard) = {
+            let mut segmenter = recognition.segmenter.borrow_mut();
+            let heard_in_task = segmenter.heard_in_task();
+            (segmenter.task_over(), heard_in_task, segmenter.heard())
+        };
+        send(recognition, pieces);
+        let quiet_tasks = if heard_in_task {
+            recognition.quiet_tasks.set(0);
+            0
+        } else {
+            recognition
+                .quiet_tasks
+                .set(recognition.quiet_tasks.get() + 1);
+            recognition.quiet_tasks.get()
+        };
+        let quiet_ms = now_millis().saturating_sub(recognition.last_heard.get());
+        let stopping = recognition.stopping.get();
+        match super::after_task(&end, stopping, heard, quiet_ms, quiet_tasks) {
+            Next::Listen => listen_again(recognition),
+            Next::End => finish(recognition),
+            Next::Report(code, message) => {
+                emit(
+                    &recognition.app,
+                    &recognition.label,
+                    Event::Error {
+                        session: recognition.id,
+                        code: code.into(),
+                        message,
+                    },
+                );
+                finish(recognition);
+            }
+        }
+    }
+
+    /// The recognizer ended its task on a pause and the person has not
+    /// stopped: a new task goes on with the same microphone and tap, so the
+    /// pill never blinks and the words after the pause are the next segment.
+    fn listen_again(recognition: &Rc<Recognition>) {
+        let request = new_request(recognition.on_device, recognition.punctuation);
+        let generation = recognition.generation.get() + 1;
+        recognition.generation.set(generation);
+        // The tap feeds the new request from its next buffer on.
+        let old = std::mem::replace(&mut *lock(&recognition.feed), Feed(request.clone()));
+        unsafe { old.0.endAudio() };
+        let task = begin_task(recognition, &request, generation);
+        let kept = ACTIVE.with(|a| match a.try_borrow_mut() {
+            Ok(mut slot) => match slot.as_mut().filter(|a| a.id == recognition.id) {
+                Some(active) => {
+                    active.task = task.clone();
+                    true
+                }
+                None => false,
+            },
+            Err(_) => false,
+        });
+        // Stopped or cancelled meanwhile: the new task has nothing to do.
+        if !kept {
+            recognition.generation.set(generation + 1);
+            unsafe { task.cancel() };
+            finish(recognition);
+        }
+    }
+
     /// The recognition ended (settled, failed or cancelled): the microphone
-    /// closes and the page hears that it is over.
-    fn finish(app: &AppHandle, label: &str, id: u64) {
+    /// closes and the page hears that it is over, once.
+    fn finish(recognition: &Recognition) {
+        if recognition.finished.replace(true) {
+            return;
+        }
         // Taken out before any call into the frameworks: one may call the
         // result handler, which comes back here, while the slot is borrowed.
-        if let Some(mut active) = take(id) {
+        if let Some(mut active) = take(recognition.id) {
             release(&mut active);
-            emit(app, label, Event::End { session: id });
         }
+        emit(
+            &recognition.app,
+            &recognition.label,
+            Event::End {
+                session: recognition.id,
+            },
+        );
     }
 
     fn take(id: u64) -> Option<Active> {
@@ -824,7 +1212,12 @@ mod native {
     /// final result ends the recognition (`finish`).
     pub fn stop(id: u64) {
         if let Some(mut active) = take(id) {
+            active.recognition.stopping.set(true);
             release(&mut active);
+            // The final result may have come while it was out of the slot.
+            if active.recognition.finished.get() {
+                return;
+            }
             ACTIVE.with(|a| {
                 let mut slot = a.borrow_mut();
                 if slot.is_none() {
@@ -836,10 +1229,14 @@ mod native {
 
     pub fn cancel(app: &AppHandle, id: u64) {
         if let Some(mut active) = take(id) {
-            active.cancelled.store(true, Ordering::Relaxed);
+            let recognition = active.recognition.clone();
+            recognition.cancelled.set(true);
+            let already = recognition.finished.replace(true);
             release(&mut active);
             unsafe { active.task.cancel() };
-            emit(app, &active.label, Event::End { session: id });
+            if !already {
+                emit(app, &recognition.label, Event::End { session: id });
+            }
         }
     }
 
@@ -1092,6 +1489,164 @@ mod tests {
             message: "Nothing was heard.".into(),
         };
         assert_eq!(serde_json::to_value(error).unwrap()["code"], "no-speech");
+    }
+
+    fn piece(segment: u32, text: &str, is_final: bool) -> Piece {
+        Piece {
+            segment,
+            text: text.into(),
+            is_final,
+        }
+    }
+
+    #[test]
+    fn a_new_utterance_is_told_from_a_revision() {
+        // Growing, or a word revised: the same utterance.
+        assert!(!starts_over("look at the", "look at the logs"));
+        assert!(!starts_over("look at the logs", "Look at the logs."));
+        assert!(!starts_over("look at the logs", "look at the locks"));
+        assert!(!starts_over("look at the logs and", "look at the logs"));
+        assert!(!starts_over("fix the log", "fix the"));
+        assert!(!starts_over("", "anything"));
+        assert!(!starts_over("anything", ""));
+        // After a pause the recognizer starts over with only the new words.
+        assert!(starts_over("look at the logs", "and"));
+        assert!(starts_over("look at the logs", "and fix"));
+        assert!(starts_over("look at the logs please", "look"));
+        assert!(starts_over("fix it", "and"));
+    }
+
+    #[test]
+    fn a_pause_starts_the_next_segment_and_settles_the_one_before() {
+        let mut s = Segmenter::default();
+        assert_eq!(
+            s.result("look at the", false, false),
+            [piece(0, "look at the", false)]
+        );
+        assert_eq!(
+            s.result("look at the logs", false, false),
+            [piece(0, "look at the logs", false)]
+        );
+        // (pause) The recognizer starts over: segment 0 is final, then segment 1.
+        assert_eq!(
+            s.result("and fix", false, false),
+            [
+                piece(0, "look at the logs", true),
+                piece(1, "and fix", false)
+            ]
+        );
+        assert_eq!(
+            s.result("and fix them", false, false),
+            [piece(1, "and fix them", false)]
+        );
+        assert!(s.heard() && s.heard_in_task());
+    }
+
+    #[test]
+    fn the_end_of_an_utterance_closes_its_segment() {
+        let mut s = Segmenter::default();
+        s.result("look at the", false, false);
+        // speechRecognitionMetadata on the last result of the utterance.
+        assert_eq!(
+            s.result("look at the logs", false, true),
+            [piece(0, "look at the logs", true)]
+        );
+        assert_eq!(s.result("and", false, false), [piece(1, "and", false)]);
+        assert_eq!(
+            s.result("and fix", false, false),
+            [piece(1, "and fix", false)]
+        );
+        // A recognizer that keeps the whole task in one transcription repeats
+        // what was closed: only the new words are the new segment.
+        let mut s = Segmenter::default();
+        s.result("look at the logs", false, true);
+        assert_eq!(s.result("Look at the logs", false, false), []);
+        assert_eq!(
+            s.result("Look at the logs. And fix", false, false),
+            [piece(1, "And fix", false)]
+        );
+        // An empty result never replaces words.
+        assert_eq!(s.result("", false, false), []);
+        assert_eq!(s.result("", true, false), [piece(1, "And fix", true)]);
+    }
+
+    #[test]
+    fn a_new_task_goes_on_in_the_next_segment() {
+        let mut s = Segmenter::default();
+        s.result("look at the logs", false, false);
+        // The task ended on the pause with no final: what it heard is final.
+        assert_eq!(s.task_over(), [piece(0, "look at the logs", true)]);
+        assert!(!s.heard_in_task() && s.heard());
+        // The next task's words, even the same ones, are segment 1.
+        assert_eq!(
+            s.result("look at the logs", false, false),
+            [piece(1, "look at the logs", false)]
+        );
+        assert_eq!(
+            s.result("look at the logs again", true, false),
+            [piece(1, "look at the logs again", true)]
+        );
+        assert_eq!(s.task_over(), []);
+        assert_eq!(
+            s.result("then send", false, false),
+            [piece(2, "then send", false)]
+        );
+    }
+
+    #[test]
+    fn listening_goes_on_after_a_pause_until_the_person_stops() {
+        // The task settled on a pause: a new one listens.
+        assert_eq!(
+            after_task(&TaskEnd::Settled, false, true, 2_000, 0),
+            Next::Listen
+        );
+        // "No speech" after speech is a pause, not a problem.
+        assert_eq!(
+            after_task(&TaskEnd::NoSpeech, false, true, 5_000, 1),
+            Next::Listen
+        );
+        // Nothing heard since the start: say so, as before.
+        assert_eq!(
+            after_task(&TaskEnd::NoSpeech, false, false, 5_000, 1),
+            Next::Report("no-speech", "Nothing was heard.".into())
+        );
+        assert_eq!(
+            after_task(&TaskEnd::NoSpeech, true, false, 500, 0),
+            Next::Report("no-speech", "Nothing was heard.".into())
+        );
+        // The person stopped: the final result ends it.
+        assert_eq!(after_task(&TaskEnd::Settled, true, true, 0, 0), Next::End);
+        assert_eq!(after_task(&TaskEnd::NoSpeech, true, true, 0, 0), Next::End);
+        // A forgotten microphone closes; a task that ends at once is not retried forever.
+        assert_eq!(
+            after_task(&TaskEnd::Settled, false, true, QUIET_LIMIT_MS, 1),
+            Next::End
+        );
+        assert_eq!(
+            after_task(&TaskEnd::Settled, false, true, 1_000, QUIET_TASKS),
+            Next::End
+        );
+        // Problems are reported as before.
+        assert_eq!(
+            after_task(&TaskEnd::DictationOff, false, true, 0, 0),
+            Next::Report("dictation-off", DICTATION_OFF.into())
+        );
+        assert_eq!(
+            after_task(&TaskEnd::Failed("Busy".into()), false, true, 0, 0),
+            Next::Report("recognition", "Busy".into())
+        );
+        assert_eq!(TaskEnd::from_error(1110, String::new()), TaskEnd::NoSpeech);
+        assert_eq!(
+            TaskEnd::from_error(1700, String::new()),
+            TaskEnd::DictationOff
+        );
+        for ended in [203, 216, 301] {
+            assert_eq!(TaskEnd::from_error(ended, String::new()), TaskEnd::Settled);
+        }
+        assert_eq!(
+            TaskEnd::from_error(1, "Busy".into()),
+            TaskEnd::Failed("Busy".into())
+        );
     }
 
     #[test]

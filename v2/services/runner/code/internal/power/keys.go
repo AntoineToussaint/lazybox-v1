@@ -66,7 +66,14 @@ type VimKeys struct {
 
 var modifierOrder = []string{"Ctrl", "Meta", "Alt", "Shift"}
 var modifierAliases = map[string]string{"Cmd": "Meta", "Command": "Meta", "Control": "Ctrl", "Option": "Alt", "Ctrl": "Ctrl", "Meta": "Meta", "Alt": "Alt", "Shift": "Shift", "Mod": "Mod"}
-var keyNamePattern = regexp.MustCompile(`^(?:(?:Ctrl|Meta|Alt|Shift)\+)*(?:[^\s+]|\+|Enter|Escape|Tab|Space|ArrowDown|ArrowUp|ArrowLeft|ArrowRight|Backspace|Delete|Home|End|PageUp|PageDown|F[1-9][0-9]?)$`)
+var keyNamePattern = regexp.MustCompile(`^(?:(?:(?:Ctrl|Meta|Alt|Shift)\+)*(?:[^\s+]|\+|Enter|Escape|Tab|Space|ArrowDown|ArrowUp|ArrowLeft|ArrowRight|Backspace|Delete|Home|End|PageUp|PageDown|F[1-9][0-9]?)|AltRight|MetaRight)$`)
+
+// heldKeyPattern is a key held down to talk: a chord with Alt, Ctrl or Meta,
+// a function key, or a right-hand modifier alone (actions.ts, loneModifiers).
+var heldKeyPattern = regexp.MustCompile(`(?:^|\+)(?:Ctrl|Meta|Alt)\+|^F\d+$|^(?:AltRight|MetaRight)$`)
+
+// loneModifierPattern is a right-hand modifier alone, which only a held key may be.
+var loneModifierPattern = regexp.MustCompile(`^(?:AltRight|MetaRight)$`)
 var orPattern = regexp.MustCompile(`\s+or\s+`)
 var menuKeyPattern = regexp.MustCompile(`^(?:[a-z0-9]|Shift\+[a-z])$`)
 
@@ -145,8 +152,15 @@ func checkBinding(a RegistryAction, binding string) string {
 			return fmt.Sprintf("%q is not a key: use a character or a name such as Enter, Escape, Tab, Space, ArrowDown or F5, with Mod+, Ctrl+, Meta+, Alt+ or Shift+", k)
 		}
 	}
-	if a.Hold && (len(keys) > 1 || !regexp.MustCompile(`(?:^|\+)(?:Ctrl|Meta|Alt)\+|^F\d+$`).MatchString(keys[0])) {
-		return fmt.Sprintf("%s is held down: it needs one key held with Alt, Ctrl or Mod (or a function key), such as Alt+Space", a.Title)
+	if a.Hold && (len(keys) > 1 || !heldKeyPattern.MatchString(keys[0])) {
+		return fmt.Sprintf("%s is held down: it needs one key held with Alt, Ctrl or Mod, a function key, or AltRight or MetaRight alone, such as Alt+Space", a.Title)
+	}
+	if !a.Hold {
+		for _, k := range keys {
+			if loneModifierPattern.MatchString(k) {
+				return fmt.Sprintf("%q is a modifier alone: only a key held to talk (voice.dictate, voice.command) can be AltRight or MetaRight", k)
+			}
+		}
 	}
 	return ""
 }
