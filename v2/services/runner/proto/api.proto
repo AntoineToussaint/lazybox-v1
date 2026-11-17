@@ -791,6 +791,66 @@ message WorkspaceGitSummariesRequest {
   repeated string collection_ids = 1;
 }
 // A pull request as last read from GitHub for a repository's branch.
+// A work item outside Lazybox: an issue, a ticket, a pull request. Lazybox
+// keeps a reference, a snapshot of what it shows, and links to workspaces
+// (PROJECTS_AND_INTEGRATIONS.md).
+message ItemRef {
+  // github, or an extension provider's id.
+  string provider = 1;
+  // The provider's stable key: owner/name#number on GitHub, PAY-142 on Linear.
+  string key = 2;
+}
+message ItemState {
+  // open, started, review, done, closed or merged: the same words for every provider.
+  string category = 1;
+  // The provider's own words ("In Review").
+  string label = 2;
+}
+message ItemCheck { string name = 1; string url = 2; }
+// What a code review item adds (a GitHub pull request; later a merge request).
+message ItemPullRequest {
+  string head = 1; string base = 2; bool draft = 3;
+  // success, failure, pending, or none when the head has no checks.
+  string checks = 4;
+  // approved, changes_requested, review_required, or empty when none is asked for.
+  string review = 5;
+  bool mergeable = 6;
+  repeated ItemCheck failing_checks = 7;
+  string head_sha = 8;
+}
+message Item {
+  ItemRef ref = 1;
+  // issue, pull_request, ticket…
+  string kind = 2;
+  string title = 3;
+  string url = 4;
+  ItemState state = 5;
+  // The repository's identity, when the item belongs to one.
+  string repository = 6;
+  // The branch the provider suggests for work on it.
+  string branch_hint = 7;
+  repeated string assignees = 8;
+  repeated string labels = 9;
+  int64 updated_at_unix_millis = 10;
+  // How a commit or pull request references it so the provider links it ("Fixes PAY-142").
+  string closing_reference = 11;
+  ItemPullRequest pull_request = 12;
+  // When Lazybox last read it from the provider.
+  int64 observed_at_unix_millis = 13;
+  string author = 14;
+}
+message ItemLink {
+  Item item = 1;
+  string collection_id = 2;
+  // The conversation it came from or belongs to, when known.
+  string session_id = 3;
+  // origin (the workspace started from it), delivers (work it produced, a pull
+  // request) or mentions (named in the conversation; listed, never tracked).
+  string role = 4;
+  // How Lazybox learned of it: started-from, branch, agent-output, cli or person.
+  string source = 5;
+  int64 linked_at_unix_millis = 6;
+}
 message PullRequestSummary {
   int64 number = 1; string title = 2; string url = 3;
   // open, closed or merged.
@@ -1038,6 +1098,8 @@ message Collection {
   string owner_execution_id = 8;
   bool ownership_uncertain = 9;
   repeated string owner_execution_ids = 10;
+  // The work item it was started from, if any.
+  ItemRef origin = 11;
 }
 message CreateCollectionRequest {
   string request_key = 1;
@@ -1517,6 +1579,8 @@ message PrepareWorkspaceRequest {
   // Adding to a workspace: the agent's request this answers. Once the
   // repositories are added, the request is resolved as added and the agent told.
   string repository_request_id = 6;
+  // A new workspace started from a work item: recorded as its origin.
+  ItemRef item = 7;
 }
 message WorkspacePreparation { string identity = 1; string message = 2; Collection collection = 3; }
 
