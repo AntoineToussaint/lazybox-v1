@@ -149,9 +149,23 @@ export function subscriptionChoices(profiles: readonly Profile[], provider: stri
   return rows.sort((a, b) => rank(a) - rank(b) || (a.ready ? 0 : (a.resetAt || Infinity) - (b.resetAt || Infinity)) || a.name.localeCompare(b.name)).map(({ known: _, ...choice }) => choice);
 }
 
-/** The subscription "Continue with …" offers: the best other one that is ready. */
+/** The subscription "Switch to …" offers: the best other one that is ready. */
 export function bestChoice(choices: readonly SubscriptionChoice[]): SubscriptionChoice | undefined {
   return choices.find(c => !c.current && c.ready);
+}
+
+/** The limit card's manual action: the person chooses where the conversation goes. */
+export const switchLabel = (name: string) => `Switch to ${name}`;
+
+/**
+ * Whether a conversation of provider moves to another account by itself at a
+ * limit. Only an enabled extension's account policy does that
+ * (RunnerSettings.automaticSwitchingProviders, EXTENSIONS.md): a pool saved
+ * with the conversation switches nothing without one. Without it, Lazybox
+ * offers the switch and the person chooses.
+ */
+export function switchesItself(session: Pick<Session, 'rotationProfileIds'> | undefined, automaticProviders: readonly string[] | undefined, provider: string): boolean {
+  return !!automaticProviders?.includes(provider) && (session?.rotationProfileIds.length || 0) > 0;
 }
 
 /** A switch as the Runner journaled it (profile_changed). */

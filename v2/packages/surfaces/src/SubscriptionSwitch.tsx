@@ -4,7 +4,8 @@ import type { ViewStateStore } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { readPreference, writePreference } from './view-state';
-import { backWhen, bestChoice, limitHeadline, resetTime, sessionLimit, subscriptionChoices, subscriptionName, type SubscriptionChoice } from './subscription-model';
+import { useRunnerSettings } from './RunnerSettings';
+import { backWhen, bestChoice, limitHeadline, resetTime, sessionLimit, subscriptionChoices, subscriptionName, switchesItself, switchLabel, type SubscriptionChoice } from './subscription-model';
 import './subscription-switch.css';
 
 const askedKey = 'auto-switch-asked';
@@ -24,24 +25,28 @@ type Props = {
 
 /**
  * Everything a conversation shows about its subscription: one card when a
- * limit stops it, a one-time question after "Always switch automatically",
- * and the "Switch subscription…" dialog. Switching continues the same
- * conversation; a message sent meanwhile is delivered once, after it.
+ * limit stops it, and the "Switch subscription…" dialog. Switching is the
+ * person's choice and continues the same conversation; a message sent
+ * meanwhile is delivered once, after it. Switching by itself at a limit is an
+ * extension's account policy (EXTENSIONS.md): only when one covers the
+ * provider do "Always switch automatically" and its one-time question show.
  */
 export function SubscriptionControls({ session, profiles, viewState, dialogOpen, onCloseDialog, onSession, onError }: Props) {
   const { api, refresh } = useRunner();
   const [askEverywhere, setAskEverywhere] = useState(false);
   const provider = session.provider || profiles.find(p => p.id === session.profileId)?.provider || '';
+  const { settings } = useRunnerSettings();
+  const automatic = !!settings?.automaticSwitchingProviders.includes(provider);
   const limit = sessionLimit(session);
   const switchTo = async (profileId: string, always: boolean) => {
     const result = await api.switchSubscription({ sessionId: session.id, profileId, enableRotation: always });
     if (result.session) onSession(result.session);
     refresh();
-    if (always && profileId !== session.profileId && !readPreference(viewState, askedKey)) setAskEverywhere(true);
+    if (always && automatic && profileId !== session.profileId && !readPreference(viewState, askedKey)) setAskEverywhere(true);
   };
   useEffect(() => setAskEverywhere(false), [session.id]);
   return <>
-    {limit ? <LimitCard key={session.id} session={session} profiles={profiles} provider={provider} viewState={viewState} switchTo={switchTo} onError={onError}/>
+    {limit ? <LimitCard key={session.id} session={session} profiles={profiles} provider={provider} automatic={automatic} viewState={viewState} switchTo={switchTo} onError={onError}/>
       : askEverywhere ? <EverywherePrompt provider={provider} onAnswer={async everywhere => {
         try { writePreference(viewState, askedKey, '1'); } catch { /* asked again next time */ }
         setAskEverywhere(false);
@@ -49,7 +54,7 @@ export function SubscriptionControls({ session, profiles, viewState, dialogOpen,
         try { const result = await api.setSessionRotation({ sessionId: session.id, enabled: true, allSessions: true }); if (result.session) onSession(result.session); refresh(); }
         catch (error) { onError(String(error)); }
       }}/> : null}
-    {dialogOpen && <SwitchDialog session={session} profiles={profiles} provider={provider} onClose={onCloseDialog} onSession={onSession} switchTo={switchTo}/>}
+    {dialogOpen && <SwitchDialog session={session} profiles={profiles} provider={provider} automatic={automatic} onClose={onCloseDialog} onSession={onSession} switchTo={switchTo}/>}
   </>;
 }
 
@@ -63,7 +68,7 @@ function ChoiceList({ choices, value, onChange, name, disabled }: { choices: Sub
   </div>;
 }
 
-function LimitCard({ session, profiles, provider, viewState, switchTo, onError }: { session: Session; profiles: readonly Profile[]; provider: string; viewState?: ViewStateStore; switchTo(id: string, always: boolean): Promise<void>; onError(message: string): void }) {
+function LimitCard({ session, profiles, provider, automatic, viewState, switchTo, onError }: { session: Session; profiles: readonly Profile[]; provider: string; automatic: boolean; viewState?: ViewStateStore; switchTo(id: string, always: boolean): Promise<void>; onError(message: string): void }) {
   const limit = sessionLimit(session) as Exclude<ReturnType<typeof sessionLimit>, ''>;
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(timer); }, []);
@@ -72,7 +77,8 @@ function LimitCard({ session, profiles, provider, viewState, switchTo, onError }
   const best = bestChoice(choices);
   const [choice, setChoice] = useState('');
   const selected = others.find(c => c.id === choice) || best || others[0];
-  const rotating = session.rotationProfileIds.length > 0;
+  // A pool only switches while an account policy covers the provider.
+  const rotating = switchesItself(session, automatic ? [provider] : [], provider);
   const [always, setAlways] = useState(true);
   const [busy, setBusy] = useState('');
   const current = subscriptionName(profiles.find(p => p.id === session.profileId), session.profileId);
@@ -98,7 +104,7 @@ function LimitCard({ session, profiles, provider, viewState, switchTo, onError }
     return () => clearTimeout(timer);
   }, [waiting, resetAt]);
   const headline = limitHeadline(current, limit, session.account?.resetAt, now);
-  const continueWith = selected && <button type="button" className="primary" disabled={!!busy} onClick={() => void act('switch', async () => { forgetWait(); await switchTo(selected.id, always && !rotating); })}>{busy === 'switch' ? `Switching to ${selected.name}…` : `Continue with ${selected.name}`}</button>;
+  const continueWith = selected && <button type="button" className="primary" disabled={!!busy} onClick={() => void act('switch', async () => { forgetWait(); await switchTo(selected.id, automatic && always && !rotating); })}>{busy === 'switch' ? `Switching to ${selected.name}…` : switchLabel(selected.name)}</button>;
   const queued = session.queued > 0 && <p className="limit-card-note">Your {session.queued === 1 ? 'message is' : `${session.queued} messages are`} saved and will be sent once, when the conversation continues.</p>;
   if (waiting) return <section className="limit-card is-waiting" aria-label="Subscription limit" data-limit={limit}>
     <p className="limit-card-line"><strong>Waiting for {current}: {backWhen(session.account?.resetAt, now)}.</strong> The conversation continues on its own then.</p>
@@ -116,7 +122,7 @@ function LimitCard({ session, profiles, provider, viewState, switchTo, onError }
       {waitable ? <button type="button" disabled={!!busy} onClick={() => { try { writePreference(viewState, waitKey(session.id), String(resetAt)); } catch { /* waits while open */ } resumed.current = false; setWaiting(true); }}>Wait for reset</button>
         : limit === 'throttled' || limit === 'exhausted' ? <button type="button" disabled={!!busy} onClick={() => void act('retry', () => switchTo(session.profileId, false))}>{busy === 'retry' ? 'Trying again…' : `Try again on ${current}`}</button> : null}
     </div>
-    {others.length > 0 && !rotating && <label className="limit-card-auto"><input type="checkbox" checked={always} disabled={!!busy} onChange={event => setAlways(event.target.checked)}/>Always switch automatically</label>}
+    {others.length > 0 && automatic && !rotating && <label className="limit-card-auto"><input type="checkbox" checked={always} disabled={!!busy} onChange={event => setAlways(event.target.checked)}/>Always switch automatically</label>}
   </section>;
 }
 
@@ -127,7 +133,7 @@ function EverywherePrompt({ provider, onAnswer }: { provider: string; onAnswer(e
   </section>;
 }
 
-function SwitchDialog({ session, profiles, provider, onClose, onSession, switchTo }: { session: Session; profiles: readonly Profile[]; provider: string; onClose(): void; onSession(session: Session): void; switchTo(id: string, always: boolean): Promise<void> }) {
+function SwitchDialog({ session, profiles, provider, automatic, onClose, onSession, switchTo }: { session: Session; profiles: readonly Profile[]; provider: string; automatic: boolean; onClose(): void; onSession(session: Session): void; switchTo(id: string, always: boolean): Promise<void> }) {
   const { api, refresh } = useRunner();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { dialog.current?.showModal(); }, []);
@@ -138,7 +144,7 @@ function SwitchDialog({ session, profiles, provider, onClose, onSession, switchT
   const target = others.find(c => c.id === choice);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   // Shown at once; put back if the Runner refuses.
-  const [rotating, setRotating] = useState(session.rotationProfileIds.length > 0);
+  const [rotating, setRotating] = useState(switchesItself(session, automatic ? [provider] : [], provider));
   const toggle = async (enabled: boolean) => {
     setBusy(true); setError(''); setRotating(enabled);
     try { const result = await api.setSessionRotation({ sessionId: session.id, enabled }); if (result.session) onSession(result.session); refresh(); }
@@ -148,12 +154,13 @@ function SwitchDialog({ session, profiles, provider, onClose, onSession, switchT
     <DialogHeader><h2 id="switch-subscription-title">Switch subscription</h2><button disabled={busy} aria-label="Close switch subscription" onClick={onClose}>×</button></DialogHeader>
     <p>The conversation continues on the subscription you choose, with everything so far. {session.busy ? 'The current turn moves with it.' : 'Your next message goes to the new subscription.'}</p>
     {choices.length > 1 ? <ChoiceList choices={choices} value={choice} onChange={setChoice} name={`switch-${session.id}`} disabled={busy}/> : <p className="limit-card-detail">No other {providerName(provider)} subscription is signed in. Add one in Settings → Subscriptions.</p>}
-    <label className="limit-card-auto"><input type="checkbox" checked={rotating} disabled={busy || (!rotating && others.every(c => profiles.find(p => p.id === c.id)?.isolation !== 'environment'))} onChange={event => void toggle(event.target.checked)}/>Switch automatically when a subscription reaches its limit</label>
+    {automatic ? <label className="limit-card-auto"><input type="checkbox" checked={rotating} disabled={busy || (!rotating && others.every(c => profiles.find(p => p.id === c.id)?.isolation !== 'environment'))} onChange={event => void toggle(event.target.checked)}/>Switch automatically when a subscription reaches its limit</label>
+      : others.length > 0 && <p className="limit-card-note">Lazybox switches only when you ask. Switching by itself at a limit is an extension: Settings → Extensions.</p>}
     {error && <p className="settings-error" role="alert">{error}</p>}
     <footer><button disabled={busy} onClick={onClose}>Cancel</button><button className="primary" data-autofocus disabled={busy || !target} onClick={async () => {
       if (!target) return;
       setBusy(true); setError('');
       try { await switchTo(target.id, false); onClose(); } catch (e) { setError(String(e)); setBusy(false); }
-    }}>{busy && target ? `Switching to ${target.name}…` : target ? `Switch to ${target.name}` : 'Switch'}</button></footer>
+    }}>{busy && target ? `Switching to ${target.name}…` : target ? switchLabel(target.name) : 'Switch'}</button></footer>
   </DraggableDialog>;
 }

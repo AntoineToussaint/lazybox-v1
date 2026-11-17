@@ -68,6 +68,7 @@
     { "id": "chat-handoff", "scope": "ui", "script": "test:chat-handoff" },
     { "id": "sounds", "scope": "ui", "script": "test:sounds" },
     { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" },
+    { "id": "claude-compliance", "scope": "ui", "script": "test:claude-compliance" },
     { "id": "settings-polish", "scope": "ui", "script": "test:settings-polish" },
     { "id": "send-recovery", "scope": "ui", "script": "test:send-recovery" },
     { "id": "subagents", "scope": "ui", "script": "test:subagents" },

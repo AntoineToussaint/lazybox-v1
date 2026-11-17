@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Extension } from '@lazybox/protocol';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
-import { describeGrant, describeHost, extensionNever, widening } from './extension-grants';
+import { CLAUDE_SWITCHING_WARNING, CLAUDE_TERMS_URL, describeGrant, describeHost, extensionNever, switchedProviders, widening } from './extension-grants';
 import { useExtensions } from './useExtensions';
 import './extensions.css';
 
@@ -59,8 +59,16 @@ export function ExtensionApprovalSheet({ extension, onClose, onApproved }: { ext
     </DialogHeader>
     <p id="extension-approval-summary" className="extension-approval-summary">
       {shown.description ? <>{shown.description} </> : null}
-      It adds {shown.panels.length === 1 ? 'a panel' : `${shown.panels.length} panels`} ({panels}) that runs in a sandbox, apart from Lazybox.
+      {shown.panels.length ? <>It adds {shown.panels.length === 1 ? 'a panel' : `${shown.panels.length} panels`} ({panels}) that runs in a sandbox, apart from Lazybox.</>
+        : <>It has no panel and runs no code: Lazybox follows its account policy.</>}
     </p>
+    {shown.accountPolicy && <section aria-labelledby="extension-policy" className="extension-policy">
+      <h3 id="extension-policy">At a limit</h3>
+      <p>{shown.accountPolicy.switchOnLimit
+        ? <>Lazybox moves the conversation to {shown.accountPolicy.accounts.length ? <>the first of <strong>{shown.accountPolicy.accounts.join(', ')}</strong> that can take it</> : 'another of your signed-in accounts of the same provider'}. Without it, you choose on the limit card.</>
+        : <>It switches nothing: its policy has switchOnLimit off.</>}</p>
+      {switchedProviders(shown).includes('claude') && <p className="extension-caution" role="note"><Icon name="alert" size={13}/> <span>{CLAUDE_SWITCHING_WARNING} <a href={CLAUDE_TERMS_URL} target="_blank" rel="noreferrer">Anthropic’s terms</a></span></p>}
+    </section>}
     {update && <p className="extension-approval-update" role="note"><Icon name="alert" size={14}/> An update asks for more than you allowed. Until you allow it, it keeps running with what you allowed before. New items are marked.</p>}
     {replaced && <p className="extension-approval-update" role="alert"><Icon name="refresh" size={14}/> Its manifest changed while you were reading. This is what it asks for now.</p>}
     <section aria-labelledby="extension-can">

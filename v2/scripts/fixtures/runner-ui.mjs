@@ -270,7 +270,10 @@ export async function startRunnerFixture() {
   // every mutation, the test's own included.
   const themeFolder={directory:'/fixture/state/themes',files:[]};
   const themeReply=()=>({directory:themeFolder.directory,files:themeFolder.files,revision:createHash('sha256').update(JSON.stringify(themeFolder.files)).digest('hex').slice(0,16)});
-  let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:'',rotationExcludedProfileIds:[]};
+  let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:'',rotationExcludedProfileIds:[],claudeSubscriptionSignIn:false,notices:[]};
+  // How Claude agents sign in (GetClaudeAuth), explicitly fake: a key is kept in memory and only its last four characters are answered.
+  const claudeAuth={key:'',cloudProvider:''};
+  const claudeAuthReply=()=>({apiKeySet:!!claudeAuth.key,apiKeyHint:claudeAuth.key.slice(-4),cloudProvider:claudeAuth.cloudProvider});
   // The fake Runner process. RestartRunner answers, then the "process" is down
   // for restartMs (every RPC fails as unavailable) before a new instance serves.
   // listDelayMs holds ListCollections answers (a slow first response);
@@ -510,7 +513,16 @@ actions:
     switch (method) {
       // The Runner's version and which lazybox agents' shells reach (Settings → About).
       case 'Version': return json(versionInfo);
-      case 'GetRunnerSettings': return json({...runnerSettings,review:{reviewer:'',template:'',autoStart:false,...runnerSettings.review,defaultTemplate:'You are an independent reviewer ({{reviewer}}) of work {{author}} did.\n\n{{goal}}\n\n## What to review: {{scope}}\n\n{{diff}}\n\n{{report}}'}});
+      case 'GetClaudeAuth': return json(claudeAuthReply());
+      case 'SetClaudeApiKey': {
+        mutations.push({method,body:{...body,apiKey:body.apiKey?'(a key)':''}});
+        if(body.clear){claudeAuth.key='';return json(claudeAuthReply());}
+        const key=(body.apiKey||'').trim();
+        if(key.startsWith('sk-ant-oat'))return error('invalid_argument','that is a Claude subscription token, not an API key; Lazybox does not store subscription credentials (create a key at platform.claude.com)');
+        if(!/^sk-ant-[\w-]{8,}$/.test(key))return error('invalid_argument','that is not an Anthropic API key (it starts with sk-ant-)');
+        claudeAuth.key=key;return json(claudeAuthReply());
+      }
+      case 'GetRunnerSettings': return json({...runnerSettings,automaticSwitchingProviders:await extensions.switching(),review:{reviewer:'',template:'',autoStart:false,...runnerSettings.review,defaultTemplate:'You are an independent reviewer ({{reviewer}}) of work {{author}} did.\n\n{{goal}}\n\n## What to review: {{scope}}\n\n{{diff}}\n\n{{report}}'}});
       case 'UpdateReviewRun': {
         mutations.push({method,body});const run=reviewOf(body.collectionId).runs.find(r=>r.id===body.reviewId);if(!run)return error('not_found','review not found');
         const ended=()=>error('failed_precondition','this review\'s loop has ended');
@@ -563,8 +575,10 @@ actions:
         mutations.push({method,body});const {defaultTemplate:_,...review}=body.review||runnerSettings.review||{};
         // The request is the whole of what it saves, as the Runner reads it: proto3 JSON leaves out a field at its zero
         // value (an empty list, false, ''), which is saved as that zero value, never the previous one kept.
-        const zero={naming:'',permission:'',context:'',claudeContext:'',codexContext:'',processBackend:'',rotationExcludedProfileIds:[],claudeAiConnectors:false,plainTitles:false};
-        runnerSettings={...runnerSettings,...zero,...body,review,revision:String(Number(runnerSettings.revision)+1)};return json(runnerSettings);
+        const zero={naming:'',permission:'',context:'',claudeContext:'',codexContext:'',processBackend:'',rotationExcludedProfileIds:[],claudeAiConnectors:false,plainTitles:false,claudeSubscriptionSignIn:false,notices:[]};
+        // A save never adds a notice; it dismisses the ones it leaves out. The switching providers are the Runner's own.
+        const {automaticSwitchingProviders:__,...saved}=body;const notices=(runnerSettings.notices||[]).filter(n=>(saved.notices||[]).includes(n));
+        runnerSettings={...runnerSettings,...zero,...saved,notices,review,revision:String(Number(runnerSettings.revision)+1)};return json({...runnerSettings,automaticSwitchingProviders:await extensions.switching()});
       }
       case 'SetModelPrice': {
         if(body.revision!==runnerSettings.revision)return error('aborted','Settings changed');
@@ -1172,7 +1186,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { freezeSession: id => frozenSessions.set(id, structuredClone(sessions.find(value => value.id === id))), thawSession: id => frozenSessions.delete(id), items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set telemetry(fn) { telemetry = fn; }, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { claudeAuth, get runnerSettings() { return runnerSettings; }, freezeSession: id => frozenSessions.set(id, structuredClone(sessions.find(value => value.id === id))), thawSession: id => frozenSessions.delete(id), items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set telemetry(fn) { telemetry = fn; }, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, acp, tracked,
     /** A conversation's open journal, without replacing it (openEvents starts a new one). */
     eventsOf: id => eventStreams.get(id),

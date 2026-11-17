@@ -50,14 +50,17 @@ export async function createExtensionsFake({ mutations }) {
     const files = await readdir(folder, { recursive: true });
     let digest = '';
     for (const f of files.sort()) { const s = await stat(join(folder, f)); if (s.isFile()) digest += `${f}:${s.size}:${s.mtimeMs};`; }
-    const m = parseManifest(await readFile(join(folder, 'extension.yaml'), 'utf8').catch(() => ''));
+    const text = await readFile(join(folder, 'extension.yaml'), 'utf8').catch(() => '');
+    const m = parseManifest(text);
     const panels = (m.panels || []).map(p => ({ id: p.id, title: p.title, icon: p.icon || 'puzzle', entry: p.entry || 'index.html', description: p.description || '' }));
     const a = approvals.get(id);
     const grants = m.grants || [], hosts = m.network || [];
     const issues = [];
-    for (const [i, g] of grants.entries()) if (!/^(read:(workspaces|sessions|attention|commands|missions|usage)|show:conversations|send:messages|do:[\w.-]+)$/.test(g)) issues.push({ path: `grants[${i}]`, line: 1, message: `there is no grant "${g}"`, severity: 'error' });
+    for (const [i, g] of grants.entries()) if (!/^(read:(workspaces|sessions|attention|commands|missions|usage)|show:conversations|send:messages|switch:(claude|codex)|do:[\w.-]+)$/.test(g)) issues.push({ path: `grants[${i}]`, line: 1, message: `there is no grant "${g}"`, severity: 'error' });
+    // An account policy (EXTENSIONS.md): the subset parser keeps its key; its two fields are read from the text.
+    const accountPolicy = m.accountPolicy !== undefined ? { providers: grants.filter(g => g.startsWith('switch:')).map(g => g.slice(7)), switchOnLimit: /^\s+switchOnLimit:\s*true\b/m.test(text), accounts: [] } : undefined;
     const state = issues.length || !m.name ? 'broken' : !a ? 'new' : !a.enabled ? 'disabled' : !subset(grants, a.grants) || !subset(hosts, a.hosts) ? 'review' : 'enabled';
-    return { id, name: m.name || '', version: m.version || '', description: m.description || '', author: m.author || '', homepage: '', path: folder, state, panels, grants, hosts, approvedGrants: a?.grants || [], approvedHosts: a?.hosts || [], approvedAtUnixMillis: a ? String(a.at) : '0', error: m.name ? '' : 'the manifest needs a name', issues, digest: createHash('sha256').update(digest).digest('hex').slice(0, 16) };
+    return { id, name: m.name || '', version: m.version || '', description: m.description || '', author: m.author || '', homepage: '', path: folder, state, panels, grants, hosts, ...(accountPolicy ? { accountPolicy } : {}), approvedGrants: a?.grants || [], approvedHosts: a?.hosts || [], approvedAtUnixMillis: a ? String(a.at) : '0', error: m.name ? '' : 'the manifest needs a name', issues, digest: createHash('sha256').update(digest).digest('hex').slice(0, 16) };
   }
   async function list() {
     const extensions = [];
@@ -106,6 +109,11 @@ export async function createExtensionsFake({ mutations }) {
     async writeFile(id, name, text) { await writeFile(join(dir, id, name), text); },
     /** The grants an extension credential holds, or undefined for a forged or revoked one. */
     scope(credential) { return creds.get(credential); },
+    /** The providers an enabled extension's account policy switches (RunnerSettings.automaticSwitchingProviders). */
+    async switching() {
+      const on = (await list()).extensions.filter(e => (e.state === 'enabled' || e.state === 'review') && e.accountPolicy?.switchOnLimit);
+      return ['claude', 'codex'].filter(p => on.some(e => e.grants.includes(`switch:${p}`) && e.approvedGrants.includes(`switch:${p}`)));
+    },
     async handle(method, body) {
       switch (method) {
         case 'ListExtensions': return { value: await list() };

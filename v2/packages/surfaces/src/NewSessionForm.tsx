@@ -143,7 +143,7 @@ export function NewSessionForm({ launcher, info, purpose, emptyWorkspace, collec
         <label>Additional session context<textarea rows={3} maxLength={32768} value={instructions} disabled={opening} onChange={e => setInstructions(e.target.value)} placeholder="Instructions for this conversation"/></label>
         <small>Shared Lazybox and provider context can be edited in Settings → Agents.</small>
       </details>
-      {!assistant && <RotationChoice profiles={profiles} selectedProfile={selectedProfile} excluded={runnerSettings?.rotationExcludedProfileIds} rotate={rotate} disabled={opening} onRotate={setRotate}/>}
+      {!assistant && runnerSettings?.automaticSwitchingProviders.includes(provider) && <RotationChoice profiles={profiles} selectedProfile={selectedProfile} excluded={runnerSettings?.rotationExcludedProfileIds} rotate={rotate} disabled={opening} onRotate={setRotate}/>}
       <button className="primary" disabled={opening || !info || !selectedProfile}>{opening ? `Starting ${agentName}…` : `Start ${agentName} ↗`}</button>
     </form>
     <small>Uses the selected Runner account. Closing this window leaves your agent running.</small>

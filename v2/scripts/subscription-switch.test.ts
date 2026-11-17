@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema, ProfileSchema, SessionSchema, type Profile, type Session } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { backAt, backWhen, bestChoice, comeback, exitFault, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, signInDefault, subscriptionChoices, subscriptionName, switchedLine, switchNote, transportFault, turnFault, untilText } from '../packages/surfaces/src/subscription-model.ts';
+import { backAt, backWhen, bestChoice, comeback, exitFault, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, signInDefault, subscriptionChoices, subscriptionName, switchedLine, switchesItself, switchLabel, switchNote, transportFault, turnFault, untilText } from '../packages/surfaces/src/subscription-model.ts';
 import { foldTranscript, emptyTranscript } from '../packages/surfaces/src/transcript-model.ts';
 import { liveStatus } from '../packages/surfaces/src/live-status.ts';
 import { deriveAttention } from '../packages/surfaces/src/attention.ts';
@@ -94,6 +94,20 @@ test('the best other subscription is the ready one; a picker lists the rest by r
   assert.equal(bestChoice(onlyLimited), undefined, 'nothing ready: no automatic best');
   // A reset that passed makes a subscription ready again.
   assert.equal(subscriptionChoices(profiles.slice(1, 3), 'claude', 'work-2', at(16) * 1000)[0].ready, true);
+});
+
+// Switching by itself is an extension's account policy (EXTENSIONS.md): by
+// default nothing switches, whatever pool a conversation was saved with, and
+// the limit card's action is the person's: "Switch to …".
+test('by default a conversation never switches by itself; the person switches', () => {
+  const pooled = create(SessionSchema, { provider: 'claude', profileId: 'work-2', rotationProfileIds: ['work-1', 'work-3'] });
+  const unpooled = create(SessionSchema, { provider: 'claude', profileId: 'work-2', rotationProfileIds: [] });
+  assert.equal(switchesItself(pooled, [], 'claude'), false, 'no account policy: a saved pool switches nothing');
+  assert.equal(switchesItself(pooled, undefined, 'claude'), false, 'an older Runner reports no providers');
+  assert.equal(switchesItself(pooled, ['codex'], 'claude'), false, 'a policy for Codex does not cover Claude');
+  assert.equal(switchesItself(pooled, ['claude'], 'claude'), true, 'the policy on, with a pool');
+  assert.equal(switchesItself(unpooled, ['claude'], 'claude'), false, 'opted out at start');
+  assert.equal(switchLabel('Work subscription 1'), 'Switch to Work subscription 1');
 });
 
 test('an automatic switch is one quiet line; the limit itself adds nothing to the conversation', () => {

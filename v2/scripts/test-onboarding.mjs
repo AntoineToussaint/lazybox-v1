@@ -50,10 +50,16 @@ try{
   // What's new is never shown on a first run: the newest release is recorded silently.
   await expect(page.getByRole('complementary',{name:"What's new"})).toHaveCount(0);
   assert.equal(await stored(page,whatsNewKey),releaseNotes[0].id);
-  // Connect a subscription: Settings, on Subscriptions.
-  await welcome.getByRole('button',{name:'Connect a subscription'}).click();
+  // Claude: the API key is the recommendation (CLAUDE_COMPLIANCE.md), with the
+  // person's own sign-in said as unconfirmed; Codex signs in with its plan.
+  await expect(welcome).toContainText('Claude: add an Anthropic API key. It is the way Anthropic documents for apps built on its Agent SDK');
+  await expect(welcome).toContainText('Anthropic has not confirmed it for such apps');
+  await expect(welcome.getByRole('button',{name:'Sign in to Codex'})).toBeVisible();
+  await expect(welcome).not.toContainText('Lazybox switches when one reaches its limit');
+  await welcome.getByRole('button',{name:'Add an API key'}).click();
   await expect(welcome).toHaveCount(0);
-  await expect(page.getByRole('tab',{name:'Subscriptions'})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tab',{name:'Agents & workspaces'})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('textbox',{name:'Use an Anthropic API key'})).toBeVisible();
   assert.equal(await stored(page,welcomeKey),'seen');
   // Shown once: a reload does not show it again.
   await page.reload();

@@ -24,6 +24,7 @@ import './settings.css';
 import { RepositoryBrowser } from './RepositoryBrowser';
 import { RepositoryHomesSettings } from './home-checkouts';
 import { AcpAgentsSettings } from './AcpAgentsSettings';
+import { ClaudeAuthSettings } from './ClaudeAuthSettings';
 import { AgentSettings, PricingSettings, useRunnerSettings } from './RunnerSettings';
 import { RunnerSection } from './RunnerControl';
 import { OrchestrationProcessSettings } from './OrchestrationProcessSettings';
@@ -123,7 +124,7 @@ function SubscriptionCard({ profile, now, refreshing, error, onRefresh, footer }
     <footer>{footer}<button type="button" className="quiet" disabled={refreshing} aria-label={refreshing ? "Refreshing…" : "Refresh usage"} title={observed} onClick={onRefresh}><Icon name="refresh" size={13}/>{refreshing ? "Refreshing…" : "Refresh"}</button></footer>
   </article>;
 }
-export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode, chooseRepositoryFolder, tab: shownTab, onTab, onShowProcesses }: { /** The desktop app: version and updates (Settings → About). */ app?: AppHost; zoom?: ZoomHost; onShowProcesses?(): void; chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; tab?: SettingsTab; onTab?(tab: SettingsTab): void }) {
+export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode, chooseRepositoryFolder, tab: shownTab, onTab, onShowProcesses, onRunInShell }: { /** The desktop app: version and updates (Settings → About). */ app?: AppHost; zoom?: ZoomHost; onShowProcesses?(): void; /** Types a command into a workspace's shell panel and shows it (Install Claude Code). */ onRunInShell?(command: string): Promise<void>; chooseRepositoryFolder?(): Promise<string | null>; viewState?: ViewStateStore; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void>; tab?: SettingsTab; onTab?(tab: SettingsTab): void }) {
   const { api, info, refresh } = useRunner();
   const [ownTab, setOwnTab] = useState<SettingsTab>('subscriptions');
   const tab = shownTab || ownTab, setTab = (next: SettingsTab) => { setOwnTab(next); onTab?.(next); };
@@ -285,6 +286,8 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
   };
   // Per-account opt-out of automatic switching; every saved subscription is in by default.
   const { settings: runnerSettings, setSettings: setRunnerSettings } = useRunnerSettings();
+  // Claude sign-in in Lazybox is off unless the person turned it on (CLAUDE_COMPLIANCE.md).
+  const claudeGated = !!runnerSettings && !runnerSettings.claudeSubscriptionSignIn;
   const [rotationSaving, setRotationSaving] = useState('');
   const excluded = runnerSettings?.rotationExcludedProfileIds || [];
   const setRotation = async (profile: Profile, use: boolean) => {
@@ -352,7 +355,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
     {panel('process', <OrchestrationProcessSettings/>)}
     {panel('updates', <UpdateSettings app={app}/>)}
     {panel('about', <AboutSettings app={app} onShowUpdates={() => select('updates', true)}/>)}
-    {panel('agents', <><AgentSettings/><AcpAgentsSettings/><TerminalSettings/></>)}
+    {panel('agents', <><AgentSettings/><ClaudeAuthSettings onRunInShell={onRunInShell}/><AcpAgentsSettings/><TerminalSettings/></>)}
     {panel('workspaces', <RuntimeSettings/>)}
     {panel('devices', <DevicesSettings/>)}
     {panel('pricing', <PricingSettings/>)}
@@ -365,7 +368,10 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
       {!info && <p className="settings-empty" role="status">Loading subscriptions…</p>}
       {info && !profiles.length && <div className="settings-empty"><h3>No subscriptions yet</h3><p>Add a Claude or Codex account so agents can run on it. Your CLI sign-ins keep working either way.</p></div>}
       <div className="subscription-grid">{profiles.map(profile => <SubscriptionCard key={profile.id} profile={profile} now={now} refreshing={refreshing.has(profile.id)} error={refreshErrors[profile.id]} onRefresh={() => void updateUsage(profile)}
-        footer={profile.isolation === 'environment' ? <label className="rotation-toggle" title={`When another ${profile.provider === 'codex' ? 'Codex' : 'Claude'} subscription hits a limit, its conversations can continue on this one. Applies to conversations started afterwards.`}><input type="checkbox" role="switch" checked={!excluded.includes(profile.id)} disabled={!runnerSettings || !!rotationSaving} onChange={event => void setRotation(profile, event.target.checked)}/><span>Automatic switching</span></label> : <small>{profile.isolation === 'inherited' ? 'Uses current CLI sign-in' : info?.sharedSubscriptions ? 'Shared subscription' : 'Saved on this Runner'}</small>}/>)}</div>
+        footer={profile.provider === 'claude' && profile.isolation === 'environment' && runnerSettings && !runnerSettings.claudeSubscriptionSignIn
+          ? <small className="subscription-gated" title="Claude sign-in in Lazybox is off (Settings → Agents & workspaces → Claude)">Not used: Claude sign-in in Lazybox is off</small>
+          // Only an account policy switches by itself (Settings → Extensions); this leaves one account out of it.
+          : profile.isolation === 'environment' && runnerSettings?.automaticSwitchingProviders.includes(profile.provider) ? <label className="rotation-toggle" title={`When another ${profile.provider === 'codex' ? 'Codex' : 'Claude'} subscription hits a limit, its conversations can continue on this one. Applies to conversations started afterwards.`}><input type="checkbox" role="switch" checked={!excluded.includes(profile.id)} disabled={!runnerSettings || !!rotationSaving} onChange={event => void setRotation(profile, event.target.checked)}/><span>Automatic switching</span></label> : <small>{profile.isolation === 'inherited' ? 'Uses current CLI sign-in' : info?.sharedSubscriptions ? 'Shared subscription' : 'Saved on this Runner'}</small>}/>)}</div>
       {profiles.length > 0 && <p className="usage-note">Usage is what each provider reports for the subscription. Lazybox never guesses a number it was not given.</p>}
     </section>
     </div>
@@ -376,10 +382,12 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
       {!flowID ? switching ? <div className="enrollment-state"><p role="status">Preparing sign-in…</p></div> : <form onSubmit={add}>
         <label>Provider<select aria-label="Provider" value={provider} disabled={submitting} onChange={e => setProvider(e.target.value as 'claude' | 'codex')}><option value="codex">Codex</option><option value="claude">Claude</option></select></label>
         <label>Account name<input ref={labelInput} autoComplete="off" maxLength={64} placeholder="e.g. Personal or Work" value={label} disabled={submitting} onChange={e => setLabel(e.target.value)} required/></label>
-        {provider === 'codex' && method === 'device'
+        {provider === 'claude' && claudeGated
+          ? <p className="settings-callout tone-warn" role="note"><Icon name="alert" size={14}/><span>Lazybox does not offer a Claude sign-in: Anthropic does not allow apps built on its Agent SDK to, without its approval. Use an Anthropic API key, or your own Claude Code sign-in, in <button type="button" className="link-button" onClick={() => { close(); select('agents'); requestAnimationFrame(() => document.getElementById('claude-settings')?.scrollIntoView?.({ block: 'start' })); }}>Agents & workspaces → Claude</button>.</span></p>
+          : provider === 'codex' && method === 'device'
           ? <p>Get a one-time code to enter at ChatGPT on any device, such as your phone. Your account will be saved for next time.</p>
           : <p>Sign in with {provider === 'claude' ? 'Claude' : 'ChatGPT'} in your browser. Your account will be saved for next time.</p>}
-        <button className="primary" disabled={submitting || !label.trim()}>{submitting ? 'Connecting…' : provider === 'claude' ? 'Continue with Claude' : method === 'device' ? 'Get a sign-in code' : 'Continue in your browser'}{(provider === 'claude' || method === 'browser') && <Icon name="external"/>}</button>
+        <button className="primary" disabled={submitting || !label.trim() || (provider === 'claude' && claudeGated)}>{submitting ? 'Connecting…' : provider === 'claude' ? 'Continue with Claude' : method === 'device' ? 'Get a sign-in code' : 'Continue in your browser'}{(provider === 'claude' || method === 'browser') && <Icon name="external"/>}</button>
         {provider === 'codex' && (method === 'browser'
           ? <button type="button" className="quiet sign-in-other" disabled={submitting} onClick={() => setMethod('device')}>Use a code instead (for another device)</button>
           : local && <button type="button" className="quiet sign-in-other" disabled={submitting} onClick={() => setMethod('browser')}>Sign in with the browser instead</button>)}

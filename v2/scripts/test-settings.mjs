@@ -8,6 +8,15 @@ import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { startRunnerFixture } from './fixtures/runner-ui.mjs';
 const fixture = await startRunnerFixture();
+// This suite enrolls Claude through Lazybox and toggles automatic switching per
+// account: both are opt-in (CLAUDE_COMPLIANCE.md). Claude sign-in in Lazybox
+// is turned on, and Subscription rotation installed and allowed, as the person
+// would in Settings; scripts/test-claude-compliance.mjs covers them off.
+fixture.runnerSettings.claudeSubscriptionSignIn = true;
+await fixture.extensions.handle('InstallExampleExtension', { example: 'subscription-rotation' });
+{ const rotation = (await fixture.extensions.handle('ListExtensions', {})).value.extensions.find(e => e.id === 'subscription-rotation');
+  await fixture.extensions.handle('ApproveExtension', { id: rotation.id, grants: rotation.grants, hosts: rotation.hosts }); }
+fixture.mutations.length = 0;
 const localAccounts = JSON.stringify(fixture.profiles.filter(profile => !profile.managed));
 const server = await createServer({...testViteCache(import.meta.url), configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
 let browser; let activePage;
@@ -30,7 +39,7 @@ try {
  await expect(codex.getByRole('progressbar',{name:'5-hour limit used'})).toHaveAttribute('value','45');
  assert.equal(fixture.mutations.length,0,'opening settings mutated execution');
  await codex.getByRole('button',{name:'Refresh usage',exact:true}).click();await expect(codex).toContainText('50% used');
- // Every saved subscription is in automatic switching by default; one switch takes an account out, and back.
+ // With an account policy on, every saved subscription is in automatic switching by default; one switch takes an account out, and back.
  const switching=codex.getByRole('switch',{name:'Automatic switching',exact:true});
  await expect(switching).toBeChecked();await switching.uncheck();await expect(switching).not.toBeChecked();
  await expect.poll(()=>fixture.mutations.filter(m=>m.method==='SaveRunnerSettings').at(-1)?.body.rotationExcludedProfileIds).toEqual(['codex-saved']);

@@ -18,7 +18,19 @@ const fixed: Record<string, Omit<GrantText, 'grant'>> = {
   'read:usage': { icon: 'chart', title: 'See token use and cost', detail: 'Tokens and dollars by workspace, conversation and model, hour by hour', tone: 'read' },
   'show:conversations': { icon: 'eye', title: 'Show a conversation', detail: 'Bring a conversation or a workspace forward in the window', tone: 'act' },
   'send:messages': { icon: 'send', title: 'Send messages as you', detail: 'Write to any of your conversations; the agent acts on them as if you had', tone: 'send' },
+  // Account policy grants (EXTENSIONS.md, "Account policy"): the Runner acts on them, no panel does.
+  'switch:claude': { icon: 'card', title: 'Move Claude conversations to another of your Claude accounts', detail: 'When one reaches its subscription’s limit, it continues on another account you signed in', tone: 'act' },
+  'switch:codex': { icon: 'card', title: 'Move Codex conversations to another of your Codex accounts', detail: 'When one reaches its subscription’s limit, it continues on another account you signed in', tone: 'act' },
 };
+
+/** Anthropic's terms for Claude Code and the Agent SDK (CLAUDE_COMPLIANCE.md). */
+export const CLAUDE_TERMS_URL = 'https://code.claude.com/docs/en/legal-and-compliance';
+
+/** The providers an extension's account policy would switch, from what it asks for. */
+export const switchedProviders = (ext: Pick<Extension, 'grants'>) => ext.grants.filter(g => g.startsWith('switch:')).map(g => g.slice('switch:'.length));
+
+/** The warning shown wherever an account policy covers Claude, in one sentence. */
+export const CLAUDE_SWITCHING_WARNING = 'Anthropic’s terms may not allow moving between Claude subscriptions to keep working past a usage limit. Read them before allowing this for Claude.';
 
 /** One grant in plain words. */
 export function describeGrant(grant: string): GrantText {

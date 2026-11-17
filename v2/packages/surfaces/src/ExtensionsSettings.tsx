@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Extension } from '@lazybox/protocol';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ExtensionApprovalSheet } from './ExtensionApprovalSheet';
-import { describeGrant, describeHost, extensionStateLabel, widening } from './extension-grants';
+import { CLAUDE_SWITCHING_WARNING, CLAUDE_TERMS_URL, describeGrant, describeHost, extensionStateLabel, switchedProviders, widening } from './extension-grants';
 import { Icon } from './Icons';
 import { SettingsGroup, SettingsHeader } from './settings-parts';
 import { useExtensions } from './useExtensions';
@@ -42,7 +42,7 @@ export function ExtensionsSettings() {
   const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }, () => undefined);
   const list = value?.extensions || [];
   return <div className="extensions-settings">
-    <SettingsHeader title="Extensions" description={<>Panels you add as a folder of HTML, JavaScript and CSS. Each runs in a sandbox, apart from Lazybox, and can read and do only what you allow here. Show one from <strong>Panels → New Extensions panel</strong>.</>}/>
+    <SettingsHeader title="Extensions" description={<>Panels you add as a folder of HTML, JavaScript and CSS, and account policies such as switching subscriptions at a limit. Each runs in a sandbox, apart from Lazybox, and can read and do only what you allow here. Show a panel from <strong>Panels → New Extensions panel</strong>.</>}/>
     {(error && !value) && <p className="settings-error" role="alert">{error}</p>}
     {problem && <p className="settings-error" role="alert">{problem}</p>}
     {!value && !error && <p className="settings-empty" role="status">Loading extensions…</p>}
@@ -63,6 +63,7 @@ export function ExtensionsSettings() {
                 {ext.hosts.map(h => <li key={h} className={`grant-act${added.hosts.includes(h) ? ' is-new' : ''}`} title={h}><Icon name="globe" size={12}/>{describeHost(h).title}</li>)}
                 {!ext.grants.length && !ext.hosts.length && <li className="grant-read"><Icon name="lock" size={12}/>Nothing of yours; no network</li>}
               </ul>}
+              {on && ext.accountPolicy && switchedProviders(ext).includes('claude') && <p className="extension-caution" role="note"><Icon name="alert" size={13}/> <span>{CLAUDE_SWITCHING_WARNING} <a href={CLAUDE_TERMS_URL} target="_blank" rel="noreferrer">Anthropic’s terms</a></span></p>}
               <small className="extension-path mono" title={ext.path}>{ext.path}</small>
             </div>
             <div className="extension-card-actions">

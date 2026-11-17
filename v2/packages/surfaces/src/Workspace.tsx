@@ -17,6 +17,7 @@ import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { consolePlace, followConsole, noteConsoleUse, readFollowRuns, useRunFollowing } from './console-follow';
 import { requestTerminal } from './TerminalPanel';
+import { AccountNotices } from './AccountNotices';
 import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, settleLayout, sameConversation, tabFor, withSelection, closeTab, keepTab, previewTab, followFrontTab, isChatTab, openConversation, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import { useConversationTabs, useTabsSetting } from './useConversationTabs';
 import { openModeFor } from './conversation-tabs';
@@ -440,6 +441,20 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   // A panel asked for in another workspace is shown once that workspace's page is.
   const pendingModule = useRef('');
   useEffect(() => { const kind = pendingModule.current; if (!kind) return; pendingModule.current = ''; showModule(kind); }, [workspaceID]);
+  /**
+   * Types a command into a new shell of this workspace (or the first ready
+   * one) and shows the shell panel, where the person watches it run. Settings
+   * → Claude → Install Claude Code uses it for Anthropic's installer.
+   */
+  const runInShell = async (command: string) => {
+    const target = workspaceID || collections.find(c => c.state === 'ready')?.id || '';
+    if (!target) throw new Error(`Create a workspace first: the shell runs in one. Or run this in a terminal: ${command}`);
+    const terminal = await api.openTerminal({ collectionId: target, directory: '', cols: 100, rows: 30, requestKey: crypto.randomUUID() });
+    await api.writeTerminal({ terminalId: terminal.id, data: new TextEncoder().encode(command + '\r') });
+    requestTerminal(target, terminal.id);
+    showPanelFor('terminal', { collectionId: target, sessionId: '', commandId: '' });
+    setSettings(false);
+  };
   /** Show the panel of this kind for target: its workspace and conversation first, then the panel. */
   const showPanelFor = (kind: string, requested?: RunnerTarget) => {
     if (requested && switched(requested)) return;
@@ -988,8 +1003,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         <span>{error}</span>
         <button type="button" className="icon-button" aria-label="Dismiss" title="Dismiss" onClick={() => setError('')}><Icon name="close" size={14}/></button>
       </div>)}
+    {!fixedWorkspaceId && <AccountNotices onOpenSettings={tab => { setSettingsTab(tab); setSettings(true); }}/>}
     {settings
-      ? <SettingsPage app={host?.app} zoom={host?.zoom} tab={settingsTab} onTab={setSettingsTab} onShowProcesses={() => showModule('processes')} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/>
+      ? <SettingsPage app={host?.app} zoom={host?.zoom} tab={settingsTab} onTab={setSettingsTab} onShowProcesses={() => showModule('processes')} onRunInShell={runInShell} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/>
       : <>
         {locked && <div className="layout-locked" role="status">
           <Icon name="lock" size={14}/>

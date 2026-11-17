@@ -19,6 +19,7 @@ import { checkForUpdate, takeInstalling, useUpdatePreferencesStore } from './app
 import { postUpdateDecision } from './update-model';
 import type { FeedbackShot } from './FeedbackDialog';
 import './onboarding.css';
+import './claude-auth.css';
 
 // The documentation ships with the app and reads offline (DocsViewer.tsx); it
 // loads only when opened.
@@ -110,6 +111,7 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
     }}/>}
     {welcome && <Welcome viewState={viewState} onClose={closeWelcome}
       onSubscription={() => { closeWelcome(); onOpenSettings('subscriptions'); }}
+      onClaude={() => { closeWelcome(); onOpenSettings('agents'); requestAnimationFrame(() => document.getElementById('claude-settings')?.scrollIntoView?.({ block: 'start' })); }}
       onTask={() => { closeWelcome(); requestAnimationFrame(() => invokeAction('task.new')); }}/>}
     {whatsNew && <WhatsNew releases={whatsNew.releases} focus={whatsNew.asked} updated={whatsNew.updated} failed={whatsNew.failed} onDismiss={dismissWhatsNew} onUpdates={() => { setWhatsNew(undefined); openUpdates(); }}/>}
     {docs && <Suspense fallback={null}><DocsViewer key={docs} initial={docs} onClose={() => setDocs('')}/></Suspense>}
@@ -131,7 +133,7 @@ function Keys({ keys }: { keys: string[] }) {
   return <span className="onboarding-keys">{keys.map((key, i) => <kbd key={i}>{key}</kbd>)}</span>;
 }
 
-function Welcome({ viewState, onClose, onSubscription, onTask }: { viewState?: ViewStateStore; onClose(): void; onSubscription(): void; onTask(): void }) {
+function Welcome({ viewState, onClose, onSubscription, onClaude, onTask }: { viewState?: ViewStateStore; onClose(): void; onSubscription(): void; onClaude(): void; onTask(): void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const lessons = useMemo(() => essentialKeys(readKeymap(viewState), shortcut('Mod+P'), binding => displayBinding(binding)), [viewState]);
   useEffect(() => { const node = dialog.current; if (node && !node.open) node.showModal(); node?.querySelector<HTMLElement>('[data-autofocus]')?.focus(); }, []);
@@ -144,8 +146,10 @@ function Welcome({ viewState, onClose, onSubscription, onTask }: { viewState?: V
     <ol className="onboarding-steps">
       <li>
         <span className="onboarding-step-icon" aria-hidden="true"><Icon name="card" size={16}/></span>
-        <div><h3>Connect a subscription</h3><p>Sign in with your Claude or ChatGPT plan. Add more than one and Lazybox switches when one reaches its limit.</p><AgentReadiness/></div>
-        <button onClick={onSubscription}>Connect a subscription</button>
+        <div><h3>Connect your agents</h3>
+          <p><strong>Claude:</strong> add an Anthropic API key. It is the way Anthropic documents for apps built on its Agent SDK, like Lazybox; your own Claude Code sign-in also works, but Anthropic has not confirmed it for such apps. <strong>Codex:</strong> sign in with your ChatGPT plan.</p>
+          <AgentReadiness/></div>
+        <div className="onboarding-step-actions"><button className="primary" onClick={onClaude}>Add an API key</button><button onClick={onSubscription}>Sign in to Codex</button></div>
       </li>
       <li>
         <span className="onboarding-step-icon" aria-hidden="true"><Icon name="repository" size={16}/></span>
