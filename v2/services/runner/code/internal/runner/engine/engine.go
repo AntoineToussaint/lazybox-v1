@@ -110,6 +110,10 @@ type TurnHooks struct {
 	// After runs once the turn ended, off the event path. operation is the
 	// message that started it, or "" for a turn started before this engine.
 	After func(operation string, ended time.Time)
+	// Tool sees every tool call and result once it is recorded, in order,
+	// outside the engine's lock: what agent output says it did (a pull
+	// request it opened, runner/items.go). It must not block.
+	Tool func(ev agent.Event)
 }
 
 // SetTurnHooks installs h for every later turn.
@@ -727,11 +731,18 @@ func (e *Engine) receive() {
 		if ev.Type == "turn_ended" && rootEvent {
 			after, turn, e.turnOp = e.hooks.After, e.turnOp, ""
 		}
+		var tool func(agent.Event)
+		if ev.Type == "tool_activity" {
+			tool = e.hooks.Tool
+		}
 		e.mu.Unlock()
 		if !ok {
 			return
 		}
 		e.commit(ev)
+		if tool != nil {
+			tool(ev)
+		}
 		if (ev.Type == "turn_ended" || ev.Type == "profile_changed") && rootEvent {
 			if ev.Type == "turn_ended" && after != nil {
 				go after(turn, time.Now().UTC())

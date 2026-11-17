@@ -419,3 +419,55 @@ func (s *Store) Forget(workspace string) error {
 	}
 	return err
 }
+
+// AuthorGitHub marks a comment imported from a GitHub pull request review;
+// its AuthorLabel names the reviewer ("@octocat on GitHub").
+const AuthorGitHub = "github"
+
+// Import adds comments from a code host's review (a GitHub pull request's
+// inline comments), each once by its Key: one already in the workspace, in
+// whatever state, is left as it is. They are pending, as the person's own
+// comments are, and anchor the same way. added is what was new.
+func (s *Store) Import(workspace string, comments []Comment) (added []Comment, err error) {
+	now := s.Now().Unix()
+	_, err = s.update(workspace, func(r *Review) error {
+		have := map[string]bool{}
+		for _, c := range r.Comments {
+			if c.Key != "" {
+				have[c.Key] = true
+			}
+		}
+		for _, c := range comments {
+			if c.Key == "" || have[c.Key] {
+				continue
+			}
+			body, err := validBody(c.Body)
+			if err != nil {
+				continue
+			}
+			if c.Side != SideOld {
+				c.Side = SideNew
+			}
+			if c.View == "" {
+				c.View = "branch"
+			}
+			if checkAnchor(c) != nil {
+				continue
+			}
+			if len(r.Comments) >= commentsLimit {
+				return fmt.Errorf("at most %d review comments per workspace; delete resolved ones first", commentsLimit)
+			}
+			c = Comment{ID: newID(), Member: c.Member, Path: filepath.ToSlash(c.Path), Side: c.Side, StartLine: c.StartLine, EndLine: c.StartLine + len(c.Snippet) - 1,
+				Snippet: slices.Clone(c.Snippet), Hash: Hash(c.Snippet), FileHash: c.FileHash, Body: body, Head: c.Head, View: c.View, Base: c.Base,
+				CreatedAt: now, UpdatedAt: now, Disposition: Open, Author: c.Author, AuthorLabel: c.AuthorLabel, Key: c.Key}
+			r.Comments = append(r.Comments, c)
+			have[c.Key] = true
+			added = append(added, c)
+		}
+		if len(added) == 0 {
+			return errUnchanged
+		}
+		return nil
+	})
+	return added, err
+}

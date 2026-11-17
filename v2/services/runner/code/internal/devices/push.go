@@ -52,6 +52,11 @@ const (
 	KindReview   = "review"
 	KindTest     = "test"
 	KindSummary  = "summary"
+	// A tracked pull request needs the person (checks failed, changes
+	// requested, conflicts) or is good news (checks passed, approved,
+	// merged): told under the failures and the ready-for-review settings.
+	KindPRFailed = "pr_failed"
+	KindPRReady  = "pr_ready"
 )
 
 func (d Device) clone() Device {
@@ -81,9 +86,9 @@ func (p PushPreferences) Wants(kind string) bool {
 	switch kind {
 	case KindApproval, KindQuestion:
 		return p.NeedsInput
-	case KindFailed:
+	case KindFailed, KindPRFailed:
 		return p.Failed
-	case KindReview:
+	case KindReview, KindPRReady:
 		return p.Review
 	case KindSummary:
 		return p.NeedsInput || p.Failed || p.Review

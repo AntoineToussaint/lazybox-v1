@@ -84,6 +84,15 @@ var deviceRPCs = map[string]deviceRule{
 	// shared with the computer (audit R1/R7p): a phone that may respond may pin.
 	// It changes no execution state. Archiving and deleting stay the owner's.
 	pb.RunnerService_PinConversation_FullMethodName: {grant: devices.GrantRespond},
+	// Tracked pull requests: reading them is reading what needs the person;
+	// sending a failure or a review to the conversation that delivered it is
+	// a response, like a message. Merging, linking and unlinking stay the owner's.
+	pb.RunnerService_ListLinks_FullMethodName: {grant: devices.GrantRead, allow: func(req any) bool {
+		r, ok := req.(*pb.ListLinksRequest)
+		return ok && r.SessionId == ""
+	}},
+	pb.RunnerService_SendPullRequestFailures_FullMethodName: {grant: devices.GrantRespond},
+	pb.RunnerService_ImportPullRequestReview_FullMethodName: {grant: devices.GrantRespond},
 }
 
 // deviceStreams are the server streams a device may follow.

@@ -20,10 +20,19 @@ const (
 	EventChecksFailed = "pr.checks-failed"
 	// EventMissionAccepted: a person accepted a mission task's work.
 	EventMissionAccepted = "mission.accepted"
+	// The other transitions of a pull request a workspace delivers
+	// (runner/items): each emitted once, when it happens.
+	EventPROpened         = "pr.opened"
+	EventChecksPassed     = "pr.checks-passed"
+	EventChangesRequested = "pr.changes-requested"
+	EventPRApproved       = "pr.approved"
+	EventPRMerged         = "pr.merged"
+	EventPRClosed         = "pr.closed"
+	EventPRConflicts      = "pr.conflicts"
 )
 
 // Events lists every event, in the order Settings shows them.
-var Events = []string{EventNeedsInput, EventTurnDone, EventTurnFailed, EventChecksFailed, EventMissionAccepted}
+var Events = []string{EventNeedsInput, EventTurnDone, EventTurnFailed, EventPROpened, EventChecksFailed, EventChecksPassed, EventChangesRequested, EventPRApproved, EventPRMerged, EventPRClosed, EventPRConflicts, EventMissionAccepted}
 
 // Event is what happened, as a hook receives it: JSON on stdin and in the
 // file $LAZYBOX_EVENT_FILE, the main fields also as LAZYBOX_EVENT_*

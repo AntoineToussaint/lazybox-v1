@@ -264,20 +264,6 @@ func (b *Bench) missionEvents(o *hookObserver, baseline bool) []power.Event {
 	return out
 }
 
-// hookPullRequest: checks failed on a pull request's latest head.
-func (b *Bench) hookPullRequest(pr PullRequestObservation) {
-	if b.power.Hooks == nil || pr.Checks != "failure" || pr.Head == "" {
-		return
-	}
-	ev := power.Event{Name: power.EventChecksFailed, At: time.Now(), Workspace: b.workspaceRef(pr.Workspace),
-		PullRequest: &power.PullRequest{Repository: pr.Repository, Number: int64(pr.Number), URL: pr.URL, Title: pr.Title, Head: pr.Head, Failed: pr.Failed},
-		Reason:      "checks failed: " + strings.Join(pr.Failed, ", "), Key: fmt.Sprintf("%s#%d@%s", pr.Repository, pr.Number, pr.Head)}
-	if len(pr.Failed) == 0 {
-		ev.Reason = "checks failed"
-	}
-	go b.power.Hooks.Dispatch(ev)
-}
-
 func (b *Bench) workspaceRef(id string) *power.Ref {
 	if id == "" {
 		return nil

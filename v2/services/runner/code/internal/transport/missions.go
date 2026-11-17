@@ -12,6 +12,7 @@ import (
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
+	"github.com/AntoineToussaint/lazybox/v2/internal/sources/github"
 	"github.com/AntoineToussaint/lazybox/v2/internal/work"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"google.golang.org/grpc/codes"
@@ -249,13 +250,21 @@ func (s *Service) refreshPullRequests(state *work.State) {
 // prRefreshed throttles background pull request reads per workspace repository.
 var prRefreshed sync.Map
 
-// observePullRequest records a pull request the PR loop read as evidence on
-// the attempts in its workspace.
+// observePullRequest records what the PR loop read about a member's branch:
+// the workspace delivers that pull request (a tracked item whose transitions
+// fire hooks), and it is evidence on the attempts in the workspace.
 func (s *Service) observePullRequest(collection, member string, out *pb.PullRequestStatus) {
-	s.pulls.remember(collection, member, out)
 	if out == nil || !out.Found {
 		return
 	}
+	s.observeLoop(collection, member, out, statusOf(out), false)
+}
+
+func (s *Service) observeLoop(collection, member string, out *pb.PullRequestStatus, status github.PullRequestStatus, created bool) {
+	if out == nil || !out.Found {
+		return
+	}
+	s.Bench.ObservePullRequestLoop(collection, member, out.GithubRepository, status, created)
 	pr := runner.PullRequestObservation{Workspace: collection, Member: member, Repository: out.GithubRepository, Title: out.Title, URL: out.Url, State: out.State, Head: out.HeadSha, Checks: out.ChecksState, Number: out.Number, Total: len(out.Checks)}
 	for _, c := range out.Checks {
 		if c.Status == "completed" && (c.Conclusion == "failure" || c.Conclusion == "timed_out" || c.Conclusion == "cancelled" || c.Conclusion == "action_required") {

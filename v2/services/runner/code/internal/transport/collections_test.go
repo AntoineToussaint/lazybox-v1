@@ -47,7 +47,8 @@ func collectionService(t *testing.T) (*Service, *agenttest.Adapter) {
 			t.Fatalf("git fixture: %v %s", err, data)
 		}
 	}
-	b, err := runner.New(runner.Config{State: t.TempDir(), OutputFallbackRoot: t.TempDir(), WorktreeRoot: t.TempDir(), Repositories: []collections.Repository{{ID: "api", Path: path}}})
+	// Tests drive tracking passes themselves (ItemPoll -1).
+	b, err := runner.New(runner.Config{State: t.TempDir(), OutputFallbackRoot: t.TempDir(), WorktreeRoot: t.TempDir(), Repositories: []collections.Repository{{ID: "api", Path: path}}, ItemPoll: -1})
 	if err != nil {
 		t.Fatal(err)
 	}

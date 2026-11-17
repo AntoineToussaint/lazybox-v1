@@ -14,6 +14,8 @@ const headings = {
   question: 'Question for you',
   failed: 'Something failed',
   review: 'Ready for review',
+  pr_failed: 'Pull request needs you',
+  pr_ready: 'Pull request update',
 };
 
 /** Only a link into the phone app on this origin; anything else opens the Inbox. */

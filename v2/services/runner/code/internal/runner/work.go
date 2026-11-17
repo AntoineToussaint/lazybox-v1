@@ -250,7 +250,6 @@ type PullRequestObservation struct {
 // RecordPullRequest attaches a pull request and its checks to the attempts in
 // its workspace, once per head and state: success verifies the head it ran on.
 func (b *Bench) RecordPullRequest(pr PullRequestObservation) {
-	b.hookPullRequest(pr)
 	if b.Work == nil || pr.Number == 0 || pr.Head == "" {
 		return
 	}

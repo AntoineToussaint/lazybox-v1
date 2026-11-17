@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitpublish"
+	workitems "github.com/AntoineToussaint/lazybox/v2/internal/runner/items"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sources/github"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 )
@@ -135,18 +136,20 @@ func wirePullRequest(out *pb.PullRequestStatus, status github.PullRequestStatus)
 	return out
 }
 
-func (s *Service) readPullRequest(ctx context.Context, out *pb.PullRequestStatus) (*pb.PullRequestStatus, error) {
+func (s *Service) readPullRequest(ctx context.Context, out *pb.PullRequestStatus) (*pb.PullRequestStatus, github.PullRequestStatus, error) {
+	var status github.PullRequestStatus
 	err := s.Bench.GitHub.WithCredential(ctx, func(token string) error {
-		status, err := s.Bench.GitHubPulls.PullRequestStatus(ctx, token, out.GithubRepository, out.Branch)
+		var err error
+		status, err = s.Bench.GitHubPulls.PullRequestStatus(ctx, token, out.GithubRepository, out.Branch)
 		if err == nil {
 			wirePullRequest(out, status)
 		}
 		return err
 	})
 	if err != nil {
-		return nil, rpcError(err)
+		return nil, status, rpcError(err)
 	}
-	return out, nil
+	return out, status, nil
 }
 
 func (s *Service) GetPullRequest(ctx context.Context, r *pb.GetPullRequestRequest) (*pb.PullRequestStatus, error) {
@@ -157,9 +160,9 @@ func (s *Service) GetPullRequest(ctx context.Context, r *pb.GetPullRequestReques
 	if out.Unavailable != "" {
 		return out, nil
 	}
-	out, err = s.readPullRequest(ctx, out)
+	out, status, err := s.readPullRequest(ctx, out)
 	if err == nil {
-		s.observePullRequest(r.CollectionId, r.Member, out)
+		s.observeLoop(r.CollectionId, r.Member, out, status, false)
 	}
 	return out, err
 }
@@ -182,8 +185,10 @@ func (s *Service) CreatePullRequest(ctx context.Context, r *pb.CreatePullRequest
 	if tracking.Ahead > 0 {
 		return nil, rpcError(errors.New(strconv.Itoa(tracking.Ahead) + " local commit(s) are not pushed yet; push before opening a pull request"))
 	}
+	var status github.PullRequestStatus
 	err = s.Bench.GitHub.WithCredential(ctx, func(token string) error {
-		status, err := s.Bench.GitHubPulls.CreatePullRequest(ctx, token, out.GithubRepository, github.NewPullRequest{Head: out.Branch, Base: r.Base, Title: r.Title, Body: r.Body, Draft: r.Draft})
+		var err error
+		status, err = s.Bench.GitHubPulls.CreatePullRequest(ctx, token, out.GithubRepository, github.NewPullRequest{Head: out.Branch, Base: r.Base, Title: r.Title, Body: r.Body, Draft: r.Draft})
 		if err == nil {
 			wirePullRequest(out, status)
 		}
@@ -192,11 +197,15 @@ func (s *Service) CreatePullRequest(ctx context.Context, r *pb.CreatePullRequest
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	s.observePullRequest(r.CollectionId, r.Member, out)
+	// The person opened it: the workspace delivers it (a tracked item).
+	s.observeLoop(r.CollectionId, r.Member, out, status, true)
 	return out, nil
 }
 
 func (s *Service) MergePullRequest(ctx context.Context, r *pb.MergePullRequestRequest) (*pb.PullRequestStatus, error) {
+	if r.Item != nil && r.Item.Key != "" {
+		return s.mergeTracked(ctx, r)
+	}
 	_, _, out, err := s.pullRequestTarget(ctx, r.CollectionId, r.Member)
 	if err != nil {
 		return nil, rpcError(err)
@@ -219,9 +228,25 @@ func (s *Service) MergePullRequest(ctx context.Context, r *pb.MergePullRequestRe
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	out, err = s.readPullRequest(ctx, out)
+	out, status, err := s.readPullRequest(ctx, out)
 	if err == nil {
-		s.observePullRequest(r.CollectionId, r.Member, out)
+		s.observeLoop(r.CollectionId, r.Member, out, status, false)
 	}
 	return out, err
+}
+
+// mergeTracked merges a pull request the workspace delivers on any branch
+// (the Pull requests panel): the workspace must deliver it, and GitHub
+// merges it only if its head is still the one the person saw.
+func (s *Service) mergeTracked(ctx context.Context, r *pb.MergePullRequestRequest) (*pb.PullRequestStatus, error) {
+	if !s.githubConnected() {
+		return nil, rpcError(errors.New(connectForPullRequests))
+	}
+	ref := refOf(r.Item)
+	status, _, err := s.Bench.MergeTrackedPullRequest(ctx, r.CollectionId, ref, r.Number, r.Method, r.ExpectedHead)
+	if err != nil {
+		return nil, reactionError(err)
+	}
+	repository, _, _ := workitems.ParseGitHubKey(ref.Key)
+	return wirePullRequest(&pb.PullRequestStatus{GithubRepository: repository, Branch: status.Head}, status), nil
 }

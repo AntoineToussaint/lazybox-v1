@@ -5,7 +5,7 @@
 const now = () => String(Date.now());
 
 export function createPowerFake({ frame, commands, runtimeCommands, sessions, mutations }) {
-  const file = { path: '/fixture/config/lazybox/actions.yaml', exists: true, error: '', stale: false, issues: [], actions: [], hooks: [], revision: '1', loadedAtUnixMillis: now(), schema: '{"title":"Lazybox actions and hooks"}', schemaPath: '/fixture/config/lazybox/actions.schema.json', events: ['agent.needs-input', 'turn.done', 'turn.failed', 'pr.checks-failed', 'mission.accepted'] };
+  const file = { path: '/fixture/config/lazybox/actions.yaml', exists: true, error: '', stale: false, issues: [], actions: [], hooks: [], revision: '1', loadedAtUnixMillis: now(), schema: '{"title":"Lazybox actions and hooks"}', schemaPath: '/fixture/config/lazybox/actions.schema.json', events: ['agent.needs-input', 'turn.done', 'turn.failed', 'pr.opened', 'pr.checks-failed', 'pr.checks-passed', 'pr.changes-requested', 'pr.approved', 'pr.merged', 'pr.closed', 'pr.conflicts', 'mission.accepted'] };
   const runs = [], outputs = new Map(), watchers = [], requests = new Map();
   /** Commands started by a command step: their exit status by command line (default 0). */
   const commandExits = new Map();

@@ -90,6 +90,10 @@ func (b *Bench) watchTurns(e *Execution) {
 			b.overlapTurnEnded(e)
 		},
 	}
+	if !agent.IsAssistant(e.Purpose) {
+		// What its tools print can say it opened a pull request (items.go).
+		hooks.Tool = func(ev agent.Event) { b.itemToolEvent(e, ev) }
+	}
 	if code && b.Checkpoints != nil {
 		hooks.Before = func(op agent.Operation) {
 			b.checkpoint(func(ctx context.Context) error {

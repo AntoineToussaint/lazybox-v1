@@ -472,6 +472,62 @@ func (n *Notifier) deliver(d devices.Device, sub webpush.Subscription, payload P
 	}()
 }
 
+// PullRequestNotice is a tracked pull request's transition (runner/items).
+type PullRequestNotice struct {
+	// Event is pr.checks-failed, pr.approved, …
+	Event      string
+	Repository string
+	Number     int64
+	Title      string
+	Reason     string
+}
+
+// pullRequestKinds: what each transition is, for a phone's settings; the
+// others (opened, closed) are not pushed.
+var pullRequestKinds = map[string]string{
+	"pr.checks-failed":     devices.KindPRFailed,
+	"pr.changes-requested": devices.KindPRFailed,
+	"pr.conflicts":         devices.KindPRFailed,
+	"pr.checks-passed":     devices.KindPRReady,
+	"pr.approved":          devices.KindPRReady,
+	"pr.merged":            devices.KindPRReady,
+}
+
+// PullRequest tells every phone that wants it about a tracked pull request's
+// transition, outside its quiet hours: "#812 Fix rounding — checks failed:
+// lint". It opens the phone's Inbox, where the reaction is one tap.
+func (n *Notifier) PullRequest(notice PullRequestNotice) {
+	kind, ok := pullRequestKinds[notice.Event]
+	if !ok || n.Devices == nil || n.Sender == nil {
+		return
+	}
+	n.mu.Lock()
+	n.init()
+	n.mu.Unlock()
+	title := "#" + strconv.FormatInt(notice.Number, 10)
+	if notice.Title != "" {
+		title += " " + notice.Title
+	}
+	if utf8.RuneCountInString(title) > maxTitle {
+		title = string([]rune(title)[:maxTitle-1]) + "…"
+	}
+	if notice.Reason != "" {
+		title += " — " + notice.Reason
+	}
+	tag := "pr:" + notice.Repository + "#" + strconv.FormatInt(notice.Number, 10)
+	payload := Payload{Title: title, Kind: kind, URL: "/?view=remote", Tag: tag}
+	sum := sha256.Sum256([]byte(tag))
+	opts := webpush.Options{TTL: time.Hour, Urgency: "normal", Topic: base64.RawURLEncoding.EncodeToString(sum[:])[:32]}
+	now := n.now()
+	for _, d := range n.Devices.PushTargets() {
+		push := d.PushSettings()
+		if push.Quiet(now) || !push.Wants(kind) {
+			continue
+		}
+		n.deliver(d, *push.Subscription, payload, opts, now)
+	}
+}
+
 // Test sends a test notification to one phone and waits for the push
 // service's answer.
 func (n *Notifier) Test(ctx context.Context, deviceID string) error {

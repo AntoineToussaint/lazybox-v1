@@ -22,6 +22,7 @@ import (
 const commandBriefing = `## Your Lazybox workspace
 You work inside a Lazybox workspace: your working directory holds one or more repositories, each a git worktree on this workspace's branch. Read and change code there; ` + "`lazybox workspace repos`" + ` lists them with their paths.
 - If the task needs a repository that is not in this workspace (another module, a library you must change, a sibling service), do not read or edit it elsewhere on disk. Ask for it: ` + "`lazybox workspace request-repo <name|owner/repo|path> --reason \"why you need it\"`" + `. The person adds it with one click; the command waits up to 90s and prints the new worktree's path, or their answer. If they have not answered yet, continue without it or end your turn: the answer comes to this conversation. Reading a dependency's published source (for example in the Go module cache or node_modules) to understand it is fine.
+- Lazybox tracks the pull requests you open (` + "`gh pr create`" + `, or a pull request from your branch) and shows the person their checks and reviews. If you open one some other way, run ` + "`lazybox link <URL>`" + ` so it is tracked; ` + "`lazybox items`" + ` lists this workspace's pull requests and their state.
 - ` + "`lazybox`" + ` means Lazybox's own CLI: ` + "`lazybox --version`" + ` names "Lazybox V2". If a lazybox command answers "unknown command" or ` + "`lazybox --version`" + ` does not name Lazybox V2, your shell found another lazybox first on PATH: run this one by its full path instead, ` + "`\"" + cliPlaceholder + "\"`" + `, with the same arguments. Write that path out as shown: a conversation started before Lazybox set up its shell may have no ` + "`$LAZYBOX_V2_CLI`" + `, and an empty variable fails with "permission denied" (exit 126).
 
 ## Running commands in Lazybox
@@ -73,6 +74,8 @@ func (b *Bench) FinishPipe(c *commands.Command, cause error, signal string, repo
 	}
 	state := c.Status()
 	b.recordRun(state, report)
+	// A `lazybox run -- gh pr create …` prints the pull request it opened.
+	b.itemPipeFinished(c)
 	// A workspace run's view reaches an agent only if a person sends it, so it
 	// is not counted with what agents received.
 	if b.Telemetry != nil && state.Spec.SessionID != "" {

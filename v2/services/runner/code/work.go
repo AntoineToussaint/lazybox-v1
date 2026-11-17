@@ -16,6 +16,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/restart"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/items"
 	"github.com/AntoineToussaint/lazybox/v2/internal/transport"
 	"github.com/AntoineToussaint/lazybox/v2/internal/webpush"
 	"github.com/AntoineToussaint/lazybox/v2/pkg/adapters"
@@ -251,6 +252,10 @@ func startRemote(ctx context.Context, state string, service *transport.Service, 
 		notifier := &remote.Notifier{Devices: manager, Sender: webpush.NewSender(keys), Sessions: service.Sessions, Keys: keys}
 		notifier.Start(ctx)
 		service.Push, stopPush = notifier, notifier.Stop
+		// A tracked pull request's transitions, under the same settings.
+		service.Bench.SubscribeItemEvents(func(ev items.Event) {
+			notifier.PullRequest(remote.PullRequestNotice{Event: ev.Name, Repository: ev.Repository, Number: ev.Number, Title: ev.Title, Reason: ev.Reason})
+		})
 	}
 	var once sync.Once
 	return func() { once.Do(func() { stopPush(); _ = gateway.Close(); stopRPC() }) }, nil

@@ -137,7 +137,10 @@ type Config struct {
 	// ArtifactPoll is how often tracked artifact files are checked; a change
 	// becomes a version once it has been stable for ArtifactDebounce. Zero
 	// selects 2s for both.
-	ArtifactPoll     time.Duration `json:"-"`
+	ArtifactPoll time.Duration `json:"-"`
+	// ItemPoll is how often tracked items are looked at (items.go); zero is
+	// the default, negative leaves it to the caller (tests).
+	ItemPoll         time.Duration `json:"-"`
 	ArtifactDebounce time.Duration `json:"-"`
 }
 
@@ -168,7 +171,10 @@ type Bench struct {
 	GitHubAPI   github.API
 	GitHubPulls github.PullRequests
 	// GitHubIssues reads issues to start a workspace from one (work_items.go).
-	GitHubIssues        github.IssueReader
+	GitHubIssues github.IssueReader
+	// GitHubItems is what tracked pull requests read (items.go); nil uses
+	// GitHubPulls when it can.
+	GitHubItems         GitHubItemsAPI
 	RepositoryImporter  *repositories.Importer
 	RepositoryDiscovery *repositories.Discovery
 	probes              int
@@ -239,6 +245,8 @@ type Bench struct {
 	titling titling
 	// orchestrator serializes spawns and wakes waiting orchestrators (orchestrator.go).
 	orchestrator *orchestratorState
+	// workItems are the tracked pull requests and their links (items.go).
+	workItems itemsState
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -473,6 +481,10 @@ func New(cfg Config) (*Bench, error) {
 	}
 	b.watchArtifacts()
 	b.openPower()
+	if err = b.openItems(); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
 	b.Telemetry, err = telemetry.Open(filepath.Join(cfg.State, "telemetry.db"))
 	if err == nil {
 		b.Meter, err = telemetry.StartGateway(b.Telemetry, b.Prices, cfg.MeterUpstreams)

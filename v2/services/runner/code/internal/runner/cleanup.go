@@ -91,6 +91,10 @@ func (b *Bench) DeleteWorkspace(ctx context.Context, id, name string, discard, s
 		// The port block is free for the next workspace.
 		err = b.runtime.forget(id)
 	}
+	if err == nil && c.State == "deleted" {
+		// Its delivered pull requests stay as history; its mentions go.
+		b.itemsWorkspaceGone(id, c.Name)
+	}
 	if err == nil && c.State == "deleted" && b.Artifacts != nil {
 		// A workspace's artifacts go with it, like its terminals and output.
 		err = b.Artifacts.DeleteWorkspace(id)

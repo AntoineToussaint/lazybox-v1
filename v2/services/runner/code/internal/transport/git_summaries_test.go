@@ -83,8 +83,9 @@ func TestWorkspaceGitSummariesFollowTheBranch(t *testing.T) {
 		t.Fatalf("after main moved: %+v", row)
 	}
 
-	// With GitHub connected, a pushed branch's pull request is read in the
-	// background and appears on a later poll; the request path never waits.
+	// With GitHub connected, a pushed branch's pull request is found by a
+	// tracking pass in the background and appears on a later poll; the
+	// request path never asks GitHub.
 	runGit(t, source, "remote", "set-url", "origin", "https://github.com/team/api.git")
 	runGit(t, source, "config", "url."+remote+".insteadOf", "https://github.com/team/api.git")
 	s.Bench.GitHub.Close()
@@ -103,47 +104,45 @@ func TestWorkspaceGitSummariesFollowTheBranch(t *testing.T) {
 	s.Bench.GitHubPulls = github.NewAt(fake.URL)
 	head := runGit(t, worktree, "rev-parse", "HEAD")
 	fake.SetHead("team/api", branch, head)
+	asked := func() (n int) { fake.Update(func(f *githubtest.Server) { n = len(f.Requests) }); return }
 	if row = summary(); row.GithubRepository != "team/api" || row.PullRequest != nil {
 		t.Fatalf("before any pull request: %+v", row)
 	}
-	s.pulls.running.Wait()
-	// "No pull request" is remembered: polling again asks GitHub nothing.
-	asked := func() (n int) { fake.Update(func(f *githubtest.Server) { n = len(f.Requests) }); return }
-	requests := asked()
-	summary()
-	s.pulls.running.Wait()
-	if asked() != requests {
-		t.Fatal("a fresh 'no pull request' was asked for again")
+	if asked() != 0 {
+		t.Fatal("the summary asked GitHub on its request path")
+	}
+	// Reads recorded by the store look ten minutes old, so every pass reads again.
+	s.Bench.WorkItems().Now = func() time.Time { return time.Now().Add(-10 * time.Minute) }
+	s.Bench.TrackItems(ctx)
+	if asked() == 0 {
+		t.Fatal("the pushed branch was never asked about")
 	}
 	created, err := s.CreatePullRequest(ctx, &pb.CreatePullRequestRequest{CollectionId: w.ID, Member: "api", Title: "Add the handler"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Creating it records it: the next poll shows it without asking GitHub.
+	requests := asked()
 	if row = summary(); row.PullRequest == nil || row.PullRequest.Number != created.Number || row.PullRequest.State != "open" || row.PullRequest.Title != "Add the handler" {
 		t.Fatalf("after create: %+v", row)
 	}
-	// Once old, an open pull request is read again (its checks moved).
+	// Its checks fail: the summary shows what tracking last read, until the
+	// next pass reads it again.
 	fake.Update(func(f *githubtest.Server) {
 		f.Checks[head] = []githubtest.Check{{Name: "test", Status: "completed", Conclusion: "failure"}}
 	})
-	later := time.Now().Add(pullOpenFresh + time.Second)
-	s.pulls.mu.Lock()
-	s.pulls.now = func() time.Time { return later }
-	s.pulls.mu.Unlock()
-	if row = summary(); row.PullRequest == nil || row.PullRequest.ChecksState == "failure" {
-		t.Fatalf("a stale entry is served while it refreshes: %+v", row)
+	if row = summary(); row.PullRequest == nil || row.PullRequest.ChecksState == "failure" || asked() != requests {
+		t.Fatalf("the summary never reads GitHub: %+v", row)
 	}
-	s.pulls.running.Wait()
+	s.Bench.TrackItems(ctx)
 	if row = summary(); row.PullRequest == nil || row.PullRequest.ChecksState != "failure" {
-		t.Fatalf("after the background refresh: %+v", row)
+		t.Fatalf("after the tracking pass: %+v", row)
 	}
 	// Another branch checked out: the old branch's pull request is not shown.
 	runGit(t, worktree, "checkout", "-q", "-b", "elsewhere")
 	if row = summary(); row.Branch != "elsewhere" || row.PullRequest != nil {
 		t.Fatalf("after switching branch: %+v", row)
 	}
-	s.pulls.running.Wait()
 	// Every workspace when none is named.
 	all, err := s.ListWorkspaceGitSummaries(ctx, &pb.WorkspaceGitSummariesRequest{})
 	if err != nil || len(all.Workspaces) != 1 {

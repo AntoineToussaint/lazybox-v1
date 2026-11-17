@@ -104,6 +104,9 @@ type linkResult struct {
 }
 
 func (c *cli) link(args []string) error {
+	if looksLikeItemURL(args) {
+		return c.linkItem(args)
+	}
 	f := c.flags("link")
 	dir := f.String("dir", "", "directory to link lazybox into (default /usr/local/bin when writable, else ~/.local/bin)")
 	shell := f.String("shell", "", "shell to install completions for: zsh, bash or fish (default: your login shell)")

@@ -49,7 +49,7 @@ func TestHooksFollowChecksAndMissionAcceptance(t *testing.T) {
 		}
 	}
 	log, _ := os.ReadFile(out)
-	if want := "pr.checks-failed|Parser|checks failed: lint\nmission.accepted|Parser|accepted\n"; string(log) != want {
+	if want := "pr.checks-failed|Parser|checks failed: lint (1 of 1)\nmission.accepted|Parser|accepted\n"; string(log) != want {
 		t.Fatalf("hooks saw:\n%s\nwant:\n%s", log, want)
 	}
 }
