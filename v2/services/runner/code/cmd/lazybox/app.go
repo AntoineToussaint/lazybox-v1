@@ -135,9 +135,25 @@ func (c *cli) newWorkspace(args []string) error {
 	var repos multiFlag
 	f.Var(&repos, "repo", "a repository: owner/name, its catalog name, identity or path (repeat for several)")
 	branch := f.String("branch", "", "the branch for every repository (default: the Runner's)")
+	from := f.String("from", "", "start from an issue: its link or owner/name#N (the workspace, its branch and the agent's first message come from it)")
+	name := f.String("name", "", "with --from: the workspace's name (default: the issue's title)")
+	profile := f.String("profile", "", "with --from: the agent subscription (default: Claude's)")
+	permission := f.String("permission", "ask", "with --from: ask, read-only or yolo")
+	another := f.Bool("another", false, "with --from: start another workspace when the issue already has one")
+	noComments := f.Bool("no-comments", false, "with --from: leave the issue's comments out of the agent's first message")
 	positional, err := c.parse(f, args)
 	if err != nil {
 		return err
+	}
+	if *from != "" {
+		if len(positional) > 1 {
+			return fail(exitUsage, "usage: lazybox new --from <url|owner/name#N> [MESSAGE] (quote the message)")
+		}
+		message := ""
+		if len(positional) == 1 {
+			message = positional[0]
+		}
+		return c.newFromItem(fromItem{reference: *from, name: *name, branch: *branch, profile: *profile, permission: *permission, repos: repos, another: *another, noComments: *noComments, message: message})
 	}
 	if len(positional) != 1 || len(repos) == 0 {
 		return fail(exitUsage, "usage: lazybox new <workspace-name> --repo R [--repo R…] [--branch B]")
