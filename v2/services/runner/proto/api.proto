@@ -61,6 +61,15 @@ service RunnerService {
   rpc AddLocalRepository(AddLocalRepositoryRequest) returns (AddLocalRepositoryResponse);
   rpc ListRepositories(ListRepositoriesRequest) returns (ListRepositoriesResponse);
   rpc RemoveRepository(RemoveRepositoryRequest) returns (RepositoryDiscovery);
+  // Home checkouts (WORKSPACES.md, "Home checkouts"): the person's own,
+  // non-worktree clone of a repository, for logins, long-lived dev servers
+  // and trying a module by hand. Owner only. Lazybox never deletes one, and
+  // no workspace operation touches it.
+  rpc ListRepositoryHomes(ListRepositoryHomesRequest) returns (RepositoryHomes);
+  // Creates (clones), adopts (an existing checkout) or forgets a home; forgetting changes no file.
+  rpc SetRepositoryHome(SetRepositoryHomeRequest) returns (RepositoryHome);
+  // Opens a repository's home in Finder or an editor on the Runner's computer.
+  rpc OpenRepositoryHome(OpenRepositoryHomeRequest) returns (OpenRepositoryHomeResponse);
   rpc CreateCollection(CreateCollectionRequest) returns (CollectionResponse);
   rpc AddCollectionRepositories(AddCollectionRepositoriesRequest) returns (CollectionResponse);
   rpc GetCollection(CollectionRequest) returns (CollectionResponse);
@@ -1288,7 +1297,58 @@ message Repository {
   string source_url = 4;
   int64 github_id = 5;
   string git_identity = 6;
+  // The person's home checkout, when it has one: a regular checkout outside
+  // every workspace. "" when none.
+  string home_path = 7;
+  // configured (chosen in Settings) or source (the folder the repository was
+  // registered from, which is already the person's own checkout).
+  string home_kind = 8;
 }
+// A repository's home checkout and what it holds now (local Git only, no fetch).
+message RepositoryHome {
+  string repository_id = 1;
+  // owner/repo when known, else the repository's name.
+  string name = 2;
+  // "" when the repository has no home.
+  string path = 3;
+  // configured, source or "" (none).
+  string kind = 4;
+  bool exists = 5;
+  string branch = 6;
+  bool detached = 7;
+  // Changed and untracked files (at most 1000 counted).
+  uint32 dirty = 8;
+  // Why its state could not be read, or why it is missing.
+  string error = 9;
+  // Where Create puts it when no path is given.
+  string suggested_path = 10;
+  // Short commit of HEAD.
+  string head = 11;
+}
+message ListRepositoryHomesRequest {
+  // Empty lists every repository of the library.
+  repeated string repository_ids = 1;
+}
+message RepositoryHomes {
+  repeated RepositoryHome homes = 1;
+  // The folder default homes go in (<root>/<owner>/<name>).
+  string root = 2;
+}
+message SetRepositoryHomeRequest {
+  string repository_id = 1;
+  // create: clone into path (empty: the suggested path), which must not
+  // exist yet; adopt: use the existing checkout of this repository at path;
+  // clear: forget the home (no file changes; the source folder of a local
+  // repository stays its home).
+  string action = 2;
+  string path = 3;
+}
+message OpenRepositoryHomeRequest {
+  string repository_id = 1;
+  // finder, or an editor: vscode, cursor, zed, sublime, intellij.
+  string app = 2;
+}
+message OpenRepositoryHomeResponse {}
 message AddLocalRepositoryRequest { string path = 1; string name = 2; }
 message AddLocalRepositoryResponse { Repository repository = 1; }
 message ListRepositoriesRequest {}
@@ -1682,6 +1742,11 @@ message OpenTerminalRequest {
   uint32 rows = 4;
   // Retrying with the same key returns the terminal already started.
   string request_key = 5;
+  // Instead of a workspace directory: this repository's home checkout
+  // (a repository id), or the person's home folder. The terminal still
+  // belongs to collection_id (its panel, its credential, its cleanup).
+  string repository_home = 6;
+  bool user_home = 7;
 }
 message TerminalRequest {
   string terminal_id = 1;
@@ -1702,6 +1767,12 @@ message TerminalStatus {
   string signal = 12;
   string error = 13;
   int64 created_at_unix_millis = 14;
+  // "" in the workspace; repository-home or user-home outside it.
+  string place = 15;
+  // The repository whose home it runs in (place repository-home).
+  string repository_id = 16;
+  // Where the shell started, for a terminal outside the workspace.
+  string cwd = 17;
 }
 message ListTerminalsRequest {
   string collection_id = 1;
@@ -3411,6 +3482,10 @@ message WorkspaceRepository {
   // The catalog identity (github:owner/repo, or a local one).
   string identity = 4;
   bool ready = 5;
+  // The person's home checkout of this repository ("" when none): theirs,
+  // read-only for agents.
+  string home = 6;
+  string repository_id = 7;
 }
 message ListWorkspaceRepositoriesRequest { string collection_id = 1; }
 message WorkspaceRepositories {

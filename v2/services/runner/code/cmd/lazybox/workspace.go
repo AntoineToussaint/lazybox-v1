@@ -85,6 +85,18 @@ func (c *cli) workspaceRepos(args []string) error {
 		fmt.Fprintf(tw, "  %s\t%s\t%s\n", r.Name, r.Path, r.Branch)
 	}
 	_ = tw.Flush()
+	homes := []string{}
+	for _, r := range list.Repositories {
+		if r.Home != "" {
+			homes = append(homes, "  "+r.Name+"\t"+r.Home)
+		}
+	}
+	if len(homes) > 0 {
+		c.out("Home checkouts (the person's own clones; read-only for agents):\n")
+		tw = tabwriter.NewWriter(c.stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, strings.Join(homes, "\n"))
+		_ = tw.Flush()
+	}
 	if len(list.Requests) > 0 {
 		c.out("Waiting for the person to add:\n")
 		for _, r := range list.Requests {

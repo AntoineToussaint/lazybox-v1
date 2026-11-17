@@ -31,6 +31,11 @@ func (m *Manager) registerRepository(ctx context.Context, r Repository) (Reposit
 		return Repository{}, err
 	}
 	r = m.resolveRepositorySource(ctx, r)
+	// The home is the person's setting, not part of a registration: one
+	// survives registering the same repository again.
+	if old, ok := m.repos[r.ID]; ok && r.Home == "" {
+		r.Home = old.Home
+	}
 	if old, ok := m.repos[r.ID]; ok && !old.Hidden {
 		if old == r {
 			return old, nil

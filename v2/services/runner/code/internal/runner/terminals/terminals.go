@@ -39,6 +39,11 @@ type Spec struct {
 	// Prepare runs once the terminal has its id, before the shell starts, and
 	// returns variables added to Env (the terminal's own Runner credential).
 	Prepare func(id string) ([]string, error) `json:"-"`
+	// Place is "" in the workspace; "repository-home" (RepositoryID's home
+	// checkout) or "user-home" for a shell started outside it, at Cwd
+	// (runner/homes.go). Directory is then "".
+	Place        string `json:"place,omitempty"`
+	RepositoryID string `json:"repositoryId,omitempty"`
 }
 
 // Status is a terminal's state. Output [Offset-Retained, Offset) is readable.

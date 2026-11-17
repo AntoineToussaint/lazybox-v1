@@ -126,6 +126,11 @@ type Config struct {
 	WorktreeRoot    string                   `json:"worktreeRoot,omitempty"`
 	Repositories    []collections.Repository `json:"repositories,omitempty"`
 
+	// HomeCheckoutRoot is where a repository's home checkout goes by default
+	// (<root>/<owner>/<name>, homes.go). Empty selects ~/lazybox/repos.
+	// Nothing is created there until the person asks for a home.
+	HomeCheckoutRoot string `json:"homeCheckoutRoot,omitempty"`
+
 	// EventBudget (above) is the size of one segment of a conversation's
 	// event journal: a journal that reaches it continues in a new segment.
 	// EventHistoryBudget bounds every segment of one attempt's journal
@@ -255,6 +260,8 @@ type Bench struct {
 	orchestrator *orchestratorState
 	// workItems are the tracked pull requests and their links (items.go).
 	workItems itemsState
+	// homeMu serializes creating and changing home checkouts (homes.go).
+	homeMu sync.Mutex
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -658,6 +665,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		}{c.ID, c.Root, c.Members})
 		workspaceContext := "Runner workspace (paths are on the Runner; branch and baseCommit describe initial provisioning):\n" + string(data) + "\nWork across these member directories. Read each repository's applicable agent instructions and follow the resolved work policies."
 		if line := originBriefing(c); line != "" {
+			workspaceContext += "\n" + line
+		}
+		if line := b.homesBriefing(c); line != "" {
 			workspaceContext += "\n" + line
 		}
 		if parent == nil {

@@ -148,6 +148,15 @@ const (
 	// RunnerServiceRemoveRepositoryProcedure is the fully-qualified name of the RunnerService's
 	// RemoveRepository RPC.
 	RunnerServiceRemoveRepositoryProcedure = "/lazybox.bench.v1.RunnerService/RemoveRepository"
+	// RunnerServiceListRepositoryHomesProcedure is the fully-qualified name of the RunnerService's
+	// ListRepositoryHomes RPC.
+	RunnerServiceListRepositoryHomesProcedure = "/lazybox.bench.v1.RunnerService/ListRepositoryHomes"
+	// RunnerServiceSetRepositoryHomeProcedure is the fully-qualified name of the RunnerService's
+	// SetRepositoryHome RPC.
+	RunnerServiceSetRepositoryHomeProcedure = "/lazybox.bench.v1.RunnerService/SetRepositoryHome"
+	// RunnerServiceOpenRepositoryHomeProcedure is the fully-qualified name of the RunnerService's
+	// OpenRepositoryHome RPC.
+	RunnerServiceOpenRepositoryHomeProcedure = "/lazybox.bench.v1.RunnerService/OpenRepositoryHome"
 	// RunnerServiceCreateCollectionProcedure is the fully-qualified name of the RunnerService's
 	// CreateCollection RPC.
 	RunnerServiceCreateCollectionProcedure = "/lazybox.bench.v1.RunnerService/CreateCollection"
@@ -668,6 +677,15 @@ type RunnerServiceClient interface {
 	AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error)
 	ListRepositories(context.Context, *connect.Request[gen.ListRepositoriesRequest]) (*connect.Response[gen.ListRepositoriesResponse], error)
 	RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error)
+	// Home checkouts (WORKSPACES.md, "Home checkouts"): the person's own,
+	// non-worktree clone of a repository, for logins, long-lived dev servers
+	// and trying a module by hand. Owner only. Lazybox never deletes one, and
+	// no workspace operation touches it.
+	ListRepositoryHomes(context.Context, *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error)
+	// Creates (clones), adopts (an existing checkout) or forgets a home; forgetting changes no file.
+	SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error)
+	// Opens a repository's home in Finder or an editor on the Runner's computer.
+	OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error)
 	CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddCollectionRepositories(context.Context, *connect.Request[gen.AddCollectionRepositoriesRequest]) (*connect.Response[gen.CollectionResponse], error)
 	GetCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
@@ -1283,6 +1301,24 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRemoveRepositoryProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RemoveRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		listRepositoryHomes: connect.NewClient[gen.ListRepositoryHomesRequest, gen.RepositoryHomes](
+			httpClient,
+			baseURL+RunnerServiceListRepositoryHomesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryHomes")),
+			connect.WithClientOptions(opts...),
+		),
+		setRepositoryHome: connect.NewClient[gen.SetRepositoryHomeRequest, gen.RepositoryHome](
+			httpClient,
+			baseURL+RunnerServiceSetRepositoryHomeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetRepositoryHome")),
+			connect.WithClientOptions(opts...),
+		),
+		openRepositoryHome: connect.NewClient[gen.OpenRepositoryHomeRequest, gen.OpenRepositoryHomeResponse](
+			httpClient,
+			baseURL+RunnerServiceOpenRepositoryHomeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("OpenRepositoryHome")),
 			connect.WithClientOptions(opts...),
 		),
 		createCollection: connect.NewClient[gen.CreateCollectionRequest, gen.CollectionResponse](
@@ -2259,6 +2295,9 @@ type runnerServiceClient struct {
 	addLocalRepository           *connect.Client[gen.AddLocalRepositoryRequest, gen.AddLocalRepositoryResponse]
 	listRepositories             *connect.Client[gen.ListRepositoriesRequest, gen.ListRepositoriesResponse]
 	removeRepository             *connect.Client[gen.RemoveRepositoryRequest, gen.RepositoryDiscovery]
+	listRepositoryHomes          *connect.Client[gen.ListRepositoryHomesRequest, gen.RepositoryHomes]
+	setRepositoryHome            *connect.Client[gen.SetRepositoryHomeRequest, gen.RepositoryHome]
+	openRepositoryHome           *connect.Client[gen.OpenRepositoryHomeRequest, gen.OpenRepositoryHomeResponse]
 	createCollection             *connect.Client[gen.CreateCollectionRequest, gen.CollectionResponse]
 	addCollectionRepositories    *connect.Client[gen.AddCollectionRepositoriesRequest, gen.CollectionResponse]
 	getCollection                *connect.Client[gen.CollectionRequest, gen.CollectionResponse]
@@ -2609,6 +2648,21 @@ func (c *runnerServiceClient) ListRepositories(ctx context.Context, req *connect
 // RemoveRepository calls lazybox.bench.v1.RunnerService.RemoveRepository.
 func (c *runnerServiceClient) RemoveRepository(ctx context.Context, req *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error) {
 	return c.removeRepository.CallUnary(ctx, req)
+}
+
+// ListRepositoryHomes calls lazybox.bench.v1.RunnerService.ListRepositoryHomes.
+func (c *runnerServiceClient) ListRepositoryHomes(ctx context.Context, req *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error) {
+	return c.listRepositoryHomes.CallUnary(ctx, req)
+}
+
+// SetRepositoryHome calls lazybox.bench.v1.RunnerService.SetRepositoryHome.
+func (c *runnerServiceClient) SetRepositoryHome(ctx context.Context, req *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error) {
+	return c.setRepositoryHome.CallUnary(ctx, req)
+}
+
+// OpenRepositoryHome calls lazybox.bench.v1.RunnerService.OpenRepositoryHome.
+func (c *runnerServiceClient) OpenRepositoryHome(ctx context.Context, req *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error) {
+	return c.openRepositoryHome.CallUnary(ctx, req)
 }
 
 // CreateCollection calls lazybox.bench.v1.RunnerService.CreateCollection.
@@ -3445,6 +3499,15 @@ type RunnerServiceHandler interface {
 	AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error)
 	ListRepositories(context.Context, *connect.Request[gen.ListRepositoriesRequest]) (*connect.Response[gen.ListRepositoriesResponse], error)
 	RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error)
+	// Home checkouts (WORKSPACES.md, "Home checkouts"): the person's own,
+	// non-worktree clone of a repository, for logins, long-lived dev servers
+	// and trying a module by hand. Owner only. Lazybox never deletes one, and
+	// no workspace operation touches it.
+	ListRepositoryHomes(context.Context, *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error)
+	// Creates (clones), adopts (an existing checkout) or forgets a home; forgetting changes no file.
+	SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error)
+	// Opens a repository's home in Finder or an editor on the Runner's computer.
+	OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error)
 	CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddCollectionRepositories(context.Context, *connect.Request[gen.AddCollectionRepositoriesRequest]) (*connect.Response[gen.CollectionResponse], error)
 	GetCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
@@ -4056,6 +4119,24 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRemoveRepositoryProcedure,
 		svc.RemoveRepository,
 		connect.WithSchema(runnerServiceMethods.ByName("RemoveRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListRepositoryHomesHandler := connect.NewUnaryHandler(
+		RunnerServiceListRepositoryHomesProcedure,
+		svc.ListRepositoryHomes,
+		connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryHomes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetRepositoryHomeHandler := connect.NewUnaryHandler(
+		RunnerServiceSetRepositoryHomeProcedure,
+		svc.SetRepositoryHome,
+		connect.WithSchema(runnerServiceMethods.ByName("SetRepositoryHome")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceOpenRepositoryHomeHandler := connect.NewUnaryHandler(
+		RunnerServiceOpenRepositoryHomeProcedure,
+		svc.OpenRepositoryHome,
+		connect.WithSchema(runnerServiceMethods.ByName("OpenRepositoryHome")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceCreateCollectionHandler := connect.NewUnaryHandler(
@@ -5068,6 +5149,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceListRepositoriesHandler.ServeHTTP(w, r)
 		case RunnerServiceRemoveRepositoryProcedure:
 			runnerServiceRemoveRepositoryHandler.ServeHTTP(w, r)
+		case RunnerServiceListRepositoryHomesProcedure:
+			runnerServiceListRepositoryHomesHandler.ServeHTTP(w, r)
+		case RunnerServiceSetRepositoryHomeProcedure:
+			runnerServiceSetRepositoryHomeHandler.ServeHTTP(w, r)
+		case RunnerServiceOpenRepositoryHomeProcedure:
+			runnerServiceOpenRepositoryHomeHandler.ServeHTTP(w, r)
 		case RunnerServiceCreateCollectionProcedure:
 			runnerServiceCreateCollectionHandler.ServeHTTP(w, r)
 		case RunnerServiceAddCollectionRepositoriesProcedure:
@@ -5541,6 +5628,18 @@ func (UnimplementedRunnerServiceHandler) ListRepositories(context.Context, *conn
 
 func (UnimplementedRunnerServiceHandler) RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RemoveRepository is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListRepositoryHomes(context.Context, *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListRepositoryHomes is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetRepositoryHome is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.OpenRepositoryHome is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {

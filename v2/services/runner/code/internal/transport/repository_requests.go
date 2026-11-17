@@ -17,7 +17,7 @@ import (
 // own requests (auth.go); declining and adding are the owner's.
 
 func wireWorkspaceRepository(r runner.WorkspaceRepository) *pb.WorkspaceRepository {
-	return &pb.WorkspaceRepository{Name: r.Name, Path: r.Path, Branch: r.Branch, Identity: r.Identity, Ready: r.Ready}
+	return &pb.WorkspaceRepository{Name: r.Name, Path: r.Path, Branch: r.Branch, Identity: r.Identity, Ready: r.Ready, Home: r.Home, RepositoryId: r.RepositoryID}
 }
 
 func wireRepositoryRequest(r runner.RepositoryRequest) *pb.RepositoryRequest {

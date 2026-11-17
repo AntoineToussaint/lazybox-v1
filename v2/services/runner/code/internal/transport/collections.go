@@ -32,7 +32,9 @@ func (s *Service) ListRepositories(ctx context.Context, r *pb.ListRepositoriesRe
 	}
 	w := &pb.ListRepositoriesResponse{}
 	for _, repo := range m.Repositories() {
-		w.Repositories = append(w.Repositories, wireRepository(repo, m.RepositoryIdentity(repo.ID)))
+		wire := wireRepository(repo, m.RepositoryIdentity(repo.ID))
+		wire.HomePath, wire.HomeKind = m.Home(repo.ID)
+		w.Repositories = append(w.Repositories, wire)
 	}
 	return w, nil
 }

@@ -33,6 +33,11 @@ type Repository struct {
 	Name      string `json:"name,omitempty"`
 	SourceURL string `json:"sourceUrl,omitempty"`
 	GitHubID  int64  `json:"githubId,omitempty"`
+	// Home is the person's home checkout chosen in Settings (homes.go): a
+	// regular checkout outside every workspace that Lazybox never changes or
+	// deletes. Libraries written before it have none; a local repository's
+	// source folder then serves as its home (Manager.Home).
+	Home string `json:"home,omitempty"`
 }
 type MemberSpec struct {
 	Name         string `json:"name"`
@@ -145,6 +150,7 @@ func New(root string, repositories []Repository) (*Manager, error) {
 				for i := range repositories {
 					if repositories[i].ID == r.ID {
 						repositories[i].Hidden = r.Hidden
+						repositories[i].Home = r.Home
 					}
 				}
 				continue

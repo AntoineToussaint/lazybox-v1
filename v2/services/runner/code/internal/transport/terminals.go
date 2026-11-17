@@ -14,6 +14,9 @@ import (
 
 func wireTerminal(s terminals.Status) *pb.TerminalStatus {
 	w := &pb.TerminalStatus{Id: s.ID, CollectionId: s.Spec.CollectionID, Directory: s.Spec.Directory, Title: s.Spec.Title, Shell: s.Spec.Shell, Cols: uint32(s.Spec.Cols), Rows: uint32(s.Spec.Rows), Offset: s.Offset, Retained: s.Retained, Done: s.Done, Signal: s.Signal, Error: s.Error, CreatedAtUnixMillis: s.CreatedAt.UnixMilli()}
+	if s.Spec.Place != "" {
+		w.Place, w.RepositoryId, w.Cwd = s.Spec.Place, s.Spec.RepositoryID, s.Spec.Cwd
+	}
 	if s.ExitCode != nil {
 		code := int32(*s.ExitCode)
 		w.ExitCode = &code
@@ -33,7 +36,16 @@ func (s *Service) OpenTerminal(ctx context.Context, r *pb.OpenTerminalRequest) (
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	t, err := s.Bench.OpenTerminal(r.CollectionId, r.Directory, cols, rows, r.RequestKey)
+	open := func() (*terminals.Terminal, error) {
+		if r.RepositoryHome != "" || r.UserHome {
+			if r.Directory != "" {
+				return nil, errors.New("a terminal starts in a workspace directory or outside the workspace, not both")
+			}
+			return s.Bench.OpenPlaceTerminal(r.CollectionId, r.RepositoryHome, r.UserHome, cols, rows, r.RequestKey)
+		}
+		return s.Bench.OpenTerminal(r.CollectionId, r.Directory, cols, rows, r.RequestKey)
+	}
+	t, err := open()
 	if err != nil {
 		return nil, rpcError(err)
 	}

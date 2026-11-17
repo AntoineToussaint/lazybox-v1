@@ -83,6 +83,10 @@ type WorkspaceRepository struct {
 	Branch   string `json:"branch"`
 	Identity string `json:"identity,omitempty"`
 	Ready    bool   `json:"ready"`
+	// Home is the person's home checkout of the repository, "" when none:
+	// theirs, read-only for agents (homes.go).
+	Home         string `json:"home,omitempty"`
+	RepositoryID string `json:"repositoryId,omitempty"`
 }
 
 // RepositoryRequest is one agent's request to add a repository to its workspace.
@@ -271,7 +275,7 @@ func cleanText(text string, limit int, what string) (string, error) {
 func (b *Bench) workspaceMembers(c collections.Collection) []WorkspaceRepository {
 	out := make([]WorkspaceRepository, 0, len(c.Members))
 	for _, m := range c.Members {
-		out = append(out, WorkspaceRepository{Name: m.Name, Path: m.Path, Branch: m.Branch, Identity: b.Collections.RepositoryIdentity(m.RepositoryID), Ready: m.Ready})
+		out = append(out, b.workspaceMember(m))
 	}
 	return out
 }
@@ -292,7 +296,8 @@ func (b *Bench) memberFor(c collections.Collection, candidate RepositoryCandidat
 }
 
 func (b *Bench) workspaceMember(m collections.Member) WorkspaceRepository {
-	return WorkspaceRepository{Name: m.Name, Path: m.Path, Branch: m.Branch, Identity: b.Collections.RepositoryIdentity(m.RepositoryID), Ready: m.Ready}
+	home, _ := b.Collections.Home(m.RepositoryID)
+	return WorkspaceRepository{Name: m.Name, Path: m.Path, Branch: m.Branch, Identity: b.Collections.RepositoryIdentity(m.RepositoryID), Ready: m.Ready, Home: home, RepositoryID: m.RepositoryID}
 }
 
 // gitRoot is the git repository a local path is in, or "".

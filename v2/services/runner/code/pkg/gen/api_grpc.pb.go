@@ -59,6 +59,9 @@ const (
 	RunnerService_AddLocalRepository_FullMethodName           = "/lazybox.bench.v1.RunnerService/AddLocalRepository"
 	RunnerService_ListRepositories_FullMethodName             = "/lazybox.bench.v1.RunnerService/ListRepositories"
 	RunnerService_RemoveRepository_FullMethodName             = "/lazybox.bench.v1.RunnerService/RemoveRepository"
+	RunnerService_ListRepositoryHomes_FullMethodName          = "/lazybox.bench.v1.RunnerService/ListRepositoryHomes"
+	RunnerService_SetRepositoryHome_FullMethodName            = "/lazybox.bench.v1.RunnerService/SetRepositoryHome"
+	RunnerService_OpenRepositoryHome_FullMethodName           = "/lazybox.bench.v1.RunnerService/OpenRepositoryHome"
 	RunnerService_CreateCollection_FullMethodName             = "/lazybox.bench.v1.RunnerService/CreateCollection"
 	RunnerService_AddCollectionRepositories_FullMethodName    = "/lazybox.bench.v1.RunnerService/AddCollectionRepositories"
 	RunnerService_GetCollection_FullMethodName                = "/lazybox.bench.v1.RunnerService/GetCollection"
@@ -277,6 +280,15 @@ type RunnerServiceClient interface {
 	AddLocalRepository(ctx context.Context, in *AddLocalRepositoryRequest, opts ...grpc.CallOption) (*AddLocalRepositoryResponse, error)
 	ListRepositories(ctx context.Context, in *ListRepositoriesRequest, opts ...grpc.CallOption) (*ListRepositoriesResponse, error)
 	RemoveRepository(ctx context.Context, in *RemoveRepositoryRequest, opts ...grpc.CallOption) (*RepositoryDiscovery, error)
+	// Home checkouts (WORKSPACES.md, "Home checkouts"): the person's own,
+	// non-worktree clone of a repository, for logins, long-lived dev servers
+	// and trying a module by hand. Owner only. Lazybox never deletes one, and
+	// no workspace operation touches it.
+	ListRepositoryHomes(ctx context.Context, in *ListRepositoryHomesRequest, opts ...grpc.CallOption) (*RepositoryHomes, error)
+	// Creates (clones), adopts (an existing checkout) or forgets a home; forgetting changes no file.
+	SetRepositoryHome(ctx context.Context, in *SetRepositoryHomeRequest, opts ...grpc.CallOption) (*RepositoryHome, error)
+	// Opens a repository's home in Finder or an editor on the Runner's computer.
+	OpenRepositoryHome(ctx context.Context, in *OpenRepositoryHomeRequest, opts ...grpc.CallOption) (*OpenRepositoryHomeResponse, error)
 	CreateCollection(ctx context.Context, in *CreateCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	AddCollectionRepositories(ctx context.Context, in *AddCollectionRepositoriesRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	GetCollection(ctx context.Context, in *CollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
@@ -1050,6 +1062,36 @@ func (c *runnerServiceClient) RemoveRepository(ctx context.Context, in *RemoveRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RepositoryDiscovery)
 	err := c.cc.Invoke(ctx, RunnerService_RemoveRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ListRepositoryHomes(ctx context.Context, in *ListRepositoryHomesRequest, opts ...grpc.CallOption) (*RepositoryHomes, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryHomes)
+	err := c.cc.Invoke(ctx, RunnerService_ListRepositoryHomes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SetRepositoryHome(ctx context.Context, in *SetRepositoryHomeRequest, opts ...grpc.CallOption) (*RepositoryHome, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryHome)
+	err := c.cc.Invoke(ctx, RunnerService_SetRepositoryHome_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) OpenRepositoryHome(ctx context.Context, in *OpenRepositoryHomeRequest, opts ...grpc.CallOption) (*OpenRepositoryHomeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OpenRepositoryHomeResponse)
+	err := c.cc.Invoke(ctx, RunnerService_OpenRepositoryHome_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2712,6 +2754,15 @@ type RunnerServiceServer interface {
 	AddLocalRepository(context.Context, *AddLocalRepositoryRequest) (*AddLocalRepositoryResponse, error)
 	ListRepositories(context.Context, *ListRepositoriesRequest) (*ListRepositoriesResponse, error)
 	RemoveRepository(context.Context, *RemoveRepositoryRequest) (*RepositoryDiscovery, error)
+	// Home checkouts (WORKSPACES.md, "Home checkouts"): the person's own,
+	// non-worktree clone of a repository, for logins, long-lived dev servers
+	// and trying a module by hand. Owner only. Lazybox never deletes one, and
+	// no workspace operation touches it.
+	ListRepositoryHomes(context.Context, *ListRepositoryHomesRequest) (*RepositoryHomes, error)
+	// Creates (clones), adopts (an existing checkout) or forgets a home; forgetting changes no file.
+	SetRepositoryHome(context.Context, *SetRepositoryHomeRequest) (*RepositoryHome, error)
+	// Opens a repository's home in Finder or an editor on the Runner's computer.
+	OpenRepositoryHome(context.Context, *OpenRepositoryHomeRequest) (*OpenRepositoryHomeResponse, error)
 	CreateCollection(context.Context, *CreateCollectionRequest) (*CollectionResponse, error)
 	AddCollectionRepositories(context.Context, *AddCollectionRepositoriesRequest) (*CollectionResponse, error)
 	GetCollection(context.Context, *CollectionRequest) (*CollectionResponse, error)
@@ -3208,6 +3259,15 @@ func (UnimplementedRunnerServiceServer) ListRepositories(context.Context, *ListR
 }
 func (UnimplementedRunnerServiceServer) RemoveRepository(context.Context, *RemoveRepositoryRequest) (*RepositoryDiscovery, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveRepository not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListRepositoryHomes(context.Context, *ListRepositoryHomesRequest) (*RepositoryHomes, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRepositoryHomes not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetRepositoryHome(context.Context, *SetRepositoryHomeRequest) (*RepositoryHome, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetRepositoryHome not implemented")
+}
+func (UnimplementedRunnerServiceServer) OpenRepositoryHome(context.Context, *OpenRepositoryHomeRequest) (*OpenRepositoryHomeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenRepositoryHome not implemented")
 }
 func (UnimplementedRunnerServiceServer) CreateCollection(context.Context, *CreateCollectionRequest) (*CollectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateCollection not implemented")
@@ -4386,6 +4446,60 @@ func _RunnerService_RemoveRepository_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).RemoveRepository(ctx, req.(*RemoveRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ListRepositoryHomes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRepositoryHomesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListRepositoryHomes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListRepositoryHomes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListRepositoryHomes(ctx, req.(*ListRepositoryHomesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SetRepositoryHome_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetRepositoryHomeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetRepositoryHome(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetRepositoryHome_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetRepositoryHome(ctx, req.(*SetRepositoryHomeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_OpenRepositoryHome_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenRepositoryHomeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).OpenRepositoryHome(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_OpenRepositoryHome_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).OpenRepositoryHome(ctx, req.(*OpenRepositoryHomeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7303,6 +7417,18 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveRepository",
 			Handler:    _RunnerService_RemoveRepository_Handler,
+		},
+		{
+			MethodName: "ListRepositoryHomes",
+			Handler:    _RunnerService_ListRepositoryHomes_Handler,
+		},
+		{
+			MethodName: "SetRepositoryHome",
+			Handler:    _RunnerService_SetRepositoryHome_Handler,
+		},
+		{
+			MethodName: "OpenRepositoryHome",
+			Handler:    _RunnerService_OpenRepositoryHome_Handler,
 		},
 		{
 			MethodName: "CreateCollection",
