@@ -899,6 +899,10 @@ message PullRequestStatus {
 message WorkspaceGitSummariesRequest {
   // Empty is every workspace.
   repeated string collection_ids = 1;
+  // Also count the lines each branch changes (RepositoryGitSummary.changes).
+  // One more Git process per repository: a client asks for it for one
+  // workspace, on demand (the sidebar's hover card), never in its poll.
+  bool changes = 2;
 }
 // A pull request as last read from GitHub for a repository's branch.
 // A work item outside Lazybox: an issue, a ticket, a pull request. Lazybox
@@ -1048,6 +1052,22 @@ message RepositoryGitSummary {
   // Absent when no pull request is known for the branch (yet).
   PullRequestSummary pull_request = 13;
   string error = 14;
+  // What the branch changes, when the request asked for it and it could be counted.
+  LineChanges changes = 15;
+}
+// What a branch changes against where it forked from the default branch (else
+// against the commit the workspace started from), uncommitted work included:
+// what its pull request would show, and what is not committed yet.
+message LineChanges {
+  // The default branch compared with ("origin/main"); empty when it is the workspace's start.
+  string base = 1;
+  // Files changed, untracked ones included.
+  uint32 files = 2;
+  // Lines added and deleted in tracked text files; an untracked file's lines are not counted.
+  uint32 additions = 3;
+  uint32 deletions = 4;
+  // Too many changes to list in full: the counts are a floor.
+  bool truncated = 5;
 }
 message WorkspaceGitSummary { string collection_id = 1; repeated RepositoryGitSummary repositories = 2; }
 message WorkspaceGitSummaries { repeated WorkspaceGitSummary workspaces = 1; }
@@ -1412,6 +1432,8 @@ message Collection {
   repeated string owner_execution_ids = 10;
   // The work item it was started from, if any.
   ItemRef origin = 11;
+  // When it was created; 0 for a workspace older than the field.
+  int64 created_at_unix_millis = 12;
 }
 message CreateCollectionRequest {
   string request_key = 1;

@@ -4,7 +4,7 @@ import { ActionMenuItems } from './ActionMenuItems';
 import { contextMenu } from './ContextMenu';
 import type { MenuItem } from './context-menu-model';
 import { useRef, useState } from "react";
-import type { Collection, Session } from "@lazybox/protocol";
+import type { Collection, ItemLink, Session, WorkspaceGitSummary } from "@lazybox/protocol";
 import { branchSummary } from "./conversation-model";
 import { agentLine, type RowGit } from "./workspace-row-model";
 import { GitLine } from "./WorkspaceGitLine";
@@ -14,6 +14,7 @@ import { workspaceTerminalItem } from "./handoff";
 import { useUnread } from "./useAttention";
 import { SessionMark, useLiveStatus } from "./LiveIndicator";
 import { generatedName, repositoryGroups, suggestWorkspaceName } from "./repository-model";
+import { useWorkspaceHover, WorkspaceHoverCard } from "./WorkspaceHover";
 import "./inbox.css";
 
 /**
@@ -51,7 +52,10 @@ export function WorkspaceRow({
   onNewConversation,
   onDeleteConversation,
   fold,
+  hover,
 }: {
+  /** What its hover card shows beyond the row (WorkspaceHover.tsx); without it, no card. */
+  hover?: { sessions: readonly Session[]; summary?: WorkspaceGitSummary; links: readonly ItemLink[]; onOpenConversation(sessionId: string): void };
   /** Its conversations listed under it, and whether they are folded away. */
   fold?: { folded: boolean; count: number; toggle(): void };
   /** The workspace's only conversation, which the row's menu can delete. */
@@ -80,6 +84,7 @@ export function WorkspaceRow({
   const pending = useRef(false);
   const action = useRef<HTMLDetailsElement>(null);
   const unread = useUnread();
+  const card = useWorkspaceHover(workspace.id);
   const marker = featured ? unread(featured) : "";
   const line = featured ? agentLine(featured, info?.profiles || [], Math.max(0, conversationCount - 1)) : undefined;
   const rename = () => { setName(workspace.name); setError(""); setEditing(true); };
@@ -96,7 +101,7 @@ export function WorkspaceRow({
     { label: "Delete workspace…", danger: true, run: onDelete },
   ];
   return (
-    <div className="workspace-row" data-unread={marker || undefined} data-folded={fold?.folded || undefined} onContextMenu={editing ? undefined : contextMenu("workspace", () => items, { workspaceId: workspace.id })} onKeyDown={event => {
+    <div ref={card.row} className="workspace-row" data-unread={marker || undefined} data-folded={fold?.folded || undefined} onContextMenu={editing ? undefined : contextMenu("workspace", () => items, { workspaceId: workspace.id })} onKeyDown={event => {
       if (event.key === 'F2' && !editing) { event.preventDefault(); setName(workspace.name); setError(''); setEditing(true); }
     }}>
       {editing ? (
@@ -167,6 +172,7 @@ export function WorkspaceRow({
           data-navigation-item
           aria-current={selected ? "page" : undefined}
           onClick={onSelect}
+          {...(hover ? { ...card.props, "data-hover-card": "" } : {})}
         >
           <Icon name="folder" size={16} />
           <span className="workspace-label">
@@ -240,6 +246,10 @@ export function WorkspaceRow({
         <ActionMenu ref={action} label={`Actions for ${workspace.name}`}>
           <ActionMenuItems items={items}/>
         </ActionMenu>
+      )}
+      {hover && card.open && !editing && (
+        <WorkspaceHoverCard open={card.open} workspace={workspace} repositoryNames={repositoryNames} sessions={hover.sessions} summary={hover.summary} links={hover.links}
+          onOpen={onSelect} onNewConversation={onNewConversation} onOpenConversation={hover.onOpenConversation} />
       )}
     </div>
   );

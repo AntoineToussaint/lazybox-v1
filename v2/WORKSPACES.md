@@ -295,6 +295,29 @@ or not, whatever it holds:
    and elapsed time. The title gives way first, then the status's words; the
    time is never cut. Provider, model and account are the tooltip.
 
+**The hover card.** Rest the pointer on a workspace card for 400 ms, or press
+⌥↓ while it has focus, and a card opens beside it (never over it: right of the
+sidebar, left of it when there is no room, below it in a narrow window). It
+holds the workspace's name, the issue or task it started from (`#123 Fix
+uploads`, linked) and its age (`created 2 days ago · active 5 min ago`); a
+highlighted **N waiting for you** when an approval or a question is pending,
+which opens the Inbox; each repository as `owner/name` with its branch, `↑3 ↓1`
+against the default branch and `+120 −30 · 6 files` (or *clean*); its pull
+requests with pills for state, checks and review; its conversations with a live
+dot, agent and model, and state (Working, Needs you, Done; four, then
+`+N more`, though a fifth shows rather than `+1 more`); what serves (`web :5173`, from running actions and commands that listen
+on a port); and the token cost so far. Its footer has Open, New conversation,
+Open in Terminal, Reveal in Finder (desktop app) and Copy path. The pointer can
+cross into it (it stays 220 ms after leaving the row or the card); Esc closes
+it, and Tab goes round its links and buttons. Space on the row still peeks.
+While it is the row's, the row's own tooltips stay quiet. What the sidebar
+holds shows at once; line counts (`ListWorkspaceGitSummaries` with `changes`:
+one `git diff --numstat` against the merge base with the default branch,
+uncommitted work included, untracked files counted as files), running actions,
+processes and usage are read when the card opens, kept 30 seconds, and shown as
+placeholders until they answer. `WorkspaceHover.tsx` renders it;
+`workspace-hover-model.ts` is the pure half.
+
 **Peek.** Alt-click a peekable row, press Space on it (like Quick Look), or
 choose **Peek** in its context menu to see the item live over the current page
 without navigating: a conversation (its latest messages, status, a message box

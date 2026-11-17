@@ -121,3 +121,62 @@ func leftRight(ctx context.Context, root, ref string) (int, int) {
 func validRef(ref string) bool {
 	return ref != "" && !strings.HasPrefix(ref, "-") && !strings.Contains(ref, "..") && !strings.ContainsAny(ref, " \t\n\x00")
 }
+
+// Changes is what a branch changes against where it forked from the default
+// branch (else against the commit its workspace started from), uncommitted
+// work included: what its pull request would show, as the sidebar's card counts it.
+type Changes struct {
+	// Base is the default branch compared with; empty when it is the workspace's start.
+	Base                        string
+	Files, Additions, Deletions int
+	// Truncated: too many changes to list in full, so the counts are a floor.
+	Truncated bool
+}
+
+// Changes costs three short Git processes (merge-base, diff --numstat and
+// ls-files for untracked files), each bounded to 1 MiB of output. Untracked
+// files count as files; their lines are not counted. It never fetches: the
+// default branch is as of the last fetch or push.
+func (Git) Changes(ctx context.Context, root, against, start string) (Changes, error) {
+	var out Changes
+	ref := ""
+	if against != "" && validRef(against) {
+		if raw, _, err := run(ctx, root, "merge-base", against, "HEAD"); err == nil {
+			ref, out.Base = strings.TrimSpace(string(raw)), against
+		}
+	}
+	if ref == "" && start != "" && validRef(start) {
+		ref = start
+	}
+	if ref == "" {
+		ref = "HEAD"
+	}
+	raw, cut, err := run(ctx, root, "diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--ignore-submodules=dirty", "--numstat", "-z", ref, "--")
+	if err != nil {
+		return out, err
+	}
+	out.Truncated = cut
+	for _, record := range bytes.Split(raw, []byte{0}) {
+		added, rest, ok := bytes.Cut(record, []byte{'\t'})
+		if !ok {
+			continue
+		}
+		deleted, _, ok := bytes.Cut(rest, []byte{'\t'})
+		if !ok {
+			continue
+		}
+		out.Files++
+		// A binary file reads "-\t-": a file changed, no lines counted.
+		a, _ := strconv.Atoi(string(added))
+		d, _ := strconv.Atoi(string(deleted))
+		out.Additions += a
+		out.Deletions += d
+	}
+	untracked, cut, err := run(ctx, root, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return out, err
+	}
+	out.Truncated = out.Truncated || cut
+	out.Files += bytes.Count(untracked, []byte{0})
+	return out, nil
+}

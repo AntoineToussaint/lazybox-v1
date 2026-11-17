@@ -36,6 +36,10 @@ func TestWorkspaceGitSummariesFollowTheBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 	worktree := w.Members[0].Path
+	// A new workspace knows when it was made, and says so on the wire.
+	if age := time.Since(time.UnixMilli(wireCollection(w).CreatedAtUnixMillis)); age < 0 || age > time.Minute {
+		t.Fatalf("created at: %d", wireCollection(w).CreatedAtUnixMillis)
+	}
 	summary := func() *pb.RepositoryGitSummary {
 		t.Helper()
 		list, err := s.ListWorkspaceGitSummaries(ctx, &pb.WorkspaceGitSummariesRequest{CollectionIds: []string{w.ID, "deleted-meanwhile", w.ID}})
@@ -57,8 +61,16 @@ func TestWorkspaceGitSummariesFollowTheBranch(t *testing.T) {
 	if err = os.WriteFile(filepath.Join(worktree, "notes.md"), []byte("notes\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if row = summary(); row.Dirty != 2 {
-		t.Fatalf("after edits: %+v", row)
+	if row = summary(); row.Dirty != 2 || row.Changes != nil {
+		t.Fatalf("after edits (lines are counted only when asked): %+v", row)
+	}
+	// Asked for one workspace (the sidebar's hover card): its lines, against main.
+	counted, err := s.ListWorkspaceGitSummaries(ctx, &pb.WorkspaceGitSummariesRequest{CollectionIds: []string{w.ID}, Changes: true})
+	if err != nil || len(counted.Workspaces) != 1 {
+		t.Fatal(counted, err)
+	}
+	if c := counted.Workspaces[0].Repositories[0].Changes; c == nil || c.Base != "origin/main" || c.Files != 2 || c.Additions != 0 || c.Deletions != 0 {
+		t.Fatalf("two untracked files: %+v", c)
 	}
 	if _, err = s.CommitWorkspaceChanges(ctx, &pb.CommitWorkspaceChangesRequest{CollectionId: w.ID, Member: "api", Message: "Add the handler", Paths: []string{"handler.go"}}); err != nil {
 		t.Fatal(err)
@@ -66,6 +78,13 @@ func TestWorkspaceGitSummariesFollowTheBranch(t *testing.T) {
 	// Never pushed: ahead counts the commits since the workspace started.
 	if row = summary(); row.Dirty != 1 || row.Ahead != 1 || row.Upstream != "" || row.AheadOfDefault != 1 {
 		t.Fatalf("after commit: %+v", row)
+	}
+	// Committed and uncommitted together, like the pull request would show.
+	if counted, err = s.ListWorkspaceGitSummaries(ctx, &pb.WorkspaceGitSummariesRequest{CollectionIds: []string{w.ID}, Changes: true}); err != nil {
+		t.Fatal(err)
+	}
+	if c := counted.Workspaces[0].Repositories[0].Changes; c == nil || c.Files != 2 || c.Additions != 1 {
+		t.Fatalf("after commit: %+v", c)
 	}
 	if _, err = s.PushWorkspaceBranch(ctx, &pb.PushWorkspaceBranchRequest{CollectionId: w.ID, Member: "api"}); err != nil {
 		t.Fatal(err)

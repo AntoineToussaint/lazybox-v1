@@ -26,6 +26,11 @@ type summarizer interface {
 	Summary(ctx context.Context, root, base string) (gitinspect.Summary, error)
 }
 
+// changeCounter counts a branch's lines, when a request asks for them.
+type changeCounter interface {
+	Changes(ctx context.Context, root, against, start string) (gitinspect.Changes, error)
+}
+
 func (s *Service) ListWorkspaceGitSummaries(ctx context.Context, r *pb.WorkspaceGitSummariesRequest) (*pb.WorkspaceGitSummaries, error) {
 	manager, err := s.collectionStore()
 	if err != nil {
@@ -93,6 +98,12 @@ func (s *Service) ListWorkspaceGitSummaries(ctx context.Context, r *pb.Workspace
 			row.Upstream, row.Ahead, row.Behind = state.Upstream, uint32(state.Ahead), uint32(state.Behind)
 			row.DefaultBranch, row.AheadOfDefault, row.BehindDefault = state.Default, uint32(state.AheadOfDefault), uint32(state.BehindOfDefault)
 			row.Dirty, row.DirtyTruncated = uint32(state.Dirty), state.DirtyTruncated
+			if counter, ok := git.(changeCounter); ok && r.Changes {
+				// A count that fails leaves the rest of the summary as it is: the card shows none.
+				if changes, err := counter.Changes(ctx, path, state.Default, j.member.BaseCommit); err == nil {
+					row.Changes = &pb.LineChanges{Base: changes.Base, Files: uint32(changes.Files), Additions: uint32(changes.Additions), Deletions: uint32(changes.Deletions), Truncated: changes.Truncated}
+				}
+			}
 			if origin, err := (gitpublish.Git{}).Origin(ctx, path); err == nil {
 				row.GithubRepository = origin.GitHub
 			}

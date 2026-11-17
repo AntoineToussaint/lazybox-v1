@@ -79,6 +79,8 @@ type Collection struct {
 	LastOwnershipResolution string            `json:"lastOwnershipResolution,omitempty"`
 	// The work item it was started from, if any (origin.go).
 	Origin *Origin `json:"origin,omitempty"`
+	// When it was created, in Unix milliseconds; 0 for a workspace older than the field.
+	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
 var component = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$`)
@@ -395,7 +397,7 @@ func (m *Manager) Create(ctx context.Context, key string, spec Spec) (Collection
 	if activeCount >= 128 || len(m.items) >= 16384 {
 		return Collection{}, errors.New("collection capacity exhausted")
 	}
-	c := Collection{Version: 4, ID: commands.ID(), Name: spec.Name, WorkID: spec.WorkID, State: "creating", RequestKey: key, Fingerprint: fingerprint}
+	c := Collection{Version: 4, ID: commands.ID(), Name: spec.Name, WorkID: spec.WorkID, State: "creating", RequestKey: key, Fingerprint: fingerprint, CreatedAt: time.Now().UnixMilli()}
 	if spec.Origin != nil {
 		origin := *spec.Origin
 		if origin.StartedAt.IsZero() {

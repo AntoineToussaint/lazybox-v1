@@ -350,6 +350,7 @@ function WorkspaceList({
                 onManage={() => setManaging(collection)}
                 onSaved={refresh}
                 fold={rows.length > 1 ? { folded: folded.includes(collection.id), count: rows.length, toggle: () => toggleFold(collection.id) } : undefined}
+                hover={{ sessions: rows, summary: git.byWorkspace.get(collection.id), links: tracked.links, onOpenConversation: (sessionId) => onTarget({ collectionId: collection.id, sessionId, commandId: "" }) }}
               />
               {rows.length > 1 && !folded.includes(collection.id) && (
                 <div className="workspace-conversations">

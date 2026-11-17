@@ -69,9 +69,11 @@ function arm(node: HTMLElement, delay: number) {
   anchor = node;
   // From now on the title is ours: the system's own tooltip must not appear beside it.
   take(node);
-  watcher = new MutationObserver(() => { if (anchor === node && node.hasAttribute('title')) { take(node); if (tip?.matches(':popover-open')) show(node); } });
+  // Inside an element with a hover card of its own (a workspace row), the card says it all: no tooltip over it.
+  const quiet = !!node.closest('[data-hover-card]');
+  watcher = new MutationObserver(() => { if (anchor === node && node.hasAttribute('title')) { take(node); if (!quiet && tip?.matches(':popover-open')) show(node); } });
   watcher.observe(node, { attributes: true, attributeFilter: ['title'] });
-  timer = setTimeout(() => { if (anchor === node) show(node); }, delay);
+  if (!quiet) timer = setTimeout(() => { if (anchor === node) show(node); }, delay);
 }
 
 const titled = (target: EventTarget | null) => target instanceof Element ? target.closest<HTMLElement>(`[title]:not([title=""]),[${KEPT}]`) : null;
