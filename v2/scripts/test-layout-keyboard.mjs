@@ -41,6 +41,8 @@ async function scenario(browser,scheme){
  // A typed-in conversation stays in its tab, so ⌘] opens the next one in a preview tab beside it: the chat is the one in view.
  const content=kind=>{const all=page.locator(`[data-dock-panel]:has(> .panel-host > .panel-${kind})`);return kind==='chat'?all.filter({visible:true}):all;};
  const titles=()=>page.locator('.dv-tab .dock-tab-title');
+ const resetTitles=()=>page.locator('.dv-tab .dock-tab:not([data-kind="chat"]) .dock-tab-title');
+ const chatGroups=()=>page.locator('.dv-groupview').filter({has:page.locator('.dock-tab[data-kind="chat"]')});
  const composer=page.locator('.page-layout .panel-chat').filter({visible:true}).getByRole('textbox',{name:'Message',exact:true});
  const said=page.getByTestId('dock-announcer');
  const ring=page.locator('.dock-focus-ring');
@@ -314,7 +316,9 @@ async function scenario(browser,scheme){
  await expect(page.getByRole('status').filter({hasText:'Shortcuts saved.'})).toBeVisible();
  // From Settings, too: the chord closes it and shows the reset page.
  await key('Control+Alt+Shift+Escape');
- await expect(titles()).toHaveText(['Workspaces','Agents','Agent chat','Command output']);
+ // The default layout, keeping every conversation tab (the + started one) in its one chat group.
+ await expect(resetTitles()).toHaveText(['Workspaces','Agents','Command output']);
+ await expect(chatGroups()).toHaveCount(1);
  await expect(page.locator('.dock-group-minimized')).toHaveCount(1);
  const toast=page.locator('.toast').filter({hasText:'Layout and shortcuts reset'});
  await expect(toast).toBeVisible();
@@ -328,7 +332,8 @@ async function scenario(browser,scheme){
  await expect(toast).toHaveCount(0);
  // And again with the arrangement reset and kept so (no Undo).
  await key('Control+Alt+Shift+Escape');
- await expect(titles()).toHaveText(['Workspaces','Agents','Agent chat','Command output']);
+ await expect(resetTitles()).toHaveText(['Workspaces','Agents','Command output']);
+ await expect(chatGroups()).toHaveCount(1);
  await expect.poll(keymap).toBe('] ] i');
  await expect(composer).toBeEnabled();
 

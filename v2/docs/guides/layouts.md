@@ -74,9 +74,9 @@ Right-click a conversation (or its **⋯**) for **Open in new tab**, **Open
 beside** (split right), **Open below** (split down), **Open in new window**,
 **Move to new page** and, when it is open in a tab with others, **Close other
 tabs** and **Close tabs to the right**. Right-click a conversation's tab for the
-same, as **Split right** and **Split down**, plus **Stay on this conversation**
-(keep a preview tab) or **Follow the selected conversation** (make a tab the
-preview tab).
+same, as **Split right** and **Split down**, plus **Keep open** (on the
+preview tab) or **Use as preview tab** (on a regular tab: the next single click
+replaces it).
 
 Tabs move like any panel: drag one onto another group to join it, onto an edge
 to split, or use the keys below. A page holds up to 16 panels; when it is full,

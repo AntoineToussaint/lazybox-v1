@@ -81,22 +81,30 @@ try {
   await expect(chat.getByRole('status').filter({ hasText: 'Instructions updated' })).toBeVisible();
 
   // Typing in the chat kept it as a tab of its own: it stays on its conversation, and choosing
-  // another shows that one in a preview tab beside it. From its menu (right-click its tab) it
-  // follows the selected conversation again, as the preview tab; a preview tab offers to stay.
-  await page.getByRole('tab', { name: 'Agent chat', exact: true }).click({ button: 'right' });
-  await expect(page.getByRole('menuitem', { name: 'Follow the selected conversation', exact: true })).toBeVisible();
+  // another shows that one in a preview tab beside it. From its menu (right-click its tab) a
+  // regular tab becomes the preview tab, and the preview tab is kept open.
+  const chatTab = title => page.locator('.dv-tab').filter({ has: page.locator('.dock-tab[data-kind="chat"]', { hasText: title }) });
+  const previewChat = page.locator('.page-layout .panel-chat').filter({ visible: true });
+  await chatTab('Agent chat').click({ button: 'right' });
+  await expect(page.getByRole('menuitem', { name: 'Use as preview tab', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await session.selectOption('alpha-second');
   await expect(chat).toContainText('Retained conversation for alpha-session');
-  await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await expect(page.locator('.page-layout .panel-chat')).toHaveCount(2);
-  await page.getByRole('tab', { name: 'Agent chat', exact: true }).click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Follow the selected conversation', exact: true }).click();
-  await expect(chat).toContainText('Retained conversation for alpha-second');
-  await expect(page.locator('.page-layout .panel-chat'), 'the preview tab on that conversation closed into it').toHaveCount(1);
-  await page.locator('.dv-tab').filter({ has: page.locator('.dock-tab[data-kind="chat"][data-preview]') }).click({ button: 'right' });
-  await expect(page.getByRole('menuitem', { name: 'Stay on this conversation', exact: true })).toBeVisible();
+  await expect(previewChat).toContainText('Retained conversation for alpha-second');
+  await expect(page.locator('.dock-tab[data-kind="chat"][data-preview]')).toContainText('Second alpha conversation');
+  await chatTab('Agent chat').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Use as preview tab', exact: true }).click();
+  await expect(page.locator('.dock-tab[data-kind="chat"][data-preview]'), 'one preview tab: the alpha chat').toHaveText('Agent chat');
+  await chatTab('Second alpha conversation').click({ button: 'right' });
+  await expect(page.getByRole('menuitem', { name: 'Use as preview tab', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
+  await chatTab('Agent chat').click({ button: 'right' });
+  await expect(page.getByRole('menuitem', { name: 'Keep open', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // Closing the second conversation's tab leaves the page with one chat again; the conversation goes on.
+  await chatTab('Second alpha conversation').locator('.dock-tab-close').click();
+  await expect(page.locator('.page-layout .panel-chat')).toHaveCount(1);
   await collection.selectOption('alpha'); await session.selectOption('alpha-session');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Customize pages', exact: true }).click();

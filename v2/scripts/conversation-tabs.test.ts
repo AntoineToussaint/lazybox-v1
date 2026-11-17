@@ -30,7 +30,7 @@ test('a single click shows the preview tab, and the next single click replaces i
   assert.deepEqual(tabs(page), ['c P'], 'replaced, not stacked');
 });
 
-test('a preview tab kept open (double-click, typing, Stay on this conversation) is a regular tab; the next click opens a new preview beside it', () => {
+test('a preview tab kept open (double-click, typing, Keep open) is a regular tab; the next click opens a new preview beside it', () => {
   let page = work('a');
   const chat = chats(page)[0].id;
   page = keepTab(page, chat);
@@ -45,10 +45,13 @@ test('a preview tab kept open (double-click, typing, Stay on this conversation) 
   const kept = open(opened.page, 'b', 'tab');
   assert.equal(kept.id, opened.id);
   assert.deepEqual(tabs(kept.page), ['a', 'b']);
-  // "Follow the selected conversation": a regular tab becomes the preview, on the selected conversation; the other tab on it closes into it.
-  const following = previewTab(kept.page, chat);
-  assert.deepEqual(tabs(following), ['b P']);
-  assert.equal(chats(following)[0].id, chat);
+  // "Use as preview tab": a regular tab becomes its group's preview tab, on its own conversation; the group keeps one preview.
+  const previewed = open(kept.page, 'c', 'preview').page;
+  assert.deepEqual(tabs(previewed), ['a', 'b', 'c P']);
+  const following = previewTab(previewed, chat);
+  assert.deepEqual(tabs(following), ['a P', 'b', 'c']);
+  assert.equal(previewTab(following, chat), following, 'already the preview tab');
+  assert.deepEqual(tabs(open(following, 'd', 'preview').page), ['d P', 'b', 'c'], 'the next single click replaces it');
 });
 
 test('open in new tab: a regular tab right after the one in front, selected; a preview with no conversation yet takes it', () => {

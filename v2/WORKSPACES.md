@@ -275,9 +275,8 @@ how you arrange it:
 - **Right-click a tab**, or **⋯** beside the tabs, for the group menu: Split
   right / down, Maximize, Minimize (to its tab bar, in a column; click the tab
   or press Enter on it to open it again), Float over the page, Open in new
-  window, Move to new page and Stay on this conversation / Follow the
-  selected conversation (chat: keep a preview tab, or make a tab the
-  preview tab), Dock left / right / top / bottom (the keyboard way to move a
+  window, Move to new page and Keep open / Use as preview tab (chat: keep
+  the preview tab, or make a regular tab the preview tab), Dock left / right / top / bottom (the keyboard way to move a
   panel to an edge of the content area), Close other tabs, Close tabs to the
   right, Close.
 - **×** on a tab closes the panel. Every panel can be closed; **Panels** in the

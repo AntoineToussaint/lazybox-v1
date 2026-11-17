@@ -573,16 +573,14 @@ export function keepTab(page: WorkspacePage, panelID: string): WorkspacePage {
   return shownPanels(page).some(value => value.id === panelID && value.preview) ? mapPagePanels(page, value => value.id === panelID ? withoutPreview(value) : value) : page;
 }
 /**
- * A tab made its group's preview tab, on the selected conversation ("Follow
- * the selected conversation"): another tab on that conversation closes into
- * it, and another preview tab of its group becomes a regular tab.
+ * A regular tab made its group's preview tab ("Use as preview tab"): it keeps
+ * its conversation until the next single click replaces it; the group's
+ * other preview tab, if any, becomes a regular tab.
  */
 export function previewTab(page: WorkspacePage, panelID: string): WorkspacePage {
-  const settled = settleChats(page), group = groupOf(settled, panelID);
-  if (!group) return page;
-  const others = visibleChats(settled).filter(panel => panel.id !== panelID && sameConversation(resolveTarget(panel, settled.selection), settled.selection));
-  const without = others.reduce((result, panel) => removeFromPage(result, panel.id), settled);
-  return mapPagePanels(without, panel => panel.id === panelID ? chatTab(panel.id, settled.selection, true) : panel.preview && group.panels.some(value => value.id === panel.id) ? withoutPreview(panel) : panel);
+  const settled = settleChats(page), group = groupOf(settled, panelID), panel = group?.panels.find(value => value.id === panelID);
+  if (!group || !panel || !isChatTab(panel) || panel.preview) return page;
+  return mapPagePanels(settled, value => value.id === panelID ? { ...value, preview: true } : value.preview && group.panels.some(member => member.id === value.id) ? withoutPreview(value) : value);
 }
 /**
  * A panel closed. A chat tab in front hands the front to its neighbour (the

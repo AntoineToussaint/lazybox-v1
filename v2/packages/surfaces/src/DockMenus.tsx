@@ -140,7 +140,7 @@ export type GroupCommands = {
   minimize(groupID: string, minimized: boolean): void;
   dockTo(panel: Panel, side: DockSide): void;
   splitWith(groupID: string, panel: Panel, side: 'right' | 'below'): void;
-  /** Chat: stay on this conversation (a preview tab kept open), or become the preview tab that follows the selected one. */
+  /** Chat: keep a preview tab open, or make a regular tab its group's preview tab. */
   togglePin?(panel: Panel): void;
   /** Chat: the conversation on a page of its own. */
   moveToNewPage?(panel: Panel): void;
@@ -169,8 +169,8 @@ export function groupMenuItems(group: GroupView, handle: DockHandle, commands: G
         ? { label: 'Put back in main window', icon: 'put-back', run: () => handle.dockBack(group.id) }
         : { label: 'Dock into the page', icon: 'back', run: () => handle.dockBack(group.id) },
     !!commands.moveToNewPage && panel.kind === 'chat' && !panel.detached && { label: 'Move to new page', icon: 'panels', run: () => commands.moveToNewPage!(panel) },
-    // A preview tab (italic) is kept open; a regular tab becomes the preview tab, which follows the conversation chosen.
-    !!commands.togglePin && panel.kind === 'chat' && { label: previewed ? 'Stay on this conversation' : 'Follow the selected conversation', icon: 'target', run: () => commands.togglePin!(panel) },
+    // A preview tab (italic) is kept open; a regular tab becomes the preview tab, which the next single click replaces.
+    !!commands.togglePin && panel.kind === 'chat' && !panel.detached && { label: previewed ? 'Keep open' : 'Use as preview tab', icon: previewed ? 'pin' : 'target', run: () => commands.togglePin!(panel) },
     'separator',
     ...dockSides.map(side => ({ label: `Dock ${side}`, icon: `dock-${side}`, className: 'dock-option', run: () => commands.dockTo(panel, side) })),
     'separator',
