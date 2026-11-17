@@ -3,7 +3,7 @@
 // a Lazybox-managed command (last lines, more on request, the console), stops
 // that command or interrupts the turn (saying which), and carries the
 // sub-agents at work. Narrow layouts and reduced motion included.
-import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
+import {testViteCache} from './fixtures/vite-cache.mjs';import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 
 const f=await startRunnerFixture();
 const b64=value=>Buffer.from(JSON.stringify(value)).toString('base64');
@@ -14,6 +14,9 @@ const output=Array.from({length:12},(_,i)=>`\x1b[32m✓\x1b[0m check step ${i+1}
 f.commands.push({id:'cmd-check',sessionId:session.id,title:'pnpm run check',argv:['pnpm','run','check'],mode:'managed',done:false,offset:String(output.length),output});
 const ch=f.openEvents(session.id);
 const push=(offset,event)=>ch.push(event.data===undefined?event:{...Object.fromEntries(Object.entries(event).filter(([k])=>k!=='data')),providerDataJson:b64(event.data)},at(offset));
+// What the agent does during the test happens when the test says it: timed from then, not from the fixture
+// (a cold dev server can take more than 10 s to show the page).
+const live=event=>push(Date.now()-now,event);
 push(-400000,{type:'operation_accepted',text:'Run the checks in the front door and fix what fails.'});
 push(-399000,{type:'turn_started'});
 push(-390000,{type:'message_delta',text:'Running the checks first.'});
@@ -22,7 +25,7 @@ push(-321000,{type:'tool_activity',data:{type:'tool_call',id:'toolu_check',name:
 push(-300000,{type:'tool_activity',data:{type:'tool_call',id:'toolu_sa',name:'Task',status:'running',input:{description:'Review the API',prompt:'Review it.',subagent_type:'Explore'}}});
 push(-299000,{type:'agent_status',agentId:'claude-tool:toolu_sa',parentAgentId:'root',nativeId:'task-sa',status:'running',name:'Review the API',data:{toolUseId:'toolu_sa',subagentType:'Explore'}});
 
-const server=await createServer({configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 try{
  await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
@@ -30,7 +33,10 @@ try{
  const chat=page.locator('.embedded-chat').first(),bar=chat.getByRole('region',{name:'What the agent is doing'});
 
  // The step, with the actual command, where it runs, and for how long.
- await expect(bar.locator('.live-activity')).toHaveText(/^Running a command · 5m 2\ds$/);
+ await expect(bar.locator('.live-activity')).toHaveText(/^Running a command · \d+m \d+s$/);
+ // Its clock counts from the step's start, 321 s before the fixture was made: however long the page took to load.
+ {const [,m,sec]=(await bar.locator('.live-activity').textContent()).match(/(\d+)m (\d+)s/),shown=Number(m)*60+Number(sec),since=(Date.now()-now)/1000;
+  assert.ok(shown>=320&&shown<=322+since,`elapsed ${shown}s, ${Math.round(since)}s after the fixture`);}
  await expect(bar.locator('.live-bar-code')).toHaveText('lazybox run pnpm run check');
  await expect(bar.locator('.live-bar-where')).toHaveText('in services/front-door');
  // A managed command streams: its last lines, without colour codes.
@@ -88,14 +94,14 @@ try{
  await expect.poll(()=>f.mutations.some(m=>m.method==='Apply'&&m.body.interrupt)).toBe(true);
 
  // A step that is not a command says what it does, in words.
- push(0,{type:'tool_activity',data:{type:'tool_call',id:'toolu_check',status:'completed',output:'ok'}});
- push(1,{type:'tool_activity',data:{type:'tool_call',id:'toolu_read',name:'Read',status:'running',input:{file_path:'services/front-door/src/app.ts'}}});
+ live({type:'tool_activity',data:{type:'tool_call',id:'toolu_check',status:'completed',output:'ok'}});
+ live({type:'tool_activity',data:{type:'tool_call',id:'toolu_read',name:'Read',status:'running',input:{file_path:'services/front-door/src/app.ts'}}});
  await expect(bar.locator('.live-activity')).toHaveText(/^Reading services\/front-door\/src\/app\.ts · \ds$/);
  await expect(bar.locator('.live-bar-code')).toHaveCount(0);
 
  // A `lazybox run` that will not end (it listens on a port) can move to the background: the agent's call returns, the server keeps running.
- push(2,{type:'tool_activity',data:{type:'tool_call',id:'toolu_read',status:'completed',output:'ok'}});
- push(3,{type:'tool_activity',data:{type:'tool_call',id:'toolu_dev',name:'Bash',status:'running',input:{command:'lazybox run -- npm run dev'}}});
+ live({type:'tool_activity',data:{type:'tool_call',id:'toolu_read',status:'completed',output:'ok'}});
+ live({type:'tool_activity',data:{type:'tool_call',id:'toolu_dev',name:'Bash',status:'running',input:{command:'lazybox run -- npm run dev'}}});
  const devOutput='VITE v6 ready in 412 ms\n  ➜  Local: http://localhost:5173/\n';
  f.commands.push({id:'cmd-dev',sessionId:session.id,title:'npm run dev',argv:['npm','run','dev'],mode:'pipe',done:false,canBackground:true,ports:[5173],offset:String(devOutput.length),output:devOutput});
  const move=bar.getByRole('button',{name:'Move to background'});
@@ -111,8 +117,8 @@ try{
  await expect(move).toHaveCount(0);
  await page.screenshot({path:'.cache/live-bar-moved.png'});
  // A shell step that is not a lazybox run and looks like a server may never end: the bar says how to get out.
- push(4,{type:'tool_activity',data:{type:'tool_call',id:'toolu_dev',status:'completed',output:'[lazybox] npm run dev → running in the background as command cmd-dev'}});
- push(5,{type:'tool_activity',data:{type:'tool_call',id:'toolu_tail',name:'Bash',status:'running',input:{command:'tail -f log/development.log'}}});
+ live({type:'tool_activity',data:{type:'tool_call',id:'toolu_dev',status:'completed',output:'[lazybox] npm run dev → running in the background as command cmd-dev'}});
+ live({type:'tool_activity',data:{type:'tool_call',id:'toolu_tail',name:'Bash',status:'running',input:{command:'tail -f log/development.log'}}});
  await expect(bar.getByRole('note')).toHaveText('This command may never end. Interrupt the turn and ask Claude to start it with lazybox run — it moves servers to the background.');
  await expect(bar.getByRole('button',{name:'Interrupt'})).toBeVisible();
 
@@ -120,14 +126,15 @@ try{
  await page.emulateMedia({reducedMotion:'reduce'});
  assert.equal(await bar.locator('.live-indicator').first().evaluate(n=>getComputedStyle(n).animationName),'none');
  await page.setViewportSize({width:390,height:844});
- // A phone shows one panel at a time: back to the chat from the console.
- {const chatTab=page.locator('.mobile-panel-switcher').getByRole('button',{name:/Agent chat/});if(await chatTab.count())await chatTab.first().click();}
+ // A phone shows one panel at a time: back to the chat from the console. The switcher comes with the
+ // narrow layout's next render: waited for, not counted at once (on a slow machine it is not there yet).
+ {const chatTab=page.locator('.mobile-panel-switcher').getByRole('button',{name:/Agent chat/});await chatTab.click();await expect(chatTab).toHaveAttribute('aria-pressed','true');}
  await expect(bar.getByRole('button',{name:'Interrupt'})).toBeVisible();
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'no horizontal page scroll');
  await page.screenshot({path:'.cache/subagents-live-bar-phone.png'});
 
  // The turn ends: the bar leaves; only background work would keep it.
- Object.assign(session,{busy:false,status:'ready',agents:[{id:'root',status:'done'}]});push(2,{type:'agent_status',agentId:'claude-tool:toolu_sa',status:'done',data:{toolUseId:'toolu_sa'}});push(3,{type:'turn_ended',status:'completed'});
+ Object.assign(session,{busy:false,status:'ready',agents:[{id:'root',status:'done'}]});live({type:'agent_status',agentId:'claude-tool:toolu_sa',status:'done',data:{toolUseId:'toolu_sa'}});live({type:'turn_ended',status:'completed'});
  // The "Moved to the background" notice may outlive the turn by a few seconds; the bar itself leaves.
  await expect(chat.locator('.live-bar:not([data-only="notice"])')).toHaveCount(0);
  assert.deepEqual(errors,[]);

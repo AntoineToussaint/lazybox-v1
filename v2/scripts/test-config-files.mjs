@@ -138,17 +138,22 @@ async function scenario(browser, scheme, full) {
     await page.keyboard.press('Escape');
 
     // ---- ⌘⇧L: presets, then your layouts, around.
+    // Each press shows a card for 1.8 s that replaces the last one. Read twice from the test, a card can
+    // leave between the reads on a slow machine (or be the previous one): the page records each as it comes.
+    await page.evaluate(() => {
+      window.__layoutCards = [];
+      const record = () => { const card = [...document.querySelectorAll('.toast-stack .toast-main')].find(main => main.querySelector('strong')?.textContent.startsWith('Layout: ')); const title = card?.querySelector('strong')?.textContent || '';
+        if (title.startsWith('Layout: ') && window.__layoutCards.at(-1)?.title !== title) window.__layoutCards.push({ title, body: card.querySelector('span')?.textContent || '' }); };
+      new MutationObserver(record).observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
     await composer.click();
-    const seen = [];
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press('Meta+Shift+l');
-      const card = page.getByText(/^Layout: /).last();
-      await expect(card).toBeVisible();
-      seen.push((await card.innerText()).replace('Layout: ', ''));
-      await page.waitForTimeout(80);
+      await expect.poll(() => page.evaluate(() => window.__layoutCards.length)).toBe(i + 1);
     }
-    assert.deepEqual(seen, ['Chat + Changes', 'Chat + Editor + Terminal', 'Review', 'Everything', 'Wide review', 'Chat focus']);
-    await expect(page.getByText(/1 of 6/)).toBeVisible();
+    const cards = await page.evaluate(() => window.__layoutCards);
+    assert.deepEqual(cards.map(card => card.title.replace('Layout: ', '')), ['Chat + Changes', 'Chat + Editor + Terminal', 'Review', 'Everything', 'Wide review', 'Chat focus']);
+    assert.match(cards.at(-1).body, /^1 of 6/);
 
     // ---- Copy the layout as YAML; paste it into ⌘K: the import dialog opens with it.
     await openLayoutMenu();

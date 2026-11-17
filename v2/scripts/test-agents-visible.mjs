@@ -46,7 +46,11 @@ try {
   f.remote.phoneUrl = origin;
   const url = `${origin}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`;
   browser = await webkit.launch();
-  const errors = [];
+  // Leaving a page (a reload, a closed context) cuts its in-flight polls (ListMissions, say), which WebKit
+  // reports as page errors ("access control checks") on the page being left: not failures. Anything else is.
+  const errors = [];let leaving = 0;
+  const watch = page => page.on('pageerror', e => { const text = String(e); if (leaving && /access control checks/.test(text)) return; errors.push(text); });
+  const leave = async (go, ready) => { leaving++; try { await go(); if (ready) await ready(); } finally { leaving--; } };
 
   // A review row needs a turn that ended after the profile's first look: end one once the page is open.
   const endReviewTurn = () => Object.assign(session('review-session'), {agents: [root('done', Date.now(), {turnEndedAtUnixMillis: ms(Date.now()), lastTurnStatus: 'completed'})]});
@@ -54,7 +58,7 @@ try {
   /** What a fresh profile sees, without a click: both lists, in full, nothing clipped or overlapping. */
   const fresh = async (scheme, width, height) => {
     const context = await browser.newContext({viewport: {width, height}, colorScheme: scheme});
-    const page = await context.newPage(); page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(String(e)));
+    const page = await context.newPage(); page.setDefaultTimeout(15000); watch(page);
     await page.goto(url);
     const workspaces = page.locator('.panel-collections'), agents = page.locator('.panel-agents');
     await expect(workspaces.locator('.workspace-row').first()).toBeVisible();
@@ -93,12 +97,12 @@ try {
     await shot(page, `${scheme}-${width}`);
     await page.locator('.panel-agents .agent-row').first().hover();
     await shot(page, `${scheme}-${width}-hover`);
-    await context.close();
+    await leave(() => context.close());
   }
 
   const context = await browser.newContext({viewport: {width: 1440, height: 900}, colorScheme: 'dark'});
   await context.addInitScript(() => { window.__copied = []; Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async text => { window.__copied.push(text); }}}); });
-  const page = await context.newPage(); page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(String(e)));
+  const page = await context.newPage(); page.setDefaultTimeout(15000); watch(page);
   await page.goto(url);
   const workspaces = page.locator('.panel-collections'), agents = page.locator('.panel-agents');
   const sessionChoice = page.getByRole('combobox', {name: 'Session', exact: true});
@@ -122,8 +126,7 @@ try {
   const fold = alpha.getByRole('button', {name: /^Fold the 3 conversations of Alpha feature/});
   await fold.click();
   await expect(lines).toHaveCount(0);
-  await page.reload();
-  await expect(agents.locator('.agent-row').first()).toBeVisible();
+  await leave(() => page.reload(), () => expect(agents.locator('.agent-row').first()).toBeVisible());
   await expect(lines).toHaveCount(0);
   await alpha.getByRole('button', {name: /^Show the 3 conversations of Alpha feature/}).click();
   await expect(lines).toHaveCount(3);
@@ -140,8 +143,7 @@ try {
   await agents.locator('[data-group="failed"] .agents-group-title').click();
   await expect(agents.locator('[data-group="failed"] .agent-row')).toHaveCount(0);
   await expect(agents.locator('[data-group="failed"] .agents-group-title')).toContainText('1');
-  await page.reload();
-  await expect(agents.locator('[data-group="idle"] .agent-row')).toHaveCount(1);
+  await leave(() => page.reload(), () => expect(agents.locator('[data-group="idle"] .agent-row')).toHaveCount(1));
   await expect(agents.locator('[data-group="failed"] .agent-row')).toHaveCount(0);
   await agents.locator('[data-group="failed"] .agents-group-title').click();
   await agents.getByRole('button', {name: 'By workspace'}).click();
@@ -240,7 +242,7 @@ try {
   // The phone sees the desktop's pin.
   const offer = await fetch(`${f.url}/lazybox.bench.v1.RunnerService/BeginDevicePairing`, {method: 'POST', headers: {authorization: `Bearer ${f.token}`, 'content-type': 'application/json'}, body: JSON.stringify({grants: ['respond']})}).then(r => r.json());
   const phoneContext = await browser.newContext({...devices['iPhone 13']});
-  const phone = await phoneContext.newPage(); phone.on('pageerror', e => errors.push(String(e)));
+  const phone = await phoneContext.newPage(); watch(phone);
   await phone.goto(offer.url);
   await phone.getByRole('textbox', {name: 'Name this phone'}).fill('iPhone');
   await phone.getByRole('button', {name: 'Pair this phone'}).click();
@@ -258,7 +260,7 @@ try {
   // Pins this phone kept on itself before the Runner kept them move to the Runner, once.
   const deviceId = [...f.remote.devices.keys()][0];
   await phone.evaluate(id => localStorage.setItem(`remote:${id}:pins:v1`, JSON.stringify(['review-session'])), deviceId);
-  await phone.reload();
+  await leave(() => phone.reload());
   await expect.poll(() => Number(session('review-session').pinnedAtUnixMillis || 0), {timeout: 10_000}).toBeGreaterThan(0);
   await expect.poll(() => phone.evaluate(id => localStorage.getItem(`remote:${id}:pins:v1`), deviceId)).toBe('[]');
   await expect(phone.locator('.group-pinned .remote-row')).toHaveCount(2);
@@ -288,7 +290,7 @@ try {
   assert.deepEqual(f.pins.at(-1), {method: 'ArchiveConversation', body: {sessionId: 'old-session', archived: true}});
   // The phone stops listing it too.
   await expect(phoneRow('Old exploration')).toHaveCount(0, {timeout: 10_000});
-  await phoneContext.close();
+  await leave(() => phoneContext.close());
   await agents.locator('.agent-row', {hasText: 'Deploy preview'}).click({button: 'right'});
   await menu.getByRole('menuitem', {name: /^Delete…/}).click();
   const deletion = page.getByRole('dialog', {name: 'Delete conversation', exact: true});
