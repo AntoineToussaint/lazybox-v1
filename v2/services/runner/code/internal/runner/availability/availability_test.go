@@ -153,7 +153,9 @@ func TestReportOffersListedModelsElseBuiltIn(t *testing.T) {
 		t.Fatalf("claude built-in models: %v", names)
 	}
 	// A failed listing is not a broken program: the built-in list stands in.
-	probe.Models = func(context.Context, string, string) ([]agent.ModelChoice, error) { return nil, errors.New("unknown method") }
+	probe.Models = func(context.Context, string, string) ([]agent.ModelChoice, error) {
+		return nil, errors.New("unknown method")
+	}
 	codex := probe.Programs(context.Background())["codex"]
 	if codex.Error != "" || codex.Models != nil {
 		t.Fatalf("codex after a failed listing: %+v", codex)

@@ -108,7 +108,7 @@ func TestNewFromAnIssueStartsTheWorkspaceAndBriefsTheAgent(t *testing.T) {
 	}
 
 	for args, code := range map[string]int{
-		"https://example.com/nope": exitUsage,
+		"https://example.com/nope":         exitUsage,
 		"team/api#812 --permission bypass": exitUsage,
 	} {
 		parts := append([]string{"new", "--from"}, strings.Fields(args)...)
