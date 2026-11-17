@@ -245,14 +245,22 @@ func TestTotalBudgetBoundsTheChain(t *testing.T) {
 	if _, err = Open(path+"2", 4096, Rollover(1024)); err == nil {
 		t.Fatal("a total budget below the segment budget")
 	}
-	// One record larger than a segment does not fit in any, and starts none.
+	// One record larger than a segment's budget has a segment of its own:
+	// an agent's oversized event is recorded, not refused for good.
 	big, err := Open(path+"3", 1024, Rollover(0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer big.Dispose()
-	if _, err = big.Append(strings.Repeat("z", 2000)); !errors.Is(err, ErrFull) || big.Segments() != 1 {
+	fill(t, big, 1, 2)
+	if _, err = big.Append(strings.Repeat("z", 2000)); err != nil || big.Segments() != 2 {
 		t.Fatalf("%v, %d segments", err, big.Segments())
+	}
+	if _, err = big.Append("after"); err != nil || big.Segments() != 3 {
+		t.Fatalf("%v, %d segments", err, big.Segments())
+	}
+	if got := replay(t, big); len(got) != 4 || len(got[2]) != 2000 || got[3] != "after" {
+		t.Fatalf("replayed %d records", len(got))
 	}
 }
 

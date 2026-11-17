@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -857,7 +858,13 @@ func (e *Engine) Close() error {
 		} else {
 			e.observe(agent.Event{Type: "process_exit", Status: "unknown"})
 		}
-		e.appendLocked(agent.Event{Type: "session_closed", Status: "connection_closed_pending_requests_not_restored"})
+		if !e.appendLocked(agent.Event{Type: "session_closed", Status: "connection_closed_pending_requests_not_restored"}) {
+			// The journal takes nothing more (its budget is spent, the disk
+			// is full): the conversation is still ended, and saved so.
+			if err := e.persistLocked(); err != nil {
+				log.Printf("conversation %s: ended, but its state could not be saved: %v", e.state.ID, err)
+			}
+		}
 		e.mu.Unlock()
 		_ = e.journal.Close()
 	})

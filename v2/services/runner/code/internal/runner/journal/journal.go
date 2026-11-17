@@ -3,8 +3,9 @@
 //
 // A journal is one file, or, opened with Rollover, a chain of segment files
 // read as one: the file at its path is segment 0 and `<path>.1`, `<path>.2`…
-// follow it. Each segment holds at most the journal's segment budget; when
-// the next record does not fit, the journal starts the next segment. Sequence
+// follow it. Each segment holds at most the journal's segment budget (a
+// record larger than that has a segment of its own); when the next record
+// does not fit, the journal starts the next segment. Sequence
 // numbers, byte positions (Span, Fit) and turn marks run across segments, so
 // a reader never sees where one ends. A journal written before segments
 // existed is segment 0 of its chain.
@@ -82,7 +83,8 @@ func Marking(mark func(json.RawMessage) bool) Option {
 }
 
 // Rollover makes the journal a chain of segments, each within the budget
-// Open is given, instead of one file that is full at that budget. total
+// Open is given (a record larger than that has a segment of its own),
+// instead of one file that is full at that budget. total
 // bounds every segment together (0: no bound); an append past it is ErrFull.
 func Rollover(total int64) Option {
 	return func(j *Journal) { j.rollover, j.total = true, total }
@@ -256,7 +258,12 @@ func (j *Journal) Append(value any) (Record, error) {
 		return Record{}, os.ErrClosed
 	}
 	if j.broken != nil {
-		return Record{}, fmt.Errorf("journal unwritable after a failed write: %w", j.broken)
+		// Undo what is left of the failed record now, or refuse again: a
+		// caller retrying a write the disk refused gets it once there is room.
+		if err := j.undo(&j.segments[len(j.segments)-1]); err != nil {
+			return Record{}, fmt.Errorf("journal unwritable after a failed write: %w", j.broken)
+		}
+		j.broken = nil
 	}
 	b, err := json.Marshal(value)
 	if err != nil {
@@ -275,12 +282,11 @@ func (j *Journal) Append(value any) (Record, error) {
 			return Record{}, ErrFull
 		}
 	} else {
-		if n > j.limit {
-			return Record{}, fmt.Errorf("%w: a record of %d bytes exceeds the %d-byte segment budget", ErrFull, n, j.limit)
-		}
 		if j.total > 0 && j.size+n > j.total {
 			return Record{}, fmt.Errorf("%w: the journal holds its %d-byte total budget", ErrFull, j.total)
 		}
+		// A record larger than a segment's budget gets a segment of its own:
+		// refusing it would leave its agent's output with nowhere to go.
 		if last := j.segments[len(j.segments)-1]; last.size > 0 && last.size+n > j.limit {
 			if err = j.roll(); err != nil {
 				return Record{}, err
@@ -298,9 +304,7 @@ func (j *Journal) Append(value any) (Record, error) {
 	if err != nil {
 		// Nothing of a failed record stays: what follows starts where it
 		// did. The descriptor stays open for readers of what is recorded.
-		if undo := s.f.Truncate(s.size); undo != nil {
-			j.broken = err
-		} else if undo = s.f.Sync(); undo != nil {
+		if j.undo(s) != nil {
 			j.broken = err
 		}
 		return Record{}, err
@@ -314,6 +318,14 @@ func (j *Journal) Append(value any) (Record, error) {
 	close(j.notify)
 	j.notify = make(chan struct{})
 	return r, nil
+}
+
+// undo cuts a segment back to its complete records.
+func (j *Journal) undo(s *segment) error {
+	if err := s.f.Truncate(s.size); err != nil {
+		return err
+	}
+	return s.f.Sync()
 }
 
 // writeAt writes a record at its place; tests make it fail part way.
