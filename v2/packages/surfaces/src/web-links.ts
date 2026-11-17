@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore, type MouseEvent as ReactMouseEvent } from 'react';
 import type { ViewStateStore } from '@lazybox/platform';
 import { contextMenu, copyText, registerContextMenu } from './ContextMenu';
-import type { MenuItem } from './context-menu-model';
+import { isMenuClick, type MenuItem } from './context-menu-model';
 import { readPreference, writePreference } from './view-state';
 import { linkHint, searchEngine, webPage, type LinkTarget, type SearchEngine } from './web-address';
 import { isMac } from './workbench';
@@ -104,13 +104,23 @@ export function installLinkRouting(external?: (url: string) => Promise<void>): (
   installed?.();
   openExternal = external;
   const report = (error: unknown) => console.error('Could not open link', error);
+  // The link a right-click (or Ctrl+click) opened the menu on, until the next press.
+  let menuAnchor: Element | null = null;
+  const press = () => { menuAnchor = null; };
   const click = (event: MouseEvent) => {
     if (event.defaultPrevented || event.button !== 0) return;
     const anchor = anchorOf(event.target);
     const url = anchor && externalLink(anchor);
-    if (!url || ownRouting(anchor)) return;
+    if (!url) return;
+    // Ctrl+click on a Mac is a right-click: its menu opens, the link does not
+    // (WebKit follows the menu with this click). Here too for links that
+    // route themselves (the command console).
+    const menuClick = isMenuClick(event, isMac) || (anchor === menuAnchor && event.detail > 0);
+    menuAnchor = null;
+    if (menuClick) { event.preventDefault(); event.stopPropagation(); return; }
+    if (ownRouting(anchor)) return;
     const page = webPage(url);
-    // ⌘/Ctrl- and Shift-click are the browser's own "new tab / window" gestures.
+    // ⌘-click (Ctrl-click off a Mac) and Shift-click are the browser's own "new tab / window" gestures.
     const explicit = event.metaKey || event.ctrlKey || event.shiftKey;
     const inViewer = !explicit && !!page && (preferences.target === 'viewer') !== event.altKey;
     if (inViewer && openInViewer(page)) { event.preventDefault(); return; }
@@ -124,7 +134,9 @@ export function installLinkRouting(external?: (url: string) => Promise<void>): (
   const contextmenu = (event: MouseEvent) => {
     const anchor = anchorOf(event.target);
     const url = anchor && externalLink(anchor);
-    if (!url || !webPage(url)) return;
+    if (!url) return;
+    if (event.isTrusted) menuAnchor = anchor;
+    if (!webPage(url)) return;
     let host = url; try { host = new URL(url).host; } catch { /* the address itself */ }
     contextMenu('link', undefined, { href: url }, `Link to ${host}`)({ nativeEvent: event, currentTarget: anchor } as unknown as ReactMouseEvent<Element>);
   };
@@ -139,6 +151,7 @@ export function installLinkRouting(external?: (url: string) => Promise<void>): (
   document.addEventListener('click', click, true);
   document.addEventListener('contextmenu', contextmenu, true);
   document.addEventListener('mouseover', hover, true);
-  installed = () => { stopMenu(); document.removeEventListener('click', click, true); document.removeEventListener('contextmenu', contextmenu, true); document.removeEventListener('mouseover', hover, true); installed = undefined; };
+  document.addEventListener('pointerdown', press, true);
+  installed = () => { stopMenu(); document.removeEventListener('click', click, true); document.removeEventListener('contextmenu', contextmenu, true); document.removeEventListener('mouseover', hover, true); document.removeEventListener('pointerdown', press, true); installed = undefined; };
   return installed;
 }

@@ -467,7 +467,8 @@ restarts.
   workspace's running app previews to open with a click.
 - **A plain click** still opens your browser, as before. **Settings → Web &
   links** swaps the two: links open in a Web panel and ⌥-click opens the
-  browser. ⌘/Ctrl- and Shift-click always open the browser. The same page sets
+  browser. ⌘-click (Ctrl-click off a Mac) and Shift-click always open the
+  browser; on a Mac, ⌃-click is a right-click and shows the menu. The same page sets
   the search engine (Google, DuckDuckGo, Bing, Kagi, Startpage). Windows
   without a workspace page (a chat or artifact window) open links in the
   browser.

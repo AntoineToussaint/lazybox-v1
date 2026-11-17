@@ -4,6 +4,8 @@
 // one action per place works, the keyboard (Shift+F10, arrows, type-ahead,
 // Escape) and a long press open it, a press outside closes it, it stays on
 // screen at the edges, text fields keep the native menu and Monaco its own.
+// A right-click on a link never opens it: not a slow one, not at a window
+// edge, not Ctrl+click on a Mac; press, drag onto an item and release does.
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit,chromium,expect} from '@playwright/test';
@@ -21,7 +23,7 @@ alpha.push({type:'operation_accepted',operationId:'op-1',text:'Why does the pars
 alpha.push({type:'message_delta',text:AGENT});alpha.push({type:'turn_ended'});
 fixture.setCheckpoints('alpha-session',{turns:[{operationId:'op-1',prompt:'Why does the parser fail?',files:[{member:'api',path:'parser.go',status:'M',additions:3,deletions:1}]}]});
 // A command still running in the conversation, for the console's menu.
-fixture.commands.push({id:'cmd-running',sessionId:'alpha-session',title:'npm test',mode:'pipe',done:false,offset:'24',argv:['/bin/sh','-c','npm test -- --watch=false'],output:'PASS src/app.test.ts\n'});
+fixture.commands.push({id:'cmd-running',sessionId:'alpha-session',title:'npm test',mode:'pipe',done:false,offset:'24',argv:['/bin/sh','-c','npm test -- --watch=false'],output:'PASS src/app.test.ts\nReport: https://example.com/report\n'});
 const api=fixture.shipState('alpha','api');
 api.files=[{path:'src/handler.go',indexStatus:' ',worktreeStatus:'M'}];
 fixture.diffs.set('alpha/api/src/handler.go','diff --git a/src/handler.go b/src/handler.go\n--- a/src/handler.go\n+++ b/src/handler.go\n@@ -1,3 +1,3 @@\n package api\n-func Handle() {\n+func Handle() error {\n }\n');
@@ -35,10 +37,15 @@ try{
  await context.addInitScript(()=>{
   window.__copied=[];
   Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__copied.push(text);},readText:async()=>'pasted from clipboard',write:async items=>{for(const item of items)for(const type of item.types)await item.getType(type).catch(()=>{});},read:async()=>[]}});
+  // Links never leave: what would open in the browser is recorded.
+  window.__opened=[];window.open=url=>{window.__opened.push(String(url));return null;};
   window.__menus=[];
   window.addEventListener('contextmenu',event=>{setTimeout(()=>window.__menus.push({prevented:event.defaultPrevented,target:event.target?.className?.toString?.()||''}),0);});
  });
  const page=await context.newPage();page.setDefaultTimeout(15000);
+ const newTabs=[];context.on('page',tab=>{if(tab!==page){newTabs.push(tab.url());void tab.close();}});
+ // Every way a link could open: window.open, a new tab, a Web panel.
+ const nothingOpened=async what=>{await page.waitForTimeout(150);assert.deepEqual({opened:await page.evaluate(()=>window.__opened),tabs:newTabs,web:await page.getByRole('region',{name:'Web page'}).count()},{opened:[],tabs:[],web:0},`${what} opens nothing`);};
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
  const chat=page.locator('.panel-chat');
@@ -88,10 +95,46 @@ try{
  await open(output);
  assert.deepEqual((await labels()).slice(0,3),['Stop','Copy output','Copy command']);
  await item('Copy command').click();assert.equal(await copied(),'npm test -- --watch=false');
+ // A link in the output routes itself, and still shows the link menu on a right-click, slow or Ctrl+click.
+ {const reportLink=output.getByRole('link',{name:'https://example.com/report'});await expect(reportLink).toBeVisible();
+  const b=await reportLink.boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down({button:'right'});await page.waitForTimeout(450);await page.mouse.up({button:'right'});
+  await expect(item('Copy link')).toBeVisible();await nothingOpened('a slow right-click on a command output link');await close();
+  if(await page.evaluate(()=>/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent))){await reportLink.click({modifiers:['Control']});await expect(item('Copy link')).toBeVisible();await nothingOpened('Ctrl+click on a command output link');await close();}}
 
  // A web link.
- await open(agentMessage.getByRole('link',{name:'example'}));
+ const exampleLink=agentMessage.getByRole('link',{name:'example'});
+ await open(exampleLink);
  await item('Copy link').click();assert.equal(await copied(),'https://example.com/guide');
+
+ // A slow right-click on a link (a trackpad click held a moment): the menu
+ // stays open and nothing opens; the release where it opened chooses nothing.
+ const linkItems=['Open in your browser','Open in Lazybox','Open in a new Lazybox panel','Copy link'];
+ const slowRightClick=async(x,y,what)=>{
+  await page.mouse.move(x,y);await page.mouse.down({button:'right'});await expect(menu).toBeVisible();
+  await page.waitForTimeout(450);await page.mouse.up({button:'right'});
+  await nothingOpened(what);await expect(menu).toBeVisible();
+  for(const name of linkItems)await expect(item(name)).toBeVisible();
+  const b=await menu.boundingBox();assert.ok(x<b.x||x>b.x+b.width||y<b.y||y>b.y+b.height,`${what}: the pointer is not on the menu ${JSON.stringify({x,y,b})}`);
+ };
+ {const b=await exampleLink.boundingBox();await slowRightClick(b.x+b.width/2,b.y+b.height/2,'a slow right-click on a link');await close();}
+ // The same at the window's bottom-right corner, where the menu opens up and left.
+ const vp=page.viewportSize();
+ await page.evaluate(()=>{const a=document.createElement('a');a.href='https://example.com/corner';a.target='_blank';a.textContent='corner';a.id='corner-link';a.style.cssText='position:fixed;right:0;bottom:0;z-index:2147483646;padding:2px 4px;background:Canvas';document.body.append(a);});
+ {const b=await page.locator('#corner-link').boundingBox();await slowRightClick(Math.min(b.x+b.width-3,vp.width-3),Math.min(b.y+b.height-3,vp.height-3),'a slow right-click at the corner');
+  const m=await menu.boundingBox();assert.ok(m.y+m.height<=b.y+b.height&&m.x+m.width<=b.x+b.width,'the menu opened up and left of the pointer');await close();}
+ // Press, drag onto an item and release still chooses it.
+ {const b=await exampleLink.boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down({button:'right'});await expect(menu).toBeVisible();
+  const target=await item('Copy link').boundingBox();await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:6});await page.mouse.up({button:'right'});
+  await expect(menu).toHaveCount(0);await expect.poll(copied).toBe('https://example.com/guide');await nothingOpened('a drag onto Copy link');}
+ // On a Mac, Ctrl+click is the right-click: the menu, never the link (WebKit
+ // follows the menu with a click that has ctrlKey).
+ const mac=await page.evaluate(()=>/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent));
+ if(mac){
+  await exampleLink.click({modifiers:['Control']});await expect(menu).toBeVisible();await expect(item('Open in your browser')).toBeVisible();
+  await nothingOpened('Ctrl+click on a link');await close();
+  await page.locator('#corner-link').click({modifiers:['Control']});await expect(menu).toBeVisible();await nothingOpened('Ctrl+click on a link at the corner');await close();
+ }
+ await page.evaluate(()=>document.getElementById('corner-link')?.remove());
 
  // A file the agent named: open it to the side.
  const fileLink=agentMessage.getByRole('button',{name:'the routes',exact:true});
@@ -267,6 +310,17 @@ try{
  // A long press on touch opens the same menu.
  await agentMessage.locator('p').first().evaluate(node=>{const r=node.getBoundingClientRect();node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true,clientX:r.x+4,clientY:r.y+6}));});
  await expect(menu).toBeVisible({timeout:2000});assert.equal((await labels())[0],'Quote in reply');await close();
+
+ // A window too small for the link menu either way pins it over the pointer:
+ // a slow right-click there still chooses nothing.
+ await page.setViewportSize({width:460,height:250});
+ await page.evaluate(()=>{const a=document.createElement('a');a.href='https://example.com/pinned';a.target='_blank';a.textContent='pinned';a.id='pinned-link';a.style.cssText='position:fixed;left:200px;top:110px;z-index:2147483646;padding:2px 4px;background:Canvas';document.body.append(a);});
+ {const b=await page.locator('#pinned-link').boundingBox(),x=b.x+b.width/2,y=b.y+b.height/2;
+  await page.mouse.move(x,y);await page.mouse.down({button:'right'});await expect(menu).toBeVisible();
+  const m=await menu.boundingBox();assert.ok(x>=m.x&&x<=m.x+m.width&&y>=m.y&&y<=m.y+m.height,`the menu is pinned over the pointer here ${JSON.stringify({x,y,m})}`);
+  await page.waitForTimeout(450);await page.mouse.up({button:'right'});
+  await nothingOpened('a slow right-click with the menu over the pointer');await expect(menu).toBeVisible();await close();}
+ await page.evaluate(()=>document.getElementById('pinned-link')?.remove());
 
  assert.deepEqual(errors,[]);
  console.log('PASS: Lazybox context menus on messages, agent turns, selections, code blocks, links, file links, command output, Files rows, editor tabs, panel headers, workspace rows, Changes rows and diff lines, processes, terminal and inbox; never the browser menu; keyboard, type-ahead, long press, outside/scroll/Escape dismissal, edge placement; text fields and Monaco keep their own menus. Fixture only.');

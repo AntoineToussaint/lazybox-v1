@@ -74,16 +74,36 @@ type Rect = { left: number; top: number; right: number; bottom: number };
 /**
  * A menu opens down and right of the pointer, as on every desktop. Where it
  * would leave the viewport it opens up or left of the pointer instead, and a
- * menu larger than the space either way is pinned inside the margin.
+ * menu larger than the space either way is pinned inside the margin. Either
+ * way it keeps `gap` pixels clear of the pointer, so the press that opened it
+ * is never on it (as macOS does).
  */
-export function placeMenu(at: Point, size: Size, viewport: Size, margin = 8): { left: number; top: number } {
-  const fit = (start: number, extent: number, limit: number) => {
-    if (start + extent <= limit - margin) return Math.max(margin, start);
-    if (start - extent >= margin) return Math.min(start - extent, limit - margin - extent);
+export function placeMenu(at: Point, size: Size, viewport: Size, margin = 8, gap = 2): { left: number; top: number } {
+  const fit = (point: number, extent: number, limit: number) => {
+    const after = point + gap, before = point - gap - extent;
+    if (after + extent <= limit - margin) return Math.max(margin, after);
+    if (before >= margin) return Math.min(before, limit - margin - extent);
     return Math.max(margin, limit - margin - extent);
   };
   return { left: Math.round(fit(at.x, size.width, viewport.width)), top: Math.round(fit(at.y, size.height, viewport.height)) };
 }
+
+/** How far (px) the pointer must travel from where a menu opened before a right-button release chooses an item. */
+export const releaseSlop = 5;
+/**
+ * A right-button release on an item chooses it only when the pointer went
+ * there from where the menu opened: press, drag onto the item, release, as on
+ * macOS. A release where the menu opened (a slow right-click, a trackpad
+ * click held a moment) chooses nothing, wherever the menu was placed.
+ */
+export const rightReleaseChooses = (origin: Point, at: Point, slop = releaseSlop) => Math.hypot(at.x - origin.x, at.y - origin.y) > slop;
+
+/**
+ * Ctrl+click on a Mac is the context-menu gesture, not a click: WebKit sends
+ * the `contextmenu` event and then a `click` with `ctrlKey`, which must not
+ * open, follow or press what is under the pointer.
+ */
+export const isMenuClick = (event: { button: number; ctrlKey: boolean }, mac: boolean) => mac && event.button === 0 && event.ctrlKey;
 
 /**
  * A tooltip under its element, centred on it; above when there is no room below; and always whole

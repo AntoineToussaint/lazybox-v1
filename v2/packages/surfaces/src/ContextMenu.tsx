@@ -1,9 +1,11 @@
 /**
  * Lazybox's context menus: one system for every window.
  *
- * Inside the app a right-click (a long press on touch, Shift+F10 or the
- * context-menu key on the focused element) opens a Lazybox menu for that
- * place, never the browser's or macOS's. Text fields keep the native menu
+ * Inside the app a right-click (Ctrl+click on a Mac, a long press on touch,
+ * Shift+F10 or the context-menu key on the focused element) opens a Lazybox
+ * menu for that place, never the browser's or macOS's. The press that opened
+ * a menu is never also a click, and releasing it chooses an item only after
+ * the pointer moved onto one. Text fields keep the native menu
  * (spelling, paste, emoji); Monaco keeps its own; Alt+right-click shows the
  * native menu in development, for Inspect Element.
  *
@@ -82,7 +84,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { createPortal } from 'react-dom';
 import { Icon } from './Icons';
 import { shortcut as keys } from './workbench';
-import { disabledReason, firstEnabled, joinSections, lastEnabled, normalizeMenu, placeMenu, placeSubmenu, stepFocus, typeahead, dedupeLabels, type MenuEntry, type MenuItem } from './context-menu-model';
+import { disabledReason, firstEnabled, joinSections, lastEnabled, normalizeMenu, placeMenu, placeSubmenu, rightReleaseChooses, stepFocus, typeahead, dedupeLabels, type MenuEntry, type MenuItem } from './context-menu-model';
 import './context-menu.css';
 
 export type { MenuAction, MenuItem } from './context-menu-model';
@@ -389,7 +391,19 @@ let installed = 0;
 function installListeners() {
   if (installed++) return () => { installed--; };
   const press = longPress();
+  // The press that opened a context menu is not also a click: on a Mac,
+  // Ctrl+click sends `contextmenu` and then a `click` (WebKit), which would
+  // open the link or press the button the menu is about.
+  let menuPress = false;
+  const pressMenu = (event: MouseEvent) => { if (event.isTrusted && !keyboardEvents.has(event)) menuPress = true; };
+  const swallowClick = (event: MouseEvent) => {
+    if (!menuPress) return;
+    menuPress = false;
+    if (event.button !== 0 || event.detail === 0) return; // a keyboard click is its own gesture
+    event.preventDefault(); event.stopImmediatePropagation();
+  };
   const pointerDown = (event: PointerEvent) => {
+    menuPress = false;
     if (event.button === 2 && event.pointerType === 'mouse') selectionAtPress = document.getSelection()?.toString() || '';
     // Outside a menu, a press closes it; the press goes on to what it hit.
     if (state.menu && !(event.target instanceof Element && event.target.closest('.context-menu'))) closeContextMenu(false);
@@ -401,6 +415,7 @@ function installListeners() {
   const blur = () => closeContextMenu(false);
   const native = (event: MouseEvent) => press.native(event);
   window.addEventListener('contextmenu', native, true);
+  window.addEventListener('contextmenu', pressMenu, true);
   window.addEventListener('contextmenu', onContextMenu);
   window.addEventListener('keydown', onKeyDown, true);
   window.addEventListener('pointerdown', pointerDown, true);
@@ -408,6 +423,7 @@ function installListeners() {
   window.addEventListener('pointerup', press.cancel, true);
   window.addEventListener('pointercancel', press.cancel, true);
   window.addEventListener('click', press.click, true);
+  window.addEventListener('click', swallowClick, true);
   window.addEventListener('wheel', scroll, { capture: true, passive: true });
   window.addEventListener('touchmove', scroll, { capture: true, passive: true });
   window.addEventListener('resize', blur);
@@ -415,6 +431,7 @@ function installListeners() {
   return () => {
     installed--;
     window.removeEventListener('contextmenu', native, true);
+    window.removeEventListener('contextmenu', pressMenu, true);
     window.removeEventListener('contextmenu', onContextMenu);
     window.removeEventListener('keydown', onKeyDown, true);
     window.removeEventListener('pointerdown', pointerDown, true);
@@ -422,6 +439,7 @@ function installListeners() {
     window.removeEventListener('pointerup', press.cancel, true);
     window.removeEventListener('pointercancel', press.cancel, true);
     window.removeEventListener('click', press.click, true);
+    window.removeEventListener('click', swallowClick, true);
     window.removeEventListener('wheel', scroll, true);
     window.removeEventListener('touchmove', scroll, true);
     window.removeEventListener('resize', blur);
@@ -444,7 +462,7 @@ function MenuLayer({ menu }: { menu: OpenMenu }) {
     void (async () => { try { await entry.action.run?.(); } catch (error) { showMenuNotice(`${entry.action.label} failed: ${error instanceof Error ? error.message : String(error)}`); } })();
   };
   return <div ref={layer} className="context-menu-layer" popover="manual">
-    <Menu entries={menu.entries} at={{ x: menu.x, y: menu.y }} keyboard={menu.keyboard} depth={0} openedAt={menu.openedAt} label={menu.label} onRun={run} onClose={() => closeContextMenu(true)}/>
+    <Menu entries={menu.entries} at={{ x: menu.x, y: menu.y }} origin={{ x: menu.x, y: menu.y }} keyboard={menu.keyboard} depth={0} label={menu.label} onRun={run} onClose={() => closeContextMenu(true)}/>
   </div>;
 }
 
@@ -454,16 +472,17 @@ type MenuProps = {
   at?: { x: number; y: number };
   /** The item a submenu belongs to. */
   anchor?: DOMRect;
+  /** Where the root menu opened: a right-button release counts only away from it. */
+  origin: { x: number; y: number };
   keyboard: boolean;
   depth: number;
-  openedAt: number;
   label?: string;
   onRun(entry: Extract<MenuEntry, { kind: 'action' }>): void;
   /** Close this menu: the whole menu at the root, back to the parent item in a submenu. */
   onClose(): void;
 };
 
-function Menu({ entries, at, anchor, keyboard, depth, openedAt, label, onRun, onClose }: MenuProps) {
+function Menu({ entries, at, anchor, origin, keyboard, depth, label, onRun, onClose }: MenuProps) {
   const element = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(() => keyboard ? firstEnabled(entries) : -1);
   const [open, setOpen] = useState<{ index: number; keyboard: boolean; rect: DOMRect }>();
@@ -480,7 +499,7 @@ function Menu({ entries, at, anchor, keyboard, depth, openedAt, label, onRun, on
     if (layer && !layer.matches(':popover-open')) try { layer.showPopover(); } catch { /* a fixed layer without popover support */ }
     const size = { width: node.offsetWidth, height: node.offsetHeight };
     const viewport = { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight };
-    const place = anchor ? placeSubmenu(anchor, size, viewport) : placeMenu({ x: at!.x + 1, y: at!.y + 1 }, size, viewport);
+    const place = anchor ? placeSubmenu(anchor, size, viewport) : placeMenu(at!, size, viewport);
     node.style.left = `${place.left}px`; node.style.top = `${place.top}px`;
     setPlaced(true);
   }, [entries.length]);
@@ -552,10 +571,12 @@ function Menu({ entries, at, anchor, keyboard, depth, openedAt, label, onRun, on
           onPointerUp={event => {
             // An item acts on release, as in a native menu: a left press and
             // release on it, or a right press that opened the menu, moved here
-            // and released.
+            // and released. Releasing a right-click where it opened the menu
+            // (held a moment, as a trackpad click often is) chooses nothing.
             const left = event.button === 0 && pressed.current === index;
             pressed.current = -1;
-            if (left || (event.button === 2 && performance.now() - openedAt > 300)) { released.current = performance.now(); activate(index, false); }
+            const right = event.button === 2 && rightReleaseChooses(origin, { x: event.clientX, y: event.clientY });
+            if (left || right) { released.current = performance.now(); activate(index, false); }
           }}
           // Clicks that come without a pointer (assistive technology, scripts).
           onClick={() => { if (performance.now() - released.current > 500) activate(index, false); }}>
@@ -566,7 +587,7 @@ function Menu({ entries, at, anchor, keyboard, depth, openedAt, label, onRun, on
         </div>;
       })}
     </div>
-    {child?.submenu && open && <Menu key={open.index} entries={child.submenu} anchor={open.rect} keyboard={open.keyboard} depth={depth + 1} openedAt={openedAt} label={child.action.label} onRun={onRun}
+    {child?.submenu && open && <Menu key={open.index} entries={child.submenu} anchor={open.rect} origin={origin} keyboard={open.keyboard} depth={depth + 1} label={child.action.label} onRun={onRun}
       onClose={() => { const index = open.index; setOpen(undefined); setActive(index); requestAnimationFrame(() => element.current?.querySelector<HTMLElement>(`[data-index="${index}"]`)?.focus({ preventScroll: true })); }}/>}
   </>;
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { absolutePath, dedupeLabels, fencedCode, firstEnabled, joinSections, lastEnabled, normalizeMenu, placeMenu, placeSubmenu, placeTooltip, quoteText, stepFocus, typeahead, type MenuItem } from '../packages/surfaces/src/context-menu-model.ts';
+import { absolutePath, dedupeLabels, fencedCode, firstEnabled, isMenuClick, joinSections, lastEnabled, normalizeMenu, placeMenu, placeSubmenu, placeTooltip, quoteText, rightReleaseChooses, stepFocus, typeahead, type MenuItem } from '../packages/surfaces/src/context-menu-model.ts';
 
 const labels = (items: MenuItem[]) => normalizeMenu(items).map(entry => entry.kind === 'separator' ? '—' : entry.action.label);
 
@@ -18,9 +18,10 @@ test('sections join innermost first with one line between non-empty ones, and a 
 
 test('a menu opens down-right of the pointer and flips or pins to stay on screen', () => {
   const viewport = { width: 1000, height: 700 }, size = { width: 220, height: 300 };
-  assert.deepEqual(placeMenu({ x: 100, y: 100 }, size, viewport), { left: 100, top: 100 });
-  // Near the right and bottom edges: it opens left and up of the pointer.
-  assert.deepEqual(placeMenu({ x: 950, y: 650 }, size, viewport), { left: 730, top: 350 });
+  // Two pixels clear of the pointer, so the press that opened it is not on it.
+  assert.deepEqual(placeMenu({ x: 100, y: 100 }, size, viewport), { left: 102, top: 102 });
+  // Near the right and bottom edges: it opens left and up of the pointer, as clear of it.
+  assert.deepEqual(placeMenu({ x: 950, y: 650 }, size, viewport), { left: 728, top: 348 });
   // Taller than the space either way: pinned inside the margin, never off screen.
   const tall = placeMenu({ x: 500, y: 350 }, { width: 220, height: 650 }, viewport);
   assert.equal(tall.top, 8 + (700 - 16 - 650));
@@ -30,6 +31,32 @@ test('a menu opens down-right of the pointer and flips or pins to stay on screen
     const place = placeMenu(at, size, viewport);
     assert.ok(place.left >= 8 && place.left + size.width <= 992 && place.top >= 8 && place.top + size.height <= 692, JSON.stringify(at));
   }
+});
+
+test('the pointer that opened a menu is never on it, unless the window is too small for the menu either way', () => {
+  const viewport = { width: 1000, height: 700 }, size = { width: 240, height: 330 };
+  const on = (at: { x: number; y: number }, place: { left: number; top: number }) => at.x >= place.left && at.x <= place.left + size.width && at.y >= place.top && at.y <= place.top + size.height;
+  for (const at of [{ x: 100, y: 100 }, { x: 997, y: 697 }, { x: 900, y: 650.4 }, { x: 760.6, y: 371.7 }, { x: 3, y: 690 }, { x: 990, y: 5 }]) {
+    assert.equal(on(at, placeMenu(at, size, viewport)), false, JSON.stringify(at));
+  }
+});
+
+test('a right-button release chooses an item only after the pointer moved there from where the menu opened', () => {
+  const origin = { x: 400, y: 300 };
+  // A slow right-click: released where it was pressed, wherever the menu is.
+  assert.equal(rightReleaseChooses(origin, origin), false);
+  assert.equal(rightReleaseChooses(origin, { x: 403, y: 302 }), false, 'a trackpad jitter is not a drag');
+  // Press, drag onto the item, release.
+  assert.equal(rightReleaseChooses(origin, { x: 420, y: 340 }), true);
+  assert.equal(rightReleaseChooses(origin, { x: 390, y: 290 }), true);
+});
+
+test('Ctrl+click is the context-menu gesture on a Mac only', () => {
+  assert.equal(isMenuClick({ button: 0, ctrlKey: true }, true), true);
+  assert.equal(isMenuClick({ button: 0, ctrlKey: false }, true), false);
+  // Elsewhere Ctrl+click is the browser's "open in a new tab".
+  assert.equal(isMenuClick({ button: 0, ctrlKey: true }, false), false);
+  assert.equal(isMenuClick({ button: 1, ctrlKey: true }, true), false);
 });
 
 test('a submenu opens beside its item, on the left when the right has no room', () => {
