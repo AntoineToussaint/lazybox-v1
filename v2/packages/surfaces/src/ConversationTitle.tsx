@@ -24,7 +24,7 @@ const DOUBLE_CLICK_MS = 260;
  * A title that is only the workspace folder's (generated) name is no title:
  * the header leads with the branch until the conversation gets a real one.
  */
-export function ConversationTitle({ api, session, sessionID, realTitle, suggestedTitle, firstMessage, branch, onRenamed, onError }: {
+export function ConversationTitle({ api, session, sessionID, realTitle, suggestedTitle, firstMessage, firstMessageLoading = false, branch, onRenamed, onError }: {
   api: RunnerClient;
   session?: Session;
   sessionID: string;
@@ -32,6 +32,8 @@ export function ConversationTitle({ api, session, sessionID, realTitle, suggeste
   suggestedTitle: string;
   /** The conversation's first message, whole: the tooltip and the "First message" popover. */
   firstMessage: string;
+  /** The conversation's start is still being read: no first message to show yet. */
+  firstMessageLoading?: boolean;
   branch: Branch;
   onRenamed(session: Session | undefined): void;
   onError(message: string): void;
@@ -78,7 +80,7 @@ export function ConversationTitle({ api, session, sessionID, realTitle, suggeste
   </form>;
 
   const opening = firstMessage.trim();
-  const tooltip = [realTitle, opening && opening !== realTitle ? `First message: ${opening.length > 600 ? opening.slice(0, 600).trimEnd() + '…' : opening}` : '', 'Click for the first message · double-click to rename'].filter(Boolean).join('\n\n');
+  const tooltip = [realTitle, opening && opening !== realTitle ? `First message: ${opening.length > 600 ? opening.slice(0, 600).trimEnd() + '…' : opening}` : '', firstMessageLoading ? 'Double-click to rename' : 'Click for the first message · double-click to rename'].filter(Boolean).join('\n\n');
   return <div className="conversation-title" data-untitled={realTitle ? undefined : true}>
     {realTitle
       ? <h2><button ref={titleButton} type="button" className="conversation-title-text" title={tooltip} aria-haspopup="dialog" disabled={!session}
@@ -91,7 +93,7 @@ export function ConversationTitle({ api, session, sessionID, realTitle, suggeste
     {realTitle
       ? <button type="button" className="icon-button conversation-rename-button" aria-label="Rename conversation" title="Rename (double-click the title, F2)" disabled={!session} onClick={startRename}><Icon name="pencil" size={13}/></button>
       : <button type="button" className="conversation-name-it" aria-label="Rename conversation" title={suggestedTitle ? `Name it “${suggestedTitle}”` : 'Give this conversation a name'} disabled={!session} onClick={startRename}><Icon name="pencil" size={12}/><span>Name it</span></button>}
-    {realTitle && <div ref={popover} id={popoverId} popover="auto" className="first-message" role="dialog" aria-label="First message">
+    {realTitle && !firstMessageLoading && <div ref={popover} id={popoverId} popover="auto" className="first-message" role="dialog" aria-label="First message">
       <header><strong>First message</strong><button type="button" className="icon-button" aria-label="Close" title="Close (Esc)" onClick={() => popover.current?.hidePopover?.()}><Icon name="close" size={13}/></button></header>
       {opening ? <p className="first-message-text">{opening}</p> : <p className="first-message-empty">Nothing was said yet.</p>}
       <footer>

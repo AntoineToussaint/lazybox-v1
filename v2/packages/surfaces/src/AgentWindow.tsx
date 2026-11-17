@@ -365,7 +365,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     setSessionID(''); setSession(undefined); setCommands([]); setCommand(''); setMessage(''); setFiles([]); setMissingFiles([]); setUncertainSend(''); sendAttempt.current = null; setError(''); onSessionChange?.('');
   };
   const realTitle = conversationTitle(session);
-  const firstPrompt = conversation.find(m => m.type === 'operation_accepted' && !m.origin)?.text || '';
+  // While only the latest turns are in (the earlier history still loading), the first of them is not the first message.
+  const firstPrompt = transcript.partial ? '' : conversation.find(m => m.type === 'operation_accepted' && !m.origin)?.text || '';
   // An assistant conversation is about Lazybox, not the workspace's branches: its header names none.
   const branch = assistant ? undefined : branchSummary(workspace);
   const modelLabel = sessionModelLabel(session, transcript.reportedModel);
@@ -489,7 +490,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   useBrowserAutoShow(api, session?.conversationId || session?.id || '', session?.closed ? undefined : session?.browser, onShowBrowser);
   if (mode === 'console') return <ConsoleWindow api={api} command={currentCommand} error={error} viewState={viewState} onError={setError} onOpenFile={session?.collectionId ? openFile : undefined} files={fileLinks.element}/>;
 
-  const title = <ConversationTitle api={api} session={session} sessionID={sessionID} realTitle={realTitle} suggestedTitle={titleFromMessage(firstPrompt)} firstMessage={firstPrompt} branch={branch}
+  const title = <ConversationTitle api={api} session={session} sessionID={sessionID} realTitle={realTitle} suggestedTitle={titleFromMessage(firstPrompt)} firstMessage={firstPrompt} firstMessageLoading={!!transcript.partial} branch={branch}
     onRenamed={renamed => { setSession(renamed); refresh(); }} onError={setError}/>;
   const status = <><ChatStatus session={session} live={live}/><BrowsingBadge session={session} agentName={agentName} onShow={onShowBrowser}/><SubagentAttention/></>;
   const inspection = <><BackgroundWorkButton/><SessionInspection sessionID={sessionID} session={session} activity={transcript.activity} activityTruncated={transcript.activityTruncated}/></>;

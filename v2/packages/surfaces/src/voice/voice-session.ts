@@ -103,7 +103,11 @@ export function currentVoicePreferences(): VoicePreferences { return preferences
 // ---- Targets -----------------------------------------------------------------
 
 const targets: { target: DictationTarget; focusedAt: number }[] = [];
-/** While mounted, a target can take dictation; the one focused last is chosen. */
+/**
+ * While mounted, a target can take dictation; the one focused last is chosen.
+ * Unmounting it (its tab closed) ends a dictation into it, keeping what was
+ * said: the microphone never stays on for a message box that is gone.
+ */
 export function registerDictationTarget(target: DictationTarget): () => void {
   const entry = { target, focusedAt: 0 };
   targets.push(entry);
@@ -111,7 +115,10 @@ export function registerDictationTarget(target: DictationTarget): () => void {
   const element = target.element();
   element?.addEventListener('focusin', focus);
   if (element && element.contains(document.activeElement)) focus();
-  return () => { element?.removeEventListener('focusin', focus); const i = targets.indexOf(entry); if (i >= 0) targets.splice(i, 1); };
+  return () => {
+    element?.removeEventListener('focusin', focus); const i = targets.indexOf(entry); if (i >= 0) targets.splice(i, 1);
+    if (run && run.target === target && !run.over) end(run, 'stop');
+  };
 }
 /** The palette when it is open; else the message box with focus, the one focused last, or the only one. */
 export function resolveTarget(kind?: DictationKind): DictationTarget | undefined {
@@ -129,6 +136,8 @@ export const hasDictationTarget = (kind?: DictationKind) => !!resolveTarget(kind
 
 type Run = {
   id: number;
+  /** What it types into: its unmounting ends the dictation. */
+  target: DictationTarget;
   sink: DictationSink;
   session?: RecognitionSession;
   dictation: Dictation;
@@ -186,7 +195,7 @@ export async function startDictation({ mode, target, kind }: { mode: 'hold' | 't
   const sink = chosen.begin();
   if (!sink) return false;
   const id = ++runs;
-  const current: Run = { id, sink, dictation: emptyDictation(), options: optionsFor(p, p.language), over: false };
+  const current: Run = { id, target: chosen, sink, dictation: emptyDictation(), options: optionsFor(p, p.language), over: false };
   run = current;
   set({ ...idle, phase: 'starting', kind: chosen.kind, mode, startedAt: Date.now(), engine: recognizer.label, reading: false });
   try {

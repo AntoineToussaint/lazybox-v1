@@ -10,6 +10,7 @@ import { fencedCode, quoteText, type MenuItem } from './context-menu-model';
 import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import type { TranscriptMessage } from './transcript-model';
+export { promptBefore } from './transcript-model';
 import { isMac } from './workbench';
 
 export type MessageRole = 'agent' | 'user' | 'notice';
@@ -42,11 +43,6 @@ export function messageItems(context: ContextMenuContext<MessageMenuDetail>, { p
   ];
 }
 
-/** The prompt an agent message answers: the last thing you sent before it. */
-export function promptBefore(messages: readonly TranscriptMessage[], id: string): TranscriptMessage | undefined {
-  for (let i = messages.findIndex(message => message.id === id) - 1; i >= 0; i--) if (messages[i].type === 'operation_accepted') return messages[i];
-  return undefined;
-}
 
 export const codeBlockItems = (text: string, language: string): MenuItem[] => [
   { label: 'Copy code', icon: 'copy', run: () => copyText(text, 'Copied code') },

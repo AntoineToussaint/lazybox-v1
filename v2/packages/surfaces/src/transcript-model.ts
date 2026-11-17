@@ -89,6 +89,12 @@ export function queuedMessages(polled: readonly QueuedEntry[] | undefined, trans
   return out;
 }
 
+/** The prompt an agent message answers: the last thing you sent before it (never a message Lazybox wrote to the agent). */
+export function promptBefore(messages: readonly TranscriptMessage[], id: string): TranscriptMessage | undefined {
+  for (let i = messages.findIndex(message => message.id === id) - 1; i >= 0; i--) if (messages[i].type === 'operation_accepted' && !messages[i].origin) return messages[i];
+  return undefined;
+}
+
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
 export function appendTranscript(state: Transcript, record: JournalEvent): Transcript {
   return foldTranscript(state, [record]);

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { agentTitle } from './providers';
 import { follow, type RunnerClient } from '@lazybox/client-core';
 import type { CommandStatus, JournalEvent, Session } from '@lazybox/protocol';
@@ -120,10 +120,13 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   const now = useNow(rootBusy);
   useEffect(() => { setExpanded(false); setStopping(''); setMoving(''); setError(''); }, [managed?.id]);
   useEffect(() => { if (!moved) return; const timer = setTimeout(() => setMoved(''), 8000); return () => clearTimeout(timer); }, [moved]);
-  if (disconnected || !session || session.closed) return <LiveActivity disconnected={disconnected} live={live} session={session}/>;
+  // What moving to the background did is said even when the turn ended right after (the bar itself is gone then).
+  const movedNotice = moved && <p className="live-bar-notice" role="status"><Icon name="check" size={12}/><span>{moved}</span><button type="button" className="icon-button" aria-label="Dismiss" onClick={() => setMoved('')}><Icon name="close" size={11}/></button></p>;
+  const withNotice = (rest: ReactNode) => movedNotice ? <>{rest}<section className="live-bar" data-only="notice" aria-label="Moved to the background">{movedNotice}</section></> : rest;
+  if (disconnected || !session || session.closed) return withNotice(<LiveActivity disconnected={disconnected} live={live} session={session}/>);
   // Working without a turn the Runner holds (a status between turns): the plain line, as before.
-  if (!rootBusy && !background) return <LiveActivity disconnected={false} live={live} session={session}/>;
-  if (!rootBusy) return <div className="live-bar" data-only="background"><SubagentTray live={live} rootBusy={false}/></div>;
+  if (!rootBusy && !background) return withNotice(<LiveActivity disconnected={false} live={live} session={session}/>);
+  if (!rootBusy) return withNotice(<div className="live-bar" data-only="background"><SubagentTray live={live} rootBusy={false}/></div>);
 
   const detail = managed && (!step || isManagedCommandTool(step.name) || !stepDetail(step).code)
     ? { ...commandParts(managed.argv.length ? managed.argv.join(' ') : managed.title), full: managed.argv.join(' ') || managed.title }
@@ -188,7 +191,7 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
       <button type="button" className="icon-button live-bar-hide" aria-label="Hide output" title="Hide the output here. The command keeps running; Show output brings it back." onClick={() => showOutput(false)}><Icon name="close" size={12}/></button>
     </div>}
     {neverEnds && <p className="live-bar-hint" role="note"><Icon name="alert" size={12}/><span>This command may never end. Interrupt the turn and ask {agentLabel(session)} to start it with <code>lazybox run</code> — it moves servers to the background.</span></p>}
-    {moved && <p className="live-bar-notice" role="status"><Icon name="check" size={12}/><span>{moved}</span><button type="button" className="icon-button" aria-label="Dismiss" onClick={() => setMoved('')}><Icon name="close" size={11}/></button></p>}
+    {movedNotice}
     {error && <p className="live-bar-error" role="alert">{error}</p>}
     {background > 0 && <SubagentTray live={live} rootBusy={false}/>}
   </section>;

@@ -303,7 +303,14 @@ test('a message accepted mid-turn is not said until delivered, then starts the n
 // conversation read the stream: a message vanished (hidden from the
 // conversation, not yet polled), then showed twice (in the conversation and
 // in the last poll). The strip merges both queues: in one place at a time.
-import {queuedMessages} from '../packages/surfaces/src/transcript-model.ts';
+import {promptBefore,queuedMessages} from '../packages/surfaces/src/transcript-model.ts';
+test('Jump to prompt lands on what you sent, never on a message Lazybox wrote to the agent',()=>{
+ const origin={kind:'review_findings',summary:'Codex review · 3 findings',detail:'',copy:'',from:'Codex'};
+ const messages=[{id:'1',type:'operation_accepted',text:'Fix the login test',turnId:''},{id:'2',type:'message_delta',text:'Done.',turnId:''},{id:'3',type:'operation_accepted',text:'Findings…',turnId:'',origin},{id:'4',type:'message_delta',text:'Fixed the findings.',turnId:''}];
+ assert.equal(promptBefore(messages,'4')?.id,'1');
+ assert.equal(promptBefore(messages,'2')?.id,'1');
+ assert.equal(promptBefore(messages.slice(2),'4'),undefined);
+});
 test('the Queued strip: at once from the transcript, never also in the conversation, in the Runner\'s order',()=>{
  const records=journalOf(queuedMidTurn),delivery=queuedMidTurn.findIndex(e=>e.receipt?.operationId==='focus');
  const waiting=foldTranscript(emptyTranscript(),records.slice(0,delivery));
