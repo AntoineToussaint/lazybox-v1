@@ -101,6 +101,7 @@
     { "id": "power-actions", "scope": "ui", "script": "test:power-actions" },
     { "id": "config-files", "scope": "ui", "script": "test:config-files" },
     { "id": "extensions", "scope": "ui", "script": "test:extensions" },
+    { "id": "cost-dashboard", "scope": "ui", "script": "test:cost-dashboard" },
     { "id": "activity-detail", "scope": "ui", "script": "test:activity-detail" },
     { "id": "code-run", "scope": "ui", "script": "test:code-run" },
     { "id": "docking", "scope": "ui", "script": "test:docking" },
