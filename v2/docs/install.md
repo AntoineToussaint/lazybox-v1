@@ -7,6 +7,72 @@ needs you to sign in: the account your `claude` command already uses, or one
 you add in Settings → Subscriptions. Codex, if you use it, is installed and
 signed in as usual. You also need `git`.
 
+During the preview, Lazybox is installed [from source](#install-from-source):
+one command builds the app from a clone and installs it. The disk image and
+Homebrew (below) are for published releases.
+
+## Install from source
+
+```sh
+git clone https://github.com/AntoineToussaint/lazybox.git
+cd lazybox
+make -C v2 install
+```
+
+`make -C v2 install` first checks what the build needs and, for anything missing,
+prints the command that installs it. Then it:
+
+1. **Builds Lazybox** on your Mac: the app, its Runner, the `lazybox`
+   command, the Claude worker and the Node it runs on. The first build takes
+   5 to 10 minutes and downloads about 1 GB; later ones take a few
+   minutes. It needs about 8 GB of free disk space, and no accounts, keys or
+   secrets: the app is signed for this Mac only.
+2. **Installs `Lazybox.app` in `/Applications`**, replacing an earlier copy.
+   If Lazybox is open, it closes it first. Your agents keep running.
+3. **Sets up the Runner and the `lazybox` command**, exactly as the app's
+   [first launch](#first-run) does (`lazybox service install`,
+   `lazybox link`), so the app opens straight to its welcome.
+4. **Opens Lazybox** and prints what to do next.
+
+**What the build needs.** `make -C v2 install-check` runs only the check.
+
+| Tool | Version | Install it with |
+| --- | --- | --- |
+| An Apple Silicon Mac | macOS 13.5 or later | |
+| Xcode Command Line Tools | any | `xcode-select --install` |
+| Go | 1.27.3 or later (`services/runner/code/go.mod`) | `brew install go`, or [go.dev/dl](https://go.dev/dl/) |
+| Node.js and npm | 24 or later, npm 11 or later (`package.json`) | `brew install node`, or [nodejs.org](https://nodejs.org) |
+| Rust | 1.90 or later (`rust-toolchain.toml` picks the stable compiler) | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+
+The agents themselves are not part of the build: Lazybox brings Claude Code,
+and Codex is installed and signed in as usual.
+
+**Options.**
+
+| | |
+| --- | --- |
+| `make -C v2 install PREFIX=~/Applications` | Install for your account only, when you cannot write to `/Applications`. Pass the same `PREFIX` to `update` and `uninstall`. |
+| `make -C v2 install OPEN=0` | Do not open the app at the end. |
+| `make -C v2 install LINK_DIR=<folder>` | Link `lazybox` into this folder instead of `/usr/local/bin` (or `~/.local/bin`). |
+
+**Update.** A build from source does not update itself, and never offers to:
+**Settings → Updates** says *Built from source; update with make update*, with
+the commit it was built from. In your clone:
+
+```sh
+make -C v2 update      # git pull, then make install; your data stays
+```
+
+**Uninstall.**
+
+```sh
+make -C v2 uninstall           # the app, the Runner service, the CLI link; your data stays
+make -C v2 uninstall PURGE=1   # also conversations, subscriptions, workspaces and logs (asks first)
+```
+
+macOS keeps permissions such as the microphone per build of an app it cannot
+verify, so after an update Lazybox may ask for them again.
+
 ## Install
 
 **Disk image.** Download `Lazybox_<version>_aarch64.dmg` from the

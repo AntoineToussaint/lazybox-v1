@@ -28,6 +28,7 @@ leave out.
 ### Install and updates
 
 - **A Mac app with everything inside** Download the disk image, open it and drag Lazybox to Applications. It brings its Runner, the Claude worker, Node and Claude Code: you only sign in.
+- **Install from a clone** make install checks what the build needs and names the command for anything missing, builds Lazybox on your Mac with no keys or secrets, installs it in Applications and sets up its Runner and the lazybox command. make update pulls and reinstalls, keeping your data; make uninstall removes it. A build from source never checks for updates: Settings → Updates and About say it updates with make update.
 - **Agents keep working when the window is closed** The first launch sets up the Runner, a background service that starts when you log in. Quit Lazybox and your agents keep going.
 - **The lazybox command** Setup links lazybox into your PATH with completions, no password needed. If an older Lazybox installed by Homebrew comes first on your PATH, setup says so and offers to remove it, showing you brew uninstall lazybox first. lazybox doctor checks the service, versions, agents' sign-in and your PATH, and names the fix.
 - **Updates you choose** The header says when a version is out and what changed. Install and restart moves the app and its Runner together without stopping agents; skip a version or be reminded later.

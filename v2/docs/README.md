@@ -1,21 +1,24 @@
-# Lazybox V2 documentation
+# Lazybox documentation
 
 Lazybox is one window for many coding agents across your workspaces — and the
 place you check their work before it lands. These pages are for people **using**
-Lazybox V2. They describe what is on the `feat/v2-command-output` branch today;
+Lazybox. They describe what is on the `feat/v2-command-output` branch today;
 anything marked **Preview** works but is incomplete or not yet packaged.
 
-> **V2 is a preview.** It installs as a Mac app from the disk image of a
-> release ([Install](install.md)), or you build it from source on macOS
-> ([Getting started](getting-started.md)). The `lazybox` formula on Homebrew is
-> V1, the terminal inbox — its docs are at [lazybox.ai/docs](https://lazybox.ai/docs/).
+> **Lazybox is an early preview.** You install it from a clone with one
+> command, `make -C v2 install` ([Install from source](install.md#install-from-source)).
+> Testing it? Start with [the testers' guide](testers.md). The `lazybox`
+> formula on Homebrew is the older terminal inbox — its docs are at
+> [lazybox.ai/docs](https://lazybox.ai/docs/).
 
 ## Start
 
 - **[Getting started](getting-started.md)** — install, first workspace, first
   agent, and the five keys worth learning on day one.
-- **[Install](install.md)** — the Mac app: install, first run, updates, the
-  `lazybox` command, troubleshooting and uninstalling.
+- **[Install](install.md)** — the Mac app: install from source, first run,
+  updates, the `lazybox` command, troubleshooting and uninstalling.
+- **[Testing the preview](testers.md)** — what to try in your first hour, how
+  to report a problem, and what not to rely on yet.
 - **[Concepts](concepts.md)** — the Runner, workspaces, conversations,
   sub-agents, missions, artifacts and subscriptions, in one page.
 

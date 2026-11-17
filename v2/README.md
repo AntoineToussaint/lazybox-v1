@@ -1,118 +1,120 @@
-# Lazybox V2
+# Lazybox
 
 **One window for all your coding agents, across all your workspaces — and the
-place you check their work before it lands.** Lazybox V2 is for people who run
-Claude and Codex all day: it keeps every agent of every workspace in view, shows
-what each one actually did, and keeps them running when the app or its Runner
-restarts.
+place you check their work before it lands.** Run Claude Code and Codex side
+by side, see what each one actually did, and keep them running when you close
+the window or restart Lazybox.
 
-> **Preview.** V2 installs as a Mac app: the disk image from the
-> [releases](https://github.com/AntoineToussaint/lazybox/releases)
-> ([install guide](docs/install.md)), or build it from source on macOS. The
-> `lazybox` formula on Homebrew is V1, the terminal PR inbox
-> ([its docs](https://lazybox.ai/docs/)).
+> **Status: early preview, for a few testers.** Lazybox installs from this
+> repository with one command. Expect rough edges, and please
+> [tell us about them](#feedback). What to try first: the
+> [testers' guide](docs/testers.md).
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/hero-light.webp">
-  <img src="docs/images/hero.webp" alt="Lazybox V2: Workspaces above the Agents list on the left, a conversation with the agent's work folded into readable lines, its plan, and the artifact it published">
+  <img src="docs/images/hero.webp" alt="Lazybox: Workspaces above the Agents list on the left, a conversation with the agent's work folded into readable lines, its plan, and the artifact it published">
 </picture>
+
+## Requirements
+
+- An **Apple Silicon Mac** with **macOS 13.5** or later.
+- A **Claude Code** and/or **Codex** account. Lazybox brings Claude Code, which
+  only needs you to sign in; Codex is installed and signed in as usual.
+- To build: Xcode Command Line Tools, Go, Node.js and Rust. `make -C v2 install`
+  checks them and prints the command for anything missing.
+
+## Install from source
+
+```sh
+git clone https://github.com/AntoineToussaint/lazybox.git
+cd lazybox
+make -C v2 install
+```
+
+The first build takes 5 to 10 minutes and needs about 8 GB of free disk
+space; no accounts, keys or secrets. `make -C v2 install` builds the app, installs it in
+`/Applications` (`PREFIX=~/Applications` for your account only), sets up its
+background service (the **Runner**, where your agents run), puts the
+`lazybox` command on your PATH and opens Lazybox. Then:
+
+1. **Welcome.** Connect a subscription (your existing `claude` or `codex`
+   sign-in already works) and add a repository.
+2. **New task:** `⌘N`, type what you want, pick a repository, **Enter**.
+3. **Check its work:** `]] d` opens Changes.
+
+| Command | Does |
+| --- | --- |
+| `make -C v2 update` | Pull the newest commit, rebuild and reinstall. Your conversations and settings stay; running agents keep running. |
+| `make -C v2 uninstall` | Remove the app, the Runner service and the `lazybox` link. Your data stays; `PURGE=1` deletes it too (it asks first). |
+| `lazybox doctor` | Check the installation, with the fix for anything wrong. |
+
+Prerequisites, options and where things are: [Install](docs/install.md#install-from-source).
 
 ## What you get
 
 **Many agents, one window.** Workspaces of one or several repositories, each
-in its own git worktrees, each with as many Claude or Codex conversations as you
-like. The inbox (`]] i`) and `⌘J` take you to whichever needs you next; toasts,
-sounds and notifications tell you when.
+in its own git worktrees, each with as many Claude or Codex conversations as
+you like. The inbox (`]] i`) and `⌘J` take you to whichever needs you next.
 
 **A chat at least as good as the agent's own terminal.** Questions as option
-cards, approvals that show exactly what will run, with *Allow once*, *Always
-allow* and *Deny with a reason*. Tool calls fold into readable lines; sub-agents
-are live cards you can open or stop. [Work in the chat →](docs/guides/chat.md)
+cards, approvals that show exactly what will run, *Send now* to steer a
+working agent, sub-agents as live cards. [Work in the chat →](docs/guides/chat.md)
 
-<img src="docs/images/chat-decisions.webp" width="49%" alt="An agent's question as option cards"> <img src="docs/images/subagents.webp" width="49%" alt="Sub-agent cards with their live step, time and tokens">
+**Verify before you trust.** Review every change in a split diff, comment
+inline, have another agent review it (Codex checks Claude's work, and the
+other way round), undo any turn, then commit, push, open the pull request and
+watch its checks — without leaving the app. [Review an agent's work →](docs/guides/review-agent-work.md)
 
-**Verify before you trust.** Review every change in a split diff, leave inline
-comments the agent receives as one message, have another agent review it
-read-only (Codex checks Claude's work, and the other way round), undo any agent
-turn from its checkpoint, then commit, push, open the pull request, watch its
-checks and merge — without leaving the app. [Review an agent's work →](docs/guides/review-agent-work.md)
-
-<img src="docs/images/agent-review.webp" width="49%" alt="Codex's findings on Claude's change: the Review tray to triage them, a finding's card on its lines"> <img src="docs/images/pr-loop.webp" width="49%" alt="The pull request card with its checks, failing first">
-
-**Missions with evidence, and agents that run agents** *(preview)*. Split a
-goal into tasks across conversations; Lazybox records the runs, commits and
-checks behind each one, so *claimed* and *verified* never look the same. Or let
-one conversation run the mission: it proposes a plan you approve, starts an
-agent per task within a budget and the limits you set, and its agents' approvals
-still come to you. [Missions →](docs/guides/missions.md) · [Let an agent run agents →](docs/guides/orchestrator.md)
-
-<img src="docs/images/orchestrator.webp" width="49%" alt="An orchestrator's conversation and its agents nested under it in the Agents list"> <img src="docs/images/missions.webp" width="49%" alt="The missions board: the orchestrator above the columns, each card with its trust and evidence">
-
-**Run your app per workspace.** A committed `.lazybox/workspace.yaml` gives every
-workspace its setup, its dev server on its own ports, and a Preview beside the
-chat; a Web panel browses docs and PRs in place. [Run your app →](docs/guides/run-your-app.md)
-
-**An agent browser you watch.** Agents get their own Chromium — never your
-Chrome — and you see every step live beside the chat: the page, a cursor on
-what it clicks, an action log. New sites, downloads and sign-ins ask you
-first, even in full access; take it over, give it back or stop it at any
-time. [Agent browser →](docs/guides/agent-browser.md)
-
-<img src="docs/images/workspace-runtime.webp" width="49%" alt="The Actions panel with a dev server running on the workspace's ports"> <img src="docs/images/console-log.webp" width="49%" alt="The console reading three services' output as a log: times, sources with chips, levels and milestones">
+<img src="docs/images/chat-decisions.webp" width="49%" alt="An agent's question as option cards"> <img src="docs/images/agent-review.webp" width="49%" alt="Codex's findings on Claude's change: the Review tray to triage them, a finding's card on its lines">
 
 **Agents outlive everything.** Close the window, restart the Runner, install a
-new build: agents and the commands they started keep running, and Lazybox picks
-them up where they were.
+new build: agents and the commands they started keep running, and Lazybox
+picks them up where they were.
 
-**And:** Gemini CLI, Goose, OpenCode and any other ACP agent as first-class
-conversations ([guide](docs/guides/other-agents.md)) · several subscriptions with automatic switching at a limit
-([guide](docs/guides/subscriptions.md)) · versioned plans and reports as
-[artifacts](docs/guides/artifacts.md) · your phone as a remote, paired by QR
-code over Tailscale *(preview)* ([guide](docs/guides/phone.md)) · light, dark and your own
-themes ([guide](docs/guides/appearance.md)) · voice: hold Right `⌥` (or `⌥Space`) to dictate,
-say commands, hear replies — on-device on the Mac ([guide](docs/guides/voice.md)) · a `lazybox`
-CLI that does what the app does, plus your own actions and hooks in one YAML
-file ([guide](docs/guides/automate.md)) · panels of your own — a board, a dashboard — sandboxed, doing only what you
-allowed ([guide](docs/guides/extensions.md)).
+**And:** versioned plans and reports as [artifacts](docs/guides/artifacts.md) ·
+[voice](docs/guides/voice.md), on-device · a `lazybox` [CLI](docs/reference/cli.md)
+that does what the app does · [extensions](docs/guides/extensions.md), panels
+of your own · [missions](docs/guides/missions.md) and
+[agents that run agents](docs/guides/orchestrator.md) *(preview)* · your
+[phone as a remote](docs/guides/phone.md) *(preview)*.
 
-## Install
+## Known limitations
 
-**[INSTALL.md](docs/install.md)**: the disk image or `brew install --cask
-AntoineToussaint/lazybox/lazybox-v2`, the first run (the background Runner and
-the `lazybox` command), updates, `lazybox doctor` and uninstalling. Building
-from source, for Dev and Working: [Getting started](docs/getting-started.md#build-from-source).
-
-## Quick start
-
-1. **Welcome.** The first launch offers to connect a subscription (your `claude`
-   or `codex` sign-in already works) and to add a repository.
-2. **First workspace:** `]] w`, find your repositories (a local folder, or GitHub
-   with a personal token), select, **Create workspace**.
-3. **First agent:** `]] c`, choose Claude or Codex and *Ask for approval*,
-   **Start**, and type what you want.
-4. **Check its work:** `]] d` opens Changes.
-
-| Key | Does |
-| --- | --- |
-| `⌘K` | Command palette — every action, conversation, workspace and file |
-| `⌘J` / `⇧⌘J` | Next / previous conversation that needs you |
-| `⌘1` … `⌘9` | Go to workspace 1…9 |
-| `]]` | The leader: from the message box, opens a menu of every next key |
-| `?` | All shortcuts, with your keys |
+- **Mac only**, Apple Silicon only. No Windows, Linux or Intel Macs.
+- **No cloud.** The Runner and your agents run on your Mac; nothing is hosted.
+- **The phone is a web page**, reached over [Tailscale](docs/guides/phone.md);
+  there is no phone app.
+- **Gemini CLI, Goose and other ACP agents are a Preview**
+  ([guide](docs/guides/other-agents.md)); Claude Code and Codex are the agents
+  Lazybox is tested with.
+- **Builds from source update with `make -C v2 update`**, not in the app, and are signed
+  for your Mac only.
+- More in the testers' guide: [what not to rely on yet](docs/testers.md#what-not-to-rely-on-yet).
 
 ## Documentation
 
-**[The V2 docs](docs/README.md)** — getting started, concepts, guides,
+**[The docs](docs/README.md)** — [getting started](docs/getting-started.md),
+[the testers' guide](docs/testers.md), concepts, guides,
 [keyboard shortcuts](docs/reference/keyboard-shortcuts.md),
-[the CLI](docs/reference/cli.md),
-[configuration files](docs/reference/configuration.md),
-[troubleshooting](docs/troubleshooting.md) and the [FAQ](docs/faq.md).
+[the CLI](docs/reference/cli.md), [troubleshooting](docs/troubleshooting.md)
+and the [FAQ](docs/faq.md).
+
+## Feedback
+
+**Help → Send feedback…** in the app writes a report you read before it goes
+anywhere, and can open a GitHub issue filled in with it. Or open an
+[issue](https://github.com/AntoineToussaint/lazybox/issues) yourself;
+[SUPPORT.md](../SUPPORT.md) says what to include. Security problems go
+privately, as [SECURITY.md](../SECURITY.md) describes.
 
 ## Contributing
 
-`make -C v2 dev` for a hot-reloading Dev app, `make -C v2 check` before you
-push, `make -C v2 help` for every target. Design notes, audits, the roadmap and
-test evidence are indexed in [internal docs](docs/internal/README.md);
-repository-wide rules are in [AGENTS.md](../AGENTS.md) and
-[CONTRIBUTING.md](../CONTRIBUTING.md). Questions and bugs: [SUPPORT.md](../SUPPORT.md);
-security reports: [SECURITY.md](../SECURITY.md).
+`make -C v2 deps` and `make -C v2 dev` for a hot-reloading Dev app; [CONTRIBUTING.md](../CONTRIBUTING.md)
+has the setup, the tests and the conventions, and [AGENTS.md](../AGENTS.md)
+the rules for coding agents.
+
+## Preview terms
+
+Lazybox is proprietary software: see [LICENSE](../LICENSE). You have this
+preview by invitation, to try it and tell us what you think. Please do not
+share the code or your builds.

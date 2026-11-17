@@ -11,7 +11,7 @@ import type { DefaultTheme } from 'vitepress';
 type Group = { text: string; files: string[]; collapsed?: boolean };
 
 export const groups: Group[] = [
-  { text: 'Start', files: ['README.md', 'getting-started.md', 'install.md', 'concepts.md'] },
+  { text: 'Start', files: ['README.md', 'getting-started.md', 'install.md', 'testers.md', 'concepts.md'] },
   { text: 'Chat and agents', files: ['guides/chat.md', 'guides/ask-lazybox.md', 'guides/activity-detail.md', 'guides/other-agents.md', 'guides/subscriptions.md'] },
   { text: 'Workspaces and layout', files: ['guides/layouts.md', 'guides/run-your-app.md', 'guides/home-checkouts.md', 'guides/agent-browser.md', 'guides/several-runners.md'] },
   { text: 'Review and GitHub', files: ['guides/review-agent-work.md', 'guides/start-from-an-issue.md'] },

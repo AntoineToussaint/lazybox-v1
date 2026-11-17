@@ -13,22 +13,37 @@ Ten minutes from a clone to an agent working in its own workspace.
 
 ## Install
 
-Lazybox is a Mac app for Apple Silicon. Download the disk image from a
-release, drag **Lazybox** to Applications and open it. The first launch
-explains and sets up its background service, the **Runner**, and offers to
-put the `lazybox` command on your PATH. It brings its own Runner, Claude
-worker, Node and Claude Code, which only needs you to sign in; you need `git`,
-and Codex if you use it. Updates arrive in the app. Everything else — where
-things are, unsigned builds, uninstalling — is in [Install](install.md).
+Lazybox is a Mac app for Apple Silicon (macOS 13.5 or later). During the
+preview you build and install it from a clone, with one command:
 
-Releases are on the [releases page](https://github.com/AntoineToussaint/lazybox/releases),
-named *Lazybox x.y.z*. The first ones are prereleases, not yet signed by
-Apple: macOS asks you to confirm the first launch ([Unsigned builds](install.md#unsigned-builds)).
-To work on Lazybox itself, build it from source.
+```sh
+git clone https://github.com/AntoineToussaint/lazybox.git
+cd lazybox
+make -C v2 install
+```
+
+It checks what the build needs (Xcode Command Line Tools, Go, Node.js, Rust)
+and prints the command for anything missing, builds Lazybox (5 to 10
+minutes the first time), installs it in `/Applications`, sets up its
+background service, the **Runner**, puts the `lazybox` command on your PATH,
+and opens the app. Lazybox brings its own Runner, Claude worker, Node and
+Claude Code, which only needs you to sign in; you need `git`, and Codex if you
+use it. `make -C v2 update` gets a newer version, `make -C v2 uninstall`
+removes it. Everything else — the prerequisites, where things are,
+uninstalling — is in [Install](install.md#install-from-source).
+
+Once releases are published on the
+[releases page](https://github.com/AntoineToussaint/lazybox/releases), you can
+install the disk image instead, and updates arrive in the app
+([Install](install.md#install)). To work on Lazybox itself, see
+[Build from source](#build-from-source) below.
 
 ## Build from source
 
-On **macOS** (the desktop app has only been built and tested there).
+This is for working **on** Lazybox: Dev and Working run straight from your
+checkout, each with its own Runner and data. To use Lazybox, `make -C v2 install`
+(above) is all you need. On **macOS** (the desktop app has only been built
+and tested there).
 
 **You need**
 
@@ -79,8 +94,9 @@ Choose **Set up Lazybox**; when it says the Runner is running, choose **Open
 Lazybox**. If another `lazybox` comes first on your PATH, the window says
 what it is and how to fix it; for an older Lazybox installed by Homebrew, it
 offers to remove it (`brew uninstall lazybox`, shown before it runs). More in
-[Install → First run](install.md#first-run). Dev and Working
-skip this window: their launcher runs the Runner.
+[Install → First run](install.md#first-run). `make -C v2 install` has already
+done this, and Dev and Working skip this window too (their launcher runs the
+Runner), so they open straight to the welcome below.
 
 ![The first-run welcome: connect a subscription, start a task, five keys](images/welcome.webp)
 
@@ -187,20 +203,21 @@ both presets, and every key can be changed. The full list is in
 
 ## Use the CLI from your terminal
 
-Everything you do in the window is scriptable with the `lazybox` command. Build
-it once and put it on your `PATH`:
+Everything you do in the window is scriptable with the `lazybox` command. The
+installed app (and `make -C v2 install`) already put it on your `PATH`; open a
+new terminal:
 
 ```sh
-make -C v2 build-go                      # writes v2/bin/lazybox
-export PATH="$PWD/v2/bin:$PATH"          # add to your shell profile to keep it
+lazybox doctor                           # is everything set up, and the fix if not
 lazybox ls                               # workspaces, conversations, live state
 lazybox inbox                            # what needs you
 ```
 
-It finds the running Working or Dev Runner by itself. If you also have an
-older Lazybox installed, mind which `lazybox` comes first on your `PATH`
-(`brew uninstall lazybox` removes one Homebrew installed). Agents always get
-this one. See [the CLI reference](reference/cli.md).
+If you also have an older Lazybox installed, mind which `lazybox` comes first
+on your `PATH` (`brew uninstall lazybox` removes one Homebrew installed).
+Agents always get this one. Working on Lazybox itself? Build the CLI from your
+checkout with `make -C v2 build-go` (it writes `v2/bin/lazybox`); it finds the
+running Working or Dev Runner by itself. See [the CLI reference](reference/cli.md).
 
 ## Next steps
 

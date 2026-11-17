@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Lazybox V2 is pre-release. Security fixes are applied to `main`; there are no
+Lazybox is an early preview. Security fixes are applied to `main`; there are no
 maintained release branches.
 
 ## Reporting a vulnerability
