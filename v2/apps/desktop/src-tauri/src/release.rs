@@ -40,6 +40,14 @@ impl Release {
         self.runtime.join("bin").join("lazybox")
     }
 
+    /// What this release was built from, when `make install` built it from
+    /// a clone (runtime/SOURCE.json, scripts/release/build.mjs --from-source).
+    /// Such a build has no updater: it updates with `make update`.
+    pub fn source(&self) -> Option<SourceBuild> {
+        let text = fs::read_to_string(self.runtime.join("SOURCE.json")).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+
     /// Runs `lazybox <args> --json` and reads its report. A verb that fails
     /// still prints its JSON when it has one (status of a stopped service);
     /// otherwise its message is the error.
@@ -73,6 +81,15 @@ pub fn run_json(cli: &Path, args: &[&str]) -> Result<Value, String> {
     } else {
         message
     })
+}
+
+/// runtime/SOURCE.json: the commit and the checkout a build from source came from.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SourceBuild {
+    pub commit: String,
+    pub dirty: bool,
+    pub checkout: String,
 }
 
 /// `lazybox service status --json`.
@@ -299,6 +316,8 @@ pub struct AppInfo {
     channel: String,
     updater: bool,
     cli: String,
+    /// Set for a build from source (`make install`), which updates with `make update`.
+    source: Option<SourceBuild>,
 }
 
 #[tauri::command]
@@ -312,6 +331,7 @@ pub fn app_info(app: tauri::AppHandle) -> AppInfo {
             app.config().identifier.clone()
         },
         updater: crate::updates::configured(app.config()),
+        source: release.as_ref().and_then(Release::source),
         cli: release
             .map(|r| r.cli().display().to_string())
             .unwrap_or_default(),
@@ -370,6 +390,30 @@ mod tests {
         fs::write(dir.path().join("VERSION"), "1.2.3\n").expect("version");
         let r = Release::at(dir.path().to_path_buf()).expect("release");
         assert_eq!(r.version, "1.2.3");
+        // A downloaded release says nothing about a checkout.
+        assert_eq!(r.source(), None);
+    }
+
+    #[test]
+    fn a_build_from_source_names_its_commit_and_checkout() {
+        let dir = tempfile::tempdir().expect("dir");
+        fs::create_dir_all(dir.path().join("bin")).expect("bin");
+        fs::write(dir.path().join("bin").join("lazybox"), "").expect("cli");
+        fs::write(dir.path().join("VERSION"), "1.2.3\n").expect("version");
+        fs::write(
+            dir.path().join("SOURCE.json"),
+            r#"{"commit":"abc123","dirty":true,"checkout":"/Users/me/lazybox","builtAt":"2026-11-17T10:00:00Z"}"#,
+        )
+        .expect("source");
+        let r = Release::at(dir.path().to_path_buf()).expect("release");
+        assert_eq!(
+            r.source(),
+            Some(SourceBuild {
+                commit: "abc123".into(),
+                dirty: true,
+                checkout: "/Users/me/lazybox".into()
+            })
+        );
     }
 
     #[test]

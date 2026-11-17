@@ -7,6 +7,7 @@ import { useAppUpdate } from './app-update';
 import { openOnboarding } from './Onboarding';
 import { Icon } from './Icons';
 import { agentCliStatus } from './lazybox-cli';
+import { updatePath } from './update-model';
 import './about.css';
 
 /**
@@ -28,11 +29,12 @@ export function AboutSettings({ app, onShowUpdates }: { app?: AppHost; onShowUpd
   }, [api, revision]);
   const release = info?.channel === 'release';
   const mismatch = release && runnerVersion && info && runnerVersion !== info.version;
+  const path = updatePath(info);
   return <>
-    <SettingsHeader title="About Lazybox" description={release ? 'This app, its Runner and the lazybox command are one release and update together.' : 'A development build: it updates through make -C v2 stage and promote, not by itself.'}
+    <SettingsHeader title="About Lazybox" description={path.kind === 'source' ? `This app, its Runner and the lazybox command are one build. ${path.text}` : release ? 'This app, its Runner and the lazybox command are one release and update together.' : path.text}
       actions={<button onClick={() => openOnboarding('whats-new')}><Icon name="notes" size={14}/> What's new</button>}/>
     <SettingsGroup title="Version">
-      <SettingsRow label="Lazybox" description={release ? 'The installed app' : info ? `Build ${info.channel}` : 'In a browser, the app version is the Runner\'s'}>
+      <SettingsRow label="Lazybox" description={path.kind === 'source' ? `Built from source${path.commit ? ` at ${path.commit}` : ''}` : release ? 'The installed app' : info ? `Build ${info.channel}` : 'In a browser, the app version is the Runner\'s'}>
         <span className="about-version">{info?.version || '—'}</span>
       </SettingsRow>
       <SettingsRow label="Runner" description={mismatch ? 'Different from the app: it moves to the app\'s version when the app next starts.' : 'The background service your agents run in'}>

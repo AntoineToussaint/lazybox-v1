@@ -24,9 +24,16 @@ let pending: Feed | undefined;
 declare global { interface Window { fixtureOpened: string[]; fixtureRevealed: string[] } }
 window.fixtureOpened = []; window.fixtureRevealed = [];
 
+// ?source=1: a build from source (make install), which has no updater: the
+// native side refuses a check without asking the network, as updates.rs does.
+const source = params.get('source') === '1';
+
 const app: AppHost = {
-  info: async () => ({ version, channel: 'release', updater: true, cli: '/Applications/Lazybox.app/Contents/Resources/runtime/bin/lazybox' }),
+  info: async () => source
+    ? { version, channel: 'release', updater: false, cli: '/Applications/Lazybox.app/Contents/Resources/runtime/bin/lazybox', source: { commit: '0123456789abcdef0123456789abcdef01234567', dirty: false, checkout: '/Users/tester/lazybox' } }
+    : { version, channel: 'release', updater: true, cli: '/Applications/Lazybox.app/Contents/Resources/runtime/bin/lazybox' },
   async checkForUpdate() {
+    if (source) throw fail('unavailable', 'This build of Lazybox does not update itself');
     let response: Response;
     try { response = await fetch('/fixture-feed/latest.json', { cache: 'no-store' }); } catch (error) { throw fail('offline', String(error)); }
     // The test answers 599 for "no network": what the updater reports as a connection error.

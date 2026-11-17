@@ -37,6 +37,11 @@ export type AppInfo = {
   updater: boolean;
   /** The bundled `lazybox` CLI, for an installed release. */
   cli: string;
+  /**
+   * Set when `make install` built this release from a clone: the commit and
+   * the checkout. Such a build has no updater; it updates with `make update`.
+   */
+  source?: { commit: string; dirty: boolean; checkout: string } | null;
 };
 /** One section of the release notes, as CHANGELOG.md writes it (an id, a date, a title, items). */
 export type UpdateRelease = { id: string; date: string; title: string; items: { title: string; body: string }[] };

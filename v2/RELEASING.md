@@ -102,6 +102,30 @@ through `node_modules` on disk (`scripts/release/packages.mjs`), not from
 `npm ls --parseable`, whose output hides a UUID-looking path segment (a
 worktree, a CI checkout) as `***`.
 
+### Built from source (`make install`)
+
+`make -C v2 install` (`scripts/release/install.mjs`) builds the same app with
+`build.mjs --from-source`: ad-hoc signed whatever `APPLE_*` secrets are set,
+**no updater** (no feed, no key, no updater archive, so the app never offers
+an update it could not install), no disk image, cask or checksums, and a
+`runtime/SOURCE.json` naming the commit and checkout, which Settings →
+Updates and About show with *update with make update*. The version is the
+newest one `CHANGELOG.md` names. It then copies `Lazybox.app` to `PREFIX`,
+runs the bundled `lazybox service install` and `lazybox link` (what the
+first launch does) and opens the app. Measured on an M-series Mac with four
+build jobs: about 5 minutes from a fresh clone (Rust 3½ of them); the clone
+then holds about 4.4 GB (`node_modules` 1 GB, `.cache/release` 3.4 GB) and the
+app is 600 MB.
+
+To qualify it without touching a real installation, run it with a scratch
+`HOME` (and `CFFIXED_USER_HOME`), `LAZYBOX_SERVICE_LABEL=<a test label>`,
+`SHELL=/bin/bash` (zsh completions go to Homebrew's shared
+`site-functions`, outside `HOME`), `PREFIX=<scratch>`, `LINK_DIR=<scratch>`
+and `OPEN=0`, keeping `RUSTUP_HOME`, `CARGO_HOME` and `GOPATH` pointed at the
+real toolchains. The app keeps the release identity (`ai.lazybox.app`), whose
+single-instance socket is shared with an installed copy, so look at its
+window from a build whose `identifier` you changed.
+
 ### Why Node is bundled
 
 The worker needs Node 24 or later. A launchd job starts with

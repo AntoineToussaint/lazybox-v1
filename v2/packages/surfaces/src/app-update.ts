@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import type { AppHost, AvailableUpdate, UpdateErrorKind, ViewStateStore } from '@lazybox/platform';
 import { PREFERENCE_EVENT, readPreference, writePreference } from './view-state';
-import { automaticCheckDue, offerState, readUpdatePreferences, remindValue, updateErrorText, UPDATE_PREFERENCES, type InstallProgress, type OfferState, type UpdatePreferences } from './update-model';
+import { automaticCheckDue, offerState, updatePath, readUpdatePreferences, remindValue, updateErrorText, UPDATE_PREFERENCES, type InstallProgress, type OfferState, type UpdatePreferences } from './update-model';
 
 /**
  * One update state for the whole window, shared by the header's notice,
@@ -114,10 +114,15 @@ export function useAppUpdate(app: AppHost | undefined): AppUpdate {
     return () => { window.removeEventListener(PREFERENCE_EVENT, changed); clearInterval(minute); };
   }, []);
   useEffect(() => {
-    if (!app?.checkForUpdate || timer) return;
+    if (!app?.checkForUpdate || timer || timerApp) return;
     timerApp = app;
-    tick();
-    timer = setInterval(tick, 60_000);
+    // Only a build that updates itself checks: a build from source (make
+    // update) or a development build never asks the feed on its own.
+    void app.info().then(info => {
+      if (timerApp !== app || timer || updatePath(info).kind !== 'updater') return;
+      tick();
+      timer = setInterval(tick, 60_000);
+    }, () => {});
   }, [app]);
   return value;
 }

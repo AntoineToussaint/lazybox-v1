@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentsNotice, automaticCheckDue, lastCheckedText, CHECK_EVERY_MS, compareVersions, isNewer, offerState, postUpdateDecision, progressFraction, progressText, readUpdatePreferences, releasesSince, remindValue, REMIND_LATER_MS, updateErrorText, UPDATE_PREFERENCES, versionAgreement } from '../packages/surfaces/src/update-model.ts';
+import { agentsNotice, automaticCheckDue, lastCheckedText, CHECK_EVERY_MS, compareVersions, isNewer, offerState, postUpdateDecision, progressFraction, progressText, readUpdatePreferences, releasesSince, remindValue, REMIND_LATER_MS, updateErrorText, UPDATE_PREFERENCES, updatePath, versionAgreement } from '../packages/surfaces/src/update-model.ts';
 
 const update = (version: string, extra = {}) => ({ version, current: '0.1.0', notes: '', date: '2026-12-01 10:00:00.0 +00:00:00', ...extra });
 const prefs = (values: Record<string, string> = {}) => readUpdatePreferences(name => values[name]);
@@ -130,4 +130,17 @@ test('the last check reads as a time a person understands', () => {
   assert.equal(lastCheckedText(now - 60_000, now), 'Checked 1 minute ago');
   assert.match(lastCheckedText(now - 3 * 3_600_000, now), /^Checked today at /);
   assert.match(lastCheckedText(now - 24 * 3_600_000, now), /^Checked yesterday at /);
+});
+
+test('a build from source says how it updates, and never that it checks a feed', () => {
+  const source = updatePath({ channel: 'release', updater: false, source: { commit: '0123456789abcdef0123', dirty: false, checkout: '/Users/me/lazybox' } });
+  assert.equal(source.kind, 'source');
+  assert.match(source.text, /^Built from source; update with make update in \/Users\/me\/lazybox\./);
+  assert.equal(source.commit, '0123456789ab');
+  assert.equal(updatePath({ channel: 'release', updater: false, source: { commit: 'abc', dirty: true, checkout: '' } }).commit, 'abc, with uncommitted changes');
+  // Even a source build that somehow carried an updater updates with make update.
+  assert.equal(updatePath({ channel: 'release', updater: true, source: { commit: '', dirty: false, checkout: '' } }).kind, 'source');
+  assert.equal(updatePath({ channel: 'release', updater: true, source: null }).kind, 'updater');
+  assert.equal(updatePath({ channel: 'ai.lazybox.v2.working', updater: false }).kind, 'development');
+  assert.equal(updatePath(undefined).kind, 'browser');
 });

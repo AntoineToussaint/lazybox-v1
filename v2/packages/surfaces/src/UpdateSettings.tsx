@@ -7,7 +7,7 @@ import { checkForUpdate, setAutomaticChecks, stopSkipping, useAppUpdate } from '
 import { UpdateDialog } from './UpdateDialog';
 import { Icon } from './Icons';
 import { agentCliStatus } from './lazybox-cli';
-import { lastCheckedText, progressText, versionAgreement } from './update-model';
+import { lastCheckedText, progressText, updatePath, versionAgreement, type UpdatePath } from './update-model';
 import './about.css';
 import './updates.css';
 
@@ -35,7 +35,8 @@ export function UpdateSettings({ app }: { app?: AppHost }) {
     return () => control.abort();
   }, [api, revision]);
   const release = info?.channel === 'release';
-  const updater = !!info?.updater && !!app?.checkForUpdate;
+  const path = updatePath(info);
+  const updater = path.kind === 'updater' && !!app?.checkForUpdate;
   const available = update.available;
   const agreement = versionAgreement({ release, app: info?.version || '', runner: runnerVersion ?? '' });
   const cli = agentCli ? agentCliStatus(agentCli) : undefined;
@@ -45,10 +46,9 @@ export function UpdateSettings({ app }: { app?: AppHost }) {
   };
   const checkError = update.error?.phase === 'check' ? update.error : undefined;
   return <>
-    <SettingsHeader title="Updates" description={updater
-      ? 'Lazybox tells you when a new version is out and installs it only when you say so.'
-      : info ? `This is a development build (${info.channel}): it updates through make -C v2 stage and promote, not by itself.` : 'Updates come with the Lazybox app for Mac; this window is not the app.'}
+    <SettingsHeader title="Updates" description={path.text}
       actions={updater ? <button disabled={update.checking || !!update.installing} onClick={() => void checkForUpdate(app)}><Icon name="refresh" size={14}/> {update.checking ? 'Checking…' : 'Check now'}</button> : undefined}/>
+    {path.kind === 'source' && <SourceBuildGroup path={path}/>}
     {updater && <SettingsGroup title="This Mac" className="update-status-group">
       <div className={`update-status tone-${checkError ? 'warn' : available && update.offer !== 'none' ? 'new' : 'ok'}`} role="status" aria-live="polite">
         <span className="update-status-icon" aria-hidden="true"><Icon name={checkError ? 'alert' : available ? 'download' : 'check'} size={18}/></span>
@@ -108,4 +108,16 @@ export function UpdateSettings({ app }: { app?: AppHost }) {
     </SettingsGroup>
     {dialog && available && <UpdateDialog app={app} update={available} onClose={() => setDialog(false)}/>}
   </>;
+}
+
+/** A build from source (`make install`): which commit, and how to get a newer one. */
+export function SourceBuildGroup({ path }: { path: UpdatePath }) {
+  return <SettingsGroup title="Built from source" className="update-rows">
+    <SettingsRow label="Update" description="In a terminal, in the folder you cloned: pulls the newest commit, builds it and reinstalls. Your conversations and settings are kept; running agents keep running.">
+      <code className="about-version">make update</code>
+    </SettingsRow>
+    {path.commit && <SettingsRow label="Commit" description="The commit this copy was built from">
+      <span className="about-version">{path.commit}</span>
+    </SettingsRow>}
+  </SettingsGroup>;
 }

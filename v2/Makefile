@@ -16,7 +16,7 @@ WORKSPACE_MANIFESTS := $(wildcard apps/*/package.json packages/*/package.json wo
 
 .PHONY: help deps generate check check-go check-workspaces build build-go build-worker build-web test test-real test-browser fmt fmt-check run web
 help:
-	@printf '%s\n' 'make dev        Build and run isolated Lazybox Dev' 'make stage      Validate and freeze a Working candidate' 'make promote RELEASE=<id>  Pin a candidate for the next Working launch' 'make working    Run the pinned Working installation' 'make run        Run the Codefly gRPC Runner with temporary ports' 'make desktop    Build and launch the native Tauri agent window' 'make web        Optional browser test client (prints its authenticated URL)' 'make check      Format, vet, typecheck, test, generated-code and workspace checks' 'make check-desktop Native Rust format, tests, and clippy' 'make test       Deterministic Go tests' 'make test-outlive  Race-checked tests that agents and commands outlive a Runner restart' 'make stress-go RUN=<test>  Repeat Go tests under GOMAXPROCS=1, -race and CPU load' 'make stress-ui SUITES=<names>  Repeat UI suites, several at once' 'make test-real  Explicit real-provider tests; requires existing provider login' 'make build      Compile the Runner, test CLI, SDK worker, and browser client' 'make browser    Install the Chromium the agent browser runs (BROWSER.md)'
+	@printf '%s\n' 'make install    Build Lazybox from this clone and install it (make update, make uninstall)' 'make dev        Build and run isolated Lazybox Dev' 'make stage      Validate and freeze a Working candidate' 'make promote RELEASE=<id>  Pin a candidate for the next Working launch' 'make working    Run the pinned Working installation' 'make run        Run the Codefly gRPC Runner with temporary ports' 'make desktop    Build and launch the native Tauri agent window' 'make web        Optional browser test client (prints its authenticated URL)' 'make check      Format, vet, typecheck, test, generated-code and workspace checks' 'make check-desktop Native Rust format, tests, and clippy' 'make test       Deterministic Go tests' 'make test-outlive  Race-checked tests that agents and commands outlive a Runner restart' 'make stress-go RUN=<test>  Repeat Go tests under GOMAXPROCS=1, -race and CPU load' 'make stress-ui SUITES=<names>  Repeat UI suites, several at once' 'make test-real  Explicit real-provider tests; requires existing provider login' 'make build      Compile the Runner, test CLI, SDK worker, and browser client' 'make browser    Install the Chromium the agent browser runs (BROWSER.md)'
 
 # The agent browser's Chromium (BROWSER.md): Playwright's own headless build,
 # in Playwright's cache, matched to the pinned playwright-core. Never the
@@ -126,7 +126,7 @@ environments:
 share-subscriptions:
 	node scripts/environments.mjs share-subscriptions '$(SUBSCRIPTION_STATE)'
 test-environments:
-	node --test scripts/environments.test.mjs scripts/runner-service.test.mjs scripts/runner-restart.test.mjs scripts/release-gates.test.mjs scripts/user-config.test.mjs scripts/release/release.test.mjs
+	node --test scripts/environments.test.mjs scripts/runner-service.test.mjs scripts/runner-restart.test.mjs scripts/release-gates.test.mjs scripts/user-config.test.mjs scripts/release/release.test.mjs scripts/release/install.test.mjs
 	bash scripts/release/publish-cask_test.sh
 
 # An installable release (RELEASING.md): dist/$(VERSION)/ with the DMG, the
@@ -137,6 +137,33 @@ test-environments:
 .PHONY: release release-smoke release-notes
 release: deps
 	node scripts/release/build.mjs --version '$(VERSION)' $(if $(filter 1,$(GATES)),--gates) $(if $(filter 1,$(LAUNCHD)),--launchd) $(RELEASE_FLAGS)
+# Install from a clone (docs/install.md#install-from-source): checks what the
+# build needs and says how to get anything missing, builds the app from
+# source (ad-hoc signed, no updater, no secrets), puts it in PREFIX
+# (/Applications by default), sets up the Runner service and links the
+# lazybox command, as the app's first launch does. make update pulls and
+# reinstalls; make uninstall keeps your data unless PURGE=1.
+# PREFIX counts only on the command line: an exported PREFIX meant for
+# another tool must not move the app. The build uses every core
+# (INSTALL_JOBS), not the one-job default this Makefile keeps for shared
+# build machines.
+INSTALL_JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
+INSTALL_ENV = PREFIX='$(if $(filter command line,$(origin PREFIX)),$(PREFIX))' LINK_DIR='$(LINK_DIR)' OPEN='$(OPEN)' SMOKE='$(SMOKE)' PURGE='$(PURGE)' CARGO_BUILD_JOBS='$(INSTALL_JOBS)' GOMAXPROCS='$(INSTALL_JOBS)' GOFLAGS='-p=$(INSTALL_JOBS)'
+NEED_NODE = command -v node >/dev/null 2>&1 || { echo 'Node.js is missing: install Node.js 24 or later (brew install node, or https://nodejs.org), then run make install again.'; exit 1; }
+.PHONY: install uninstall update install-check
+install:
+	@$(NEED_NODE)
+	@$(INSTALL_ENV) node scripts/release/install.mjs install
+install-check:
+	@$(NEED_NODE)
+	@node scripts/release/install.mjs check
+uninstall:
+	@$(NEED_NODE)
+	@$(INSTALL_ENV) node scripts/release/install.mjs uninstall
+update:
+	git pull --ff-only
+	@$(MAKE) install
+
 # The smoke tests against an already built app: RUNTIME=<Lazybox.app>/Contents/Resources/runtime
 release-smoke:
 	cd $(GO_ROOT) && LAZYBOX_V2_RELEASE_RUNTIME='$(abspath $(RUNTIME))' $(if $(filter 1,$(LAUNCHD)),LAZYBOX_V2_RELEASE_LAUNCHD=1) go test -count=1 -timeout 5m -v -run '^TestRelease' ./cmd/lazybox

@@ -197,8 +197,35 @@ try {
     await expect(page.getByRole('tabpanel', { name: 'Updates' }).locator('.update-status')).toContainText('Lazybox 0.2.0 is available');
     assert.equal(state.requests, before + 1);
 
+    // (k) A build from source (make install): no updater, so nothing is
+    // checked or offered, even with a newer version on the feed; Updates and
+    // About say how it updates instead.
+    state.feed = feed();
+    const quiet = state.requests;
+    await page.goto(`${url('0.1.0')}&source=1`);
+    await expect(page.locator('.workspace-header')).toBeVisible();
+    await page.waitForTimeout(1200);
+    await expect(notice(page)).toHaveCount(0);
+    const sourcePanel = await openUpdates(page);
+    await expect(sourcePanel).toContainText('Built from source; update with make update in /Users/tester/lazybox.');
+    await expect(sourcePanel.locator('code', { hasText: 'make update' })).toBeVisible();
+    await expect(sourcePanel).toContainText('0123456789ab');
+    await expect(sourcePanel.getByRole('button', { name: 'Check now' })).toHaveCount(0);
+    await expect(sourcePanel.getByRole('switch', { name: 'Check automatically' })).toHaveCount(0);
+    if (scheme === 'dark') await page.screenshot({ path: '.cache/updates-source-dark.png' });
+    await page.getByRole('tab', { name: 'About' }).click();
+    const about = page.getByRole('tabpanel', { name: 'About' });
+    await expect(about).toContainText('Built from source at 0123456789ab');
+    await expect(about.getByRole('button', { name: 'Updates…' })).toHaveCount(0);
+    // Help → Check for updates… only shows how it updates.
+    await page.locator('summary[aria-label="Help"]').click();
+    await page.getByRole('button', { name: 'Check for updates…', exact: true }).click();
+    await expect(page.getByRole('tabpanel', { name: 'Updates' })).toContainText('update with make update');
+    await expect(notice(page)).toHaveCount(0);
+    assert.equal(state.requests, quiet, 'a build from source never asks the update feed');
+
     assert.deepEqual(errors, []);
     await context.close();
   }
-  console.log('PASS Updates: offered never forced, skip and remind, automatic off, offline and signature errors, running-agents warning, install and post-update notice, version mismatch fix.');
+  console.log('PASS Updates: offered never forced, skip and remind, automatic off, offline and signature errors, running-agents warning, install and post-update notice, version mismatch fix, a build from source that never checks.');
 } finally { await browser?.close(); await server.close(); await fixture.close(); }

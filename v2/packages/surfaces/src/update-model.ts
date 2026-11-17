@@ -5,7 +5,7 @@
  * is never offered again, and Remind me later means a day of quiet.
  * Rendering is in UpdateSettings.tsx; the shared check state in app-update.ts.
  */
-import type { AvailableUpdate, UpdateErrorKind, UpdateProgress, UpdateRelease } from '@lazybox/platform';
+import type { AppInfo, AvailableUpdate, UpdateErrorKind, UpdateProgress, UpdateRelease } from '@lazybox/platform';
 
 /** Preference names (view-state.ts `readPreference` / `writePreference`), app-wide. */
 export const UPDATE_PREFERENCES = {
@@ -232,4 +232,23 @@ export function versionAgreement({ release, app, runner }: { release: boolean; a
       : `The Runner is ${runner}, newer than this app (${app}): another copy of Lazybox installed it. Move the Runner puts it back on this app's version (agents keep running), or update this app.`,
     canMove: true,
   };
+}
+
+/**
+ * How this copy of Lazybox gets new versions, for Settings → Updates and
+ * About. A build from source (`make install`) has no updater and never
+ * checks a feed: it updates with `make update` in the checkout it was built
+ * from. Dev and Working move through stage and promote. Only a downloaded
+ * release (`updater`) updates itself.
+ */
+export type UpdatePath = { kind: 'updater' | 'source' | 'development' | 'browser'; text: string; commit?: string };
+export function updatePath(info: Pick<AppInfo, 'channel' | 'updater' | 'source'> | undefined): UpdatePath {
+  if (!info) return { kind: 'browser', text: 'Updates come with the Lazybox app for Mac; this window is not the app.' };
+  if (info.source) {
+    const commit = info.source.commit ? info.source.commit.slice(0, 12) + (info.source.dirty ? ', with uncommitted changes' : '') : undefined;
+    const where = info.source.checkout ? ` in ${info.source.checkout}` : '';
+    return { kind: 'source', commit, text: `Built from source; update with make update${where}. Lazybox does not check for updates by itself.` };
+  }
+  if (info.updater) return { kind: 'updater', text: 'Lazybox tells you when a new version is out and installs it only when you say so.' };
+  return { kind: 'development', text: `A development build (${info.channel}): it updates through make stage and make promote, not by itself.` };
 }

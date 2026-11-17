@@ -2,6 +2,7 @@
 //
 //   make -C v2 release VERSION=0.1.0            # what CI runs on a v2-v0.1.0 tag
 //   node scripts/release/build.mjs --version 0.1.0 [--gates] [--skip-smoke] [--publishable]
+//   node scripts/release/build.mjs --from-source [--version 0.1.0] [--skip-smoke]
 //
 // Output, in dist/<version>/ beside the Makefile:
 //   Lazybox_<version>_aarch64.dmg               the disk image (drag to Applications)
@@ -19,7 +20,14 @@
 // The updater key: TAURI_SIGNING_PRIVATE_KEY with packaging/updater.pub, or
 // (never with --publishable) a throwaway key generated under .cache for a
 // local build, which no installed app trusts.
-import { spawn } from 'node:child_process';
+//
+// --from-source is what `make install` builds (scripts/source-install.mjs):
+// the app alone, ad-hoc signed whatever secrets are in the environment, with
+// no updater at all (no key, no feed: it updates with `make update`), and a
+// runtime/SOURCE.json naming the commit and checkout it was built from. No
+// disk image, feed, cask or checksums. The version defaults to the newest
+// one CHANGELOG.md names.
+import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -101,19 +109,43 @@ export function bundleVersion(version) {
   return `${major}.${minor}.${Number(patch) * 1000 + n}`;
 }
 
-/** The Tauri configuration merged over tauri.conf.json for this release. */
-export function tauriReleaseConfig(base, { version, runtimeDir, notices, identity, pubkey }) {
+/**
+ * The Tauri configuration merged over tauri.conf.json for this release. A
+ * build from source (`source`) has no updater: no feed, no key, no updater
+ * archive, so the app never offers an update it could not install.
+ */
+export function tauriReleaseConfig(base, { version, runtimeDir, notices, identity, pubkey, source = false }) {
   const { $comment, ...config } = structuredClone(base);
   config.version = version;
   const resources = { [runtimeDir.replace(/\/?$/, '/')]: 'runtime/', ...(notices ? { [notices]: NOTICES_FILE } : {}) };
   config.bundle = { ...config.bundle, resources, macOS: { ...config.bundle?.macOS, bundleVersion: bundleVersion(version), signingIdentity: identity } };
-  config.plugins = { ...config.plugins, updater: { ...config.plugins?.updater, pubkey } };
+  if (source) {
+    config.bundle.createUpdaterArtifacts = false;
+    const { updater, ...plugins } = config.plugins || {};
+    config.plugins = plugins;
+  } else {
+    config.plugins = { ...config.plugins, updater: { ...config.plugins?.updater, pubkey } };
+  }
   return config;
+}
+
+/** The version a build from source carries: the newest released version CHANGELOG.md names. */
+export function sourceVersion(releases) {
+  const found = releases.find(r => versionPattern.test(r.id))?.id;
+  if (!found) throw new Error('CHANGELOG.md names no version (## [x.y.z] - date · title)');
+  return found;
+}
+
+/** runtime/SOURCE.json: what a build from source was built from, for About and `make update`. */
+export function sourceManifest({ commit, dirty, checkout, date = new Date() }) {
+  return { commit: commit || '', dirty: !!dirty, checkout, builtAt: date.toISOString().replace(/\.\d{3}Z$/, 'Z') };
 }
 
 // ---- the pipeline ----
 
 const cache = join(root, '.cache', 'release');
+/** Where the Tauri build leaves the app (make install copies it from here). */
+export const builtApp = join(cache, 'target', 'release', 'bundle', 'macos', 'Lazybox.app');
 const buildEnv = { ...process.env, CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS || '4', GOMAXPROCS: process.env.GOMAXPROCS || '4', GOFLAGS: process.env.GOFLAGS || '-p=4' };
 
 function step(title) { console.log(`\n▸ ${title}`); }
@@ -136,7 +168,7 @@ async function sha256(path) {
 async function exists(path) { try { await access(path); return true; } catch { return false; } }
 
 function parseArgs(argv) {
-  const options = { version: process.env.VERSION || '', gates: false, smoke: true, publishable: false, launchd: process.env.LAZYBOX_V2_RELEASE_LAUNCHD === '1' };
+  const options = { version: process.env.VERSION || '', gates: false, smoke: true, publishable: false, source: false, launchd: process.env.LAZYBOX_V2_RELEASE_LAUNCHD === '1' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--version') options.version = argv[++i] || '';
@@ -144,8 +176,11 @@ function parseArgs(argv) {
     else if (a === '--skip-smoke') options.smoke = false;
     else if (a === '--publishable') options.publishable = true;
     else if (a === '--launchd') options.launchd = true;
+    else if (a === '--from-source') options.source = true;
     else throw new Error(`Unknown option ${a}`);
   }
+  if (options.source && options.publishable) throw new Error('--from-source builds are never published');
+  if (options.source && !options.version) return options;
   if (!versionPattern.test(options.version)) throw new Error('Pass the release version: make -C v2 release VERSION=x.y.z');
   return options;
 }
@@ -291,22 +326,29 @@ async function notarize(path, plan) {
   await run('xcrun', ['stapler', 'staple', path]);
 }
 
+/** A git answer about this checkout, or '' outside one. */
+function gitText(args) {
+  const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+  return result.status === 0 ? result.stdout.trim() : '';
+}
+
 async function main() {
   if (process.platform !== 'darwin') throw new Error('Releases are built on macOS');
   const options = parseArgs(process.argv.slice(2));
-  const { version } = options;
-  const plan = signingPlan(process.env);
+  const releases = await readChangelog();
+  const version = options.version || sourceVersion(releases);
+  // A build from source never signs with what happens to be in the environment.
+  const plan = signingPlan(options.source ? {} : process.env);
   const names = artifactNames(version);
   const out = join(root, 'dist', version);
   const stage = join(cache, 'stage', version);
   const runtime = join(stage, 'runtime');
-  console.log(`Lazybox ${version} for macOS (${ARCH.file})`);
-  console.log(`  Signing: ${plan.signed ? `Developer ID (${plan.identity})` : 'ad-hoc (no APPLE_SIGNING_IDENTITY): an unsigned build'}`);
-  console.log(`  Notarization: ${plan.notarize ? plan.notarizeWith : 'none'}`);
+  console.log(`Lazybox ${version} for macOS (${ARCH.file})${options.source ? ', built from source' : ''}`);
+  console.log(`  Signing: ${plan.signed ? `Developer ID (${plan.identity})` : options.source ? 'ad-hoc, for this Mac' : 'ad-hoc (no APPLE_SIGNING_IDENTITY): an unsigned build'}`);
+  if (!options.source) console.log(`  Notarization: ${plan.notarize ? plan.notarizeWith : 'none'}`);
   if (options.publishable && !plan.signed) console.log('  This release will be published as UNSIGNED: macOS asks people to confirm before opening it.');
 
   step('Release notes');
-  const releases = await readChangelog();
   if (await readFile(releaseNotesPath, 'utf8') !== renderReleaseNotes(releases)) throw new Error('packages/surfaces/src/release-notes.ts does not match CHANGELOG.md: run node scripts/release/changelog.mjs --write and commit');
   const prerelease = version.includes('-');
   const noteVersion = releases.some(r => r.id === version) ? version : prerelease ? releases.find(r => versionPattern.test(r.id))?.id : undefined;
@@ -315,7 +357,7 @@ async function main() {
   const unfolded = noteVersion === version ? unfoldedAbove(releases, version) : [];
   if (unfolded.length) throw new Error(`CHANGELOG.md has dated sections above ${version}'s (${unfolded.join(', ')}), which its release notes would leave out: fold them into its section, then node scripts/release/changelog.mjs --write`);
 
-  const key = await updaterKey(options.publishable);
+  const key = options.source ? { pubkey: undefined, env: {}, kind: 'none' } : await updaterKey(options.publishable);
 
   if (options.gates) {
     step('Release gates (scripts/release-gates.json)');
@@ -336,6 +378,11 @@ async function main() {
   const docs = join(root, 'docs');
   await cp(docs, join(runtime, 'docs'), { recursive: true, filter: source => { const rel = relative(docs, source); return !rel.startsWith('internal') && !rel.startsWith('images') && (!rel || rel.endsWith('.md') || !rel.includes('.')); } });
   await writeFile(join(runtime, 'VERSION'), version + '\n');
+  if (options.source) {
+    const commit = gitText(['rev-parse', 'HEAD']);
+    const dirty = !!gitText(['status', '--porcelain', '--untracked-files=no']);
+    await writeFile(join(runtime, 'SOURCE.json'), JSON.stringify(sourceManifest({ commit, dirty, checkout: root }), null, 2) + '\n');
+  }
   for (const exe of ['bin/lazybox', 'bin/lazybox-runner', 'node/bin/node']) await chmod(join(runtime, exe), 0o755);
   console.log(`  Node ${nodeVersion}, ${packages} worker packages`);
   const signatures = await signRuntime(runtime, plan);
@@ -352,7 +399,7 @@ async function main() {
   await run('npm', ['run', 'build:ui', '-w', '@lazybox/desktop']);
   const base = JSON.parse(await readFile(join(root, 'packaging/release.tauri.json'), 'utf8'));
   const configPath = join(stage, 'tauri.release.json');
-  await writeFile(configPath, JSON.stringify(tauriReleaseConfig(base, { version, runtimeDir: runtime, notices, identity: plan.identity, pubkey: key.pubkey }), null, 2));
+  await writeFile(configPath, JSON.stringify(tauriReleaseConfig(base, { version, runtimeDir: runtime, notices, identity: plan.identity, pubkey: key.pubkey, source: options.source }), null, 2));
   const target = join(cache, 'target');
   const tauriEnv = { ...buildEnv, ...key.env, CARGO_TARGET_DIR: target };
   for (const name of ['APPLE_SIGNING_IDENTITY', 'APPLE_ID', 'APPLE_PASSWORD', 'APPLE_APP_PASSWORD', 'APPLE_TEAM_ID', 'APPLE_API_KEY', 'APPLE_API_ISSUER', 'APPLE_API_KEY_PATH', 'APPLE_CERTIFICATE', 'APPLE_CERTIFICATE_PASSWORD']) delete tauriEnv[name];
@@ -367,6 +414,12 @@ async function main() {
   if (plan.notarize) {
     await run('xcrun', ['stapler', 'validate', app]);
     await run('spctl', ['--assess', '--type', 'exec', '-vv', app]);
+  }
+
+  if (options.source) {
+    if (options.smoke) await smoke(app, options);
+    console.log(`\n✓ Lazybox ${version} built from source: ${app}`);
+    return;
   }
 
   step('Disk image');
@@ -403,15 +456,17 @@ async function main() {
   };
   await writeFile(join(out, names.manifest), JSON.stringify(manifest, null, 2) + '\n');
 
-  if (options.smoke) {
-    step('Smoke test: the built Runner and CLI');
-    const smokeEnv = { ...buildEnv, LAZYBOX_V2_RELEASE_RUNTIME: join(app, 'Contents', 'Resources', 'runtime'), ...(options.launchd ? { LAZYBOX_V2_RELEASE_LAUNCHD: '1' } : {}) };
-    await run('go', ['test', '-count=1', '-timeout', '5m', '-v', '-run', '^TestRelease', './cmd/lazybox'], { cwd: join(root, 'services/runner/code'), env: smokeEnv });
-  }
+  if (options.smoke) await smoke(app, options);
 
   console.log(`\n✓ Lazybox ${version} is in ${relative(process.cwd(), out) || out}`);
   console.log(`  ${plan.notarize ? 'Signed and notarized' : plan.signed ? 'Signed, NOT notarized' : 'Ad-hoc signed: an UNSIGNED build (RELEASING.md)'}; updater key: ${key.kind}.`);
   console.log(`  App: ${app}`);
+}
+
+async function smoke(app, options) {
+  step('Smoke test: the built Runner and CLI');
+  const smokeEnv = { ...buildEnv, LAZYBOX_V2_RELEASE_RUNTIME: join(app, 'Contents', 'Resources', 'runtime'), ...(options.launchd ? { LAZYBOX_V2_RELEASE_LAUNCHD: '1' } : {}) };
+  await run('go', ['test', '-count=1', '-timeout', '5m', '-v', '-run', '^TestRelease', './cmd/lazybox'], { cwd: join(root, 'services/runner/code'), env: smokeEnv });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => { console.error(`\n✗ ${error.message}`); process.exitCode = 1; });
