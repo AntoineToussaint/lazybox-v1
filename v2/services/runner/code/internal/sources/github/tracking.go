@@ -225,9 +225,11 @@ func commitStatuses(statuses []*sdk.RepoStatus) []Check {
 
 // BranchPull is a pull request found by its head branch.
 type BranchPull struct {
-	Number    int64
-	State     string
-	Head      string
+	Number int64
+	State  string
+	Head   string
+	// HeadSHA is the commit the pull request's head is on.
+	HeadSHA   string
 	CreatedAt time.Time
 }
 
@@ -260,7 +262,7 @@ func (c *Client) PullRequestsForBranch(ctx context.Context, token, fullName, bra
 		if pr.MergedAt != nil {
 			state = "merged"
 		}
-		out = append(out, BranchPull{Number: int64(pr.GetNumber()), State: state, Head: branch, CreatedAt: pr.GetCreatedAt().Time})
+		out = append(out, BranchPull{Number: int64(pr.GetNumber()), State: state, Head: branch, HeadSHA: pr.GetHead().GetSHA(), CreatedAt: pr.GetCreatedAt().Time})
 	}
 	return out, tag, false, nil
 }

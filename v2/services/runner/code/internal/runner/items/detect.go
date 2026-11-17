@@ -34,17 +34,28 @@ func ResolveGitHub(url string) (Resolved, bool) {
 	if m == nil || !strings.HasPrefix(strings.TrimSpace(url), m[0]) {
 		return Resolved{}, false
 	}
-	return githubMatch(m), true
+	return githubMatch(m)
 }
 
-func githubMatch(m []string) Resolved {
+// githubMatch is the item a URL match names; false for a repository name
+// GitHub never has ("", ".", ".."), which would name another API path.
+func githubMatch(m []string) (Resolved, bool) {
 	owner, name, kind := m[1], strings.TrimSuffix(m[2], ".git"), KindPullRequest
+	if !RepositoryName(name) {
+		return Resolved{}, false
+	}
 	if m[3] == "issues" {
 		kind = KindIssue
 	}
 	number, _ := strconv.ParseInt(m[4], 10, 64)
 	repository := owner + "/" + name
-	return Resolved{Ref: GitHubRef(repository, number), Kind: kind, Repository: repository, Number: number, URL: "https://github.com/" + repository + "/" + m[3] + "/" + m[4]}
+	return Resolved{Ref: GitHubRef(repository, number), Kind: kind, Repository: repository, Number: number, URL: "https://github.com/" + repository + "/" + m[3] + "/" + m[4]}, true
+}
+
+// RepositoryName reports a name GitHub may give a repository: not empty,
+// "." or "..", which in an API path would name another endpoint.
+func RepositoryName(name string) bool {
+	return name != "" && name != "." && name != ".."
 }
 
 // GitHubRef is the ref of a GitHub pull request or issue. GitHub numbers
@@ -57,6 +68,9 @@ func GitHubRef(repository string, number int64) Ref {
 func ParseGitHubKey(key string) (string, int64, bool) {
 	repository, number, ok := strings.Cut(key, "#")
 	if !ok || strings.Count(repository, "/") != 1 {
+		return "", 0, false
+	}
+	if owner, name, _ := strings.Cut(repository, "/"); !RepositoryName(owner) || !RepositoryName(name) {
 		return "", 0, false
 	}
 	n, err := strconv.ParseInt(number, 10, 64)
@@ -118,8 +132,8 @@ func Scan(output string, created bool) []Found {
 	var all []Found
 	seen := map[string]bool{}
 	for _, m := range githubItemURL.FindAllStringSubmatch(output, -1) {
-		r := githubMatch(m)
-		if !seen[r.Ref.ID()] {
+		r, ok := githubMatch(m)
+		if ok && !seen[r.Ref.ID()] {
 			seen[r.Ref.ID()] = true
 			all = append(all, Found{Resolved: r, Role: RoleMentions})
 		}

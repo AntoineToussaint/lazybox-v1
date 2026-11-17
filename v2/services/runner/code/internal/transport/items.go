@@ -88,11 +88,16 @@ func (s *Service) LinkItem(ctx context.Context, r *pb.LinkItemRequest) (*pb.Link
 	if _, err := s.itemStore(); err != nil {
 		return nil, err
 	}
+	// An agent's link (its own credential) is bounded and rate limited, and
+	// delivers only a pull request of a workspace repository's origin.
 	source := workitems.SourcePerson
-	if r.SessionId != "" {
+	if callerSession(ctx) != "" {
 		source = workitems.SourceCLI
 	}
 	if _, err := s.Bench.LinkItemURL(r.SessionId, r.CollectionId, r.Url, r.Role, source); err != nil {
+		if errors.Is(err, runner.ErrLinkRate) || errors.Is(err, workitems.ErrTooManyDelivered) {
+			return nil, grpcError(codes.ResourceExhausted, err)
+		}
 		return nil, grpcError(codes.InvalidArgument, err)
 	}
 	workspace := r.CollectionId

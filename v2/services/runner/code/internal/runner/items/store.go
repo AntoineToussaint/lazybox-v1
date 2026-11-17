@@ -23,7 +23,16 @@ const (
 	eventsKept = 200
 	// branchesKept: the oldest branch sightings go first.
 	branchesKept = 2000
-	linksKept    = 5000
+	// linksPerWorkspace bounds one workspace's links, so what is linked to
+	// one workspace never pushes another's out; its oldest go first.
+	linksPerWorkspace = 500
+	// What agents may say a workspace delivers (`lazybox link`, a pull
+	// request their tools opened): every delivered pull request is read
+	// from GitHub every minute or so, so an agent cannot make Lazybox track
+	// without bound. The person's and the branch detector's links are not
+	// counted.
+	agentDeliversPerWorkspace = 50
+	agentDeliversPerSession   = 20
 	// backfilledKept bounds the conversation attempts whose journal read is
 	// remembered.
 	backfilledKept = 2000
@@ -130,10 +139,22 @@ func newEventID() string {
 	return "ie-" + hex.EncodeToString(b[:])
 }
 
+// ErrTooManyDelivered refuses an agent's link past what agents may say a
+// workspace, or one conversation, delivers.
+var ErrTooManyDelivered = fmt.Errorf("agents have linked as many delivered pull requests as Lazybox tracks for this workspace (%d) or conversation (%d); unlink some first", agentDeliversPerWorkspace, agentDeliversPerSession)
+
+// AgentMade reports a link an agent made: `lazybox link` with its credential,
+// or a pull request its tools opened.
+func AgentMade(source string) bool {
+	return source == SourceCLI || source == SourceAgentOutput
+}
+
 // Link records a link. The same item linked again to a workspace keeps its
 // first link, except that a mention becomes delivers when something says the
 // workspace delivered it, and a missing conversation or member is filled in.
-// added reports a new link or a role upgrade.
+// added reports a new link or a role upgrade. An agent's new delivers link
+// past agentDeliversPerWorkspace or agentDeliversPerSession is refused
+// (ErrTooManyDelivered).
 func (s *Store) Link(l Link) (added bool, err error) {
 	if !l.Ref.Valid() || l.Workspace == "" {
 		return false, errors.New("a link needs an item and a workspace")
@@ -146,7 +167,24 @@ func (s *Store) Link(l Link) (added bool, err error) {
 	if l.At.IsZero() {
 		l.At = s.Now()
 	}
+	var refused error
 	err = s.update(func(st *state) bool {
+		capped := func() bool {
+			if l.Role != RoleDelivers || !AgentMade(l.Source) {
+				return false
+			}
+			workspace, session := 0, 0
+			for _, other := range st.Links {
+				if other.Role != RoleDelivers || !AgentMade(other.Source) || other.Workspace != l.Workspace || other.Deleted {
+					continue
+				}
+				workspace++
+				if l.Session != "" && other.Session == l.Session {
+					session++
+				}
+			}
+			return workspace >= agentDeliversPerWorkspace || session >= agentDeliversPerSession
+		}
 		for i := range st.Links {
 			old := &st.Links[i]
 			if old.Ref != l.Ref || old.Workspace != l.Workspace {
@@ -154,6 +192,10 @@ func (s *Store) Link(l Link) (added bool, err error) {
 			}
 			changed := false
 			if old.Role == RoleMentions && l.Role == RoleDelivers {
+				if capped() {
+					refused = ErrTooManyDelivered
+					return false
+				}
 				old.Role, old.Source, old.At = l.Role, l.Source, l.At
 				added, changed = true, true
 			}
@@ -170,15 +212,38 @@ func (s *Store) Link(l Link) (added bool, err error) {
 			}
 			return changed
 		}
+		if capped() {
+			refused = ErrTooManyDelivered
+			return false
+		}
 		st.Links = append(st.Links, l)
 		added = true
 		pruneMentions(st, l.Workspace)
-		if len(st.Links) > linksKept {
-			st.Links = st.Links[len(st.Links)-linksKept:]
-		}
+		pruneWorkspace(st, l.Workspace)
 		return true
 	})
+	if refused != nil {
+		return false, refused
+	}
 	return added, err
+}
+
+// pruneWorkspace drops a workspace's oldest links past linksPerWorkspace.
+func pruneWorkspace(st *state, workspace string) {
+	count := 0
+	for _, l := range st.Links {
+		if l.Workspace == workspace {
+			count++
+		}
+	}
+	for i := 0; count > linksPerWorkspace && i < len(st.Links); {
+		if st.Links[i].Workspace == workspace {
+			st.Links = slices.Delete(st.Links, i, i+1)
+			count--
+			continue
+		}
+		i++
+	}
 }
 
 func pruneMentions(st *state, workspace string) {
@@ -308,15 +373,22 @@ type TrackedItem struct {
 
 // Observe records a fresh snapshot and returns its transitions, each placed
 // in every workspace that delivers it (the delivering conversation first).
-// etag is the provider's validator ("" keeps the old one).
-func (s *Store) Observe(item Item, etag string) ([]Event, error) {
-	return s.ObserveAll([]Observation{{Item: item, ETag: etag}})
+// etag is the provider's validator ("" keeps the old one). readAt is when the
+// read began (zero: now, and never stale).
+func (s *Store) Observe(item Item, etag string, readAt time.Time) ([]Event, error) {
+	return s.ObserveAll([]Observation{{Item: item, ETag: etag, ReadAt: readAt}})
 }
 
 // Observation is one fresh read.
 type Observation struct {
 	Item Item
 	ETag string
+	// ReadAt is when the read began, on the store's clock (Now). A read that
+	// began before the snapshot kept was observed is stale — two reads of
+	// one item can finish out of order — and is dropped, so an older answer
+	// never replaces a newer one or replays its transitions. Zero: not
+	// checked, observed now.
+	ReadAt time.Time
 }
 
 // ObserveAll records several reads with one write.
@@ -330,13 +402,19 @@ func (s *Store) ObserveAll(reads []Observation) ([]Event, error) {
 				continue
 			}
 			item.Title = trimTitle(item.Title)
-			if item.ObservedAt.IsZero() {
-				item.ObservedAt = now
-			}
 			id := item.Ref.ID()
 			var before *Item
 			if old, ok := st.Items[id]; ok && old.Kind != "" {
+				if !read.ReadAt.IsZero() && read.ReadAt.Before(old.ObservedAt) {
+					continue
+				}
 				before = &old
+			}
+			if item.ObservedAt.IsZero() {
+				item.ObservedAt = now
+				if !read.ReadAt.IsZero() {
+					item.ObservedAt = read.ReadAt
+				}
 			}
 			st.Items[id] = item
 			t := st.Tracking[id]

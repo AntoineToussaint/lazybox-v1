@@ -57,6 +57,9 @@ type itemsState struct {
 	// request: a provider reports a call's input and its result apart.
 	tools   map[string]map[string]bool
 	origins map[string]originEntry
+	// linked: per execution, when its agent's recent `lazybox link` calls
+	// were (agentLinkRate).
+	linked map[string][]time.Time
 }
 
 type originEntry struct {
@@ -77,7 +80,12 @@ const (
 	itemPassTimeout = 2 * time.Minute
 	// toolCallsKept bounds the running tool calls remembered per execution.
 	toolCallsKept = 64
+	// agentLinksPerMinute bounds an agent's `lazybox link` calls.
+	agentLinksPerMinute = 10
 )
+
+// ErrLinkRate refuses an agent's link past agentLinksPerMinute.
+var ErrLinkRate = fmt.Errorf("this conversation linked %d items in the last minute; wait before linking more", agentLinksPerMinute)
 
 // ErrNotDelivered is a pull request this workspace does not deliver.
 var ErrNotDelivered = errors.New("this workspace does not deliver that pull request")
@@ -93,6 +101,7 @@ func (b *Bench) openItems() error {
 	b.workItems.wake = make(chan struct{}, 1)
 	b.workItems.tools = map[string]map[string]bool{}
 	b.workItems.origins = map[string]originEntry{}
+	b.workItems.linked = map[string][]time.Time{}
 	every := b.Config.ItemPoll
 	if every == 0 {
 		every = itemPoll
@@ -292,10 +301,13 @@ func (b *Bench) pauseOn(err error) bool {
 // refreshItems reads a batch and records what changed.
 func (b *Bench) refreshItems(ctx context.Context, provider workitems.Provider, batch []workitems.Item, etags map[string]string) error {
 	store := b.workItems.store
+	// A reaction's read (refreshNow) runs beside the tracking pass: the one
+	// that began first and ends last is stale (Observation.ReadAt).
+	readAt := store.Now()
 	refreshed, err := provider.Refresh(ctx, batch, etags)
 	var reads []workitems.Observation
 	for _, item := range refreshed.Items {
-		reads = append(reads, workitems.Observation{Item: item, ETag: refreshed.ETags[item.Ref.ID()]})
+		reads = append(reads, workitems.Observation{Item: item, ETag: refreshed.ETags[item.Ref.ID()], ReadAt: readAt})
 	}
 	if len(reads) > 0 {
 		events, werr := store.ObserveAll(reads)
@@ -318,8 +330,11 @@ func (b *Bench) refreshItems(ctx context.Context, provider workitems.Provider, b
 }
 
 // lookUpBranch asks which pull requests come from a pushed branch, and links
-// the ones this workspace delivers: an open one, or one opened since the
-// workspace was first seen on the branch.
+// the ones this workspace delivers: those opened since the workspace was
+// first seen on the branch (with an hour's grace), and an older one, open or
+// not, only when its head commit is on the workspace's branch — its work was
+// opened before tracking saw it. Any other older pull request is someone
+// else's work on a branch of the same name.
 func (b *Bench) lookUpBranch(ctx context.Context, finder workitems.BranchFinder, branch workitems.Branch) error {
 	store := b.workItems.store
 	found, tag, same, err := finder.PullRequestsFor(ctx, branch.Repository, branch.Name, branch.ETag)
@@ -335,13 +350,32 @@ func (b *Bench) lookUpBranch(ctx context.Context, finder workitems.BranchFinder,
 		return nil
 	}
 	for _, pr := range found {
-		if pr.RawState != "open" && pr.UpdatedAt.Before(branch.FirstSeen.Add(-time.Hour)) {
+		// UpdatedAt is when the pull request was opened (PullRequestsFor).
+		if pr.UpdatedAt.Before(branch.FirstSeen.Add(-time.Hour)) && !b.branchHas(ctx, branch, pr.PR.HeadSHA) {
 			continue
 		}
 		session, conversation := b.recentConversation(branch.Workspace)
 		b.linkItem(workitems.Link{Ref: pr.Ref, Workspace: branch.Workspace, Member: branch.Member, Session: session, Conversation: conversation, Role: workitems.RoleDelivers, Source: workitems.SourceBranch})
 	}
 	return nil
+}
+
+// branchHas reports whether a commit is on the branch a workspace repository
+// was seen on.
+func (b *Bench) branchHas(ctx context.Context, branch workitems.Branch, commit string) bool {
+	if b.Collections == nil || commit == "" {
+		return false
+	}
+	w, err := b.Collections.Get(branch.Workspace)
+	if err != nil {
+		return false
+	}
+	for _, m := range w.Members {
+		if m.Name == branch.Member && m.Ready {
+			return gitpublish.Git{}.Contains(ctx, m.Path, branch.Name, commit)
+		}
+	}
+	return false
 }
 
 // recentConversation is the workspace's most recently active conversation:
@@ -391,7 +425,10 @@ func (b *Bench) readWorktreeBranches(ctx context.Context) {
 			if err != nil || tracking.Branch == "" {
 				continue
 			}
-			b.SeeWorkspaceBranch(w.ID, m.Name, repository, tracking.Branch, tracking.Published, "")
+			// The repository's own default branch (origin/HEAD), not only
+			// the usual names: no pull request is looked for from it.
+			defaultBranch, _ := git.DefaultBranch(ctx, m.Path)
+			b.SeeWorkspaceBranch(w.ID, m.Name, repository, tracking.Branch, tracking.Published, defaultBranch)
 		}
 	}
 }
@@ -457,7 +494,10 @@ func (b *Bench) itemsWorkspaceGone(id, name string) {
 }
 
 // linkItem records a link, with the workspace's name and the member whose
-// origin is the item's repository, and reads a new delivered item soon.
+// origin is the item's repository, and reads a new delivered item soon. An
+// agent's delivers link to a repository no workspace member comes from is
+// recorded as a mention: an agent cannot make Lazybox track, react to and
+// notify about any repository's pull requests.
 func (b *Bench) linkItem(l workitems.Link) (bool, error) {
 	store := b.workItems.store
 	if store == nil {
@@ -480,6 +520,9 @@ func (b *Bench) linkItem(l workitems.Link) (bool, error) {
 			}
 		}
 	}
+	if l.Role == workitems.RoleDelivers && workitems.AgentMade(l.Source) && l.Member == "" {
+		l.Role = workitems.RoleMentions
+	}
 	added, err := store.Link(l)
 	if err == nil && added && l.Role != workitems.RoleMentions {
 		b.wakeItems()
@@ -490,11 +533,16 @@ func (b *Bench) linkItem(l workitems.Link) (bool, error) {
 // LinkItemURL links what a URL names to a workspace (`lazybox link`, the
 // owner's LinkItem). session, when set, is the execution asking: its
 // workspace and conversation. role empty is delivers for a pull request,
-// mentions otherwise.
+// mentions otherwise; an issue is never delivered. An agent's links (source
+// cli) are rate limited per execution (ErrLinkRate) and bounded
+// (workitems.ErrTooManyDelivered).
 func (b *Bench) LinkItemURL(session, workspace, url, role, source string) (workitems.Resolved, error) {
 	resolved, ok := workitems.ResolveGitHub(url)
 	if !ok {
 		return resolved, errors.New("not a pull request or issue URL Lazybox recognizes (https://github.com/owner/name/pull/N or /issues/N)")
+	}
+	if session != "" && workitems.AgentMade(source) && !b.allowAgentLink(session, time.Now()) {
+		return resolved, ErrLinkRate
 	}
 	conversation := ""
 	if session != "" {
@@ -525,14 +573,52 @@ func (b *Bench) LinkItemURL(session, workspace, url, role, source string) (worki
 	default:
 		return resolved, errors.New("--role is delivers or mentions")
 	}
+	// A delivered item is read as a pull request; an issue is mentioned.
+	if role == workitems.RoleDelivers && resolved.Kind != workitems.KindPullRequest {
+		return resolved, errors.New("only a pull request can be delivered; link an issue as a mention")
+	}
 	_, err := b.linkItem(workitems.Link{Ref: resolved.Ref, Workspace: workspace, Session: session, Conversation: conversation, Role: role, Source: source})
 	return resolved, err
+}
+
+// allowAgentLink counts one of an execution's links, false past
+// agentLinksPerMinute in the last minute.
+func (b *Bench) allowAgentLink(session string, now time.Time) bool {
+	t := &b.workItems
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	recent := slices.DeleteFunc(t.linked[session], func(at time.Time) bool { return now.Sub(at) >= time.Minute })
+	if len(recent) >= agentLinksPerMinute {
+		t.linked[session] = recent
+		return false
+	}
+	t.linked[session] = append(recent, now)
+	// Forget executions that stopped linking, so the map stays small.
+	if len(t.linked) > 256 {
+		for id, at := range t.linked {
+			if len(at) == 0 || now.Sub(at[len(at)-1]) >= time.Minute {
+				delete(t.linked, id)
+			}
+		}
+	}
+	return true
+}
+
+// ItemReadStart is when a read of tracked items begins, on the item store's
+// clock: what ObservePullRequestLoop's readAt takes.
+func (b *Bench) ItemReadStart() time.Time {
+	if b.workItems.store == nil {
+		return time.Now()
+	}
+	return b.workItems.store.Now()
 }
 
 // ObservePullRequestLoop records what the PR loop read or created about a
 // member's branch: the workspace delivers it (person for Create PR, else
 // branch), and the read is a fresh snapshot, whose transitions are emitted.
-func (b *Bench) ObservePullRequestLoop(workspace, member, repository string, status github.PullRequestStatus, created bool) {
+// readAt is when the read began (ItemReadStart; zero: not checked): a read
+// that began before the kept snapshot was observed is dropped.
+func (b *Bench) ObservePullRequestLoop(workspace, member, repository string, status github.PullRequestStatus, created bool, readAt time.Time) {
 	store := b.workItems.store
 	if store == nil || !status.Found || status.Number == 0 || repository == "" {
 		return
@@ -552,7 +638,7 @@ func (b *Bench) ObservePullRequestLoop(workspace, member, repository string, sta
 	if _, err := b.linkItem(link); err != nil {
 		return
 	}
-	events, err := store.Observe(item, "")
+	events, err := store.Observe(item, "", readAt)
 	if err != nil {
 		log.Printf("tracked items: %v", err)
 	}

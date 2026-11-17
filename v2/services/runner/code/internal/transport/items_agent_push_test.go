@@ -43,13 +43,48 @@ func (f *itemsFixture) agentPushed(t *testing.T, repository string) {
 	}
 }
 
+// openPullRequest opens a pull request from realBranch, 18 hours ago: before
+// tracking first saw the branch. Its head is the worktree's commit, so it is
+// the workspace's own work.
 func (f *itemsFixture) openPullRequest(repository string, number int) {
+	f.openPullRequestAt(repository, number, f.head())
+}
+
+func (f *itemsFixture) head() string {
+	out, _ := exec.Command("git", "-C", f.worktree, "rev-parse", "HEAD").Output()
+	return strings.TrimSpace(string(out))
+}
+
+func (f *itemsFixture) openPullRequestAt(repository string, number int, head string) {
 	f.github.Update(func(s *githubtest.Server) {
 		s.Repos[repository] = "main"
-		s.Pulls[repository] = append(s.Pulls[repository], &githubtest.PR{Number: number, Title: "Ask your devbox's agents from Claude Code", Head: realBranch, Base: "main", HeadSHA: "sha-hyena",
+		s.Pulls[repository] = append(s.Pulls[repository], &githubtest.PR{Number: number, Title: "Ask your devbox's agents from Claude Code", Head: realBranch, Base: "main", HeadSHA: head,
 			State: "open", MergeableState: "blocked", Requested: 1, CreatedAt: time.Now().Add(-18 * time.Hour)})
-		s.Checks["sha-hyena"] = []githubtest.Check{{ID: 1, Name: "build", Status: "completed", Conclusion: "success"}, {ID: 2, Name: "test", Status: "completed", Conclusion: "success"}}
+		s.Checks[head] = []githubtest.Check{{ID: 1, Name: "build", Status: "completed", Conclusion: "success"}, {ID: 2, Name: "test", Status: "completed", Conclusion: "success"}}
 	})
+}
+
+// An open pull request opened before the workspace was on the branch, whose
+// head is not on the workspace's branch, is someone else's work on a branch
+// of the same name: it is not adopted (audit: stale-branch adoption).
+func TestBranchDoesNotAdoptAnOlderStrangersPullRequest(t *testing.T) {
+	f := newItemsFixture(t)
+	b, ctx := f.bench, context.Background()
+	f.agentPushed(t, "obin-ai/platform")
+	f.openPullRequestAt("obin-ai/platform", 1121, strings.Repeat("ab", 20))
+	b.TrackItems(ctx)
+	if pr := f.links(t)["obin-ai/platform#1121"]; pr != nil {
+		t.Fatalf("an older pull request whose head is not on the branch was adopted: %+v", pr)
+	}
+	// A pull request opened from it since is the workspace's, wherever its head is.
+	f.github.Update(func(s *githubtest.Server) {
+		s.Pulls["obin-ai/platform"] = append(s.Pulls["obin-ai/platform"], &githubtest.PR{Number: 1122, Title: "New", Head: realBranch, Base: "main", HeadSHA: strings.Repeat("cd", 20), State: "open", CreatedAt: time.Now()})
+	})
+	b.WorkItems().Now = func() time.Time { return time.Now().Add(-time.Hour) }
+	b.TrackItems(ctx)
+	if pr := f.links(t)["obin-ai/platform#1122"]; pr == nil || pr.Role != "delivers" {
+		t.Fatalf("a pull request opened since: %v", f.links(t))
+	}
 }
 
 func TestBranchAnAgentPushedItselfFindsItsPullRequest(t *testing.T) {

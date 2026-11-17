@@ -559,6 +559,7 @@ func (b *Bench) MergeTrackedPullRequest(ctx context.Context, workspace string, r
 		return github.PullRequestStatus{}, "", errors.New(connectForTracking)
 	}
 	var status github.PullRequestStatus
+	readAt := b.ItemReadStart()
 	err = b.githubCredential(ctx, func(token string) error {
 		if err := b.GitHubPulls.MergePullRequest(ctx, token, repository, tracked, method, expectedHead); err != nil {
 			return err
@@ -570,6 +571,6 @@ func (b *Bench) MergeTrackedPullRequest(ctx context.Context, workspace string, r
 	if err != nil {
 		return github.PullRequestStatus{}, link.Member, err
 	}
-	b.ObservePullRequestLoop(workspace, link.Member, repository, status, false)
+	b.ObservePullRequestLoop(workspace, link.Member, repository, status, false, readAt)
 	return status, link.Member, nil
 }

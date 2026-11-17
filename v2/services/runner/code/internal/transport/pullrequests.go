@@ -160,9 +160,10 @@ func (s *Service) GetPullRequest(ctx context.Context, r *pb.GetPullRequestReques
 	if out.Unavailable != "" {
 		return out, nil
 	}
+	readAt := s.Bench.ItemReadStart()
 	out, status, err := s.readPullRequest(ctx, out)
 	if err == nil {
-		s.observeLoop(r.CollectionId, r.Member, out, status, false)
+		s.observeLoop(r.CollectionId, r.Member, out, status, false, readAt)
 	}
 	return out, err
 }
@@ -186,6 +187,7 @@ func (s *Service) CreatePullRequest(ctx context.Context, r *pb.CreatePullRequest
 		return nil, rpcError(errors.New(strconv.Itoa(tracking.Ahead) + " local commit(s) are not pushed yet; push before opening a pull request"))
 	}
 	var status github.PullRequestStatus
+	readAt := s.Bench.ItemReadStart()
 	err = s.Bench.GitHub.WithCredential(ctx, func(token string) error {
 		var err error
 		status, err = s.Bench.GitHubPulls.CreatePullRequest(ctx, token, out.GithubRepository, github.NewPullRequest{Head: out.Branch, Base: r.Base, Title: r.Title, Body: r.Body, Draft: r.Draft})
@@ -198,7 +200,7 @@ func (s *Service) CreatePullRequest(ctx context.Context, r *pb.CreatePullRequest
 		return nil, rpcError(err)
 	}
 	// The person opened it: the workspace delivers it (a tracked item).
-	s.observeLoop(r.CollectionId, r.Member, out, status, true)
+	s.observeLoop(r.CollectionId, r.Member, out, status, true, readAt)
 	return out, nil
 }
 
@@ -228,9 +230,10 @@ func (s *Service) MergePullRequest(ctx context.Context, r *pb.MergePullRequestRe
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	readAt := s.Bench.ItemReadStart()
 	out, status, err := s.readPullRequest(ctx, out)
 	if err == nil {
-		s.observeLoop(r.CollectionId, r.Member, out, status, false)
+		s.observeLoop(r.CollectionId, r.Member, out, status, false, readAt)
 	}
 	return out, err
 }

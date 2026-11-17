@@ -30,9 +30,12 @@ func Interval(focused bool) time.Duration {
 }
 
 // Due reports whether a tracked item should be read now, and when it next
-// will be otherwise.
+// will be otherwise. An item never read is due at once, and again after a
+// failed read only as reads that keep failing back off: one that does not
+// exist, or that the connection cannot see (404), is not asked about on
+// every pass.
 func Due(t TrackedItem, now time.Time, focused bool) (bool, time.Time) {
-	if !t.Known || t.Tracking.CheckedAt.IsZero() {
+	if t.Tracking.CheckedAt.IsZero() || (!t.Known && t.Tracking.Failures == 0) {
 		return true, now
 	}
 	every := Interval(focused)

@@ -180,11 +180,11 @@ func TestStorePersistsLinksAndPlacesEvents(t *testing.T) {
 	if _, err = store.Link(Link{Ref: ref, Workspace: "w1", Role: "owns"}); err == nil {
 		t.Fatal("unknown role")
 	}
-	events, err := store.Observe(pr("open", "pending", "", "clean", "a"), `{"pull":"x"}`)
+	events, err := store.Observe(pr("open", "pending", "", "clean", "a"), `{"pull":"x"}`, time.Time{})
 	if err != nil || len(events) != 1 || events[0].Name != EventOpened || events[0].Workspace != "w1" || events[0].Session != "s1" || events[0].ID == "" {
 		t.Fatalf("opened, placed in the delivering conversation: %+v %v", events, err)
 	}
-	if events, _ = store.Observe(pr("open", "pending", "", "clean", "a"), ""); len(events) != 0 {
+	if events, _ = store.Observe(pr("open", "pending", "", "clean", "a"), "", time.Time{}); len(events) != 0 {
 		t.Fatalf("an unchanged read emits nothing: %+v", events)
 	}
 	if _, err = store.SeeBranch(Branch{Workspace: "w1", Member: "api", Repository: "acme/api", Name: "fix", Pushed: true}); err != nil {
@@ -209,7 +209,7 @@ func TestStorePersistsLinksAndPlacesEvents(t *testing.T) {
 	}
 	// After a restart the next read compares with the persisted snapshot:
 	// what happened while the Runner was down is emitted once.
-	if events, _ = again.Observe(pr("open", "failure", "", "clean", "a", "lint"), ""); len(events) != 1 || events[0].Name != EventChecksFailed {
+	if events, _ = again.Observe(pr("open", "failure", "", "clean", "a", "lint"), "", time.Time{}); len(events) != 1 || events[0].Name != EventChecksFailed {
 		t.Fatalf("after restart: %+v", events)
 	}
 	if item, ok := again.BranchPullRequest("w1", "ACME/api", "fix"); !ok || item.Number != 812 {

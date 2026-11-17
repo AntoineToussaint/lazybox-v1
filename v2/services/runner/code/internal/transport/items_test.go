@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -134,7 +135,7 @@ func TestTrackingFindsWhatAgentsOpenAndEmitsTransitionsOnce(t *testing.T) {
 	// agent/one: the branch history still finds it.
 	f.checkoutPushed(t, "agent/two")
 	f.github.Update(func(s *githubtest.Server) {
-		s.Pulls["team/api"] = append(s.Pulls["team/api"], &githubtest.PR{Number: 1, Title: "One", Head: "agent/one", Base: "main", HeadSHA: "sha-one", State: "open", MergeableState: "clean"})
+		s.Pulls["team/api"] = append(s.Pulls["team/api"], &githubtest.PR{Number: 1, Title: "One", Head: "agent/one", Base: "main", HeadSHA: "sha-one", State: "open", MergeableState: "clean", CreatedAt: time.Now()})
 		s.Checks["sha-one"] = []githubtest.Check{{ID: 9, Name: "lint", Status: "completed", Conclusion: "failure", URL: "https://github.com/team/api/actions/runs/1/job/9"}}
 	})
 	b.TrackItems(ctx)
@@ -445,5 +446,42 @@ func assertQuoted(t *testing.T, text, key string, words ...string) {
 		if !strings.Contains(text, word) {
 			t.Errorf("%q was not sent", word)
 		}
+	}
+}
+
+// An agent's links are bounded: a pull request of a repository no workspace
+// member comes from is only a mention, an issue is never delivered, and
+// `lazybox link` is rate limited per conversation.
+func TestAgentLinksAreBounded(t *testing.T) {
+	f := newItemsFixture(t)
+	agentCredential := bearer(timeout(t), agentToken(t, f.agent.Open.Env))
+	link := func(url, role string) (*pb.Links, error) {
+		return f.client.LinkItem(agentCredential, &pb.LinkItemRequest{SessionId: f.session.ID, Url: url, Role: role})
+	}
+	if _, err := link("https://github.com/elsewhere/tool/pull/5", "delivers"); err != nil {
+		t.Fatal(err)
+	}
+	if l := f.links(t)["elsewhere/tool#5"]; l == nil || l.Role != "mentions" {
+		t.Fatalf("another repository's pull request: %+v", l)
+	}
+	if _, err := link("https://github.com/team/api/issues/9", "delivers"); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("an issue delivered: %v", err)
+	}
+	if _, err := link("https://github.com/team/api/pull/3", ""); err != nil {
+		t.Fatal(err)
+	}
+	if l := f.links(t)["team/api#3"]; l == nil || l.Role != "delivers" || l.Member != "api" {
+		t.Fatalf("the workspace's own repository: %+v", l)
+	}
+	var err error
+	for i := 0; i < 20 && err == nil; i++ {
+		_, err = link(fmt.Sprintf("https://github.com/team/api/pull/%d", 100+i), "")
+	}
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("an agent links without a rate limit: %v", err)
+	}
+	// The person is not rate limited.
+	if _, err = f.service.LinkItem(context.Background(), &pb.LinkItemRequest{CollectionId: f.mine.Id, Url: "https://github.com/team/api/pull/200"}); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -176,6 +176,44 @@ func (Git) Branch(ctx context.Context, root string) (string, error) {
 	return branch, nil
 }
 
+// DefaultBranch is origin's default branch as the clone recorded it
+// (refs/remotes/origin/HEAD), without contacting origin; ErrNoDefault when
+// the clone has none.
+func (Git) DefaultBranch(ctx context.Context, root string) (string, error) {
+	ref, err := read(ctx, root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	branch, ok := strings.CutPrefix(ref, "origin/")
+	if err != nil || !ok || branch == "" {
+		return "", ErrNoDefault
+	}
+	return branch, nil
+}
+
+// Contains reports whether commit is on the local branch (an ancestor of its
+// tip, or the tip), without contacting origin. A commit the repository does
+// not have is not on it.
+func (Git) Contains(ctx context.Context, root, branch, commit string) bool {
+	if !validCommit(commit) || branch == "" || strings.HasPrefix(branch, "-") {
+		return false
+	}
+	_, err := read(ctx, root, "merge-base", "--is-ancestor", commit, "refs/heads/"+branch)
+	return err == nil
+}
+
+func validCommit(commit string) bool {
+	if len(commit) != 40 && len(commit) != 64 {
+		return false
+	}
+	for _, c := range commit {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// ErrNoDefault: the clone does not record origin's default branch.
+var ErrNoDefault = errors.New("origin's default branch is not recorded in this clone")
+
 // Head is the commit checked out.
 func (Git) Head(ctx context.Context, root string) (string, error) {
 	return read(ctx, root, "rev-parse", "--verify", "HEAD")

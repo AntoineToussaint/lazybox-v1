@@ -123,7 +123,7 @@ func (g GitHub) PullRequestsFor(ctx context.Context, repository, branch, etag st
 		newTag, same = tag, notModified
 		for _, pr := range list {
 			found = append(found, Item{Ref: GitHubRef(repository, pr.Number), Kind: KindPullRequest, Repository: repository, Number: pr.Number, RawState: pr.State,
-				URL: "https://github.com/" + repository + "/pull/" + itoa(pr.Number), PR: &PullRequest{Head: pr.Head}, UpdatedAt: pr.CreatedAt})
+				URL: "https://github.com/" + repository + "/pull/" + itoa(pr.Number), PR: &PullRequest{Head: pr.Head, HeadSHA: pr.HeadSHA}, UpdatedAt: pr.CreatedAt})
 		}
 		return nil
 	})

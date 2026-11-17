@@ -60,7 +60,9 @@ type PullRequests interface {
 
 func splitName(fullName string) (string, string, error) {
 	parts := strings.Split(fullName, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	// "." and ".." are no repository: in an API path they would name another
+	// endpoint, with the connection's token.
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || parts[0] == "." || parts[0] == ".." || parts[1] == "." || parts[1] == ".." {
 		return "", "", errors.New("repository owner/name required")
 	}
 	return parts[0], parts[1], nil

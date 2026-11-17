@@ -230,9 +230,17 @@ summaries read their pull request from the store (`BranchPullRequest`), so
 | Detector | How | Role |
 | --- | --- | --- |
 | Person | The PR loop's **Create PR** (and any read of the branch's pull request) | delivers |
-| Branch | Each branch the sidebar's summaries or the background pass (every minute) see a repository on is asked about (`head=owner:branch`, conditional) until a week after it was last seen: at the open interval once known to be pushed (a remote-tracking ref, or the upstream `push -u` records), else every five minutes (a push without `-u` from a source whose origin has no fetch refspec leaves no trace locally). An open pull request is linked; a closed one only if opened after the branch was first seen. | delivers |
+| Branch | Each branch the sidebar's summaries or the background pass (every minute) see a repository on is asked about (`head=owner:branch`, conditional) until a week after it was last seen: at the open interval once known to be pushed (a remote-tracking ref, or the upstream `push -u` records), else every five minutes (a push without `-u` from a source whose origin has no fetch refspec leaves no trace locally). A pull request opened after the branch was first seen (with an hour's grace) is linked, open or not; an older one only when its head commit is on the workspace's local branch (`merge-base --is-ancestor`): its work, opened before tracking saw the branch. Any other older one is someone else's work on a branch of the same name. The repository's default branch (`origin/HEAD` as the clone records it, else `main`, `master`, `trunk`, `develop`) is never asked about. | delivers |
 | Agent output | The engine hands every tool call and result to the Runner (`TurnHooks.Tool`). A call whose command opens a pull request (`gh pr create`, `hub pull-request`, `glab mr create`, a tool named `create_pull_request`) delivers the last pull request URL its output prints (the command is read from the call's decoded input, so one on its own line after a heredoc counts); `git push`'s hint (`/pull/new/branch`) is not a pull request. A finished `lazybox run` of such a command is read the same way. On start, the Runner reads the end of each live workspace conversation's journal (updated this week, its last 5,000 records) once for what such a command printed while no detector ran (before tracking existed, or while the Runner was down), and remembers how far it read. Any other GitHub pull request or issue URL in a tool's output is a mention (at most five per output, a hundred per workspace), never tracked or notified. | delivers / mentions |
-| Explicit | `lazybox link URL [--role]` with the agent's scoped credential (its own workspace and conversation only), or the owner's `LinkItem`. The briefing tells agents to run it when they open a pull request some other way. A URL (with or without `https://`), `--role` or `--workspace` makes `lazybox link` this verb, never the one that puts a release's CLI on PATH; in an agent, `lazybox link` alone asks for the URL. `lazybox items` lists the workspace's pull requests with their checks and review. | delivers / mentions |
+| Explicit | `lazybox link URL [--role]` with the agent's scoped credential (its own workspace and conversation only), or the owner's `LinkItem`. The briefing tells agents to run it when they open a pull request some other way. A URL (with or without `https://`), `--role` or `--workspace` makes `lazybox link` this verb, never the one that puts a release's CLI on PATH; in an agent, `lazybox link` alone asks for the URL. `lazybox items` lists the workspace's pull requests with their checks and review. An issue is never delivered. | delivers / mentions |
+
+What agents link (agent output, `lazybox link` with an agent's credential)
+is bounded, since every delivered pull request is polled: it delivers only a
+pull request of a repository a workspace member's origin is (anything else is
+recorded as a mention); at most 50 such delivered links per workspace and 20
+per conversation (`ResourceExhausted` past them); and `lazybox link` at most
+10 times a minute per conversation. A workspace keeps at most 500 links (its
+oldest go first), so one workspace never pushes another's out.
 
 ### Tracking
 
@@ -242,7 +250,13 @@ A background pass every ten seconds reads what is due, in batches of 25:
   asks `ListLinks` with `focused`; it counts for two minutes), every **5 min**
   otherwise;
 - merged or closed ones **once a day**, until **7 days** after they ended;
-- reads that keep failing back off (doubling, up to 30 min).
+- reads that keep failing back off (doubling, up to 30 min), an item never
+  read successfully (a 404) included.
+
+Two reads of one pull request can finish out of order (a reaction's read
+beside the pass, the PR loop's): a read that began before the snapshot kept
+was observed is dropped, so an older answer never replaces a newer one or
+replays its transitions.
 
 Every read is conditional: the pull request, its head's check runs and its
 commit statuses each carry their ETag (`If-None-Match`), and a 304 costs no

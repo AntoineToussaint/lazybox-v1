@@ -257,14 +257,16 @@ func (s *Service) observePullRequest(collection, member string, out *pb.PullRequ
 	if out == nil || !out.Found {
 		return
 	}
-	s.observeLoop(collection, member, out, statusOf(out), false)
+	s.observeLoop(collection, member, out, statusOf(out), false, time.Time{})
 }
 
-func (s *Service) observeLoop(collection, member string, out *pb.PullRequestStatus, status github.PullRequestStatus, created bool) {
+// observeLoop records a PR loop read; readAt is when it began
+// (Bench.ItemReadStart), so a read overtaken by a newer one is dropped.
+func (s *Service) observeLoop(collection, member string, out *pb.PullRequestStatus, status github.PullRequestStatus, created bool, readAt time.Time) {
 	if out == nil || !out.Found {
 		return
 	}
-	s.Bench.ObservePullRequestLoop(collection, member, out.GithubRepository, status, created)
+	s.Bench.ObservePullRequestLoop(collection, member, out.GithubRepository, status, created, readAt)
 	pr := runner.PullRequestObservation{Workspace: collection, Member: member, Repository: out.GithubRepository, Title: out.Title, URL: out.Url, State: out.State, Head: out.HeadSha, Checks: out.ChecksState, Number: out.Number, Total: len(out.Checks)}
 	for _, c := range out.Checks {
 		if c.Status == "completed" && (c.Conclusion == "failure" || c.Conclusion == "timed_out" || c.Conclusion == "cancelled" || c.Conclusion == "action_required") {
