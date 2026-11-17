@@ -51,6 +51,13 @@ service RunnerService {
   rpc ListGitHubRepositories(ListGitHubRepositoriesRequest) returns (ListGitHubRepositoriesResponse);
   rpc ImportGitHubRepository(ImportGitHubRepositoryRequest) returns (ImportGitHubRepositoryResponse);
   rpc ListGitHubItems(ListGitHubItemsRequest) returns (ListGitHubItemsResponse);
+  // Work items (PROJECTS_AND_INTEGRATIONS.md): search a provider for the
+  // picker, read one item with the context an agent is given, turn a pasted
+  // link into its reference, and find the workspaces started from one.
+  rpc SearchItems(SearchItemsRequest) returns (ItemPage);
+  rpc GetItem(ItemRequest) returns (ItemDetail);
+  rpc ResolveItemUrl(ResolveItemUrlRequest) returns (ItemRef);
+  rpc FindItemWorkspaces(ItemRequest) returns (ItemWorkspaces);
   rpc AddLocalRepository(AddLocalRepositoryRequest) returns (AddLocalRepositoryResponse);
   rpc ListRepositories(ListRepositoriesRequest) returns (ListRepositoriesResponse);
   rpc RemoveRepository(RemoveRepositoryRequest) returns (RepositoryDiscovery);
@@ -851,6 +858,53 @@ message Item {
   // When Lazybox last read it from the provider.
   int64 observed_at_unix_millis = 13;
   string author = 14;
+}
+message SearchItemsRequest {
+  // github; empty searches every connected provider.
+  string provider = 1;
+  // Free text. owner/name#123 or an item's URL finds that one item.
+  string query = 2;
+  // mine (assigned to you and not done, the default), recent or all.
+  string scope = 3;
+  // A previous page's next; empty for the first page.
+  string cursor = 4;
+}
+message ItemPage {
+  repeated Item items = 1;
+  // The cursor of the next page; empty on the last one.
+  string next = 2;
+}
+message ItemRequest {
+  ItemRef ref = 1;
+  // At most this many of the most recent comments; 0 is the provider's default (10).
+  uint32 comments = 2;
+}
+message ItemComment {
+  string author = 1;
+  // Markdown, as the provider stores it.
+  string body = 2;
+  int64 created_at_unix_millis = 3;
+  string url = 4;
+}
+// An item with what an agent is given about it.
+message ItemDetail {
+  Item item = 1;
+  // The description, as Markdown.
+  string body = 2;
+  // The most recent comments, oldest first.
+  repeated ItemComment comments = 3;
+  // How many comments the item has in all.
+  uint32 comment_count = 4;
+  // Exactly what the agent receives: the title, body and comments, quoted as
+  // external content with their authors and the item's URL.
+  string context = 5;
+  // The same without the comments.
+  string context_without_comments = 6;
+}
+message ResolveItemUrlRequest { string url = 1; }
+message ItemWorkspaces {
+  // The workspaces started from the item (their origin), newest first.
+  repeated Collection workspaces = 1;
 }
 message ItemLink {
   Item item = 1;

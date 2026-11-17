@@ -52,6 +52,10 @@ const (
 	RunnerService_ListGitHubRepositories_FullMethodName       = "/lazybox.bench.v1.RunnerService/ListGitHubRepositories"
 	RunnerService_ImportGitHubRepository_FullMethodName       = "/lazybox.bench.v1.RunnerService/ImportGitHubRepository"
 	RunnerService_ListGitHubItems_FullMethodName              = "/lazybox.bench.v1.RunnerService/ListGitHubItems"
+	RunnerService_SearchItems_FullMethodName                  = "/lazybox.bench.v1.RunnerService/SearchItems"
+	RunnerService_GetItem_FullMethodName                      = "/lazybox.bench.v1.RunnerService/GetItem"
+	RunnerService_ResolveItemUrl_FullMethodName               = "/lazybox.bench.v1.RunnerService/ResolveItemUrl"
+	RunnerService_FindItemWorkspaces_FullMethodName           = "/lazybox.bench.v1.RunnerService/FindItemWorkspaces"
 	RunnerService_AddLocalRepository_FullMethodName           = "/lazybox.bench.v1.RunnerService/AddLocalRepository"
 	RunnerService_ListRepositories_FullMethodName             = "/lazybox.bench.v1.RunnerService/ListRepositories"
 	RunnerService_RemoveRepository_FullMethodName             = "/lazybox.bench.v1.RunnerService/RemoveRepository"
@@ -257,6 +261,13 @@ type RunnerServiceClient interface {
 	ListGitHubRepositories(ctx context.Context, in *ListGitHubRepositoriesRequest, opts ...grpc.CallOption) (*ListGitHubRepositoriesResponse, error)
 	ImportGitHubRepository(ctx context.Context, in *ImportGitHubRepositoryRequest, opts ...grpc.CallOption) (*ImportGitHubRepositoryResponse, error)
 	ListGitHubItems(ctx context.Context, in *ListGitHubItemsRequest, opts ...grpc.CallOption) (*ListGitHubItemsResponse, error)
+	// Work items (PROJECTS_AND_INTEGRATIONS.md): search a provider for the
+	// picker, read one item with the context an agent is given, turn a pasted
+	// link into its reference, and find the workspaces started from one.
+	SearchItems(ctx context.Context, in *SearchItemsRequest, opts ...grpc.CallOption) (*ItemPage, error)
+	GetItem(ctx context.Context, in *ItemRequest, opts ...grpc.CallOption) (*ItemDetail, error)
+	ResolveItemUrl(ctx context.Context, in *ResolveItemUrlRequest, opts ...grpc.CallOption) (*ItemRef, error)
+	FindItemWorkspaces(ctx context.Context, in *ItemRequest, opts ...grpc.CallOption) (*ItemWorkspaces, error)
 	AddLocalRepository(ctx context.Context, in *AddLocalRepositoryRequest, opts ...grpc.CallOption) (*AddLocalRepositoryResponse, error)
 	ListRepositories(ctx context.Context, in *ListRepositoriesRequest, opts ...grpc.CallOption) (*ListRepositoriesResponse, error)
 	RemoveRepository(ctx context.Context, in *RemoveRepositoryRequest, opts ...grpc.CallOption) (*RepositoryDiscovery, error)
@@ -942,6 +953,46 @@ func (c *runnerServiceClient) ListGitHubItems(ctx context.Context, in *ListGitHu
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListGitHubItemsResponse)
 	err := c.cc.Invoke(ctx, RunnerService_ListGitHubItems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SearchItems(ctx context.Context, in *SearchItemsRequest, opts ...grpc.CallOption) (*ItemPage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ItemPage)
+	err := c.cc.Invoke(ctx, RunnerService_SearchItems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetItem(ctx context.Context, in *ItemRequest, opts ...grpc.CallOption) (*ItemDetail, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ItemDetail)
+	err := c.cc.Invoke(ctx, RunnerService_GetItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ResolveItemUrl(ctx context.Context, in *ResolveItemUrlRequest, opts ...grpc.CallOption) (*ItemRef, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ItemRef)
+	err := c.cc.Invoke(ctx, RunnerService_ResolveItemUrl_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) FindItemWorkspaces(ctx context.Context, in *ItemRequest, opts ...grpc.CallOption) (*ItemWorkspaces, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ItemWorkspaces)
+	err := c.cc.Invoke(ctx, RunnerService_FindItemWorkspaces_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2564,6 +2615,13 @@ type RunnerServiceServer interface {
 	ListGitHubRepositories(context.Context, *ListGitHubRepositoriesRequest) (*ListGitHubRepositoriesResponse, error)
 	ImportGitHubRepository(context.Context, *ImportGitHubRepositoryRequest) (*ImportGitHubRepositoryResponse, error)
 	ListGitHubItems(context.Context, *ListGitHubItemsRequest) (*ListGitHubItemsResponse, error)
+	// Work items (PROJECTS_AND_INTEGRATIONS.md): search a provider for the
+	// picker, read one item with the context an agent is given, turn a pasted
+	// link into its reference, and find the workspaces started from one.
+	SearchItems(context.Context, *SearchItemsRequest) (*ItemPage, error)
+	GetItem(context.Context, *ItemRequest) (*ItemDetail, error)
+	ResolveItemUrl(context.Context, *ResolveItemUrlRequest) (*ItemRef, error)
+	FindItemWorkspaces(context.Context, *ItemRequest) (*ItemWorkspaces, error)
 	AddLocalRepository(context.Context, *AddLocalRepositoryRequest) (*AddLocalRepositoryResponse, error)
 	ListRepositories(context.Context, *ListRepositoriesRequest) (*ListRepositoriesResponse, error)
 	RemoveRepository(context.Context, *RemoveRepositoryRequest) (*RepositoryDiscovery, error)
@@ -3021,6 +3079,18 @@ func (UnimplementedRunnerServiceServer) ImportGitHubRepository(context.Context, 
 }
 func (UnimplementedRunnerServiceServer) ListGitHubItems(context.Context, *ListGitHubItemsRequest) (*ListGitHubItemsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGitHubItems not implemented")
+}
+func (UnimplementedRunnerServiceServer) SearchItems(context.Context, *SearchItemsRequest) (*ItemPage, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchItems not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetItem(context.Context, *ItemRequest) (*ItemDetail, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetItem not implemented")
+}
+func (UnimplementedRunnerServiceServer) ResolveItemUrl(context.Context, *ResolveItemUrlRequest) (*ItemRef, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveItemUrl not implemented")
+}
+func (UnimplementedRunnerServiceServer) FindItemWorkspaces(context.Context, *ItemRequest) (*ItemWorkspaces, error) {
+	return nil, status.Error(codes.Unimplemented, "method FindItemWorkspaces not implemented")
 }
 func (UnimplementedRunnerServiceServer) AddLocalRepository(context.Context, *AddLocalRepositoryRequest) (*AddLocalRepositoryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AddLocalRepository not implemented")
@@ -4064,6 +4134,78 @@ func _RunnerService_ListGitHubItems_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).ListGitHubItems(ctx, req.(*ListGitHubItemsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SearchItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchItemsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SearchItems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SearchItems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SearchItems(ctx, req.(*SearchItemsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetItem(ctx, req.(*ItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ResolveItemUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveItemUrlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ResolveItemUrl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ResolveItemUrl_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ResolveItemUrl(ctx, req.(*ResolveItemUrlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_FindItemWorkspaces_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).FindItemWorkspaces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_FindItemWorkspaces_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).FindItemWorkspaces(ctx, req.(*ItemRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -6899,6 +7041,22 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListGitHubItems",
 			Handler:    _RunnerService_ListGitHubItems_Handler,
+		},
+		{
+			MethodName: "SearchItems",
+			Handler:    _RunnerService_SearchItems_Handler,
+		},
+		{
+			MethodName: "GetItem",
+			Handler:    _RunnerService_GetItem_Handler,
+		},
+		{
+			MethodName: "ResolveItemUrl",
+			Handler:    _RunnerService_ResolveItemUrl_Handler,
+		},
+		{
+			MethodName: "FindItemWorkspaces",
+			Handler:    _RunnerService_FindItemWorkspaces_Handler,
 		},
 		{
 			MethodName: "AddLocalRepository",

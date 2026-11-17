@@ -128,6 +128,17 @@ const (
 	// RunnerServiceListGitHubItemsProcedure is the fully-qualified name of the RunnerService's
 	// ListGitHubItems RPC.
 	RunnerServiceListGitHubItemsProcedure = "/lazybox.bench.v1.RunnerService/ListGitHubItems"
+	// RunnerServiceSearchItemsProcedure is the fully-qualified name of the RunnerService's SearchItems
+	// RPC.
+	RunnerServiceSearchItemsProcedure = "/lazybox.bench.v1.RunnerService/SearchItems"
+	// RunnerServiceGetItemProcedure is the fully-qualified name of the RunnerService's GetItem RPC.
+	RunnerServiceGetItemProcedure = "/lazybox.bench.v1.RunnerService/GetItem"
+	// RunnerServiceResolveItemUrlProcedure is the fully-qualified name of the RunnerService's
+	// ResolveItemUrl RPC.
+	RunnerServiceResolveItemUrlProcedure = "/lazybox.bench.v1.RunnerService/ResolveItemUrl"
+	// RunnerServiceFindItemWorkspacesProcedure is the fully-qualified name of the RunnerService's
+	// FindItemWorkspaces RPC.
+	RunnerServiceFindItemWorkspacesProcedure = "/lazybox.bench.v1.RunnerService/FindItemWorkspaces"
 	// RunnerServiceAddLocalRepositoryProcedure is the fully-qualified name of the RunnerService's
 	// AddLocalRepository RPC.
 	RunnerServiceAddLocalRepositoryProcedure = "/lazybox.bench.v1.RunnerService/AddLocalRepository"
@@ -631,6 +642,13 @@ type RunnerServiceClient interface {
 	ListGitHubRepositories(context.Context, *connect.Request[gen.ListGitHubRepositoriesRequest]) (*connect.Response[gen.ListGitHubRepositoriesResponse], error)
 	ImportGitHubRepository(context.Context, *connect.Request[gen.ImportGitHubRepositoryRequest]) (*connect.Response[gen.ImportGitHubRepositoryResponse], error)
 	ListGitHubItems(context.Context, *connect.Request[gen.ListGitHubItemsRequest]) (*connect.Response[gen.ListGitHubItemsResponse], error)
+	// Work items (PROJECTS_AND_INTEGRATIONS.md): search a provider for the
+	// picker, read one item with the context an agent is given, turn a pasted
+	// link into its reference, and find the workspaces started from one.
+	SearchItems(context.Context, *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error)
+	GetItem(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error)
+	ResolveItemUrl(context.Context, *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error)
+	FindItemWorkspaces(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error)
 	AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error)
 	ListRepositories(context.Context, *connect.Request[gen.ListRepositoriesRequest]) (*connect.Response[gen.ListRepositoriesResponse], error)
 	RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error)
@@ -1186,6 +1204,30 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceListGitHubItemsProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("ListGitHubItems")),
+			connect.WithClientOptions(opts...),
+		),
+		searchItems: connect.NewClient[gen.SearchItemsRequest, gen.ItemPage](
+			httpClient,
+			baseURL+RunnerServiceSearchItemsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SearchItems")),
+			connect.WithClientOptions(opts...),
+		),
+		getItem: connect.NewClient[gen.ItemRequest, gen.ItemDetail](
+			httpClient,
+			baseURL+RunnerServiceGetItemProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetItem")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveItemUrl: connect.NewClient[gen.ResolveItemUrlRequest, gen.ItemRef](
+			httpClient,
+			baseURL+RunnerServiceResolveItemUrlProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ResolveItemUrl")),
+			connect.WithClientOptions(opts...),
+		),
+		findItemWorkspaces: connect.NewClient[gen.ItemRequest, gen.ItemWorkspaces](
+			httpClient,
+			baseURL+RunnerServiceFindItemWorkspacesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("FindItemWorkspaces")),
 			connect.WithClientOptions(opts...),
 		),
 		addLocalRepository: connect.NewClient[gen.AddLocalRepositoryRequest, gen.AddLocalRepositoryResponse](
@@ -2137,6 +2179,10 @@ type runnerServiceClient struct {
 	listGitHubRepositories       *connect.Client[gen.ListGitHubRepositoriesRequest, gen.ListGitHubRepositoriesResponse]
 	importGitHubRepository       *connect.Client[gen.ImportGitHubRepositoryRequest, gen.ImportGitHubRepositoryResponse]
 	listGitHubItems              *connect.Client[gen.ListGitHubItemsRequest, gen.ListGitHubItemsResponse]
+	searchItems                  *connect.Client[gen.SearchItemsRequest, gen.ItemPage]
+	getItem                      *connect.Client[gen.ItemRequest, gen.ItemDetail]
+	resolveItemUrl               *connect.Client[gen.ResolveItemUrlRequest, gen.ItemRef]
+	findItemWorkspaces           *connect.Client[gen.ItemRequest, gen.ItemWorkspaces]
 	addLocalRepository           *connect.Client[gen.AddLocalRepositoryRequest, gen.AddLocalRepositoryResponse]
 	listRepositories             *connect.Client[gen.ListRepositoriesRequest, gen.ListRepositoriesResponse]
 	removeRepository             *connect.Client[gen.RemoveRepositoryRequest, gen.RepositoryDiscovery]
@@ -2449,6 +2495,26 @@ func (c *runnerServiceClient) ImportGitHubRepository(ctx context.Context, req *c
 // ListGitHubItems calls lazybox.bench.v1.RunnerService.ListGitHubItems.
 func (c *runnerServiceClient) ListGitHubItems(ctx context.Context, req *connect.Request[gen.ListGitHubItemsRequest]) (*connect.Response[gen.ListGitHubItemsResponse], error) {
 	return c.listGitHubItems.CallUnary(ctx, req)
+}
+
+// SearchItems calls lazybox.bench.v1.RunnerService.SearchItems.
+func (c *runnerServiceClient) SearchItems(ctx context.Context, req *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error) {
+	return c.searchItems.CallUnary(ctx, req)
+}
+
+// GetItem calls lazybox.bench.v1.RunnerService.GetItem.
+func (c *runnerServiceClient) GetItem(ctx context.Context, req *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error) {
+	return c.getItem.CallUnary(ctx, req)
+}
+
+// ResolveItemUrl calls lazybox.bench.v1.RunnerService.ResolveItemUrl.
+func (c *runnerServiceClient) ResolveItemUrl(ctx context.Context, req *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error) {
+	return c.resolveItemUrl.CallUnary(ctx, req)
+}
+
+// FindItemWorkspaces calls lazybox.bench.v1.RunnerService.FindItemWorkspaces.
+func (c *runnerServiceClient) FindItemWorkspaces(ctx context.Context, req *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error) {
+	return c.findItemWorkspaces.CallUnary(ctx, req)
 }
 
 // AddLocalRepository calls lazybox.bench.v1.RunnerService.AddLocalRepository.
@@ -3260,6 +3326,13 @@ type RunnerServiceHandler interface {
 	ListGitHubRepositories(context.Context, *connect.Request[gen.ListGitHubRepositoriesRequest]) (*connect.Response[gen.ListGitHubRepositoriesResponse], error)
 	ImportGitHubRepository(context.Context, *connect.Request[gen.ImportGitHubRepositoryRequest]) (*connect.Response[gen.ImportGitHubRepositoryResponse], error)
 	ListGitHubItems(context.Context, *connect.Request[gen.ListGitHubItemsRequest]) (*connect.Response[gen.ListGitHubItemsResponse], error)
+	// Work items (PROJECTS_AND_INTEGRATIONS.md): search a provider for the
+	// picker, read one item with the context an agent is given, turn a pasted
+	// link into its reference, and find the workspaces started from one.
+	SearchItems(context.Context, *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error)
+	GetItem(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error)
+	ResolveItemUrl(context.Context, *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error)
+	FindItemWorkspaces(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error)
 	AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error)
 	ListRepositories(context.Context, *connect.Request[gen.ListRepositoriesRequest]) (*connect.Response[gen.ListRepositoriesResponse], error)
 	RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error)
@@ -3811,6 +3884,30 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceListGitHubItemsProcedure,
 		svc.ListGitHubItems,
 		connect.WithSchema(runnerServiceMethods.ByName("ListGitHubItems")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSearchItemsHandler := connect.NewUnaryHandler(
+		RunnerServiceSearchItemsProcedure,
+		svc.SearchItems,
+		connect.WithSchema(runnerServiceMethods.ByName("SearchItems")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetItemHandler := connect.NewUnaryHandler(
+		RunnerServiceGetItemProcedure,
+		svc.GetItem,
+		connect.WithSchema(runnerServiceMethods.ByName("GetItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceResolveItemUrlHandler := connect.NewUnaryHandler(
+		RunnerServiceResolveItemUrlProcedure,
+		svc.ResolveItemUrl,
+		connect.WithSchema(runnerServiceMethods.ByName("ResolveItemUrl")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceFindItemWorkspacesHandler := connect.NewUnaryHandler(
+		RunnerServiceFindItemWorkspacesProcedure,
+		svc.FindItemWorkspaces,
+		connect.WithSchema(runnerServiceMethods.ByName("FindItemWorkspaces")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceAddLocalRepositoryHandler := connect.NewUnaryHandler(
@@ -4791,6 +4888,14 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceImportGitHubRepositoryHandler.ServeHTTP(w, r)
 		case RunnerServiceListGitHubItemsProcedure:
 			runnerServiceListGitHubItemsHandler.ServeHTTP(w, r)
+		case RunnerServiceSearchItemsProcedure:
+			runnerServiceSearchItemsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetItemProcedure:
+			runnerServiceGetItemHandler.ServeHTTP(w, r)
+		case RunnerServiceResolveItemUrlProcedure:
+			runnerServiceResolveItemUrlHandler.ServeHTTP(w, r)
+		case RunnerServiceFindItemWorkspacesProcedure:
+			runnerServiceFindItemWorkspacesHandler.ServeHTTP(w, r)
 		case RunnerServiceAddLocalRepositoryProcedure:
 			runnerServiceAddLocalRepositoryHandler.ServeHTTP(w, r)
 		case RunnerServiceListRepositoriesProcedure:
@@ -5230,6 +5335,22 @@ func (UnimplementedRunnerServiceHandler) ImportGitHubRepository(context.Context,
 
 func (UnimplementedRunnerServiceHandler) ListGitHubItems(context.Context, *connect.Request[gen.ListGitHubItemsRequest]) (*connect.Response[gen.ListGitHubItemsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListGitHubItems is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SearchItems(context.Context, *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SearchItems is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetItem(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetItem is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ResolveItemUrl(context.Context, *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResolveItemUrl is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) FindItemWorkspaces(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.FindItemWorkspaces is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error) {
