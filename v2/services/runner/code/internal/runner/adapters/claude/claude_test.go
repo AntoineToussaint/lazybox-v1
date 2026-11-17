@@ -138,3 +138,41 @@ while IFS= read -r line; do :; done
 		_ = session.Close()
 	}
 }
+
+// A worker line the Runner cannot read is skipped, never the end of
+// supervision: the worker keeps running, so Receive goes on to its next event.
+// The first skip is recorded; an unreadable tool call is refused.
+func TestUndecodableWorkerLineIsSkipped(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	worker := filepath.Join(t.TempDir(), "worker.sh")
+	script := `read -r line
+printf '%s\n' '{"id":"lazybox-1","result":{"reference":"ref","features":[]}}'
+printf '%s\n' '{"method":"event","params":{"type":5}}'
+printf '%s\n' '{"method":"event","params":{"text":["not","text"]}}'
+printf '%s\n' '{"id":"tool-1","method":"tool","params":{"name":7}}'
+while IFS= read -r line; do
+  case "$line" in
+    *'"id":"tool-1"'*'"error"'*) printf '%s\n' '{"method":"event","params":{"type":"message_delta","text":"tool refused"}}' ;;
+  esac
+done
+`
+	if err := os.WriteFile(worker, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	session, err := Adapter{Node: "/bin/sh", Worker: worker}.Open(ctx, agent.Open{Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	ev, err := session.Receive(ctx)
+	if err != nil || ev.Type != agent.UnreadableEvent || !strings.Contains(ev.Text, "could not read") {
+		t.Fatalf("first unreadable line: %+v %v", ev, err)
+	}
+	// The second unreadable event and the unreadable tool call are skipped
+	// without a record; the worker hears the refusal and goes on.
+	ev, err = session.Receive(ctx)
+	if err != nil || ev.Type != "message_delta" || ev.Text != "tool refused" {
+		t.Fatalf("after unreadable lines: %+v %v", ev, err)
+	}
+}

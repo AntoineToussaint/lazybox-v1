@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -24,6 +25,8 @@ type session struct {
 	// keeps running across Runner restarts, so this is what the worker that is
 	// actually running reported, not what this Runner's worker build supports.
 	features []string
+	// noted: an unreadable worker line was already recorded once.
+	noted bool
 }
 
 // durable is the adapter state a later Runner needs to re-attach.
@@ -153,6 +156,24 @@ func (s *session) Commit(ev agent.Event) {
 		s.p.Commit(ev.Cursor)
 	}
 }
+
+// unreadable skips a worker line the Runner cannot read. The first one of the
+// session becomes a record (agent.UnreadableEvent) the engine journals and
+// commits; later ones are committed here, so a worker that keeps sending them
+// cannot fill the journal. Every line before it was already recorded: Receive
+// is only called again once the previous event is.
+func (s *session) unreadable(m jsonl.Message, err error) (agent.Event, bool) {
+	s.mu.Lock()
+	first := !s.noted
+	s.noted = true
+	s.mu.Unlock()
+	if !first {
+		s.p.Commit(m.Seq)
+		return agent.Event{}, false
+	}
+	return agent.Event{Type: agent.UnreadableEvent, Text: fmt.Sprintf("Skipped a Claude worker %s line Lazybox could not read: %v", m.Method, err), Cursor: m.Seq}, true
+}
+
 func (s *session) Detach() error     { return s.p.Detach() }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
 func (s *session) Capabilities() agent.Capabilities {
@@ -226,7 +247,12 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 				Arguments json.RawMessage `json:"arguments"`
 			}
 			if err = json.Unmarshal(m.Params, &p); err != nil {
-				return agent.Event{}, err
+				// The worker waits for an answer: say no, and go on.
+				_ = s.p.Reject(m.ID, "unreadable tool call")
+				if ev, ok := s.unreadable(m, err); ok {
+					return ev, nil
+				}
+				continue
 			}
 			if m.Redelivered && !agent.ToolReplaySafe(p.Name, p.Arguments) {
 				// Never re-run a call whose first execution may have had effects;
@@ -253,7 +279,12 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 		}
 		var ev agent.Event
 		if err = json.Unmarshal(m.Params, &ev); err != nil {
-			return ev, err
+			// One line the Runner cannot read must not end supervision of a
+			// worker that keeps running: skip it.
+			if ev, ok := s.unreadable(m, err); ok {
+				return ev, nil
+			}
+			continue
 		}
 		// One event per worker line: the line completes with it, whatever the
 		// worker's JSON said.
