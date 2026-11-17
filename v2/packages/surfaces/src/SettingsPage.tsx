@@ -22,6 +22,7 @@ import { SettingsHeader, useNow } from './settings-parts';
 import { Icon } from './Icons';
 import './settings.css';
 import { RepositoryBrowser } from './RepositoryBrowser';
+import { RepositoryHomesSettings } from './home-checkouts';
 import { AcpAgentsSettings } from './AcpAgentsSettings';
 import { AgentSettings, PricingSettings, useRunnerSettings } from './RunnerSettings';
 import { RunnerSection } from './RunnerControl';
@@ -355,7 +356,7 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
     {panel('workspaces', <RuntimeSettings/>)}
     {panel('devices', <DevicesSettings/>)}
     {panel('pricing', <PricingSettings/>)}
-    {panel('repositories', <><SettingsHeader title="Repositories" description="Repositories you can add to a workspace: the ones on this machine, and those your GitHub connection can see."/><RepositoryBrowser chooseRepositoryFolder={chooseRepositoryFolder}/></>)}
+    {panel('repositories', <><SettingsHeader title="Repositories" description="Repositories you can add to a workspace: the ones on this machine, and those your GitHub connection can see."/><RepositoryBrowser chooseRepositoryFolder={chooseRepositoryFolder}/><RepositoryHomesSettings chooseFolder={chooseRepositoryFolder}/></>)}
     <section hidden={tab !== 'subscriptions'} role="tabpanel" className="settings-panel" id="subscriptions-panel" aria-labelledby="subscriptions-tab">
       <SettingsHeader title="Subscriptions" description={info?.sharedSubscriptions ? 'Claude and Codex accounts agents run on. Shared with your other Lazybox environments.' : 'Claude and Codex accounts agents run on, kept separate from your own CLI sign-ins.'}
         actions={<button className="primary" onClick={() => { setError(''); setAdding(true); }}><Icon name="plus" size={14}/> {pending ? 'Continue sign-in' : 'Add subscription'}</button>}/>

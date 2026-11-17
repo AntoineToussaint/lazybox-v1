@@ -16,6 +16,7 @@ import { fencedCode, type MenuItem } from './context-menu-model';
 import { composeInConversation } from './compose';
 import { useWorkConversation } from './PullRequestFlow';
 import type { ViewTarget } from './workspace-model';
+import { useHomeChoices } from './home-checkouts';
 
 /** Workspaces whose terminal panel was just asked for (from the header, or for one shell). */
 const requested = new Map<string, string>();
@@ -23,7 +24,13 @@ const listeners = new Set<() => void>();
 /** Ask the workspace's terminal panel (now or once it mounts and has listed its shells) to
  * take focus: on terminalId when given and running, else on a running shell when there is
  * one, otherwise (only when no particular shell was asked for) on a new one it starts. */
-export function requestTerminal(collectionId: string, terminalId = '') { requested.set(collectionId, terminalId); for (const listener of listeners) listener(); }
+export function requestTerminal(collectionId: string, terminalId = '') {
+  // Asking for one shell (a home's, just opened) wins over showing the panel.
+  if (!terminalId && requested.get(collectionId)) return;
+  requested.set(collectionId, terminalId); for (const listener of listeners) listener();
+}
+/** A tab's name: the workspace directory, or where a shell outside it runs (a repository's home, ~). */
+export const terminalLabel = (terminal: TerminalStatus) => terminal.place ? terminal.title : terminal.directory || 'Workspace root';
 
 const encoder = new TextEncoder();
 const inputLimit = 32 << 10;
@@ -45,6 +52,7 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
   const [terminals, setTerminals] = useState<TerminalStatus[]>([]);
   const [selected, setSelected] = useState(() => (key && viewState?.getItem(key)) || '');
   const [directory, setDirectory] = useState('');
+  const homes = useHomeChoices(api, collection);
   const [error, setError] = useState(''), [listError, setListError] = useState(''), [opening, setOpening] = useState(false);
   const known = useRef<Set<string> | null>(null);
   const listed = useRef<TerminalStatus[]>([]), selectedRef = useRef(selected); selectedRef.current = selected;
@@ -66,7 +74,9 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
     if (!workspaceId || opening) return;
     setOpening(true); setError('');
     try {
-      const terminal = await api.openTerminal({ collectionId: workspaceId, directory, cols: size.current.cols, rows: size.current.rows, requestKey: crypto.randomUUID() });
+      // A home (`home:<repository>`) or the home folder (`~`) starts outside the workspace.
+      const where = directory.startsWith('home:') ? { repositoryHome: directory.slice(5) } : directory === '~' ? { userHome: true } : { directory };
+      const terminal = await api.openTerminal({ collectionId: workspaceId, ...where, cols: size.current.cols, rows: size.current.rows, requestKey: crypto.randomUUID() });
       known.current?.add(terminal.id); choose(terminal.id); await refresh();
     } catch (error) { setError(String(error)); }
     finally { setOpening(false); }
@@ -97,7 +107,13 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
   // A request waits until this workspace's shells are listed, so asking twice never starts a second one.
   const consume = () => {
     if (!workspaceId || known.current === null || !requested.has(workspaceId)) return;
-    const wanted = requested.get(workspaceId) || ''; requested.delete(workspaceId);
+    const wanted = requested.get(workspaceId) || '';
+    // A shell opened a moment ago may not be listed yet: look again before choosing.
+    if (wanted && !listed.current.some(terminal => terminal.id === wanted) && (retries.current[wanted] = (retries.current[wanted] || 0) + 1) <= 5) {
+      void refresh().then(() => setTimeout(() => consumeRef.current(), 100), () => {});
+      return;
+    }
+    requested.delete(workspaceId);
     const live = listed.current.filter(terminal => !terminal.done);
     if (wanted && live.some(terminal => terminal.id === wanted)) choose(wanted);
     else if (!live.length) { if (!wanted) void open(); return; }
@@ -105,6 +121,7 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
     requestAnimationFrame(() => focusView.current?.());
   };
   const consumeRef = useRef(consume); consumeRef.current = consume;
+  const retries = useRef<Record<string, number>>({});
   useEffect(() => {
     const listener = () => consumeRef.current();
     listeners.add(listener); listener();
@@ -117,12 +134,14 @@ export function TerminalPanel({ workspaceId, collections, viewState, onClosePane
       <div className="terminal-tabs" role="tablist" aria-label="Terminals">
         {terminals.map(terminal => <span key={terminal.id} className={'terminal-tab' + (terminal.id === selected ? ' selected' : '') + (terminal.done ? ' exited' : '')}
           onContextMenu={contextMenu('terminal-tab', () => [{ label: 'New terminal', icon: 'plus', disabled: !ready || opening, run: () => void open() }, 'separator', { label: terminal.done ? 'Remove terminal' : 'Close terminal', icon: 'close', danger: !terminal.done, run: () => void close(terminal.id) }], { terminalId: terminal.id, workspaceId })}>
-          <button role="tab" aria-selected={terminal.id === selected} title={terminal.title} onClick={() => choose(terminal.id)}>{terminal.directory || 'Workspace root'}{terminal.done ? ' · exited' : ''}</button>
-          <button className="terminal-close" aria-label={`Close terminal ${terminal.directory || 'Workspace root'}`} title={terminal.done ? 'Remove' : 'Close (hangs up the shell)'} onClick={() => void close(terminal.id)}>×</button>
+          <button role="tab" aria-selected={terminal.id === selected} title={terminal.place ? terminal.cwd : terminal.title} onClick={() => choose(terminal.id)}>{terminal.place && <Icon name="home" size={12}/>}{terminalLabel(terminal)}{terminal.done ? ' · exited' : ''}</button>
+          <button className="terminal-close" aria-label={`Close terminal ${terminalLabel(terminal)}`} title={terminal.done ? 'Remove' : 'Close (hangs up the shell)'} onClick={() => void close(terminal.id)}>×</button>
         </span>)}
         <span className="terminal-new">
           <label><span className="sr-only">Terminal directory</span><select aria-label="Terminal directory" value={directory} onChange={event => setDirectory(event.target.value)}>
             <option value="">Workspace root</option>{collection?.members.map(member => member.spec?.name && <option key={member.spec.name} value={member.spec.name}>{member.spec.name}</option>)}
+            {homes.length > 0 && <optgroup label="Home checkouts">{homes.map(home => <option key={home.repositoryId} value={'home:' + home.repositoryId}>{home.label}</option>)}</optgroup>}
+            <option value="~">Home folder (~)</option>
           </select></label>
           <button aria-label="New terminal" title="New terminal" disabled={!ready || opening} onClick={() => void open()}><Icon name="plus" size={14}/><span>New terminal</span></button>
         </span>

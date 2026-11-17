@@ -3,6 +3,7 @@ const paths: Record<string, string[]> = {
   history: ['M3 11a9 9 0 1 1 2 7', 'M3 4v7h7', 'M12 7v5l3 2'],
   snippets: ['M8 3H4v18h16V7l-4-4z', 'M8 11h8', 'M8 15h6'],
   folder: ['M3 7h6l2 2h10v11H3z', 'M3 7V4h6l2 3'],
+  home: ['M3 11l9-7 9 7', 'M5 9.5V20h14V9.5', 'M10 20v-6h4v6'],
   collections: ['M4 4h6v6H4z', 'M14 4h6v6h-6z', 'M4 14h6v6H4z', 'M14 14h6v6h-6z'],
   chat: ['M4 4h16v12H9l-5 4z'],
   terminal: ['m5 7 4 5-4 5', 'M12 17h7'],

@@ -5,6 +5,7 @@ import { WorkspaceRepositoryDialog } from './WorkspaceRepositoryDialog';
 import { repositoryLabel } from './repository-model';
 import { useRunner } from './RunnerContext';
 import { Icon } from './Icons';
+import { WorkspaceHomes } from './home-checkouts';
 
 /** The dialog is bound to one named workspace, never the changing sidebar selection. */
 export function WorkspaceRepositories({ workspace, onClose, onSaved, chooseRepositoryFolder }: {
@@ -55,6 +56,7 @@ export function WorkspaceRepositories({ workspace, onClose, onSaved, chooseRepos
         </div></li>;
       })}</ul>
       {!workspace.members.length && <p className="module-empty">Add a repository to start working with code here.</p>}
+      <WorkspaceHomes workspace={workspace} chooseFolder={chooseRepositoryFolder} onOpened={onClose}/>
       <button className="primary" aria-label={`Add repositories to ${workspace.name}`} disabled={workspace.state !== 'ready' || workspace.ownershipUncertain} onClick={() => setAdding(true)}><Icon name="plus" size={14}/> Add repositories</button>
       <details className="source-details"><summary>Workspace location & source details</summary><p className="mono">{workspace.root}</p>{workspace.members.map(member => <p className="mono" key={member.spec?.name}>{member.path}</p>)}</details>
       {adding && <WorkspaceRepositoryDialog workspace={workspace} chooseRepositoryFolder={chooseRepositoryFolder} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setRevision(value => value + 1); onSaved(); }}/>}

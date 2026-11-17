@@ -103,6 +103,9 @@ export async function startRunnerFixture() {
   const listedCommand = command => { const value = wireCommand(command); return value.report ? { ...value, report: { ...value.report, agentView: undefined } } : value; };
   const requests = new Map();
   const library = [{ id: 'backend', path: '/fixture/backend' }, { id: 'frontend', path: '/fixture/frontend' }];
+  // Home checkouts by repository id (WORKSPACES.md, "Home checkouts"): explicitly fake, nothing is cloned.
+  const homes = new Map(), homeRoot = '/fixture/home/lazybox/repos';
+  const homeView = r => { const h = homes.get(r.id); return { repositoryId: r.id, name: r.name || r.id, path: h?.path || '', kind: h ? 'configured' : '', exists: !!h, branch: h ? (h.branch || 'main') : '', dirty: h?.dirty || 0, suggestedPath: `${homeRoot}/fixture-team/${r.name || r.id}`, head: h ? 'abc1234' : '' }; };
   const github = { state: 'setup_required', clientId: '', appSlug: '', login: '', userId: '0', pendingSignIn: undefined };
   const githubFlows = new Map();
   const discovery = { roots: [] };
@@ -149,7 +152,7 @@ export async function startRunnerFixture() {
 
   // Terminals echo what is typed and answer each line, like a minimal shell.
   const terminals=new Map();
-  const terminalStatus=t=>({id:t.id,collectionId:t.collectionId,directory:t.directory,title:t.title,shell:'/bin/fixture-sh',cols:t.cols,rows:t.rows,offset:String(t.output.length),retained:String(t.output.length),done:t.done,...(t.done?{exitCode:0}:{}),createdAtUnixMillis:String(t.createdAt)});
+  const terminalStatus=t=>({id:t.id,collectionId:t.collectionId,directory:t.directory,title:t.title,shell:'/bin/fixture-sh',cols:t.cols,rows:t.rows,offset:String(t.output.length),retained:String(t.output.length),done:t.done,...(t.done?{exitCode:0}:{}),createdAtUnixMillis:String(t.createdAt),...(t.place?{place:t.place,repositoryId:t.repositoryId||'',cwd:t.cwd}:{})});
   const terminalOutput=(t,text)=>{const offset=t.output.length;const data=Buffer.from(text);t.output=Buffer.concat([t.output,data]);for(const res of t.clients)res.write(frame({offset:String(offset),data:data.toString('base64'),status:terminalStatus(t)}));};
 
   // The PR loop per workspace member: uncommitted files, branch commits, push
@@ -662,7 +665,17 @@ actions:
        for(const s of sessions)s.pending=(s.pending||[]).filter(p=>p.requestId!==body.requestId);repositoryRequests.set(body.requestId,{state:'declined',reason:body.reason||''});
        return json({id:body.requestId,state:'declined',declineReason:body.reason||''});
       }
-      case 'ListRepositories': return json({ repositories: library });
+      case 'ListRepositories': return json({ repositories: library.map(r => homes.has(r.id) ? { ...r, homePath: homes.get(r.id).path, homeKind: 'configured' } : r) });
+      case 'ListRepositoryHomes': return json({ root: homeRoot, homes: library.filter(r => !body.repositoryIds?.length || body.repositoryIds.includes(r.id)).map(homeView) });
+      case 'SetRepositoryHome': {
+        mutations.push({ method, body }); const repo = library.find(r => r.id === body.repositoryId); if (!repo) return error('not_found', 'repository missing');
+        if (body.action === 'clear') homes.delete(repo.id);
+        else if (body.action === 'create') { const path = body.path || homeView(repo).suggestedPath; if ([...homes.values()].some(h => h.path === path)) return error('failed_precondition', 'that folder already exists: choose “Use an existing folder…” to adopt it, or another path'); homes.set(repo.id, { path }); }
+        else if (body.action === 'adopt') { if (!String(body.path || '').startsWith('/') && !String(body.path || '').startsWith('~/')) return error('failed_precondition', 'a home checkout needs an absolute path'); if (/collections/.test(body.path)) return error('failed_precondition', "a home checkout cannot be inside Lazybox's own folders (its workspaces and its Runner state)"); homes.set(repo.id, { path: body.path.replace(/^~\//, '/fixture/home/') }); }
+        else return error('failed_precondition', 'action must be create, adopt or clear');
+        return json(homeView(repo));
+      }
+      case 'OpenRepositoryHome': { mutations.push({ method, body }); if (!homes.has(body.repositoryId)) return error('failed_precondition', 'this repository has no home checkout yet: create one in Settings → Repositories'); return json({}); }
       case 'ResolveWorkspacePath': {const files=treeFiles(body.collectionId),folders=treeFolders(body.collectionId),path=String(body.path||'').replace(/^\.\//,'');const members=collections.find(c=>c.id===body.collectionId)?.members.map(m=>m.spec.name)||[];
         const exists=p=>files.includes(p)||folders.has(p),match=p=>({path:p,directory:folders.has(p)});
         if(/missing/.test(path))return json({matches:[]});
@@ -731,8 +744,12 @@ actions:
         mutations.push({method,body});const collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Workspace missing');
         if(body.directory&&!collection.members.some(m=>m.spec.name===body.directory))return error('failed_precondition','terminal directory must be inside the workspace');
         const existing=[...terminals.values()].find(t=>body.requestKey&&t.requestKey===body.requestKey);if(existing)return json(terminalStatus(existing));
-        const t={id:'terminal-'+(terminals.size+1),requestKey:body.requestKey,collectionId:collection.id,directory:body.directory||'',title:collection.name+(body.directory?' / '+body.directory:''),cols:body.cols,rows:body.rows,createdAt:Date.now(),output:Buffer.alloc(0),line:'',input:[],resizes:[],done:false,clients:new Set()};
-        terminals.set(t.id,t);terminalOutput(t,`fixture shell in ${t.title}\r\n$ `);return json(terminalStatus(t));
+        // A shell outside the workspace: a repository's home checkout, or the home folder.
+        let place='',cwd='',placeTitle='';
+        if(body.repositoryHome){const home=homes.get(body.repositoryHome);if(!home)return error('failed_precondition','this repository has no home checkout yet: create one in Settings → Repositories');const member=collection.members.find(m=>m.spec.repositoryId===body.repositoryHome);place='repository-home';cwd=home.path;placeTitle=(member?.spec.name||body.repositoryHome)+' home';}
+        else if(body.userHome){place='user-home';cwd='/fixture/home';placeTitle='~';}
+        const t={id:'terminal-'+(terminals.size+1),requestKey:body.requestKey,collectionId:collection.id,place,repositoryId:body.repositoryHome||'',cwd,directory:place?'':body.directory||'',title:place?placeTitle:collection.name+(body.directory?' / '+body.directory:''),cols:body.cols,rows:body.rows,createdAt:Date.now(),output:Buffer.alloc(0),line:'',input:[],resizes:[],done:false,clients:new Set()};
+        terminals.set(t.id,t);terminalOutput(t,`fixture shell in ${place?cwd:t.title}\r\n$ `);return json(terminalStatus(t));
       }
       case 'ListTerminals': return json({terminals:[...terminals.values()].filter(t=>!body.collectionId||t.collectionId===body.collectionId).map(terminalStatus)});
       case 'WatchTerminal': {
@@ -1134,7 +1151,7 @@ actions:
     availability, acp, tracked,
     /** A conversation's open journal, without replacing it (openEvents starts a new one). */
     eventsOf: id => eventStreams.get(id),
-    get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
+    get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, homes, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */

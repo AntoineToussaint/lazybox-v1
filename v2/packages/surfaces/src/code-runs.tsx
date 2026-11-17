@@ -14,6 +14,12 @@
  * Inline code that reads as a command offers the same two in its right-click
  * menu only. Nothing ever runs without a click or key, and Run myself always
  * confirms. `code-run.ts` holds the pure rules.
+ *
+ * A command the agent hands back to the person (a login, a dev server to try
+ * by hand) also runs in a home checkout: the menus offer "Run in <repo> home"
+ * and the conversation's last message, once its turn is over, shows one
+ * button per such command (`home-run.ts`, `HomeRuns`). It opens a shell in
+ * the workspace's Terminal panel there and types the command.
  */
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
@@ -26,6 +32,9 @@ import { Icon } from './Icons';
 import { shortPath } from './tool-lines';
 import type { TranscriptMessage } from './transcript-model';
 import './code-run.css';
+import { homeOffers, placeFor, placeLabel, runsAtOnce, type HomeOffer, type HomePlace, type HomeRepository } from './home-run';
+import { homesChanged, libraryOf, subscribeLibrary } from './home-checkouts';
+import { openHomeShell } from './home-shell';
 
 export type RunActions = {
   /** Sends a message to the agent now (queued behind a turn in progress); `drafted` when it went to the message box instead. */
@@ -123,7 +132,12 @@ export class CodeRuns {
     return this.requested;
   }
   /** Reads this conversation's earlier person runs once, and follows running ones. */
-  attach() { this.attached = true; void this.refresh(); return () => { this.attached = false; clearInterval(this.timer); this.timer = undefined; }; }
+  attach() {
+    this.attached = true; void this.refresh();
+    // A home created or forgotten anywhere changes what Run in … home offers.
+    const unsubscribe = subscribeLibrary(() => this.emit());
+    return () => { this.attached = false; clearInterval(this.timer); this.timer = undefined; unsubscribe(); };
+  }
 
   // ---- Subscription ---------------------------------------------------------
 
@@ -222,6 +236,47 @@ export class CodeRuns {
   defaultFolder(): string { return this.session?.workingDirectory || this.folders()[0]?.path || ''; }
   private folderLabel(path: string): string { return this.folders().find(folder => folder.path === path)?.label || (path ? shortPath(path, this.workspace?.root || '') : ''); }
   canOpenOutput() { return !!this.actions?.openOutput; }
+
+  // ---- Home checkouts -------------------------------------------------------
+
+  /** The workspace's repositories and their homes, as the library records them. */
+  homeRepositories(): HomeRepository[] {
+    const library = libraryOf(this.api);
+    const out: HomeRepository[] = [];
+    for (const member of this.workspace?.members || []) {
+      if (!member.spec || out.some(r => r.repositoryId === member.spec!.repositoryId)) continue;
+      const repo = library.find(r => r.id === member.spec!.repositoryId);
+      out.push({ repositoryId: member.spec.repositoryId, name: member.spec.name, identity: repo?.gitIdentity || '', home: repo?.homePath || '' });
+    }
+    return out;
+  }
+  /** What the conversation's last message hands back to the person, once its turn is over: nothing for any other message. */
+  homeOffers(messageId: string): { offer: HomeOffer; place: HomePlace }[] {
+    if (this.session?.busy || !this.session) return [];
+    let last: TranscriptMessage | undefined;
+    for (let i = this.messages.length - 1; i >= 0 && !last; i--) if (this.messages[i].type === 'message_delta') last = this.messages[i];
+    if (!last || last.id !== messageId) return [];
+    const repositories = this.homeRepositories();
+    return homeOffers(last.text).map(offer => ({ offer, place: placeFor(offer.target, repositories) })).filter(entry => entry.place.kind !== 'unknown');
+  }
+  homeSignature(messageId: string): string { return JSON.stringify(this.homeOffers(messageId)); }
+  /** Where a block or command can run outside the workspace: each repository's home that exists, then the home folder. */
+  homePlaces(): HomePlace[] {
+    return [...this.homeRepositories().filter(r => r.home).slice(0, 3).map(repository => ({ kind: 'repository' as const, repository })), { kind: 'user' as const }];
+  }
+  /** Run in … home: a shell there, the command typed (and run when it is one line with nothing to fill in). A repository without a home gets one first. */
+  async runInHome(place: HomePlace, command: string) {
+    const workspace = this.workspaceId();
+    if (place.kind === 'unknown') return;
+    if (place.kind === 'user') { await openHomeShell(this.api, workspace, { userHome: true, label: 'your home folder' }, command, runsAtOnce(command, placeholdersIn(command))); return; }
+    const { repository } = place;
+    if (!repository.home) {
+      showMenuNotice(`Cloning ${repository.name}’s home checkout…`);
+      try { await this.api.setRepositoryHome({ repositoryId: repository.repositoryId, action: 'create', path: '' }, { timeoutMs: 10 * 60_000 }); homesChanged(this.api); }
+      catch (error) { showMenuNotice(`Could not create ${repository.name}’s home: ${String(error instanceof Error ? error.message : error).replace(/^\[\w+\]\s*/, '')}`); return; }
+    }
+    await openHomeShell(this.api, workspace, { repositoryId: repository.repositoryId, label: `${repository.name} home` }, command, runsAtOnce(command, placeholdersIn(command)));
+  }
 
   // ---- Doing ----------------------------------------------------------------
 
@@ -355,7 +410,12 @@ export function inlineRunItems(host: CodeRuns, messageId: string, command: strin
   return [
     { label: `Run \`${clip(command)}\` (ask ${host.agentName})`, icon: 'play', run: () => host.askAgent(messageId, command, 'sh', true) },
     { label: 'Run myself…', icon: 'terminal', disabled: why || undefined, run: () => host.openConfirm(messageId, command, true) },
+    ...homeRunItems(host, command),
   ];
+}
+/** Run in each home checkout, and in the home folder: a shell in the Terminal panel. */
+function homeRunItems(host: CodeRuns, script: string): MenuItem[] {
+  return host.homePlaces().map(place => ({ label: placeLabel(place), icon: 'home', run: () => void host.runInHome(place, script) }));
 }
 const clip = (text: string) => text.length > 48 ? text.slice(0, 47) + '…' : text;
 
@@ -385,11 +445,13 @@ export function useRunnableBlock(text: string, language: string, runnable: boole
     { label: server ? `Ask ${host.agentName} to start it in the background` : `Ask ${host.agentName} to run it`, icon: 'send', shortcut: 'Enter', run: ask },
     { label: 'Run myself…', icon: 'terminal', shortcut: 'Alt+Enter', disabled: host.whyNotRunMyself() || undefined, run: myself },
   ];
+  // The split button's menu also runs it in a home checkout or the home folder.
+  const dropdown = (): MenuItem[] => [...menu(), 'separator', ...homeRunItems(host, script)];
   const header = <span className="code-run" role="group" aria-label="Run">
     <button type="button" className="code-run-main" title={server ? `This keeps running (a server or a watcher): ask ${host.agentName} to start it in the background and say when it is ready` : `Ask ${host.agentName} to run this and report back`}
       aria-label={server ? `Run: ask ${host.agentName} to start this in the background` : `Run: ask ${host.agentName} to run this`} onClick={ask}><Icon name="play" size={10}/>Run</button>
     <button type="button" className="code-run-more" title="More ways to run" aria-label="More ways to run" aria-haspopup="menu"
-      onClick={event => { const box = event.currentTarget.getBoundingClientRect(); openContextMenu({ x: box.left, y: box.bottom + 4 }, menu(), { keyboard: event.detail === 0, target: event.currentTarget, label: 'Run' }); }}><Icon name="chevron" size={10}/></button>
+      onClick={event => { const box = event.currentTarget.getBoundingClientRect(); openContextMenu({ x: box.left, y: box.bottom + 4 }, dropdown(), { keyboard: event.detail === 0, target: event.currentTarget, label: 'Run' }); }}><Icon name="chevron" size={10}/></button>
   </span>;
   const footer = (view.agent || view.self || view.confirming) ? <div className="code-run-footer">
     {view.confirming && <RunConfirm host={host} messageId={messageId} script={script}/>}
@@ -407,8 +469,34 @@ export function useRunnableBlock(text: string, language: string, runnable: boole
 export function InlineRuns({ messageId }: { messageId: string }) {
   const host = useContext(CodeRunContext);
   const signature = useSyncExternalStore(host ? host.subscribe : noSubscribe, () => host ? host.inlineSignature(messageId) : '');
-  if (!host || !signature) return null;
-  return <div className="inline-runs">{signature.split('\0').map(script => <InlineRun key={script} host={host} messageId={messageId} script={script}/>)}</div>;
+  if (!host) return null;
+  return <>
+    {signature && <div className="inline-runs">{signature.split('\0').map(script => <InlineRun key={script} host={host} messageId={messageId} script={script}/>)}</div>}
+    <HomeRuns host={host} messageId={messageId}/>
+  </>;
+}
+
+/**
+ * Under the conversation's last message, once its turn is over: one button
+ * per command it hands back to the person ("run in the home checkout of api:
+ * `make playground`", a login). A click opens a shell there and runs it.
+ */
+function HomeRuns({ host, messageId }: { host: CodeRuns; messageId: string }) {
+  const signature = useSyncExternalStore(host.subscribe, () => host.homeSignature(messageId));
+  const offers = JSON.parse(signature) as { offer: HomeOffer; place: HomePlace }[];
+  if (!offers.length) return null;
+  return <div className="home-runs" role="group" aria-label="Commands for you to run">
+    {offers.map(({ offer, place }) => {
+      const setup = place.kind === 'repository' && !place.repository.home;
+      const label = setup ? `Create ${place.kind === 'repository' ? place.repository.name : ''} home and run` : placeLabel(place);
+      const at = runsAtOnce(offer.command, placeholdersIn(offer.command));
+      return <button key={offer.command} type="button" className={'home-run' + (setup ? ' is-setup' : '')}
+        title={setup ? `Clone ${place.kind === 'repository' ? place.repository.name : ''}’s home checkout (your own copy, outside the workspace), then ${at ? 'run' : 'type'} this in a shell there` : at ? 'Opens a shell there, in the Terminal panel, and runs this' : 'Opens a shell there and types this for you to review and run'}
+        onClick={() => void host.runInHome(place, offer.command)}>
+        <Icon name="home" size={12}/><span>{label}</span><code>{offer.command.split('\n')[0]}{offer.command.includes('\n') ? ' …' : ''}</code>
+      </button>;
+    })}
+  </div>;
 }
 function InlineRun({ host, messageId, script }: { host: CodeRuns; messageId: string; script: string }) {
   const signature = useSyncExternalStore(host.subscribe, () => host.signature(messageId, script));
