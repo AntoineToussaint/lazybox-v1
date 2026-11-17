@@ -88,6 +88,21 @@ try{
  await expect(page.getByRole('dialog',{name:'Conversation history'})).toBeVisible();
  await page.keyboard.press('Escape');await expect(page.getByRole('dialog',{name:'Conversation history'})).toHaveCount(0);
 
+ // A context menu over the list: Escape closes the menu, not the list under it; a second Escape the list.
+ await composer.click();await chip.click();await expect(prompts).toBeVisible();
+ const contextMenu=page.locator('.context-menu-layer .context-menu');
+ await prompts.getByRole('option').first().click({button:'right'});
+ await expect(contextMenu).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(contextMenu).toHaveCount(0);
+ await expect(prompts).toBeVisible();
+ // A press outside the menu closes the menu alone.
+ await prompts.getByRole('option').first().click({button:'right'});await expect(contextMenu).toBeVisible();
+ await page.locator('.workspace-brand').click();
+ await expect(contextMenu).toHaveCount(0);
+ await expect(prompts).toBeVisible();
+ await page.keyboard.press('Escape');await expect(prompts).toHaveCount(0);
+
  // ── The slash-command menu: a click outside the menu and the box puts it away; the text stays.
  await composer.click();await composer.fill('/');
  const slash=chat.getByRole('listbox',{name:'Commands'});
@@ -120,6 +135,20 @@ try{
  await historyButton.click();await expect(history).toBeVisible();
  {const box=await history.locator('p').first().boundingBox();
   await page.mouse.move(backdrop.x,backdrop.y);await page.mouse.down();await page.mouse.move(box.x+10,box.y+box.height/2,{steps:6});await page.mouse.up();}
+ await expect(history).toBeVisible();
+ await page.keyboard.press('Escape');await expect(history).toHaveCount(0);
+
+ // A context menu over a dialog: a click on the backdrop closes the menu, not the dialog; so does Escape.
+ await historyButton.click();await expect(history).toBeVisible();
+ const menuOver=page.locator('.context-menu-layer .context-menu');
+ await history.locator('p').first().click({button:'right'});
+ await expect(menuOver).toBeVisible();
+ await clickBackdrop();
+ await expect(menuOver).toHaveCount(0);
+ await expect(history).toBeVisible();
+ await history.locator('p').first().click({button:'right'});await expect(menuOver).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(menuOver).toHaveCount(0);
  await expect(history).toBeVisible();
  await page.keyboard.press('Escape');await expect(history).toHaveCount(0);
 
@@ -173,5 +202,5 @@ try{
  await expect(track).toHaveCount(0);
 
  assert.deepEqual(errors,[]);
- console.log('PASS: Escape and a click outside close the prompt history, the slash menu, the conversation history, the command palette, the shortcuts overlay and Track as artifact; a selection dragged out never does; typed edits keep their dialog open and nudge it; focus returns to the message box');
+ console.log('PASS: Escape and a click outside close the prompt history, the slash menu, the conversation history, the command palette, the shortcuts overlay and Track as artifact; a selection dragged out never does; typed edits keep their dialog open and nudge it; focus returns to the message box; a context menu over a dialog or a popover closes alone, on a press outside it or Escape');
 }finally{await browser?.close();await server.close();await fixture.close();}

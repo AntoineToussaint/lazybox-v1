@@ -175,7 +175,8 @@ export function useDismiss(open: boolean, onDismiss: (how: 'outside' | 'escape')
       return !!layer && !(panel && layer.contains(panel));
     };
     const press = (event: PointerEvent) => {
-      if (menuPresses.has(event) || contains(event.target) || elsewhere(event.target)) return;
+      // A press in a context menu opened over the popover is the menu's; one that closed a menu closes nothing else.
+      if (menuPresses.has(event) || (event.target instanceof Element && event.target.closest('.context-menu-layer')) || contains(event.target) || elsewhere(event.target)) return;
       consumed.add(event);
       pressedOutside = true;
       latest.current.onDismiss('outside');
