@@ -129,11 +129,16 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
     // tsx compiles with esbuild's keepNames: a function sent to the page may call its __name helper.
     await context.addInitScript({ content: 'globalThis.__name = globalThis.__name || (fn => fn);' });
     await context.addInitScript(() => performance.setResourceTimingBufferSize(100_000));
+    for (const script of world.initScripts) await context.addInitScript(script);
     await context.addInitScript(installOverlay, { pointer: (phone ? 'touch' : 'arrow') as PointerStyle, compact: phone });
     const page = await context.newPage();
     page.setDefaultTimeout(options.timeout);
-    page.on('pageerror', error => report.pageErrors.push(String(error).split('\n')[0]));
-    await page.clock.setFixedTime(clock.now);
+    let during = 'opening the app';
+    page.on('pageerror', error => { report.pageErrors.push(`${String(error).split('\n')[0]} (during: ${during})`); if (process.env.SCENARIO_DEBUG) console.error(error.stack); });
+    if (process.env.SCENARIO_DEBUG) page.on('console', message => { if (message.type() === 'error') console.error('console:', message.text().slice(0, 2000)); });
+    // The page's clock is the scenario's (SCENARIO_REAL_CLOCK=1 leaves it real, to tell a clock artefact from a bug).
+    const syncPage = () => process.env.SCENARIO_REAL_CLOCK ? Promise.resolve() : page.clock.setFixedTime(clock.now);
+    await syncPage();
     const overlay = new Overlay(page, options.video, viewport);
     const random = seeded(name);
     const withToken = (path: string) => world.phone ? path : `${path}${path.includes('#') ? '&' : '#'}token=${fixture.token}`;
@@ -163,8 +168,8 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
       page, fixture, world, clock, overlay, video: options.video, random, timeout: options.timeout,
       async pause(seconds) {
         let left = Math.max(0, seconds * 1000);
-        if (!options.video) { clock.advance(left); await page.clock.setFixedTime(clock.now); return; }
-        while (left > 0) { const chunk = Math.min(1000, left); await sleep(chunk); clock.advance(chunk); left -= chunk; await page.clock.setFixedTime(clock.now); }
+        if (!options.video) { clock.advance(left); await syncPage(); return; }
+        while (left > 0) { const chunk = Math.min(1000, left); await sleep(chunk); clock.advance(chunk); left -= chunk; await syncPage(); }
       },
       async beat(seconds) { if (options.video && seconds > 0) await sleep(seconds * 1000); },
       async check(description, assertion) {
@@ -178,12 +183,12 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
     let failed: Error | undefined;
     for (const [index, item] of steps.entries()) {
       if (failed) { report.steps.push({ index, kind: item.kind, label: item.label, status: 'skipped', checks: [] }); continue; }
-      checks = [];
+      checks = []; during = `step ${index + 1}, ${item.label}`;
       if (item.caption) { if (captionOpen) await keyframe(captionOpen); captionOpen = item.caption; }
       const at = recorder ? Math.round(recorder.elapsed()) : undefined, t0 = performance.now();
       try {
         await item.run(ctx);
-        await page.clock.setFixedTime(clock.now);
+        await syncPage();
         report.steps.push({ index, kind: item.kind, label: item.label, status: 'passed', atMs: at, durationMs: Math.round(performance.now() - t0), checks });
       } catch (error) {
         failed = error as Error;

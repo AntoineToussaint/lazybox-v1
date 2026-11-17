@@ -8,6 +8,7 @@
 import type { EventChannel, FixtureCollection, FixtureSession, JournalEvent, RunnerFixture } from '../../scripts/fixtures/runner-ui.mjs';
 import { step, type Step, type StepContext } from './step.ts';
 import type { ScenarioClock } from './clock.ts';
+import { fakeSpeech } from './voice.ts';
 
 const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64');
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -112,6 +113,8 @@ export class World {
   readonly consumed = new Map<string, number>();
   /** The phone pairs before the video starts (`open('phone')`). */
   phone = false;
+  /** Scripts the page runs before the app (a fake speech engine, say). */
+  readonly initScripts: (() => void)[] = [];
   constructor(readonly fixture: RunnerFixture, readonly clock: ScenarioClock) {
     const f = fixture;
     // A clean slate: the fixture's own two workspaces and their extras go.
@@ -164,6 +167,9 @@ export class World {
       updated: String(now - (spec.updatedHoursAgo ?? 2) * 3_600_000), comments: (spec.comments || []).map(c => ({ author: c.author, body: c.body, at: now - (c.daysAgo ?? 1) * 86_400_000 })) });
     return `https://github.com/${spec.repo}/issues/${spec.number}`;
   }
+
+  /** Dictation works without a microphone: the scenario says what it hears (`hears('…')`). */
+  voice() { this.initScripts.push(fakeSpeech); return this; }
 
   /** Where the app opens: a conversation, a workspace, the start page, or a paired phone's inbox. */
   open(target: OpenTarget) { this.opened = target; if (target === 'phone') this.phone = true; return this; }
@@ -218,6 +224,14 @@ export class WorkspaceHandle {
   file(path: string, text: string) {
     this.world.fixture.workspaceFiles.set(`${this.id}/${path}`, { path, text, version: `v-${slug(path)}-1`, binary: false, truncated: false });
     return this;
+  }
+  /** The file changes on disk (an agent or an editor wrote it): a tracked artifact gets a new version. */
+  changesFile(path: string, text: string): Step {
+    return step('world', `${path} changes on disk`, async ctx => {
+      ctx.fixture.artifacts.fileChanged(this.id, path, text);
+      await ctx.nudge();
+      await ctx.pause(0.3);
+    });
   }
   /** A pull request of this workspace's branch, opened later by `agent.opensPR(pr)` (or now, with `open()`). */
   pullRequest(spec: PullRequestSpec): PullRequestHandle {
@@ -362,6 +376,17 @@ export class ConversationHandle {
     });
   }
 
+  /** The agent starts a long command and is still in it (a dev server, a slow build): the turn stays busy. */
+  startsRunning(command: string, options: { description?: string } = {}): Step {
+    return step('agent', `agent starts ${command}`, async ctx => {
+      const live = ctx.world.live(ctx, this);
+      live.ensureTurn(); live.phase('tool', 'Bash');
+      live.toolStart('Bash', { command, ...(options.description ? { description: options.description } : {}) });
+      await ctx.nudge();
+      await ctx.pause(0.6);
+    });
+  }
+
   /** The agent writes Markdown; streamed word by word unless `stream: false`. */
   writes(markdown: string, options: { stream?: boolean } = {}): Step {
     const preview = markdown.replace(/\s+/g, ' ').slice(0, 48);
@@ -376,7 +401,10 @@ export class ConversationHandle {
       live.turn.text += markdown;
       // What the agent wrote is on screen: its last words, as a person reads them.
       const tail = markdown.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[`*]|^#+\s|^>\s?/gm, '').trim().split('\n').filter(Boolean).at(-1)?.trim().slice(-40);
-      if (tail) await ctx.check(`the conversation shows “…${tail}”`, () => import('@playwright/test').then(({ expect }) => expect(ctx.page.locator('.messages').last()).toContainText(tail, { timeout: ctx.timeout })));
+      // Checked when this conversation is the one on screen (the page's session).
+      const url = new URL(ctx.page.url()), shown = url.searchParams.get('session');
+      const onScreen = shown ? shown === live.session.id : url.searchParams.get('view') !== 'remote' && ctx.world.currentSessionId(ctx) === live.session.id;
+      if (tail && onScreen) await ctx.check(`the conversation shows “…${tail}”`, () => import('@playwright/test').then(({ expect }) => expect(ctx.page.locator('.messages, .remote-transcript').last()).toContainText(tail, { timeout: ctx.timeout })));
       await ctx.pause(0.4);
     });
   }

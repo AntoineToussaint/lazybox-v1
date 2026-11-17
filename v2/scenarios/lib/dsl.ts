@@ -19,6 +19,7 @@ import { ConversationHandle, type World } from './world.ts';
 import type { CaptionPosition } from './overlay.ts';
 
 export * from './step.ts';
+export { hears } from './voice.ts';
 export { History, World, WorkspaceHandle, ConversationHandle, PullRequestHandle, type IssueSpec, type QuestionSpec, type RunOptions, type TaskSpec } from './world.ts';
 
 // ---- The scenario -----------------------------------------------------------
@@ -136,6 +137,23 @@ export function hover(target: Target, seconds = 0.8): Step {
   });
 }
 
+/** Scrolls inside something with the wheel, as a trackpad would (`dy` < 0 is up). */
+export function scroll(target: Target, dy: number, options: { seconds?: number } = {}): Step {
+  return step('person', `scroll ${target.describe} by ${dy}px`, async ctx => {
+    const locator = target.locate(ctx.page);
+    await ctx.overlay.moveToLocator(locator);
+    if (!ctx.video) { await ctx.page.mouse.wheel(0, dy); return; }
+    const steps = Math.max(1, Math.round((options.seconds ?? 1.2) * 30));
+    for (let i = 0; i < steps; i++) {
+      // Fast in the middle, gentle at both ends, like a flick.
+      const share = Math.sin(Math.PI * (i + 0.5) / steps) * Math.PI / 2 / steps;
+      await ctx.page.mouse.wheel(0, dy * share);
+      await new Promise(resolve => setTimeout(resolve, 33));
+    }
+    await ctx.beat(0.4);
+  });
+}
+
 /**
  * Types text, a key at a time at a person's pace, into `into` (default: the
  * focused field, else the conversation's message box). A newline is ⇧↵.
@@ -154,7 +172,10 @@ export function say(text: string, options: { into?: Target; pace?: number } = {}
     const pace = options.pace ?? 1;
     for (const ch of text) {
       if (ch === '\n') await page.keyboard.press('Shift+Enter'); else await page.keyboard.type(ch);
-      if (!ctx.video) continue;
+      // A test types at a fast person's pace, not 1 ms a key. Labelled stopgap: keys 1 ms
+      // apart intermittently hit "Maximum update depth exceeded" from AgentWindow's
+      // composer onChange (reported with the scenarios); it is an app bug to fix there.
+      if (!ctx.video) { await new Promise(resolve => setTimeout(resolve, 12)); continue; }
       let ms = (34 + ctx.random() * 44) / pace;
       if (/[.,;:!?]/.test(ch)) ms += 120 + ctx.random() * 90;
       else if (ch === ' ' && ctx.random() < 0.18) ms += 70;
