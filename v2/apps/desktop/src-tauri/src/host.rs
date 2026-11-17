@@ -182,12 +182,46 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     if launch_options()?.endpoint.is_none()
         && let Some(release) = crate::release::Release::detect(handle)
     {
-        return match crate::release::prepare(&release) {
-            Some(endpoint) => start(handle, Some(endpoint)),
-            None => crate::release::open_setup(handle).map_err(Into::into),
-        };
+        // Preparing can take long: the first launch after an update moves the
+        // Runner to this release (`lazybox service install` reads the login
+        // shell, then waits for the new Runner to answer), up to about a
+        // minute and a half. It runs off the main thread so the app stays
+        // responsive meanwhile; the windows open when it is done, on the main
+        // thread, as setup_finish opens them from the setup window.
+        let handle = handle.clone();
+        std::thread::Builder::new()
+            .name("lazybox-release-prepare".into())
+            .spawn(move || {
+                let endpoint = crate::release::prepare(&release);
+                let main = handle.clone();
+                let opened = handle.run_on_main_thread(move || open_release(&main, endpoint));
+                if let Err(error) = opened {
+                    eprintln!("Lazybox could not open its windows: {error}");
+                    handle.exit(1);
+                }
+            })?;
+        return Ok(());
     }
     start(handle, None)
+}
+
+/// Connects to the prepared Runner, or asks the person (the setup window)
+/// when there is none or connecting fails: that window can start, repair or
+/// diagnose the service.
+fn open_release(app: &tauri::AppHandle, endpoint: Option<PathBuf>) {
+    let started = match endpoint {
+        Some(endpoint) => start(app, Some(endpoint)).map_err(|e| e.to_string()),
+        None => Err(String::new()),
+    };
+    if let Err(error) = started {
+        if !error.is_empty() {
+            eprintln!("Lazybox could not connect to its Runner: {error}");
+        }
+        if let Err(error) = crate::release::open_setup(app) {
+            eprintln!("Lazybox could not open its setup window: {error}");
+            app.exit(1);
+        }
+    }
 }
 
 /// Connects the app to its Runner and restores its windows.
@@ -376,7 +410,11 @@ pub fn report(app: &tauri::AppHandle, error: String) {
 pub fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     // No layout lock may be held while calling a native window API.
     let surface: Surface = {
-        let host = app.state::<Host>();
+        // None until the app is connected: while an installed release still
+        // prepares its Runner, or while the setup window is open.
+        let host = app
+            .try_state::<Host>()
+            .ok_or("Lazybox is still connecting to its Runner")?;
         let layout = host.layout.lock().map_err(|e| e.to_string())?;
         layout
             .surfaces
