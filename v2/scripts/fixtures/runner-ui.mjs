@@ -11,6 +11,7 @@ const orchestrationProcess = JSON.parse(readFileSync(new URL('./orchestration-pr
 import { createMissionFake } from './missions-fake.mjs';
 import { createPowerFake } from './power-fake.mjs';
 import { createConfigFake } from './config-fake.mjs';
+import { createItemsFake } from './items-fake.mjs';
 import { createExtensionsFake, extensionAllows } from './extensions-fake.mjs';
 import { createBrowserFake } from './browser-fake.mjs';
 import { createAcpFake } from './acp-ui-fake.mjs';
@@ -287,6 +288,7 @@ export async function startRunnerFixture() {
   const runtimeCommands = [];
   const power = createPowerFake({ frame, commands, runtimeCommands, sessions, mutations });
   const config = createConfigFake({ mutations });
+  const items = createItemsFake({ collections, github });
   const extensions = await createExtensionsFake({ mutations });
   const runCommand = (collectionId, origin, title, output) => { const command = { id: `${origin}-${collectionId}-${runtimeCommands.length}`, sessionId: '', collectionId, origin, title, mode: 'managed', done: false, offset: String(Buffer.byteLength(output)), output, argv: ['/bin/sh', '-lc', title] }; runtimeCommands.push(command); return command; };
   const runState = (command, extra = {}) => ({ state: 'running', commandId: command.id, startedAtUnixMillis: now(), lastLine: command.output.trim().split('\n').at(-1), ...extra });
@@ -604,7 +606,7 @@ actions:
       case 'PrepareWorkspace': {
        mutations.push({method,body});const values=[];const members=[];
        for(const identity of body.repositoryIdentities||[]){const choice=catalogEntries().find(r=>r.identity===identity);if(!choice)return error('not_found','Unknown repository identity');let repo=library.find(r=>r.id===choice.repositoryId);if(!repo){if(preparationFailures.delete(identity)){res.writeHead(200,{'Content-Type':'application/connect+json'});res.end(Buffer.concat([...values.map(v=>frame(v)),frame({error:{code:'failed_precondition',message:'Fixture preparation failure'}},2)]));return;}const remote=githubRepositories.find(r=>'github:'+r.fullName.toLowerCase()===identity);repo={id:remote?'github-'+remote.id:'local-'+(library.length+1),name:choice.name.split('/').at(-1),path:choice.path||'/fixture/repos/'+remote.id,gitIdentity:identity};library.push(repo);prepared.push(identity);}values.push({identity,message:'Preparing '+choice.name});members.push({repositoryId:repo.id,name:repo.name||repo.id,...(body.branch&&!body.collectionId?{branch:body.branch}:{})});}
-       let collection=requests.get(body.requestKey);if(!collection){if(body.collectionId){collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Missing workspace');collection.members.push(...members.map(spec=>({spec,path:collection.root+'/'+spec.name,ready:true})));}else{const id='created-'+collections.length;collection={id,name:body.name,root:'/fixture/collections/'+id,state:'ready',members:members.map(spec=>({spec,path:'/fixture/collections/'+id+'/'+spec.name,ready:true}))};collections.push(collection);}requests.set(body.requestKey,collection);}values.push({message:'Ready',collection});
+       let collection=requests.get(body.requestKey);if(!collection){if(body.collectionId){collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Missing workspace');collection.members.push(...members.map(spec=>({spec,path:collection.root+'/'+spec.name,ready:true})));}else{const id='created-'+collections.length;collection={id,name:body.name,...(body.item?{origin:{provider:body.item.provider||'github',key:body.item.key}}:{}),root:'/fixture/collections/'+id,state:'ready',members:members.map(spec=>({spec,path:'/fixture/collections/'+id+'/'+spec.name,ready:true}))};collections.push(collection);}requests.set(body.requestKey,collection);}values.push({message:'Ready',collection});
        // Answering an agent's request for a repository: the request is resolved (the agent told).
        if(body.repositoryRequestId){
         // The asking agent is told, as the Runner tells it: a message with its origin, shown as an event.
@@ -730,6 +732,7 @@ actions:
         if (body.emptyWorkspace) { const session = {id:`empty-${sessions.length}`,profileId:body.profileId,workingDirectory:`/fixture/workspaces/${sessions.length}`,status:'ready',capabilities:{files:true},pending:[]};sessions.push(session);return json({session}); }
         const collection = collections.find(value => value.id === body.collectionId); if (!collection) return error('failed_precondition', 'Fixture Collection required');
         const session = { id: `started-${sessions.length}`, collectionId: collection.id, workId: collection.id, profileId: body.profileId, capabilities: { files: true }, pending: [] }; sessions.push(session); collection.ownerExecutionId = session.id;
+        if (runner.journalMessages) openEvents(session.id);
         return json({ session });
       }
       case 'ListWorkspaceChanges': {
@@ -908,6 +911,8 @@ actions:
           const files=body.message.attachments.map(file=>{const data=Buffer.from(file.data||'','base64');const path=`/fixture/attachments/${session.id}/${createHash('sha256').update(data).digest('hex')}/${file.name}`;attachments.set(path,{name:file.name,mediaType:file.mediaType||'application/octet-stream',data});return {name:file.name,mediaType:file.mediaType||'application/octet-stream',path,size:data.length};});
           eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text||'',providerDataJson:Buffer.from(JSON.stringify({files})).toString('base64')});
         }
+        // Like the Runner, which journals every message it accepts; opt-in (runner.journalMessages) so tests that count events keep theirs.
+        else if(session&&body.message&&runner.journalMessages)eventStreams.get(session.id)?.push({type:'operation_accepted',operationId:body.operationId,text:body.message.text||''});
         return json({ operationId: body.operationId, delivery: 'accepted' });
       }
       // Like the Runner: only a retained attachment, only an image a browser displays.
@@ -998,7 +1003,7 @@ actions:
         runtimeSettings = { revision: String(Number(runtimeSettings.revision) + 1), portRangeStart: body.portRangeStart, portRangeEnd: body.portRangeEnd, repositories };
         return json(runtimeSettingsView());
       }
-      default: { const answer = missions.handle(method, body) || acp.handle(method, body, availabilityReport) || browser.handle(method, body, res) || config.handle(method, body) || await extensions.handle(method, body) || await power.handle(method, body, res); if (answer === true) return; if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
+      default: { const answer = missions.handle(method, body) || items.handle(method, body) || acp.handle(method, body, availabilityReport) || browser.handle(method, body, res) || config.handle(method, body) || await extensions.handle(method, body) || await power.handle(method, body, res); if (answer === true) return; if (answer) return answer.error ? error(answer.error.code, answer.error.message) : json(answer.value); return error('unimplemented', `Unsupported fixture RPC ${method}`); }
     }
   };
   const listen = async () => { const next = createServer(handle); await new Promise(resolve => next.listen(0, '127.0.0.1', resolve)); return next; };
@@ -1009,7 +1014,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, acp, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },

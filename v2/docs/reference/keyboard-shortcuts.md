@@ -68,6 +68,7 @@ Open the parts of the workspace in front.
 | Action | macOS | Windows / Linux |
 | --- | --- | --- |
 | New task | `⌘N` | `Ctrl+N` |
+| Start from an issue… | — | — |
 | New workspace | `]] w` | `]] w` |
 | New conversation | `⇧⌘N` or `]] c` | `Ctrl+Shift+N` or `]] c` |
 | Review changes | `]] d` | `]] d` |

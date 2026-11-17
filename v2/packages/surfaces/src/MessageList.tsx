@@ -22,8 +22,25 @@ import { InlineRuns, RunMessageContext } from './code-runs';
 import { RestartMark, RunnerNoticeLine, SystemEvent } from './SystemEvents';
 import { isSystemEvent } from './system-events';
 import { LineageLine } from './AgentMessages';
+import { splitItemContext } from './item-context';
+import { QuotedItemChip } from './WorkItems';
 
 const ownName = (id: string) => id;
+
+/**
+ * A message's words; in one the person sent, an issue it carries (quoted by
+ * the Runner as external content) shows as the issue's chip, which opens to
+ * exactly what the agent received.
+ */
+function PersonText({ text, quoted, onOpenFile }: { text: string; quoted: boolean; onOpenFile?(reference: FileLink, how: OpenModifiers): void }) {
+  const parts = quoted ? splitItemContext(text) : undefined;
+  if (!parts) return <RichContent text={text} onOpenFile={onOpenFile}/>;
+  return <>
+    {parts.before && <RichContent text={parts.before} onOpenFile={onOpenFile}/>}
+    <QuotedItemChip item={parts.item}/>
+    {parts.after && <RichContent text={parts.after} onOpenFile={onOpenFile}/>}
+  </>;
+}
 
 type MessageMenu = (context: ContextMenuContext<MessageMenuDetail>) => MenuItem[];
 const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile, nameFor = ownName, sessionId = '', menu, turn }: { message: TranscriptMessage; agentName: string; onOpenFile?(reference: FileLink, how: OpenModifiers): void; nameFor?(id: string): string; sessionId?: string; menu?: MessageMenu; /** Quiet: every tool call of the turn this run of calls opens. */ turn?: ToolEntry[] }) {
@@ -43,7 +60,7 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   return <article className={'message ' + m.type} data-message-id={m.id} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}>
     <span className="eyebrow">{m.type === 'operation_accepted' ? 'You' : m.type === 'failure' ? 'Stopped' : agentName}</span>
     {/* Only an agent's own words offer to run their commands. */}
-    {m.type === 'message_delta' ? <RunMessageContext.Provider value={m.id}><RichContent text={m.text} onOpenFile={onOpenFile}/><InlineRuns messageId={m.id}/></RunMessageContext.Provider> : <RichContent text={m.text} onOpenFile={onOpenFile}/>}
+    {m.type === 'message_delta' ? <RunMessageContext.Provider value={m.id}><RichContent text={m.text} onOpenFile={onOpenFile}/><InlineRuns messageId={m.id}/></RunMessageContext.Provider> : <PersonText text={m.text} quoted={m.type === 'operation_accepted'} onOpenFile={onOpenFile}/>}
     {m.files?.length ? <SentAttachments files={m.files}/> : null}
     <MessageArtifactActions message={m}/>
   </article>;

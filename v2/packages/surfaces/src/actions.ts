@@ -90,6 +90,7 @@ const tail = [
   { id: 'navigation.exit', title: 'Focus the sidebar', group: 'Go to', icon: 'sidebar', keys: '] ]', scope: 'global', required: true, keywords: 'leave agent navigation leader' },
   // One sheet: repositories, branch, agent, mode and the first message; Enter starts it all (NewTaskSheet.tsx).
   { id: 'task.new', title: 'New task', group: 'Workspace', icon: 'agent', keys: 'Mod+n', scope: 'global', overDialogs: true, keywords: 'new workspace conversation agent prompt start repository branch create begin work', menu: { section: 'File', title: 'New Task…' } },
+  { id: 'task.fromIssue', title: 'Start from an issue…', group: 'Workspace', icon: 'issue', keys: '', scope: 'global', overDialogs: true, keywords: 'new task workspace github issue ticket item link pull request pick search assigned' },
   { id: 'workspace.new', title: 'New workspace', group: 'Workspace', icon: 'plus', keys: '] ] w', scope: 'global', keywords: 'create add repositories', menu: { section: 'File', title: 'New Workspace…' } },
   { id: 'conversation.new', title: 'New conversation', group: 'Workspace', icon: 'chat', keys: 'Mod+Shift+n or ] ] c', scope: 'global', keywords: 'start agent session chat in this workspace', menu: { section: 'File', title: 'New Conversation…' } },
   { id: 'changes.show', title: 'Review changes', group: 'Workspace', icon: 'branch', keys: '] ] d', scope: 'global', safe: true, keywords: 'diff git commit pull request' },

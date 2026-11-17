@@ -60,6 +60,7 @@ import { showMenuNotice } from './ContextMenu';
 import { useSlashCommands } from './useSlashCommands';
 import { showToast } from './toasts';
 import { useReadAloudReplies } from './voice/useReadAloudReplies';
+import { ItemOriginChip } from './WorkItems';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -471,7 +472,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         : <SubagentContext.Provider value={subagents}><section className="single-session">
           {embedded
             ? <ChatHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} statusText={live.text + (session?.queued ? ` · ${session.queued} queued` : '')} statusBusy={live.tone === 'busy' || live.tone === 'waiting'}
-              modelLabel={modelLabel} stats={stats} realTitle={realTitle} branch={branch} shownAccount={headerAccount} onOpenChat={onOpenChat}
+              modelLabel={modelLabel} stats={stats} realTitle={realTitle} branch={branch} shownAccount={headerAccount} onOpenChat={onOpenChat} origin={assistant ? undefined : <ItemOriginChip workspace={workspace}/>}
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
               onContextMenu={contextMenu('session', () => [onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart,
                 onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),

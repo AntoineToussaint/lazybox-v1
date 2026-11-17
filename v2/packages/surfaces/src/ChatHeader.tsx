@@ -66,7 +66,9 @@ function textWidth(text: string, font: string): number {
  * when it is not the only one, then the numbers as compact chips. What does
  * not fit folds whole into "⋯" — nothing on the line is cut.
  */
-export function ChatHeader({ agentName, session, sessionID, title, status, statusText, statusBusy, modelLabel, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu, onContextMenu, onPickModel, stats }: Omit<HeaderProps, 'inspection'> & {
+export function ChatHeader({ agentName, session, sessionID, title, status, statusText, statusBusy, modelLabel, realTitle, branch, modelRequested, shownAccount, onOpenChat, menu, onContextMenu, onPickModel, stats, origin }: Omit<HeaderProps, 'inspection'> & {
+  /** Where the workspace's work started (an issue), as a chip beside the actions. */
+  origin?: ReactNode;
   /** The conversation's actions on a right-click, the same as its ⋯ menu. */
   onContextMenu?: MouseEventHandler<HTMLElement>;
   realTitle: string;
@@ -173,6 +175,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
     <span className={'agent-avatar ' + agentName.toLowerCase()} aria-hidden="true">{agentName === 'Claude' ? '✳︎' : '›'}</span>
     <div className="chat-heading-title">{title}</div>
     <div className="chat-heading-actions">
+      {origin}
       {/* Where this conversation sits in an agent tree: its Orchestrator grant, or the orchestrator that started it. */}
       <OrchestratorBadge session={session} sessionID={sessionID}/>
       {onOpenChat && <button className="icon-button" aria-label="Open chat window ↗" title="Open in a separate window" onClick={onOpenChat}><Icon name="external"/></button>}

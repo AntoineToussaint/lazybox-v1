@@ -56,6 +56,7 @@
     { "id": "transcript-polish", "scope": "ui", "script": "test:transcript-polish" },
     { "id": "chat-header", "scope": "ui", "script": "test:chat-header" },
     { "id": "new-task", "scope": "ui", "script": "test:new-task" },
+    { "id": "start-from-issue", "scope": "ui", "script": "test:start-from-issue" },
     { "id": "chat-handoff", "scope": "ui", "script": "test:chat-handoff" },
     { "id": "sounds", "scope": "ui", "script": "test:sounds" },
     { "id": "subscription-switch", "scope": "ui", "script": "test:subscription-switch" },
