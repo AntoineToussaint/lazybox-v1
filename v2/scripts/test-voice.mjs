@@ -205,8 +205,9 @@ try {
   await message.fill('');
   await page.keyboard.press('Alt+Space');
   await listening();
-  await say('ship the fix');
-  await page.keyboard.press('Meta+Enter');
+  // The key comes in the same task as the words, before React shows them: what a busy machine does to a
+  // real ⌘↵ pressed right after speaking. It still sends them (the real key press is below, while the agent works).
+  await page.evaluate(() => { window.__speech.say('ship the fix'); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', metaKey: true, bubbles: true, cancelable: true })); });
   await expect.poll(() => applied('Ship the fix')).toBe(true);
   await expect(pill).toHaveCount(0);
   await expect(message).toHaveValue('');

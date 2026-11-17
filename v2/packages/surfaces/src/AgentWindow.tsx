@@ -66,6 +66,7 @@ import { showMenuNotice } from './ContextMenu';
 import { useSlashCommands } from './useSlashCommands';
 import { showToast } from './toasts';
 import { useReadAloudReplies } from './voice/useReadAloudReplies';
+import { dictating, voiceState } from './voice/voice-session';
 import { ItemOriginChip } from './WorkItems';
 import { humanError } from './human-error';
 import { focusComposerOf, wantsComposerFocus } from './confirm-card';
@@ -329,9 +330,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const sendNowBinding = bindings(keymap['chat.send-now'])[0];
   const sendNowKey = sendNowBinding ? displayBinding(sendNowBinding).join(' ') : '';
   const draftToSend = () => !!message.trim() || files.length > 0 || missingFiles.length > 0;
+  // Words dictated into this box count before `message` shows them: a key pressed right after them can
+  // run before that render (a busy machine). The form's submit waits for the last words (Composer).
+  const saidHere = () => dictating() && voiceState().kind === 'composer' && !!voiceState().text.trim() && document.activeElement === composer.current;
   const workingTurn = () => !!session?.busy && !session.closed;
   const sendNow = () => {
-    if (draftToSend()) {
+    if (draftToSend() || saidHere()) {
       if (workingTurn()) sendNowAt.current = Date.now();
       composer.current?.form?.requestSubmit();
       return;
