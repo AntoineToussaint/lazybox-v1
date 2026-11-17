@@ -164,8 +164,9 @@ is:
   Artifacts panel (the latest follows new versions; an older one says "You are
   viewing v1 of 3"); Compare opens Changes on the two. A message tracked or
   updated from shows the same card under it ("tracked from this message").
-  In a chat window of its own, with no workspace beside it, Open opens the
-  page in its own window. The card is read from the tool output
+  In a chat window of its own, with no workspace beside it, Open shows the
+  page in that window, beside the chat (see *A chat in its own window*
+  below). The card is read from the tool output
   (`publishedArtifacts` in `tool-lines.ts`): the Runner journals no artifact
   event of its own, so a put whose output was lost shows no card, though the
   artifact is in the panel.
@@ -175,7 +176,20 @@ is:
   is absent when the workspace has none. Like the other numbers it folds whole
   into ⋯ when the header is narrow. It opens the Artifacts panel on this
   conversation's artifacts, with a "From this conversation" pill whose ×
-  shows the whole workspace again.
+  shows the whole workspace again. In a chat window of its own it opens them
+  beside the chat, in that window.
+- **A chat in its own window** (`DetachedArtifacts.tsx`). Everything that
+  opens an artifact there — a card's Open or Compare, the header's chip —
+  shows it in that window: the Artifacts panel (list and page, one at a time
+  when narrow) on the chat's right, resizable from its edge (remembered for
+  the window), closed with × or Escape, the focus going back where it was. On
+  a window narrower than 720 px it covers the chat until closed. **Open in
+  main window** asks the main window to show the same artifact in its
+  workspace's Artifacts panel and brings it forward (a navigation request,
+  like the palette's). Send to agent fills this chat's message box; Open
+  source message scrolls this chat when it is this conversation, and asks the
+  main window otherwise. A file link in that window already opens in the
+  quick-look window there.
 - **⌘K.** The palette lists the artifacts of **every** workspace, newest
   first, with the kind, the version and the workspace ("Spec · v1 · Beta
   release"); a workspace's name finds its artifacts. `*` narrows the palette to

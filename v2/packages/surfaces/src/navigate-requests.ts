@@ -11,11 +11,14 @@ import type { ViewTarget } from './workspace-model';
 const navigateKey = (root: string) => `${root}:navigate-request`;
 const fresh = 10_000;
 
-export function requestNavigation(root: string, target: ViewTarget) {
+/** Where another window asks this one to go: a conversation or workspace, or an artifact of a workspace. */
+export type NavigationRequest = ViewTarget & { artifactId?: string };
+
+export function requestNavigation(root: string, target: NavigationRequest) {
   try { localStorage.setItem(navigateKey(root), JSON.stringify({ ...target, at: Date.now(), nonce: crypto.randomUUID() })); } catch { /* storage unavailable: nothing to deliver it */ }
 }
 /** The main window: show what another window of this Runner asked for. */
-export function useNavigationRequests(root: string, enabled: boolean, show: (target: ViewTarget) => void) {
+export function useNavigationRequests(root: string, enabled: boolean, show: (target: NavigationRequest) => void) {
   const ref = useRef(show); ref.current = show;
   useEffect(() => {
     if (!enabled || !root) return;
@@ -24,7 +27,7 @@ export function useNavigationRequests(root: string, enabled: boolean, show: (tar
       try {
         const value = JSON.parse(event.newValue);
         if (typeof value?.collectionId !== 'string' || typeof value.sessionId !== 'string' || !(Date.now() - value.at < fresh)) return;
-        ref.current({ collectionId: value.collectionId, sessionId: value.sessionId, commandId: '' });
+        ref.current({ collectionId: value.collectionId, sessionId: value.sessionId, commandId: '', ...(typeof value.artifactId === 'string' ? { artifactId: value.artifactId } : {}) });
       } catch { /* a malformed request is ignored */ }
     };
     window.addEventListener('storage', listener);

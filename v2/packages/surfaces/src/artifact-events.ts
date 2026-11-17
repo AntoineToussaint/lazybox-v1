@@ -54,6 +54,21 @@ export function useOpenArtifactRequests(collectionId: string, show: (request: Op
   }, [collectionId]);
 }
 
+/**
+ * A window without a workspace (a chat in its own window): it takes every
+ * artifact asked for in it, whatever its workspace, and shows it there itself
+ * (an Artifacts panel beside the chat, which then takes the request).
+ */
+export function useArtifactRequestsInWindow(enabled: boolean, show: (request: OpenArtifactRequest) => void) {
+  const ref = useRef(show); ref.current = show;
+  useEffect(() => {
+    if (!enabled) return;
+    const listener = (event: Event) => { event.preventDefault(); ref.current((event as CustomEvent<OpenArtifactRequest>).detail); };
+    window.addEventListener(OPEN, listener);
+    return () => window.removeEventListener(OPEN, listener);
+  }, [enabled]);
+}
+
 /** The Artifacts panel: the artifact asked for, now or once mounted. */
 export function useArtifactSelection(collectionId: string, select: (request: OpenArtifactRequest) => void) {
   const ref = useRef(select); ref.current = select;

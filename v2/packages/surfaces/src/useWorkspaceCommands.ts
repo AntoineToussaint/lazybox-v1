@@ -3,6 +3,7 @@ import type { Collection } from '@lazybox/protocol';
 import { useActions } from './actions';
 import type { CommandNavigator } from './CommandCenter';
 import { showMissionsPage, useNavigationRequests } from './navigate-requests';
+import { openArtifact } from './artifact-events';
 import type { PanelModule } from './PanelRegistry';
 import type { Workbench } from './workbench';
 import type { ViewTarget } from './workspace-model';
@@ -55,8 +56,16 @@ export function useWorkspaceCommands(commands: Commands): CommandNavigator {
     'page.customize': () => c().toggleEditing(),
     'layout.configure': () => c().toggleConfiguring(),
   });
-  // A detached chat window asks this window to show a conversation.
-  useNavigationRequests(commands.root, commands.main, target => goTo(target));
+  // A detached chat window asks this window to show a conversation, or an artifact (its Open in main window).
+  useNavigationRequests(commands.root, commands.main, target => {
+    if (target.artifactId === undefined) { goTo(target); return; }
+    const request = { collectionId: target.collectionId, artifactId: target.artifactId };
+    latest.current.closeSettings();
+    if (target.collectionId === latest.current.workspaceId) { openArtifact(request); return; }
+    // Asked for first, so the workspace shows its Artifacts panel once it is switched to.
+    openArtifact(request, { whenShown: true });
+    goTo({ collectionId: target.collectionId, sessionId: '', commandId: '' });
+  });
   const goTo = (target: ViewTarget) => {
     const { showSession, selectWorkspace, closeSettings, workspaceId } = latest.current;
     closeSettings();

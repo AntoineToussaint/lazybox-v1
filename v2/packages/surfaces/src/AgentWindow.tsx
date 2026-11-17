@@ -1,4 +1,5 @@
 import { ArtifactsChip } from './ArtifactCard';
+import { DetachedArtifacts } from './DetachedArtifacts';
 import { AppearanceSync } from './appearance/AppearanceSync';
 import { LeaderMenu } from './LeaderMenu';
 import { DetachedCommands } from './DetachedCommands';
@@ -106,9 +107,14 @@ export function AgentWindow(props: AgentWindowProps) {
   // A detached chat is visually embedded but still owns its window's keyboard
   // dispatcher. Workspace-hosted panels use their Workspace's dispatcher.
   const keyboardHint = useKeyboardNavigation(props.viewState);
+  // The conversation shown: artifacts opened here are shown beside it, in this window.
+  const [sessionId, setSessionId] = useState(props.initialSessionId || '');
+  const onSessionChange = useCallback((id: string) => { setSessionId(id); props.onSessionChange?.(id); }, [props.onSessionChange]);
   return <RunnerProvider connection={props.connection}><AppearanceSync store={props.viewState}/>
     <AttentionScope root={props.viewState?.root}>
-      <ChatPanel {...props} keyboardHint={keyboardHint}/>
+      <DetachedArtifacts viewState={props.viewState} sessionId={sessionId} onFocusMain={props.onFocusMain}>
+        <ChatPanel {...props} onSessionChange={onSessionChange} keyboardHint={keyboardHint}/>
+      </DetachedArtifacts>
       <DetachedCommands viewState={props.viewState} collectionId={props.collectionId || ''} sessionId={props.initialSessionId || ''} onFocusMain={props.onFocusMain}/>
     </AttentionScope>
   </RunnerProvider>;

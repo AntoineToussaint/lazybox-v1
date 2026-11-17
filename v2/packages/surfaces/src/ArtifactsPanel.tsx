@@ -48,7 +48,7 @@ const matches = (artifact: Artifact, q: string) => !q || artifact.title.toLowerC
  * when it is narrow. The chat header's chip opens it on its conversation's
  * artifacts.
  */
-export function ArtifactsPanel({ workspaceId, collections, viewState, target, onShowSession }: { workspaceId: string; collections: Collection[]; viewState?: ViewStateStore; target: ViewTarget; onShowSession?(target: ViewTarget): void }) {
+export function ArtifactsPanel({ workspaceId, collections, viewState, target, onShowSession, onCurrentChange }: { workspaceId: string; collections: Collection[]; viewState?: ViewStateStore; target: ViewTarget; onShowSession?(target: ViewTarget): void; /** The artifact open in the panel ('' for the list), as it changes. */ onCurrentChange?(collectionId: string, artifactId: string): void }) {
   const key = viewState ? `${viewState.key}:artifact:${workspaceId}` : '';
   const scopeKey = viewState ? `${viewState.key}:artifact-scope` : '';
   const [selected, setSelectedState] = useState(() => { try { return key ? viewState!.getItem(key) || '' : ''; } catch { return ''; } });
@@ -87,6 +87,7 @@ export function ArtifactsPanel({ workspaceId, collections, viewState, target, on
   const { seen, markSeen } = useSeenVersions(viewState, workspaceId);
   // Opening an artifact, or reading it while a new version arrives, is looking at it.
   useEffect(() => { if (current && !other) markSeen(current); }, [current, other, markSeen]);
+  useEffect(() => { onCurrentChange?.(currentCollectionId, current?.id || ''); }, [currentCollectionId, current?.id]);
   if (!workspaceId) return <p className="module-empty">Choose a workspace to see its artifacts.</p>;
   const focusRow = (id: string) => requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-artifact-id="${CSS.escape(id)}"]`)?.focus());
   const choose = (collectionId: string, id: string) => collectionId === workspaceId ? setSelected(id) : setElsewhere({ collectionId, id });
