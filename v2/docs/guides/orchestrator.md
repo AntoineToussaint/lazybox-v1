@@ -8,6 +8,72 @@ their work.
 
 ![An orchestrator: its conversation lists each agent it started and what they said; the Orchestrator 2/3 badge in its header; in the Agents list, its agents nested under it, and the one that waits for an approval asks you](../images/orchestrator.webp)
 
+You don't need an orchestrator to have an agent start one other
+conversation. Ask it in the chat (next section).
+
+## Ask an agent to start another conversation
+
+Tell an agent in its chat, for example *"Start a new conversation in this
+workspace to review every module"*. It writes the brief and asks you. The
+request appears in the chat as a card, like an approval:
+
+> **Claude wants to start a conversation: Review all modules**
+> the brief's first lines (or the artifact that holds it, with **Open**) ·
+> **Workspace:** this one, shared with 2 running conversations · **Agent:**
+> Claude · Opus 5.5
+
+| Choice | Key | What it does |
+| --- | --- | --- |
+| **Start** | `1` `Y` | Starts it as asked and opens it as a tab beside this one. |
+| **Start in a new workspace** | `W` | Starts it with its own branches, created from this workspace's, so it doesn't edit the same files as the agents already running here. |
+| **Edit…** | `E` | Change the title, brief, agent, model or workspace first. `⌘↵` starts it; `Esc` goes back. |
+| **Deny…** | `N` | Tells the agent why. It won't start the conversation another way. |
+
+The arrow keys move between the choices. **Let this conversation start
+agents (orchestrator grant)…** opens the grant sheet (below) if you'd
+rather let it start agents without asking each time.
+
+The request also shows in the Inbox as **New conversation**, and on a paired
+phone, which can **Start** or **Deny** it as asked (changes stay on the
+computer). From a terminal, `lazybox approve <conversation>` starts it and
+`lazybox deny <conversation>` declines it. Nothing approves a request for
+you. A conversation can have at most three requests waiting at once, and a
+request expires after a day.
+
+The conversation it starts is a **peer**, not a sub-agent. It has its own
+tab and its own row in the Agents list, runs at the asking conversation's
+permission, and answers to you. Its first message is the brief, plus a line
+saying which conversation asked for it and why. The asking conversation
+shows one line, **Started “Review all modules”**, with **Open**, or
+**You declined starting “…”**.
+
+For the agent, this is one command (every agent is told about it in its
+briefing):
+
+```text
+lazybox conversation new --title "Review all modules" --brief "What to do, done when, boundaries"
+                         [--brief - | --brief-artifact ID] [--workspace same|new]
+                         [--provider claude|codex|…] [--profile ID] [--model M] [--reason "why"]
+                         [--timeout 90s] [--no-wait]
+```
+
+`--brief -` reads the brief from stdin (at most 8 KB). For a longer brief,
+publish it as an artifact (`lazybox artifact put … --kind spec`) and pass
+`--brief-artifact ID`. The new conversation's first message names that
+artifact, so the brief stays versioned. A new workspace gets its own copy
+of the artifact. The command waits for your answer and exits with one of
+these codes:
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Started. It prints the new conversation's id. |
+| `4` | You declined. It prints your reason. |
+| `5` | No answer yet. The request stays open, and your answer reaches the conversation later. |
+
+`lazybox agents spawn` works the same way without a grant: it asks you
+instead of failing. A conversation that holds a grant starts the agent at
+once, as part of its mission.
+
 ## Give a conversation the right
 
 In the conversation, type `/orchestrate` (or ⌘K → **Let this conversation run
@@ -141,6 +207,7 @@ reach you. Deleting the conversation revokes its grant too.
 The orchestrator (and its agents) use these from their own conversations:
 
 ```text
+lazybox conversation new --title "…" --brief "…"   # starts an agent of the mission at once, under the grant
 lazybox agents spawn --title "Index the corpus" --brief "Objective… Done when…" [--workspace new]
                      [--permission read-only|ask|yolo] [--profile ID] [--role worker]
 lazybox agents ls                      # its agents and their state

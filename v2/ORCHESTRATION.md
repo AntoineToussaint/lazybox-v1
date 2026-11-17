@@ -825,6 +825,53 @@ tasks to accept sit at its top and in the Inbox count.
 Not verified with real Claude or Codex agents: the fake provider and the
 fake Runner drive every test.
 
+### A conversation an agent asks the person to start (as built)
+
+A grant is too much ceremony when the person just tells an agent, in its
+chat, to start a second conversation. In the field, an agent asked to do
+that ran `lazybox agents` (exit 2), then `spawn` (exit 4 and a paragraph of
+what agent credentials may do), and got no further. Now:
+
+- **One request, one click.** `lazybox conversation new` (and `lazybox
+  agents spawn` without a grant) calls `RequestConversationStart`, which
+  records a request on the asking conversation
+  (`runner/conversation_starts.go`, persisted in `conversation-starts.json`).
+  The request carries the title, the brief (at most 8 KB) or an artifact of
+  the workspace, the reason, the workspace (`same` or `new`), the agent
+  (provider, subscription, model) and the asking conversation's permission
+  and gateway.
+- **Shown like an approval.** It is a pending entry of type
+  `conversation_request` on the session view, so the chat card, the Inbox,
+  `lazybox inbox` and a paired phone's notifications show it. The card shows
+  how many conversations already work in the workspace (`shared_with`) and
+  offers a new workspace in one click. `AnswerConversationStart` is the
+  owner's. A paired phone with `respond` may also answer, but only as asked:
+  start or decline, never another agent, model or workspace.
+- **A peer, not a child.** Starting the conversation opens it at the asking
+  conversation's permission, in its workspace or in a new one branched from
+  it (`childWorkspace`). The conversation gets no lineage. Its first message
+  is the brief, plus a line naming who asked and why (origin
+  `conversation_brief`). A brief artifact is named by its id, and a new
+  workspace gets a copy of it.
+- **The answer.** The asking agent collects the answer from
+  `WaitConversationStart` (exit 0 started, 4 declined, 5 no answer yet). If
+  it no longer waits, the answer reaches it as a note. Either way, the
+  asking conversation shows one line (`conversation_started`, with
+  **Open**, or `conversation_declined`).
+- **Guards.** A conversation may have at most 3 requests waiting and make 10
+  an hour. A request with the same title is the same request. A request
+  expires after 24 hours, and there is no auto-approval: no setting, hook or
+  extension can answer one.
+- **Under a grant, unchanged.** A conversation that holds a grant in force
+  is not asked. Its request becomes `Spawn` under the grant, a child on the
+  mission, exactly as `lazybox agents spawn` does.
+
+Every coding agent's briefing has one line about it (`conversationBriefing`,
+kept apart from `commandBriefing`). An agent's refusals are one line naming
+the next step (`agentDenial` in `transport/auth.go`), never the list of
+everything an agent credential may do. Guide:
+[Ask an agent to start another conversation](docs/guides/orchestrator.md#ask-an-agent-to-start-another-conversation).
+
 ### Plan approval and budgets (slices 2b and 2d as built)
 
 **The plan** (`internal/work/plan.go`) is `plan.proposed` (subject
