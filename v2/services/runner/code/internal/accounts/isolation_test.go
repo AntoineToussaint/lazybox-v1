@@ -3,11 +3,10 @@ package accounts
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -42,36 +41,10 @@ func TestManagedAccountsCannotOverwriteLocalAuthenticationOrCopyCredentials(t *t
 		before[path] = sha256.Sum256([]byte(value))
 	}
 	state := t.TempDir()
-	claude, err := Enroll(context.Background(), state, "claude-work", "claude", "", strings.NewReader("private-managed-token"), nil, io.Discard, io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !claude.Managed || !strings.HasPrefix(claude.Home, state+string(os.PathSeparator)) || claude.Home == claudeDir {
-		t.Fatal("shared Claude configuration directory")
-	}
-	permissionData, err := os.ReadFile(filepath.Join(claude.Home, "settings.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var copied map[string]any
-	if err = json.Unmarshal(permissionData, &copied); err != nil {
-		t.Fatal(err)
-	}
-	if len(copied) != 2 || !reflect.DeepEqual(copied["permissions"], map[string]any{"defaultMode": "bypassPermissions", "deny": []any{"Bash(rm*)"}}) || copied["sandbox"] == nil {
-		t.Fatalf("permissions were lost or auth was copied: %s", permissionData)
-	}
-	for _, secret := range []string{"local-api-key", "apiKeyHelper", "local-claude-secret", "local-codex-secret", "original-account"} {
-		if strings.Contains(string(permissionData), secret) {
-			t.Fatal("local auth data copied")
-		}
-	}
-	env, err := Resolve(claude, os.Environ())
-	if err != nil {
-		t.Fatal(err)
-	}
-	joined := strings.Join(env, "\n")
-	if !strings.Contains(joined, "CLAUDE_CONFIG_DIR="+claude.Home) || !strings.Contains(joined, "CLAUDE_CODE_OAUTH_TOKEN=private-managed-token") || strings.Contains(joined, "CLAUDE_CODE_OAUTH_REFRESH_TOKEN=") || strings.Contains(joined, "CLAUDE_CODE_OAUTH_TOKEN=local-") {
-		t.Fatal("managed Claude inherited local authentication")
+	// A Claude subscription token is never imported (CLAUDE_COMPLIANCE.md);
+	// a Claude account is added through Claude Code's own sign-in (signin.go).
+	if _, err := Enroll(context.Background(), state, "claude-work", "claude", "", strings.NewReader("private-managed-token"), nil, io.Discard, io.Discard); !errors.Is(err, ErrClaudeTokenImport) {
+		t.Fatalf("Claude token imported: %v", err)
 	}
 	// The native login fixture writes an auth file, just as the provider does,
 	// and refuses any credential context except the newly created private home.
@@ -81,7 +54,7 @@ func TestManagedAccountsCannotOverwriteLocalAuthenticationOrCopyCredentials(t *t
 [ -n "$CODEX_HOME" ] && [ -z "$OPENAI_API_KEY" ] || exit 12
 printf '%s' 'managed-codex-auth' > "$CODEX_HOME/auth.json"
 `
-	if err = os.WriteFile(binary, []byte(script), 0700); err != nil {
+	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
 	codex, err := Enroll(context.Background(), state, "codex-work", "codex", binary, nil, nil, io.Discard, io.Discard)
@@ -93,7 +66,7 @@ printf '%s' 'managed-codex-auth' > "$CODEX_HOME/auth.json"
 		t.Fatal("native login did not use private account storage", err)
 	}
 	registered, err := LoadProfiles(state)
-	if err != nil || len(registered) != 2 || !registered[0].Managed || !registered[1].Managed {
+	if err != nil || len(registered) != 1 || !registered[0].Managed {
 		t.Fatal("enrollment ownership was not restored", err)
 	}
 	for path, hash := range before {

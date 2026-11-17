@@ -211,7 +211,7 @@ func TestApproveExtensionNeedsWhatTheSheetShowed(t *testing.T) {
 		t.Fatalf("missing: %v", err)
 	}
 	list, err := f.client.InstallExampleExtension(f.owner(t), &pb.InstallExampleExtensionRequest{Example: "agent-board"})
-	if err != nil || len(list.Examples) != 2 {
+	if err != nil || len(list.Examples) != 3 {
 		t.Fatalf("%+v %v", list, err)
 	}
 	if _, err := f.client.InstallExampleExtension(f.owner(t), &pb.InstallExampleExtensionRequest{Example: "agent-board"}); status.Code(err) != codes.FailedPrecondition {

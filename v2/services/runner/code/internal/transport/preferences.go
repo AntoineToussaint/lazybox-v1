@@ -3,19 +3,45 @@ package transport
 import (
 	"context"
 	"errors"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/preferences"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	petname "github.com/dustinkirkland/golang-petname"
 	"google.golang.org/grpc/codes"
+	"slices"
 	"sort"
 	"strings"
 )
 
+// GetClaudeAuth reports how Claude agents authenticate; never the key.
+func (s *Service) GetClaudeAuth(context.Context, *pb.InfoRequest) (*pb.ClaudeAuth, error) {
+	auth, err := s.Bench.ClaudeAuth()
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return wireClaudeAuth(auth), nil
+}
+
+// SetClaudeApiKey saves or forgets the Anthropic API key.
+func (s *Service) SetClaudeApiKey(_ context.Context, r *pb.SetClaudeApiKeyRequest) (*pb.ClaudeAuth, error) {
+	auth, err := s.Bench.SetClaudeAPIKey(strings.TrimSpace(r.ApiKey), r.Clear)
+	r.ApiKey = ""
+	if err != nil {
+		return nil, grpcError(codes.InvalidArgument, err)
+	}
+	return wireClaudeAuth(auth), nil
+}
+
+func wireClaudeAuth(a runner.ClaudeAuth) *pb.ClaudeAuth {
+	return &pb.ClaudeAuth{ApiKeySet: a.APIKeySet, ApiKeyHint: a.APIKeyHint, CloudProvider: a.CloudProvider}
+}
+
 func (s *Service) GetRunnerSettings(context.Context, *pb.InfoRequest) (*pb.RunnerSettings, error) {
 	d, rates := s.Bench.Preferences.SnapshotRates()
 	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, PlainTitles: d.PlainTitles, SuggestedName: petname.Generate(3, "-"),
+		ClaudeSubscriptionSignIn: d.ClaudeSubscriptionSignIn, Notices: d.Notices, AutomaticSwitchingProviders: s.Bench.AutomaticSwitchingProviders(),
 		Review: &pb.ReviewSettings{Reviewer: d.Review.Reviewer, Template: d.Review.Template, AutoStart: d.Review.AutoStart, DefaultTemplate: reviews.DefaultTemplate, Loop: firstNonEmptyString(d.Review.Loop, reviews.LoopAsk), MaxRounds: uint32(reviews.ClampRounds(d.Review.MaxRounds)), ReviewerMode: d.Review.ReviewerModeOf(), ReviewerModel: d.Review.ReviewerModel}}
 	for key, r := range rates {
 		provider, model, _ := strings.Cut(key, "/")
@@ -43,8 +69,17 @@ func (s *Service) SaveRunnerSettings(ctx context.Context, r *pb.RunnerSettings) 
 			review.Reviewer, review.ReviewerModel = "", ""
 		}
 	}
+	// A save dismisses notices it leaves out and never adds one; the
+	// migration that raised them is the Runner's, not the client's.
+	current := s.Bench.Preferences.Snapshot()
+	notices := []string{}
+	for _, id := range current.Notices {
+		if slices.Contains(r.Notices, id) {
+			notices = append(notices, id)
+		}
+	}
 	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors, PlainTitles: r.PlainTitles,
-		Review: review})
+		ClaudeSubscriptionSignIn: r.ClaudeSubscriptionSignIn, Notices: notices, Migration: current.Migration, Review: review})
 	if err != nil {
 		return nil, settingsError(err)
 	}

@@ -2,6 +2,7 @@ package accounts
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,42 +10,30 @@ import (
 	"testing"
 )
 
-func TestClaudeEnrollmentRetainsOnePrivateTokenWithoutChangingCurrentLogin(t *testing.T) {
+// Lazybox does not store a Claude.ai credential (CLAUDE_COMPLIANCE.md): a
+// subscription token is refused before anything is written, and an account
+// an earlier Lazybox imported from one no longer starts.
+func TestClaudeSubscriptionTokenIsNeverStored(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "current-login")
 	root := t.TempDir()
-	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-	p, err := Enroll(context.Background(), root, "claude-work", "claude", "", strings.NewReader("fixture-subscription-token\n"), nil, io.Discard, io.Discard)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := Enroll(context.Background(), root, "claude-work", "claude", "", strings.NewReader("fixture-subscription-token\n"), nil, io.Discard, io.Discard); !errors.Is(err, ErrClaudeTokenImport) {
+		t.Fatalf("token import not refused: %v", err)
 	}
-	profiles, err := LoadProfiles(root)
-	if err != nil || len(profiles) != 1 || profiles[0].ID != p.ID {
+	if _, err := os.Stat(filepath.Join(root, "accounts", "claude-work")); !os.IsNotExist(err) {
+		t.Fatal("a refused import left an account folder")
+	}
+	if profiles, err := LoadProfiles(root); err != nil || len(profiles) != 0 {
 		t.Fatal(profiles, err)
 	}
-	info, err := os.Stat(p.TokenFile)
-	if err != nil || info.Mode().Perm() != 0600 {
-		t.Fatal("credential file is not private", err)
+	token := filepath.Join(root, "oauth-token")
+	if err := os.WriteFile(token, []byte("fixture-subscription-token"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	// Resolve it repeatedly, as successive native sessions after rotation do.
-	for i := 0; i < 3; i++ {
-		env, err := Resolve(p, []string{"CLAUDE_CODE_OAUTH_TOKEN=current-login", "ANTHROPIC_API_KEY=other-billing", "CLAUDE_CONFIG_DIR=/existing-permissions"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		joined := strings.Join(env, "\n")
-		if !strings.Contains(joined, "CLAUDE_CODE_OAUTH_TOKEN=fixture-subscription-token") || strings.Contains(joined, "other-billing") || !strings.Contains(joined, "CLAUDE_CONFIG_DIR="+p.Home) || strings.Contains(joined, "/existing-permissions") {
-			t.Fatal("wrong credential or settings context")
-		}
+	if _, err := Resolve(Profile{ID: "imported", Provider: "claude", Isolation: "environment", Home: t.TempDir(), TokenFile: token}, nil); !errors.Is(err, ErrImportedToken) {
+		t.Fatalf("an imported token still resolves: %v", err)
 	}
 	if os.Getenv("CLAUDE_CODE_OAUTH_TOKEN") != "current-login" {
 		t.Fatal("global login changed")
-	}
-	if _, err = Enroll(context.Background(), root, p.ID, "claude", "", strings.NewReader("replacement"), nil, io.Discard, io.Discard); err == nil {
-		t.Fatal("existing profile overwritten")
-	}
-	metadata, _ := os.ReadFile(filepath.Join(root, "accounts", "profiles.json"))
-	if strings.Contains(string(metadata), "fixture-subscription-token") {
-		t.Fatal("token in profile metadata")
 	}
 }
 func TestEnrollmentAndResolutionRejectUnsafeProfiles(t *testing.T) {

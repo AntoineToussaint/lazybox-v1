@@ -24,6 +24,11 @@ type Adapter struct {
 	State    *accounts.State
 	Resolve  func(accounts.Profile, agent.Open) (agent.Open, error)
 	Evidence func() string
+	// Switching reports whether an account policy lets the conversation move
+	// to another account by itself at a limit now; nil never switches by
+	// itself. Without it a limit stops the conversation and the person
+	// switches (SwitchProfile).
+	Switching func() bool
 }
 type session struct {
 	attempt       uint64
@@ -367,8 +372,9 @@ func (s *session) run() {
 		}
 		s.mu.Unlock()
 		s.mu.Lock()
-		pooled := len(s.adapter.Eligible) > 0
+		pooled := len(s.adapter.Eligible) > 0 && s.adapter.Switching != nil
 		s.mu.Unlock()
+		pooled = pooled && s.adapter.Switching()
 		if root && ev.Type == "failure" && ev.Account != nil && rotatable(ev.Account.State) && pooled {
 			observed := ev
 			observed.Type = "capacity_observation"

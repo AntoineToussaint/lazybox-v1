@@ -518,6 +518,10 @@ func New(cfg Config) (*Bench, error) {
 	}
 	b.watchArtifacts()
 	b.openPower()
+	if err = b.migrateAccounts(); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
 	if err = b.openItems(); err != nil {
 		_ = b.Detach()
 		return nil, err
@@ -755,7 +759,8 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 				options.Permission = "read-only"
 			}
 		}
-		options.RotationProfiles = rotationPool(options, b.Config.Defaults.RotationProfiles, b.Profiles(), selected, prefs.RotationExcluded)
+		policy, switching := b.AccountPolicy(selected.Provider)
+		options.RotationProfiles = rotationPool(options, b.Config.Defaults.RotationProfiles, b.Profiles(), selected, prefs.RotationExcluded, policy, switching)
 		options.Gateway = nil
 		if options.Model == "" {
 			options.Model = b.Config.Defaults.Model
@@ -787,7 +792,10 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	if err = options.Validate(); err != nil {
 		return nil, err
 	}
-	env, err := accounts.Resolve(selected, os.Environ())
+	if err = b.claudeSignInAllowed(selected); err != nil {
+		return nil, err
+	}
+	env, err := b.profileEnv(selected)
 	if err != nil {
 		return nil, err
 	}
@@ -958,7 +966,7 @@ func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []str
 			for _, p := range b.Profiles() {
 				if p.ID == id {
 					var err error
-					env, err = accounts.Resolve(p, os.Environ())
+					env, err = b.profileEnv(p)
 					if err != nil {
 						return nil, err
 					}
@@ -1251,22 +1259,6 @@ func (b *Bench) GatewayID(e *Execution) string {
 }
 
 // Profiles returns a snapshot of the live account registry.
-// rotationPool resolves which subscriptions a new conversation may switch to.
-// An explicit opt-out wins, then an explicit pool, then the configured default
-// (an explicit empty list there disables rotation), and otherwise every other
-// signed-in subscription of the provider that was not excluded in Settings.
-func rotationPool(options accounts.Options, configured []string, profiles []accounts.Profile, selected accounts.Profile, excluded []string) []string {
-	switch {
-	case options.NoRotation:
-		return nil
-	case options.RotationProfiles != nil:
-		return options.RotationProfiles
-	case configured != nil:
-		return configured
-	}
-	return accounts.DefaultRotationPool(profiles, selected, excluded)
-}
-
 func (b *Bench) Profiles() []accounts.Profile {
 	b.profileMu.RLock()
 	defer b.profileMu.RUnlock()

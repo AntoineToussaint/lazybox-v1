@@ -25,7 +25,8 @@ func liveEngine(e *Execution) (*engine.Engine, error) {
 // queued messages and operation receipts stay; the new account starts from the
 // portable checkpoint, exactly as automatic rotation does. The conversation's
 // current subscription retries the interrupted request in place (after a
-// reset). enableRotation also turns automatic switching on for it.
+// reset). This is the person's explicit choice and needs no account policy;
+// enableRotation also turns automatic switching on for it, which does.
 func (b *Bench) SwitchSubscription(ctx context.Context, e *Execution, profileID string, enableRotation bool) error {
 	live, err := liveEngine(e)
 	if err != nil {
@@ -45,7 +46,13 @@ func (b *Bench) SwitchSubscription(ctx context.Context, e *Execution, profileID 
 	if target.Provider != e.Profile.Provider {
 		return errors.New("a conversation can only switch to a subscription of its own provider")
 	}
+	if err = b.claudeSignInAllowed(target); err != nil {
+		return err
+	}
 	if enableRotation {
+		if _, ok := b.AccountPolicy(target.Provider); !ok {
+			return ErrNoAccountPolicy
+		}
 		if err = b.setRotation(ctx, e, live, target, true); err != nil {
 			return err
 		}
@@ -60,13 +67,17 @@ func (b *Bench) SwitchSubscription(ctx context.Context, e *Execution, profileID 
 // running conversation. With all, it applies to every running conversation of
 // the provider that did not opt out at start, and turning it on also includes
 // every subscription of the provider in automatic switching (Settings →
-// Subscriptions).
+// Subscriptions). Turning it on needs an account policy for the provider
+// (account_policy.go); turning it off never does.
 func (b *Bench) SetSessionRotation(ctx context.Context, e *Execution, enabled, all bool) error {
 	live, err := liveEngine(e)
 	if err != nil {
 		return err
 	}
 	provider := e.Profile.Provider
+	if _, switching := b.AccountPolicy(provider); enabled && !switching {
+		return ErrNoAccountPolicy
+	}
 	if all && enabled {
 		if err = b.includeProvider(provider); err != nil {
 			return err
@@ -106,7 +117,7 @@ func (b *Bench) setCurrentRotation(ctx context.Context, e *Execution, live *engi
 // that re-attaches or resumes the conversation keeps it. Holds e.Continuation.
 func (b *Bench) setRotation(ctx context.Context, e *Execution, live *engine.Engine, current accounts.Profile, enabled bool) error {
 	pool := []string{}
-	if enabled {
+	if policy, ok := b.AccountPolicy(current.Provider); enabled && ok {
 		if configured := b.Config.Defaults.RotationProfiles; len(configured) > 0 {
 			for _, id := range configured {
 				if id != current.ID {
@@ -114,7 +125,7 @@ func (b *Bench) setRotation(ctx context.Context, e *Execution, live *engine.Engi
 				}
 			}
 		} else {
-			pool = accounts.DefaultRotationPool(b.Profiles(), current, b.Preferences.Snapshot().RotationExcluded)
+			pool = policy.Pool(b.Profiles(), current, b.Preferences.Snapshot().RotationExcluded)
 		}
 	}
 	if err := live.SetRotation(pool); err != nil {

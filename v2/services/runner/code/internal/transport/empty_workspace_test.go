@@ -31,6 +31,7 @@ func TestEmptyWorkspacesKeepSelectedAccountsFilesAndNativePermissions(t *testing
 	adapter := &agenttest.Adapter{}
 	bench.Adapters["claude"] = adapter
 	service := &Service{Bench: bench}
+	allowClaudeSignIn(t, service)
 	paths := map[string]bool{}
 	for _, profile := range profiles {
 		response, err := service.OpenSession(context.Background(), &pb.OpenSessionRequest{ProfileId: profile.ID, EmptyWorkspace: true})

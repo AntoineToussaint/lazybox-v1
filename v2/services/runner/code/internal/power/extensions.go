@@ -73,6 +73,15 @@ const (
 	GrantDoPrefix          = "do:"
 )
 
+// Account policy grants (EXTENSIONS.md, "Account policy"): switch:<provider>
+// lets the extension's account policy move a conversation of that provider to
+// another of the person's signed-in accounts at a limit. The Runner interprets
+// the policy itself; these grants admit no RPC to a panel.
+const SwitchAccountsPrefix = "switch:"
+
+// AccountPolicyGrants are the switch grants, one per provider.
+var AccountPolicyGrants = []string{SwitchAccountsPrefix + "claude", SwitchAccountsPrefix + "codex"}
+
 // ExtensionGrants are the fixed grants, in the order the sheet lists them.
 var ExtensionGrants = []string{GrantReadWorkspaces, GrantReadSessions, GrantReadAttention, GrantReadCommands, GrantReadMissions, GrantReadUsage, GrantShowConversations, GrantSendMessages}
 
@@ -97,6 +106,20 @@ type ExtensionPanel struct {
 	Description string `json:"description,omitempty"`
 }
 
+// ExtensionAccountPolicy is a manifest's accountPolicy: what the Runner does
+// when a conversation of a provider it holds a switch grant for reaches a
+// limit. Declarative on purpose: an extension's code runs in a sandboxed
+// panel and never decides which account a conversation runs on.
+type ExtensionAccountPolicy struct {
+	// Providers are the providers of its switch:<provider> grants.
+	Providers []string `json:"providers"`
+	// SwitchOnLimit moves a conversation to another account at a limit.
+	SwitchOnLimit bool `json:"switchOnLimit"`
+	// Accounts are the accounts to try, in order (profile ids); empty is every
+	// other signed-in account of the provider.
+	Accounts []string `json:"accounts"`
+}
+
 // ExtensionManifest is what extension.yaml declares.
 type ExtensionManifest struct {
 	Name        string           `json:"name"`
@@ -108,6 +131,8 @@ type ExtensionManifest struct {
 	Panels      []ExtensionPanel `json:"panels"`
 	Grants      []string         `json:"grants"`
 	Hosts       []string         `json:"hosts"`
+	// AccountPolicy is nil when the manifest declares none.
+	AccountPolicy *ExtensionAccountPolicy `json:"accountPolicy,omitempty"`
 }
 
 var versionPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z.+-]{0,31}$`)
@@ -126,7 +151,7 @@ func ParseExtension(data []byte) (ExtensionManifest, []Issue, error) {
 		return out, nil, errors.New("the file is empty: it needs at least a name and one panel")
 	}
 	p := &parser{}
-	known := []string{"version", "name", "description", "author", "homepage", "lazybox", "panels", "grants", "network"}
+	known := []string{"version", "name", "description", "author", "homepage", "lazybox", "panels", "grants", "network", "accountPolicy"}
 	seen := map[string]*yaml.Node{}
 	for key, value := range pairs(root) {
 		seen[key.Value] = key
@@ -161,6 +186,8 @@ func ParseExtension(data []byte) (ExtensionManifest, []Issue, error) {
 			out.Grants = p.extensionGrants(value)
 		case "network":
 			out.Hosts = p.extensionHosts(value)
+		case "accountPolicy":
+			out.AccountPolicy = p.accountPolicy(value)
 		default:
 			p.warn(key, key.Value, "unknown key %q is ignored%s", key.Value, didYouMean(key.Value, known))
 		}
@@ -168,11 +195,67 @@ func ParseExtension(data []byte) (ExtensionManifest, []Issue, error) {
 	if out.Name == "" && seen["name"] == nil {
 		p.issues = append(p.issues, Issue{Path: "name", Line: 1, Message: "an extension needs a name, as Settings and its panel show it", Severity: "error"})
 	}
-	if len(out.Panels) == 0 && seen["panels"] == nil {
-		p.issues = append(p.issues, Issue{Path: "panels", Line: 1, Message: "an extension needs at least one panel", Severity: "error"})
+	if len(out.Panels) == 0 && seen["panels"] == nil && seen["accountPolicy"] == nil {
+		p.issues = append(p.issues, Issue{Path: "panels", Line: 1, Message: "an extension needs at least one panel, or an account policy", Severity: "error"})
+	}
+	// Approving the grants is approving the policy, so they must agree.
+	var switching []string
+	for _, g := range out.Grants {
+		if provider, ok := strings.CutPrefix(g, SwitchAccountsPrefix); ok {
+			switching = append(switching, provider)
+		}
+	}
+	switch {
+	case out.AccountPolicy != nil && len(switching) == 0:
+		p.fail(seen["accountPolicy"], "accountPolicy", "an account policy needs a grant naming the provider it switches: %s", strings.Join(AccountPolicyGrants, " or "))
+	case out.AccountPolicy == nil && len(switching) > 0 && seen["accountPolicy"] == nil:
+		p.fail(seen["grants"], "grants", "%s%s is for an account policy; add accountPolicy, or remove the grant", SwitchAccountsPrefix, switching[0])
+	case out.AccountPolicy != nil:
+		out.AccountPolicy.Providers = switching
 	}
 	return out, p.issues, nil
 }
+
+// accountPolicy reads a manifest's accountPolicy mapping.
+func (p *parser) accountPolicy(n *yaml.Node) *ExtensionAccountPolicy {
+	if n.Kind != yaml.MappingNode {
+		p.fail(n, "accountPolicy", "must be a mapping with switchOnLimit and, optionally, accounts")
+		return nil
+	}
+	policy := &ExtensionAccountPolicy{Providers: []string{}, Accounts: []string{}}
+	for key, value := range pairs(n) {
+		at := "accountPolicy." + key.Value
+		switch key.Value {
+		case "switchOnLimit":
+			policy.SwitchOnLimit = p.boolean(value, at)
+		case "accounts":
+			if value.Tag == "!!null" {
+				continue
+			}
+			ids := p.list(value, at, 64)
+			if len(ids) > 16 {
+				p.fail(value, at, "at most 16 accounts")
+				continue
+			}
+			for _, id := range ids {
+				switch {
+				case !profileIDPattern.MatchString(id):
+					p.fail(value, at, "%q is not an account id (Settings → Subscriptions shows them)", id)
+				case slices.Contains(policy.Accounts, id):
+					p.warn(value, at, "%s is listed twice", id)
+				default:
+					policy.Accounts = append(policy.Accounts, id)
+				}
+			}
+		default:
+			p.warn(key, at, "unknown key %q is ignored%s", key.Value, didYouMean(key.Value, []string{"switchOnLimit", "accounts"}))
+		}
+	}
+	return policy
+}
+
+// profileIDPattern is an account id, as accounts enrolls them.
+var profileIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
 func (p *parser) extensionPanels(n *yaml.Node) []ExtensionPanel {
 	if n.Kind != yaml.SequenceNode || len(n.Content) == 0 {
@@ -297,7 +380,7 @@ func (p *parser) extensionGrants(n *yaml.Node) []string {
 
 // checkGrant is "" for a grant an extension may ask for.
 func checkGrant(grant string) string {
-	if slices.Contains(ExtensionGrants, grant) {
+	if slices.Contains(ExtensionGrants, grant) || slices.Contains(AccountPolicyGrants, grant) {
 		return ""
 	}
 	if action, ok := strings.CutPrefix(grant, GrantDoPrefix); ok {
@@ -310,7 +393,8 @@ func checkGrant(grant string) string {
 		}
 		return ""
 	}
-	return fmt.Sprintf("there is no grant %q%s; grants are %s, or do:<action>", grant, didYouMean(grant, ExtensionGrants), strings.Join(ExtensionGrants, ", "))
+	known := append(slices.Clone(ExtensionGrants), AccountPolicyGrants...)
+	return fmt.Sprintf("there is no grant %q%s; grants are %s, or do:<action>", grant, didYouMean(grant, known), strings.Join(known, ", "))
 }
 
 func (p *parser) extensionHosts(n *yaml.Node) []string {
@@ -402,6 +486,17 @@ func (e ExtensionInfo) Effective() (grants, hosts []string) {
 
 // Runs reports whether its panels may open.
 func (e ExtensionInfo) Runs() bool { return e.State == ExtensionEnabled || e.State == ExtensionReview }
+
+// SwitchesFor reports whether this extension's account policy switches a
+// conversation of provider at a limit now: it runs, its manifest asks for
+// switch:<provider> and the person approved that.
+func (e ExtensionInfo) SwitchesFor(provider string) bool {
+	if !e.Runs() || e.Manifest.AccountPolicy == nil || !e.Manifest.AccountPolicy.SwitchOnLimit {
+		return false
+	}
+	grants, _ := e.Effective()
+	return slices.Contains(grants, SwitchAccountsPrefix+provider)
+}
 
 func intersect(asked, approved []string) []string {
 	out := []string{}
@@ -1055,7 +1150,7 @@ func ExtensionSchema() string {
 	}
 	schema := map[string]any{
 		"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "urn:lazybox:schema:extension:v1", "title": "A Lazybox extension (extensions/<id>/extension.yaml)",
-		"type": "object", "additionalProperties": false, "required": []string{"name", "panels"},
+		"type": "object", "additionalProperties": false, "required": []string{"name"},
 		"properties": map[string]any{
 			"lazybox":     map[string]any{"const": 1, "description": "The extension protocol"},
 			"name":        map[string]any{"type": "string", "maxLength": 48},
@@ -1072,7 +1167,13 @@ func ExtensionSchema() string {
 					"icon":        map[string]any{"enum": ExtensionIcons},
 					"entry":       map[string]any{"type": "string", "pattern": `^[^/:?#\\][^:?#\\]*\.html?$`, "default": "index.html"},
 				}}},
-			"grants":  map[string]any{"type": "array", "maxItems": maxExtensionGrants, "uniqueItems": true, "items": map[string]any{"enum": append(slices.Clone(ExtensionGrants), doGrants...)}},
+			"grants": map[string]any{"type": "array", "maxItems": maxExtensionGrants, "uniqueItems": true, "items": map[string]any{"enum": append(append(slices.Clone(ExtensionGrants), AccountPolicyGrants...), doGrants...)}},
+			"accountPolicy": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"switchOnLimit"},
+				"description": "What the Runner does when a conversation reaches a limit (EXTENSIONS.md, Account policy); needs a switch:<provider> grant",
+				"properties": map[string]any{
+					"switchOnLimit": map[string]any{"type": "boolean", "description": "Move the conversation to another of your signed-in accounts"},
+					"accounts":      map[string]any{"type": "array", "maxItems": 16, "uniqueItems": true, "items": map[string]any{"type": "string"}, "description": "Accounts to try, in order; empty is every other one"},
+				}},
 			"network": map[string]any{"type": "array", "maxItems": maxExtensionHosts, "items": map[string]any{"type": "string", "pattern": `^(https://(\*\.)?[a-z0-9.-]+|http://(localhost|127\.0\.0\.1))(:[0-9]+)?/?$`}},
 		},
 	}

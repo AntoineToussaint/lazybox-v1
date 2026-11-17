@@ -108,6 +108,12 @@ func TestSwitchSubscriptionContinuesTheSameConversationAndSendsOnce(t *testing.T
 	if _, err = service.SwitchSubscription(ctx, &pb.SwitchSubscriptionRequest{SessionId: id, ProfileId: "missing"}); err == nil {
 		t.Fatal("switched to an unknown subscription")
 	}
+	// "Always switch automatically" needs an account policy (an enabled
+	// extension); the core switches only when the person asks.
+	if _, err = service.SwitchSubscription(ctx, &pb.SwitchSubscriptionRequest{SessionId: id, ProfileId: "b", EnableRotation: true}); status.Code(err) != codes.FailedPrecondition || len(adapter.opened) != 0 {
+		t.Fatalf("automatic switching turned on without an account policy: %v", err)
+	}
+	enableAccountPolicy(t, b)
 	switched, err := service.SwitchSubscription(ctx, &pb.SwitchSubscriptionRequest{SessionId: id, ProfileId: "b", EnableRotation: true})
 	if err != nil {
 		t.Fatal(err)
@@ -198,6 +204,10 @@ func TestSetSessionRotationForOneAndForEveryConversation(t *testing.T) {
 	}
 	// An old conversation: no pool, no opt-out. Another that opted out.
 	legacy, mine, optedOut := open(&pb.RunnerOptions{RotationProfileIds: []string{}}), open(&pb.RunnerOptions{NoRotation: true}), open(&pb.RunnerOptions{NoRotation: true})
+	if _, err = service.SetSessionRotation(ctx, &pb.SetSessionRotationRequest{SessionId: mine, Enabled: true}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("automatic switching turned on without an account policy: %v", err)
+	}
+	enableAccountPolicy(t, b)
 	pool := func(id string) string {
 		e, err := b.Get(id)
 		if err != nil {

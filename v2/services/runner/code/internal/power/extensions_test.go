@@ -137,7 +137,7 @@ func TestCheckExtensionHost(t *testing.T) {
 
 func TestBundledExtensionsLoadCleanly(t *testing.T) {
 	examples := ExtensionExamples()
-	if len(examples) != 2 {
+	if len(examples) != 3 {
 		t.Fatalf("examples: %+v", examples)
 	}
 	dir := t.TempDir()
@@ -151,7 +151,7 @@ func TestBundledExtensionsLoadCleanly(t *testing.T) {
 	}
 	e := NewExtensions(dir, filepath.Join(t.TempDir(), "extensions.json"))
 	snap := e.Snapshot()
-	if len(snap.Extensions) != 3 {
+	if len(snap.Extensions) != 4 {
 		t.Fatalf("%+v", snap.Extensions)
 	}
 	for _, info := range snap.Extensions {
@@ -175,6 +175,70 @@ func TestBundledExtensionsLoadCleanly(t *testing.T) {
 	var schema map[string]any
 	if err := json.Unmarshal([]byte(ExtensionSchema()), &schema); err != nil || !strings.Contains(ExtensionSchema(), `"do:inbox.open"`) || strings.Contains(ExtensionSchema(), `"do:settings.open"`) {
 		t.Fatalf("schema: %v", err)
+	}
+}
+
+// An account policy is declarative: the manifest and the switch grants say
+// which providers it switches, the person approves those grants, and only an
+// enabled extension switches anything, for exactly the providers approved.
+func TestAccountPolicyIsWhatThePersonApproved(t *testing.T) {
+	m, issues, err := ParseExtension([]byte("lazybox: 1\nname: Rotation\ngrants: [switch:codex]\naccountPolicy:\n  switchOnLimit: true\n  accounts: [work, personal]\n"))
+	if err != nil || len(issues) != 0 || len(m.Panels) != 0 {
+		t.Fatalf("a panel-less policy: %v %+v", err, issues)
+	}
+	if p := m.AccountPolicy; p == nil || !p.SwitchOnLimit || !slices.Equal(p.Providers, []string{"codex"}) || !slices.Equal(p.Accounts, []string{"work", "personal"}) {
+		t.Fatalf("policy %+v", m.AccountPolicy)
+	}
+	for manifest, path := range map[string]string{
+		"lazybox: 1\nname: R\naccountPolicy: {switchOnLimit: true}\n":                          "accountPolicy",
+		"lazybox: 1\nname: R\ngrants: [switch:claude]\npanels: [{id: a, title: A}]\n":          "grants",
+		"lazybox: 1\nname: R\ngrants: [switch:gemini]\naccountPolicy: {switchOnLimit: true}\n": "grants[0]",
+		"lazybox: 1\nname: R\ngrants: [switch:codex]\naccountPolicy: {switchOnLimit: yes}\n":   "accountPolicy.switchOnLimit",
+		"lazybox: 1\nname: R\ngrants: [switch:codex]\naccountPolicy: {accounts: [../x]}\n":     "accountPolicy.accounts",
+		"lazybox: 1\nname: R\n": "panels",
+	} {
+		_, issues, _ := ParseExtension([]byte(manifest))
+		if i := extIssue(issues, path); i == nil || i.Severity != "error" {
+			t.Errorf("%q: no error at %s: %+v", manifest, path, issues)
+		}
+	}
+
+	dir := t.TempDir()
+	if _, err := WriteExtension(dir, "subscription-rotation", "", "subscription-rotation"); err != nil {
+		t.Fatal(err)
+	}
+	e := NewExtensions(dir, filepath.Join(t.TempDir(), "extensions.json"))
+	t.Cleanup(e.Close)
+	info, _ := e.Snapshot().Find("subscription-rotation")
+	if info.State != ExtensionNew || info.SwitchesFor("codex") || info.SwitchesFor("claude") {
+		t.Fatalf("installed is not approved: %s", info.State)
+	}
+	if !slices.Equal(info.Manifest.Grants, []string{"switch:codex", "switch:claude"}) || len(info.Manifest.AccountPolicy.Accounts) != 0 {
+		t.Fatalf("the bundled policy: %+v %+v", info.Manifest.Grants, info.Manifest.AccountPolicy)
+	}
+	snap, err := e.Approve("subscription-rotation", info.Manifest.Grants, info.Manifest.Hosts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, _ = snap.Find("subscription-rotation")
+	if !info.SwitchesFor("codex") || !info.SwitchesFor("claude") || info.SwitchesFor("gemini") {
+		t.Fatal("approved policy does not switch")
+	}
+	snap, _ = e.SetEnabled("subscription-rotation", false)
+	if info, _ = snap.Find("subscription-rotation"); info.SwitchesFor("codex") {
+		t.Fatal("an extension turned off still switches")
+	}
+	// An edit that adds a provider is asked again; until then it switches only for what was approved.
+	if _, err = e.SetEnabled("subscription-rotation", true); err != nil {
+		t.Fatal(err)
+	}
+	folder := filepath.Join(dir, "subscription-rotation")
+	if err = os.WriteFile(filepath.Join(folder, ExtensionManifestName), []byte("lazybox: 1\nname: Subscription rotation\ngrants: [switch:codex]\naccountPolicy: {switchOnLimit: true}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ = e.Reload()
+	if info, _ = snap.Find("subscription-rotation"); !info.SwitchesFor("codex") || info.SwitchesFor("claude") {
+		t.Fatal("narrowing to Codex must stop Claude switching")
 	}
 }
 

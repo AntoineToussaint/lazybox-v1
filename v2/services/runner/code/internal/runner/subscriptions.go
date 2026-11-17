@@ -91,7 +91,7 @@ func (b *Bench) accountClient(ctx context.Context, p accounts.Profile) (NativeAc
 	if b.AccountFactory != nil {
 		return b.AccountFactory(ctx, p)
 	}
-	env, err := accounts.Resolve(p, os.Environ())
+	env, err := b.profileEnv(p)
 	if err != nil {
 		return nil, err
 	}
@@ -111,8 +111,14 @@ func (b *Bench) AddSubscription(key, provider, label, token, method string) (Enr
 	if key == "" || len(key) > 128 || len(label) == 0 || len(label) > 64 || strings.IndexFunc(label, unicode.IsControl) >= 0 || (provider != "claude" && provider != "codex") {
 		return Enrollment{}, errors.New("request key, Claude/Codex provider and a label (max 64 bytes) required")
 	}
-	if (provider == "codex" && token != "") || len(token) > 16384 {
-		return Enrollment{}, errors.New("Only Claude supports optional token import; use native sign-in otherwise")
+	if provider == "claude" && token != "" {
+		return Enrollment{}, accounts.ErrClaudeTokenImport
+	}
+	if token != "" {
+		return Enrollment{}, errors.New("sign in with the provider instead; Lazybox does not import tokens")
+	}
+	if provider == "claude" && !b.Preferences.Snapshot().ClaudeSubscriptionSignIn {
+		return Enrollment{}, ErrClaudeSignInOff
 	}
 	method, err := signInMethod(provider, method)
 	if err != nil {
@@ -353,7 +359,7 @@ func (b *Bench) RefreshSubscription(ctx context.Context, id string) (accounts.Pr
 	var err error
 	if profile.Provider == "claude" && b.AccountFactory == nil {
 		var env []string
-		env, err = accounts.Resolve(profile, os.Environ())
+		env, err = b.profileEnv(profile)
 		if err == nil {
 			observation, err = claude.ReadUsage(ctx, b.Config.Node, b.Config.Worker, claudeProgram(b.Config), env, profile.Home)
 		}

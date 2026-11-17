@@ -42,6 +42,7 @@ func TestAutomaticRotationKeepsCollectionCommandsAndSiblingAccount(t *testing.T)
 	}
 	adapter := rotatingFixture{opened: make(chan *rotatingNative, 4)}
 	b.Adapters["codex"] = adapter
+	enableAccountPolicy(t, b)
 	collection := createTestCollection(t, service)
 	e, err := b.OpenCollection("a", collection.Id, "", accounts.Options{RotationProfiles: []string{"b"}}, "direct", "")
 	if err != nil {
@@ -142,6 +143,14 @@ func TestDefaultRotationPoolCoversSignedInSubscriptionsWithOptOuts(t *testing.T)
 		}
 		return e.Options.RotationProfiles
 	}
+	// Without an account policy nothing switches by itself, whatever was asked.
+	if got := pool(&pb.RunnerOptions{RotationProfileIds: []string{"spare"}}, "codex-default"); len(got) != 0 {
+		t.Fatalf("a pool without an account policy: %v", got)
+	}
+	if got := pool(nil, "codex-default"); len(got) != 0 {
+		t.Fatalf("a default pool without an account policy: %v", got)
+	}
+	enableAccountPolicy(t, b)
 	if got := pool(nil, "codex-default"); strings.Join(got, ",") != "personal,spare,work" {
 		t.Fatalf("default pool %v: every signed-in codex subscription, sorted, and no other provider", got)
 	}

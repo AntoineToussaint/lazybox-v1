@@ -27,6 +27,8 @@ const (
 	RunnerService_GetRunnerSettings_FullMethodName            = "/lazybox.bench.v1.RunnerService/GetRunnerSettings"
 	RunnerService_SaveRunnerSettings_FullMethodName           = "/lazybox.bench.v1.RunnerService/SaveRunnerSettings"
 	RunnerService_SetModelPrice_FullMethodName                = "/lazybox.bench.v1.RunnerService/SetModelPrice"
+	RunnerService_GetClaudeAuth_FullMethodName                = "/lazybox.bench.v1.RunnerService/GetClaudeAuth"
+	RunnerService_SetClaudeApiKey_FullMethodName              = "/lazybox.bench.v1.RunnerService/SetClaudeApiKey"
 	RunnerService_ListThemes_FullMethodName                   = "/lazybox.bench.v1.RunnerService/ListThemes"
 	RunnerService_CreateTheme_FullMethodName                  = "/lazybox.bench.v1.RunnerService/CreateTheme"
 	RunnerService_Info_FullMethodName                         = "/lazybox.bench.v1.RunnerService/Info"
@@ -236,6 +238,13 @@ type RunnerServiceClient interface {
 	GetRunnerSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*RunnerSettings, error)
 	SaveRunnerSettings(ctx context.Context, in *RunnerSettings, opts ...grpc.CallOption) (*RunnerSettings, error)
 	SetModelPrice(ctx context.Context, in *SetModelPriceRequest, opts ...grpc.CallOption) (*RunnerSettings, error)
+	// Owner only. How Claude agents authenticate (CLAUDE_COMPLIANCE.md): whether
+	// an Anthropic API key is saved (never the key itself) and which cloud
+	// provider the Runner's environment selects.
+	GetClaudeAuth(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*ClaudeAuth, error)
+	// Owner only. Saves or forgets the Anthropic API key the claude-default
+	// account's agents run with.
+	SetClaudeApiKey(ctx context.Context, in *SetClaudeApiKeyRequest, opts ...grpc.CallOption) (*ClaudeAuth, error)
 	// Owner only. The user's themes folder for Settings → Appearance: each .json
 	// or .toml file parsed to JSON, read on every call so edits apply without a
 	// restart. The client validates each document against its token catalogue.
@@ -776,6 +785,26 @@ func (c *runnerServiceClient) SetModelPrice(ctx context.Context, in *SetModelPri
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RunnerSettings)
 	err := c.cc.Invoke(ctx, RunnerService_SetModelPrice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetClaudeAuth(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*ClaudeAuth, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClaudeAuth)
+	err := c.cc.Invoke(ctx, RunnerService_GetClaudeAuth_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) SetClaudeApiKey(ctx context.Context, in *SetClaudeApiKeyRequest, opts ...grpc.CallOption) (*ClaudeAuth, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClaudeAuth)
+	err := c.cc.Invoke(ctx, RunnerService_SetClaudeApiKey_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2798,6 +2827,13 @@ type RunnerServiceServer interface {
 	GetRunnerSettings(context.Context, *InfoRequest) (*RunnerSettings, error)
 	SaveRunnerSettings(context.Context, *RunnerSettings) (*RunnerSettings, error)
 	SetModelPrice(context.Context, *SetModelPriceRequest) (*RunnerSettings, error)
+	// Owner only. How Claude agents authenticate (CLAUDE_COMPLIANCE.md): whether
+	// an Anthropic API key is saved (never the key itself) and which cloud
+	// provider the Runner's environment selects.
+	GetClaudeAuth(context.Context, *InfoRequest) (*ClaudeAuth, error)
+	// Owner only. Saves or forgets the Anthropic API key the claude-default
+	// account's agents run with.
+	SetClaudeApiKey(context.Context, *SetClaudeApiKeyRequest) (*ClaudeAuth, error)
 	// Owner only. The user's themes folder for Settings → Appearance: each .json
 	// or .toml file parsed to JSON, read on every call so edits apply without a
 	// restart. The client validates each document against its token catalogue.
@@ -3285,6 +3321,12 @@ func (UnimplementedRunnerServiceServer) SaveRunnerSettings(context.Context, *Run
 }
 func (UnimplementedRunnerServiceServer) SetModelPrice(context.Context, *SetModelPriceRequest) (*RunnerSettings, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetModelPrice not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetClaudeAuth(context.Context, *InfoRequest) (*ClaudeAuth, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetClaudeAuth not implemented")
+}
+func (UnimplementedRunnerServiceServer) SetClaudeApiKey(context.Context, *SetClaudeApiKeyRequest) (*ClaudeAuth, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetClaudeApiKey not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListThemes(context.Context, *ListThemesRequest) (*ThemeFolder, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListThemes not implemented")
@@ -4010,6 +4052,42 @@ func _RunnerService_SetModelPrice_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).SetModelPrice(ctx, req.(*SetModelPriceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetClaudeAuth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetClaudeAuth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetClaudeAuth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetClaudeAuth(ctx, req.(*InfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_SetClaudeApiKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetClaudeApiKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).SetClaudeApiKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_SetClaudeApiKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).SetClaudeApiKey(ctx, req.(*SetClaudeApiKeyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7537,6 +7615,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetModelPrice",
 			Handler:    _RunnerService_SetModelPrice_Handler,
+		},
+		{
+			MethodName: "GetClaudeAuth",
+			Handler:    _RunnerService_GetClaudeAuth_Handler,
+		},
+		{
+			MethodName: "SetClaudeApiKey",
+			Handler:    _RunnerService_SetClaudeApiKey_Handler,
 		},
 		{
 			MethodName: "ListThemes",

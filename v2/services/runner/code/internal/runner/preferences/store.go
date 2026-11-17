@@ -9,6 +9,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +36,14 @@ type Data struct {
 	// PlainTitles keeps conversations titled by their first message: no
 	// title is generated after the first turn. Off by default.
 	PlainTitles bool `json:"plainTitles,omitempty"`
+	// ClaudeSubscriptionSignIn lets Lazybox offer a Claude subscription
+	// sign-in and run conversations on the subscriptions saved that way. Off
+	// by default (CLAUDE_COMPLIANCE.md).
+	ClaudeSubscriptionSignIn bool `json:"claudeSubscriptionSignIn,omitempty"`
+	// Notices are one-time notices not dismissed yet, by id.
+	Notices []string `json:"notices,omitempty"`
+	// Migration is the last one-time migration of these settings that ran.
+	Migration int `json:"migration,omitempty"`
 
 	// Review is agent review (GITHUB.md, "Agent review").
 	Review Review `json:"review,omitzero"`
@@ -140,6 +149,14 @@ func validate(d Data) error {
 	if len(d.Review.Template) > 32<<10 {
 		return errors.New("the review brief template is limited to 32 KiB")
 	}
+	if len(d.Notices) > 16 {
+		return errors.New("at most 16 notices")
+	}
+	for _, id := range d.Notices {
+		if id == "" || len(id) > 64 {
+			return errors.New("invalid notice")
+		}
+	}
 	if len(d.RotationExcluded) > 256 {
 		return errors.New("at most 256 subscriptions excluded from switching")
 	}
@@ -180,6 +197,7 @@ func clone(d Data) Data {
 	}
 	d.Prices = copy
 	d.RotationExcluded = append([]string(nil), d.RotationExcluded...)
+	d.Notices = append([]string(nil), d.Notices...)
 	return d
 }
 func (s *Store) Snapshot() Data { s.mu.RLock(); defer s.mu.RUnlock(); return clone(s.data) }
@@ -237,6 +255,29 @@ func (s *Store) Save(next Data) error {
 	next.Revision++
 	return s.commit(next)
 }
+
+// Migrate records that one-time migration n ran, adding notices for the
+// person. It changes the revision only when a notice is added, so a fresh
+// Runner's settings stay at their first revision.
+func (s *Store) Migrate(n int, notices []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.Migration >= n {
+		return nil
+	}
+	next := clone(s.data)
+	next.Migration = n
+	for _, id := range notices {
+		if !slices.Contains(next.Notices, id) {
+			next.Notices = append(next.Notices, id)
+		}
+	}
+	if len(next.Notices) != len(s.data.Notices) {
+		next.Revision++
+	}
+	return s.commit(next)
+}
+
 func (s *Store) SetRate(revision uint64, key string, rate telemetry.Rate, remove bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

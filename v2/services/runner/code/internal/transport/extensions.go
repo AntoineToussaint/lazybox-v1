@@ -82,6 +82,9 @@ func wireExtensions(snap power.ExtensionsSnapshot) *pb.Extensions {
 		for _, p := range m.Panels {
 			w.Panels = append(w.Panels, &pb.ExtensionPanel{Id: p.ID, Title: p.Title, Icon: p.Icon, Entry: p.Entry, Description: p.Description})
 		}
+		if p := m.AccountPolicy; p != nil {
+			w.AccountPolicy = &pb.ExtensionAccountPolicy{Providers: p.Providers, SwitchOnLimit: p.SwitchOnLimit, Accounts: p.Accounts}
+		}
 		for _, i := range e.Issues {
 			w.Issues = append(w.Issues, &pb.UserActionIssue{Path: i.Path, Line: uint32(i.Line), Message: i.Message, Severity: i.Severity})
 		}

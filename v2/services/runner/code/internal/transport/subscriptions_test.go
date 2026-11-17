@@ -152,41 +152,21 @@ func TestSettingsCodexSignInRegistersLiveAndRetainsUsageWithoutStartingAgent(t *
 		t.Fatal(refreshed, err)
 	}
 }
-func TestSettingsClaudeTokenIsPrivateAndNotSavedInViewMetadata(t *testing.T) {
+
+// Lazybox does not store Claude.ai credentials (CLAUDE_COMPLIANCE.md): a
+// subscription token sent from Settings is refused, wiped from the request,
+// and nothing is registered.
+func TestSettingsRefusesAClaudeSubscriptionToken(t *testing.T) {
 	s, a := collectionService(t)
 	request := &pb.AddSubscriptionRequest{RequestKey: "claude-personal", Provider: "claude", Label: "Personal", SubscriptionToken: "fixture-private-subscription"}
-	flow, err := s.AddSubscription(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := s.AddSubscription(context.Background(), request); err == nil || !strings.Contains(err.Error(), "does not store Claude subscription tokens") {
+		t.Fatalf("token imported: %v", err)
 	}
 	if request.SubscriptionToken != "" {
 		t.Fatal("secret retained on RPC request object")
 	}
-	enrollmentState(t, s, flow.Id, "added")
-	info, err := s.Info(context.Background(), &pb.InfoRequest{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, _ := json.Marshal(info)
-	if strings.Contains(string(encoded), "fixture-private-subscription") {
-		t.Fatal("token leaked into Info")
-	}
-	profiles, err := accounts.LoadProfiles(s.Bench.Config.State)
-	if err != nil || len(profiles) != 1 {
+	if profiles, err := accounts.LoadProfiles(s.Bench.Config.State); err != nil || len(profiles) != 0 || a.Session != nil {
 		t.Fatal(profiles, err)
-	}
-	mode, err := os.Stat(profiles[0].TokenFile)
-	if err != nil || mode.Mode().Perm() != 0600 {
-		t.Fatal("private token mode", err)
-	}
-	if profiles[0].Label != "Personal" || a.Session != nil {
-		t.Fatal("wrong label or implicit inference")
-	}
-	s.Bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) {
-		return &fakeNativeAccount{}, nil
-	}
-	if _, err = s.RefreshSubscription(context.Background(), &pb.RefreshSubscriptionRequest{ProfileId: flow.ProfileId}); err != nil {
-		t.Fatal(err)
 	}
 }
 func TestSettingsCancellationDoesNotRegisterOrChangeCurrentAccounts(t *testing.T) {
@@ -224,8 +204,13 @@ func TestEnrollmentReceiptRecoversAfterRunnerRestartWithoutTokenReplay(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
+	authorized := make(chan struct{})
+	close(authorized)
+	bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) {
+		return &fakeNativeAccount{authorize: authorized}, nil
+	}
 	service := &Service{Bench: bench}
-	flow, err := service.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "lost-ack", Provider: "claude", Label: "Work", SubscriptionToken: "fixture-token-once"})
+	flow, err := service.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "lost-ack", Provider: "codex", Label: "Work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +224,7 @@ func TestEnrollmentReceiptRecoversAfterRunnerRestartWithoutTokenReplay(t *testin
 	}
 	defer restored.Close()
 	service.Bench = restored
-	receipt, err := service.GetSubscriptionEnrollment(context.Background(), &pb.SubscriptionEnrollmentRequest{RequestKey: "lost-ack", Provider: "claude"})
+	receipt, err := service.GetSubscriptionEnrollment(context.Background(), &pb.SubscriptionEnrollmentRequest{RequestKey: "lost-ack", Provider: "codex"})
 	if err != nil || receipt.Id != flow.Id || receipt.State != "added" || receipt.SignInUrl != "" || receipt.UserCode != "" {
 		t.Fatal(receipt, err)
 	}
@@ -262,7 +247,12 @@ func TestSharedSubscriptionsAcrossRunnersAndRestart(t *testing.T) {
 	}
 	defer func() { dev.Close() }()
 	ws, ds := &Service{Bench: work}, &Service{Bench: dev}
-	flow, err := ws.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "shared-claude", Provider: "claude", Label: "Saved account", SubscriptionToken: "fixture-shared-token"})
+	signedIn := make(chan struct{})
+	close(signedIn)
+	work.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) {
+		return &fakeNativeAccount{authorize: signedIn}, nil
+	}
+	flow, err := ws.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "shared-first", Provider: "codex", Label: "Saved account"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,6 +341,7 @@ func TestSettingsCannotRefreshOrManageLocalCliAuthentication(t *testing.T) {
 
 func TestClaudeBrowserEnrollmentRegistersOnlyAfterNativeConfirmation(t *testing.T) {
 	s, _ := collectionService(t)
+	allowClaudeSignIn(t, s)
 	native := &fakeNativeAccount{authorize: make(chan struct{})}
 	s.Bench.AccountFactory = func(ctx context.Context, p accounts.Profile) (runner.NativeAccount, error) {
 		if p.Provider != "claude" || !p.NativeLogin || !p.Managed || p.Home != filepath.Join(s.Bench.Config.State, "accounts", p.ID, "claude") {
@@ -477,5 +468,19 @@ func TestCodexBrowserSignInSaysWhenAnotherSignInHoldsTheCallback(t *testing.T) {
 	failed = enrollmentState(t, s, flow.Id, "failed")
 	if failed.ErrorCode != "" || strings.Contains(failed.Error, "secret") {
 		t.Fatalf("private failure: %+v", failed)
+	}
+}
+
+// allowClaudeSignIn turns Claude sign-in in Lazybox on, as the person does in
+// Settings → Agents & workspaces → Claude (off by default; CLAUDE_COMPLIANCE.md).
+func allowClaudeSignIn(t *testing.T, s *Service) {
+	t.Helper()
+	settings, err := s.GetRunnerSettings(context.Background(), &pb.InfoRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings.ClaudeSubscriptionSignIn = true
+	if _, err = s.SaveRunnerSettings(context.Background(), settings); err != nil {
+		t.Fatal(err)
 	}
 }

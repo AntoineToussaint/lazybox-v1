@@ -28,10 +28,21 @@ import (
 func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options accounts.Options, conversationID string) agent.Adapter {
 	id, collectionID, cwd := e.ID, e.CollectionID, e.Cwd
 	native := telemetry.Adapter{Native: b.adapter(selected.Provider), Store: b.Telemetry, Prices: b.Prices, Gateway: b.Meter, Scope: telemetry.Scope{Workspace: collectionID, Conversation: conversationID, Execution: id, Provider: selected.Provider}}
+	provider := selected.Provider
 	return rotation.Adapter{Native: native, Profiles: b.Profiles(), Eligible: options.RotationProfiles, State: b.Accounts,
+		// Switching by itself at a limit needs an account policy now, not only
+		// when the conversation started (account_policy.go).
+		Switching: func() bool { _, ok := b.AccountPolicy(provider); return ok },
 		Resolve: func(p accounts.Profile, open agent.Open) (agent.Open, error) {
 			open.Isolated = p.Isolation == "environment"
-			next, err := accounts.Resolve(p, os.Environ())
+			// A new attempt on a saved Claude subscription needs Claude sign-in
+			// in Lazybox; re-attaching to a running one starts nothing.
+			if open.Host == nil || open.Host.Attach == nil {
+				if err := b.claudeSignInAllowed(p); err != nil {
+					return open, err
+				}
+			}
+			next, err := b.profileEnv(p)
 			if err != nil {
 				return open, err
 			}
@@ -225,7 +236,7 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 			return errors.New("saved gateway is no longer configured")
 		}
 	}
-	env, err := accounts.Resolve(selected, os.Environ())
+	env, err := b.profileEnv(selected)
 	if err != nil {
 		return err
 	}

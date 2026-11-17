@@ -54,6 +54,12 @@ const (
 	// RunnerServiceSetModelPriceProcedure is the fully-qualified name of the RunnerService's
 	// SetModelPrice RPC.
 	RunnerServiceSetModelPriceProcedure = "/lazybox.bench.v1.RunnerService/SetModelPrice"
+	// RunnerServiceGetClaudeAuthProcedure is the fully-qualified name of the RunnerService's
+	// GetClaudeAuth RPC.
+	RunnerServiceGetClaudeAuthProcedure = "/lazybox.bench.v1.RunnerService/GetClaudeAuth"
+	// RunnerServiceSetClaudeApiKeyProcedure is the fully-qualified name of the RunnerService's
+	// SetClaudeApiKey RPC.
+	RunnerServiceSetClaudeApiKeyProcedure = "/lazybox.bench.v1.RunnerService/SetClaudeApiKey"
 	// RunnerServiceListThemesProcedure is the fully-qualified name of the RunnerService's ListThemes
 	// RPC.
 	RunnerServiceListThemesProcedure = "/lazybox.bench.v1.RunnerService/ListThemes"
@@ -645,6 +651,13 @@ type RunnerServiceClient interface {
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
 	SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error)
+	// Owner only. How Claude agents authenticate (CLAUDE_COMPLIANCE.md): whether
+	// an Anthropic API key is saved (never the key itself) and which cloud
+	// provider the Runner's environment selects.
+	GetClaudeAuth(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error)
+	// Owner only. Saves or forgets the Anthropic API key the claude-default
+	// account's agents run with.
+	SetClaudeApiKey(context.Context, *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error)
 	// Owner only. The user's themes folder for Settings → Appearance: each .json
 	// or .toml file parsed to JSON, read on every call so edits apply without a
 	// restart. The client validates each document against its token catalogue.
@@ -1155,6 +1168,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceSetModelPriceProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("SetModelPrice")),
+			connect.WithClientOptions(opts...),
+		),
+		getClaudeAuth: connect.NewClient[gen.InfoRequest, gen.ClaudeAuth](
+			httpClient,
+			baseURL+RunnerServiceGetClaudeAuthProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetClaudeAuth")),
+			connect.WithClientOptions(opts...),
+		),
+		setClaudeApiKey: connect.NewClient[gen.SetClaudeApiKeyRequest, gen.ClaudeAuth](
+			httpClient,
+			baseURL+RunnerServiceSetClaudeApiKeyProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetClaudeApiKey")),
 			connect.WithClientOptions(opts...),
 		),
 		listThemes: connect.NewClient[gen.ListThemesRequest, gen.ThemeFolder](
@@ -2345,6 +2370,8 @@ type runnerServiceClient struct {
 	getRunnerSettings            *connect.Client[gen.InfoRequest, gen.RunnerSettings]
 	saveRunnerSettings           *connect.Client[gen.RunnerSettings, gen.RunnerSettings]
 	setModelPrice                *connect.Client[gen.SetModelPriceRequest, gen.RunnerSettings]
+	getClaudeAuth                *connect.Client[gen.InfoRequest, gen.ClaudeAuth]
+	setClaudeApiKey              *connect.Client[gen.SetClaudeApiKeyRequest, gen.ClaudeAuth]
 	listThemes                   *connect.Client[gen.ListThemesRequest, gen.ThemeFolder]
 	createTheme                  *connect.Client[gen.CreateThemeRequest, gen.CreateThemeResponse]
 	info                         *connect.Client[gen.InfoRequest, gen.InfoResponse]
@@ -2576,6 +2603,16 @@ func (c *runnerServiceClient) SaveRunnerSettings(ctx context.Context, req *conne
 // SetModelPrice calls lazybox.bench.v1.RunnerService.SetModelPrice.
 func (c *runnerServiceClient) SetModelPrice(ctx context.Context, req *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error) {
 	return c.setModelPrice.CallUnary(ctx, req)
+}
+
+// GetClaudeAuth calls lazybox.bench.v1.RunnerService.GetClaudeAuth.
+func (c *runnerServiceClient) GetClaudeAuth(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return c.getClaudeAuth.CallUnary(ctx, req)
+}
+
+// SetClaudeApiKey calls lazybox.bench.v1.RunnerService.SetClaudeApiKey.
+func (c *runnerServiceClient) SetClaudeApiKey(ctx context.Context, req *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return c.setClaudeApiKey.CallUnary(ctx, req)
 }
 
 // ListThemes calls lazybox.bench.v1.RunnerService.ListThemes.
@@ -3567,6 +3604,13 @@ type RunnerServiceHandler interface {
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
 	SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error)
+	// Owner only. How Claude agents authenticate (CLAUDE_COMPLIANCE.md): whether
+	// an Anthropic API key is saved (never the key itself) and which cloud
+	// provider the Runner's environment selects.
+	GetClaudeAuth(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error)
+	// Owner only. Saves or forgets the Anthropic API key the claude-default
+	// account's agents run with.
+	SetClaudeApiKey(context.Context, *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error)
 	// Owner only. The user's themes folder for Settings → Appearance: each .json
 	// or .toml file parsed to JSON, read on every call so edits apply without a
 	// restart. The client validates each document against its token catalogue.
@@ -4073,6 +4117,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceSetModelPriceProcedure,
 		svc.SetModelPrice,
 		connect.WithSchema(runnerServiceMethods.ByName("SetModelPrice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetClaudeAuthHandler := connect.NewUnaryHandler(
+		RunnerServiceGetClaudeAuthProcedure,
+		svc.GetClaudeAuth,
+		connect.WithSchema(runnerServiceMethods.ByName("GetClaudeAuth")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetClaudeApiKeyHandler := connect.NewUnaryHandler(
+		RunnerServiceSetClaudeApiKeyProcedure,
+		svc.SetClaudeApiKey,
+		connect.WithSchema(runnerServiceMethods.ByName("SetClaudeApiKey")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceListThemesHandler := connect.NewUnaryHandler(
@@ -5267,6 +5323,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSaveRunnerSettingsHandler.ServeHTTP(w, r)
 		case RunnerServiceSetModelPriceProcedure:
 			runnerServiceSetModelPriceHandler.ServeHTTP(w, r)
+		case RunnerServiceGetClaudeAuthProcedure:
+			runnerServiceGetClaudeAuthHandler.ServeHTTP(w, r)
+		case RunnerServiceSetClaudeApiKeyProcedure:
+			runnerServiceSetClaudeApiKeyHandler.ServeHTTP(w, r)
 		case RunnerServiceListThemesProcedure:
 			runnerServiceListThemesHandler.ServeHTTP(w, r)
 		case RunnerServiceCreateThemeProcedure:
@@ -5694,6 +5754,14 @@ func (UnimplementedRunnerServiceHandler) SaveRunnerSettings(context.Context, *co
 
 func (UnimplementedRunnerServiceHandler) SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetModelPrice is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetClaudeAuth(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetClaudeAuth is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetClaudeApiKey(context.Context, *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetClaudeApiKey is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListThemes(context.Context, *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error) {

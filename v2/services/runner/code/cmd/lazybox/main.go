@@ -107,7 +107,7 @@ func run() error {
 		profile := flags.String("profile", "", "new subscription profile id")
 		provider := flags.String("provider", "", "codex or claude")
 		binary := flags.String("binary", "", "Codex CLI executable")
-		tokenInput := flags.Bool("token-stdin", false, "read Claude subscription setup-token privately from stdin")
+		tokenInput := flags.Bool("token-stdin", false, "refused: Lazybox does not store Claude subscription tokens (CLAUDE_COMPLIANCE.md)")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}

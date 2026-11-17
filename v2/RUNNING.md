@@ -278,15 +278,12 @@ bin/lazybox account-login --state "$RUNNER_STATE" --provider codex --profile cod
 ```
 
 Each invokes the native Codex browser login with its own credential store.
-For Claude, obtain a subscription token once through the provider-supported
-`CLAUDE_CONFIG_DIR="$(mktemp -d)" claude setup-token` flow, then import it privately. Do not put the token in
-an argument or a shell command saved to history. For example, in zsh:
-
-```sh
-read -rs 'subscription_token?Paste Claude subscription setup-token: '
-printf '%s' "$subscription_token" | bin/lazybox account-login --state "$RUNNER_STATE" --provider claude --profile claude-work --token-stdin
-unset subscription_token
-```
+Claude is refused here: Lazybox does not import or store a Claude
+subscription token ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md)). Give Claude
+agents an Anthropic API key in Settings → Agents & workspaces → Claude, set a
+cloud provider's variables (`CLAUDE_CODE_USE_BEDROCK=1` and so on) in the
+Runner's environment, or sign in to Claude Code yourself (`claude`, then
+`/login`); the built-in `claude-default` account uses that sign-in.
 
 Repeat enrollment for each account with a distinct profile ID. The Runner
 loads private `accounts/profiles.json` metadata on startup, alongside configured
@@ -295,12 +292,14 @@ do initial setup before starting work; executions are not restored by a Runner
 restart.
 Do not duplicate enrolled IDs in the Runner configuration.
 
-Rotation is on by default: a new conversation may switch to every other
-enrolled subscription of its provider. Uncheck **Switch subscriptions
-automatically** in session startup (CLI: `--no-rotate`) to keep one
-conversation on its account, or turn off **Automatic switching** on an account
-in Settings → Subscriptions to leave it out of new conversations. Or pass an
-explicit pool through the CLI:
+Rotation is off unless an extension's account policy turns it on
+([EXTENSIONS.md](EXTENSIONS.md#account-policy)): add and approve **Subscription
+rotation** in Settings → Extensions, and a new conversation may then switch to
+every other enrolled subscription of its provider. Uncheck **Switch
+subscriptions automatically** in session startup (CLI: `--no-rotate`) to keep
+one conversation on its account, or turn off **Automatic switching** on an
+account in Settings → Subscriptions to leave it out of new conversations. Or
+pass an explicit pool through the CLI (ignored without an account policy):
 
 ```sh
 bin/lazybox --endpoint "$ENDPOINT" open --profile claude-work --collection "$COLLECTION" --rotate-profiles claude-work,claude-personal

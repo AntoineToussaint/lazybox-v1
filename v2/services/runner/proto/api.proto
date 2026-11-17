@@ -11,6 +11,13 @@ service RunnerService {
   rpc GetRunnerSettings(InfoRequest) returns (RunnerSettings);
   rpc SaveRunnerSettings(RunnerSettings) returns (RunnerSettings);
   rpc SetModelPrice(SetModelPriceRequest) returns (RunnerSettings);
+  // Owner only. How Claude agents authenticate (CLAUDE_COMPLIANCE.md): whether
+  // an Anthropic API key is saved (never the key itself) and which cloud
+  // provider the Runner's environment selects.
+  rpc GetClaudeAuth(InfoRequest) returns (ClaudeAuth);
+  // Owner only. Saves or forgets the Anthropic API key the claude-default
+  // account's agents run with.
+  rpc SetClaudeApiKey(SetClaudeApiKeyRequest) returns (ClaudeAuth);
   // Owner only. The user's themes folder for Settings → Appearance: each .json
   // or .toml file parsed to JSON, read on every call so edits apply without a
   // restart. The client validates each document against its token catalogue.
@@ -492,6 +499,31 @@ message RunnerSettings { uint64 revision = 1; string naming = 2; string permissi
   // generated after the first turn. Off by default, so an older client that
   // does not know the field keeps titles generated.
   bool plain_titles = 13;
+  // Lazybox may offer a Claude subscription sign-in (Settings → Subscriptions)
+  // and run conversations on the Claude subscriptions saved there. Off by
+  // default; CLAUDE_COMPLIANCE.md says why.
+  bool claude_subscription_sign_in = 14;
+  // One-time notices the person has not dismissed yet, by id
+  // ("automatic-switching-moved", "claude-sign-in-gated"). Saving the settings
+  // without one dismisses it; a save never adds one.
+  repeated string notices = 15;
+  // Read only: the providers an enabled extension's account policy switches
+  // automatically at a limit. Empty: switching is always the person's choice.
+  repeated string automatic_switching_providers = 16;
+}
+message ClaudeAuth {
+  // An Anthropic API key is saved; the claude-default account's agents use it.
+  bool api_key_set = 1;
+  // Its last four characters, to recognise it; never more.
+  string api_key_hint = 2;
+  // The cloud provider the Runner's environment selects for Claude
+  // ("bedrock", "vertex", "foundry", "anthropic-aws"), or "".
+  string cloud_provider = 3;
+}
+message SetClaudeApiKeyRequest {
+  // The key (sk-ant-…). Empty with clear forgets the saved one.
+  string api_key = 1;
+  bool clear = 2;
 }
 message ReviewSettings {
   // The default reviewer: "" for the other provider than the conversation
@@ -1171,6 +1203,8 @@ message SwitchSubscriptionRequest {
   // retries the interrupted request on the same subscription.
   string profile_id = 2;
   // Also switch automatically from now on when a subscription reaches a limit.
+  // Refused unless an enabled extension's account policy covers the provider
+  // (EXTENSIONS.md, "Account policy").
   bool enable_rotation = 3;
 }
 message SetSessionRotationRequest {
@@ -3899,6 +3933,18 @@ message Extension {
   repeated UserActionIssue issues = 16;
   // Changes whenever one of its files does: open panels reload.
   string digest = 17;
+  // An account policy the Runner interprets (EXTENSIONS.md, "Account policy");
+  // unset when the manifest declares none.
+  ExtensionAccountPolicy account_policy = 18;
+}
+message ExtensionAccountPolicy {
+  // The providers it applies to: "claude", "codex".
+  repeated string providers = 1;
+  // Move a conversation to another signed-in account when it reaches a limit.
+  bool switch_on_limit = 2;
+  // Accounts to try, in order (profile ids); empty is every other signed-in
+  // account of the provider, sorted.
+  repeated string accounts = 3;
 }
 message ExtensionPanel {
   string id = 1;
