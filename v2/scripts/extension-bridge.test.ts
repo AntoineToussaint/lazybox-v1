@@ -125,6 +125,7 @@ test('the content policies never loosen: no inline code, no same-origin, network
   for (const text of [policy.shell, policy.extension]) {
     assert.match(text, /^default-src 'none';/);
     assert.match(text, /sandbox allow-scripts/);
+    assert.match(text, /webrtc 'block';/);
     for (const never of ["'unsafe-inline'", "'unsafe-eval'", "'self'", 'allow-same-origin', 'allow-top-navigation', 'allow-popups', 'allow-forms', ' *', 'data: ;']) assert.ok(!text.includes(never), never);
   }
   assert.match(policy.shell, /frame-src \{base\};/);
