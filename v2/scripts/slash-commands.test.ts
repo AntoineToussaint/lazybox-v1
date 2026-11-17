@@ -1,7 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {create} from '@bufbuild/protobuf';import {JournalEventSchema} from '@lazybox/protocol';
 import {appendTranscript,emptyTranscript} from '../packages/surfaces/src/transcript-model';
-import {commandLine,decideSend,emptyCatalog,lazyboxCommands,mergeCatalog,parseSlash,providerCommands,rankChoices,rankCommands,resolveModel,shortTokens,slashMenu,snippetCommands,type SlashContext} from '../packages/surfaces/src/slash-commands';
+import {commandLine,decideSend,emptyCatalog,lazyboxCommands,mergeCatalog,mergeModels,modelChoices,modelRestartText,parseSlash,providerCommands,rankChoices,rankCommands,resolveModel,sameModel,shortTokens,slashMenu,snippetCommands,type SlashContext} from '../packages/surfaces/src/slash-commands';
 
 const ctx=(over:Partial<SlashContext>={}):SlashContext=>({provider:'claude',live:true,busy:false,coding:true,workspace:true,permission:'ask',planWorkflow:false,livePermission:true,model:'claude-opus-5-5',liveModel:true,resumable:true,models:[{value:'claude-opus-5-5',displayName:'Opus 5.5',description:'Most capable'},{value:'claude-sonnet-5',displayName:'Sonnet 5',description:'Fast'}],agentMessage:true,shellBlock:true,compact:true,detail:'smart',subscriptions:1,...over});
 const catalog=mergeCatalog(emptyCatalog(),{commands:[{name:'compact',description:'Clear history but keep a summary',argumentHint:'<instructions>',builtin:true},{name:'review-pr',description:'Review a pull request',argumentHint:'<number>'},{name:'/init',description:'Initialize CLAUDE.md',argumentHint:''},{name:'model',description:'native model picker',argumentHint:''},{name:'exit',description:'Exit',argumentHint:''},{name:'bad name',description:'',argumentHint:''}],models:[{value:'opus',displayName:'Opus'}],terminal:['exit']});
@@ -89,7 +89,50 @@ test('models resolve by id, name or prefix; an id the list lacks is kept as type
  assert.equal(resolveModel('sonnet 5',models),'claude-sonnet-5');assert.equal(resolveModel('Opus',models),'claude-opus-5-5');
  assert.equal(resolveModel('claude-haiku-5',models),'claude-haiku-5');assert.equal(resolveModel('  ',models),'');});
 
+// What Claude Code 2.x lists (its initialize response), and the Runner's built-in Claude list.
+const claudeListed=[{value:'default',displayName:'Default (recommended)',description:'Opus 5.5 · Best for everyday, complex tasks'},{value:'opus',displayName:'Opus 5.5',description:'For complex work'},{value:'claude-fable-5-2',displayName:'Fable 5.2',description:'Toughest'},{value:'sonnet',displayName:'Sonnet 5.5',description:'Efficient'},{value:'haiku',displayName:'Haiku 5.5',description:'Fastest'},{value:'fable',displayName:'Fable 5.1',description:'Longest'},{value:'claude-opus-4-8',displayName:'Opus 4.8',description:''}];
+const claudeBuiltIn=[{value:'claude-opus-5-5',displayName:'Opus 5.5',description:''},{value:'claude-sonnet-5-5',displayName:'Sonnet 5.5',description:''},{value:'claude-haiku-5-5',displayName:'Haiku 5.5',description:''},{value:'claude-fable-5-2',displayName:'Fable 5.2',description:''}];
+
+test('/model lists the provider\'s models, the Runner\'s first, then what the agent listed, each once',()=>{
+ const merged=mergeModels(claudeBuiltIn,claudeListed);
+ assert.deepEqual(merged.map(m=>m.value),['claude-opus-5-5','claude-sonnet-5-5','claude-haiku-5-5','claude-fable-5-2','default','fable','claude-opus-4-8'],'an alias of a listed model (by name) is listed once');
+ const choices=modelChoices(merged,'claude-opus-5-5');
+ assert.deepEqual(choices.filter(c=>c.current).map(c=>c.value),['claude-opus-5-5'],'the current model is marked once');
+ assert.equal(choices[0].label,'Opus 5.5');assert.match(choices[0].detail||'',/^claude-opus-5-5/,'the id follows the name');
+ const {items,best}=rankChoices('',choices);assert.equal(items[best].value,'claude-sonnet-5-5','the current model is not offered first as a switch');});
+
+test('an agent started by an older Lazybox lists nothing: the Runner\'s list, never only the current model',()=>{
+ const choices=lazyboxCommands(ctx({models:[],providerModels:claudeBuiltIn,liveModel:false})).find(c=>c.name==='model')!.choices!;
+ assert.deepEqual(choices.map(c=>[c.label,!!c.current]),[['Opus 5.5',true],['Sonnet 5.5',false],['Haiku 5.5',false],['Fable 5.2',false]]);
+ // Nothing listed anywhere: what runs now, by its name.
+ assert.deepEqual(modelChoices([],'claude-opus-5-5').map(c=>[c.value,c.label,c.current]),[['claude-opus-5-5','Opus 5.5',true]]);
+ // Codex: what its app-server listed; a current model the list lacks is first, marked.
+ const codex=modelChoices(mergeModels([{value:'gpt-6.1-sol',displayName:'GPT-6.1-Sol',description:''},{value:'gpt-6-luna',displayName:'GPT-6-Luna',description:''}],[]),'gpt-custom');
+ assert.deepEqual(codex.map(c=>[c.value,!!c.current]),[['gpt-custom',true],['gpt-6.1-sol',false],['gpt-6-luna',false]]);});
+
+test('the current model is found by id, by name or as an alias, and an alias of it is never offered as a switch',()=>{
+ // The agent reports the full id; it lists an alias of it under a short name.
+ const listed=[{value:'opus',displayName:'Opus',description:''},{value:'sonnet',displayName:'Sonnet',description:''}];
+ const choices=modelChoices(listed,'claude-opus-5-5');
+ assert.deepEqual(choices.map(c=>[c.value,!!c.current]),[['opus',true],['sonnet',false]],'not listed twice: the alias is the current model');
+ const {items,best}=rankChoices('',choices);assert.equal(items[best].value,'sonnet');
+ assert.equal(sameModel({value:'opus',displayName:'Opus 5.5',description:''},'claude-opus-5-5'),true);
+ assert.equal(sameModel({value:'fable',displayName:'Fable 5.1',description:''},'claude-fable-5-2'),false,'an alias for another version is another model');
+ assert.equal(sameModel({value:'default',displayName:'Default (recommended)',description:''},'claude-opus-5-5'),false);
+ // After a switch by alias the agent reports the alias: the newest model of that name is current.
+ assert.deepEqual(modelChoices(mergeModels(claudeBuiltIn,[{value:'claude-sonnet-5',displayName:'Sonnet 5',description:''}]),'sonnet').filter(c=>c.current).map(c=>c.value),['claude-sonnet-5-5']);
+ // Typing the alias of the current model resolves to it.
+ assert.equal(resolveModel('opus',mergeModels(claudeBuiltIn,claudeListed)),'claude-opus-5-5');});
+
+test('the restart card says why, when, and that the conversation continues, in one sentence',()=>{
+ assert.equal(modelRestartText('claude','Claude','Sonnet 5.5',false,false),'Switch to Sonnet 5.5? An older Lazybox started this conversation\'s agent, so switching restarts it and your conversation continues.');
+ assert.match(modelRestartText('claude','Claude','Sonnet 5.5',true,false),/restarts it when this turn ends/);
+ assert.match(modelRestartText('acp:x','Gemini CLI','Flash',false,false),/Gemini CLI cannot change models mid-conversation/);
+ assert.equal(modelRestartText('claude','Claude','Sonnet 5.5',true,true),'Switching to Sonnet 5.5 when this turn ends: Claude restarts and your conversation continues.');
+ assert.doesNotMatch(modelRestartText('claude','Claude','Sonnet 5.5',false,false),/before models could change/);});
+
 test('the line a command leaves in the conversation',()=>{
+ assert.equal(commandLine('model_changed','claude-sonnet-5-5','next_turn',{}),'Switched model to claude-sonnet-5-5 · from the next turn');
  assert.equal(shortTokens(156000),'156k');assert.equal(shortTokens(61_400),'61k');assert.equal(shortTokens(1_200_000),'1.2M');assert.equal(shortTokens(800),'800');
  assert.equal(commandLine('model_changed','claude-opus-5-5','live',{}),'Switched model to claude-opus-5-5');
  assert.equal(commandLine('model_changed','claude-opus-5-5','restart',{}),'Switched model to claude-opus-5-5 · the agent restarted');

@@ -47,10 +47,14 @@ it did.
   carries on.
 - **Permission** can change mid-conversation from the session menu (⋯):
   Ask for approval, Read only or YOLO.
-- **Model** too: the session menu lists the provider's models with the current
-  one marked, and the model name in the chat header opens the same picker. The
-  switch is live; an agent started before live switching restarts between turns
-  and the conversation continues (**Restart now**).
+- **Model** too: the session menu and `/model` list the provider's models by
+  name, the id after it, with the current one marked — Claude's current models
+  and whatever else Claude Code lists, or the models Codex lists for your
+  subscription — and the model name in the chat header opens the same picker.
+  Choosing the current model does nothing. The switch is live and applies from
+  the next turn: during a turn, that turn finishes on its model. An agent that an
+  older Lazybox started cannot switch live: one card asks to restart it, and the
+  conversation continues (**Restart now**, or **Restart after this turn**).
 - **End session** stops the agent but keeps the conversation; sending a new
   message resumes it. **Delete conversation…** removes it.
 

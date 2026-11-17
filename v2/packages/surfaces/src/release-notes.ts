@@ -9,6 +9,16 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.24',
+    date: '2026-11-17',
+    title: '/model lists your models',
+    items: [
+      { title: '/model lists your models', body: '/model, the ⋯ menu and the model name in the header list the models you can switch to by name, the id after it: Claude\'s Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.2 plus whatever else Claude Code offers, or the models Codex lists for your subscription. A conversation whose agent an older Lazybox started gets the same list.' },
+      { title: 'Choosing the current model does nothing', body: 'It is marked Current and never offered first; choosing it asks nothing.' },
+      { title: 'A switch during a turn waits for it', body: 'The turn finishes on the model it started with, the next one uses the new model, and the conversation says so. An agent an older Lazybox started asks once, in one sentence, to restart, and Restart after this turn waits for the turn to end.' },
+    ],
+  },
+  {
     id: '2026-11-17.23',
     date: '2026-11-17',
     title: 'Conversations are tabs',

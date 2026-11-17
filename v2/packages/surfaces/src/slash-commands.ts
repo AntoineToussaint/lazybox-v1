@@ -1,4 +1,5 @@
 import { fuzzyMatch } from './fuzzy';
+import { modelName } from './conversation-model';
 import { agentTitle, isAcp } from './providers';
 
 /**
@@ -241,7 +242,10 @@ export type SlashContext = {
   liveModel: boolean;
   /** The provider can resume: a restart (model, permissions) keeps the conversation. */
   resumable: boolean;
+  /** The models the running agent listed (its `command_catalog`): its subscription's. */
   models: ProviderModel[];
+  /** The Runner's list for this provider (GetProviderAvailability): what the program lists, else built in. */
+  providerModels?: readonly ProviderModel[];
   /** The agent has said something that can be tracked. */
   agentMessage: boolean;
   /** The agent's latest shell block, to run. */
@@ -261,8 +265,7 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
   const notLive = !ctx.live && 'The conversation is not running';
   const agentName = ctx.agentName || agentTitle(ctx.provider);
   const restart = (live: boolean) => live ? '' : ctx.resumable ? ' (restarts the agent; the conversation continues)' : '';
-  const models: SlashChoice[] = ctx.models.map(model => ({ value: model.value, label: model.displayName, detail: [model.value !== model.displayName ? model.value : '', model.description].filter(Boolean).join(' · '), current: sameModel(model, ctx.model), keywords: model.value }));
-  if (ctx.model && !models.some(choice => choice.current)) models.unshift({ value: ctx.model, label: ctx.model, detail: 'Current model', current: true });
+  const models = modelChoices(mergeModels(ctx.providerModels || [], ctx.models), ctx.model);
   const permissions: SlashChoice[] = (['ask', 'read-only', 'yolo'] as PermissionMode[]).map(mode => ({ value: mode, label: PERMISSION_LABELS[mode], detail: PERMISSION_DETAILS[mode] + restart(ctx.livePermission), current: ctx.permission === mode, disabled: mode === 'yolo' && ctx.planWorkflow ? 'YOLO is unavailable in plan mode' : undefined, keywords: mode === 'yolo' ? 'bypass dangerous skip' : mode === 'ask' ? 'approve default' : 'plan readonly' }));
   return [
     { key: 'lazybox:model', name: 'model', group: 'lazybox', icon: 'sparkle', argumentHint: '<name>', description: ctx.liveModel ? `Switch ${agentName}'s model` : `Switch ${agentName}'s model${restart(false)}`, choices: models, freeArgument: true, disabled: unless(notLive), keywords: 'opus sonnet haiku gpt' },
@@ -307,12 +310,79 @@ export function reviewRequest<T extends { key: string; label: string }>(reviewer
     || (!rest.length ? reviewers.find(r => !r.key.startsWith('profile:') && r.label.toLowerCase().startsWith(word)) : undefined);
   return named ? { reviewer: named, focus: rest.join(' ') } : { reviewer: reviewers[0], focus: text };
 }
-/** A listed model is the session's: by id, by the id an alias resolves to, or by its name. */
+/**
+ * A listed model is the session's: by id, by name, or by the name its id
+ * says — the agent reports "claude-opus-5-5" and lists "opus" as "Opus 5.5".
+ */
 export function sameModel(model: ProviderModel, current: string): boolean {
   if (!current) return false;
-  const c = current.toLowerCase();
-  return model.value.toLowerCase() === c || model.displayName.toLowerCase() === c;
+  const c = current.trim().toLowerCase(), said = modelName(current).toLowerCase();
+  const value = model.value.toLowerCase(), name = model.displayName.toLowerCase();
+  if (value === c || name === c || name === said || modelName(model.value).toLowerCase() === said) return true;
+  // An alias of the current model ("opus", listed as "Opus"): resolveModel would
+  // take it for this model. A name with its own version ("Fable 5.1") must match it.
+  return ALIAS.test(value) && said.startsWith(`${name} `);
 }
+/** A family alias Claude Code takes: one word, no version ("opus", "sonnet"). */
+const ALIAS = /^[a-z]+$/;
+
+/**
+ * The models `/model` and the picker list: the Runner's list for the
+ * provider first (Claude's current models by id, or what Codex lists), then
+ * whatever else the running agent listed — Claude Code's older models and
+ * aliases, a subscription's own. A model both list (by id or by name) is
+ * listed once, the first time.
+ */
+export function mergeModels(provider: readonly ProviderModel[], listed: readonly ProviderModel[]): ProviderModel[] {
+  const out: ProviderModel[] = [], seen = new Set<string>();
+  for (const model of [...provider, ...listed]) {
+    const keys = [model.value.toLowerCase(), `name:${(model.displayName || model.value).toLowerCase()}`];
+    if (!model.value || keys.some(key => seen.has(key))) continue;
+    keys.forEach(key => seen.add(key));
+    out.push({ value: model.value, displayName: model.displayName || model.value, description: model.description || '' });
+  }
+  return out;
+}
+
+/**
+ * The choices of `/model`: each model by its name, its id and description
+ * after, the current one marked. A current model the list lacks (a custom
+ * id) is listed first, so the list always says what runs now — but choosing
+ * the current model changes nothing (useSlashCommands' switchModel).
+ */
+export function modelChoices(models: readonly ProviderModel[], current: string): SlashChoice[] {
+  // Every entry that is the current model is marked (an id and its alias), so
+  // none of them is offered first as a switch (rankChoices skips the current).
+  let same = models.map(model => sameModel(model, current));
+  const c = current.trim().toLowerCase();
+  // The current model is an alias ("sonnet", after a switch by alias): the first,
+  // newest model of that name, as resolveModel takes a prefix.
+  if (!same.some(Boolean) && ALIAS.test(c)) {
+    const first = models.findIndex(model => model.displayName.toLowerCase().startsWith(`${c} `));
+    same = models.map((_, i) => i === first);
+  }
+  const marked = same.some(Boolean);
+  const choices: SlashChoice[] = models.map((model, i) => ({ value: model.value, label: model.displayName, detail: [model.value !== model.displayName ? model.value : '', model.description].filter(Boolean).join(' · '), current: same[i], keywords: model.value }));
+  if (current && !marked) {
+    const label = modelName(current);
+    choices.unshift({ value: current, label, detail: label === current ? 'Current model' : `${current} · Current model`, current: true, keywords: current });
+  }
+  return choices;
+}
+/**
+ * What the card asks before a model switch that restarts the agent, in one
+ * sentence: why it restarts (Claude: an older Lazybox started its worker;
+ * another agent cannot switch live at all), when, and that the conversation
+ * continues.
+ */
+export function modelRestartText(provider: string, agentName: string, label: string, busy: boolean, queued: boolean): string {
+  const when = busy ? ' when this turn ends' : '';
+  if (queued) return `Switching to ${label} when this turn ends: ${agentName} restarts and your conversation continues.`;
+  return provider === 'claude'
+    ? `Switch to ${label}? An older Lazybox started this conversation's agent, so switching restarts it${when} and your conversation continues.`
+    : `Switch to ${label}? ${agentName} cannot change models mid-conversation, so switching restarts it${when} and your conversation continues.`;
+}
+
 /** The model a typed argument names: a listed one by id or name, else the text itself (an id the list lacks). */
 export function resolveModel(args: string, models: readonly ProviderModel[]): string {
   const q = args.trim();
@@ -361,7 +431,7 @@ export function shortTokens(n: number): string {
  * "Compacted context: 156k → 61k tokens". Empty for anything else.
  */
 export function commandLine(type: string, text: string, status: string, data: Record<string, unknown>): string {
-  if (type === 'model_changed' && text) return `Switched model to ${text}${status === 'restart' ? ' · the agent restarted' : ''}`;
+  if (type === 'model_changed' && text) return `Switched model to ${text}${status === 'restart' ? ' · the agent restarted' : status === 'next_turn' ? ' · from the next turn' : ''}`;
   if (type === 'permission_changed' && text) return `Permissions: ${PERMISSION_LABELS[text as PermissionMode] || text}${status === 'restart' ? ' · the agent restarted' : ''}`;
   if (type === 'compacted') {
     const before = Number(data.preTokens), after = Number(data.postTokens);

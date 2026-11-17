@@ -119,6 +119,55 @@ func TestProgramsSayWhatIsMissingOrBroken(t *testing.T) {
 	}
 }
 
+// The report offers the models Codex lists, cached with its program, and
+// the built-in ones when it lists none, for Claude, or when listing fails.
+func TestReportOffersListedModelsElseBuiltIn(t *testing.T) {
+	bin := t.TempDir()
+	program(t, filepath.Join(bin, "codex"))
+	probe := fakeProbe(bin, map[string]string{"codex": "codex-cli 0.169.0"})
+	listed := []agent.ModelChoice{{Value: "gpt-6.1-sol", DisplayName: "GPT-6.1-Sol"}, {Value: "gpt-6-luna", DisplayName: "GPT-6-Luna"}}
+	asked := []string{}
+	probe.Models = func(_ context.Context, provider, path string) ([]agent.ModelChoice, error) {
+		asked = append(asked, provider+" "+filepath.Base(path))
+		return listed, nil
+	}
+	cache := &Cache{Probe: probe}
+	programs, at := cache.Programs(context.Background(), false)
+	cache.Programs(context.Background(), false)
+	if len(asked) != 1 || asked[0] != "codex codex" {
+		t.Fatalf("listed %v: once, Codex only", asked)
+	}
+	report := Build(programs, nil, at)
+	if got := report.Providers[1].Models; len(got) != 2 || got[0].Value != "gpt-6.1-sol" {
+		t.Fatalf("codex models: %+v", got)
+	}
+	// Claude lists its models only in a session: the built-in ones.
+	if got := report.Providers[0].Models; len(got) != len(BuiltinModels["claude"]) || got[0].Value != "claude-opus-5-5" {
+		t.Fatalf("claude models: %+v", got)
+	}
+	names := []string{}
+	for _, m := range BuiltinModels["claude"] {
+		names = append(names, m.Value)
+	}
+	if strings.Join(names, " ") != "claude-opus-5-5 claude-sonnet-5-5 claude-haiku-5-5 claude-fable-5-2" {
+		t.Fatalf("claude built-in models: %v", names)
+	}
+	// A failed listing is not a broken program: the built-in list stands in.
+	probe.Models = func(context.Context, string, string) ([]agent.ModelChoice, error) { return nil, errors.New("unknown method") }
+	codex := probe.Programs(context.Background())["codex"]
+	if codex.Error != "" || codex.Models != nil {
+		t.Fatalf("codex after a failed listing: %+v", codex)
+	}
+	if got := Build(map[string]Program{"codex": codex}, nil, at).Providers[1].Models; len(got) != len(BuiltinModels["codex"]) {
+		t.Fatalf("codex fallback models: %+v", got)
+	}
+	// The report's list is its own: changing it never changes the built-in one.
+	report.Providers[0].Models[0].Value = "changed"
+	if BuiltinModels["claude"][0].Value != "claude-opus-5-5" {
+		t.Fatal("a report shares the built-in list")
+	}
+}
+
 func TestCacheProbesOnceUntilRefreshed(t *testing.T) {
 	bin := t.TempDir()
 	program(t, filepath.Join(bin, "codex"))

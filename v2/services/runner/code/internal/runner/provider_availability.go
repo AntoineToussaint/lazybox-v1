@@ -2,10 +2,15 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/codex"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/availability"
 )
 
@@ -21,6 +26,33 @@ func claudeProgram(cfg Config) string {
 		return found
 	}
 	return ""
+}
+
+// accountEnv names the variables that sign a provider program in; a model
+// listing for the provider report runs without them.
+var accountEnv = []string{"CODEX_HOME=", "OPENAI_API_KEY=", "CODEX_API_KEY="}
+
+// programModels lists the models a provider's program offers, without any
+// account: Codex's app-server in a scratch CODEX_HOME, removed afterwards, so
+// the listing never reads or refreshes a sign-in. Claude Code lists its models
+// only in a running session (the worker's command_catalog); the report offers
+// the built-in list for it.
+func programModels(ctx context.Context, provider, program string) ([]agent.ModelChoice, error) {
+	if provider != "codex" {
+		return nil, errors.New("only Codex lists its models outside a session")
+	}
+	home, err := os.MkdirTemp("", "lazybox-codex-models-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(home)
+	env := []string{}
+	for _, entry := range os.Environ() {
+		if !slices.ContainsFunc(accountEnv, func(prefix string) bool { return strings.HasPrefix(entry, prefix) }) {
+			env = append(env, entry)
+		}
+	}
+	return codex.ListModels(ctx, program, append(env, "CODEX_HOME="+home), home)
 }
 
 // ProviderAvailability reports every provider's program (probed once, and

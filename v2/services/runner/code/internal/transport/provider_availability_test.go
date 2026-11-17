@@ -33,6 +33,10 @@ func TestOwnerReadsProviderAvailability(t *testing.T) {
 		if p.State != "not_installed" || p.Installed || p.InstallCommand == "" || p.Error == "" || p.Title == "" {
 			t.Fatalf("%s: %+v", p.Provider, p)
 		}
+		// Nothing lists models: the built-in ones, so /model always has a choice.
+		if len(p.Models) < 2 || p.Models[0].Value == "" || p.Models[0].DisplayName == "" {
+			t.Fatalf("%s models: %+v", p.Provider, p.Models)
+		}
 		// The Runner's default profiles are listed with their state.
 		if len(p.Subscriptions) != 1 || p.Subscriptions[0].ProfileId != p.Provider+"-default" || p.Subscriptions[0].State == "" || p.Subscriptions[0].Isolation != "inherited" {
 			t.Fatalf("%s subscriptions: %+v", p.Provider, p.Subscriptions)

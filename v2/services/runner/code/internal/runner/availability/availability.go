@@ -49,6 +49,9 @@ type Program struct {
 	Source string
 	// Error says, in plain words, why the provider cannot run; empty when it can.
 	Error string
+	// Models are the models the program itself lists (Codex's model/list),
+	// nil when it lists none or was not asked.
+	Models []agent.ModelChoice
 }
 
 // Subscription is one saved profile and whether it can take work now.
@@ -92,6 +95,37 @@ type Provider struct {
 	Program        Program
 	InstallCommand string
 	Subscriptions  []Subscription
+	// Models a conversation of this provider can switch to: what the program
+	// lists, else BuiltinModels. A running agent's own list (its
+	// command_catalog) is more precise; this is the fallback when it has none.
+	Models []agent.ModelChoice
+}
+
+// BuiltinModels are each provider's current models, for when neither the
+// program nor a running agent lists any: an agent started by an older
+// Lazybox, or a Codex without model/list. Ids the provider takes; names as
+// people say them.
+var BuiltinModels = map[string][]agent.ModelChoice{
+	"claude": {
+		{Value: "claude-opus-5-5", DisplayName: "Opus 5.5", Description: "For complex work and everyday tasks"},
+		{Value: "claude-sonnet-5-5", DisplayName: "Sonnet 5.5", Description: "Most efficient for simpler tasks"},
+		{Value: "claude-haiku-5-5", DisplayName: "Haiku 5.5", Description: "Fastest for quick answers"},
+		{Value: "claude-fable-5-2", DisplayName: "Fable 5.2", Description: "For your toughest challenges"},
+	},
+	"codex": {
+		{Value: "gpt-6.1-sol", DisplayName: "GPT-6.1-Sol", Description: "Workhorse model for coding and everyday work"},
+		{Value: "gpt-6-astra", DisplayName: "GPT-6-Astra", Description: "Frontier intelligence for the most demanding work"},
+		{Value: "gpt-6.1-terra", DisplayName: "GPT-6.1 Terra", Description: "Balanced model for straightforward work"},
+		{Value: "gpt-6-luna", DisplayName: "GPT-6-Luna", Description: "Fast and affordable model for easier tasks"},
+	},
+}
+
+// models is what a report offers for provider: the program's list, else the built-in one.
+func models(provider string, program Program) []agent.ModelChoice {
+	if len(program.Models) > 0 {
+		return append([]agent.ModelChoice(nil), program.Models...)
+	}
+	return append([]agent.ModelChoice(nil), BuiltinModels[provider]...)
 }
 
 // Report is every provider, in Providers order.
@@ -121,6 +155,10 @@ type Probe struct {
 	LookPath func(string) (string, error)
 	// Version runs `program --version` and returns its first line.
 	Version func(ctx context.Context, program string) (string, error)
+	// Models lists the models a provider's program offers, without any
+	// account (Codex: an app-server's model/list); nil asks nothing, and the
+	// report offers BuiltinModels.
+	Models func(ctx context.Context, provider, program string) ([]agent.ModelChoice, error)
 }
 
 // DefaultProbe probes with the Runner's own PATH and runs each program.
@@ -269,6 +307,12 @@ func (p Probe) program(ctx context.Context, provider string) Program {
 		return program
 	}
 	program.Version = version(line)
+	if p.Models != nil && provider == "codex" {
+		// A listing that fails is not the program failing: the built-in list stands in.
+		if listed, err := p.Models(ctx, provider, path); err == nil {
+			program.Models = listed
+		}
+	}
 	if provider == "claude" {
 		// Lazybox runs Claude through its SDK worker, which Node runs.
 		if source == "path" && path != p.ClaudeRunning {
@@ -382,7 +426,7 @@ func Build(programs map[string]Program, subscriptions map[string][]Subscription,
 	for _, provider := range Providers {
 		program := programs[provider]
 		subs := subscriptions[provider]
-		p := Provider{Provider: provider, Title: Titles[provider], Program: program, Subscriptions: subs, State: summary(program, subs)}
+		p := Provider{Provider: provider, Title: Titles[provider], Program: program, Subscriptions: subs, State: summary(program, subs), Models: models(provider, program)}
 		if !program.Installed {
 			p.InstallCommand = InstallCommands[provider]
 		}

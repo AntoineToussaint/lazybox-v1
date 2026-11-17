@@ -73,6 +73,16 @@ func TestModelSwitchesWhileRunningAndIsRemembered(t *testing.T) {
 		t.Fatalf("new model not remembered for resume: %v %q %q", err, saved.Options.Model, e.Options.Model)
 	}
 	journaled(t, e, `"model_changed"`, `"second-model"`, `"live"`)
+	// During a turn the change waits for it to end, and the conversation says so.
+	fake.Session.Events <- agent.Event{Type: "turn_started", TurnID: "t"}
+	waitHistory(t, func() bool { return e.Engine.Snapshot().Busy })
+	if _, err = b.SetModel(context.Background(), e, "model-2", "third-model"); err != nil {
+		t.Fatalf("a change during a turn must be taken for the next one: %v", err)
+	}
+	if got := applied(t, fake.Session); got.Kind != agent.Model || got.Model != "third-model" {
+		t.Fatalf("provider not told: %+v", got)
+	}
+	journaled(t, e, `"model_changed"`, `"third-model"`, `"next_turn"`)
 	for _, bad := range []string{"", "two words", "tab\tmodel", strings.Repeat("m", 257)} {
 		if _, err = b.SetModel(context.Background(), e, "model-bad", bad); !errors.Is(err, agent.ErrInvalidModel) {
 			t.Fatalf("%q must be refused as an invalid model: %v", bad, err)

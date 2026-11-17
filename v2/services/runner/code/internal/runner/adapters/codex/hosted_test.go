@@ -36,6 +36,7 @@ func fixtureAppServer() {
 				Input []struct {
 					Text string `json:"text"`
 				} `json:"input"`
+				Cursor string `json:"cursor"`
 			} `json:"params"`
 			Result struct {
 				Decision     json.RawMessage `json:"decision"`
@@ -72,6 +73,22 @@ func fixtureAppServer() {
 			}
 		case "config/read":
 			send(map[string]any{"id": m.ID, "result": map[string]any{"config": map[string]any{}}})
+		case "model/list":
+			// Two pages, a hidden preset and a repeat: the picker gets three models.
+			if os.Getenv("FIXTURE_NO_MODEL_LIST") != "" {
+				send(map[string]any{"id": m.ID, "error": map[string]any{"code": -32601, "message": "unknown method"}})
+			} else if m.Params.Cursor == "" {
+				send(map[string]any{"id": m.ID, "result": map[string]any{"data": []map[string]any{
+					{"id": "gpt-6.1-sol", "model": "gpt-6.1-sol", "displayName": "GPT-6.1-Sol", "description": "Workhorse", "hidden": false, "isDefault": true},
+					{"id": "internal", "model": "gpt-internal", "displayName": "Internal", "description": "", "hidden": true},
+					{"id": "gpt-6-luna", "model": "gpt-6-luna", "displayName": "GPT-6-Luna", "description": "Fast", "hidden": false},
+				}, "nextCursor": "page-2"}})
+			} else {
+				send(map[string]any{"id": m.ID, "result": map[string]any{"data": []map[string]any{
+					{"id": "gpt-6-luna", "model": "gpt-6-luna", "displayName": "GPT-6-Luna", "hidden": false},
+					{"id": "gpt-6-astra", "model": "gpt-6-astra", "displayName": "", "description": "Frontier", "hidden": false},
+				}, "nextCursor": nil}})
+			}
 		case "":
 			if string(m.ID) == "42" {
 				decision := string(m.Result.Decision)

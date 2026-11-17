@@ -648,6 +648,19 @@ message ProviderStatus {
   repeated SubscriptionAvailability subscriptions = 10;
   // Set for an ACP agent (provider "acp:<id>"); Claude and Codex have none.
   AcpAgentInfo acp = 11;
+  // The models a conversation of this provider can switch to (/model): what
+  // the program lists (Codex's model/list), else a built-in list. A running
+  // agent's own list (its command_catalog event) is more precise; this is
+  // the fallback for an agent that reports none. Empty for an ACP agent.
+  repeated ProviderModel models = 12;
+}
+// One model a provider offers, as the model picker lists it.
+message ProviderModel {
+  // The id the provider takes: an alias ("opus") or a full id ("claude-opus-5-5").
+  string value = 1;
+  // Its name as people say it: "Opus 5.5", "GPT-6.1-Sol".
+  string display_name = 2;
+  string description = 3;
 }
 // An ACP agent (Agent Client Protocol) as Settings → Agents shows it.
 message AcpAgentInfo {

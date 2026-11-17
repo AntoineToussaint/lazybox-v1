@@ -195,6 +195,8 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 		}
 	}
 	go s.read()
+	// The models this subscription can switch to, for /model and the picker.
+	go s.reportModels()
 	return s, nil
 }
 

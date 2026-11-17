@@ -180,6 +180,15 @@ const (
 // (the provider's own settings) is only a starting choice.
 var PermissionModes = map[string]bool{"ask": true, "read-only": true, "yolo": true}
 
+// ModelChoice is one model a provider offers, as the model picker lists it:
+// the id the provider takes (an alias or a full id), its name as people say
+// it and a short description. The JSON is a command_catalog event's `models`.
+type ModelChoice struct {
+	Value       string `json:"value"`
+	DisplayName string `json:"displayName"`
+	Description string `json:"description,omitempty"`
+}
+
 // ValidModel checks a model identifier a person chose for a running session:
 // one token the provider resolves (an alias or a full id), never free text.
 func ValidModel(model string) error {

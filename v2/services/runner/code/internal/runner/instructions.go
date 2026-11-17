@@ -170,9 +170,15 @@ func (b *Bench) restart(ctx context.Context, e *Execution) (*Execution, error) {
 
 // SetModel switches a running session's model for its following turns and
 // remembers it, so a resume or a subscription rotation keeps the new model.
+// Asked for during a turn, the change waits for that turn to end (the
+// adapters apply it to the next one), and the conversation says so.
 func (b *Bench) SetModel(ctx context.Context, e *Execution, operationID, model string) (agent.Receipt, error) {
 	if err := agent.ValidModel(model); err != nil {
 		return agent.Receipt{}, err
+	}
+	when := "live"
+	if e.Engine.Snapshot().Busy {
+		when = "next_turn"
 	}
 	r, err := e.Engine.Apply(ctx, agent.Operation{ID: operationID, Kind: agent.Model, Model: model})
 	if err != nil || r.Delivery == "failed" {
@@ -181,7 +187,7 @@ func (b *Bench) SetModel(ctx context.Context, e *Execution, operationID, model s
 	if err = b.rememberModel(ctx, e, model); err != nil {
 		return r, err
 	}
-	_ = b.Record(e, agent.Event{Type: "model_changed", Text: model, Status: "live"})
+	_ = b.Record(e, agent.Event{Type: "model_changed", Text: model, Status: when})
 	return r, nil
 }
 

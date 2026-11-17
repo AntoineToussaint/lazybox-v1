@@ -399,6 +399,7 @@ func New(cfg Config) (*Bench, error) {
 	b.profiles = b.withACP(b.profiles)
 	b.Availability = &availability.Cache{Probe: availability.DefaultProbe(cfg.Worker, cfg.Node, cfg.ClaudeBinary, cfg.CodexBinary, claudeProgram(cfg))}
 	b.Availability.Probe.Agents, b.Availability.Probe.AgentProgram = b.ACPAgents, b.acpProgram
+	b.Availability.Probe.Models = programModels
 	// Shells a previous Runner left running are re-attached here, like commands.
 	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals, Backend: hosts}); err != nil {
 		_ = b.Detach()

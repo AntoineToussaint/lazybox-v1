@@ -15,9 +15,11 @@ import { saveSnippetUse } from './snippet-usage';
 import { SlashMenu, SlashWarning, SLASH_MENU_ID, slashOptionId } from './SlashMenu';
 import { useDismiss } from './dismiss';
 import {
-  decideSend, findCommand, lazyboxCommands, reviewRequest, providerCommands, resolveModel, slashMenu, snippetCommands,
-  type CommandCatalog, type SlashChoice, type SlashCommand, type SlashContext, type SlashMenuState,
+  decideSend, findCommand, lazyboxCommands, mergeModels, modelRestartText, reviewRequest, providerCommands, resolveModel, sameModel, slashMenu, snippetCommands,
+  type CommandCatalog, type ProviderModel, type SlashChoice, type SlashCommand, type SlashContext, type SlashMenuState,
 } from './slash-commands';
+import { useProviderAvailability } from './useProviderAvailability';
+import { modelName } from './conversation-model';
 import { openUsage } from './TelemetryPanel';
 import { requestOrchestrate } from './OrchestratorBadge';
 import type { TranscriptMessage } from './transcript-model';
@@ -104,14 +106,21 @@ export function useSlashCommands(o: Options) {
   useEffect(() => { if (reviewLauncher.error) { latest.current.onError(`Could not start the review: ${reviewLauncher.error}`); reviewLauncher.setError(''); } }, [reviewLauncher.error]);
   const live = !!session && !session.closed;
   const lastAgentMessage = useMemo(() => [...o.conversation].reverse().find(trackable), [o.conversation]);
+  // The Runner's models for this provider: what its program lists, else built in.
+  // An agent started by an older Lazybox lists none of its own; these stand in.
+  const availability = useProviderAvailability(o.enabled);
+  const providerModels: ProviderModel[] = useMemo(() => (availability.report?.providers.find(p => p.provider === provider)?.models || [])
+    .map(m => ({ value: m.value, displayName: m.displayName, description: m.description })), [availability.report, provider]);
+  const models = useMemo(() => mergeModels(providerModels, catalog.models), [providerModels, catalog.models]);
   const context: SlashContext = {
     provider, agentName: o.agentName, live, busy: !!session?.busy, coding: !!session && (!session.purpose || session.purpose === 'coding'), workspace: !!workspaceId,
     permission: session?.permission || '', planWorkflow: session?.workflow === 'plan', livePermission: !!session?.capabilities?.livePermission,
-    model: o.model, liveModel: !!session?.capabilities?.liveModel, resumable: !!session?.capabilities?.resume, models: catalog.models,
+    model: o.model, liveModel: !!session?.capabilities?.liveModel, resumable: !!session?.capabilities?.resume, models: catalog.models, providerModels,
     agentMessage: !!lastAgentMessage, shellBlock: o.shellBlock, compact: provider === 'claude', detail: o.detail, subscriptions: o.subscriptions,
     reviewers: workspaceId && !reviewLauncher.unavailable ? reviewLauncher.choices : [],
   };
   const lazybox = lazyboxCommands(context);
+  const modelsRef = useRef(models); modelsRef.current = models;
   const commands: SlashCommand[] = [...lazybox, ...providerCommands(catalog, lazybox, o.canCompose ? undefined : 'The conversation cannot take a message now'), ...snippetCommands(snippets.rows, snippets.next)];
   const byName = (name: string) => lazybox.find(command => command.name === name)!;
 
@@ -129,6 +138,8 @@ export function useSlashCommands(o: Options) {
   const [picked, setPicked] = useState({ key: '', index: 0 });
   const selected = menu && menu.kind !== 'hint' ? (picked.key === menuKey ? Math.min(picked.index, menu.items.length - 1) : Math.max(0, menu.best)) : -1;
   const select = (index: number) => setPicked({ key: menuKey, index });
+  // A menu opened again starts on its best entry, not where the last one was left.
+  useEffect(() => { if (!menuKey) setPicked(previous => previous.key ? { key: '', index: 0 } : previous); }, [menuKey]);
 
   // A draft set aside while a command from the palette or a menu borrows the box.
   const stash = useRef<string | null>(null);
@@ -154,22 +165,32 @@ export function useSlashCommands(o: Options) {
   useEffect(() => { if (warning !== null && warning !== o.message) setWarning(null); }, [o.message, warning]);
 
   // ---- Running ---------------------------------------------------------
-  const [restartModel, setRestartModel] = useState('');
+  // A model switch that restarts the agent: asked once, and, during a turn, done when it ends.
+  const [restart, setRestart] = useState<{ model: string; label: string; queued: boolean }>();
   const [tracking, setTracking] = useState<Tracking>();
   const notice = (text: string) => showMenuNotice(text);
   const switchModel = async (model: string) => {
     const { session: current, sessionID: id, onError } = latest.current;
     if (!model || !current) return;
+    const choice = byNameLatest('model')?.choices?.find(c => c.value.toLowerCase() === model.toLowerCase());
+    const label = choice?.label || modelName(model);
+    // The model it runs on already: nothing to switch, nothing to confirm.
+    if (choice?.current || sameModel({ value: model, displayName: label, description: '' }, latest.current.model)) { setRestart(undefined); notice(`Already on ${label}`); return; }
     if (current.capabilities?.liveModel) {
-      try { await api.apply({ sessionId: id, operationId: crypto.randomUUID(), operation: { case: 'model', value: { model } } }); }
-      catch (e) { onError(String(e)); }
+      try {
+        await api.apply({ sessionId: id, operationId: crypto.randomUUID(), operation: { case: 'model', value: { model } } });
+        setRestart(undefined);
+        if (current.busy) notice(`${label} from the next turn; this one finishes on the model it started with`);
+      } catch (e) { onError(String(e)); }
       return;
     }
-    if (!current.capabilities?.resume) { onError(`This agent cannot change models during a conversation. Start a new conversation with ${model}.`); return; }
-    setRestartModel(model);
+    if (!current.capabilities?.resume) { onError(`${latest.current.agentName} cannot change models during a conversation. Start a new conversation with ${label}.`); return; }
+    setRestart({ model, label, queued: false });
   };
+  // A restart asked for during a turn runs once the turn ends.
+  useEffect(() => { if (restart?.queued && session && !session.busy && !session.closed) void restartWithModel(restart.model); }, [restart, session?.busy, session?.closed]);
   const restartWithModel = async (model: string) => {
-    setRestartModel('');
+    setRestart(undefined);
     try {
       const result = await api.restartWithModel({ sessionId: latest.current.sessionID, model });
       if (!result.session) throw new Error('Runner did not return the restarted conversation');
@@ -194,7 +215,7 @@ export function useSlashCommands(o: Options) {
     if (!args && (command.choices?.length || command.needsArgument) && !(command.name === 'review' && reviewLauncher.choices.length)) { borrow(`/${command.name} `); return; }
     finish();
     switch (command.name) {
-      case 'model': void switchModel(resolveModel(args, latest.current.catalog.models)); break;
+      case 'model': void switchModel(resolveModel(args, modelsRef.current)); break;
       case 'permissions': {
         const mode = PERMISSION_WORDS[args.toLowerCase()];
         if (!mode) { onError(`“${args}” is not a permission mode: choose ask, read-only or yolo.`); break; }
@@ -335,11 +356,8 @@ export function useSlashCommands(o: Options) {
     {menuElement}
     {unknown?.kind === 'unknown' && <SlashWarning name={unknown.name} onSend={() => { latest.current.textarea.current?.form?.requestSubmit(); }} onCancel={() => { setWarning(null); latest.current.textarea.current?.focus(); }}/>}
   </>;
-  const prompt: ReactNode = restartModel ? <div className="restart-permission restart-model" role="alert">
-    <span>Switch to {restartModel}? {o.agentName} restarts between turns and the conversation continues; this agent started before models could change live.</span>
-    <button className="primary" disabled={!!session?.busy} title={session?.busy ? 'Wait for the current turn to finish' : undefined} onClick={() => void restartWithModel(restartModel)}>Restart now</button>
-    <button onClick={() => setRestartModel('')}>Cancel</button>
-  </div> : null;
+  const prompt: ReactNode = restart ? <ModelRestartPrompt provider={provider} agentName={o.agentName} label={restart.label} busy={!!session?.busy} queued={restart.queued}
+    onRestart={() => { if (session?.busy) setRestart({ ...restart, queued: true }); else void restartWithModel(restart.model); }} onCancel={() => setRestart(undefined)}/> : null;
   const dialogs: ReactNode = tracking && workspaceId && <>
     {tracking.kind === 'track' && <TrackArtifactDialog collectionId={workspaceId} content={tracking.message.text}
       source={{ kind: 'message', sessionId: sessionID, conversationId: session?.conversationId, messageId: tracking.message.id, turnId: tracking.message.turnId }} existing={tracking.existing}
@@ -362,4 +380,13 @@ export function useSlashCommands(o: Options) {
     models: { choices: modelCommand.choices || [], live: context.liveModel, disabled: modelCommand.disabled, choose: (value: string) => { const choice = modelCommand.choices?.find(c => c.value === value); if (choice?.current) return; void switchModel(value); }, pick: () => fromPalette('model') },
     find: (name: string) => findCommand(commands, name),
   };
+}
+
+/** The one question before a model switch that restarts the agent; during a turn, it restarts when the turn ends. */
+function ModelRestartPrompt({ provider, agentName, label, busy, queued, onRestart, onCancel }: { provider: string; agentName: string; label: string; busy: boolean; queued: boolean; onRestart(): void; onCancel(): void }) {
+  return <div className="restart-permission restart-model" role="alert">
+    <span>{modelRestartText(provider, agentName, label, busy, queued)}</span>
+    {!queued && <button className="primary" onClick={onRestart}>{busy ? 'Restart after this turn' : 'Restart now'}</button>}
+    <button onClick={onCancel}>Cancel</button>
+  </div>;
 }

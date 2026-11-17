@@ -123,6 +123,11 @@ export async function startRunnerFixture() {
     claude: { installed: true, path: '/fixture/runtime/claude', version: '2.1.311', source: 'bundled', error: '' },
     codex: { installed: true, path: '/fixture/bin/codex', version: '0.98.0', source: 'path', error: '' },
     states: {}, refreshes: 0,
+    // Each provider's models (/model's list when an agent lists none): the Runner's built-in Claude list, what Codex lists.
+    models: {
+      claude: [{ value: 'claude-opus-5-5', displayName: 'Opus 5.5', description: 'For complex work and everyday tasks' }, { value: 'claude-sonnet-5-5', displayName: 'Sonnet 5.5', description: 'Most efficient for simpler tasks' }, { value: 'claude-haiku-5-5', displayName: 'Haiku 5.5', description: 'Fastest for quick answers' }, { value: 'claude-fable-5-2', displayName: 'Fable 5.2', description: 'For your toughest challenges' }],
+      codex: [{ value: 'gpt-6.1-sol', displayName: 'GPT-6.1-Sol', description: 'Workhorse model for coding' }, { value: 'gpt-6-astra', displayName: 'GPT-6-Astra', description: 'Frontier intelligence' }, { value: 'gpt-6-luna', displayName: 'GPT-6-Luna', description: 'Fast and affordable' }],
+    },
   };
   const availabilityRank = { available: 0, unverified: 1, limited: 2, billing: 3, sign_in: 4 };
   // ACP agents (acp-ui-fake.mjs): none installed until a test says so.
@@ -133,7 +138,7 @@ export async function startRunnerFixture() {
       .sort((a, b) => availabilityRank[a.state] - availabilityRank[b.state] || Number(b.managed) - Number(a.managed));
     const best = subscriptions[0]?.state;
     const state = !program.installed ? 'not_installed' : program.error ? 'unusable' : !best ? 'no_subscription' : best === 'available' || best === 'unverified' ? 'ready' : best;
-    return { provider, title: provider === 'claude' ? 'Claude Code' : 'Codex', state, installed: program.installed, path: program.installed ? program.path : '', version: program.installed ? program.version : '', source: program.installed ? program.source : '', error: program.installed ? program.error : `${provider === 'claude' ? 'Claude Code' : 'Codex'} is not installed on the Runner's computer.`, installCommand: program.installed ? '' : provider === 'claude' ? 'curl -fsSL https://claude.ai/install.sh | bash' : 'npm install -g @openai/codex', subscriptions };
+    return { provider, title: provider === 'claude' ? 'Claude Code' : 'Codex', state, installed: program.installed, path: program.installed ? program.path : '', version: program.installed ? program.version : '', source: program.installed ? program.source : '', error: program.installed ? program.error : `${provider === 'claude' ? 'Claude Code' : 'Codex'} is not installed on the Runner's computer.`, installCommand: program.installed ? '' : provider === 'claude' ? 'curl -fsSL https://claude.ai/install.sh | bash' : 'npm install -g @openai/codex', subscriptions, models: availability.models[provider] || [] };
   }).concat(acp.providers()) });
   const completeEnrollment = id => { const flow = enrollments.get(id); if (!flow) throw new Error('Unknown fixture enrollment'); if (flow.state === 'added') return; flow.state = 'added'; flow.signInUrl = ''; flow.userCode = ''; profiles.push({ id: flow.profileId, provider: flow.provider, label: flow.label, managed:true, isolation: 'environment', availability: flow.provider === 'codex' ? { state: 'available', plan: 'pro', observedAtUnixMillis: String(Date.now()), windows: [{ name: 'codex:primary', durationMinutes: '300', usedPercent: 73, resetAt: String(Math.floor(Date.now()/1000)+3600) }] } : { state: 'unknown' } }); };
   // The provider refused the sign-in: errorCode is what the client offers a way out of.

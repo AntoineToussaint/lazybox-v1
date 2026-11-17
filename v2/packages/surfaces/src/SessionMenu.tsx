@@ -128,7 +128,7 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
  */
 export function PermissionRestartPrompt({ mode, busy, onRestart, onCancel }: { mode: string; busy: boolean; onRestart(): void; onCancel(): void }) {
   return <div className="restart-permission" role="alert">
-    <span>Restart the agent in {PERMISSION_CHOICES.find(([choice]) => choice === mode)?.[1] || mode}? The conversation continues; this agent started before permissions could change live.</span>
+    <span>Switch to {PERMISSION_CHOICES.find(([choice]) => choice === mode)?.[1] || mode}? An older Lazybox started this conversation's agent, so switching restarts it and your conversation continues.</span>
     <button className="primary" disabled={busy} title={busy ? 'Wait for the current turn to finish' : undefined} onClick={onRestart}>Restart</button>
     <button onClick={onCancel}>Cancel</button>
   </div>;

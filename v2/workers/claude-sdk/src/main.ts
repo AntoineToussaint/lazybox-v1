@@ -12,6 +12,7 @@ import { SettingsApprovals, settingsServer, settingsServerName, updateSettingsTo
 import { alwaysChoices, covers, decide, offered, type Grant } from './permissions.js';
 import { browserServer, browserServerName } from './browser.js';
 import { generateTitle } from './title.js';
+import { ModelSwitch } from './model.js';
 
 type Request = { id?: string; method?: string; params?: any; result?: any; error?: any };
 let session: Query | undefined;
@@ -29,6 +30,8 @@ const tools = new Map<string, { resolve: (value: any) => void; reject: (error: E
 const settingsApprovals = new SettingsApprovals();
 // The agent's own slash commands and models, said once per change.
 const catalog = new CommandCatalog();
+// The model of the following turns: a change during a turn waits for it to end.
+const models = new ModelSwitch(model => session!.setModel(model), (model, error) => process.stderr.write(`model ${model} not applied: ${String(error)}\n`));
 const sayCatalog = (value: ReturnType<CommandCatalog['fromChanged']>) => { if (value) event({ ...value, sessionId: reference }); };
 const send = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
 const event = (value: unknown) => send({ method: 'event', params: value });
@@ -108,7 +111,8 @@ async function receive(q: Query) {
         // That is the interrupt, not a provider error: it must not fault the
         // conversation. Account limits still count.
         if (interrupted && droppedOnInterrupt(normalized)) continue;
-        if (normalized.type === 'turn_ended') { if (interrupted) normalized.status = 'interrupted'; interrupted = false; }
+        // A model change that waited for this turn applies before the next one is sent.
+        if (normalized.type === 'turn_ended') { if (interrupted) normalized.status = 'interrupted'; interrupted = false; void models.turnEnded(); }
         event(normalized);
       }
       reference = status.reference || reference;
@@ -146,6 +150,7 @@ async function handle(request: Request) {
         if (p.text) content.push({ type: 'text', text: p.text });
         for (const image of p.images || []) content.push({ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } });
         messages.push({ type: 'user', uuid: randomUUID(), session_id: reference, message: { role: 'user', content }, parent_tool_use_id: null });
+        models.turnStarted();
         inputWake?.(); inputWake = undefined;
         reply(request.id, { delivery: 'submitted' }); break;
       }
@@ -161,10 +166,7 @@ async function handle(request: Request) {
       }
       case 'model': {
         // The model of the following turns; the provider resolves an alias.
-        const model = p?.model;
-        if (typeof model !== 'string' || !model || model.length > 256 || /\s/.test(model)) throw new Error('model must be one word: an alias or a model id');
-        await session.setModel(model);
-        reply(request.id, { delivery: 'acknowledged' }); break;
+        reply(request.id, { delivery: await models.change(p?.model) }); break;
       }
       case 'stop_agent': {
         // Stops one sub-agent; the main agent's turn continues.

@@ -14,6 +14,12 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.24] - 2026-11-17 · /model lists your models
+
+- **/model lists your models** /model, the ⋯ menu and the model name in the header list the models you can switch to by name, the id after it: Claude's Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.2 plus whatever else Claude Code offers, or the models Codex lists for your subscription. A conversation whose agent an older Lazybox started gets the same list.
+- **Choosing the current model does nothing** It is marked Current and never offered first; choosing it asks nothing.
+- **A switch during a turn waits for it** The turn finishes on the model it started with, the next one uses the new model, and the conversation says so. An agent an older Lazybox started asks once, in one sentence, to restart, and Restart after this turn waits for the turn to end.
+
 ## [2026-11-17.23] - 2026-11-17 · Conversations are tabs
 
 - **Conversations open as tabs** A single click on a conversation shows it in the chat's preview tab, its title in italics; the next click replaces it, so browsing does not pile up tabs. Double-click it, type in it, or choose Open in new tab and it stays as a tab of its own. A new conversation opens in a tab too.

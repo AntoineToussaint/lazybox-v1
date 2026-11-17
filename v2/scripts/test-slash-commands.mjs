@@ -9,11 +9,14 @@ import {createServer} from 'vite';import react from '@vitejs/plugin-react';impor
 const f=await startRunnerFixture();
 const data=value=>Buffer.from(JSON.stringify(value)).toString('base64');
 const catalog={commands:[{name:'compact',description:'Clear history but keep a summary',argumentHint:'<instructions>',builtin:true},{name:'review-pr',description:'Review a pull request',argumentHint:'<number>'},{name:'init',description:'Initialize a CLAUDE.md',argumentHint:'',builtin:true},{name:'model',description:'native',argumentHint:''}],models:[{value:'claude-opus-5-5',displayName:'Opus 5.5',description:'Most capable'},{value:'claude-sonnet-5',displayName:'Sonnet 5',description:'Fast and capable'}]};
-// Alpha switches models live; beta's agent started before that, so it restarts.
+// Alpha switches models live; beta's agent was started by an older Lazybox: it lists no models and restarts to switch.
+// The Codex conversation lists its app-server's models and switches live.
 Object.assign(f.sessions[0],{title:'Fix the flaky login test',provider:'claude',model:'claude-opus-5-5',modelReported:true,busy:false,status:'ready',conversationId:'alpha-conversation',capabilities:{...f.sessions[0].capabilities,liveModel:true,resume:true},agents:[{id:'root',status:'ready'}]});
 Object.assign(f.sessions[1],{title:'Release notes',provider:'claude',model:'claude-opus-5-5',modelReported:true,status:'ready',capabilities:{...f.sessions[1].capabilities,liveModel:false,resume:true},agents:[{id:'root',status:'ready'}]});
 const alpha=f.openEvents('alpha-session');alpha.push({type:'command_catalog',providerDataJson:data(catalog)});alpha.push({type:'operation_accepted',text:'Why is the login test flaky?'});alpha.push({type:'message_delta',text:'The test races the session cookie.'});alpha.push({type:'turn_ended',status:'completed'});
-const beta=f.openEvents('beta-session');beta.push({type:'command_catalog',providerDataJson:data(catalog)});
+f.openEvents('beta-session');
+f.sessions.push({...structuredClone(f.sessions[1]),id:'codex-session',conversationId:'codex-conversation',title:'Codex refactor',provider:'codex',profileId:'codex-default',model:'gpt-6.1-sol',modelReported:true,busy:false,status:'ready',capabilities:{...f.sessions[1].capabilities,liveModel:true,resume:true,steer:true}});
+f.openEvents('codex-session').push({type:'command_catalog',providerDataJson:data({models:[{value:'gpt-6.1-sol',displayName:'GPT-6.1-Sol',description:'Workhorse'},{value:'gpt-6-astra',displayName:'GPT-6-Astra',description:'Frontier'},{value:'gpt-6-luna',displayName:'GPT-6-Luna',description:'Fast'},{value:'gpt-5.5',displayName:'GPT-5.5',description:'Legacy'}]})});
 const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 const mod=process.platform==='darwin'?'Meta':'Control';
 const applies=()=>f.mutations.filter(m=>m.method==='Apply');
@@ -61,17 +64,26 @@ try{
  await expect(chat.locator('.command-line').filter({hasText:'Permissions: YOLO'})).toBeVisible();
  assert.equal(await chat.locator('.message.operation_accepted').filter({hasText:'/permissions'}).count(),0,'no fake user message');
 
- // /model: the provider's models with the current one marked; a live switch.
+ // /model: the provider's models (the Runner's list, then what the agent listed), the current one marked; a live switch.
  await page.keyboard.type('/model ');
  const models=chat.getByRole('listbox',{name:'/model choices'});
- await expect(models.getByRole('option')).toHaveText([/Opus 5\.5.*Current/,/Sonnet 5/]);
- await expect(models.getByRole('option',{selected:true})).toContainText('Sonnet 5');
+ await expect(models.getByRole('option')).toHaveText([/Opus 5\.5.*Current/,/Sonnet 5\.5.*claude-sonnet-5-5/,/Haiku 5\.5/,/Fable 5\.2/,/^Sonnet 5claude-sonnet-5/]);
+ await expect(models.getByRole('option',{selected:true})).toContainText('Sonnet 5.5','the current model is not offered first');
  await page.screenshot({path:'.cache/slash-model.png'});
+ // Choosing the current model does nothing: the menu closes, no card, nothing applied.
+ const appliedBefore=applies().length;
+ await page.keyboard.press('ArrowUp');await expect(models.getByRole('option',{selected:true})).toContainText('Current');
  await page.keyboard.press('Enter');
- await expect.poll(()=>applies().at(-1)?.body.model?.model).toBe('claude-sonnet-5');
- await expect(chat.locator('.command-line').filter({hasText:'Switched model to claude-sonnet-5'})).toBeVisible();
+ await expect(models).toBeHidden();await expect(message).toHaveValue('');
+ await expect(chat.locator('.restart-model')).toHaveCount(0);
+ assert.equal(applies().length,appliedBefore,'choosing the current model applies nothing');
+ await page.keyboard.type('/model ');await expect(models.getByRole('option',{selected:true})).toContainText('Sonnet 5.5','a menu opened again starts on its best entry');
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().at(-1)?.body.model?.model).toBe('claude-sonnet-5-5');
+ await expect(chat.locator('.command-line').filter({hasText:'Switched model to claude-sonnet-5-5'})).toBeVisible();
+ await expect(chat.locator('.restart-model')).toHaveCount(0,'a live switch asks nothing');
  // The header says the model as people do; the id stays in its tooltip.
- await expect(chat.locator('.chat-heading .chat-model')).toHaveText('Claude · Sonnet 5');await expect(chat.locator('.chat-heading .chat-model')).toHaveAttribute('title',/claude-sonnet-5/);
+ await expect(chat.locator('.chat-heading .chat-model')).toHaveText('Claude · Sonnet 5.5');await expect(chat.locator('.chat-heading .chat-model')).toHaveAttribute('title',/claude-sonnet-5-5/);
 
  // The agent's own command: Enter completes it for its argument, Enter sends it as the prompt.
  await message.fill('');await page.keyboard.type('/review-pr');
@@ -140,13 +152,13 @@ try{
  // The ⋯ menu has the same models; the header's model name opens the picker.
  await chat.locator('summary[aria-label="Session actions"]').click();
  const sessionMenu=chat.locator('.session-menu');
- await expect(sessionMenu.getByRole('group',{name:'Model'}).getByRole('button',{name:'Sonnet 5'})).toHaveAttribute('aria-pressed','true');
+ await expect(sessionMenu.getByRole('group',{name:'Model'}).getByRole('button',{name:'Sonnet 5.5',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(sessionMenu.locator('.session-facts')).toContainText('Subscription');
  await expect(sessionMenu.locator('.session-facts')).toContainText('Gateway');
  await expect(sessionMenu.getByRole('button',{name:'Copy session ID'})).toBeVisible();
  await expect(sessionMenu).not.toContainText('alpha-session');
  await page.screenshot({path:'.cache/slash-session-menu.png'});
- await sessionMenu.getByRole('group',{name:'Model'}).getByRole('button',{name:'Opus 5.5'}).click();
+ await sessionMenu.getByRole('group',{name:'Model'}).getByRole('button',{name:'Opus 5.5',exact:true}).click();
  await expect.poll(()=>applies().at(-1)?.body.model?.model).toBe('claude-opus-5-5');
  await page.keyboard.press('Escape');
  await message.fill('');
@@ -154,17 +166,41 @@ try{
  await expect(models).toBeVisible();await expect(message).toHaveValue('/model ');
  await page.keyboard.press('Escape');await expect(message).toHaveValue('','a borrowed box is given back empty');
 
- // A model switch the agent cannot do live: Restart now continues the conversation in a new agent.
+ // An agent started by an older Lazybox lists no models and cannot switch live: the
+ // Runner's list stands in, the current model asks nothing, another asks once to restart.
  await go(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
  const betaChat=page.locator('.embedded-chat').first(),betaMessage=betaChat.getByRole('textbox',{name:'Message',exact:true});
  await expect(betaMessage).toBeEnabled();
  await betaMessage.click();await page.keyboard.type('/model ');
- await expect(betaChat.getByRole('listbox',{name:'/model choices'})).toContainText('Sonnet 5');
- await page.keyboard.type('sonnet');await page.keyboard.press('Enter');
- const restart=betaChat.getByRole('alert').filter({hasText:'Switch to claude-sonnet-5?'});
- await expect(restart).toBeVisible();
+ const betaModels=betaChat.getByRole('listbox',{name:'/model choices'});
+ await expect(betaModels.getByRole('option')).toHaveText([/Opus 5\.5.*Current/,/Sonnet 5\.5/,/Haiku 5\.5/,/Fable 5\.2/]);
+ await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');
+ await expect(betaModels).toBeHidden();await expect(betaChat.locator('.restart-model')).toHaveCount(0,'the current model asks nothing');
+ await page.keyboard.type('/model ');await expect(betaModels.getByRole('option',{selected:true})).toContainText('Sonnet 5.5');
+ await page.keyboard.press('Enter');
+ const restart=betaChat.getByRole('alert').filter({hasText:'Switch to Sonnet 5.5?'});
+ await expect(restart).toHaveText(/^Switch to Sonnet 5\.5\? An older Lazybox started this conversation's agent, so switching restarts it and your conversation continues\./);
+ await expect(betaChat.locator('.restart-model')).toHaveCount(1);
+ await page.screenshot({path:'.cache/slash-model-restart.png'});
  await restart.getByRole('button',{name:'Restart now'}).click();
- await expect.poll(()=>f.mutations.findLast(m=>m.method==='RestartWithModel')?.body).toEqual({sessionId:'beta-session',model:'claude-sonnet-5'});
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='RestartWithModel')?.body).toEqual({sessionId:'beta-session',model:'claude-sonnet-5-5'});
+ await expect(betaChat.locator('.restart-model')).toHaveCount(0);
+
+ // Codex: its app-server's models (merged with the Runner's), the current one marked; a live switch.
+ await go(`${base}/?view=workspace&collection=beta&session=codex-session#token=${f.token}`);
+ await page.getByText('Codex refactor',{exact:true}).first().click();
+ const codexChat=page.locator('.embedded-chat').filter({hasText:'Codex refactor'}).first(),codexMessage=codexChat.getByRole('textbox',{name:'Message',exact:true});
+ await expect(codexMessage).toBeEnabled();
+ await codexMessage.click();await page.keyboard.type('/model ');
+ const codexModels=codexChat.getByRole('listbox',{name:'/model choices'});
+ await expect(codexModels.getByRole('option')).toHaveText([/GPT-6\.1-Sol.*Current/,/GPT-6-Astra/,/GPT-6-Luna/,/GPT-5\.5/]);
+ await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');
+ await expect(codexModels).toBeHidden();await expect(codexChat.locator('.restart-model')).toHaveCount(0);
+ assert.equal(applies().filter(m=>m.body.sessionId==='codex-session').length,0,'the current Codex model applies nothing');
+ await page.keyboard.type('/model luna');await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().findLast(m=>m.body.sessionId==='codex-session')?.body.model?.model).toBe('gpt-6-luna');
+ await expect(codexChat.locator('.command-line').filter({hasText:'Switched model to gpt-6-luna'})).toBeVisible();
+ await expect(codexChat.locator('.restart-model')).toHaveCount(0);
 
  // Vim: in insert mode the menu works and Esc closes it first; normal mode keeps its keys.
  await go(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
@@ -183,5 +219,5 @@ try{
  await expect.poll(()=>applies().at(-1)?.body.permission?.mode).toBe('read-only');
 
  assert.deepEqual(errors,[]);
- console.log('PASS: / opens the grouped command menu (Lazybox · Claude · Snippets) with icons, names, hints and descriptions; it filters and ranks as you type, Esc closes it; /permissions and /model run for real (choices with the current one marked, a live switch, a restart prompt where needed) and leave one line in the conversation; the agent\'s commands complete for arguments and go as the prompt; a snippet is inserted; an unknown /word asks first; a path is a message; /detail and /help act; ⌘K lists the commands and gives a borrowed draft back; the ⋯ menu offers the models and the header\'s model name opens the picker; Vim insert mode works. Fixture only.');
+ console.log('PASS: / opens the grouped command menu (Lazybox · Claude · Snippets) with icons, names, hints and descriptions; it filters and ranks as you type, Esc closes it; /permissions and /model run for real (for Claude and Codex: the provider\'s models, the Runner\'s list where the agent lists none, the current one marked and a no-op, a live switch, one clear restart card where needed) and leave one line in the conversation; the agent\'s commands complete for arguments and go as the prompt; a snippet is inserted; an unknown /word asks first; a path is a message; /detail and /help act; ⌘K lists the commands and gives a borrowed draft back; the ⋯ menu offers the models and the header\'s model name opens the picker; Vim insert mode works. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close?.();}
