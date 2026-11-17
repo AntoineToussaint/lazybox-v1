@@ -16,6 +16,7 @@ import { useLiveStatus } from './LiveIndicator';
 import { savePrompt } from './prompt-history';
 import { saveSnippetUse } from './snippet-usage';
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { type CommandStatus, type Session } from '@lazybox/protocol';
 import type { SurfaceTarget, ViewStateStore } from '@lazybox/platform';
 import { readDraft, writeDraft } from './view-state';
@@ -426,8 +427,15 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   const insertSnippet = (body: string) => {
     const node = composer.current, start = node?.selectionStart ?? message.length, end = node?.selectionEnd ?? message.length;
     const next = message.slice(0, start) + body + message.slice(end);
-    setMessage(next); persistDraft(next, files, missingFiles); setUncertainSend(''); sendAttempt.current = null;
-    requestAnimationFrame(() => { node?.focus(); node?.setSelectionRange(start + body.length, start + body.length); });
+    // The text and the caret after it are placed now, not on a later frame: a
+    // frame that came late used to move the caret over whatever the person did
+    // next (select all, then Delete, deleted nothing).
+    flushSync(() => { setMessage(next); setUncertainSend(''); });
+    persistDraft(next, files, missingFiles); sendAttempt.current = null;
+    node?.setSelectionRange(start + body.length, start + body.length);
+    // Only the focus waits, for the picker to go (it makes the composer inert);
+    // a focus already back in the box keeps its own selection.
+    requestAnimationFrame(() => { if (node && document.activeElement !== node) node.focus(); });
   };
 
   // Run on a shell block of the agent's: asking the agent, or running it yourself (code-runs.tsx).
