@@ -58,10 +58,19 @@ artifacts on the run, nothing published.
 | `latest.json` | The feed entry: version, notes, date, archive URL and signature, plus the changelog's sections (below) |
 | `lazybox-v2.rb` | The cask for this version (the workflow pushes it to the tap) |
 | `RELEASE_NOTES.md` | The GitHub release body, from the changelog |
+| `THIRD_PARTY_NOTICES.txt` | Every bundled component's licence (below); also in the app and on the disk image |
 | `SHA256SUMS` | Checksums of everything above |
 | `release.json` | How it was built: signing, notarization, updater key, Node, each runtime binary's signer |
 
 The app bundle itself is at `v2/.cache/release/target/release/bundle/macos/Lazybox.app`.
+Its `Info.plist` has the release version as `CFBundleShortVersionString` and a
+digits-only `CFBundleVersion` derived from it (`bundleVersion` in
+`scripts/release/build.mjs`): macOS wants one to three integers that grow with
+every build, and `0.1.0-pre.1` (or `0.1.0.1`, four of them) is not that. A
+version `x.y.z-<label>.<n>` gets `x.y.(z×1000+n)` and `x.y.z` gets
+`x.y.(z×1000+999)`, above all its prereleases: `0.1.0-pre.1` → `0.1.1`,
+`0.1.0` → `0.1.999`, `0.1.1-rc.1` → `0.1.1001`. Number one version's
+prereleases in one series (`pre.1`, `pre.2`, …, not `pre.2` then `rc.1`).
 
 Inside the app, `Contents/Resources/runtime/`:
 
@@ -72,6 +81,26 @@ Inside the app, `Contents/Resources/runtime/`:
 | `node/bin/node` | Node pinned in [`scripts/release/node.json`](scripts/release/node.json), checksum-verified |
 | `worker/` | The compiled Claude worker and exactly the production packages the lockfile resolved for it, including the Claude Code the SDK ships |
 | `web/` | The phone app the device gateway serves |
+
+`Contents/Resources/THIRD_PARTY_NOTICES.txt` (and the same file on the disk
+image, under the two icons) lists every component the app ships that Lazybox
+did not write, with its licence, and prints each distinct licence text once
+([`scripts/release/notices.mjs`](scripts/release/notices.mjs), run by every
+build): the npm packages of the desktop app, the phone app and the worker,
+the Go modules linked into the CLI and Runner (and Go itself), the Rust crates
+the desktop app links, Node.js, and the Inter, JetBrains Mono and Newsreader
+fonts with their SIL Open Font License. A component whose licence is not an
+open-source one is listed at the top of the file, in the build's output and in
+`release.json` (`notices.attention`); today that is the Claude Agent SDK and
+the Claude Code binary it ships ("© Anthropic PBC. All rights reserved. Use is
+subject to the Legal Agreements…") and the `codefly-dev` Go modules
+(proprietary). Whether the release may redistribute them is the publisher's
+decision, not the build's.
+
+The worker's packages are resolved from each `package.json`'s dependencies
+through `node_modules` on disk (`scripts/release/packages.mjs`), not from
+`npm ls --parseable`, whose output hides a UUID-looking path segment (a
+worktree, a CI checkout) as `***`.
 
 ### Why Node is bundled
 

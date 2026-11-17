@@ -4,6 +4,7 @@
 # icon positions, window size) needs no Finder scripting and builds the same
 # on a CI runner as on a desk. The build passes:
 #   -D app=<path to Lazybox.app>  -D background=<background.tiff>  -D icon=<icon.icns>
+#   -D notices=<THIRD_PARTY_NOTICES.txt> (optional)
 import os.path
 
 application = defines["app"]  # noqa: F821 (provided by dmgbuild)
@@ -14,7 +15,11 @@ compression_level = 9
 filesystem = "HFS+"
 size = None
 
-files = [application]
+# The third-party notices travel with the app (also inside it, in
+# Contents/Resources), placed under the drag-to-Applications layout: in the
+# image, out of the way of the two slots, a scroll away in the window.
+notices = defines.get("notices")  # noqa: F821
+files = [application] + ([notices] if notices else [])
 symlinks = {"Applications": "/Applications"}
 icon = defines.get("icon")  # noqa: F821
 
@@ -43,3 +48,5 @@ icon_locations = {
     appname: (165, 190),
     "Applications": (495, 190),
 }
+if notices:
+    icon_locations[os.path.basename(notices)] = (330, 520)

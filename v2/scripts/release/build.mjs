@@ -9,6 +9,7 @@
 //   latest.json                                 the update feed entry
 //   lazybox-v2.rb                               the Homebrew cask
 //   RELEASE_NOTES.md, SHA256SUMS, release.json  notes, checksums, what was signed how
+//   THIRD_PARTY_NOTICES.txt                     every bundled component's licence (also in the app and the DMG)
 //
 // Signing follows the secrets present, never a flag: APPLE_SIGNING_IDENTITY
 // signs with a Developer ID (hardened runtime), APPLE_ID/APPLE_PASSWORD/
@@ -26,6 +27,8 @@ import { cp, mkdir, readFile, rm, writeFile, readdir, stat, chmod, rename, acces
 import { resolve, dirname, join, relative, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readChangelog, releaseBody, updaterNotes, updaterReleases, versionPattern, renderReleaseNotes, releaseNotesPath } from './changelog.mjs';
+import { productionPackages } from './packages.mjs';
+import { writeNotices, NOTICES_FILE } from './notices.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const REPOSITORY = 'AntoineToussaint/lazybox';
@@ -37,7 +40,7 @@ export const ARCH = { tauri: 'darwin-aarch64', file: 'aarch64', go: 'arm64', nod
 
 export function artifactNames(version) {
   const base = `Lazybox_${version}_${ARCH.file}`;
-  return { dmg: `${base}.dmg`, updater: `${base}.app.tar.gz`, signature: `${base}.app.tar.gz.sig`, latest: 'latest.json', cask: 'lazybox-v2.rb', notes: 'RELEASE_NOTES.md', sums: 'SHA256SUMS', manifest: 'release.json' };
+  return { dmg: `${base}.dmg`, updater: `${base}.app.tar.gz`, signature: `${base}.app.tar.gz.sig`, latest: 'latest.json', cask: 'lazybox-v2.rb', notes: 'RELEASE_NOTES.md', notices3p: NOTICES_FILE, sums: 'SHA256SUMS', manifest: 'release.json' };
 }
 
 export function downloadURL(version, file) {
@@ -78,11 +81,32 @@ export function signingPlan(env) {
   return { identity: identity || '-', signed: !!identity, notarize: appleId || apiKey, notarizeWith: appleId ? 'apple-id' : apiKey ? 'api-key' : '' };
 }
 
+/**
+ * CFBundleVersion for a release version. macOS wants one to three
+ * period-separated integers that grow with every build (0.1.0-pre.1 is not
+ * one, and neither is 0.1.0.1, which has four), while the version people see
+ * stays CFBundleShortVersionString. So x.y.z-<label>.<n> is x.y.(z*1000+n)
+ * and x.y.z is x.y.(z*1000+999), above all of its prereleases:
+ * 0.1.0-pre.1 → 0.1.1, 0.1.0-pre.2 → 0.1.2, 0.1.0 → 0.1.999, 0.1.1-rc.1 →
+ * 0.1.1001. A prerelease without a trailing number counts as 0; one series
+ * of numbered prereleases per version keeps the order (pre.2 and rc.1 of one
+ * version are told apart by their numbers only).
+ */
+export function bundleVersion(version) {
+  const m = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(version);
+  if (!m) throw new Error(`${version} is not a version`);
+  const [, major, minor, patch, pre] = m;
+  const n = pre === undefined ? 999 : Number(/(\d+)$/.exec(pre)?.[1] ?? 0);
+  if (n > 999 || (pre !== undefined && n > 998)) throw new Error(`${version}: a prerelease number above 998 leaves no room in CFBundleVersion`);
+  return `${major}.${minor}.${Number(patch) * 1000 + n}`;
+}
+
 /** The Tauri configuration merged over tauri.conf.json for this release. */
-export function tauriReleaseConfig(base, { version, runtimeDir, identity, pubkey }) {
+export function tauriReleaseConfig(base, { version, runtimeDir, notices, identity, pubkey }) {
   const { $comment, ...config } = structuredClone(base);
   config.version = version;
-  config.bundle = { ...config.bundle, resources: { [runtimeDir.replace(/\/?$/, '/')]: 'runtime/' }, macOS: { ...config.bundle?.macOS, signingIdentity: identity } };
+  const resources = { [runtimeDir.replace(/\/?$/, '/')]: 'runtime/', ...(notices ? { [notices]: NOTICES_FILE } : {}) };
+  config.bundle = { ...config.bundle, resources, macOS: { ...config.bundle?.macOS, bundleVersion: bundleVersion(version), signingIdentity: identity } };
   config.plugins = { ...config.plugins, updater: { ...config.plugins?.updater, pubkey } };
   return config;
 }
@@ -177,23 +201,27 @@ async function fetchNode(runtime) {
   return pin.version;
 }
 
+const WORKER = 'workers/claude-sdk';
+
 /** The compiled worker and exactly the production packages the lockfile resolved for it. */
 async function bundleWorker(runtime) {
   await run('npm', ['run', 'build:worker']);
   const worker = join(runtime, 'worker');
   await cp(join(root, 'workers/claude-sdk/dist'), join(worker, 'dist'), { recursive: true, filter: source => !source.endsWith('.test.js') && !source.endsWith('.d.ts') });
   await cp(join(root, 'workers/claude-sdk/package.json'), join(worker, 'package.json'));
-  const listed = (await run('npm', ['ls', '--omit=dev', '--all', '--parseable', '-w', '@lazybox/claude-sdk-worker'], { capture: true })).split('\n').map(s => s.trim()).filter(Boolean);
-  const modules = join(root, 'node_modules');
-  const packages = listed.filter(p => p.startsWith(modules + '/') && !p.endsWith('@lazybox/claude-sdk-worker')).sort((a, b) => a.length - b.length);
-  const copied = [];
-  for (const path of packages) {
-    if (copied.some(parent => path.startsWith(parent + '/'))) continue;
-    await cp(path, join(worker, 'node_modules', relative(modules, path)), { recursive: true, filter: source => basename(source) !== '.bin' });
-    copied.push(path);
+  // Resolved from package.json and node_modules (packages.mjs), not from
+  // `npm ls` text, which hides UUID-looking path segments as ***.
+  const packages = productionPackages(root, WORKER);
+  const placed = new Map();
+  for (const p of packages) {
+    if (placed.has(p.path)) throw new Error(`${p.name}@${p.version} and ${placed.get(p.path)} both belong at worker/node_modules/${p.path}`);
+    placed.set(p.path, `${p.name}@${p.version}`);
+    // Each package without its own node_modules: the ones in it that the
+    // worker needs are in the list, at their own paths.
+    await cp(p.dir, join(worker, 'node_modules', p.path), { recursive: true, filter: source => basename(source) !== '.bin' && !relative(p.dir, source).split('/').includes('node_modules') });
   }
-  if (!copied.some(p => p.endsWith(`claude-agent-sdk-${ARCH.node}`))) throw new Error(`The Claude Agent SDK for ${ARCH.node} is not installed; run npm ci on this platform`);
-  return copied.length;
+  if (!packages.some(p => p.name === `@anthropic-ai/claude-agent-sdk-${ARCH.node}`)) throw new Error(`The Claude Agent SDK for ${ARCH.node} is not installed; run npm ci on this platform`);
+  return packages.length;
 }
 
 /** Mach-O files in the runtime: ours are signed here, a vendor's must carry a valid Developer ID signature. */
@@ -310,11 +338,19 @@ async function main() {
   console.log(`  Node ${nodeVersion}, ${packages} worker packages`);
   const signatures = await signRuntime(runtime, plan);
 
+  step('Third-party notices');
+  const notices = join(stage, NOTICES_FILE);
+  const noticeReport = writeNotices({ out: notices, version, nodeLicense: join(runtime, 'node', 'LICENSE'), nodeVersion });
+  console.log(`  ${noticeReport.components} components in ${NOTICES_FILE}`);
+  // Shipped, and listed at the top of the notices; whether their terms allow
+  // redistributing them is the publisher's call (RELEASING.md).
+  for (const a of noticeReport.attention) console.log(`  ! ${a.name} ${a.version}: ${a.license || 'no licence stated'}`);
+
   step('Desktop app (Tauri)');
   await run('npm', ['run', 'build:ui', '-w', '@lazybox/desktop']);
   const base = JSON.parse(await readFile(join(root, 'packaging/release.tauri.json'), 'utf8'));
   const configPath = join(stage, 'tauri.release.json');
-  await writeFile(configPath, JSON.stringify(tauriReleaseConfig(base, { version, runtimeDir: runtime, identity: plan.identity, pubkey: key.pubkey }), null, 2));
+  await writeFile(configPath, JSON.stringify(tauriReleaseConfig(base, { version, runtimeDir: runtime, notices, identity: plan.identity, pubkey: key.pubkey }), null, 2));
   const target = join(cache, 'target');
   const tauriEnv = { ...buildEnv, ...key.env, CARGO_TARGET_DIR: target };
   for (const name of ['APPLE_SIGNING_IDENTITY', 'APPLE_ID', 'APPLE_PASSWORD', 'APPLE_APP_PASSWORD', 'APPLE_TEAM_ID', 'APPLE_API_KEY', 'APPLE_API_ISSUER', 'APPLE_API_KEY_PATH', 'APPLE_CERTIFICATE', 'APPLE_CERTIFICATE_PASSWORD']) delete tauriEnv[name];
@@ -325,6 +361,7 @@ async function main() {
   await run(join(root, 'node_modules/.bin/tauri'), ['build', '--bundles', 'app', '--config', configPath], { cwd: join(root, 'apps/desktop'), env: tauriEnv });
   const app = join(bundles, 'Lazybox.app');
   await run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app]);
+  if (!await exists(join(app, 'Contents', 'Resources', NOTICES_FILE))) throw new Error(`${NOTICES_FILE} is not in the app bundle`);
   if (plan.notarize) {
     await run('xcrun', ['stapler', 'validate', app]);
     await run('spctl', ['--assess', '--type', 'exec', '-vv', app]);
@@ -336,7 +373,7 @@ async function main() {
   const background = join(stage, 'background.tiff');
   await run('tiffutil', ['-cathidpicheck', join(root, 'packaging/dmg/background.png'), join(root, 'packaging/dmg/background@2x.png'), '-out', background]);
   const dmg = join(out, names.dmg);
-  await run(await dmgbuild(), ['-s', join(root, 'packaging/dmg/dmg-settings.py'), '-D', `app=${app}`, '-D', `background=${background}`, '-D', `icon=${join(root, 'apps/desktop/src-tauri/icons/icon.icns')}`, 'Lazybox', dmg]);
+  await run(await dmgbuild(), ['-s', join(root, 'packaging/dmg/dmg-settings.py'), '-D', `app=${app}`, '-D', `notices=${notices}`, '-D', `background=${background}`, '-D', `icon=${join(root, 'apps/desktop/src-tauri/icons/icon.icns')}`, 'Lazybox', dmg]);
   if (plan.signed) await run('codesign', ['--force', '--timestamp', '--sign', plan.identity, dmg]);
   if (plan.notarize) {
     await notarize(dmg, plan);
@@ -346,18 +383,20 @@ async function main() {
   step('Update feed, cask, notes, checksums');
   await cp(join(bundles, 'Lazybox.app.tar.gz'), join(out, names.updater));
   await cp(join(bundles, 'Lazybox.app.tar.gz.sig'), join(out, names.signature));
+  await cp(notices, join(out, names.notices3p));
   const signature = await readFile(join(out, names.signature), 'utf8');
   await writeFile(join(out, names.latest), JSON.stringify(latestJson({ version, notes: updaterNotes(releases, noteVersion), releases: updaterReleases(releases, noteVersion), signature }), null, 2) + '\n');
   const dmgSum = await sha256(dmg);
   await writeFile(join(out, names.cask), renderCask(await readFile(join(root, 'packaging/homebrew/lazybox-v2.rb.tmpl'), 'utf8'), version, dmgSum));
   await writeFile(join(out, names.notes), releaseBody(releases, noteVersion, { unsigned: !plan.notarize }));
   const sums = [];
-  for (const file of [names.dmg, names.updater, names.signature, names.latest, names.cask]) sums.push(`${await sha256(join(out, file))}  ${file}`);
+  for (const file of [names.dmg, names.updater, names.signature, names.latest, names.cask, names.notices3p]) sums.push(`${await sha256(join(out, file))}  ${file}`);
   await writeFile(join(out, names.sums), sums.join('\n') + '\n');
   const manifest = {
     version, tag: tagOf(version), arch: ARCH.file, builtAt: new Date().toISOString(),
     signing: plan.signed ? 'developer-id' : 'ad-hoc', identity: plan.signed ? plan.identity : undefined,
     notarized: !!plan.notarize, updaterKey: key.kind, node: nodeVersion, runtimeSignatures: signatures,
+    bundleVersion: bundleVersion(version), notices: { file: NOTICES_FILE, components: noticeReport.components, attention: noticeReport.attention },
     artifacts: Object.fromEntries(sums.map(line => line.split('  ').reverse())),
   };
   await writeFile(join(out, names.manifest), JSON.stringify(manifest, null, 2) + '\n');

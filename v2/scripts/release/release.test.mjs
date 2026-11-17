@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { artifactNames, latestJson, renderCask, signingPlan, tagOf, tauriReleaseConfig, downloadURL } from './build.mjs';
+import { artifactNames, latestJson, renderCask, signingPlan, tagOf, tauriReleaseConfig, downloadURL, bundleVersion } from './build.mjs';
+import { productionPackages } from './packages.mjs';
+import { renderNotices, needsAttention, NOTICES_FILE } from './notices.mjs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parseChangelog, renderReleaseNotes, releaseBody, updaterNotes, updaterReleases, changelogPath, releaseNotesPath, installGuide, installGuidePath } from './changelog.mjs';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -84,6 +89,76 @@ test('the release configuration adds the version, runtime and public key, and dr
   assert.ok(config.plugins.updater.endpoints.every(u => u.startsWith('https://')));
   assert.equal(config.plugins.updater.requireSignedVersion, true, 'a feed must not pair a new version with an older signed archive');
   assert.equal(base.plugins.updater.pubkey, undefined, 'the committed overlay carries no key');
+  // A digits-only CFBundleVersion, and the notices beside the runtime.
+  assert.equal(config.bundle.macOS.bundleVersion, '0.2.999');
+  const withNotices = tauriReleaseConfig(base, { version: '0.1.0-pre.1', runtimeDir: '/stage/runtime', notices: '/stage/THIRD_PARTY_NOTICES.txt', identity: '-', pubkey: 'PUB' });
+  assert.deepEqual(withNotices.bundle.resources, { '/stage/runtime/': 'runtime/', '/stage/THIRD_PARTY_NOTICES.txt': NOTICES_FILE });
+  assert.equal(withNotices.bundle.macOS.bundleVersion, '0.1.1');
+});
+
+test('CFBundleVersion is one to three integers that grow with every release', () => {
+  const order = ['0.1.0-pre.1', '0.1.0-pre.2', '0.1.0-rc.3', '0.1.0', '0.1.1-pre.1', '0.1.1', '0.2.0-pre.1', '1.0.0'];
+  const numbers = order.map(bundleVersion);
+  assert.deepEqual(numbers.slice(0, 4), ['0.1.1', '0.1.2', '0.1.3', '0.1.999']);
+  for (const n of numbers) assert.match(n, /^\d+(\.\d+){0,2}$/);
+  const compare = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; };
+  for (let i = 1; i < numbers.length; i++) assert.ok(compare(numbers[i - 1], numbers[i]) < 0, `${order[i - 1]} → ${numbers[i - 1]} is not below ${order[i]} → ${numbers[i]}`);
+  assert.equal(bundleVersion('0.0.0-test'), '0.0.0');
+  assert.throws(() => bundleVersion('0.1.0-pre.999'), /998/);
+  assert.throws(() => bundleVersion('latest'));
+});
+
+test('the worker\'s packages come from package.json and node_modules, whatever the checkout path looks like', () => {
+  // npm ls prints a UUID-looking path segment as ***; this resolves on disk instead.
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'lazybox-packages-')));
+  const root = join(base, '3f2c1a9e-8b7d-4c6e-9a1b-2d3e4f5a6b7c', 'v2');
+  const write = (path, json) => { mkdirSync(join(root, path), { recursive: true }); writeFileSync(join(root, path, 'package.json'), JSON.stringify(json)); };
+  write('.', { name: 'repo', workspaces: ['workers/*'] });
+  write('workers/w', { name: '@x/w', dependencies: { a: '1', '@x/shared': '0' }, optionalDependencies: { 'only-linux': '1', 'only-darwin': '1' } });
+  write('packages/shared', { name: '@x/shared', dependencies: { c: '1' } });
+  mkdirSync(join(root, 'node_modules/@x'), { recursive: true });
+  symlinkSync(join(root, 'packages/shared'), join(root, 'node_modules/@x/shared'));
+  symlinkSync(join(root, 'workers/w'), join(root, 'node_modules/@x/w'));
+  write('node_modules/a', { name: 'a', version: '1.0.0', license: 'MIT', dependencies: { b: '2' }, peerDependencies: { 'not-installed': '1' } });
+  write('node_modules/a/node_modules/b', { name: 'b', version: '2.0.0', license: 'ISC' });
+  write('node_modules/b', { name: 'b', version: '1.0.0', license: 'ISC' });
+  write('node_modules/c', { name: 'c', version: '1.0.0', license: 'Apache-2.0' });
+  write('node_modules/only-darwin', { name: 'only-darwin', version: '1.0.0' });
+  write('node_modules/dev-only', { name: 'dev-only', version: '1.0.0' });
+  const found = productionPackages(root, 'workers/w');
+  assert.deepEqual(found.map(p => `${p.path}@${p.version}`), ['a@1.0.0', 'a/node_modules/b@2.0.0', 'c@1.0.0', 'only-darwin@1.0.0']);
+  assert.equal(found.find(p => p.name === 'c').license, 'Apache-2.0');
+  write('workers/w', { name: '@x/w', dependencies: { missing: '1' } });
+  assert.throws(() => productionPackages(root, 'workers/w'), /missing, a dependency of @x\/w, is not installed/);
+});
+
+test('the notices list every component, print each licence text once, and flag what is not open source', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lazybox-notices-'));
+  const file = (name, text) => { writeFileSync(join(dir, name), text); return join(dir, name); };
+  const mit = file('LICENSE', 'MIT License\n\nPermission is hereby granted, free of charge…');
+  const ofl = file('OFL.txt', 'SIL OPEN FONT LICENSE Version 1.1');
+  const closed = file('LICENSE.md', '© Someone. All rights reserved.');
+  const text = renderNotices({
+    version: '0.1.0-pre.1',
+    components: [
+      { kind: 'npm', name: '@fontsource-variable/inter', version: '5.3.0', license: 'OFL-1.1', files: [ofl], in: ['the desktop app'] },
+      { kind: 'npm', name: 'left-pad', version: '1.0.0', license: 'MIT', files: [mit], in: ['the desktop app'] },
+      { kind: 'npm', name: 'closed-binary', version: '2.0.0', license: 'SEE LICENSE IN LICENSE.md', files: [closed], in: ['the Claude worker'] },
+      { kind: 'go', name: 'example.com/mod', version: 'v1.0.0', license: 'MIT', files: [mit] },
+      { kind: 'rust', name: 'serde', version: '1.0.0', license: 'MIT OR Apache-2.0', files: [] },
+    ],
+    node: { kind: 'node', name: 'Node.js', version: 'v24.0.0', license: 'MIT', files: [mit] },
+  });
+  assert.match(text, /^Third-party notices for Lazybox 0\.1\.0-pre\.1/);
+  for (const heading of ['Fonts', 'npm packages', 'Go modules', 'Rust crates', 'Node.js', 'Licence and notice texts']) assert.match(text, new RegExp(`^${heading}`, 'm'));
+  assert.match(text, /Inter: @fontsource-variable\/inter 5\.3\.0 {2}— {2}OFL-1\.1 {2}\[[0-9a-f]{12}\]/);
+  assert.equal(text.split('Permission is hereby granted').length - 1, 1, 'one MIT text, printed once');
+  assert.match(text, /Covers: left-pad 1\.0\.0, example\.com\/mod v1\.0\.0, Node\.js v24\.0\.0/);
+  assert.match(text, /SIL OPEN FONT LICENSE Version 1\.1/);
+  assert.match(text, /not an open-source licence[^]*closed-binary 2\.0\.0[^]*\nFonts/);
+  assert.match(text, /serde 1\.0\.0 {2}— {2}MIT OR Apache-2\.0 {2}\(no licence file in the package/);
+  assert.ok(needsAttention('SEE LICENSE IN README.md') && needsAttention('') && needsAttention('proprietary (see its licence text)'));
+  assert.ok(!needsAttention('MIT') && !needsAttention('Apache-2.0 OR MIT'));
 });
 
 test('the changelog is the one source of release notes', async () => {
