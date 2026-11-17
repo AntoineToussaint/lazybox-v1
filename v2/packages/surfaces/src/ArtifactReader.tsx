@@ -96,7 +96,7 @@ export const DocumentBody = memo(function DocumentBody({ markdown, headings, scr
         if (!kind) return <blockquote>{children}</blockquote>;
         const title = String(node?.properties?.dataCalloutTitle || '');
         return <aside className={`doc-callout is-${kind}`} role="note" aria-label={title ? `${calloutLabel[kind]}: ${title}` : calloutLabel[kind]}>
-          <div className="doc-callout-head"><span className="doc-callout-icon"><Icon name={calloutIcon[kind]} size={14}/></span><strong>{calloutLabel[kind]}</strong>{title && <span className="doc-callout-title">{title}</span>}</div>
+          <div className="doc-callout-head"><span className="doc-callout-icon"><Icon name={calloutIcon[kind]} size={12}/></span><strong>{calloutLabel[kind]}</strong>{title && <span className="doc-callout-title">{title}</span>}</div>
           <div className="doc-callout-body">{children}</div>
         </aside>;
       },

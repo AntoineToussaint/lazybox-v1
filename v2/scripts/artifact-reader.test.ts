@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blockDiff, cellTone, extractToc, markdownBlocks, parseCallout, plainText, readingMinutes, tocOutline, withoutRepeatedTitle } from '../packages/surfaces/src/artifact-reader.ts';
-import { designDocV1, designDocV2 } from './fixtures/artifact-sample.mjs';
+import { blockDiff, cellTone, extractToc, markdownBlocks, parseCallout, plainText, readingMinutes, repeatsTitle, tocOutline, withoutRepeatedTitle } from '../packages/surfaces/src/artifact-reader.ts';
+import { designDocV1, designDocV2, reportDoc, reportTitle } from './fixtures/artifact-sample.mjs';
 
 test('the table of contents lists headings outside code, with unique ids and their source lines', () => {
   const toc = extractToc('# Plan\n\nIntro\n\n## Why `now`\n\n```md\n## Not a heading\n```\n\n### [Risks](http://x) and *mitigations*\n\nSetext\n------\n\n## Why now\n~~~\n# no\n~~~\n## Ünïcode & symbols! ##\n');
@@ -47,6 +47,17 @@ test('plain text, reading time, the repeated title, status cells', () => {
   assert.equal(withoutRepeatedTitle('\n# Datasource *migration*\n\nBody', 'datasource migration'), '\n\n\nBody');
   assert.equal(withoutRepeatedTitle('Datasource migration\n===\nBody', 'Datasource migration'), '\n\nBody');
   assert.equal(withoutRepeatedTitle('# Another title\nBody', 'Datasource migration'), '# Another title\nBody');
+  // A nearly repeated title shows once too: "(final)", a subtitle, a changed word.
+  assert.equal(withoutRepeatedTitle(reportDoc, reportTitle).split('\n')[0], '');
+  assert.ok(repeatsTitle('Auth compared: front door vs host', 'Auth compared (final): front door vs host — who wins what'));
+  assert.ok(repeatsTitle('Datasource migration plan', 'Datasource migration plan (draft)'));
+  assert.ok(repeatsTitle('The datasource migration plan for billing', 'Datasource migration plan for billing'));
+  assert.ok(repeatsTitle('Rollout plan: phase one', 'Rollout plan'));
+  // A heading that says something else stays.
+  assert.ok(!repeatsTitle('Plan', 'Plan for the rollout'));
+  assert.ok(!repeatsTitle('Context', 'Datasource migration'));
+  assert.ok(!repeatsTitle('Datasource risks', 'Datasource migration'));
+  assert.ok(!repeatsTitle('Rollout plan for billing and invoices and the ledger', 'Rollout plan'));
   assert.equal(cellTone(' In progress '), 'info');
   assert.equal(cellTone('Done'), 'ok');
   assert.equal(cellTone('Phase one'), undefined);

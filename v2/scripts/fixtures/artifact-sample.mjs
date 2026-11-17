@@ -111,3 +111,61 @@ export function seedDesignDoc(fixture, { collectionId = 'alpha', sessionId = fix
   const first = fixture.artifacts.agentPut({ collectionId, sessionId, conversationId: 'conversation-alpha', title: 'Datasource migration', kind: 'spec', content: designDocV1 });
   return fixture.artifacts.agentPut({ collectionId, sessionId, conversationId: 'conversation-alpha', artifactId: first.id, content: designDocV2 });
 }
+
+/**
+ * A report whose own first heading nearly repeats its title (the title adds a
+ * "(final)" and a subtitle the heading lacks), with a note callout and enough
+ * sections for an outline: the density case of the reader
+ * (test-artifacts.mjs, artifact-reader-screenshots.mjs).
+ */
+export const reportTitle = 'Auth compared (final): gateway front door vs the identity service and host — who wins what';
+export const reportDoc = `# Auth compared: gateway front door vs the identity service and host
+
+> [!NOTE]
+> This is the final pass. It supersedes the two earlier drafts and folds in the review comments from the platform and security owners.
+
+## Summary
+
+The gateway front door should own session cookies and the first token check for every browser request, while the identity service stays the only issuer of tokens and the only place that knows about users, roles and grants. The host keeps one job: it verifies the token it is handed and maps the claims it trusts onto its own permissions, without calling back for every request.
+
+Splitting it this way removes the two round trips each page load pays today, keeps a single source of truth for who someone is, and lets each layer fail closed on its own.
+
+## Who wins what
+
+| Concern | Gateway front door | Identity service | Host |
+|---|---|---|---|
+| Session cookie | Owns | — | — |
+| Token issue | — | Owns | — |
+| Token check | First | — | Second |
+| Roles and grants | — | Owns | Reads claims |
+
+## Front door
+
+The front door terminates TLS, reads the session cookie, and exchanges it for a short-lived access token on the first request of a session. It caches that token for its lifetime and refreshes it in the background, so a page load never waits on the identity service.
+
+## Identity service
+
+The identity service issues and signs every token, rotates its keys on a schedule the hosts can follow, and publishes the public keys at a well-known address. Nothing else signs a token.
+
+## Host
+
+The host verifies the signature and the expiry, then maps the claims it trusts onto its own permissions. A host that cannot verify a token rejects the request: it never falls back to a call to the identity service.
+
+## Risks
+
+- Key rotation that outpaces a host's cache rejects valid tokens until the cache refreshes.
+- A front door that caches tokens past a revocation keeps a revoked session alive for up to its lifetime.
+
+## Next steps
+
+1. Agree the token lifetime with the security owners.
+2. Ship the front door's token cache behind a flag.
+3. Move the first host to local verification.
+`;
+
+/** Publishes the report as an agent would, in seven versions like a long-running one. Returns the artifact. */
+export function seedReport(fixture, { collectionId = 'alpha', sessionId = fixture.sessions[0].id } = {}) {
+  let artifact = fixture.artifacts.agentPut({ collectionId, sessionId, conversationId: 'conversation-alpha', title: reportTitle, kind: 'report', content: reportDoc });
+  for (let i = 2; i <= 7; i++) artifact = fixture.artifacts.agentPut({ collectionId, sessionId, conversationId: 'conversation-alpha', artifactId: artifact.id, content: `${reportDoc}\nRevision ${i}.\n` });
+  return artifact;
+}

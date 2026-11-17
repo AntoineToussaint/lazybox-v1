@@ -14,6 +14,12 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.33] - 2026-11-17 · Artifacts that use the room
+
+- **One title, the kind once** An artifact whose document opens with nearly its own title (a "(final)" or a subtitle added) shows that title once. The kind is named in the toolbar only, and changes there; the title block no longer repeats it as a pill.
+- **More text, less chrome** The title is smaller and starts just under the toolbar, with who wrote it, when, the version and the reading time on one small line. The text column takes the room there is, up to a comfortable measure, and callouts are tighter.
+- **On this page fits** The outline beside the text is narrower and shows from 900 px of reader; below that, beside a chat or on a phone, it is the On this page button and the text takes its room. Nothing scrolls sideways down to 360 px.
+
 ## [2026-11-17.32] - 2026-11-17 · New work starts from today's main
 
 - **Always from origin's main, as it is now** Adding a repository to a workspace (New task, Add repository, Start from an issue, an agent's request, lazybox new) first fetches the repository's default branch from origin, whatever it is called, and starts the workspace's branch there. Never from a copy Lazybox cloned weeks ago, the branch your own checkout has out, or another workspace's branch; your checkout's branches and files are not touched.

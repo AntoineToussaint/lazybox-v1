@@ -203,17 +203,23 @@ workspace is shared by the panel, the chat, the chip and the palette
 are read only while the palette or "All workspaces" is open, or to count them
 for an empty workspace.
 
-**The page** is a reader. A slim toolbar holds Document / Changes, History,
+**The page** is a reader. A slim toolbar holds the kind (its icon and name;
+choose another to change it), the workspace, Document / Changes, History,
 Send to agent, Export, Open in its own window and ⋯; once you scroll past the
-title, it names the document.
+title, it names the document. The kind is shown there only, never again as a
+pill in the title block.
 
-- **The title block**: the kind (a pill; choose another to change it), the
-  title in the display face (double-click to rename, Enter to save, Escape to
-  cancel), who made the shown version, when, the **version picker**, and the
-  reading time. A leading `# Title` that repeats the artifact's title is not
-  shown twice. "Synced with `path`" and a tracking problem sit above the title.
-- **The document** is typeset for long reading: a 44-em measure in Inter at
-  16 px with 1.7 line height, headings with anchors, Newsreader for titles
+- **The title block** sits 24 px under the toolbar: the title in the display
+  face, 24 px narrow to 34 px wide (double-click to rename, Enter to save,
+  Escape to cancel), then one small line: who made the shown version, when,
+  the **version picker**, and the reading time. The page shows one title: a
+  leading `# Title` that repeats the artifact's title, or nearly does (a
+  "(final)" or a subtitle added, a word changed: `repeatsTitle` in
+  `artifact-reader.ts`), is hidden and the artifact's title stands. "Synced
+  with `path`" and a tracking problem sit above the title.
+- **The document** is typeset for long reading: the column takes the room
+  there is up to a 76-ch measure, in Inter at 16 px with 1.7 line height, with
+  16 to 36 px gutters; headings with anchors, Newsreader for titles
   (both bundled, so the desktop app needs no network). Blockquotes that open
   with `> **Note**`, `**Tip**`, `**Important**`, `**Warning**`, `**Caution**`
   or `**Decision**` (or GitHub's `> [!NOTE]`) become callouts; a bold title
@@ -224,10 +230,12 @@ title, it names the document.
   blocks their language and a copy button on hover; Mermaid diagrams render at
   once, fit the column, and keep zoom, pan and full screen behind a toolbar
   that appears on hover; footnotes jump both ways.
-- **On this page**: when the page is at least 1080 px wide and the document
-  has three or more sections, the outline sits beside it and follows the
-  reading position; on a narrower page, **Contents** in the title block jumps
-  to a section.
+- **On this page**: when the reader is at least 900 px wide and the document
+  has three or more sections, the outline (200 px at most) sits beside it and
+  follows the reading position; on a narrower reader, beside a chat or on a
+  phone, it is the **On this page** button at the end of the title block's
+  line, and the text takes the outline's room. Nothing scrolls sideways down
+  to 360 px but a wide table, in its own frame.
 - **History** is closed until you open it: the toolbar's History button (with
   the version count) or **H**. Each window remembers whether it is open. It is
   a timeline of every version with its author and time; choose one to read

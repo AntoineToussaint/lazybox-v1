@@ -80,8 +80,44 @@ export function readingMinutes(markdown: string): number {
 }
 
 /**
- * When the document opens with an h1 that repeats the artifact's title, the
- * title block already shows it: the line is blanked (keeping line numbers).
+ * A title as words for comparing: lowercase, accents, punctuation and
+ * parenthesised or bracketed asides ("(final)", "[draft]") gone.
+ */
+function titleWords(text: string): string[] {
+  return plainText(text).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Whether a document's opening heading says the same as the artifact's title,
+ * so the page would show the same title twice. Agents often publish a title
+ * that dresses the heading up or down: "(final)" added, a subtitle after a
+ * colon or a dash, a word changed. The heading repeats the title when, as
+ * words: they are equal; one starts with the other and the shorter has at
+ * least two words and half of the longer's; or they share at least 80% of
+ * their words (Dice). "Plan" against "Plan for the rollout" is not a repeat.
+ */
+export function repeatsTitle(heading: string, title: string): boolean {
+  const a = titleWords(heading), b = titleWords(title);
+  if (!a.length || !b.length) return false;
+  if (a.join(' ') === b.join(' ')) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length >= 2 && short.length * 2 >= long.length && short.every((word, i) => word === long[i])) return true;
+  const counts = new Map<string, number>();
+  for (const word of long) counts.set(word, (counts.get(word) || 0) + 1);
+  let shared = 0;
+  for (const word of short) { const left = counts.get(word) || 0; if (left) { shared++; counts.set(word, left - 1); } }
+  return short.length >= 3 && (2 * shared) / (a.length + b.length) >= 0.8;
+}
+
+/**
+ * When the document opens with an h1 that repeats the artifact's title (the
+ * same, or nearly: see repeatsTitle), the page shows one title, the
+ * artifact's, in its title block: the h1's line is blanked (keeping line
+ * numbers, so headings still find their ids by line). An h1 that says
+ * something else stays.
  */
 export function withoutRepeatedTitle(markdown: string, title: string): string {
   const lines = markdown.split('\n');
@@ -90,7 +126,7 @@ export function withoutRepeatedTitle(markdown: string, title: string): string {
   const atx = /^\s{0,3}#\s+(.*?)(?:\s+#+)?\s*$/.exec(lines[first]);
   const setext = !atx && /^\s{0,3}=+\s*$/.test(lines[first + 1] || '');
   const text = atx ? atx[1] : setext ? lines[first] : '';
-  if (!text || plainText(text).toLowerCase() !== title.trim().toLowerCase()) return markdown;
+  if (!text || !repeatsTitle(text, title)) return markdown;
   lines[first] = '';
   if (setext) lines[first + 1] = '';
   return lines.join('\n');

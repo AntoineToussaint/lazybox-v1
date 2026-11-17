@@ -1,6 +1,6 @@
 // The artifact reader (ARTIFACTS.md → The page): an agent's long design doc
-// (fixtures/artifact-sample.mjs) reads as a document. Its title block shows
-// the kind, the author, the version and the reading time, and the repeated
+// (fixtures/artifact-sample.mjs) reads as a document. The toolbar names its
+// kind; its title block the author, the version and the reading time, and the repeated
 // h1 is dropped; the outline follows the reader (scroll-spy) and jumps;
 // callouts, tables with status pills, task lists, code, a Mermaid diagram
 // that fits the column, and footnotes render. History is closed until H or a
@@ -41,7 +41,7 @@ try {
   const article = page.getByRole('article', { name: 'Datasource migration' });
   const reader = article.locator('.artifact-scroll');
 
-  // The title block: kind, title once, who wrote it, when, which version, how long.
+  // The kind in the toolbar; the title once, who wrote it, when, which version, how long.
   await expect(article.getByRole('heading', { name: 'Datasource migration', level: 1 })).toBeVisible();
   await expect(article.locator('.doc-body h1')).toHaveCount(0);
   await expect(article.getByLabel('Kind', { exact: true })).toHaveValue('spec');
@@ -50,7 +50,7 @@ try {
   await expect(article.getByLabel('Version', { exact: true })).toHaveValue('2');
   // The reading column keeps a readable measure, in the bundled reading face.
   const measure = await article.locator('.doc-body > p').first().evaluate(p => ({ width: p.getBoundingClientRect().width, size: parseFloat(getComputedStyle(p).fontSize), font: getComputedStyle(p).fontFamily }));
-  assert.ok(measure.width / measure.size >= 36 && measure.width / measure.size <= 48, `measure of ${measure.width / measure.size}em`);
+  assert.ok(measure.width / measure.size >= 40 && measure.width / measure.size <= 50, `measure of ${measure.width / measure.size}em`);
   assert.ok(measure.size >= 15, `body text at ${measure.size}px`);
   assert.match(measure.font, /Inter Variable/);
   await expect.poll(() => page.evaluate(() => document.fonts.check('16px "Inter Variable"') && document.fonts.check('40px "Newsreader Variable"'))).toBe(true);
@@ -207,14 +207,15 @@ try {
   await expect(row).toContainText('v3');
   await panelContext.close();
 
-  // Phone: no outline rail; Contents jumps instead. History opens over the page.
+  // Phone: no outline rail; On this page jumps instead. History opens over the page.
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', deviceScaleFactor: 2, hasTouch: true });
   const mobile = await phone.newPage(); mobile.setDefaultTimeout(15000); mobile.on('pageerror', e => errors.push(String(e)));
   await mobile.goto(standalone);
   const small = mobile.getByRole('article', { name: 'Datasource migration' });
   await expect(small.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(small.getByRole('navigation', { name: 'On this page' })).toBeHidden();
-  await small.getByLabel('Contents', { exact: true }).click();
+  await small.locator('.doc-contents-menu > summary').click();
+  await expect(mobile.getByRole('group', { name: 'On this page menu' })).toBeVisible();
   await mobile.getByRole('button', { name: 'Risks' }).click();
   await expect.poll(() => small.locator('#risks').evaluate(h => h.getBoundingClientRect().top)).toBeLessThan(200);
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no horizontal page scroll');

@@ -133,6 +133,8 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   const version = versions.find(v => v.number === shown);
   const latest = versions.at(-1);
   const documentRef = useRef<HTMLDivElement>(null);
+  // One title on the page: a leading h1 that repeats the artifact's title, or nearly
+  // ("(final)", a subtitle), is hidden and the artifact's title shows (repeatsTitle).
   const reading = useMemo(() => content === undefined || !artifact ? undefined : withoutRepeatedTitle(content, artifact.title), [content, artifact?.title]);
   const headings = useMemo(() => reading === undefined ? [] : extractToc(reading), [reading]);
   const outline = useMemo(() => tocOutline(headings), [headings]);
@@ -223,9 +225,14 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   return <article ref={measureRef} className={`artifact-page${historyOpen ? ' has-history' : ''}${wide ? ' is-wide' : ''}${scrolled ? ' is-scrolled' : ''}`} aria-label={artifact.title} onKeyDown={toggleKey}>
     <header className="artifact-toolbar">
       {onBack && <button type="button" className="icon-button artifact-back" aria-label="Back to artifacts" title="Back to artifacts" onClick={onBack}><Icon name="back"/></button>}
-      <div className="artifact-crumb" aria-hidden="true">
-        <span className={`artifact-kind-dot kind-${kind}`}><Icon name={kindIcon[kind]} size={13}/></span>
-        <span className="artifact-crumb-text">{scrolled ? artifact.title : collection?.name || kindLabel[kind]}</span>
+      {/* The toolbar names the kind, and is where it changes: the title block has no kind pill to repeat it. */}
+      <div className="artifact-crumb">
+        <label className={`artifact-kind-picker kind-${kind}`} title={`${kindLabel[kind]}: choose another kind`}>
+          <span className={`artifact-kind-dot kind-${kind}`} aria-hidden="true"><Icon name={kindIcon[kind]} size={13}/></span>
+          <span className="artifact-kind-name" aria-hidden="true">{kindLabel[kind]}</span>
+          <select aria-label="Kind" value={kind} onChange={event => void update({ kind: event.target.value }, `Marked as ${kindLabel[asKind(event.target.value)].toLowerCase()}.`)}>{ARTIFACT_KINDS.map(value => <option key={value} value={value}>{kindLabel[value]}</option>)}</select>
+        </label>
+        {(scrolled || collection?.name) && <span className="artifact-crumb-text" aria-hidden="true">{scrolled ? artifact.title : collection?.name}</span>}
       </div>
       <div className="artifact-segmented" role="tablist" aria-label="View">
         <button type="button" role="tab" aria-selected={view === 'document'} onClick={() => setView('document')}>Document</button>
@@ -260,12 +267,10 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
           {view === 'document' ? <div className={`doc-layout${outline.length ? ' has-toc' : ''}`}>
             <div className="doc-column">
               <header className="doc-title-block">
-                <div className="doc-eyebrow">
-                  <label className={`doc-kind kind-${kind}`}><Icon name={kindIcon[kind]} size={12}/><span className="visually-hidden">Kind</span>
-                    <select aria-label="Kind" value={kind} onChange={event => void update({ kind: event.target.value }, `Marked as ${kindLabel[asKind(event.target.value)].toLowerCase()}.`)}>{ARTIFACT_KINDS.map(value => <option key={value} value={value}>{kindLabel[value]}</option>)}</select></label>
+                {(artifact.trackedPath || artifact.trackingProblem) && <div className="doc-eyebrow">
                   {artifact.trackedPath && <button type="button" className="artifact-tracked" disabled={!workbench} onClick={openFile} title="Versions are recorded when this file changes on disk"><Icon name="refresh" size={11}/><span>Synced with {artifact.trackedPath}</span></button>}
                   {artifact.trackingProblem && <span className="artifact-problem" role="status"><Icon name="alert" size={12}/>{artifact.trackingProblem}</span>}
-                </div>
+                </div>}
                 {renaming ? <RenameField value={artifact.title} onDone={title => { setRenaming(false); if (title && title !== artifact.title) void update({ title }, 'Renamed.'); }}/>
                   : <h1 className="doc-title" title="Double-click to rename" onDoubleClick={() => setRenaming(true)}>{artifact.title}</h1>}
                 <div className="artifact-meta doc-meta">
@@ -273,11 +278,13 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
                   <span className="doc-dot" aria-hidden="true"/>
                   <time dateTime={new Date(Number(shownAt)).toISOString()} title={fullDate(shownAt)}>{shown === latestNumber ? 'Updated' : 'Written'} {ago(shownAt)}</time>
                   <span className="doc-dot" aria-hidden="true"/>
-                  <label className="doc-version"><span className="visually-hidden">Version</span>
+                  {/* The shown version as text, the menu over it: a select sizes itself to its longest option. */}
+                  <label className="doc-version" title="Choose a version"><span aria-hidden="true">v{shown}{shown === latestNumber ? ' · latest' : ''}</span>
                     <select aria-label="Version" value={shown} onChange={event => pick(Number(event.target.value))}>{[...versions].reverse().map(v => <option key={v.number} value={v.number}>v{v.number}{v.number === latestNumber ? ' · latest' : ` · ${ago(v.createdAtUnixMillis)}`}</option>)}</select>
                     <Icon name="chevron" size={11}/></label>
                   {minutes > 0 && <><span className="doc-dot" aria-hidden="true"/><span>{minutes} min read</span></>}
-                  {outline.length > 0 && <ActionMenu label="Contents" className="doc-contents-menu" summary={<><Icon name="checklist" size={12}/><span>Contents</span></>}>
+                  {/* Where the outline has no room beside the text, it is one click away instead. */}
+                  {outline.length > 0 && <ActionMenu label="On this page" className="doc-contents-menu" summary={<><Icon name="checklist" size={12}/><span>On this page</span></>}>
                     {outline.map(entry => <button key={entry.id} type="button" className={entry.level > Math.min(...outline.map(e => e.level)) ? 'is-sub' : undefined} onClick={() => requestAnimationFrame(() => scroller.current?.querySelector<HTMLElement>(`#${CSS.escape(entry.id)}`)?.scrollIntoView({ block: 'start' }))}><span>{entry.text}</span></button>)}
                   </ActionMenu>}
                 </div>

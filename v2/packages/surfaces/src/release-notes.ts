@@ -9,6 +9,16 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.33',
+    date: '2026-11-17',
+    title: 'Artifacts that use the room',
+    items: [
+      { title: 'One title, the kind once', body: 'An artifact whose document opens with nearly its own title (a "(final)" or a subtitle added) shows that title once. The kind is named in the toolbar only, and changes there; the title block no longer repeats it as a pill.' },
+      { title: 'More text, less chrome', body: 'The title is smaller and starts just under the toolbar, with who wrote it, when, the version and the reading time on one small line. The text column takes the room there is, up to a comfortable measure, and callouts are tighter.' },
+      { title: 'On this page fits', body: 'The outline beside the text is narrower and shows from 900 px of reader; below that, beside a chat or on a phone, it is the On this page button and the text takes its room. Nothing scrolls sideways down to 360 px.' },
+    ],
+  },
+  {
     id: '2026-11-17.32',
     date: '2026-11-17',
     title: 'New work starts from today\'s main',

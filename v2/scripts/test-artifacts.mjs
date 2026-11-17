@@ -3,7 +3,9 @@
 // message updates it after a reviewed diff; the Artifacts panel lists it with
 // its versions; it opens in its own window; it exports (copy, download); a
 // Markdown file is tracked from Files and follows changes on disk; an agent's
-// `lazybox artifact put` shows up; deleting asks first. Fixture only;
+// `lazybox artifact put` shows up; deleting asks first; a report reads
+// densely (one title, the kind once, a wide column, the outline as a toggle
+// below 900 px, no horizontal scroll at 360 px). Fixture only;
 // WebKit by default (the desktop engine).
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
@@ -14,6 +16,7 @@ import assert from 'node:assert/strict';
 import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import {monacoVimCompat} from './monaco-vim-compat.mjs';
+import {reportTitle,seedReport} from './fixtures/artifact-sample.mjs';
 
 const fixture=await startRunnerFixture();const session=fixture.sessions[0];
 Object.assign(session,{busy:false,status:'done',conversationId:'conversation-alpha',agents:[{id:'root',status:'done'}]});
@@ -250,6 +253,56 @@ try{
  await expect(trackWrote).toHaveCount(0);
  assert.equal(fileTracks(),tracksBefore+1);assert.equal(fixture.mutations.filter(m=>m.method==='TrackArtifactFile').at(-1).body.path,'docs/PLAN.md');
  await expect(planPage.locator('.doc-title-block')).toContainText('Synced with docs/PLAN.md');
+
+ // Density: a report whose first heading nearly repeats its title, in its own window.
+ const report=seedReport(fixture);
+ const reader=await context.newPage();reader.setDefaultTimeout(15000);reader.on('pageerror',e=>errors.push(String(e)));
+ await reader.setViewportSize({width:1000,height:800});
+ await reader.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=artifact&collection=alpha&artifact=${report.id}#token=${fixture.token}`);
+ const reportPage=reader.getByRole('article',{name:reportTitle});
+ // One title: the artifact's; the document's own near-copy of it is not shown.
+ await expect(reportPage.getByRole('heading',{level:1})).toHaveCount(1);
+ await expect(reportPage.getByRole('heading',{level:1})).toHaveText(reportTitle);
+ await expect(reportPage.locator('.doc-body')).not.toContainText('Auth compared');
+ await expect(reportPage.getByRole('note',{name:'Note'})).toContainText('This is the final pass');
+ // The kind is named once, in the toolbar, where it changes.
+ await expect(reportPage.getByLabel('Kind',{exact:true})).toHaveValue('report');
+ await expect(reportPage.getByText('Report',{exact:true}).filter({visible:true})).toHaveCount(1);
+ await expect(reportPage.locator('.doc-title-block')).not.toContainText('Report');
+ // At 1000 px: a smaller title close under the toolbar, a wide text column, the outline beside it.
+ const layout=()=>reportPage.evaluate(article=>{
+  const box=node=>node.getBoundingClientRect(),scroller=article.querySelector('.artifact-scroll'),toolbar=box(article.querySelector('.artifact-toolbar')),title=article.querySelector('.doc-title'),rail=article.querySelector('.doc-toc-rail');
+  return {text:box(article.querySelector('.doc-body > p')).width,title:parseFloat(getComputedStyle(title).fontSize),titleTop:box(title).top-toolbar.bottom,rail:getComputedStyle(rail).display==='none'?0:box(rail).width,overflow:scroller.scrollWidth-scroller.clientWidth,pageOverflow:document.documentElement.scrollWidth-innerWidth};
+ });
+ const wide=await layout();
+ assert.ok(wide.text>=660,`a ${wide.text}px text column at 1000 px`);
+ assert.ok(wide.title>=28&&wide.title<=36,`a ${wide.title}px title`);
+ assert.ok(wide.titleTop<=32,`the title ${wide.titleTop}px under the toolbar`);
+ assert.ok(wide.rail>0&&wide.rail<=200,`a ${wide.rail}px outline`);
+ await expect(reportPage.getByRole('navigation',{name:'On this page'})).toBeVisible();
+ await expect(reportPage.locator('.doc-contents-menu')).toBeHidden();
+ // Below 900 px of reader the outline is a toggle, and the text takes its room.
+ await reader.setViewportSize({width:820,height:800});
+ await expect(reportPage.getByRole('navigation',{name:'On this page'})).toBeHidden();
+ const narrow=await layout();
+ assert.equal(narrow.rail,0);
+ assert.ok(narrow.text>=820-2*36-2&&narrow.text>wide.text,`the text column grows to ${narrow.text}px without the outline (${wide.text}px beside it)`);
+ await reportPage.locator('.doc-contents-menu > summary').click();
+ const outline=reader.getByRole('group',{name:'On this page menu'});
+ await expect(outline.getByRole('button')).toHaveCount(7);
+ await outline.getByRole('button',{name:'Risks'}).click();
+ // The jump lands on the section, or as near as the end of a short report lets it.
+ await expect.poll(()=>reportPage.locator('#risks').evaluate(h=>{const s=h.closest('.artifact-scroll'),top=h.getBoundingClientRect().top-s.getBoundingClientRect().top;return s.scrollTop>0&&top<s.clientHeight&&(top<80||s.scrollTop+s.clientHeight>=s.scrollHeight-2);})).toBe(true);
+ // 360 px, as beside a chat: no horizontal scroll, no outline.
+ await reader.setViewportSize({width:360,height:760});
+ await reportPage.locator('.artifact-scroll').evaluate(node=>{node.scrollTop=0;});
+ await expect(reportPage.getByRole('navigation',{name:'On this page'})).toBeHidden();
+ const phone=await layout();
+ assert.ok(phone.overflow<=0&&phone.pageOverflow<=0,`no horizontal scroll at 360 px (${phone.overflow}, ${phone.pageOverflow})`);
+ assert.ok(phone.title<=26,`a ${phone.title}px title at 360 px`);
+ await expect(reportPage.getByLabel('Kind',{exact:true})).toBeVisible();
+ await reader.screenshot({path:'.cache/artifacts-report-360.png'});
+ await reader.close();
  assert.deepEqual(errors,[]);
- console.log('PASS: track a chat message as an artifact (right-click and hover), update it after a reviewed diff, browse versions and changes, copy and download, rename, open in its own window, list an agent\'s artifact, track a Markdown file that follows disk changes, print from Changes (once), keyboard through the history, delete with confirmation, track a file an agent links (from the link, and offered first by a short message\'s Track). Fixture only.');
+ console.log('PASS: track a chat message as an artifact (right-click and hover), update it after a reviewed diff, browse versions and changes, copy and download, rename, open in its own window, list an agent\'s artifact, track a Markdown file that follows disk changes, print from Changes (once), keyboard through the history, delete with confirmation, track a file an agent links (from the link, and offered first by a short message\'s Track), and read a report densely: one title, the kind once, a wide column, the outline as a toggle when narrow, no horizontal scroll at 360 px. Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}
