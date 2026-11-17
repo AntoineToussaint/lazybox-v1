@@ -110,7 +110,23 @@ type Manager struct {
 	closed     bool
 	now        func() time.Time
 	wait       func(context.Context, time.Duration) bool
+	// refreshing is the token refresh in flight, if any: one at a time,
+	// every caller that needs it waits for the same one.
+	refreshing *refreshCall
 }
+
+// refreshCall is one refresh of an expiring GitHub App token. It runs on the
+// manager's own context, not a caller's: GitHub rotates both tokens on a
+// refresh, so a refresh abandoned halfway would lose the new pair and leave
+// the old refresh token spent.
+type refreshCall struct {
+	done  chan struct{}
+	token string
+	err   error
+}
+
+// refreshTimeout bounds one refresh.
+const refreshTimeout = 30 * time.Second
 
 var clientIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,128}$`)
 var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,99}$`)
@@ -154,16 +170,13 @@ func validPersonalToken(token string) bool {
 // ConnectPersonalToken validates the identity before atomically storing an
 // explicitly supplied credential. It never resolves ambient CLI credentials.
 func (m *Manager) ConnectPersonalToken(ctx context.Context, token string) (Status, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.closed {
-		return Status{}, errors.New("GitHub connection is closed")
-	}
 	if !validPersonalToken(token) {
 		return Status{}, errors.New("enter a GitHub personal access token (classic or fine-grained)")
 	}
-	if m.flow.State == "awaiting_login" || (m.saved.Token.AccessToken != "" && m.saved.AuthMethod != "personal_token") {
-		return Status{}, errors.New("disconnect the existing GitHub connection before connecting a personal token")
+	// The identity is read without the lock (a slow GitHub must not hold up
+	// every credential use); the checks below are made again after it.
+	if err := m.personalTokenAllowed(); err != nil {
+		return Status{}, err
 	}
 	user, err := m.api.User(ctx, token)
 	if err != nil {
@@ -171,6 +184,11 @@ func (m *Manager) ConnectPersonalToken(ctx context.Context, token string) (Statu
 	}
 	if user.ID <= 0 || user.Login == "" {
 		return Status{}, errors.New("GitHub omitted the authenticated identity")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.personalTokenAllowedLocked(); err != nil {
+		return Status{}, err
 	}
 	if m.saved.User.ID != 0 && m.saved.User.ID != user.ID {
 		return Status{}, errors.New("this token belongs to a different GitHub account; disconnect the existing connection first")
@@ -182,6 +200,21 @@ func (m *Manager) ConnectPersonalToken(ctx context.Context, token string) (Statu
 	m.flow = Enrollment{}
 	m.flowKey = ""
 	return m.status(), nil
+}
+func (m *Manager) personalTokenAllowed() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.personalTokenAllowedLocked()
+}
+
+func (m *Manager) personalTokenAllowedLocked() error {
+	if m.closed {
+		return errors.New("GitHub connection is closed")
+	}
+	if m.flow.State == "awaiting_login" || (m.saved.Token.AccessToken != "" && m.saved.AuthMethod != "personal_token") {
+		return errors.New("disconnect the existing GitHub connection before connecting a personal token")
+	}
+	return nil
 }
 func validApp(app App) bool {
 	return clientIDPattern.MatchString(app.ClientID) && slugPattern.MatchString(app.Slug)
@@ -390,41 +423,98 @@ func (m *Manager) finish(id, state, problem string) {
 	}
 }
 func (m *Manager) credential(ctx context.Context) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.credentialLocked(ctx)
+	token, _, err := m.authorization(ctx)
+	return token, err
 }
-func (m *Manager) credentialLocked(ctx context.Context) (string, error) {
+
+// authorization is the credential to use now and its discovery mode. An
+// expiring App token is refreshed first, by one refresh at a time on the
+// manager's own context (refreshCall), without holding the lock across the
+// network; a caller that gives up waiting does not abandon the refresh.
+func (m *Manager) authorization(ctx context.Context) (string, string, error) {
+	m.mu.Lock()
 	if m.closed {
-		return "", errors.New("GitHub connection is closed")
+		m.mu.Unlock()
+		return "", "", errors.New("GitHub connection is closed")
 	}
 	if m.problem != "" || m.saved.Token.AccessToken == "" {
-		return "", github.ErrUnauthorized
+		m.mu.Unlock()
+		return "", "", github.ErrUnauthorized
+	}
+	method := m.saved.AuthMethod
+	if method == "" {
+		method = "github_app"
 	}
 	if m.saved.AuthMethod == "personal_token" || m.now().Unix()+60 < m.saved.ExpiresAt {
-		return m.saved.Token.AccessToken, nil
+		token := m.saved.Token.AccessToken
+		m.mu.Unlock()
+		return token, method, nil
 	}
 	if m.now().Unix() >= m.saved.RefreshExpiresAt {
 		m.problem = github.ErrUnauthorized.Error()
-		return "", github.ErrUnauthorized
+		m.mu.Unlock()
+		return "", "", github.ErrUnauthorized
 	}
-	token, err := m.api.Refresh(ctx, m.saved.App.ClientID, m.saved.Token.RefreshToken)
+	call := m.refreshing
+	if call == nil {
+		call = &refreshCall{done: make(chan struct{})}
+		m.refreshing = call
+		m.wg.Add(1)
+		go m.refresh(call, m.saved.App.ClientID, m.saved.Token.RefreshToken)
+	}
+	m.mu.Unlock()
+	select {
+	case <-call.done:
+	case <-ctx.Done():
+		return "", "", ctx.Err()
+	}
+	if call.err != nil {
+		return "", "", call.err
+	}
+	return call.token, "github_app", nil
+}
+
+// refresh exchanges the refresh token for a new pair and saves it, whoever
+// is still waiting. A result for a connection that changed meanwhile
+// (disconnected, reconnected, closed) is dropped.
+func (m *Manager) refresh(call *refreshCall, client, refreshToken string) {
+	defer m.wg.Done()
+	defer close(call.done)
+	ctx, cancel := context.WithTimeout(m.ctx, refreshTimeout)
+	token, err := m.api.Refresh(ctx, client, refreshToken)
+	cancel()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.refreshing == call {
+		m.refreshing = nil
+	}
+	switch {
+	case m.closed:
+		call.err = errors.New("GitHub connection is closed")
+		return
+	case m.saved.Token.RefreshToken != refreshToken || m.saved.App.ClientID != client:
+		call.err = github.ErrUnauthorized
+		return
+	}
 	if err != nil {
 		if errors.Is(err, github.ErrUnauthorized) {
 			m.problem = err.Error()
 		}
-		return "", err
+		call.err = err
+		return
 	}
 	if token.Error != "" || validToken(token) != nil {
 		m.problem = github.ErrUnauthorized.Error()
-		return "", github.ErrUnauthorized
+		call.err = github.ErrUnauthorized
+		return
 	}
 	// Refresh rotates both tokens. A persistence failure must not reuse the old pair.
 	if err = m.persist(m.withToken(token)); err != nil {
 		m.problem = "GitHub refresh could not be saved; reconnect this Lazybox account"
-		return "", err
+		call.err = err
+		return
 	}
-	return m.saved.Token.AccessToken, nil
+	call.token = m.saved.Token.AccessToken
 }
 
 // WithCredential limits secret exposure to a provider or repository operation.
@@ -435,13 +525,7 @@ func (m *Manager) WithCredential(ctx context.Context, operation func(string) err
 // WithAuthorization captures the credential and its discovery mode together,
 // so an in-flight operation cannot combine different connection identities.
 func (m *Manager) WithAuthorization(ctx context.Context, operation func(token, method string) error) error {
-	m.mu.Lock()
-	token, err := m.credentialLocked(ctx)
-	method := m.saved.AuthMethod
-	if method == "" {
-		method = "github_app"
-	}
-	m.mu.Unlock()
+	token, method, err := m.authorization(ctx)
 	if err != nil {
 		return err
 	}

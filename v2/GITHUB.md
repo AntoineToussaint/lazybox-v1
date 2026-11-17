@@ -90,7 +90,11 @@ Users do not see an App-registration form or need to create their own App.
 GitHub's [device authorization flow](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)
 issues an expiring GitHub App user token. The Runner requests `offline_access`
 and [refreshes it](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens)
-without an App secret for this device-flow grant. Access is the intersection
+without an App secret for this device-flow grant. A refresh rotates both
+tokens, so it runs on the connection's own context (30 s at most), one at a
+time — every request that needs it waits for the same one — and is saved
+whether or not the request that started it is still waiting; the connection's
+lock is never held across a GitHub call. Access is the intersection
 of the user's rights, App permissions and selected installation repositories.
 One GitHub identity is supported per Runner in this slice; Claude/Codex
 subscription selection is independent of that identity.
