@@ -66,6 +66,16 @@
 .pr-pill.is-failure{border-color:var(--danger-line-subtle,var(--line-subtle))}
 .pr-pill.is-changes{border-color:var(--warn-line-subtle,var(--line-subtle))}
 .pr-pill.is-more{font-family:var(--font-ui);color:var(--text-muted)}
+/* The branch's own pull request: the pill opens the PR loop, its ↗ opens GitHub. */
+.pr-pill.is-split{padding:0;gap:0;cursor:default;overflow:hidden}
+.pr-pill.is-split:hover{background:transparent}
+.pr-pill.is-split>button,.pr-pill.is-split>.pr-pill-out{display:inline-flex;align-items:center;gap:5px;height:100%;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;text-decoration:none}
+.pr-pill.is-split>button{padding:0 6px 0 8px}
+.pr-pill.is-split>.pr-pill-out{padding:0 7px 0 4px;color:var(--text-muted);border-left:1px solid var(--line-subtle)}
+.pr-pill.is-split>button:hover,.pr-pill.is-split>.pr-pill-out:hover{background:var(--surface-selected);color:var(--text)}
+.pr-pill.is-split>button:focus-visible,.pr-pill.is-split>.pr-pill-out:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--focus)}
+.pr-pill-note{font-family:var(--font-ui);color:var(--text-muted)}
+@media(max-width:719px){.pr-pill-note{display:none}}
 .pr-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;flex:none;color:var(--pr-none)}
 .pr-dot.is-failure{color:var(--pr-failure)}
 .pr-dot.is-changes{color:var(--pr-changes)}

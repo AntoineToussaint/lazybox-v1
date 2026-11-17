@@ -4,13 +4,13 @@ import { Icon } from './Icons';
 import { useRunner } from './RunnerContext';
 import { ageLabel } from './attention';
 import type { ModuleProps } from './PanelRegistry';
-import { agentName, confirmation, groupPulls, needsYou, statusIcon, statusLabel, statusTone, workspacePulls, type TrackedPull } from './pull-requests-model';
+import { agentName, confirmation, groupPulls, needsYou, pullWords, statusIcon, statusLabel, statusTone, workspacePulls, type PullTone, type TrackedPull } from './pull-requests-model';
 import { usePullActions, useTrackedItems, type PullAction } from './useTrackedPulls';
 import './pull-requests.css';
 
 /** The dot or icon of a pull request's state, the same everywhere. */
-export function PullStatusIcon({ pull, size = 14 }: { pull: Pick<TrackedPull, 'status'>; size?: number }) {
-  return <span className={`pr-status is-${statusTone[pull.status]}`} aria-hidden="true"><Icon name={statusIcon[pull.status]} size={size}/></span>;
+export function PullStatusIcon({ pull, size = 14 }: { pull: Pick<TrackedPull, 'status'> & { tone?: PullTone }; size?: number }) {
+  return <span className={`pr-status is-${pull.tone || statusTone[pull.status]}`} aria-hidden="true"><Icon name={statusIcon[pull.status]} size={size}/></span>;
 }
 
 /** Which reaction a pull request's state offers, if any. */
@@ -112,7 +112,7 @@ function PullRow({ pull, now, workspace, agent, busy, confirming, note, onOpen, 
       <PullStatusIcon pull={pull}/>
       <span className="pr-main">
         <span className="pr-title"><strong>{pull.repository}#{pull.number}</strong>{pull.title && <span>{pull.title}</span>}</span>
-        <span className="pr-meta"><em>{needsYou.has(pull.status) || pull.status === 'checks-running' ? pull.detail : statusLabel[pull.status]}</em><span>{workspace}</span>{pull.link.source && <span>{sourceWords[pull.link.source] || pull.link.source}</span>}</span>
+        <span className="pr-meta"><em>{needsYou.has(pull.status) || pull.status === 'checks-running' || pull.status === 'waiting' ? pull.detail : statusLabel[pull.status]}</em><span>{workspace}</span>{pull.link.source && <span>{sourceWords[pull.link.source] || pull.link.source}</span>}</span>
       </span>
       <time className="pr-age" dateTime={pull.at ? new Date(pull.at).toISOString() : undefined}>{pull.at ? ageLabel(pull.at, now) : ''}</time>
     </button>
@@ -148,11 +148,18 @@ export function PullRequestPills({ workspaceId, branches, onShowChanges, onShowP
   return <div className="pr-pills" role="group" aria-label="Pull requests of this workspace">
     {shown.map(pull => {
       const loop = !!pull.link.member && branches.get(pull.link.member) === pull.link.item?.pullRequest?.head;
-      const title = `${pull.repository}#${pull.number}${pull.title ? ` · ${pull.title}` : ''}\n${statusLabel[pull.status]}${pull.status === 'checks-failed' ? `: ${pull.detail}` : ''}\n${loop ? 'Open the PR loop in Changes' : 'Open on GitHub'}`;
-      const body = <><i className={`pr-dot is-${statusTone[pull.status]}`}/>#{pull.number}</>;
+      const state = pull.status === 'waiting' ? pull.detail : `${statusLabel[pull.status]}${pull.status === 'checks-failed' ? `: ${pull.detail}` : ''}`;
+      const title = `${pull.repository}#${pull.number}${pull.title ? ` · ${pull.title}` : ''}\n${state}\n${loop ? 'Open the PR loop in Changes; ↗ opens it on GitHub' : 'Open on GitHub'}`;
+      // One waiting on a required review says so: it is nobody's failure, and not ready either.
+      const note = pull.status === 'waiting' && pull.link.item?.pullRequest?.review === 'review_required' ? <span className="pr-pill-note">review required</span> : null;
+      const body = <><i className={`pr-dot is-${pull.tone}`}/>#{pull.number}{note}</>;
+      // The branch's own pull request opens the PR loop, and still offers GitHub.
       return loop
-        ? <button key={pull.key} type="button" className={`pr-pill is-${statusTone[pull.status]}`} title={title} aria-label={`Pull request #${pull.number}, ${statusLabel[pull.status].toLowerCase()}: open the PR loop`} onClick={onShowChanges}>{body}</button>
-        : <a key={pull.key} className={`pr-pill is-${statusTone[pull.status]}`} href={pull.url} target="_blank" rel="noreferrer" title={title} aria-label={`Pull request #${pull.number}, ${statusLabel[pull.status].toLowerCase()}: open on GitHub`}>{body}</a>;
+        ? <span key={pull.key} className={`pr-pill is-split is-${pull.tone}`}>
+          <button type="button" title={title} aria-label={`Pull request #${pull.number}, ${pullWords(pull)}: open the PR loop`} onClick={onShowChanges}>{body}</button>
+          {pull.url && <a className="pr-pill-out" href={pull.url} target="_blank" rel="noreferrer" title="Open on GitHub" aria-label={`Open #${pull.number} on GitHub`}><Icon name="external" size={11}/></a>}
+        </span>
+        : <a key={pull.key} className={`pr-pill is-${pull.tone}`} href={pull.url} target="_blank" rel="noreferrer" title={title} aria-label={`Pull request #${pull.number}, ${pullWords(pull)}: open on GitHub`}>{body}</a>;
     })}
     {pulls.length > shown.length && <button type="button" className="pr-pill is-more" title="Show every pull request" aria-label={`${pulls.length - shown.length} more pull requests: show them all`} onClick={onShowPanel}>+{pulls.length - shown.length}</button>}
   </div>;

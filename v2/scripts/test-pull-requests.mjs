@@ -20,8 +20,8 @@ Object.assign(f.sessions[1], {title: 'Ship release notes', provider: 'codex', st
 const channel = f.openEvents('alpha-session');
 const api = f.shipState('alpha', 'api');
 Object.assign(api, {githubRepository: 'acme/api', upstream: 'origin/' + api.branch});
-const link = ({key, workspace = 'alpha', session = 'alpha-session', head = 'agent/other', sha = 'sha-' + key.split('#')[1], state = 'review', checks = 'pending', review = '', mergeable = false, mergeableState = '', failing = [], total = 0, closedAt = 0, role = 'delivers', title = ''}) => ({
-  collectionId: workspace, collectionName: workspace === 'alpha' ? 'Alpha feature' : 'Beta release', role, source: 'agent-output', sessionId: session, conversationId: session, member: 'api', linkedAtUnixMillis: ms(now - 3_600_000),
+const link = ({key, workspace = 'alpha', session = 'alpha-session', head = 'agent/other', member = 'api', sha = 'sha-' + key.split('#')[1], state = 'review', checks = 'pending', review = '', mergeable = false, mergeableState = '', failing = [], total = 0, closedAt = 0, role = 'delivers', title = ''}) => ({
+  collectionId: workspace, collectionName: workspace === 'alpha' ? 'Alpha feature' : 'Beta release', role, source: 'agent-output', sessionId: session, conversationId: session, member, linkedAtUnixMillis: ms(now - 3_600_000),
   item: role === 'mentions' ? {ref: {provider: 'github', key}, kind: 'pull_request', url: `https://github.com/${key.replace('#', '/pull/')}`} : {
     ref: {provider: 'github', key}, kind: 'pull_request', title, url: `https://github.com/${key.replace('#', '/pull/')}`, repository: key.split('#')[0],
     state: {category: state, label: state}, updatedAtUnixMillis: ms(now - 600_000),
@@ -36,6 +36,8 @@ f.tracked.links.push(
   link({key: 'acme/api#61', checks: 'pending', title: 'Speed up tests'}),
   link({key: 'acme/api#60', state: 'merged', checks: 'success', closedAt: now - 2 * 24 * 3_600_000, title: 'Old work'}),
   link({key: 'acme/api#9', role: 'mentions'}),
+  // obin-ai/platform#1121 as an agent's gh pr create left it: open, checks green, a review required.
+  link({key: 'obin-ai/platform#1121', workspace: 'beta', session: 'beta-session', member: 'platform', head: 'feature/strangely-handy-hyena', checks: 'success', review: 'review_required', mergeableState: 'blocked', total: 69, title: "Ask your devbox's agents from Claude Code"}),
 );
 
 const proxy = {'/lazybox.bench.v1.RunnerService/': {target: f.url}, '/remote/v1/': {target: f.url}};
@@ -58,6 +60,8 @@ try {
   await expect(pills.locator('.pr-pill').first()).toHaveClass(/is-failure/);
   await expect(pills.getByRole('link', {name: /#77, changes requested: open on GitHub/})).toHaveAttribute('href', 'https://github.com/acme/api/pull/77');
   assert.ok(f.tracked.requests.some(r => r.all), 'every workspace\'s links, in one request');
+  // The branch's own pull request opens the PR loop, and still offers GitHub.
+  await expect(pills.getByRole('link', {name: 'Open #812 on GitHub'})).toHaveAttribute('href', 'https://github.com/acme/api/pull/812');
   await page.screenshot({path: '.cache/pull-requests-header.png'});
   // 2. The sidebar: one badge per row, the most urgent pull request, and how many more.
   const alphaRow = page.locator('.workspace-row', {hasText: 'Alpha feature'}).first();
@@ -67,6 +71,7 @@ try {
   const betaRow = page.locator('.workspace-row', {hasText: 'Beta release'}).first();
   await expect(betaRow.locator('.git-pull').first()).toHaveText('#90');
   await expect(betaRow.locator('.git-pull').first()).toHaveClass(/is-success/);
+  await expect(betaRow.locator('.git-pull.is-more')).toHaveText('+1');
   const sidebarWidth = await page.locator('.collection-list').evaluate(e => e.getBoundingClientRect().width);
   // The branch's own pull request opens the PR loop.
   await pills.getByRole('button', {name: /#812, checks failed: open the PR loop/}).click();
@@ -79,10 +84,16 @@ try {
   const panel = page.locator('.pull-requests-panel');
   await expect(panel).toBeVisible();
   const titles = await panel.locator('.pr-group h3').allInnerTexts();
-  assert.deepEqual(titles.map(t => t.replace(/\s+/g, ' ').trim().toLowerCase()), ['needs you 3', 'waiting on others 1', 'merged this week 1']);
+  assert.deepEqual(titles.map(t => t.replace(/\s+/g, ' ').trim().toLowerCase()), ['needs you 3', 'waiting on others 2', 'merged this week 1']);
   await expect(panel.locator('.group-needs .pr-title strong')).toHaveText(['acme/api#812', 'acme/api#77', 'acme/web#90']);
   await expect(panel.locator('.group-needs .pr-item').first().locator('.pr-meta em')).toHaveText('lint, unit-api (2 of 14)');
   await expect(panel.locator('.pr-mentioned summary')).toContainText('1');
+  // A pull request waiting on a required review, checks green: waiting on others, and it says why.
+  await expect(panel.locator('.group-waiting .pr-title strong')).toHaveText(['acme/api#61', 'obin-ai/platform#1121']);
+  const waiting = panel.locator('.group-waiting .pr-item', {hasText: 'obin-ai/platform#1121'});
+  await expect(waiting.locator('.pr-meta em')).toHaveText('Review required · checks passed');
+  await expect(waiting.locator('.pr-status')).toHaveClass(/is-success/);
+  await expect(waiting.getByRole('link', {name: 'Open obin-ai/platform#1121 on GitHub'})).toHaveAttribute('href', 'https://github.com/obin-ai/platform/pull/1121');
   if (await page.locator('.collection-list').count()) assert.equal(await page.locator('.collection-list').evaluate(e => e.getBoundingClientRect().width), sidebarWidth, 'nothing resizes the sidebar');
   await page.screenshot({path: '.cache/pull-requests-panel.png'});
 
@@ -118,6 +129,12 @@ try {
   await panel.locator('.pr-item', {hasText: 'acme/web#90'}).locator('.pr-row').focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('.workspace-row[aria-current], .workspace-link[aria-current=page]').first()).toContainText('Beta release');
+  // Its header: #1121's pill, green checks dot, review required, opening GitHub.
+  const betaPill = page.getByRole('group', {name: 'Pull requests of this workspace'}).getByRole('link', {name: 'Pull request #1121, review required, checks passed: open on GitHub'});
+  await expect(betaPill).toHaveAttribute('href', 'https://github.com/obin-ai/platform/pull/1121');
+  await expect(betaPill).toHaveText('#1121review required');
+  await expect(betaPill.locator('.pr-dot')).toHaveClass(/is-success/);
+  await page.screenshot({path: '.cache/pull-requests-review-required.png'});
 
   // 4. The conversation shows what Lazybox sent, as its chip, not the person's words.
   // (A fresh window: this one remembers the page it last showed for the workspace.)

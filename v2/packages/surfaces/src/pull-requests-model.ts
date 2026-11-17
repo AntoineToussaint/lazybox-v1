@@ -55,11 +55,13 @@ export type TrackedPull = {
   key: string;
   link: ItemLink;
   status: PullStatus;
+  /** The dot: the status's tone, except that one waiting for review shows its checks (green once they passed). */
+  tone: PullTone;
   repository: string;
   number: number;
   title: string;
   url: string;
-  /** "lint, unit-api (2 of 14)" for failing checks; else the status in words. */
+  /** "lint, unit-api (2 of 14)" for failing checks; "Review required · checks passed" for one waiting; else the status in words. */
   detail: string;
   /** When it changed last, for "Merged this week" and ages (Unix ms). */
   at: number;
@@ -75,15 +77,23 @@ export function failingDetail(link: ItemLink): string {
   return `${shown} (${names.length} of ${pr?.checksTotal || names.length})`;
 }
 
+/** An open pull request waiting on others, in words: whose turn it is, and its checks. */
+export function waitingDetail(link: ItemLink): string {
+  const pr = link.item?.pullRequest;
+  const review = pr?.review === 'review_required' ? 'Review required' : pr?.review === 'approved' ? 'Approved' : statusLabel.waiting;
+  return pr?.checks === 'success' ? `${review} · checks passed` : review;
+}
+
 export function trackedPull(link: ItemLink): TrackedPull {
   const key = link.item?.ref?.key || '';
   const { repository, number } = refParts(key);
   const status = pullStatus(link);
-  const detail = status === 'checks-failed' ? failingDetail(link) || statusLabel[status] : statusLabel[status];
+  const detail = status === 'checks-failed' ? failingDetail(link) || statusLabel[status] : status === 'waiting' ? waitingDetail(link) : statusLabel[status];
+  const tone = status === 'waiting' && link.item?.pullRequest?.checks === 'success' ? 'success' : statusTone[status];
   // An ended pull request is as old as its end; an open one, its last change.
   const closed = millis(link.item?.pullRequest?.closedAtUnixMillis);
   const at = (status === 'merged' || status === 'closed') && closed ? closed : Math.max(millis(link.item?.updatedAtUnixMillis), millis(link.linkedAtUnixMillis));
-  return { key: `${link.collectionId}:${key}`, link, status, repository: link.item?.repository || repository, number, title: link.item?.title || '', url: link.item?.url || (repository ? `https://github.com/${repository}/pull/${number}` : ''), detail, at };
+  return { key: `${link.collectionId}:${key}`, link, status, tone, repository: link.item?.repository || repository, number, title: link.item?.title || '', url: link.item?.url || (repository ? `https://github.com/${repository}/pull/${number}` : ''), detail, at };
 }
 
 const rank = (pull: TrackedPull) => statusOrder.indexOf(pull.status);
@@ -121,8 +131,14 @@ export function rowPull(links: readonly ItemLink[], workspaceId: string, now: nu
   const first = pulls[0];
   if (!first) return;
   const more = pulls.length - 1;
-  const label = `Pull request #${first.number} · ${first.detail.toLowerCase() === statusLabel[first.status].toLowerCase() ? statusLabel[first.status].toLowerCase() : `${statusLabel[first.status].toLowerCase()}: ${first.detail}`}${first.title ? ` — ${first.title}` : ''}${more ? `, and ${more} more` : ''}`;
-  return { pull: first, tone: statusTone[first.status], text: `#${first.number}`, more, label };
+  const words = first.status === 'waiting' || first.detail.toLowerCase() === statusLabel[first.status].toLowerCase() ? pullWords(first) : `${statusLabel[first.status].toLowerCase()}: ${first.detail}`;
+  const label = `Pull request #${first.number} · ${words}${first.title ? ` — ${first.title}` : ''}${more ? `, and ${more} more` : ''}`;
+  return { pull: first, tone: first.tone, text: `#${first.number}`, more, label };
+}
+
+/** How a pull request reads in a label (a pill's, a badge's): its detail when waiting, else its status. */
+export function pullWords(pull: Pick<TrackedPull, 'status' | 'detail'>): string {
+  return (pull.status === 'waiting' ? pull.detail.replace(' · ', ', ') : statusLabel[pull.status]).toLowerCase();
 }
 
 /** An Inbox row: a pull request that needs the person, with its prepared action. */

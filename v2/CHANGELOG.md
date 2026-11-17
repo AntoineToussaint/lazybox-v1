@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.20] - 2026-11-17 · Pull requests your agents pushed themselves, tracked
+
+- **The pull request from an agent's own push** A branch an agent pushed itself (git push -u, then gh pr create) now finds its pull request within a minute or so; before, Lazybox only asked about branches it had pushed. One an agent opened before this update, or while the Runner restarted, is picked up from the conversation when Lazybox starts.
+- **Review required, in words** A pull request waiting on a required review says review required on its header pill, with a green dot once checks pass, and Review required · checks passed in the Pull requests panel. The pill of the branch's own pull request has a ↗ that opens it on GitHub.
+- **Told when GitHub refuses** If GitHub cannot be read for a workspace's pull requests (a private repository the connection cannot see answers 404), the Pull requests panel says so in one line, naming the repository.
+- **lazybox link and lazybox items in Dev and Working** Agents can link a pull request with lazybox link URL (with or without https://) and list their workspace's with lazybox items; Dev rebuilds the CLI agents run whenever the Runner is rebuilt.
+
 ## [2026-11-17.19] - 2026-11-17 · A queued message shows once
 
 - **Queued or sent, never both** A message you send while the agent works waits above the message box, and only there: it no longer also shows in the conversation, inside the turn it is waiting for. Once the agent gets it, it shows once, where it did: after that turn (and after Stopped to send your message, for Send now), starting its own; a message steered into a Codex turn shows there, marked steered. A reload shows the same.

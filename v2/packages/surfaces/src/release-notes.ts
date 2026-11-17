@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.20',
+    date: '2026-11-17',
+    title: 'Pull requests your agents pushed themselves, tracked',
+    items: [
+      { title: 'The pull request from an agent\'s own push', body: 'A branch an agent pushed itself (git push -u, then gh pr create) now finds its pull request within a minute or so; before, Lazybox only asked about branches it had pushed. One an agent opened before this update, or while the Runner restarted, is picked up from the conversation when Lazybox starts.' },
+      { title: 'Review required, in words', body: 'A pull request waiting on a required review says review required on its header pill, with a green dot once checks pass, and Review required · checks passed in the Pull requests panel. The pill of the branch\'s own pull request has a ↗ that opens it on GitHub.' },
+      { title: 'Told when GitHub refuses', body: 'If GitHub cannot be read for a workspace\'s pull requests (a private repository the connection cannot see answers 404), the Pull requests panel says so in one line, naming the repository.' },
+      { title: 'lazybox link and lazybox items in Dev and Working', body: 'Agents can link a pull request with lazybox link URL (with or without https://) and list their workspace\'s with lazybox items; Dev rebuilds the CLI agents run whenever the Runner is rebuilt.' },
+    ],
+  },
+  {
     id: '2026-11-17.19',
     date: '2026-11-17',
     title: 'A queued message shows once',
