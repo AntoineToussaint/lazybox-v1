@@ -14,8 +14,7 @@ Ten minutes from a clone to an agent working in its own workspace.
 ## Install
 
 Lazybox is a Mac app for Apple Silicon. Download the disk image from a
-release, drag **Lazybox** to Applications and open it (or
-`brew install --cask AntoineToussaint/lazybox/lazybox-v2`). The first launch
+release, drag **Lazybox** to Applications and open it. The first launch
 explains and sets up its background service, the **Runner**, and offers to
 put the `lazybox` command on your PATH. It brings its own Runner, Claude
 worker, Node and Claude Code, which only needs you to sign in; you need `git`,

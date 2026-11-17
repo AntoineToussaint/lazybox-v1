@@ -9,7 +9,7 @@ import { renderNotices, needsAttention, NOTICES_FILE } from './notices.mjs';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseChangelog, renderReleaseNotes, releaseBody, updaterNotes, updaterReleases, changelogPath, releaseNotesPath, installGuide, installGuidePath } from './changelog.mjs';
+import { parseChangelog, renderReleaseNotes, releaseBody, updaterNotes, updaterReleases, changelogPath, releaseNotesPath, installGuide, installGuidePath, unfoldedAbove, versionPattern } from './changelog.mjs';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
@@ -230,4 +230,26 @@ test('the release notes link to the install guide where the repository has it', 
   const notes = releaseBody(parseChangelog('## [1.0.0] - 2026-12-01 · T\n\n- **A** a'), '1.0.0', { unsigned: true });
   assert.ok(notes.includes(`(${installGuide}#unsigned-builds)`));
   assert.match(notes, /Privacy & Security → Open Anyway/);
+  // The cask is published for releases without a prerelease suffix only: the notes do not promise it.
+  assert.ok(!notes.includes('brew install'));
+});
+
+test('dated notes merged after a version\'s section are collected by the next version, or must be folded in', async () => {
+  const dated = [
+    '## [2026-11-18.2] - 2026-11-18 · Later', '', '- **Later** After the section.', '',
+    '## [2026-11-18.1] - 2026-11-18 · Also later', '', '- **Also** After it too.', '',
+  ];
+  const first = ['## [0.1.0-pre.1] - 2026-11-17 · First', '', '### Chat', '', '- **Send now** It sends.', ''];
+  // Releasing 0.1.0-pre.1 now would leave them out: the build refuses until they are folded in.
+  const releases = parseChangelog([...dated, ...first].join('\n'));
+  assert.deepEqual(unfoldedAbove(releases, '0.1.0-pre.1'), ['2026-11-18.2', '2026-11-18.1']);
+  assert.ok(!releaseBody(releases, '0.1.0-pre.1').includes('After the section'));
+  // A later version's section on top collects them, and leaves pre.1's own items out.
+  const next = parseChangelog(['## [0.1.0-pre.2] - 2026-11-19 · Second', '', '- **New** Thing.', '', ...dated, ...first].join('\n'));
+  assert.deepEqual(unfoldedAbove(next, '0.1.0-pre.2'), []);
+  const body = releaseBody(next, '0.1.0-pre.2');
+  assert.ok(body.includes('After the section') && body.includes('After it too') && !body.includes('It sends'));
+  // The changelog's newest version is releasable as it stands.
+  const current = parseChangelog(await readFile(changelogPath, 'utf8'));
+  assert.deepEqual(unfoldedAbove(current, current.find(r => versionPattern.test(r.id)).id), []);
 });

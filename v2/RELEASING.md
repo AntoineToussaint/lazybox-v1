@@ -262,7 +262,9 @@ locally needs (`release.json` records `"updaterKey": "test"`).
    which a private repository does not serve to anyone signed out.
 6. Date the release's section of the changelog (`0.1.0-pre.1` for the first
    prerelease: one curated section, its items under `### Group` headings),
-   `make -C v2 release-notes`, commit.
+   fold into it any dated sections merged above it since (the build refuses
+   a version with dated sections above its own), `make -C v2 release-notes`,
+   commit.
 7. Dry run: `make -C v2 release VERSION=0.1.0 LAUNCHD=1` (the second smoke
    test installs a uniquely named test launchd job, updates it to a second
    copy of the build, checks a terminal survived, and removes it).

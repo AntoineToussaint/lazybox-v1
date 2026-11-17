@@ -16,11 +16,18 @@ continue on lines indented by two spaces. A big section groups its items under
 `### Group` lines (every item then belongs to one); the release notes and
 What's new show the groups as headings.
 
+Dated sections keep landing at the top after a version's section is written.
+The next version's release collects them: its notes run from its own section
+down to the previous version. To release a version whose section is already
+written, fold the dated sections above it into it first: `make -C v2 release`
+refuses a version with dated sections above its own, which its notes would
+leave out.
+
 ## [0.1.0-pre.1] - 2026-11-17 · The first prerelease
 
 ### Install and updates
 
-- **A Mac app with everything inside** Drag Lazybox from the disk image to Applications, or brew install --cask AntoineToussaint/lazybox/lazybox-v2. It brings its Runner, the Claude worker, Node and Claude Code: you only sign in.
+- **A Mac app with everything inside** Download the disk image, open it and drag Lazybox to Applications. It brings its Runner, the Claude worker, Node and Claude Code: you only sign in.
 - **Agents keep working when the window is closed** The first launch sets up the Runner, a background service that starts when you log in. Quit Lazybox and your agents keep going.
 - **The lazybox command** Setup links lazybox and lazybox-v2 into your PATH with completions, no password needed. lazybox doctor checks the service, versions, agents' sign-in and your PATH, and names the fix.
 - **Updates you choose** The header says when a version is out and what changed. Install and restart moves the app and its Runner together without stopping agents; skip a version or be reminded later.

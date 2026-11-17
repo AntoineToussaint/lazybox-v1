@@ -13,7 +13,7 @@ export const releaseNotes: readonly Release[] = [
     date: '2026-11-17',
     title: 'The first prerelease',
     items: [
-      { group: 'Install and updates', title: 'A Mac app with everything inside', body: 'Drag Lazybox from the disk image to Applications, or brew install --cask AntoineToussaint/lazybox/lazybox-v2. It brings its Runner, the Claude worker, Node and Claude Code: you only sign in.' },
+      { group: 'Install and updates', title: 'A Mac app with everything inside', body: 'Download the disk image, open it and drag Lazybox to Applications. It brings its Runner, the Claude worker, Node and Claude Code: you only sign in.' },
       { group: 'Install and updates', title: 'Agents keep working when the window is closed', body: 'The first launch sets up the Runner, a background service that starts when you log in. Quit Lazybox and your agents keep going.' },
       { group: 'Install and updates', title: 'The lazybox command', body: 'Setup links lazybox and lazybox-v2 into your PATH with completions, no password needed. lazybox doctor checks the service, versions, agents\' sign-in and your PATH, and names the fix.' },
       { group: 'Install and updates', title: 'Updates you choose', body: 'The header says when a version is out and what changed. Install and restart moves the app and its Runner together without stopping agents; skip a version or be reminded later.' },

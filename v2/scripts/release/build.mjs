@@ -26,7 +26,7 @@ import { createReadStream } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile, readdir, stat, chmod, rename, access } from 'node:fs/promises';
 import { resolve, dirname, join, relative, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readChangelog, releaseBody, updaterNotes, updaterReleases, versionPattern, renderReleaseNotes, releaseNotesPath } from './changelog.mjs';
+import { readChangelog, releaseBody, updaterNotes, updaterReleases, versionPattern, renderReleaseNotes, releaseNotesPath, unfoldedAbove } from './changelog.mjs';
 import { productionPackages } from './packages.mjs';
 import { writeNotices, NOTICES_FILE } from './notices.mjs';
 
@@ -312,6 +312,8 @@ async function main() {
   const noteVersion = releases.some(r => r.id === version) ? version : prerelease ? releases.find(r => versionPattern.test(r.id))?.id : undefined;
   if (!noteVersion) throw new Error(`CHANGELOG.md has no section for ${version}; add "## [${version}] - YYYY-MM-DD · Title" at the top, then run node scripts/release/changelog.mjs --write`);
   if (noteVersion !== version) console.log(`  ${version} is a test version: using the notes of ${noteVersion}.`);
+  const unfolded = noteVersion === version ? unfoldedAbove(releases, version) : [];
+  if (unfolded.length) throw new Error(`CHANGELOG.md has dated sections above ${version}'s (${unfolded.join(', ')}), which its release notes would leave out: fold them into its section, then node scripts/release/changelog.mjs --write`);
 
   const key = await updaterKey(options.publishable);
 

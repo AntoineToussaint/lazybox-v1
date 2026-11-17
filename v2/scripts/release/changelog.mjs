@@ -122,8 +122,21 @@ export function releaseBody(releases, version, { unsigned = false } = {}) {
       out.push('');
     }
   });
-  out.push(`Install: download the disk image below and drag Lazybox to Applications, or \`brew install --cask AntoineToussaint/lazybox/lazybox-v2\`. Already installed? Lazybox offers the update and installs it only when you choose to (Settings → Updates). Full instructions: [the install guide](${installGuide}).`);
+  // No Homebrew line: the workflow publishes the cask only for a release
+  // without a prerelease suffix, so the notes do not promise it.
+  out.push(`Install: download the disk image below, open it and drag Lazybox to Applications. Already installed? Lazybox offers the update and installs it only when you choose to (Settings → Updates). Full instructions: [the install guide](${installGuide}).`);
   return out.join('\n') + '\n';
+}
+
+/**
+ * The dated sections above a version's own: notes that reached Dev and
+ * Working after its section was written. Its release notes start at its
+ * section, so they would leave these out; the build refuses until they are
+ * folded in (or released as a later version, whose notes collect them).
+ */
+export function unfoldedAbove(releases, version) {
+  const at = releases.findIndex(r => r.id === version);
+  return at > 0 ? releases.slice(0, at).filter(r => !versionPattern.test(r.id)).map(r => r.id) : [];
 }
 
 /** A section's items in order, as [group, items] runs ('' when ungrouped). */
