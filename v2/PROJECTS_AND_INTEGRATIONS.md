@@ -1,6 +1,6 @@
 # Projects, work items and integrations
 
-**Status: proposal (2026-11-17), not implemented.** It answers three requests:
+**Status: accepted 2026-11-17; phase 2 (PR tracking) in progress.** It answers three requests:
 
 1. "I often create a workspace from the same set of repositories. Can I save that
    set and start it again and again, save a workspace as one, and edit it?"
@@ -498,14 +498,9 @@ rpc ImportPullRequestReview(PullRequestRequest) returns (WorkspaceReview);
 
 Phases 1 and 2 do not depend on each other and can run in parallel. Phase 3 needs phase 2's model.
 
-## Decisions to make
+## Decisions (user, 2026-11-17)
 
-1. **The name: *Project* or *Template*.** Recommended: *Project*, with workspaces
-   grouped under it in the sidebar.
-2. **The provider runtime: JavaScript in the Runner (A) or any program over stdio
-   (B) first.** Recommended: A, with B kept as a later trusted-local option.
-3. **Automatic reactions: off by default, one click from the Inbox.** Recommended,
-   with per-project opt-in.
-4. **Order: is Linear what you use daily?** If so, phase 3 can follow phase 2
-   immediately, or use a built-in Linear provider for a few weeks before the
-   extension API is ready.
+1. **The name is *Project*.** Workspaces are grouped under their project in the sidebar.
+2. **Providers are TypeScript run in the Runner** (option A). Option B, an `exec:` provider, stays a later option for trusted local code.
+3. **Automatic reactions are off by default.** Reactions are one click from the Inbox; automation is a per-project opt-in.
+4. **PR tracking comes first.** Phase 2 (GitHub items and PRs) starts before phase 1 (projects) and before Linear.
