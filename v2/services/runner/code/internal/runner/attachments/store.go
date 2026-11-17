@@ -151,8 +151,13 @@ func (s *Store) Delete(session string) error {
 	return nil
 }
 
-// ErrNotPreviewable is a retained file that is not an image a browser displays.
-var ErrNotPreviewable = errors.New("only PNG, JPEG, GIF and WebP attachments can be previewed")
+// ErrNotPreviewable is a retained file that is neither an image a browser
+// displays nor text.
+var ErrNotPreviewable = errors.New("only PNG, JPEG, GIF and WebP images and text attachments can be previewed")
+
+// TextMediaType is the type a previewed text file is served as, whatever its
+// bytes resemble (HTML, SVG): a client shows it as text, never renders it.
+const TextMediaType = "text/plain; charset=utf-8"
 
 // ErrNotAttachment is a path that is not one this store retained.
 var ErrNotAttachment = errors.New("not a retained message attachment")
@@ -171,14 +176,15 @@ func Previewable(mediaType string) bool {
 	return false
 }
 
-// ReadImage returns a retained attachment's bytes for display, when path is
+// Read returns a retained attachment's bytes for display, when path is
 // exactly one Put made (root/<execution>/<sha256>/<name>), nothing on the way
 // links out of the store, the file is a regular file of at most MaxFileBytes
 // whose content still has that digest, and the bytes are an image a browser
-// displays. The media type is detected from the bytes, never taken from the
-// sender. Retention bookkeeping is not consulted, so attachments sent before
+// displays or text (pasted text, a source file: valid UTF-8 without NUL). The
+// media type is detected from the bytes, never taken from the sender, and
+// text is always TextMediaType. Retention bookkeeping is not consulted, so attachments sent before
 // a Runner restart stay readable until their conversation is deleted.
-func (s *Store) ReadImage(path string) (agent.File, []byte, error) {
+func (s *Store) Read(path string) (agent.File, []byte, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return agent.File{}, nil, ErrNotAttachment
 	}
@@ -227,7 +233,11 @@ func (s *Store) ReadImage(path string) (agent.File, []byte, error) {
 		return agent.File{}, nil, errors.New("attachment changed on disk since it was sent")
 	}
 	mediaType := http.DetectContentType(data)
-	if !Previewable(mediaType) {
+	switch {
+	case Previewable(mediaType):
+	case agent.IsText(data):
+		mediaType = TextMediaType
+	default:
 		return agent.File{}, nil, ErrNotPreviewable
 	}
 	return agent.File{Name: parts[2], MediaType: mediaType, Path: path, Size: int64(len(data))}, data, nil

@@ -346,7 +346,7 @@ func TestDeviceScopeHoldsOverConnect(t *testing.T) {
 
 // A phone reading a conversation sees the images its messages carried, under
 // the same bounds as the owner: a retained message image, nothing else.
-func TestDeviceReadsSentImagesWithinTheStoresBounds(t *testing.T) {
+func TestDeviceReadsSentImagesAndTextWithinTheStoresBounds(t *testing.T) {
 	f := newDeviceFixture(t)
 	ctx := timeout(t)
 	execution, fake, _ := f.open(t)
@@ -355,7 +355,7 @@ func TestDeviceReadsSentImagesWithinTheStoresBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inputs := []*pb.FileAttachment{{Name: "screen.png", MediaType: "image/png", Data: pixel}, {Name: "notes.txt", MediaType: "text/plain", Data: []byte("plain")}}
+	inputs := []*pb.FileAttachment{{Name: "screen.png", MediaType: "image/png", Data: pixel}, {Name: "notes.txt", MediaType: "text/plain", Data: []byte("plain")}, {Name: "archive.bin", Data: []byte{0x1f, 0x8b, 0, 0xff}}}
 	if _, err = f.authorityFixture.client.Apply(bearer(ctx, ownerToken), &pb.ApplyRequest{SessionId: execution.ID, OperationId: "with-image", Operation: &pb.ApplyRequest_Message{Message: &pb.Message{Text: "look", Attachments: inputs}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +370,7 @@ func TestDeviceReadsSentImagesWithinTheStoresBounds(t *testing.T) {
 		var event agent.Event
 		if json.Unmarshal(record.Value, &event) == nil && event.Type == "operation_accepted" {
 			var data struct{ Files []agent.File }
-			if err := json.Unmarshal(event.Data, &data); err != nil || len(data.Files) != 2 {
+			if err := json.Unmarshal(event.Data, &data); err != nil || len(data.Files) != 3 {
 				t.Fatalf("accepted record lists no files: %s %v", event.Data, err)
 			}
 			files = data.Files
@@ -380,8 +380,12 @@ func TestDeviceReadsSentImagesWithinTheStoresBounds(t *testing.T) {
 	if err != nil || !bytes.Equal(got.Data, pixel) || got.MediaType != "image/png" {
 		t.Fatalf("phone cannot read the sent image: %v", err)
 	}
-	_, err = f.client.ReadAttachment(bearer(ctx, phone), &pb.ReadAttachmentRequest{Path: files[1].Path})
-	expectCode(t, "a text attachment served to a phone", err, codes.FailedPrecondition)
+	// A text box's preview is served as plain text, like the owner's; a binary file is not.
+	if got, err := f.client.ReadAttachment(bearer(ctx, phone), &pb.ReadAttachmentRequest{Path: files[1].Path}); err != nil || string(got.Data) != "plain" || got.MediaType != "text/plain; charset=utf-8" {
+		t.Fatalf("phone cannot read the sent text as plain text: %v", err)
+	}
+	_, err = f.client.ReadAttachment(bearer(ctx, phone), &pb.ReadAttachmentRequest{Path: files[2].Path})
+	expectCode(t, "a binary attachment served to a phone", err, codes.FailedPrecondition)
 	_, err = f.client.ReadAttachment(bearer(ctx, phone), &pb.ReadAttachmentRequest{Path: filepath.Join(filepath.Dir(files[0].Path), "..", "..", "..", "..", "devices.json")})
 	expectCode(t, "a path outside the attachment store", err, codes.InvalidArgument)
 }

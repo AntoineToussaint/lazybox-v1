@@ -316,11 +316,12 @@ type RunnerServiceClient interface {
 	SetSessionRotation(ctx context.Context, in *SetSessionRotationRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	GetSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	Apply(ctx context.Context, in *ApplyRequest, opts ...grpc.CallOption) (*Receipt, error)
-	// The bytes of an image a sent message carried, so the
+	// The bytes of an image or a text file a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
-	// and a paired phone reading conversations (REMOTE.md); never an agent.
+	// type a browser displays (PNG, JPEG, GIF, WebP) or text (valid UTF-8, no
+	// NUL; always served as text/plain), at most 20 MiB. The owner, and a
+	// paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(ctx context.Context, in *ReadAttachmentRequest, opts ...grpc.CallOption) (*AttachmentContent, error)
 	CloseSession(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	StopSessionResources(ctx context.Context, in *SessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
@@ -2750,11 +2751,12 @@ type RunnerServiceServer interface {
 	SetSessionRotation(context.Context, *SetSessionRotationRequest) (*SessionResponse, error)
 	GetSession(context.Context, *SessionRequest) (*SessionResponse, error)
 	Apply(context.Context, *ApplyRequest) (*Receipt, error)
-	// The bytes of an image a sent message carried, so the
+	// The bytes of an image or a text file a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
-	// and a paired phone reading conversations (REMOTE.md); never an agent.
+	// type a browser displays (PNG, JPEG, GIF, WebP) or text (valid UTF-8, no
+	// NUL; always served as text/plain), at most 20 MiB. The owner, and a
+	// paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(context.Context, *ReadAttachmentRequest) (*AttachmentContent, error)
 	CloseSession(context.Context, *SessionRequest) (*SessionResponse, error)
 	StopSessionResources(context.Context, *SessionRequest) (*SessionResponse, error)

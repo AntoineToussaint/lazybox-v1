@@ -707,11 +707,12 @@ type RunnerServiceClient interface {
 	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
-	// The bytes of an image a sent message carried, so the
+	// The bytes of an image or a text file a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
-	// and a paired phone reading conversations (REMOTE.md); never an agent.
+	// type a browser displays (PNG, JPEG, GIF, WebP) or text (valid UTF-8, no
+	// NUL; always served as text/plain), at most 20 MiB. The owner, and a
+	// paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -3483,11 +3484,12 @@ type RunnerServiceHandler interface {
 	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
-	// The bytes of an image a sent message carried, so the
+	// The bytes of an image or a text file a sent message carried, so the
 	// conversation can show it: only a file the Runner retained as a message
 	// attachment (the path an operation_accepted record lists), only an image
-	// type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
-	// and a paired phone reading conversations (REMOTE.md); never an agent.
+	// type a browser displays (PNG, JPEG, GIF, WebP) or text (valid UTF-8, no
+	// NUL; always served as text/plain), at most 20 MiB. The owner, and a
+	// paired phone reading conversations (REMOTE.md); never an agent.
 	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)

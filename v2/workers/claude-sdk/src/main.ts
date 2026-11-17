@@ -13,6 +13,7 @@ import { alwaysChoices, covers, decide, offered, type Grant } from './permission
 import { browserServer, browserServerName } from './browser.js';
 import { generateTitle } from './title.js';
 import { ModelSwitch } from './model.js';
+import { messageContent } from './content.js';
 
 type Request = { id?: string; method?: string; params?: any; result?: any; error?: any };
 let session: Query | undefined;
@@ -97,7 +98,7 @@ async function open(options: any) {
   void session.initializationResult().then(init => sayCatalog(catalog.fromInitialize(init))).catch(() => { /* Each turn's init message still names the commands. */ });
   // Operations added after the original protocol. A running worker outlives
   // Runner upgrades, so the Runner asks this worker rather than assuming.
-  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model', 'title'] };
+  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model', 'title', 'parts'] };
 }
 
 async function receive(q: Query) {
@@ -144,11 +145,7 @@ async function handle(request: Request) {
     if (!session) throw new Error('session not opened');
     switch (request.method) {
       case 'message': {
-        const content: any[] = [];
-        // An instruction update from Lazybox goes ahead of the user's text, as its own block.
-        if (p.context) content.push({ type: 'text', text: p.context });
-        if (p.text) content.push({ type: 'text', text: p.text });
-        for (const image of p.images || []) content.push({ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } });
+        const content = messageContent(p);
         messages.push({ type: 'user', uuid: randomUUID(), session_id: reference, message: { role: 'user', content }, parent_tool_use_id: null });
         models.turnStarted();
         inputWake?.(); inputWake = undefined;

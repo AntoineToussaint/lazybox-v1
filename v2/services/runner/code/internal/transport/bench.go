@@ -337,11 +337,16 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 		if err != nil {
 			return err
 		}
+		// How each file reaches the agent, the same rule for every provider
+		// (agent.Delivery): an image it can see as an image, text as its text,
+		// anything else by reference to the retained file.
 		for i, file := range op.Files {
 			media := http.DetectContentType(inputs[i].Data)
-			if state.Capabilities.Images && len(op.Images) < 4 && file.Size <= 6<<20 && media == file.MediaType && (media == "image/png" || media == "image/jpeg" || media == "image/webp" || media == "image/gif") {
+			image := state.Capabilities.Images && len(op.Images) < 4 && file.Size <= 6<<20 && media == file.MediaType && attachments.Previewable(media)
+			if image {
 				op.Images = append(op.Images, agent.Image{MediaType: media, Data: base64.StdEncoding.EncodeToString(inputs[i].Data)})
 			}
+			op.Files[i].Delivery = agent.Delivery(inputs[i].Data, image)
 		}
 		return nil
 	}

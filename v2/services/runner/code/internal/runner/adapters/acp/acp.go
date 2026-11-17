@@ -468,15 +468,50 @@ func (s *session) prompt(op agent.Operation, context string) []any {
 	for _, note := range s.state.Notes {
 		blocks = append(blocks, textBlock(note))
 	}
-	if text := agent.Prompt(op); text != "" {
-		blocks = append(blocks, textBlock(text))
-	}
-	if s.state.Agent.Image {
-		for _, img := range op.Images {
-			blocks = append(blocks, map[string]any{"type": "image", "mimeType": img.MediaType, "data": img.Data})
+	// The person's text, then each attachment in order: an image block (the
+	// Runner sends images natively only to an agent that takes them), a
+	// file's text as an embedded resource where the agent takes embedded
+	// context and a fenced text block where it does not, and any other file as
+	// a resource link, which every ACP agent accepts.
+	for _, part := range agent.Parts(op) {
+		switch part.Kind {
+		case agent.PartText:
+			blocks = append(blocks, textBlock(part.Text))
+		case agent.PartImage:
+			if s.state.Agent.Image {
+				blocks = append(blocks, map[string]any{"type": "image", "mimeType": part.Image.MediaType, "data": part.Image.Data})
+			} else if part.File != nil {
+				blocks = append(blocks, resourceLink(*part.File))
+			}
+		case agent.PartFileText:
+			if s.state.Agent.Embedded {
+				blocks = append(blocks, map[string]any{"type": "resource", "resource": map[string]any{"uri": agent.FileURI(part.File.Path), "mimeType": textMediaType(part.File.MediaType), "text": part.Text}})
+			} else {
+				blocks = append(blocks, textBlock(agent.Inline(*part.File, part.Text)))
+			}
+		case agent.PartFileReference:
+			blocks = append(blocks, resourceLink(*part.File))
 		}
 	}
 	return blocks
+}
+
+// resourceLink is an attached file the agent reads itself (the path is also
+// readable through fs/read_text_file: Apply adds it to Readable).
+func resourceLink(f agent.File) map[string]any {
+	link := map[string]any{"type": "resource_link", "uri": agent.FileURI(f.Path), "name": f.Name, "size": f.Size}
+	if f.MediaType != "" {
+		link["mimeType"] = f.MediaType
+	}
+	return link
+}
+
+// textMediaType is a text resource's type: the file's own when it says text.
+func textMediaType(mediaType string) string {
+	if strings.HasPrefix(mediaType, "text/") || strings.HasSuffix(mediaType, "json") || strings.HasSuffix(mediaType, "xml") || strings.HasSuffix(mediaType, "yaml") {
+		return mediaType
+	}
+	return "text/plain"
 }
 
 func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, error) {

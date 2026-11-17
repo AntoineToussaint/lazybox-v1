@@ -317,16 +317,24 @@ type File struct {
 	MediaType string `json:"mediaType"`
 	Path      string `json:"path"`
 	Size      int64  `json:"size"`
+	// Delivery is how the file reached the agent (DeliverImage, DeliverText,
+	// DeliverFile), recorded with the message so every client can say so.
+	// Empty on a message an older Runner accepted.
+	Delivery string `json:"delivery,omitempty"`
 }
 
-// Prompt gives CLI agents provider-neutral references to generic files.
-// Images remain separate native image inputs for vision.
+// Prompt is a message as text, without reading any file: the person's text,
+// then a reference to each attached file. A replayed transcript (a portable
+// checkpoint) shows what was sent this way.
 func Prompt(op Operation) string {
-	if len(op.Files) == 0 {
-		return op.Text
+	out := []string{}
+	if op.Text != "" {
+		out = append(out, op.Text)
 	}
-	data, _ := json.Marshal(op.Files)
-	return op.Text + "\n\nAttached files available on this Runner (read as needed):\n" + string(data)
+	for _, f := range op.Files {
+		out = append(out, Reference(f))
+	}
+	return strings.Join(out, "\n\n")
 }
 
 type Event struct {

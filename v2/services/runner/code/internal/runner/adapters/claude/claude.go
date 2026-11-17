@@ -176,13 +176,15 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 		r.ID = op.ID
 		return r, err
 	}
-	wire := op
-	wire.Text = agent.Prompt(op)
-	wire.Files = nil
+	wire := message(op, s.has("parts"))
 	if op.Context != "" && !s.has("context") {
 		// A worker started before instruction updates existed ignores the
 		// field; put the update ahead of the text so it still reaches the agent.
-		wire.Text = op.Context + "\n\n" + wire.Text
+		if wire.Parts != nil {
+			wire.Parts = append([]wirePart{{Type: "text", Text: op.Context}}, wire.Parts...)
+		} else {
+			wire.Text = op.Context + "\n\n" + wire.Text
+		}
 		wire.Context = ""
 	}
 	result, err := s.p.Call(ctx, string(op.Kind), wire)
@@ -268,3 +270,48 @@ func (s *session) Close() error { return s.p.Close() }
 
 // HostID is the session host running the worker, or "" for a local pipe.
 func (s *session) HostID() string { return s.p.HostID() }
+
+// wireMessage is a message as the worker takes it. Parts is its content in
+// order (the worker makes one content block of each); a worker started
+// before parts existed reads Text and Images instead.
+type wireMessage struct {
+	agent.Operation
+	Parts []wirePart `json:"parts,omitempty"`
+}
+
+// wirePart is one Claude content block: text, or a base64 image.
+type wirePart struct {
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
+	Data      string `json:"data,omitempty"`
+}
+
+// message is op for the worker. Claude takes text and image blocks in a user
+// message: the person's text, then each attachment in order, an image as an
+// image block, a file's text as a fenced text block, and any other file as a
+// text block naming the retained path, which Claude opens with Read (it reads
+// PDFs page by page). Files never travel as paths of their own.
+func message(op agent.Operation, parts bool) wireMessage {
+	all := agent.Parts(op)
+	wire := wireMessage{Operation: op}
+	wire.Files = nil
+	if !parts {
+		wire.Text = agent.Flatten(all)
+		return wire
+	}
+	wire.Text, wire.Images = "", nil
+	for _, part := range all {
+		switch part.Kind {
+		case agent.PartText:
+			wire.Parts = append(wire.Parts, wirePart{Type: "text", Text: part.Text})
+		case agent.PartImage:
+			wire.Parts = append(wire.Parts, wirePart{Type: "image", MediaType: part.Image.MediaType, Data: part.Image.Data})
+		case agent.PartFileText:
+			wire.Parts = append(wire.Parts, wirePart{Type: "text", Text: agent.Inline(*part.File, part.Text)})
+		case agent.PartFileReference:
+			wire.Parts = append(wire.Parts, wirePart{Type: "text", Text: agent.Reference(*part.File)})
+		}
+	}
+	return wire
+}

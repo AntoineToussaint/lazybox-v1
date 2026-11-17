@@ -16,7 +16,7 @@ import (
 // The conversation shows a sent image from the path its operation_accepted
 // record lists; the owner may read it (and a paired phone, device_auth_test.go),
 // never an agent, and only an image.
-func TestReadAttachmentServesSentImagesNeverToAnAgent(t *testing.T) {
+func TestReadAttachmentServesSentImagesAndTextNeverToAnAgent(t *testing.T) {
 	f := newAuthorityFixture(t)
 	ctx := timeout(t)
 	execution, fake, agentCredential := f.open(t)
@@ -25,7 +25,7 @@ func TestReadAttachmentServesSentImagesNeverToAnAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := bearer(ctx, ownerToken)
-	inputs := []*pb.FileAttachment{{Name: "screen shot.png", MediaType: "image/png", Data: pixel}, {Name: "notes.txt", MediaType: "text/plain", Data: []byte("plain text")}}
+	inputs := []*pb.FileAttachment{{Name: "screen shot.png", MediaType: "image/png", Data: pixel}, {Name: "notes.txt", MediaType: "text/plain", Data: []byte("plain text")}, {Name: "archive.bin", Data: []byte{0x1f, 0x8b, 0, 0xff}}}
 	if _, err := f.client.Apply(owner, &pb.ApplyRequest{SessionId: execution.ID, OperationId: "with-image", Operation: &pb.ApplyRequest_Message{Message: &pb.Message{Text: "look", Attachments: inputs}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestReadAttachmentServesSentImagesNeverToAnAgent(t *testing.T) {
 		}
 		if event.Type == "operation_accepted" {
 			var data struct{ Files []agent.File }
-			if err := json.Unmarshal(event.Data, &data); err != nil || len(data.Files) != 2 {
+			if err := json.Unmarshal(event.Data, &data); err != nil || len(data.Files) != 3 {
 				t.Fatalf("accepted record lists no files: %s %v", event.Data, err)
 			}
 			files = data.Files
@@ -54,8 +54,16 @@ func TestReadAttachmentServesSentImagesNeverToAnAgent(t *testing.T) {
 	if err != nil || !bytes.Equal(got.Data, pixel) || got.MediaType != "image/png" || got.Name != "screen shot.png" {
 		t.Fatalf("owner cannot read the sent image: %v", err)
 	}
-	if _, err := f.client.ReadAttachment(owner, &pb.ReadAttachmentRequest{Path: files[1].Path}); status.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("a text attachment was served as an image: %v", err)
+	// How each reached the agent is on the record, for every client to show.
+	if files[0].Delivery != agent.DeliverImage || files[1].Delivery != agent.DeliverText || files[2].Delivery != agent.DeliverFile {
+		t.Fatalf("deliveries not recorded: %+v", files)
+	}
+	// Text is served for its preview, as plain text; a binary file is not.
+	if got, err := f.client.ReadAttachment(owner, &pb.ReadAttachmentRequest{Path: files[1].Path}); err != nil || string(got.Data) != "plain text" || got.MediaType != "text/plain; charset=utf-8" {
+		t.Fatalf("a text attachment was not served as text: %v", err)
+	}
+	if _, err := f.client.ReadAttachment(owner, &pb.ReadAttachmentRequest{Path: files[2].Path}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("a binary attachment was served for preview: %v", err)
 	}
 	for _, path := range []string{"", "relative.png", filepath.Join(filepath.Dir(files[0].Path), "..", "..", "..", "..", "state.json"), filepath.Dir(files[0].Path)} {
 		if _, err := f.client.ReadAttachment(owner, &pb.ReadAttachmentRequest{Path: path}); status.Code(err) != codes.InvalidArgument {

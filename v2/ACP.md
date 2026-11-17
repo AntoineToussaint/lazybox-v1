@@ -72,6 +72,7 @@ machine's installed agents never change a test's providers.
 | `session/new` (`cwd`, no MCP servers) | the conversation; `sessionId` is its reference |
 | `systemPrompt` (when the agent advertises it) | the conversation's context; otherwise the context is the first message's leading block |
 | `session/prompt` | a turn: `turn_started` before it is written, `turn_ended` when its reply arrives |
+| prompt content | the person's text, then each attachment in order: an `image` block (only when `promptCapabilities.image`), a text file or pasted text as an embedded `resource` (when `embeddedContext`, else a fenced `text` block), anything else as a `resource_link` |
 | stop reasons | `end_turn` → completed; `cancelled` → interrupted; `max_tokens`, `max_turn_requests` (budget), `refusal` → a failure, then the next message continues |
 | a JSON-RPC error on the prompt | a turn failure; `-32000` is `auth_required` with an account observation |
 | `agent_message_chunk` | `message_delta` (text; a resource link as a Markdown link) |

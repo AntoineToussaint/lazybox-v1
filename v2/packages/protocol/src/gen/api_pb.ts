@@ -17359,11 +17359,12 @@ export const RunnerService: GenService<{
     output: typeof ReceiptSchema;
   },
   /**
-   * The bytes of an image a sent message carried, so the
+   * The bytes of an image or a text file a sent message carried, so the
    * conversation can show it: only a file the Runner retained as a message
    * attachment (the path an operation_accepted record lists), only an image
-   * type a browser displays (PNG, JPEG, GIF, WebP), at most 20 MiB. The owner,
-   * and a paired phone reading conversations (REMOTE.md); never an agent.
+   * type a browser displays (PNG, JPEG, GIF, WebP) or text (valid UTF-8, no
+   * NUL; always served as text/plain), at most 20 MiB. The owner, and a
+   * paired phone reading conversations (REMOTE.md); never an agent.
    *
    * @generated from rpc lazybox.bench.v1.RunnerService.ReadAttachment
    */

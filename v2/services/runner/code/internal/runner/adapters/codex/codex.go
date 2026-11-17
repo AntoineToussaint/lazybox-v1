@@ -349,11 +349,20 @@ func inputs(op agent.Operation) []any {
 	if op.Context != "" {
 		items = append(items, map[string]any{"type": "text", "text": op.Context})
 	}
-	if text := agent.Prompt(op); text != "" {
-		items = append(items, map[string]any{"type": "text", "text": text})
-	}
-	for _, img := range op.Images {
-		items = append(items, map[string]any{"type": "image", "url": "data:" + img.MediaType + ";base64," + img.Data})
+	// The person's text, then each attachment in order. turn/start takes text
+	// and images: a file's text is a fenced text item, any other file a text
+	// item naming the retained path, which Codex reads in its sandbox.
+	for _, part := range agent.Parts(op) {
+		switch part.Kind {
+		case agent.PartText:
+			items = append(items, map[string]any{"type": "text", "text": part.Text})
+		case agent.PartImage:
+			items = append(items, map[string]any{"type": "image", "url": "data:" + part.Image.MediaType + ";base64," + part.Image.Data})
+		case agent.PartFileText:
+			items = append(items, map[string]any{"type": "text", "text": agent.Inline(*part.File, part.Text)})
+		case agent.PartFileReference:
+			items = append(items, map[string]any{"type": "text", "text": agent.Reference(*part.File)})
+		}
 	}
 	return items
 }
