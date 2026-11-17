@@ -21,7 +21,7 @@ import (
 
 // Missions live in <State>/work: one log per mission, and the Runner-wide
 // prompt log. They are local to this Runner (ORCHESTRATION.md decision 8: the
-// event envelope is what Lazybox offers the Obin Hub, not a second Hub).
+// event envelope is what Lazybox offers the external Hub, not a second Hub).
 func (b *Bench) openWork() error {
 	dir := filepath.Join(b.Config.State, "work")
 	store, err := work.Open(dir)

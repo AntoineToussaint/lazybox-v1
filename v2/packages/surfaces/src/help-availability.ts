@@ -105,7 +105,7 @@ export function reportFromProfiles(profiles: readonly Profile[], now = Date.now(
   return { providers, checkedAtUnixMillis: BigInt(now) } as unknown as ProviderAvailability;
 }
 
-/** "Help · using Claude (Obin Subscription)". */
+/** "Help · using Claude (Work subscription)". */
 export const usingLine = (choice: Pick<HelpChoice, 'agent' | 'name'>) => `using ${choice.agent} (${choice.name})`;
 
 /** What a provider needs before Ask Lazybox can use it, and the step that fixes it. */
