@@ -105,7 +105,10 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
   const launcher = useReviewLauncher(workspaceId, author);
   const reviewScope: ReviewScope = turnView ? { scope: 'turn', turn: turnView.turn } : { scope: 'changes', compare: compare === UNCOMMITTED ? ':uncommitted' : compare === START ? '' : compare };
   const turns = useTurnCheckpoints(api, sessionId, false, !!sessionId);
-  useRequestedTurn(workspaceId, request => { setCompare(turnCompare(request.sessionId, request.turn)); setSelection(undefined); });
+  // A new comparison starts empty: the old list is not shown under the new choice, and
+  // nothing is opened from it before the new list arrives.
+  const changeCompare = (value: string) => { if (value !== compare) { setRepos([]); setLoading(true); } setCompare(value); setSelection(undefined); };
+  useRequestedTurn(workspaceId, request => changeCompare(turnCompare(request.sessionId, request.turn)));
   useEffect(() => {
     if (!workspaceId) { setLoading(false); return; }
     const control = new AbortController(); let busy = false;
@@ -222,7 +225,7 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
     { label: 'Refresh changes', icon: 'refresh', run: refresh },
   ];
   return <section className="changes-panel" aria-label="Workspace changes" onKeyDown={keys} ref={setPanel}>
-    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={value => { setCompare(value); setSelection(undefined); }} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen && (!compact || pane === 'review')} onToggleTray={toggleTray} launcher={launcher} reviewScope={reviewScope}/>
+    <ChangesHeader summary={summary} compare={compare} repos={repos} onCompare={changeCompare} sessionId={sessionId} turns={[...turns.byNumber.values()]} onRefresh={refresh} pending={pending} trayOpen={trayOpen && (!compact || pane === 'review')} onToggleTray={toggleTray} launcher={launcher} reviewScope={reviewScope}/>
     {launcher.error && <p className="error review-start-error" role="alert"><span>{launcher.error}</span><button aria-label="Dismiss" onClick={() => launcher.setError('')}>×</button></p>}
     {turnView ? <TurnChangesView key={compare} sessionId={turnView.sessionId} turn={turnView.turn}/> : <>
     {error && <p className="error" role="alert">{error}</p>}

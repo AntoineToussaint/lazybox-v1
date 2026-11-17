@@ -47,10 +47,10 @@ export function moveToHunk(root: HTMLElement, step: 1 | -1): boolean {
   return true;
 }
 
-/** Keys typed in a text field, a composer, or with a modifier are not the diff's. */
+/** Keys typed in a text field, a composer, or with a modifier are not the diff's; nor are keys in the review tray or the commit / pull request area beside it. */
 export const diffKeyTarget = (event: { target: EventTarget | null; ctrlKey: boolean; metaKey: boolean; altKey: boolean; defaultPrevented: boolean }) => {
   const element = event.target as HTMLElement | null;
-  return !event.defaultPrevented && !event.ctrlKey && !event.metaKey && !event.altKey && !!element && !element.closest('input:not([type=checkbox]),textarea,select,[contenteditable=""],[contenteditable=true],.monaco-editor');
+  return !event.defaultPrevented && !event.ctrlKey && !event.metaKey && !event.altKey && !!element && !element.closest('input:not([type=checkbox]),textarea,select,[contenteditable=""],[contenteditable=true],.monaco-editor,.review-tray,.ship');
 };
 
 /** One file of the Changes list: committed on the branch, or uncommitted. */
