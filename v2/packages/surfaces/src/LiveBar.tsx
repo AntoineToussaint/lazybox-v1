@@ -17,6 +17,7 @@ import { openInBrowser, openInViewer } from './web-links';
 import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import { readPreference, writePreference } from './view-state';
+import { humanError } from './human-error';
 
 /** Whether the bar shows a command's latest lines: a choice that holds for every conversation until changed. */
 const OUTPUT_PREFERENCE = 'chat.live-output';
@@ -106,7 +107,7 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   // Pages and ports in the output open in the Web panel (⌘-click: the browser), files in the editor.
   const openFileRef = useRef(onOpenFile); openFileRef.current = onOpenFile;
   const tailActions = useMemo<LogActions>(() => ({
-    openLink: (url, browser) => { if (browser || !openInViewer(url)) void openInBrowser(url).catch(e => setError(`Could not open ${url}: ${String(e)}`)); },
+    openLink: (url, browser) => { if (browser || !openInViewer(url)) void openInBrowser(url).catch(e => setError(`Could not open ${url}: ${humanError(e)}`)); },
     openFile: onOpenFile ? (link, how) => openFileRef.current?.(link, how) : undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [!!onOpenFile]);
@@ -133,7 +134,7 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
     if (!managed) { onInterrupt(); return; }
     setStopping(managed.id); setError('');
     try { await api.cancelCommand({ commandId: managed.id }); }
-    catch (e) { setError(`Could not stop the command: ${String(e)}`); setStopping(''); }
+    catch (e) { setError(`Could not stop the command: ${humanError(e)}`); setStopping(''); }
   };
   // A `lazybox run` that will not end (a server, a watcher): its call returns now and it keeps running.
   const canMove = !!managed && offersBackground(managed, now - (changed.current.id === managed.id ? changed.current.at : now));
@@ -144,7 +145,7 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
       const status = await api.backgroundCommand({ commandId: managed.id });
       const port = status.ports[0] || managed.ports[0];
       setMoved(`Moved to the background${port ? ` · port ${port}` : ''}. ${sentence(agentLabel(session))} continues; stop it from the console or Processes.`);
-    } catch (e) { setError(`Could not move it to the background: ${String(e instanceof Error ? e.message : e).replace(/^\[\w+\]\s*/, '')}`); setMoving(''); }
+    } catch (e) { setError(`Could not move it to the background: ${humanError(e)}`); setMoving(''); }
   };
   // The agent's own shell step (not `lazybox run`) that may never end: only interrupting the turn ends the wait.
   const neverEnds = !managed && !!step && !isManagedCommandTool(step.name) && mayNeverEnd(detail.full, startedAt !== undefined ? now - startedAt : 0);

@@ -11,12 +11,14 @@ import { checkState, checksSummary, commitPaths, defaultCommitMessage, defaultPu
 import './pull-request.css';
 import type { ReviewLauncher } from './review-client';
 import { ReviewWithButton } from './ReviewLauncher';
+import { humanError } from './human-error';
 
 /** The PR loop for one workspace repository: commit, push, open a pull
  * request, follow its checks and reviews, send failures to the agent, merge.
  * Every write is an explicit click; the Runner owns Git and GitHub. */
 
-export const errorText = (error: unknown) => { const e = ConnectError.from(error); return e.rawMessage || String(error); };
+/** A failure in words (human-error.ts): the Runner's own, never the Connect wrapping. */
+export const errorText = humanError;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const submitOnModEnter = (submit: () => void) => (event: KeyboardEvent) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); submit(); } };
 /** Opens a modal with the caret at the end of its main field, ready to edit. */

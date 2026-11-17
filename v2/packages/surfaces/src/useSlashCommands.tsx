@@ -22,6 +22,7 @@ import { modelName } from './conversation-model';
 import { openUsage } from './TelemetryPanel';
 import { requestOrchestrate } from './OrchestratorBadge';
 import type { TranscriptMessage } from './transcript-model';
+import { humanError } from './human-error';
 
 /** What the chat lets its slash commands do; each is the same thing its menus and buttons do. */
 export type SlashActions = {
@@ -183,7 +184,7 @@ export function useSlashCommands(o: Options) {
         await api.apply({ sessionId: id, operationId: crypto.randomUUID(), operation: { case: 'model', value: { model } } });
         setRestart(undefined);
         if (current.busy) notice(`${label} from the next turn; this one finishes on the model it started with`);
-      } catch (e) { onError(String(e)); }
+      } catch (e) { onError(humanError(e)); }
       return;
     }
     if (!current.capabilities?.resume) { onError(`${latest.current.agentName} cannot change models during a conversation. Start a new conversation with ${label}.`); return; }
@@ -197,7 +198,7 @@ export function useSlashCommands(o: Options) {
       const result = await api.restartWithModel({ sessionId: latest.current.sessionID, model });
       if (!result.session) throw new Error('Runner did not return the restarted conversation');
       latest.current.actions.adopt(result.session);
-    } catch (e) { latest.current.onError(String(e)); }
+    } catch (e) { latest.current.onError(humanError(e)); }
   };
   const startTracking = async () => {
     const message = lastAgentMessage, current = latest.current.session;
@@ -234,7 +235,7 @@ export function useSlashCommands(o: Options) {
       }
       case 'subscription': actions.switchSubscription(); break;
       case 'compact': void actions.sendText(args ? `/compact ${args}` : '/compact'); break;
-      case 'clear': void actions.clear().catch(e => onError(String(e))); break;
+      case 'clear': void actions.clear().catch(e => onError(humanError(e))); break;
       case 'cost': case 'context':
         if (!openUsage(latest.current.sessionID, command.name)) notice('The usage of this conversation shows in its header');
         break;
@@ -260,7 +261,7 @@ export function useSlashCommands(o: Options) {
         if (!runAction(`activity.${value}`)) notice(`Already ${value[0].toUpperCase()}${value.slice(1)}`);
         break;
       }
-      case 'rename': void actions.rename(args).catch(e => onError(String(e))); break;
+      case 'rename': void actions.rename(args).catch(e => onError(humanError(e))); break;
       case 'help': runAction('shortcuts.open'); break;
     }
   };

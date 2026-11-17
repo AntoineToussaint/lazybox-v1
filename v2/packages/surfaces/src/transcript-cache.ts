@@ -3,6 +3,7 @@ import { foldTranscript, emptyTranscript, type Transcript } from './transcript-m
 import type { JournalEvent } from '@lazybox/protocol';
 import type { Session } from '@lazybox/protocol';
 import { INITIAL_MESSAGES } from './useChatScroll';
+import { humanError } from './human-error';
 
 /** Milliseconds between published batches while records stream in, and between progress reports of a replay. */
 const PUBLISH_INTERVAL=32,PROGRESS_INTERVAL=100;
@@ -54,7 +55,7 @@ export class ConversationReader {
   void follow((after,signal)=>this.api.watchEvents({sessionId:this.id,after,includePrevious:true,heartbeats:true},{signal}),controller.signal,
    event=>{if(!controller.signal.aborted)this.receive(event);},
    status=>{if(!controller.signal.aborted)this.status(status);},
-   error=>{if(!controller.signal.aborted){this.flush();this.publish({error:error.message,loading:false});}},this.snapshot.cursor);
+   error=>{if(!controller.signal.aborted){this.flush();this.publish({error:humanError(error),loading:false});}},this.snapshot.cursor);
  }
  // A long conversation's whole replay took the Runner and the window most of
  // a second before anything was shown. Opening one now shows its latest turns
@@ -75,7 +76,7 @@ export class ConversationReader {
   // (which retries on its own) is how the conversation opens.
   catch{tail=undefined;}
   if(controller.signal.aborted)return;
-  if(tail&&!contiguous(tail.events,tail.start)){this.publish({error:GAP,loading:false});return;}
+  if(tail&&!contiguous(tail.events,tail.start)){this.publish({error:humanError(GAP),loading:false});return;}
   if(tail&&tail.events.length&&tail.start>1n){
    this.since=[...tail.events];
    this.earlier={before:tail.start,pages:[]};
@@ -97,13 +98,13 @@ export class ConversationReader {
    catch(error){
     if(signal.aborted)return;
     const failure=ConnectError.from(error);
-    if(FINAL.includes(failure.code)){this.flush();this.publish({error:failure.message,loading:false});return;}
+    if(FINAL.includes(failure.code)){this.flush();this.publish({error:humanError(failure),loading:false});return;}
     // The Runner restarting or out of reach: read the page again shortly.
     await pause(1000,signal);if(signal.aborted)return;continue;
    }
    if(signal.aborted)return;
    const events=page.events;
-   if(!events.length||page.start>=earlier.before||!contiguous(events,page.start)||events.at(-1)!.cursor!==earlier.before-1n){this.flush();this.publish({error:GAP,loading:false});return;}
+   if(!events.length||page.start>=earlier.before||!contiguous(events,page.start)||events.at(-1)!.cursor!==earlier.before-1n){this.flush();this.publish({error:humanError(GAP),loading:false});return;}
    earlier.pages.unshift(events);earlier.before=page.start;
   }
   // Fold from the first record a page at a time, yielding between pages so

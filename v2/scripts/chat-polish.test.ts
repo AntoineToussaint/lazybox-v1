@@ -1,6 +1,8 @@
 import { create } from '@bufbuild/protobuf';
 import { CollectionSchema, JournalEventSchema, SessionSchema, type JournalEvent, type Session } from '@lazybox/protocol';
 import { test } from 'node:test';
+import { Code, ConnectError } from '@lazybox/client-core';
+import { humanError, streamLabel } from '../packages/surfaces/src/human-error.ts';
 import assert from 'node:assert/strict';
 import { elapsedLabel, liveStatus, phaseFromEvents } from '../packages/surfaces/src/live-status.ts';
 import { awaitingFirstMessage, sessionStatus } from '../packages/surfaces/src/agent-status.ts';
@@ -134,4 +136,16 @@ test('tools read as words, MCP tools included', async () => {
   assert.equal(toolLabel('Task'), 'Running a sub-agent');
   assert.equal(toolLabel('mcp__github__create_issue'), 'Using github · create issue');
   assert.equal(toolLabel('custom_tool'), 'Using custom tool');
+});
+
+// Raw Connect errors (`ConnectError: [failed_precondition] no active turn`) were shown as they came.
+test('errors read as sentences: the Runner\'s words without the Connect wrapping, plain words for the developer ones', () => {
+  assert.equal(humanError(new ConnectError('the review is already running', Code.FailedPrecondition)), 'the review is already running');
+  assert.equal(humanError(new ConnectError('no active turn', Code.FailedPrecondition)), 'The agent is not working on anything: there is nothing to stop.');
+  assert.match(humanError('Replay gap: retained cursor is not contiguous'), /history is missing/);
+  assert.match(humanError(new ConnectError('Runner unreachable: Failed to fetch', Code.Unavailable)), /Runner is not answering/);
+  assert.equal(humanError(new Error('Runner did not return the resumed conversation')), 'Runner did not return the resumed conversation');
+  assert.doesNotMatch(humanError(new ConnectError('boom', Code.Internal)), /ConnectError|\[internal\]/);
+  assert.equal(streamLabel('Disconnected: ConnectError: [unavailable] Runner unreachable'), 'Reconnecting…');
+  assert.equal(streamLabel('ConnectError: [not_found] execution is no longer available'), 'Not connected');
 });

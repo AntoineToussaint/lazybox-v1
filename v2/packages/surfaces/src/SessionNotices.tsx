@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Session } from '@lazybox/protocol';
 import { LiveIndicator } from './LiveIndicator';
 import type { LiveStatus } from './live-status';
+import { humanError } from './human-error';
 
 /** A saved conversation: continue it by sending, or resume it explicitly when it needs recovery first. */
 export function ResumeBar({ session, canResumeOnSend, onResume, onError }: {
@@ -16,7 +17,7 @@ export function ResumeBar({ session, canResumeOnSend, onResume, onError }: {
   const resume = async () => {
     if (resuming) return; setResuming(true); onError('');
     try { if (await onResume(processesStopped)) setProcessesStopped(false); }
-    catch (error) { onError(String(error)); } finally { setResuming(false); }
+    catch (error) { onError(humanError(error)); } finally { setResuming(false); }
   };
   return <div className="resume-bar">
     <span>{'Saved conversation'}</span>

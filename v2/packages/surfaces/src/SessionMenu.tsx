@@ -9,6 +9,7 @@ import { showMenuNotice } from './ContextMenu';
 import { requestRename } from './ConversationTitle';
 import { conversationHandoffItems, useHandoffMenus } from './handoff';
 import { useRunner } from './RunnerContext';
+import { streamLabel } from './human-error';
 
 /** The model picker: the same choices and switch as `/model` (useSlashCommands.tsx). */
 export type ModelChoices = { choices: SlashChoice[]; live: boolean; disabled?: string; choose(value: string): void; /** Any model id: `/model ` in the message box. */ pick(): void };
@@ -98,7 +99,7 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
   const { api, info } = useRunner();
   const handoff = conversationHandoffItems(api, session, info);
   return <ActionMenu className="session-menu" label="Session actions">
-    <strong>Session{live ? '' : <span className="session-connection" role="status"><span aria-hidden="true"/>{stream}</span>}</strong>
+    <strong>Session{live ? '' : <span className="session-connection" role="status"><span aria-hidden="true"/>{streamLabel(stream)}</span>}</strong>
     <dl className="session-facts">
       <div><dt>Subscription</dt><dd>{accountName}</dd></div>
       <div><dt>Gateway</dt><dd>{session?.gatewayId || 'direct'}</dd></div>

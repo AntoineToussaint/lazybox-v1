@@ -10,6 +10,7 @@ import { CardHead, editable, Kbd, useChatKeys, useInitialFocus, type RequestPosi
 import { RepositoryRequestCard } from './RepositoryRequestCard';
 import { BrowserRequestCard } from './BrowserRequestCard';
 import './requests.css';
+import { humanError } from './human-error';
 
 /**
  * The agent's questions and approvals, answered in place, at least as well as
@@ -65,7 +66,7 @@ function ApprovalCard({ request, api, session, onError, root = '', position, age
     if (sent.current) return;
     sent.current = true; setWaiting(true);
     try { await api.apply({ sessionId: session, operationId: crypto.randomUUID(), operation: { case: 'approval', value: { requestId: request.requestId, decision, always: extra.always || '', reason: extra.reason || '' } } }); }
-    catch (e) { onError(String(e)); setWaiting(false); sent.current = false; }
+    catch (e) { onError(humanError(e)); setWaiting(false); sent.current = false; }
   };
   const activate = (row: Row) => {
     if (waiting) return;
@@ -153,7 +154,7 @@ function QuestionCard({ request, api, session, onError, position }: RequestCardP
     if (!complete || sent.current) return;
     sent.current = true; setWaiting(true);
     try { await api.apply({ sessionId: session, operationId: crypto.randomUUID(), operation: { case: 'answer', value: { requestId: request.requestId, answers: Object.fromEntries(questions.map(q => [q.key, { values: answerValues(q, answers[q.key]) }])) } } }); answerDrafts.delete(request.requestId); }
-    catch (e) { onError(String(e)); setWaiting(false); sent.current = false; }
+    catch (e) { onError(humanError(e)); setWaiting(false); sent.current = false; }
   };
   const update = (q: Question, change: (a: Answer) => Answer) => setAnswers(all => ({ ...all, [q.key]: change(all[q.key] || empty) }));
   /** Picks option `index` (options.length is "Other…"); true when that answers the question. */

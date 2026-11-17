@@ -4,6 +4,7 @@ import type { Session } from '@lazybox/protocol';
 import type { branchSummary } from './conversation-model';
 import { Icon } from './Icons';
 import { showMenuNotice } from './ContextMenu';
+import { humanError } from './human-error';
 
 type Branch = ReturnType<typeof branchSummary>;
 
@@ -57,7 +58,7 @@ export function ConversationTitle({ api, session, sessionID, realTitle, suggeste
     if (title === session?.title) { setRenaming(false); return; }
     setSavingName(true);
     try { const result = await api.renameConversation({ sessionId: sessionID, title }); onRenamed(result.session); setRenaming(false); }
-    catch (error) { onError(String(error)); } finally { setSavingName(false); }
+    catch (error) { onError(humanError(error)); } finally { setSavingName(false); }
   };
   const showFirstMessage = () => {
     const anchor = titleButton.current?.getBoundingClientRect(), panel = popover.current;
