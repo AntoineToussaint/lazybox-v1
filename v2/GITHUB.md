@@ -179,7 +179,9 @@ scoped credential is denied, like every RPC off its allowlist).
   (`GIT_CONFIG_COUNT`), exactly as clone does: never in arguments, the remote
   URL, Git config, a credential helper or an error (stderr is redacted). The
   person's global and system Git config are left out of that push so a
-  credential helper or URL rewrite cannot capture or redirect it. An SSH or
+  credential helper or URL rewrite cannot capture or redirect it, and it runs
+  no hook (`core.hooksPath=/dev/null`): a `pre-push` hook the repository or an
+  agent installed would inherit that environment. An SSH or
   non-GitHub origin is pushed with the person's own Git setup (SSH agent,
   `BatchMode`, no prompts) and never receives the GitHub credential. The
   repository's own config (hooks, `insteadOf`) still applies: whoever can edit

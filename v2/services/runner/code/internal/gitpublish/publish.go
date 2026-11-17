@@ -368,8 +368,10 @@ func (g Git) Push(ctx context.Context, root, token string) (Pushed, error) {
 		}
 		header := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
 		// The person's global and system config are left out so a credential
-		// helper or URL rewrite cannot capture or redirect the credential.
-		in.args = append([]string{"-c", "credential.helper=", "-c", "http.followRedirects=false"}, in.args...)
+		// helper or URL rewrite cannot capture or redirect the credential. No
+		// hook runs: a pre-push hook the repository (or an agent) installed
+		// would inherit the environment, and the credential with it.
+		in.args = append([]string{"-c", "credential.helper=", "-c", "http.followRedirects=false", "-c", "core.hooksPath=" + os.DevNull}, in.args...)
 		in.env = append(environment(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_ASKPASS=", "SSH_ASKPASS=", "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.https://github.com/.extraHeader", "GIT_CONFIG_VALUE_0="+header)
 		in.secrets = []string{token, base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))}
 	} else {
