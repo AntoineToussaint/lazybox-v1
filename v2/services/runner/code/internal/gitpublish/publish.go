@@ -44,6 +44,11 @@ type Tracking struct {
 	Branch   string
 	Upstream string // origin/<branch>, empty when never pushed
 	Ahead    int
+	// Published: the branch was pushed, as far as the repository knows: it
+	// has a remote-tracking ref, or an upstream on origin (`git push -u`
+	// records one). A workspace's bare source has no fetch refspec, so an
+	// agent's own push records only the upstream; Upstream stays empty.
+	Published bool
 }
 
 type Committed struct {
@@ -200,6 +205,12 @@ func (g Git) Track(ctx context.Context, root, base string) (Tracking, error) {
 	if _, err := read(ctx, root, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch); err == nil {
 		out.Upstream = "origin/" + branch
 		since = "refs/remotes/origin/" + branch
+	}
+	out.Published = out.Upstream != ""
+	if !out.Published {
+		remote, _ := read(ctx, root, "config", "--get", "branch."+branch+".remote")
+		merge, _ := read(ctx, root, "config", "--get", "branch."+branch+".merge")
+		out.Published = remote == "origin" && strings.HasPrefix(merge, "refs/heads/")
 	}
 	if since == "" || strings.HasPrefix(since, "-") {
 		return out, nil

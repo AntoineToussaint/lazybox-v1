@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -60,7 +62,7 @@ func (g GitHub) Refresh(ctx context.Context, list []Item, etags map[string]strin
 				if errors.Is(err, github.ErrUnauthorized) {
 					return err
 				}
-				out.Failed[item.Ref.ID()] = err
+				out.Failed[item.Ref.ID()] = readError(repository+"#"+itoa(number), err)
 				continue
 			}
 			if read.NotModified {
@@ -76,6 +78,19 @@ func (g GitHub) Refresh(ctx context.Context, list []Item, etags map[string]strin
 		return nil
 	})
 	return out, err
+}
+
+// readError names what could not be read, and says what GitHub's refusals
+// mean: a private repository answers 404 to a connection that cannot see it.
+func readError(what string, err error) error {
+	var status *github.HTTPError
+	switch {
+	case errors.As(err, &status) && status.Status == http.StatusNotFound:
+		return fmt.Errorf("GitHub cannot see %s with this connection (HTTP 404): give the token or the GitHub App access to the repository, and authorize it for the organization's SSO", what)
+	case errors.Is(err, github.ErrForbidden):
+		return fmt.Errorf("GitHub refused to read %s: check the connection's access to the repository (token permissions, the organization's SSO, the App's installation)", what)
+	}
+	return fmt.Errorf("could not read %s: %w", what, err)
 }
 
 func asGitHubLimit(err error) (*RateLimited, bool) {
@@ -100,7 +115,10 @@ func (g GitHub) PullRequestsFor(ctx context.Context, repository, branch, etag st
 			if limited, ok := asGitHubLimit(err); ok {
 				return limited
 			}
-			return err
+			if errors.Is(err, github.ErrUnauthorized) {
+				return err
+			}
+			return readError("the pull requests of "+repository+" "+branch, err)
 		}
 		newTag, same = tag, notModified
 		for _, pr := range list {

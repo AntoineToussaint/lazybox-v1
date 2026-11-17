@@ -58,7 +58,7 @@ func (s *Service) links(workspace string, all bool) (*pb.Links, error) {
 	for _, ev := range store.Events(scope, linkEventsListed) {
 		out.Events = append(out.Events, wireItemEvent(ev))
 	}
-	every, reason := s.Bench.ItemTrackingStatus()
+	every, reason := s.Bench.ItemTrackingStatus(scope)
 	out.PollSeconds, out.TrackingError = uint32(every.Seconds()), reason
 	return out, nil
 }

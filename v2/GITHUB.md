@@ -222,9 +222,9 @@ summaries read their pull request from the store (`BranchPullRequest`), so
 | Detector | How | Role |
 | --- | --- | --- |
 | Person | The PR loop's **Create PR** (and any read of the branch's pull request) | delivers |
-| Branch | Each branch the sidebar's summaries or the background pass (every minute) see a repository on; a pushed one is asked about (`head=owner:branch`, conditional) until a week after it was last seen. An open pull request is linked; a closed one only if opened after the branch was first seen. | delivers |
-| Agent output | The engine hands every tool call and result to the Runner (`TurnHooks.Tool`). A call whose command opens a pull request (`gh pr create`, `hub pull-request`, `glab mr create`, a tool named `create_pull_request`) delivers the last pull request URL its output prints; `git push`'s hint (`/pull/new/branch`) is not a pull request. A finished `lazybox run` of such a command is read the same way. Any other GitHub pull request or issue URL in a tool's output is a mention (at most five per output, a hundred per workspace), never tracked or notified. | delivers / mentions |
-| Explicit | `lazybox link URL [--role]` with the agent's scoped credential (its own workspace and conversation only), or the owner's `LinkItem`. The briefing tells agents to run it when they open a pull request some other way. | delivers / mentions |
+| Branch | Each branch the sidebar's summaries or the background pass (every minute) see a repository on is asked about (`head=owner:branch`, conditional) until a week after it was last seen: at the open interval once known to be pushed (a remote-tracking ref, or the upstream `push -u` records), else every five minutes. A workspace's bare source has no fetch refspec, so an agent's own push leaves no remote-tracking ref, and a push without `-u` leaves nothing. An open pull request is linked; a closed one only if opened after the branch was first seen. | delivers |
+| Agent output | The engine hands every tool call and result to the Runner (`TurnHooks.Tool`). A call whose command opens a pull request (`gh pr create`, `hub pull-request`, `glab mr create`, a tool named `create_pull_request`) delivers the last pull request URL its output prints (the command is read from the call's decoded input, so one on its own line after a heredoc counts); `git push`'s hint (`/pull/new/branch`) is not a pull request. A finished `lazybox run` of such a command is read the same way. On start, the Runner reads the end of each live workspace conversation's journal (updated this week, its last 5,000 records) once for what such a command printed while no detector ran (before tracking existed, or while the Runner was down), and remembers how far it read. Any other GitHub pull request or issue URL in a tool's output is a mention (at most five per output, a hundred per workspace), never tracked or notified. | delivers / mentions |
+| Explicit | `lazybox link URL [--role]` with the agent's scoped credential (its own workspace and conversation only), or the owner's `LinkItem`. The briefing tells agents to run it when they open a pull request some other way. A URL (with or without `https://`), `--role` or `--workspace` makes `lazybox link` this verb, never the one that puts a release's CLI on PATH; in an agent, `lazybox link` alone asks for the URL. `lazybox items` lists the workspace's pull requests with their checks and review. | delivers / mentions |
 
 ### Tracking
 
@@ -241,8 +241,12 @@ commit statuses each carry their ETag (`If-None-Match`), and a 304 costs no
 rate limit. Reviews are read again only when the pull request changed
 (submitting a review changes it). A 403 or 429 rate limit pauses tracking
 until its reset (at least five minutes) and `ListLinks` says so; a revoked
-credential stops it until reconnected. Only linked, delivered items are
-polled.
+credential stops it until reconnected. Any other failed lookup or read is
+said too: `ListLinks.tracking_error` names what could not be read and why (a
+private repository answers 404 to a connection that cannot see it), for the
+workspace it concerns, until a read answers. The Pull requests panel shows it
+as one quiet line; `lazybox items` prints it on stderr. Only linked, delivered
+items are polled.
 
 ### Events
 

@@ -184,6 +184,14 @@ func (t boundedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	response.Body = io.NopCloser(bytes.NewReader(data))
 	return response, nil
 }
+
+// HTTPError is a GitHub answer with a status no other error names (a 404
+// among them: for a private repository, also what a connection that cannot
+// see it gets).
+type HTTPError struct{ Status int }
+
+func (e *HTTPError) Error() string { return fmt.Sprintf("GitHub request failed (HTTP %d)", e.Status) }
+
 func apiError(err error, response *sdk.Response) error {
 	if err == nil {
 		return nil
@@ -201,7 +209,7 @@ func apiError(err error, response *sdk.Response) error {
 		case 403, 429:
 			return ErrForbidden
 		default:
-			return fmt.Errorf("GitHub request failed (HTTP %d)", response.StatusCode)
+			return &HTTPError{Status: response.StatusCode}
 		}
 	}
 	return errors.New("GitHub request failed; check the connection and try again")

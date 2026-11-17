@@ -1,6 +1,7 @@
 package items
 
 import (
+	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
@@ -68,6 +69,34 @@ var creates = regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])(?:gh\s+pr\s+create|hub\s+
 // that opens a pull request.
 func CreatesPullRequest(command string) bool {
 	return creates.MatchString(command)
+}
+
+// ToolCommand is what a tool call runs, for CreatesPullRequest: its name and
+// the strings of its input, decoded. Matched as raw JSON, a command on its
+// own line after a heredoc follows the escape `\n` and goes unseen.
+func ToolCommand(name string, input []byte) string {
+	var value any
+	if json.Unmarshal(input, &value) != nil {
+		return name + " " + string(input)
+	}
+	parts := []string{name}
+	var walk func(any)
+	walk = func(v any) {
+		switch v := v.(type) {
+		case string:
+			parts = append(parts, v)
+		case []any:
+			for _, item := range v {
+				walk(item)
+			}
+		case map[string]any:
+			for _, item := range v {
+				walk(item)
+			}
+		}
+	}
+	walk(value)
+	return strings.Join(parts, "\n")
 }
 
 // Found is a URL in output, and whether the output's command created it.

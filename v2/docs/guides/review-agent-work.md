@@ -138,13 +138,20 @@ on whatever branch, and keeps it fresh while you do something else:
   create`: Lazybox reads the URL it prints. Other pull request or issue links
   in an agent's output are listed as **Mentioned**, never tracked;
 - one an agent links itself with `lazybox link URL` (agents are told to,
-  when they open one some other way).
+  when they open one some other way);
+- one an agent opened before you updated Lazybox, or while its Runner was
+  restarting: on start, Lazybox reads the recent end of each workspace
+  conversation once for what `gh pr create` printed.
+
+If Lazybox cannot read one (a private repository the GitHub connection cannot
+see answers 404), the Pull requests panel says so in one line, naming the
+repository.
 
 **Where you see them.**
 
 | Where | What |
 | --- | --- |
-| The header | A pill per open pull request of the workspace, most urgent first, each with its checks dot. The branch's own opens the PR loop in Changes; another opens it on GitHub. |
+| The header | A pill per open pull request of the workspace, most urgent first, each with its checks dot. One waiting on a required review says **review required**, its dot green once checks pass. The branch's own opens the PR loop in Changes, and its ↗ opens it on GitHub; another opens it on GitHub. |
 | The sidebar | One badge per workspace: its most urgent pull request (checks failed, then changes requested, then ready to merge), and `+N` for the rest. |
 | **Pull requests** (⌘K *Show pull requests*, or the panels menu) | Every tracked pull request: **Needs you**, **Waiting on others**, **Merged this week**, and **Mentioned** folded below. |
 | ⌘K | Type `!` to search pull requests; those that need you are listed first when the palette opens. |

@@ -103,6 +103,10 @@ func (b *Bench) openItems() error {
 	b.watchers.Add(1)
 	go func() {
 		defer b.watchers.Done()
+		// What agents opened while no detector ran (items_backfill.go).
+		ctx, cancel := context.WithTimeout(b.ctx, backfillTimeout)
+		b.BackfillItems(ctx)
+		cancel()
 		ticker := time.NewTicker(every)
 		defer ticker.Stop()
 		for {
@@ -148,16 +152,22 @@ func (b *Bench) itemsFocused(now time.Time) bool {
 }
 
 // ItemTrackingStatus is how often open pull requests are read now, and why
-// tracking cannot read the provider, if it cannot.
-func (b *Bench) ItemTrackingStatus() (time.Duration, string) {
+// tracking cannot read what a workspace delivers (every workspace's when
+// workspace is empty), if it cannot: the provider as a whole (not
+// connected, rate limited), else the last lookup or read of it that failed.
+func (b *Bench) ItemTrackingStatus(workspace string) (time.Duration, string) {
 	t := &b.workItems
+	now := time.Now()
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	reason := t.lastError
+	t.mu.Unlock()
 	if reason == "" && !b.githubTrackable() {
 		reason = connectForTracking
 	}
-	return workitems.Interval(b.itemsFocused(time.Now())), reason
+	if reason == "" && t.store != nil {
+		reason = t.store.Problem(workspace, now)
+	}
+	return workitems.Interval(b.itemsFocused(now)), reason
 }
 
 // SubscribeItemEvents calls fn with every transition (push notifications).
@@ -314,10 +324,13 @@ func (b *Bench) lookUpBranch(ctx context.Context, finder workitems.BranchFinder,
 	store := b.workItems.store
 	found, tag, same, err := finder.PullRequestsFor(ctx, branch.Repository, branch.Name, branch.ETag)
 	if err != nil {
-		_ = store.CheckedBranch(branch, "")
+		if _, limited := workitems.AsRateLimited(err); !limited && !errors.Is(err, github.ErrUnauthorized) && ctx.Err() == nil {
+			// Said in ListLinks until a lookup answers (Store.Problem).
+			_ = store.CheckedBranch(branch, "", err)
+		}
 		return err
 	}
-	_ = store.CheckedBranch(branch, tag)
+	_ = store.CheckedBranch(branch, tag, nil)
 	if same {
 		return nil
 	}
@@ -378,7 +391,7 @@ func (b *Bench) readWorktreeBranches(ctx context.Context) {
 			if err != nil || tracking.Branch == "" {
 				continue
 			}
-			b.SeeWorkspaceBranch(w.ID, m.Name, repository, tracking.Branch, tracking.Upstream != "", "")
+			b.SeeWorkspaceBranch(w.ID, m.Name, repository, tracking.Branch, tracking.Published, "")
 		}
 	}
 }
@@ -550,21 +563,15 @@ func (b *Bench) ObservePullRequestLoop(workspace, member, repository string, sta
 // requests it names (engine TurnHooks.Tool): a command that opens one
 // delivers the URL it printed; any other recognized URL is a mention.
 func (b *Bench) itemToolEvent(e *Execution, ev agent.Event) {
-	if b.workItems.store == nil || e.CollectionID == "" || len(ev.Data) == 0 {
+	if b.workItems.store == nil || e.CollectionID == "" {
 		return
 	}
-	var call struct {
-		ID     string          `json:"id"`
-		Name   string          `json:"name"`
-		Status string          `json:"status"`
-		Input  json.RawMessage `json:"input"`
-		Output json.RawMessage `json:"output"`
-	}
-	if json.Unmarshal(ev.Data, &call) != nil {
+	call, ok := toolCallOf(ev)
+	if !ok {
 		return
 	}
 	t := &b.workItems
-	creates := len(call.Input) > 0 && workitems.CreatesPullRequest(call.Name+" "+string(call.Input))
+	creates := call.creates()
 	key := ev.AgentID + "\x00" + call.ID
 	t.mu.Lock()
 	calls := t.tools[e.ID]
@@ -586,16 +593,43 @@ func (b *Bench) itemToolEvent(e *Execution, ev agent.Event) {
 	if len(call.Output) == 0 {
 		return
 	}
-	output := string(call.Output)
-	var text string
-	if json.Unmarshal(call.Output, &text) == nil {
-		output = text
-	}
 	// Linking reads the worktrees' origins and writes the store: off the
 	// engine's event path.
-	if found := workitems.Scan(output, creates); len(found) > 0 {
+	if found := workitems.Scan(call.output(), creates); len(found) > 0 {
 		go b.linkFound(e, found)
 	}
+}
+
+// toolCall is one tool event as the engine reports it: a call's input and
+// its result may come apart, under the same id.
+type toolCall struct {
+	ID     string          `json:"id"`
+	Name   string          `json:"name"`
+	Status string          `json:"status"`
+	Input  json.RawMessage `json:"input"`
+	Output json.RawMessage `json:"output"`
+}
+
+func toolCallOf(ev agent.Event) (toolCall, bool) {
+	var call toolCall
+	if len(ev.Data) == 0 || json.Unmarshal(ev.Data, &call) != nil {
+		return call, false
+	}
+	return call, true
+}
+
+// creates reports a call whose command opens a pull request.
+func (c toolCall) creates() bool {
+	return len(c.Input) > 0 && workitems.CreatesPullRequest(workitems.ToolCommand(c.Name, c.Input))
+}
+
+// output is the result's text (a JSON string decoded).
+func (c toolCall) output() string {
+	var text string
+	if json.Unmarshal(c.Output, &text) == nil {
+		return text
+	}
+	return string(c.Output)
 }
 
 func (b *Bench) linkFound(e *Execution, found []workitems.Found) {

@@ -24,6 +24,9 @@ const (
 	// branchesKept: the oldest branch sightings go first.
 	branchesKept = 2000
 	linksKept    = 5000
+	// backfilledKept bounds the conversation attempts whose journal read is
+	// remembered.
+	backfilledKept = 2000
 )
 
 // state is the file's content.
@@ -34,6 +37,9 @@ type state struct {
 	Tracking map[string]Tracking `json:"tracking,omitempty"`
 	Branches []Branch            `json:"branches,omitempty"`
 	Events   []Event             `json:"events,omitempty"`
+	// Backfilled is, per conversation attempt, the journal sequence read up
+	// to for pull requests opened while no detector ran (Runner start).
+	Backfilled map[string]uint64 `json:"backfilled,omitempty"`
 }
 
 // Tracking is how one item is kept fresh.
@@ -442,20 +448,84 @@ func (s *Store) Branches() []Branch {
 	return slices.Clone(s.s.Branches)
 }
 
-// CheckedBranch records a branch lookup and its validator.
-func (s *Store) CheckedBranch(b Branch, etag string) error {
+// CheckedBranch records a branch lookup and its validator, or why it failed
+// (cause): the next lookup backs off, and ListLinks says why.
+func (s *Store) CheckedBranch(b Branch, etag string, cause error) error {
 	now := s.Now()
 	return s.update(func(st *state) bool {
 		for i := range st.Branches {
-			if st.Branches[i].key() == b.key() {
-				st.Branches[i].CheckedAt = now
-				if etag != "" {
-					st.Branches[i].ETag = etag
-				}
+			if st.Branches[i].key() != b.key() {
+				continue
+			}
+			branch := &st.Branches[i]
+			branch.CheckedAt = now
+			if cause != nil {
+				branch.Failures++
+				branch.LastError = cause.Error()
 				return true
 			}
+			branch.Failures, branch.LastError = 0, ""
+			if etag != "" {
+				branch.ETag = etag
+			}
+			return true
 		}
 		return false
+	})
+}
+
+// Problem is why tracking could not read something of a workspace (of every
+// workspace when workspace is empty): the last failed lookup of a branch it
+// was on this week, else the last failed read of a pull request it
+// delivers. Empty when the last reads all answered.
+func (s *Store) Problem(workspace string, now time.Time) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := len(s.s.Branches) - 1; i >= 0; i-- {
+		b := s.s.Branches[i]
+		if b.LastError != "" && (workspace == "" || b.Workspace == workspace) && now.Sub(b.LastSeen) <= BranchFor {
+			return b.LastError
+		}
+	}
+	for _, l := range s.s.Links {
+		if l.Role == RoleMentions || l.Deleted || (workspace != "" && l.Workspace != workspace) {
+			continue
+		}
+		if t := s.s.Tracking[l.Ref.ID()]; t.LastError != "" {
+			return t.LastError
+		}
+	}
+	return ""
+}
+
+// Backfilled is the journal sequence a conversation attempt was read up to
+// for pull requests its agents opened (0 when never).
+func (s *Store) Backfilled(session string) uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.s.Backfilled[session]
+}
+
+// SetBackfilled records that a conversation attempt's journal was read up to
+// sequence. It never moves back.
+func (s *Store) SetBackfilled(session string, sequence uint64) error {
+	return s.update(func(st *state) bool {
+		if sequence <= st.Backfilled[session] {
+			return false
+		}
+		if st.Backfilled == nil {
+			st.Backfilled = map[string]uint64{}
+		}
+		if _, ok := st.Backfilled[session]; !ok && len(st.Backfilled) >= backfilledKept {
+			// Forget one: at worst its journal is read again, and linking
+			// is idempotent.
+			for id := range st.Backfilled {
+				delete(st.Backfilled, id)
+				break
+			}
+		}
+		st.Backfilled[session] = sequence
+		return true
 	})
 }
 

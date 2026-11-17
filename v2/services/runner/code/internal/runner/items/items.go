@@ -173,8 +173,12 @@ type Branch struct {
 	Member     string `json:"member"`
 	Repository string `json:"repository"`
 	Name       string `json:"name"`
-	// Pushed: the branch had an upstream when last seen; only a pushed branch
-	// can have a pull request worth asking about.
+	// Pushed: the branch was known to be pushed when last seen (a
+	// remote-tracking ref, or the upstream `git push -u` records). A pushed
+	// branch is asked about at once and at the open interval. One not known
+	// to be pushed is still asked about, less often: a workspace's bare
+	// source has no fetch refspec, so an agent's own push leaves no
+	// remote-tracking ref, and a push without -u leaves nothing at all.
 	Pushed    bool      `json:"pushed,omitempty"`
 	FirstSeen time.Time `json:"firstSeen"`
 	LastSeen  time.Time `json:"lastSeen"`
@@ -182,6 +186,10 @@ type Branch struct {
 	// ETag the validator of that answer.
 	CheckedAt time.Time `json:"checkedAt,omitzero"`
 	ETag      string    `json:"etag,omitempty"`
+	// Failures counts lookups in a row that failed (the next backs off);
+	// LastError says why the last one did, for ListLinks.
+	Failures  int    `json:"failures,omitempty"`
+	LastError string `json:"lastError,omitempty"`
 }
 
 func (b Branch) key() string {

@@ -2,6 +2,7 @@ package items
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -71,6 +72,29 @@ func TestDetectorsTellDeliveredFromMentioned(t *testing.T) {
 	}
 	if _, ok := ResolveGitHub("https://gitlab.com/acme/api/-/merge_requests/3"); ok {
 		t.Fatal("not a GitHub URL")
+	}
+}
+
+// What agents really run and print (obin-ai/platform#1121): the command
+// after a heredoc on its own line, the push's hint before the new URL, and
+// `lazybox run`'s view.
+func TestDetectorsReadRealPullRequestCreation(t *testing.T) {
+	input, _ := json.Marshal(map[string]any{"command": "cat > /tmp/pr-body.md <<'EOF'\n## Summary\nEOF\ngh pr create --repo obin-ai/platform --base main --title x --body-file /tmp/pr-body.md", "description": "Open the pull request"})
+	if !CreatesPullRequest(ToolCommand("Bash", input)) {
+		t.Fatal("gh pr create on its own line after a heredoc")
+	}
+	if CreatesPullRequest(ToolCommand("Bash", []byte(`{"command":"echo done\ngh pr view 5"}`))) {
+		t.Fatal("gh pr view")
+	}
+	for name, output := range map[string]string{
+		"push and create": "remote:      https://github.com/obin-ai/platform/pull/new/feature/strangely-handy-hyena        \nremote: \nhttps://github.com/obin-ai/platform/pull/1121",
+		"progress first":  "Warning: 1 uncommitted change\n\nCreating pull request for feature/strangely-handy-hyena into main in obin-ai/platform\n\nhttps://github.com/obin-ai/platform/pull/1121\n",
+		"lazybox run":     "[lazybox] gh pr create --repo obin-ai/platform --fill → exit 0 (2.3s)\nCreating pull request for feature/strangely-handy-hyena into main in obin-ai/platform\n\nhttps://github.com/obin-ai/platform/pull/1121\n",
+	} {
+		found := Scan(output, true)
+		if len(found) != 1 || found[0].Role != RoleDelivers || found[0].Ref.Key != "obin-ai/platform#1121" {
+			t.Errorf("%s: %+v", name, found)
+		}
 	}
 }
 
@@ -268,8 +292,27 @@ func TestScheduleFollowsFocusStateAndFailures(t *testing.T) {
 		t.Fatal("a pushed branch never asked about")
 	}
 	branch.CheckedAt = now.Add(-30 * time.Second)
-	if BranchDue(branch, now, true) || BranchDue(Branch{LastSeen: now}, now, true) || BranchDue(Branch{Pushed: true, LastSeen: now.Add(-8 * 24 * time.Hour)}, now, true) {
-		t.Fatal("asked recently, never pushed, or gone a week: not due")
+	if BranchDue(branch, now, true) || BranchDue(Branch{Pushed: true, LastSeen: now.Add(-8 * 24 * time.Hour)}, now, true) {
+		t.Fatal("asked recently, or gone a week: not due")
+	}
+	// A branch not known to be pushed (an agent's own push to a bare
+	// source leaves no remote-tracking ref) is asked about every five
+	// minutes, focused or not.
+	unknown := Branch{LastSeen: now}
+	if !BranchDue(unknown, now, true) {
+		t.Fatal("a branch not known to be pushed, never asked about")
+	}
+	unknown.CheckedAt = now.Add(-2 * time.Minute)
+	if BranchDue(unknown, now, true) {
+		t.Fatal("not known to be pushed: not every minute")
+	}
+	unknown.CheckedAt = now.Add(-OpenUnfocused)
+	if !BranchDue(unknown, now, true) {
+		t.Fatal("not known to be pushed: every five minutes")
+	}
+	unknown.Failures = 2
+	if BranchDue(unknown, now, true) {
+		t.Fatal("failed lookups back off")
 	}
 	if backoff(time.Minute, 10) != backoffMax || backoff(EndedInterval, 3) != EndedInterval {
 		t.Fatal("backoff caps")

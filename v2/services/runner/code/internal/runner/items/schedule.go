@@ -51,13 +51,20 @@ func Due(t TrackedItem, now time.Time, focused bool) (bool, time.Time) {
 	return !now.Before(next), next
 }
 
-// BranchDue reports whether a branch should be asked about now: pushed, seen
-// within the last week, and not asked about for an interval.
+// BranchDue reports whether a branch should be asked about now: seen within
+// the last week, and not asked about for an interval. A branch not known to
+// be pushed is asked about at the unfocused interval: whether it was pushed
+// is often not visible locally (Branch.Pushed), and an unchanged answer is a
+// conditional 304. Lookups that keep failing back off.
 func BranchDue(b Branch, now time.Time, focused bool) bool {
-	if !b.Pushed || now.Sub(b.LastSeen) > BranchFor {
+	if now.Sub(b.LastSeen) > BranchFor {
 		return false
 	}
-	return b.CheckedAt.IsZero() || !now.Before(b.CheckedAt.Add(Interval(focused)))
+	every := Interval(focused)
+	if !b.Pushed {
+		every = OpenUnfocused
+	}
+	return b.CheckedAt.IsZero() || !now.Before(b.CheckedAt.Add(backoff(every, b.Failures)))
 }
 
 // backoff doubles the interval per failure in a row, up to backoffMax (an
