@@ -53,6 +53,9 @@ func flagValues(spec string) []string {
 }
 
 func (c *cli) completion(args []string) error {
+	if c.subcommandHelp(args, "Usage: lazybox completion zsh|bash|fish\n  prints a shell completion script (lazybox link installs it for you)") {
+		return nil
+	}
 	if len(args) != 1 {
 		return fail(exitUsage, "usage: lazybox completion zsh|bash|fish")
 	}

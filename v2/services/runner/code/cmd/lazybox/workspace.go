@@ -27,9 +27,8 @@ const workspaceUsage = `Usage:
 const defaultRequestWait = 90 * time.Second
 
 func (c *cli) workspace(args []string) error {
-	if len(args) == 0 {
-		fmt.Fprintln(c.stderr, workspaceUsage)
-		return fail(exitUsage, "lazybox workspace needs repos or request-repo")
+	if c.subcommandHelp(args, workspaceUsage) {
+		return nil
 	}
 	switch args[0] {
 	case "repos":

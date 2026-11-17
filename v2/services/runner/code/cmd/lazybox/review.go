@@ -24,9 +24,8 @@ const reviewUsage = `Usage:
   lazybox review reopen <finding-id> --note "what is still wrong"`
 
 func (c *cli) review(args []string) error {
-	if len(args) == 0 {
-		fmt.Fprintln(c.stderr, reviewUsage)
-		return fail(exitUsage, "lazybox review needs add, list, resolve or reopen")
+	if c.subcommandHelp(args, reviewUsage) {
+		return nil
 	}
 	switch args[0] {
 	case "add":

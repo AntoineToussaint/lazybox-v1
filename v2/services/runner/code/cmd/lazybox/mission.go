@@ -55,9 +55,8 @@ type planFile struct {
 }
 
 func (c *cli) mission(args []string) error {
-	if len(args) == 0 {
-		fmt.Fprintln(c.stderr, missionUsage)
-		return fail(exitUsage, "lazybox mission needs plan, approve, reject or budget")
+	if c.subcommandHelp(args, missionUsage) {
+		return nil
 	}
 	switch args[0] {
 	case "plan":

@@ -31,9 +31,8 @@ const agentsUsage = `Usage:
   lazybox agents report "what you did and how you checked it"   (as a child)`
 
 func (c *cli) agents(args []string) error {
-	if len(args) == 0 {
-		fmt.Fprintln(c.stderr, agentsUsage)
-		return fail(exitUsage, "lazybox agents needs spawn, ls, send, wait, watch, stop or report")
+	if c.subcommandHelp(args, agentsUsage) {
+		return nil
 	}
 	switch args[0] {
 	case "spawn", "start":

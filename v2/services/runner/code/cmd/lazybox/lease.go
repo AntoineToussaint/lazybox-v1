@@ -19,9 +19,8 @@ const leaseUsage = `Usage:
   lazybox lease ls`
 
 func (c *cli) lease(args []string) error {
-	if len(args) == 0 {
-		fmt.Fprintln(c.stderr, leaseUsage)
-		return fail(exitUsage, "lazybox lease needs claim, release or ls")
+	if c.subcommandHelp(args, leaseUsage) {
+		return nil
 	}
 	f := c.flags("lease")
 	session := f.String("session", "", "who leases (default: this agent)")

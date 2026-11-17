@@ -28,8 +28,8 @@ func (c *cli) extension(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(positional) == 0 {
-		return fail(exitUsage, "%s", extensionUsage)
+	if c.subcommandHelp(positional, extensionUsage) {
+		return nil
 	}
 	sub, rest := positional[0], positional[1:]
 	dir := filepath.Join(c.configFolder(), "extensions")
