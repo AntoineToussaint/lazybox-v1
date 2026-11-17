@@ -3,9 +3,9 @@
  * server, a watcher or a long build can keep a turn busy for a long time, so a
  * queued message is never stuck there: **Send now**, one click, interrupts the
  * turn (its tooltip names the step it stops) and sends the message as the next turn, and
- * **Steer**, where the agent can take a message mid-turn (Codex), gives it to
- * the running turn without stopping it. Claude cannot: the strip says so and
- * offers Send now. ⌘↵ (chat.send-now) is Send now from the keyboard: the
+ * **Steer**, where the agent can take a message mid-turn (Claude, Codex), gives it to
+ * the running turn without stopping it. One that cannot (ACP, an older Claude
+ * worker): the strip says so and offers Send now. ⌘↵ (chat.send-now) is Send now from the keyboard: the
  * typed message, or with an empty box the oldest queued one.
  */
 import { useEffect, useMemo, useState } from 'react';

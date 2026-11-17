@@ -24,6 +24,9 @@ export class TurnInterrupts {
   // The turn an interrupt was asked for.
   private target: number | undefined;
 
+  /** A turn runs, or a message was handed to the SDK and its turn is about to start. */
+  get inTurn(): boolean { return this.running || this.awaiting; }
+
   /** A message was handed to the SDK. */
   delivered(): void {
     if (!this.running) this.awaiting = true;

@@ -177,11 +177,14 @@ func (s *session) unreadable(m jsonl.Message, err error) (agent.Event, bool) {
 func (s *session) Detach() error     { return s.p.Detach() }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
 func (s *session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, LivePermission: s.has("permission"), StopAgent: s.has("stop_agent"), LiveModel: s.has("model"), ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
+	return agent.Capabilities{Images: true, Files: true, Questions: true, Approvals: true, Resume: true, Subagents: true, Steer: s.has("steer"), LivePermission: s.has("permission"), StopAgent: s.has("stop_agent"), LiveModel: s.has("model"), ProfileIsolation: "environment credentials; shared keychain isolation unverified"}
 }
 func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, error) {
 	r := agent.Receipt{ID: op.ID}
-	if op.Kind == agent.Steer {
+	// Steer hands the message to the running turn: Claude Code folds it in
+	// between two steps (the worker's steer.ts). A worker started before
+	// steering existed cannot; the message then waits for the turn to end.
+	if op.Kind == agent.Steer && !s.has("steer") {
 		return r, agent.ErrUnsupported
 	}
 	if op.Kind == agent.StopAgent {

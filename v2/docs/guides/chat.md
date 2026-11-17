@@ -20,8 +20,11 @@ it did.
   above the message box (*Queued — Claude is busy (Running a command · 5m)*),
   each with **Send now**, which stops the agent's current step and sends yours
   next in one click (its tooltip names the step it stops), and, for
-  Codex, **Steer**, which hands it to the running turn without stopping it.
-  Claude cannot take a message mid-turn, and the strip says so. After Send
+  Claude and Codex, **Steer**, which hands it to the running turn without
+  stopping it: the agent reads it after the step it is on, as when you type
+  into its own terminal mid-turn. An agent that cannot take a message
+  mid-turn (an ACP agent, or a Claude agent an older Lazybox started) has no
+  Steer, and the strip says so. After Send
   now the conversation shows one quiet line, *Stopped to send your message*,
   and your message goes as soon as the step stops, the other queued messages
   in order after it. A message never waits while the agent is idle, even
@@ -35,7 +38,7 @@ it did.
   stopping the current step. Pressed `↵` and saw it queued? `⌘↵` with an
   empty box sends the oldest queued message now. While the agent is idle,
   `⌘↵` is an ordinary send (also while you dictate). It always stops and
-  sends, also for Codex: Steer stays a button. Change the key in Settings →
+  sends, also for an agent that steers: Steer stays a button. Change the key in Settings →
   Shortcuts.
 - **Dictate** instead of typing: hold `Right ⌥` (or `⌥Space`) and speak, or click the
   microphone in the message box — see [Voice](voice.md).

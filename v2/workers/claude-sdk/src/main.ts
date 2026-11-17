@@ -15,6 +15,7 @@ import { browserServer, browserServerName } from './browser.js';
 import { generateTitle } from './title.js';
 import { ModelSwitch } from './model.js';
 import { messageContent } from './content.js';
+import { steerPriority, userMessage } from './steer.js';
 
 type Request = { id?: string; method?: string; params?: any; result?: any; error?: any };
 let session: Query | undefined;
@@ -39,6 +40,12 @@ const sayCatalog = (value: ReturnType<CommandCatalog['fromChanged']>) => { if (v
 const send = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
 const event = (value: unknown) => send({ method: 'event', params: value });
 const reply = (id: string | undefined, result: unknown) => send({ id, result });
+
+/** Hands a user message to Claude Code: a turn of its own, or, with a priority, into the running one. */
+function deliver(content: any[], priority?: SDKUserMessage['priority']) {
+  messages.push(userMessage(content, reference, priority));
+  inputWake?.(); inputWake = undefined;
+}
 
 async function* input(): AsyncGenerator<SDKUserMessage> {
   while (true) {
@@ -100,7 +107,7 @@ async function open(options: any) {
   void session.initializationResult().then(init => sayCatalog(catalog.fromInitialize(init))).catch(() => { /* Each turn's init message still names the commands. */ });
   // Operations added after the original protocol. A running worker outlives
   // Runner upgrades, so the Runner asks this worker rather than assuming.
-  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model', 'title', 'parts'] };
+  return { reference: options.resume || '', features: ['permission', 'context', 'stop_agent', 'model', 'title', 'parts', 'steer'] };
 }
 
 async function receive(q: Query) {
@@ -144,11 +151,17 @@ async function handle(request: Request) {
     if (!session) throw new Error('session not opened');
     switch (request.method) {
       case 'message': {
-        const content = messageContent(p);
-        messages.push({ type: 'user', uuid: randomUUID(), session_id: reference, message: { role: 'user', content }, parent_tool_use_id: null });
+        deliver(messageContent(p));
         models.turnStarted();
         interrupts.delivered();
-        inputWake?.(); inputWake = undefined;
+        reply(request.id, { delivery: 'submitted' }); break;
+      }
+      case 'steer': {
+        // Into the running turn (steer.ts): Claude Code takes it between two
+        // steps, as its own terminal does with a message typed mid-turn.
+        // With no turn running the Runner keeps the message for the next one.
+        if (!interrupts.inTurn) throw new Error('no turn is running');
+        deliver(messageContent(p), steerPriority);
         reply(request.id, { delivery: 'submitted' }); break;
       }
       case 'permission': {

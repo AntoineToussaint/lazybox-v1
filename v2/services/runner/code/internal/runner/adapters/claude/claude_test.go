@@ -176,3 +176,45 @@ done
 		t.Fatalf("after unreadable lines: %+v %v", ev, err)
 	}
 }
+
+// Steering reaches a worker that offers it, with the message as its content
+// parts; an older worker is not asked, and the message waits for the turn.
+func TestSteerReachesOnlyAWorkerThatSupportsIt(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	script := func(features string) string {
+		return `read -r line
+printf '%s\n' '{"id":"lazybox-1","result":{"reference":"ref","features":` + features + `}}'
+while IFS= read -r line; do
+  case "$line" in
+    *'"method":"steer"'*'"parts":[{"type":"text","text":"Also log the port."}]'*) printf '%s\n' '{"id":"lazybox-2","result":{"delivery":"submitted"}}' ;;
+    *) printf '%s\n' '{"id":"lazybox-2","error":{"message":"unexpected"}}' ;;
+  esac
+done
+`
+	}
+	for _, tc := range []struct {
+		features string
+		works    bool
+	}{{`["permission","parts","steer"]`, true}, {`["permission","parts"]`, false}} {
+		worker := filepath.Join(t.TempDir(), "worker.sh")
+		if err := os.WriteFile(worker, []byte(script(tc.features)), 0700); err != nil {
+			t.Fatal(err)
+		}
+		session, err := Adapter{Node: "/bin/sh", Worker: worker}.Open(ctx, agent.Open{Cwd: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if session.Capabilities().Steer != tc.works {
+			t.Fatalf("features %s: Steer capability %v", tc.features, !tc.works)
+		}
+		r, err := session.Apply(ctx, agent.Operation{ID: "steer-1", Kind: agent.Steer, Text: "Also log the port."})
+		if tc.works && (err != nil || r.Delivery != "submitted" || r.ID != "steer-1") {
+			t.Fatalf("steer not submitted: %+v %v", r, err)
+		}
+		if !tc.works && !errors.Is(err, agent.ErrUnsupported) {
+			t.Fatalf("an older worker was asked to steer: %v", err)
+		}
+		_ = session.Close()
+	}
+}

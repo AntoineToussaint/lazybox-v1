@@ -2,8 +2,9 @@
 // is never stuck there behind a server or a long build. The strip above the
 // message box says it is queued and what the agent is busy with; Send now
 // warns which step it stops, then interrupts the turn and sends the message
-// next (Escape keeps waiting); Steer gives it to a Codex turn without stopping
-// it; for Claude the strip says it cannot take a message mid-turn. Several
+// next (Escape keeps waiting); Steer gives it to a Codex turn, or a Claude one
+// whose worker steers, without stopping it; for a Claude worker that cannot,
+// the strip says it cannot take a message mid-turn. Several
 // queued messages collapse; a phone keeps it on screen. A queued message is in
 // one place at a time: the strip while it waits, never also a "You" bubble in
 // the running turn; once delivered, the conversation, where it reached the
@@ -175,6 +176,20 @@ try{
  await composer.focus();await composer.press(sendNowKey);
  await expect(page.locator('.context-menu-notice')).toHaveText('Nothing queued to send now');
  assert.equal(f.mutations.filter(m=>m.method==='Apply').length,before,'nothing sent');
+
+ // ── A Claude worker that steers (Capabilities.steer) offers Steer too, and no "can't" note; ⌘↵ stays Send now.
+ claude.capabilities={...claude.capabilities,steer:true};
+ await open(claude);
+ await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^2 messages queued — Claude is busy/,{timeout:5000});
+ await expect(strip.locator('.queued-note')).toHaveCount(0);
+ const claudeSteer=strip.getByRole('listitem').first().getByRole('button',{name:'Steer'});
+ await expect(claudeSteer).toHaveAttribute('title','Give Claude this message now, inside the running turn, without stopping it');
+ await claudeSteer.click();
+ await expect.poll(()=>deliveries().at(-1)).toEqual({operationId:sentAs('Second follow-up'),how:'steer'});
+ assert.equal(claude.interrupted,3,'steering Claude does not interrupt its turn');
+ await expect(youSaid(chat,'Second follow-up').locator('.message-tag')).toHaveText('steered');
+ await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^Queued — Claude is busy/);
+ await open(codex);
 
  // ── The agent idle: ⌘↵ is an ordinary send, nothing interrupted.
  Object.assign(codex,{busy:false,status:'ready',agents:[]});
