@@ -109,6 +109,14 @@ subscription selection is independent of that identity.
   canonical HTTPS identity, and clone a private bare source under
   `<state>/repositories/github-<id>/source.git`. Clone credentials exist only
   in the Git child environment, never in its arguments, origin URL or config.
+- A bare clone's origin has no fetch refspec, so git would record no
+  `origin/<branch>` for a workspace's push. Lazybox gives origin the one a
+  normal clone has (`+refs/heads/*:refs/remotes/origin/*`): an agent's own
+  `git push` then records the branch as pushed, for the sidebar, ahead/behind
+  and the PR loop, and `git fetch` updates `origin/*`. The Runner adds it on
+  start to copies imported before, when origin has no refspec at all; it
+  fetches nothing and changes nothing else, and never touches a checkout the
+  person registered.
 - Registration persists in the Collection library. A completed owned clone
   can be recovered if registration failed; unknown existing paths are refused.
   Partial batches retain successful imports and retry only the remainder.
@@ -160,8 +168,8 @@ scoped credential is denied, like every RPC off its allowlist).
   `index.lock` or a failing hook is explained.
 - Push sends `HEAD` to `origin` under the branch's own name with
   `--set-upstream`, never forced; a diverged remote branch is refused and
-  explained. It records `origin/<branch>` so the push state survives without a
-  fetch (bare GitHub sources have no fetch refspec).
+  explained. It records `origin/<branch>` itself too, for a source whose
+  origin has a refspec that does not cover the branch.
 - An HTTPS GitHub origin is pushed with the connection's credential as an HTTP
   `Authorization` header in the git child's environment only
   (`GIT_CONFIG_COUNT`), exactly as clone does: never in arguments, the remote
@@ -222,7 +230,7 @@ summaries read their pull request from the store (`BranchPullRequest`), so
 | Detector | How | Role |
 | --- | --- | --- |
 | Person | The PR loop's **Create PR** (and any read of the branch's pull request) | delivers |
-| Branch | Each branch the sidebar's summaries or the background pass (every minute) see a repository on is asked about (`head=owner:branch`, conditional) until a week after it was last seen: at the open interval once known to be pushed (a remote-tracking ref, or the upstream `push -u` records), else every five minutes. A workspace's bare source has no fetch refspec, so an agent's own push leaves no remote-tracking ref, and a push without `-u` leaves nothing. An open pull request is linked; a closed one only if opened after the branch was first seen. | delivers |
+| Branch | Each branch the sidebar's summaries or the background pass (every minute) see a repository on is asked about (`head=owner:branch`, conditional) until a week after it was last seen: at the open interval once known to be pushed (a remote-tracking ref, or the upstream `push -u` records), else every five minutes (a push without `-u` from a source whose origin has no fetch refspec leaves no trace locally). An open pull request is linked; a closed one only if opened after the branch was first seen. | delivers |
 | Agent output | The engine hands every tool call and result to the Runner (`TurnHooks.Tool`). A call whose command opens a pull request (`gh pr create`, `hub pull-request`, `glab mr create`, a tool named `create_pull_request`) delivers the last pull request URL its output prints (the command is read from the call's decoded input, so one on its own line after a heredoc counts); `git push`'s hint (`/pull/new/branch`) is not a pull request. A finished `lazybox run` of such a command is read the same way. On start, the Runner reads the end of each live workspace conversation's journal (updated this week, its last 5,000 records) once for what such a command printed while no detector ran (before tracking existed, or while the Runner was down), and remembers how far it read. Any other GitHub pull request or issue URL in a tool's output is a mention (at most five per output, a hundred per workspace), never tracked or notified. | delivers / mentions |
 | Explicit | `lazybox link URL [--role]` with the agent's scoped credential (its own workspace and conversation only), or the owner's `LinkItem`. The briefing tells agents to run it when they open a pull request some other way. A URL (with or without `https://`), `--role` or `--workspace` makes `lazybox link` this verb, never the one that puts a release's CLI on PATH; in an agent, `lazybox link` alone asks for the URL. `lazybox items` lists the workspace's pull requests with their checks and review. | delivers / mentions |
 

@@ -8,6 +8,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/assistant"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/availability"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/docstool"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -416,6 +417,13 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if err == nil && groups != nil {
 		b.RepositoryImporter, err = repositories.New(filepath.Join(cfg.State, "repositories"), groups, repositories.Git{})
+		if err == nil {
+			// Source copies imported before their origin had a fetch refspec
+			// get it (repositories/fetchspec.go). Nothing is fetched.
+			if _, migrateErr := b.RepositoryImporter.MigrateOriginFetch(ctx); migrateErr != nil {
+				log.Printf("repositories: origin fetch refspec: %v", migrateErr)
+			}
+		}
 	}
 	if err == nil {
 		var store *repositories.FileCatalogStore

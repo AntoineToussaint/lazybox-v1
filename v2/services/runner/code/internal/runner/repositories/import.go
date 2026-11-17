@@ -132,6 +132,9 @@ func (i *Importer) ImportWithProgress(ctx context.Context, repo github.Repositor
 		if readErr != nil || json.Unmarshal(data, &saved) != nil || saved != record {
 			return collections.Repository{}, errors.New("repository destination exists without a matching Lazybox ownership record")
 		}
+		if _, err = EnsureOriginFetch(ctx, record.Path); err != nil {
+			return collections.Repository{}, err
+		}
 		return i.library.RegisterRepository(ctx, record)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return collections.Repository{}, err
@@ -148,6 +151,10 @@ func (i *Importer) ImportWithProgress(ctx context.Context, repo github.Repositor
 		err = i.git.Clone(ctx, repo.CloneURL, clone, token)
 	}
 	if err != nil {
+		return collections.Repository{}, err
+	}
+	// A pushed worktree branch gets its remote-tracking ref (fetchspec.go).
+	if _, err = EnsureOriginFetch(ctx, clone); err != nil {
 		return collections.Repository{}, err
 	}
 	data, err := json.Marshal(record)

@@ -176,9 +176,9 @@ type Branch struct {
 	// Pushed: the branch was known to be pushed when last seen (a
 	// remote-tracking ref, or the upstream `git push -u` records). A pushed
 	// branch is asked about at once and at the open interval. One not known
-	// to be pushed is still asked about, less often: a workspace's bare
-	// source has no fetch refspec, so an agent's own push leaves no
-	// remote-tracking ref, and a push without -u leaves nothing at all.
+	// to be pushed is still asked about, less often: from a source whose
+	// origin has no fetch refspec (repositories/fetchspec.go), an agent's
+	// push without -u leaves nothing locally.
 	Pushed    bool      `json:"pushed,omitempty"`
 	FirstSeen time.Time `json:"firstSeen"`
 	LastSeen  time.Time `json:"lastSeen"`

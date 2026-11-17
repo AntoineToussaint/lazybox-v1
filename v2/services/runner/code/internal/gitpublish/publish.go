@@ -46,7 +46,8 @@ type Tracking struct {
 	Ahead    int
 	// Published: the branch was pushed, as far as the repository knows: it
 	// has a remote-tracking ref, or an upstream on origin (`git push -u`
-	// records one). A workspace's bare source has no fetch refspec, so an
+	// records one). From a source whose origin has no fetch refspec (one
+	// imported before repositories/fetchspec.go, a checkout set up so), an
 	// agent's own push records only the upstream; Upstream stays empty.
 	Published bool
 }
@@ -342,8 +343,9 @@ func (g Git) Push(ctx context.Context, root, token string) (Pushed, error) {
 	if _, err = run(ctx, in); err != nil {
 		return Pushed{}, friendly(err)
 	}
-	// A bare source has no fetch refspec, so git records no remote-tracking
-	// ref; record it so the push state survives without a fetch.
+	// Git records the remote-tracking ref only when origin's fetch refspec
+	// covers the branch; record it whatever the refspec, so the push state
+	// survives without a fetch.
 	if _, err = run(ctx, invocation{root: root, args: []string{"update-ref", "-m", "lazybox: push", "refs/remotes/origin/" + branch, head}}); err != nil {
 		return Pushed{}, err
 	}
