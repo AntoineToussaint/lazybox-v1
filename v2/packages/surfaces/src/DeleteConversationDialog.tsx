@@ -4,6 +4,8 @@ import type {Session} from '@lazybox/protocol';
 import {DraggableDialog,DialogHeader} from './DraggableDialog';
 import {useRunner} from './RunnerContext';
 import {forgetConversation} from './transcript-cache';
+// Its tabs leave every page of this window (conversation-requests.ts).
+import {conversationOpeners} from './conversation-requests';
 export function DeleteConversationDialog({session,onClose,onDeleted}:{session:Session;onClose():void;onDeleted():void}){
  const {api,refresh}=useRunner(),dialog=useRef<HTMLDialogElement>(null);
  const cancel=useRef<HTMLButtonElement>(null);
@@ -22,6 +24,6 @@ export function DeleteConversationDialog({session,onClose,onDeleted}:{session:Se
  {!checked&&!error&&<p role="status">Checking running resources…</p>}
  {checked&&active&&<><p>This conversation has an active session or command.</p><label className="cleanup-choice"><input type="checkbox" checked={stop} disabled={busy} onChange={e=>setStop(e.target.checked)}/>Stop its agent and running commands before deleting</label></>}
  {blocked&&<p role="alert">{blocked}</p>}{error&&<p role="alert">{error}</p>}
- <footer><button ref={cancel} autoFocus disabled={busy} onClick={onClose}>Cancel</button><button className="danger" disabled={busy||!checked||!!blocked||(active&&!stop)} onClick={async()=>{setBusy(true);setError('');try{await api.deleteConversation({sessionId:session.id,stopSessions:stop},{timeoutMs:120000});forgetConversation(api,session.id);refresh();onDeleted();}catch(error){setError(String(error));}finally{setBusy(false);}}}>{busy?'Deleting…':active?'Stop and delete':'Delete conversation'}</button></footer>
+ <footer><button ref={cancel} autoFocus disabled={busy} onClick={onClose}>Cancel</button><button className="danger" disabled={busy||!checked||!!blocked||(active&&!stop)} onClick={async()=>{setBusy(true);setError('');try{await api.deleteConversation({sessionId:session.id,stopSessions:stop},{timeoutMs:120000});forgetConversation(api,session.id);conversationOpeners()?.forget(session.id);refresh();onDeleted();}catch(error){setError(String(error));}finally{setBusy(false);}}}>{busy?'Deleting…':active?'Stop and delete':'Delete conversation'}</button></footer>
  </DraggableDialog>;
 }

@@ -374,6 +374,16 @@ for that conversation right of (under) the conversation on screen.
 
 Every chat panel is a tab of one conversation, as editors are tabs of files
 (`workspace-model.ts`, "Conversations"; `useConversationTabs.ts` wires it).
+With **Open a workspace's conversations as tabs** on (Settings → Chat, the
+default; `workspace.conversation-tabs`), every open makes a kept tab (a single
+click opens or focuses one), saved chats load as kept tabs (`settleChats`
+without previews: a page from before tabs, or the first tabs build's preview
+tab, keeps its conversation), and when a workspace's page loads its open
+conversations (`workspaceConversations`: not ended, not archived away, the
+latest execution, most recent first) join the chat group as kept tabs, up to
+six (`showWorkspaceTabs`); a tab the person closed is remembered per
+workspace and not reopened until they open it. With it off, the preview tab
+below applies.
 A chat group's **preview tab** (`preview` on the panel, its title in italics)
 is where a single click on a row shows a conversation; the next single click
 replaces it. A double-click, typing in it, ⌘-click (a tab behind the one in

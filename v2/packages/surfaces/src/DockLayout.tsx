@@ -8,7 +8,7 @@ import { focusWhenShown } from './focus';
 import { refreshNativeWebViews } from './native-web-view';
 import { EMPTY_CONTENT, fromDockview, groupStates, needsEmptyContent, paramsOf, PANEL_COMPONENT, sameSizes, structureKey, TAB_COMPONENT, toDockview, type Overlay, type PanelParams } from './dock-bridge';
 import { clampSidebar, SIDEBAR_MAX, SIDEBAR_MIN } from './PanelLayout';
-import { fitWidth, groups, isSidebar, minWidthOf, sidebarAt, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
+import { fitWidth, groups, isSidebar, minWidthOf, sidebarAt, sidebarKinds, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
 import type { LayoutDirection } from './actions';
 import { groupRects, neighbourIn, resizeEdge, resizeStep, shareOf, tabAt } from './dock-keyboard';
 import './dock-keyboard.css';
@@ -560,6 +560,13 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     const webOnly = dock.onWillDrop(event => {
       const data = event.getData(), moved = data?.panelId ? [dock.getPanel(data.panelId)] : data ? dock.getGroup(data.groupId)?.panels || [] : [];
       if (event.group?.api.location.type === 'popout' && moved.some(panel => (panel?.params as Partial<PanelParams> | undefined)?.kind === 'web')) event.preventDefault();
+      // Workspaces and Agents are the sidebar: nothing else joins or splits their groups, and they do not go into the content's.
+      const kindOf = (panel: IDockviewPanel | undefined) => (panel?.params as Partial<PanelParams> | undefined)?.kind || '';
+      const target = event.group?.panels || [];
+      if (target.length && moved.length) {
+        const intoSidebar = target.every(panel => sidebarKinds.has(kindOf(panel))), sidebarMoving = moved.some(panel => sidebarKinds.has(kindOf(panel)));
+        if (intoSidebar ? moved.some(panel => !sidebarKinds.has(kindOf(panel))) : sidebarMoving) event.preventDefault();
+      }
     });
     const subscriptions = [webOnly, dock.onWillDragPanel(dragging(true)), dock.onWillDragGroup(dragging(true)), dock.onDidDrop(dragging(false)), dock.onDidLayoutChange(dragging(false)),
       { dispose: () => { element.removeEventListener('keydown', tabKey); element.removeEventListener('pointerdown', pressed, true); window.removeEventListener('pointerup', lifted, true); clearTimeout(released); } },

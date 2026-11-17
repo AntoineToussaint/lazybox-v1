@@ -3,6 +3,7 @@ import { Icon } from './Icons';
 import { SplitStoreContext } from './Resizer';
 import type { ModuleProps, PanelModule, PanelTitle } from './PanelRegistry';
 import type { Panel, ViewTarget } from './workspace-model';
+import { PanelShownContext } from './useAttention';
 
 /** What a panel can ask of its page. */
 export type PanelActions = {
@@ -23,7 +24,7 @@ export type SharedModuleProps = Omit<ModuleProps, 'target' | 'onTarget' | 'viewS
  * One panel of a page: its module, rendered once into the panel's stable host.
  * Its title, menu and close button are its tab in the dock (DockLayout).
  */
-export function WorkspacePanel({ panel, definition, target, store, module, actions, pending, mobileActive, canDetach }: {
+export function WorkspacePanel({ panel, definition, target, store, module, actions, pending, mobileActive, canDetach, shown = true }: {
   panel: Panel;
   definition?: PanelModule;
   target: ViewTarget;
@@ -35,9 +36,11 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
   mobileActive: boolean;
   /** The host can open chats in their own window. */
   canDetach: boolean;
+  /** On screen: the tab in front of its group (on a phone, the panel shown). A conversation in a tab behind another is not seen. */
+  shown?: boolean;
 }) {
   const onTarget = (next: ViewTarget) => actions.retarget(panel, next);
-  return <section className={`workspace-panel panel-${panel.kind}`} aria-label={definition?.title || panel.kind} data-panel-id={panel.id} data-mobile-active={mobileActive || undefined}>
+  return <PanelShownContext.Provider value={shown}><section className={`workspace-panel panel-${panel.kind}`} aria-label={definition?.title || panel.kind} data-panel-id={panel.id} data-mobile-active={mobileActive || undefined}>
     <div className="module-body">
       {panel.detached
         ? <DetachedMessage canDetach={canDetach} pending={pending} onOpen={() => actions.detach(panel)} onDock={() => actions.dock(panel)}/>
@@ -49,7 +52,7 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
             onClosePanel={panel.kind === 'terminal' || panel.kind === 'web' ? () => actions.close(panel) : undefined}/></SplitStoreContext.Provider>
           : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}
     </div>
-  </section>;
+  </section></PanelShownContext.Provider>;
 }
 
 /** In place of a chat that is open in its own window. */

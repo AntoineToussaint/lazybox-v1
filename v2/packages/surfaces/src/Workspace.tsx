@@ -18,7 +18,8 @@ import { UserThemeSync } from './appearance/useUserThemes';
 import { consolePlace, followConsole, noteConsoleUse, readFollowRuns, useRunFollowing } from './console-follow';
 import { requestTerminal } from './TerminalPanel';
 import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, settleLayout, sameConversation, tabFor, withSelection, closeTab, keepTab, previewTab, followFrontTab, isChatTab, openConversation, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
-import { useConversationTabs } from './useConversationTabs';
+import { useConversationTabs, useTabsSetting } from './useConversationTabs';
+import { openModeFor } from './conversation-tabs';
 import './workspace.css';
 import './workspace-shell.css';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
@@ -147,10 +148,10 @@ const groupById = (page: WorkspacePage, id: string) => pageGroups(page).find(gro
  * never loses a person's layout. A layout that cannot be read throws: the
  * caller keeps it untouched and says so.
  */
-function loadPages(viewState: ViewStateStore | undefined, key: string, fallback: ViewTarget, agents?: SidebarAgents): WorkspaceLayout {
+function loadPages(viewState: ViewStateStore | undefined, key: string, fallback: ViewTarget, agents?: SidebarAgents, previews = true): WorkspaceLayout {
   const saved = viewState?.getItem(key);
   if (!saved) return defaultLayout(fallback, agents);
-  const layout = repairLayout(retireMonitor(parseLayout(saved, agents)), agents);
+  const layout = repairLayout(retireMonitor(parseLayout(saved, agents)), agents, previews);
   if (/^\s*\{\s*"version"\s*:\s*1\b/.test(saved)) { try { if (!viewState?.getItem(`${key}:v1`)) viewState?.setItem(`${key}:v1`, saved); } catch { /* the backup is a precaution */ } }
   return layout;
 }
@@ -175,8 +176,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const [savedAgents] = useState(() => readAgentsChoice(viewState));
   const agentsChoice = useRef(savedAgents);
   const chooseAgents = (choice: SidebarAgents | undefined) => { agentsChoice.current = choice; try { writePreference(viewState, AGENTS_PREFERENCE, choice || ''); } catch { /* holds in this window */ } };
+  // "Open a workspace's conversations as tabs": with it on, chats are kept tabs and there is no preview tab.
+  const [tabsOn] = useTabsSetting(viewState);
+  const previews = !tabsOn;
   const [restored] = useState(() => {
-    try { return { layout: loadPages(viewState, key, { ...initialTarget, collectionId: workspaceID }, agentsChoice.current), error: '' }; }
+    try { return { layout: loadPages(viewState, key, { ...initialTarget, collectionId: workspaceID }, agentsChoice.current, previews), error: '' }; }
     catch (error) { return { layout: defaultLayout({ ...initialTarget, collectionId: workspaceID }, agentsChoice.current), error: `Saved pages could not be restored: ${String(error)}. Their data has been retained.` }; }
   });
   const [layout, setLayout] = useState(restored.layout), [locked, setLocked] = useState(!!restored.error);
@@ -224,7 +228,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     try {
       if (locked && !reset) throw new Error('Restore, import, or explicitly reset the retained layout before editing.');
       // Chats are conversation tabs: one that follows the page (a template's, an import's) becomes its preview tab.
-      const checked = parseLayout(JSON.stringify(fitAgentsEverywhere(settleLayout(next), agentsChoice.current)));
+      const checked = parseLayout(JSON.stringify(fitAgentsEverywhere(settleLayout(next, previews), agentsChoice.current)));
       viewState?.setItem(key, JSON.stringify(checked)); current.current = checked; setLayout(checked); setError(''); if (reset) setLocked(false);
       return true;
     } catch (error) { setError(String(error)); return false; }
@@ -234,7 +238,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const changePanel = (panelID: string, change: (panel: Panel) => Panel) => changePage(mapPagePanels(livePage(), panel => panel.id === panelID ? change(panel) : panel));
   // Conversations are tabs (preview and regular, ⇧⌘T, related ones beside their parent): useConversationTabs.ts.
   const tabs = useConversationTabs({
-    livePage, layout: () => current.current, changePage, commit: next => commit(next), closePanel: panel => closePanel(panel), scope: workspaceID,
+    livePage, layout: () => current.current, changePage, commit: next => commit(next), closePanel: panel => closePanel(panel), scope: workspaceID, tabs: tabsOn, store: viewState,
     shown: (id, how) => { setSettings(false); setMobilePanelId(id); if (how === 'focus') focusAfter.current = { panel: id }; else revealAfter.current = id; },
     title: target => conversationTitle(info?.sessions.find(session => session.id === target.sessionId)) || 'Conversation',
     announce: text => dock.current?.announce(text), error: setError,
@@ -246,16 +250,16 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       if (fixedWorkspaceId) { if (target.collectionId) void host?.openWorkspace?.(target.collectionId); return; }
       try {
         if (!locked) viewState?.setItem(workspaceKey(workspaceID), JSON.stringify(current.current));
-        let next = loadPages(viewState, workspaceKey(target.collectionId), target, agentsChoice.current);
+        let next = loadPages(viewState, workspaceKey(target.collectionId), target, agentsChoice.current, previews);
         // The conversation asked for shows as a single click shows it: its tab, else the preview tab.
         // A page the person left without a chat stays as it is, with the conversation selected.
-        const shows = (page: WorkspacePage) => shownPanels(page).some(isChatTab) ? openConversation(page, target, { mode: 'preview' }, () => crypto.randomUUID()).page : { ...page, selection: target };
+        const shows = (page: WorkspacePage) => shownPanels(page).some(isChatTab) ? openConversation(page, target, { mode: openModeFor('preview', tabsOn) }, () => crypto.randomUUID()).page : { ...page, selection: target };
         if (target.sessionId) next = { ...next, pages: next.pages.map(page => page.id === next.selectedPage ? shows(page) : page) };
         // Switching workspace never moves the dividers: the target keeps its own
         // pages and panels, but takes the current split sizes wherever its
         // arrangement matches (the sidebar has one fixed width everywhere).
         if (workspaceID) next = adoptGeometry(next, current.current);
-        next = repairLayout(next, agentsChoice.current);
+        next = repairLayout(next, agentsChoice.current, previews);
         viewState?.setItem(`${viewState.key}:active-workspace`, target.collectionId);
         setWorkspaceID(target.collectionId); current.current = next; setLayout(next); setLocked(false); setEditing(false); setConfiguring(false); setError('');
       } catch (error) { setError(`Could not open workspace layout: ${String(error)}`); }
@@ -552,12 +556,34 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (!changePage(withSelection({ ...without, layout: docked ? splitBeside(without.layout, group!.id, panel, side) : insertDocked(without.layout, panel, side, 0.5) }, target))) return;
     setSettings(false); setMobilePanelId(panel.id); focusAfter.current = { panel: panel.id };
   };
+  /**
+   * A conversation of another workspace (or another Runner) opens on its own
+   * workspace's page, never on this one: the window switches there first, then
+   * the open runs on that page (`pendingOpen`, once it is shown).
+   */
+  type Open = { how: 'tab' | 'background' | 'preview' | 'right' | 'bottom' | 'page'; target: RunnerTarget; title?: string };
+  const runOpen = ({ how, target, title }: Open) => {
+    const local = localTarget(target);
+    if (how === 'right' || how === 'bottom') openSplit(local, how);
+    else if (how === 'page') tabs.newPage(local, title || '');
+    else tabs.open(local, how);
+  };
+  const pendingOpen = useRef<Open>(undefined);
+  const inWorkspace = (open: Open) => {
+    const local = localTarget(open.target);
+    if (!elsewhere(open.target, here) && (!local.collectionId || local.collectionId === workspaceID)) { runOpen(open); return; }
+    // Shown as a click shows it, on its own page; the rest of the open waits for that page.
+    if (!elsewhere(open.target, here) && !fixedWorkspaceId && open.how !== 'preview') pendingOpen.current = open;
+    showSession(open.target);
+  };
+  useEffect(() => { const open = pendingOpen.current; if (!open || localTarget(open.target).collectionId !== workspaceID) return; pendingOpen.current = undefined; runOpen(open); }, [workspaceID]);
   useProvideConversationOpeners({
-    beside: target => openSplit(target, 'right'),
-    below: target => openSplit(target, 'bottom'),
-    open: (target, mode) => { if (target.collectionId !== workspaceID && mode === 'preview') showSession(target); else tabs.open(target, mode); },
+    beside: target => inWorkspace({ how: 'right', target }),
+    below: target => inWorkspace({ how: 'bottom', target }),
+    open: (target, mode) => inWorkspace({ how: mode, target }),
     related: (parent, target, options) => tabs.related(parent, target, options),
-    newPage: (target, title) => tabs.newPage(target, title),
+    newPage: (target, title) => inWorkspace({ how: 'page', target, title }),
+    forget: sessionId => tabs.forget(sessionId),
     tabOf: target => tabs.tabOf(target),
     closeTabs: (target, which) => { const tab = tabs.tabOf(target)?.panel; if (tab) tabs.closeTabs(tab, which); },
     window: chatHost ? target => {
@@ -608,7 +634,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (fixedWorkspaceId || !collectionId || collectionId === workspaceID || !viewState) return;
     try {
       const saved = viewState.getItem(workspaceKey(collectionId));
-      const other = saved ? returnDetached(repairLayout(retireMonitor(parseLayout(saved, agentsChoice.current)), agentsChoice.current), panelId) : undefined;
+      const other = saved ? returnDetached(repairLayout(retireMonitor(parseLayout(saved, agentsChoice.current)), agentsChoice.current, previews), panelId) : undefined;
       if (!other) return;
       viewState.setItem(workspaceKey(collectionId), JSON.stringify({ ...other.layout, selectedPage: shown ? other.page : other.layout.selectedPage }));
       if (shown) { setSettings(false); select({ collectionId, sessionId: '', commandId: '' }); focusAfter.current = { panel: panelId }; }
@@ -751,13 +777,20 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   useContextMenuContribution<{ panelTab?: string }>('dock-tab', context => {
     const id = context.detail?.panelTab, group = id ? dock.current?.groupOf(id) : undefined;
     if (!group || !dock.current) return [];
-    dock.current.focusTab(id!);
+    // The menu is the right-clicked tab's, without bringing it forward: a tab behind keeps the conversation in front selected.
     return groupMenuItems({ ...group, active: group.panels.find(panel => panel.id === id) || group.active }, dock.current, groupCommands, layoutKeys);
   });
   // The layout's commands, for the keys below and for any action list (layout-commands.ts).
   const activePanel = () => { const id = dock.current?.activePanelID(); return shownPanels(livePage()).find(value => value.id === id); };
   const splitActive = (side: 'right' | 'below') => { const group = dock.current?.activeGroup(); if (group?.active) groupCommands.splitWith(group.id, group.active, side); };
-  const closeActive = () => { const panel = activePanel(); if (panel) closePanel(panel); };
+  /** ⌘W: the active tab closes; never Workspaces or Agents (they are the window's), the conversation in front closes instead. */
+  const closeActive = () => {
+    const panel = activePanel();
+    if (!panel) return;
+    if (!sidebarKinds.has(panel.kind)) { closePanel(panel); return; }
+    const live = livePage(), front = tabFor(live, live.selection);
+    if (front) closePanel(front);
+  };
   const commandsRef = useRef<() => LayoutCommand[]>(() => []);
   commandsRef.current = () => {
     const docked = !narrow && !settings && !locked, panel = activePanel(), group = dock.current?.activeGroup();
@@ -893,8 +926,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (viewState && !stores.has(panel.id)) stores.set(panel.id, { ...viewState, scope: `${viewState.scope || viewState.key}:workspace:${workspaceID || 'home'}`, key: `${viewState.scope || viewState.key}:workspace:${workspaceID || 'home'}:panel:${panel.id}` });
     return stores.get(panel.id);
   };
+  // The tabs on screen: each group's front tab, unless the group is minimized to its tab bar.
+  const frontPanels = new Set(pageGroups(page).filter(group => !group.minimized).map(group => group.active));
   const renderPanel = (panel: Panel) => <WorkspacePanel panel={panel} definition={Object.hasOwn(registry, panel.kind) ? registry[panel.kind] : undefined} target={resolveTarget(panel, page.selection)} store={storeFor(panel)}
-    module={moduleProps} actions={panelActions} pending={!!pending} mobileActive={panel.id === mobilePanel?.id} canDetach={!!chatHost}/>;
+    module={moduleProps} actions={panelActions} pending={!!pending} mobileActive={panel.id === mobilePanel?.id} canDetach={!!chatHost}
+    shown={narrow ? panel.id === mobilePanel?.id : frontPanels.has(panel.id)}/>;
   const kindsShown = new Map<string, 'shown' | 'window'>([...detachedPanels.map(panel => [panel.kind, 'window'] as const), ...page.popouts.flatMap(group => group.panels.map(panel => [panel.kind, 'window'] as const)), ...shown.filter(panel => !page.popouts.some(group => group.panels.includes(panel)) && !panel.detached).map(panel => [panel.kind, 'shown'] as const)]);
 
   return <WorkbenchContext.Provider value={workbench}><main className="workspace-shell">
@@ -943,7 +979,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       : <>
         {locked && <button onClick={() => commit(defaultLayout({ ...initialTarget, collectionId: workspaceID }), true)}>Reset retained layout</button>}
         {configuring && <LayoutConfiguration json={json} disabled={hasDetached || !!pending} onChange={setJSON} onClose={() => setConfiguring(false)}
-          onImport={() => { try { if (commit(repairLayout(parseLayout(json)), true)) setConfiguring(false); } catch (error) { setError(String(error)); } }}/>}
+          onImport={() => { try { if (commit(repairLayout(parseLayout(json), undefined, previews), true)) setConfiguring(false); } catch (error) { setError(String(error)); } }}/>}
         <WorkspaceSwitcher selection={page.selection} workspaceID={workspaceID} collections={collections} info={info} locked={!!pending || !!fixedWorkspaceId} conversationShown={kindsShown.get('chat') === 'shown' && !!page.selection.sessionId}
           onSelect={select} onShowRepositories={setRepositoryWorkspace}/>
         {editing && <PageConfig page={page} layout={layout} hasDetached={hasDetached} pending={!!pending} commit={commit} changePage={changePage} onDone={() => setEditing(false)}/>}

@@ -88,10 +88,9 @@ try{
  await p.screenshot({path:'.cache/sidebar-empty-page.png'});
  // A maximized group hides the sidebar; switching workspace from the keyboard (⌘2) brings it back at its width.
  await select('alpha');
- // The conversation is the preview tab: a first double-click keeps it open, the next maximizes it.
- const chatTab=p.locator('.dv-tab').filter({has:p.locator('[data-kind="chat"]')});
- await chatTab.dblclick();
- await expect(p.locator('.dock-tab[data-kind="chat"][data-preview]')).toHaveCount(0);
+ // Double-click maximizes a kept tab; a preview tab (with conversations as tabs turned off) is kept open first.
+ const chatTab=p.locator('.dv-tab.dv-active-tab').filter({has:p.locator('[data-kind="chat"]')}).first();
+ if(await p.locator('.dock-tab[data-kind="chat"][data-preview]').count()){await chatTab.dblclick();await expect(p.locator('.dock-tab[data-kind="chat"][data-preview]')).toHaveCount(0);}
  await chatTab.dblclick();
  await expect(sidebarGroup).toBeHidden();
  await p.locator('.page-layout .panel-chat').getByRole('textbox',{name:'Message',exact:true}).click();

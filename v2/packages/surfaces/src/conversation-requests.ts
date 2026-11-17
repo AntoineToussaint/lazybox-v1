@@ -26,6 +26,8 @@ export type ConversationOpeners = {
   tabOf(target: ViewTarget): { others: number; right: number } | undefined;
   /** Close the other tabs of its group, or those to the right of its tab. */
   closeTabs(target: ViewTarget, which: 'others' | 'right'): void;
+  /** A conversation deleted: its tabs leave every page, and it is not offered to reopen. */
+  forget(sessionId: string): void;
   /** The conversation in its own native window; absent where the host cannot open one. */
   window?(target: ViewTarget): void;
   /** Bring the page's Agents panel to the front; false when the page has none. */
@@ -82,6 +84,7 @@ export function useProvideConversationOpeners(openers: ConversationOpeners) {
       newPage: (target, title) => latest.current.newPage(target, title),
       tabOf: target => latest.current.tabOf(target),
       closeTabs: (target, which) => latest.current.closeTabs(target, which),
+      forget: sessionId => latest.current.forget(sessionId),
       showAgents: () => latest.current.showAgents(),
     };
     Object.defineProperty(proxy, 'window', { get: () => latest.current.window, enumerable: true });

@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.25] - 2026-11-17 · A workspace's conversations are there as tabs
+
+- **Every conversation as a tab** Opening a workspace shows its open conversations as tabs, most recent first (six at most; the rest are a click away in the sidebar). A conversation that had no tab after the last update is back in one.
+- **A click keeps it** A click on a conversation brings its tab forward, or opens it in a tab that stays; nothing replaces the conversation you were in, and a review opened beside it never takes its place.
+- **Closed stays closed** A tab you close stays closed the next time the workspace opens, until you open that conversation again.
+- **Prefer one chat?** Settings → Chat → Open a workspace's conversations as tabs: off, a click shows a conversation in a preview tab that the next click replaces, as before.
+
 ## [2026-11-17.24] - 2026-11-17 · /model lists your models
 
 - **/model lists your models** /model, the ⋯ menu and the model name in the header list the models you can switch to by name, the id after it: Claude's Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.2 plus whatever else Claude Code offers, or the models Codex lists for your subscription. A conversation whose agent an older Lazybox started gets the same list.

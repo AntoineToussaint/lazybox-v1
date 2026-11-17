@@ -1,57 +1,195 @@
-// Conversation tabs (docs/guides/layouts.md, "Conversation tabs"): a single
-// click on a conversation shows it in the chat group's preview tab (italic),
-// which the next single click replaces; a double-click keeps it in a tab;
-// ⌘-click opens a tab behind the one in front; typing in a preview tab keeps
-// it; a row's Open beside splits right; a tab dragged to an edge splits; ⌘W
-// closes a tab (the conversation keeps going) and ⇧⌘T reopens it where it
-// was; a reload keeps every tab, preview or not; an orchestrator's agent opens
-// as a tab next to its parent, behind it. WebKit (the desktop app's engine),
-// the browser build, against the fake Runner fixture.
+// Conversation tabs (docs/guides/layouts.md, "Conversation tabs").
+//
+// With "Open a workspace's conversations as tabs" on (the default): a page an
+// earlier build saved (its conversation lost, its review alone in the preview
+// tab) comes back with every open conversation as a kept tab, capped; a click
+// focuses a conversation's tab; a tab closed stays closed across a reload
+// until opened again; a tab dropped on the Workspaces list stays out of it; ⌘W
+// in the sidebar closes the conversation in front, not the sidebar; deleting a
+// conversation closes its tab; ⌘-clicking another workspace's conversation
+// goes to that workspace; a page saved before tabs (a chat following the page)
+// has its conversation as a kept tab; turned off, a click shows the preview tab.
+//
+// With it off: a single click shows a conversation in the chat group's preview
+// tab (italic), which the next single click replaces; a double-click keeps it
+// in a tab; ⌘-click opens a tab behind the one in front; typing in a preview
+// tab keeps it; a row's Open beside splits right; a tab dragged to an edge
+// splits; ⌘W closes a tab (the conversation keeps going) and ⇧⌘T reopens it
+// where it was; a reload keeps every tab, preview or not; an orchestrator's
+// agent opens as a tab next to its parent, behind it, and a preview parent is
+// kept first. WebKit (the desktop app's engine), the browser build, against
+// the fake Runner fixture.
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
 import {webkit,expect} from '@playwright/test';
 import {fileURLToPath} from 'node:url';
 import {mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 import {monacoVimCompat} from './monaco-vim-compat.mjs';
 
 const fixture=await startRunnerFixture();
-// Four conversations in Alpha, so the sidebar lists them under the workspace.
+// Five conversations in Alpha, so the sidebar lists them under the workspace, and the review of the first.
 const first=fixture.sessions.find(s=>s.id==='alpha-session');
 first.title='Main alpha conversation';
-for(const [id,title] of [['alpha-second','Second alpha conversation'],['alpha-third','Third alpha conversation'],['alpha-fourth','Fourth alpha conversation'],['alpha-fifth','Fifth alpha conversation']])
+for(const [id,title] of [['alpha-second','Second alpha conversation'],['alpha-third','Third alpha conversation'],['alpha-fourth','Fourth alpha conversation'],['alpha-fifth','Fifth alpha conversation'],['alpha-review','Review of the main conversation']])
  fixture.sessions.push({...structuredClone(first),id,workId:id,title,instructionsPending:false});
 const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),logLevel:'warn',plugins:[react(),monacoVimCompat()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 await server.listen();
 await mkdir('.cache',{recursive:true});
-const url=`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`;
+const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
+
+/**
+ * Page errors, but not the requests a reload cuts in flight: WebKit reports
+ * those on the page being left as "access control checks". Anything else fails.
+ */
+function watchErrors(page){
+ const state={reloading:false,errors:[]};
+ page.on('pageerror',error=>{const text=String(error);if(state.reloading&&/access control checks/.test(text))return;state.errors.push(text);});
+ state.reload=async()=>{
+  state.reloading=true;
+  try{await page.reload();await page.locator('.page-layout .panel-chat').first().waitFor({state:'attached'});await page.waitForTimeout(400);}
+  finally{state.reloading=false;}
+ };
+ return state;
+}
+/** What every scenario reads of the chat tabs. */
+function tabsOf(page){
+ const chatTabs=page.locator('.dock-tab[data-kind="chat"]');
+ const tab=title=>chatTabs.filter({hasText:title});
+ const groupOf=title=>page.locator('.dv-groupview').filter({has:tab(title)});
+ return {
+  chatTabs,tab,groupOf,
+  /** The chat tabs' titles, in reading order (every group). */
+  titles:()=>chatTabs.locator('.dock-tab-title').allTextContents(),
+  previews:()=>page.locator('.dock-tab[data-kind="chat"][data-preview] .dock-tab-title').allTextContents(),
+  row:title=>page.locator('.page-layout .panel-collections .conversation-link').filter({hasText:title}),
+  /** Whether a tab is the one in front of its group. */
+  inFront:title=>groupOf(title).locator('.dv-tab.dv-active-tab .dock-tab-title').textContent().then(text=>text===title),
+  fontStyle:title=>tab(title).locator('.dock-tab-title').evaluate(node=>getComputedStyle(node).fontStyle),
+  workspace:name=>page.locator('.page-layout .panel-collections .workspace-row').filter({hasText:name}).locator('.workspace-link').first(),
+ };
+}
 
 let browser;
 try{
  browser=await webkit.launch({headless:true});
- const context=await browser.newContext({viewport:{width:1600,height:900},colorScheme:'dark'});
- const page=await context.newPage();page.setDefaultTimeout(15000);
- const errors=[];page.on('pageerror',e=>errors.push(String(e)));
- const shot=name=>page.screenshot({path:`.cache/conversation-tabs-${name}.png`});
- await page.goto(url);
+ await tabsOn();
+ await previewTabs();
+ console.log('PASS conversation tabs: with tabs on, a page an earlier build left with only its review in the preview tab comes back with every open conversation as a kept tab (capped), a click focuses its tab, a closed tab stays closed across a reload, a tab dropped on the sidebar stays out of it, ⌘W never closes the sidebar, a deleted conversation’s tab closes, another workspace’s conversation opens on its own page, a page from before tabs keeps its conversation as a kept tab, and the setting turns preview tabs back on; with it off, the preview tab (italic) is replaced by the next click, double-click and typing keep it, ⌘-click opens behind, one tab per conversation, the sidebar follows the tab in front, drag to an edge splits, Open beside splits right, tab menus, ⌘W and ⇧⌘T, ⌃⇥ walks tabs, a reload keeps the tabs, an orchestrator’s agent opens next to its parent and a preview parent is kept. WebKit, fake Runner fixture.');
+}finally{
+ await browser?.close();
+ await server.close();
+ await fixture.close?.();
+}
 
- const chatTabs=page.locator('.dock-tab[data-kind="chat"]');
- /** The chat tabs' titles, in reading order (every group). */
- const titles=()=>chatTabs.locator('.dock-tab-title').allTextContents();
- const previews=()=>page.locator('.dock-tab[data-kind="chat"][data-preview] .dock-tab-title').allTextContents();
- const tab=title=>chatTabs.filter({hasText:title});
- const row=title=>page.locator('.page-layout .panel-collections .conversation-link').filter({hasText:title});
- /** The group a tab is in, and whether it is the tab in front of it. */
- const groupOf=title=>page.locator('.dv-groupview').filter({has:tab(title)});
- const inFront=title=>groupOf(title).locator('.dv-tab.dv-active-tab .dock-tab-title').textContent().then(text=>text===title);
+/** "Open a workspace's conversations as tabs", on as it is by default, on pages saved by earlier builds. */
+async function tabsOn(){
+ const scope=createHash('sha256').update(origin+'\0'+fixture.token).digest('hex');
+ const panel=(id,kind,extra={})=>({id,kind,binding:{mode:'follow'},detached:false,...extra});
+ const group=(id,panels)=>({type:'group',id,panels,active:panels[0].id});
+ const sidebar=w=>({type:'split',direction:'column',sizes:[0.55,0.45],children:[group(`g-${w}-col`,[panel(`${w}-col`,'collections')]),group(`g-${w}-agents`,[panel(`${w}-agents`,'agents')])]});
+ const work=(w,sessionId,chat)=>({version:2,selectedPage:'work',pages:[{id:'work',name:'Work',selection:{collectionId:w,sessionId,commandId:''},layout:{type:'split',direction:'row',sizes:[0.2,0.8],children:[sidebar(w),group(`g-${w}-chat`,[chat])]},floating:[],popouts:[],detached:[]}]});
+ // Alpha as the first tabs build left it (the user's screenshot): the main conversation lost, its review alone in the preview tab.
+ const alpha=work('alpha','alpha-review',{id:'alpha-review-tab',kind:'chat',binding:{mode:'pinned',target:{collectionId:'alpha',sessionId:'alpha-review',commandId:''}},detached:false,preview:true});
+ // Beta as builds before tabs saved it: one chat following the page.
+ const beta=work('beta','beta-session',panel('beta-chat','chat'));
+ const context=await browser.newContext({viewport:{width:1600,height:900}});
+ await context.addInitScript(([key,a,b])=>{if(sessionStorage.getItem('seeded'))return;sessionStorage.setItem('seeded','1');localStorage.setItem(`${key}:workspace:alpha:pages`,a);localStorage.setItem(`${key}:workspace:beta:pages`,b);},[scope,JSON.stringify(alpha),JSON.stringify(beta)]);
+ const page=await context.newPage();page.setDefaultTimeout(15000);
+ const watched=watchErrors(page);
+ const {chatTabs,tab,titles,previews,row,inFront,workspace}=tabsOf(page);
+ const all=['Review of the main conversation','Main alpha conversation','Second alpha conversation','Third alpha conversation','Fourth alpha conversation','Fifth alpha conversation'];
+ await page.goto(`${origin}/?view=workspace&collection=alpha#token=${fixture.token}`);
+
+ // Recovery: the review stays (kept now) and every open conversation is a tab again, the main one too.
+ await expect.poll(async()=>(await titles()).sort()).toEqual([...all].sort());
+ await expect.poll(previews).toEqual([]);
+ assert.equal((await titles())[0],'Review of the main conversation','the tab that was there stays first');
+ await expect.poll(()=>inFront('Review of the main conversation')).toBe(true);
+ await page.screenshot({path:'.cache/conversation-tabs-recovered.png'});
+ // A click focuses the conversation's tab: nothing is replaced, nothing is added.
+ await row('Main alpha conversation').click();
+ await expect.poll(()=>inFront('Main alpha conversation')).toBe(true);
+ await expect(chatTabs).toHaveCount(6);
+ await expect.poll(previews).toEqual([]);
+ // A tab closed stays closed when the workspace loads again; opening the conversation brings it back.
+ await tab('Fifth alpha conversation').locator('.dock-tab-close').click();
+ await expect(chatTabs).toHaveCount(5);
+ await watched.reload();
+ await expect.poll(async()=>(await titles()).sort()).toEqual(all.filter(title=>title!=='Fifth alpha conversation').sort());
+ await row('Fifth alpha conversation').click();
+ await expect(chatTabs).toHaveCount(6);
+ await expect.poll(previews).toEqual([]);
+ // A tab dragged onto the Workspaces list does not join the sidebar: nothing moves.
+ const sidebarGroup=page.locator('.dv-groupview').filter({has:page.locator('.dock-tab[data-kind="collections"]')});
+ const listBox=await sidebarGroup.boundingBox(),from=await tab('Second alpha conversation').boundingBox();
+ await page.mouse.move(from.x+from.width/2,from.y+from.height/2);await page.mouse.down();
+ await page.mouse.move(from.x+from.width/2+14,from.y+from.height/2+14,{steps:4});
+ await page.mouse.move(listBox.x+listBox.width/2,listBox.y+listBox.height/2,{steps:12});await page.waitForTimeout(150);await page.mouse.up();
+ await page.waitForTimeout(300);
+ await expect(sidebarGroup.locator('.dock-tab')).toHaveCount(1);
+ await expect(chatTabs).toHaveCount(6);
+ // ⌘W with the Workspaces list focused closes the conversation in front, never the sidebar.
+ await page.locator('.panel-collections .explorer-heading').first().click();
+ await page.keyboard.press('Meta+w');
+ await expect(chatTabs).toHaveCount(5);
+ await expect(page.locator('.dock-tab[data-kind="collections"]')).toHaveCount(1);
+ assert.ok((await sidebarGroup.boundingBox()).x<40,'the sidebar stays on the left');
+ await page.keyboard.press('Meta+Shift+T');
+ await expect(chatTabs).toHaveCount(6);
+ // A conversation deleted leaves its tab.
+ await row('Review of the main conversation').click({button:'right'});
+ await page.getByRole('menuitem',{name:/^Delete…/}).click();
+ const dialog=page.getByRole('dialog',{name:'Delete conversation'});
+ const stop=dialog.getByRole('checkbox');
+ await expect(dialog.getByRole('button',{name:/Delete conversation|Stop and delete/})).toBeVisible();
+ if(await stop.count())await stop.check();
+ await dialog.getByRole('button',{name:/Delete conversation|Stop and delete/}).click();
+ await expect(dialog).toHaveCount(0);
+ await expect(tab('Review of the main conversation')).toHaveCount(0);
+ await expect(chatTabs).toHaveCount(5);
+ // Another workspace's conversation, ⌘-clicked in Agents: the window goes to that workspace; this one's page does not get it.
+ const pagesOf=w=>page.evaluate(key=>localStorage.getItem(key)||'',`${scope}:workspace:${w}:pages`);
+ await page.getByRole('textbox',{name:/Filter agents/}).or(page.getByPlaceholder('Filter agents')).first().fill('Beta');
+ await page.locator('.agent-row').filter({hasText:'Beta release'}).first().click({modifiers:['Meta']});
+ await expect(page.getByRole('combobox',{name:'Workspace',exact:true})).toHaveValue('beta');
+ assert.ok(!(await pagesOf('alpha')).includes('beta-session'),'alpha’s pages hold no beta conversation');
+ // A page saved before tabs (a chat following the page): its conversation is a kept tab.
+ await expect(chatTabs).toHaveCount(1);
+ await expect.poll(previews).toEqual([]);
+ // Turned off (Settings → Chat): a click on a conversation without a tab shows it in the preview tab.
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.getByRole('tab',{name:'Chat'}).click();
+ const setting=page.getByRole('switch',{name:'Open a workspace’s conversations as tabs'});
+ await expect(setting).toBeChecked();
+ await setting.uncheck();
+ await page.getByRole('button',{name:'Work',exact:true}).click();
+ await workspace('Alpha feature').click();
+ await expect(page.getByRole('combobox',{name:'Workspace',exact:true})).toHaveValue('alpha');
+ await tab('Third alpha conversation').locator('.dock-tab-close').click();
+ await row('Third alpha conversation').click();
+ await expect.poll(previews).toEqual(['Third alpha conversation']);
+ assert.deepEqual(watched.errors,[]);
+ await context.close();
+}
+
+/** With the setting off: the preview tab, kept tabs, and everything a tab does. */
+async function previewTabs(){
+ const context=await browser.newContext({viewport:{width:1600,height:900},colorScheme:'dark'});
+ await context.addInitScript(()=>{try{localStorage.setItem('lazybox:workspace.conversation-tabs','off');}catch{/* a popup without storage */}});
+ const page=await context.newPage();page.setDefaultTimeout(15000);
+ const watched=watchErrors(page);
+ const shot=name=>page.screenshot({path:`.cache/conversation-tabs-${name}.png`});
+ await page.goto(`${origin}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
+ const {chatTabs,tab,groupOf,titles,previews,row,inFront,fontStyle}=tabsOf(page);
  const shown=page.locator('.page-layout .panel-chat').filter({visible:true});
- const fontStyle=title=>tab(title).locator('.dock-tab-title').evaluate(node=>getComputedStyle(node).fontStyle);
  const key=async combo=>{await page.keyboard.press(combo);await page.waitForTimeout(60);};
 
  await expect(shown.getByRole('textbox',{name:'Message',exact:true})).toBeEnabled();
- // The page's conversation is its preview tab.
+ // The page's conversation is its preview tab; nothing else is opened by itself.
  await expect.poll(titles).toEqual(['Main alpha conversation']);
  await expect.poll(previews).toEqual(['Main alpha conversation']);
 
@@ -148,17 +286,19 @@ try{
  await expect.poll(titles).toEqual(['Third alpha conversation','Second alpha conversation','Fifth alpha conversation','Fourth alpha conversation','Main alpha conversation']);
  await expect.poll(previews).toEqual(['Fifth alpha conversation']);
  const before={titles:await titles(),previews:await previews()};
- await page.reload();
- await expect(page.locator('.page-layout .panel-chat').first()).toBeAttached();
+ await watched.reload();
  await expect.poll(titles).toEqual(before.titles);
  await expect.poll(previews).toEqual(before.previews);
  await expect(page.locator('.dv-groupview').filter({has:chatTabs})).toHaveCount(3);
 
- // ---- An orchestrator's agent opens as a tab next to its parent, behind it.
+ // ---- An orchestrator's agent opens as a tab next to its parent, behind it; a preview parent is kept first.
  const mission=fixture.missions.handle('CreateMission',{title:'Ship search'}).value;
  fixture.missions.handle('UpdateMission',{missionId:mission.id,grant:{sessionId:'alpha-session',ceiling:{maxChildren:3}}});
  fixture.missions.spawnChild('alpha-session',{title:'Index the corpus',role:'worker'});
  await tab('Main alpha conversation').click();
+ await tab('Main alpha conversation').click({button:'right'});
+ await page.getByRole('menuitem',{name:'Use as preview tab',exact:true}).click();
+ await expect.poll(()=>fontStyle('Main alpha conversation')).toBe('italic');
  const parent=page.locator(`[data-dock-panel="${await tab('Main alpha conversation').getAttribute('data-panel-tab')}"]`);
  const chip=parent.locator('.orchestrator-chip');
  await expect(chip).toBeVisible({timeout:20_000});
@@ -169,13 +309,10 @@ try{
  await expect.poll(titles).toEqual([...before.titles,'Index the corpus']);
  await expect.poll(()=>inFront('Main alpha conversation'),{message:'the parent stays in front'}).toBe(true);
  assert.equal(await fontStyle('Index the corpus'),'normal');
+ assert.equal(await fontStyle('Main alpha conversation'),'normal','the preview parent was kept open');
  await expect(page.getByTestId('dock-announcer')).toContainText('next to');
  await shot('related');
 
- assert.deepEqual(errors,[]);
- console.log('PASS conversation tabs: preview tab (italic) replaced by the next click, double-click and typing keep it, ⌘-click opens behind, one tab per conversation, the sidebar follows the tab in front, drag to an edge splits, Open beside splits right, tab menus, ⌘W and ⇧⌘T, ⌃⇥ walks tabs, a reload keeps the tabs, an orchestrator’s agent opens next to its parent. WebKit, fake Runner fixture.');
-}finally{
- await browser?.close();
- await server.close();
- await fixture.close?.();
+ assert.deepEqual(watched.errors,[]);
+ await context.close();
 }

@@ -4,8 +4,41 @@
  * asks for, the tabs closed recently (⇧⌘T brings the last one back), and the
  * status dot a conversation's tab shows. Pure, so the rules are tested alone.
  */
-import type { AttentionState } from './attention';
+import type { Session } from '@lazybox/protocol';
+import { activityAt, isWorkConversation, type AttentionState } from './attention';
+import { isArchivedAway } from './agents-model';
 import type { OpenMode, ViewTarget } from './workspace-model';
+
+/**
+ * "Open a workspace's conversations as tabs" (on unless the person turned it
+ * off, Settings → Chat): every conversation opened is a kept tab and a
+ * workspace's open conversations are there as tabs. Off, a single click
+ * shows a conversation in the preview tab, which the next one replaces.
+ */
+export const TABS_PREFERENCE = 'workspace.conversation-tabs';
+export const tabsSettingOn = (value: string | null | undefined) => value !== 'off';
+/** At most this many conversation tabs are opened for a workspace by themselves; the rest are a click away in the sidebar. */
+export const WORKSPACE_TAB_CAP = 6;
+/** How an open asks to show a conversation, given the setting: with tabs on, what would be a preview is a kept tab. */
+export const openModeFor = (mode: OpenMode, tabs: boolean): OpenMode => tabs && mode === 'preview' ? 'tab' : mode;
+
+/**
+ * A workspace's open conversations, most recent first: its work (not Ask
+ * Lazybox's), not ended, not archived away, the latest execution of each.
+ */
+export function workspaceConversations(sessions: readonly Session[], workspaceId: string, dismissed: ReadonlySet<string> = new Set()): ViewTarget[] {
+  return sessions
+    .filter(session => session.collectionId === workspaceId && isWorkConversation(session) && !session.closed && !session.successorExecutionId && !isArchivedAway(session) && !dismissed.has(session.id))
+    .sort((a, b) => activityAt(b) - activityAt(a))
+    .map(session => ({ collectionId: workspaceId, sessionId: session.id, commandId: '' }));
+}
+/** The conversations whose tab the person closed (kept per workspace), with one more, or one fewer when it is opened again. */
+export function dismissedWith(text: string | null | undefined, sessionId: string, closed: boolean): string[] {
+  let list: string[] = [];
+  try { const value: unknown = JSON.parse(text || '[]'); if (Array.isArray(value)) list = value.filter((item): item is string => typeof item === 'string'); } catch { /* none */ }
+  const rest = list.filter(id => id !== sessionId);
+  return (closed ? [...rest, sessionId] : rest).slice(-50);
+}
 
 /**
  * What a pointer gesture on a conversation row opens: a single click shows

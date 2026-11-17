@@ -52,11 +52,18 @@ switcher.
 Conversations open as tabs, like files in an editor: keep several open, split
 them side by side, drag them anywhere.
 
-- **A single click** on a conversation (in Workspaces, Agents, ⌘K, ⌘J) shows it
-  in the chat group's **preview tab**, its title in *italics*. The next single
-  click replaces it, so browsing does not pile up tabs.
-- **Double-click** it, **type** in it, or choose **Open in new tab**: it becomes a
-  regular tab that stays. A new conversation opens as a regular tab too.
+- **A workspace opens with its conversations as tabs**: the open ones (not
+  ended or archived), most recent first, six at most; the others are a click
+  away in the sidebar. A tab you close stays closed the next time the
+  workspace loads, until you open that conversation again.
+- **A single click** on a conversation (in Workspaces, Agents, ⌘K, ⌘J) brings
+  its tab forward, or opens it in a tab of its own. A new conversation opens in
+  a tab too.
+- **Settings → Chat → Open a workspace's conversations as tabs** (on unless you
+  turn it off). Off, a single click shows a conversation in the chat group's
+  **preview tab**, its title in *italics*, which the next single click
+  replaces; **double-click** it, **type** in it, or choose **Open in new tab**
+  to keep it as a tab.
 - **⌘-click** (Ctrl-click on Windows and Linux) or **middle-click** a
   conversation: it opens in a tab behind the one in front.
 - A conversation already open is brought forward in its tab, never opened
@@ -135,7 +142,7 @@ Linux keys, is in [Keyboard shortcuts](../reference/keyboard-shortcuts.md#layout
 
 **Page actions (⋯) → Customize page** opens the page editor: **Add panel**,
 **Duplicate page**, **Rename page**, **Remove page** and **Reset pages** (up to
-eight pages, twelve panels each). The only panel of a page has a **×** that
+eight pages, sixteen panels each). The only panel of a page has a **×** that
 closes the page with it.
 
 **Layout configuration** (same menu) shows the page as JSON: copy it to keep a

@@ -5,11 +5,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  chatGroup, closeTab, defaultLayout, emptyTarget, followFrontTab, groupOf, insertDocked, keepTab, mapPagePanels, moveToNewPage, oldestPreview, openConversation, openRelated, PAGE_LIMIT, PANEL_LIMIT,
-  pageName, parseLayout, previewTab, repairLayout, resolveTarget, routeChat, settleChats, settleLayout, shownPanels, tabFor, tabsToClose, type Panel, type ViewTarget, type WorkspacePage,
+  chatGroup, closeTab, defaultDock, defaultLayout, emptyTarget, followFrontTab, forgetConversation, groupOf, insertDocked, keepTab, mapPagePanels, moveToNewPage, oldestPreview, openConversation, openRelated, PAGE_LIMIT, PANEL_LIMIT,
+  pageName, parseLayout, previewTab, removeFromPage, repairLayout, resolveTarget, routeChat, settleChats, settleLayout, showWorkspaceTabs, shownPanels, tabFor, tabsToClose, type Panel, type ViewTarget, type WorkspacePage,
 } from '../packages/surfaces/src/workspace-model.ts';
 import { applyTemplate, builtinPresets, templateOf } from '../packages/surfaces/src/layout-presets.ts';
-import { CLOSED_LIMIT, rememberClosed, rowGesture, tabStatus, takeClosed } from '../packages/surfaces/src/conversation-tabs.ts';
+import { CLOSED_LIMIT, dismissedWith, openModeFor, rememberClosed, rowGesture, tabsSettingOn, tabStatus, takeClosed, workspaceConversations } from '../packages/surfaces/src/conversation-tabs.ts';
+import type { Session } from '@lazybox/protocol';
 
 const target = (sessionId: string, collectionId = 'w'): ViewTarget => ({ collectionId, sessionId, commandId: '' });
 let counter = 0; const id = () => `t-${++counter}`;
@@ -242,4 +243,71 @@ test('routeChat is a preview open; an empty page gets a chat', () => {
   assert.equal(emptyTarget().sessionId, '');
   const panel: Panel = chats(routed.page)[0];
   assert.equal(panel.binding.mode, 'pinned');
+});
+
+test('with tabs on, an older page keeps its conversation as a kept tab, and a review beside it never replaces it', () => {
+  // The page as an earlier build saved it: the chat follows the selection.
+  const older = mapPagePanels(work('main'), panel => panel.kind === 'chat' ? { id: panel.id, kind: 'chat', binding: { mode: 'follow' }, detached: false } : panel);
+  assert.deepEqual(tabs(settleChats(older, false)), ['main'], 'migrated as a kept tab, not a preview');
+  // A page saved by the first tabs build (with its preview tab) loads kept too.
+  assert.deepEqual(tabs(settleChats(work('main'), false)), ['main']);
+  assert.deepEqual(tabs(repairLayout({ version: 2, selectedPage: 'work', pages: [older] }, undefined, false).pages[0]), ['main']);
+  assert.deepEqual(tabs(settleLayout({ version: 2, selectedPage: 'work', pages: [work('main')] }, false).pages[0]), ['main']);
+  // A related open from a preview parent (tabs off, or an older page): the parent is kept first, then the review joins it.
+  const review = openRelated(work('main'), target('main'), target('review'), { background: true }, id);
+  assert.deepEqual(tabs(review.page), ['main', 'review']);
+  // Showing the review afterwards (its "Open conversation" button) brings its tab forward; the parent stays.
+  const shown = open(review.page, 'review', 'preview');
+  assert.deepEqual(tabs(shown.page), ['main', 'review']);
+  assert.equal(shown.page.selection.sessionId, 'review');
+});
+
+test("a workspace's open conversations show as kept tabs, most recent first, up to the cap; a page without a chat is left alone", () => {
+  const page = keepTab(work('a'), 'w-work-chat');
+  const filled = showWorkspaceTabs(page, ['b', 'a', 'c', 'd'].map(s => target(s)), 3, id);
+  assert.deepEqual(tabs(filled), ['a', 'b', 'c'], 'the open one stays first, the others follow, three at most');
+  assert.equal(filled.selection.sessionId, 'a', 'the conversation in front stays in front');
+  assert.ok(front(filled, 'w-work-chat'));
+  assert.equal(showWorkspaceTabs(filled, [target('a'), target('b')], 6, id), filled, 'all there: unchanged');
+  // A page still on the workspace's start: its chat takes the most recent conversation.
+  const start = keepTab(defaultLayout({ collectionId: 'w', sessionId: '', commandId: '' }).pages[0], 'w-work-chat');
+  const started = showWorkspaceTabs(start, [target('x'), target('y')], 6, id);
+  assert.deepEqual(tabs(started), ['x', 'y']);
+  assert.equal(started.selection.sessionId, 'x');
+  const empty = { ...work('a'), layout: removeFromPage(work('a'), 'w-work-chat').layout };
+  assert.equal(showWorkspaceTabs(empty, [target('b')], 6, id), empty);
+});
+
+test('a deleted conversation leaves every page; the sidebar docks left', () => {
+  let page = keepTab(work('a'), 'w-work-chat');
+  page = open(page, 'b', 'tab').page;
+  const other = { ...open(keepTab(work('b'), 'w-work-chat'), 'c', 'tab').page, id: 'more' };
+  const layout = { version: 2 as const, selectedPage: page.id, pages: [page, other] };
+  const gone = forgetConversation(layout, 'b');
+  assert.deepEqual(gone.pages.map(value => tabs(value)), [['a'], ['c']]);
+  assert.equal(gone.pages[0].selection.sessionId, 'a', 'the tab beside it comes forward, selected');
+  assert.equal(forgetConversation(gone, 'b'), gone, 'nothing left: unchanged');
+  assert.equal(forgetConversation(gone, ''), gone);
+  assert.equal(defaultDock('collections'), 'left');
+  assert.equal(defaultDock('agents'), 'left');
+  assert.equal(defaultDock('terminal'), 'right');
+});
+
+test('which conversations a workspace opens as tabs, the closed ones remembered, and how an open reads with tabs on', () => {
+  const at = (n: number) => String(1_700_000_000_000 + n * 1000);
+  const session = (sessionId: string, extra: Record<string, unknown> = {}) => ({ id: sessionId, collectionId: 'w', purpose: '', closed: false, successorExecutionId: '', pending: [], status: 'idle', archivedAtUnixMillis: '0', createdAtUnixMillis: at(1), lastActivityAtUnixMillis: at(1), agents: [], ...extra }) as unknown as Session;
+  const list = [
+    session('old'), session('new', { lastActivityAtUnixMillis: at(9), createdAtUnixMillis: at(9) }),
+    session('ended', { closed: true }), session('help', { purpose: 'help' }), session('before', { successorExecutionId: 'new' }),
+    session('elsewhere', { collectionId: 'other' }), session('closed-tab'),
+  ];
+  assert.deepEqual(workspaceConversations(list, 'w', new Set(['closed-tab'])).map(t => t.sessionId), ['new', 'old']);
+  assert.deepEqual(dismissedWith(null, 'a', true), ['a']);
+  assert.deepEqual(dismissedWith('["a","b"]', 'a', false), ['b']);
+  assert.deepEqual(dismissedWith('not json', 'c', true), ['c']);
+  assert.equal(openModeFor('preview', true), 'tab');
+  assert.equal(openModeFor('preview', false), 'preview');
+  assert.equal(openModeFor('background', true), 'background');
+  assert.equal(tabsSettingOn(null), true, 'on unless turned off');
+  assert.equal(tabsSettingOn('off'), false);
 });

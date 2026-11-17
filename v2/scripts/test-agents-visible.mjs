@@ -264,11 +264,16 @@ try {
   await expect(phone.locator('.group-pinned .remote-row')).toHaveCount(2);
   await expect(phoneRow('Old exploration')).toHaveCount(1);
 
-  // Open beside: a second chat, pinned to that conversation, next to the first.
+  // Open beside: that conversation in a chat group of its own, right of the conversation on screen
+  // (a workspace's conversations are tabs, so it may move out of the chat group into its own).
+  const chatGroups = page.locator('.dv-groupview').filter({has: page.locator('.dock-tab[data-kind="chat"]')});
+  const groupsBefore = await chatGroups.count();
   await agents.locator('.agent-row', {hasText: 'Index the API'}).click({button: 'right'});
   await menu.getByRole('menuitem', {name: /^Open beside/}).click();
-  await expect(page.locator('.page-layout .panel-chat')).toHaveCount(2);
-  await expect(page.locator('.page-layout .panel-chat').nth(1)).toContainText('Index the API');
+  await expect(chatGroups).toHaveCount(groupsBefore + 1);
+  const beside = page.locator('.page-layout .panel-chat').filter({visible: true, hasText: 'Index the API'});
+  await expect(beside).toHaveCount(1);
+  await expect.poll(async () => { const xs = await page.locator('.page-layout .panel-chat').filter({visible: true}).evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().x)); const own = (await beside.boundingBox())?.x ?? -1; return xs.length > 1 && own === Math.max(...xs); }, {message: 'the conversation opened beside is the rightmost chat'}).toBe(true);
   await shot(page, 'beside-dark-1440');
 
   // Archive asks, then the conversation leaves both lists; Delete asks and can be cancelled.

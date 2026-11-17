@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.25',
+    date: '2026-11-17',
+    title: 'A workspace\'s conversations are there as tabs',
+    items: [
+      { title: 'Every conversation as a tab', body: 'Opening a workspace shows its open conversations as tabs, most recent first (six at most; the rest are a click away in the sidebar). A conversation that had no tab after the last update is back in one.' },
+      { title: 'A click keeps it', body: 'A click on a conversation brings its tab forward, or opens it in a tab that stays; nothing replaces the conversation you were in, and a review opened beside it never takes its place.' },
+      { title: 'Closed stays closed', body: 'A tab you close stays closed the next time the workspace opens, until you open that conversation again.' },
+      { title: 'Prefer one chat?', body: 'Settings → Chat → Open a workspace\'s conversations as tabs: off, a click shows a conversation in a preview tab that the next click replaces, as before.' },
+    ],
+  },
+  {
     id: '2026-11-17.24',
     date: '2026-11-17',
     title: '/model lists your models',

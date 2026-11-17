@@ -140,6 +140,12 @@ function looking() {
   return document.visibilityState === 'visible' && document.hasFocus();
 }
 /**
+ * Whether the panel around a conversation is on screen: false for a chat tab
+ * behind another (or in a minimized group), which must not mark its
+ * conversation seen. True where no page says otherwise (a chat's own window).
+ */
+export const PanelShownContext = createContext(true);
+/**
  * A conversation on screen in a focused window is seen: its turns stop being
  * "ready for review", and no notification is raised for it. Marks follow the
  * freshest view of the session (this panel's or the Runner index's).
@@ -149,7 +155,8 @@ export function useMarkViewed(session: Session | undefined, enabled = true) {
   const { info } = useRunner();
   const { mark } = useSeen();
   const live = session && info?.sessions.find(value => value.id === session.id);
-  const active = enabled && !!session && isWorkConversation(session);
+  const shown = useContext(PanelShownContext);
+  const active = enabled && shown && !!session && isWorkConversation(session);
   const key = session ? conversationKey(session) : '';
   const at = active ? Math.max(...[session, live].filter((value): value is Session => !!value).map(value => seenMark(deriveAttention(value)))) : 0;
   const latest = useRef({ key, at }); latest.current = { key, at };

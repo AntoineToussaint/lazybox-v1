@@ -33,6 +33,8 @@ const url=`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&
 
 async function scenario(browser,scheme){
  const context=await browser.newContext({viewport:{width:1440,height:900},colorScheme:scheme});
+ // The default arrangement with one chat (the preview tab): "Open a workspace's conversations as tabs" off; test-conversation-tabs covers it on.
+ await context.addInitScript(()=>{try{localStorage.setItem('lazybox:workspace.conversation-tabs','off');}catch{/* a popup without storage */}});
  const page=await context.newPage();page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  const shot=name=>page.screenshot({path:`.cache/layout-keyboard-${name}-${scheme}.png`});

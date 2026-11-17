@@ -312,7 +312,7 @@ function mergeRightmost(root: LayoutNode): LayoutNode {
 }
 
 /** Where a panel of this kind goes the first time it is shown. */
-export const defaultDock = (kind: string): DockSide => kind === 'console' || kind === 'actions' ? 'bottom' : kind === 'sessions' ? 'left' : 'right';
+export const defaultDock = (kind: string): DockSide => kind === 'console' || kind === 'actions' ? 'bottom' : kind === 'sessions' || sidebarKinds.has(kind) ? 'left' : 'right';
 /** The share of the content area a docked panel takes: a terminal wants columns, the rest stay secondary. */
 export const dockShare = (kind: string, side: DockSide) => {
   const across = side === 'left' || side === 'right';
@@ -448,16 +448,18 @@ export function withSelection(page: WorkspacePage, target: ViewTarget): Workspac
 }
 
 /**
- * Chats as tabs: a chat following the page becomes the preview tab of the
- * conversation it shows, and a group keeps one preview tab (the one in front,
- * else its first); others become regular tabs. The same page when nothing changes.
+ * Chats as tabs: a chat following the page becomes a tab of the conversation
+ * it shows. With preview tabs (`previews`, the person's choice) it is the
+ * group's preview tab and a group keeps one (the one in front, else its
+ * first); without, every chat is a kept tab, so a conversation already open
+ * is never replaced. The same page when nothing changes.
  */
-export function settleChats(page: WorkspacePage): WorkspacePage {
+export function settleChats(page: WorkspacePage, previews = true): WorkspacePage {
   const settle = (group: Group): Group => {
     if (!group.panels.some(panel => panel.preview || (isChatTab(panel) && panel.binding.mode === 'follow'))) return group;
-    const converted = group.panels.map(panel => isChatTab(panel) && panel.binding.mode === 'follow' ? chatTab(panel.id, page.selection, true) : panel);
-    const previews = converted.filter(panel => isChatTab(panel) && panel.preview);
-    const keep = (previews.find(panel => panel.id === group.active) || previews[0])?.id;
+    const converted = group.panels.map(panel => isChatTab(panel) && panel.binding.mode === 'follow' ? chatTab(panel.id, page.selection, previews) : !previews && panel.preview ? withoutPreview(panel) : panel);
+    const marked = converted.filter(panel => isChatTab(panel) && panel.preview);
+    const keep = (marked.find(panel => panel.id === group.active) || marked[0])?.id;
     const panels = converted.map(panel => panel.preview && (panel.id !== keep || !isChatTab(panel)) ? withoutPreview(panel) : panel);
     return panels.every((panel, index) => panel === group.panels[index]) ? group : { ...group, panels };
   };
@@ -465,8 +467,8 @@ export function settleChats(page: WorkspacePage): WorkspacePage {
   return pageGroups(next).every((group, index) => group === before[index]) ? page : next;
 }
 /** Every page of a layout with its chats as tabs (settleChats); the same layout when none changes. */
-export function settleLayout(layout: WorkspaceLayout): WorkspaceLayout {
-  const pages = layout.pages.map(settleChats);
+export function settleLayout(layout: WorkspaceLayout, previews = true): WorkspaceLayout {
+  const pages = layout.pages.map(page => settleChats(page, previews));
   return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
 }
 
@@ -565,7 +567,9 @@ export function routeChat(page: WorkspacePage, selection: ViewTarget, newID: () 
  * so the conversation in front is not replaced.
  */
 export function openRelated(page: WorkspacePage, parent: ViewTarget, target: ViewTarget, options: { background: boolean }, newID: () => string): Opened {
-  const settled = settleChats(page), home = parent.sessionId ? tabFor(settled, parent) : undefined, group = home && groupOf(settled, home.id);
+  const loose = settleChats(page), found = parent.sessionId ? tabFor(loose, parent) : undefined;
+  // The parent stays: a preview parent is kept open first, so nothing opened later replaces it.
+  const settled = found?.preview ? keepTab(loose, found.id) : loose, home = found && tabFor(settled, parent), group = home && groupOf(settled, home.id);
   return openConversation(settled, target, { mode: options.background ? 'background' : 'tab', ...(home && group ? { group: group.id, after: home.id } : {}) }, newID);
 }
 /** A preview tab kept open: it becomes a regular tab. */
@@ -614,6 +618,47 @@ export function followFrontTab(before: WorkspacePage, after: WorkspacePage): Wor
     return sameConversation(target, after.selection) ? after : withSelection(after, target);
   }
   return after;
+}
+/**
+ * A workspace's conversations as tabs ("Open a workspace's conversations as
+ * tabs"): those given (open ones, most recent first) that have no tab yet get
+ * a kept tab each, after the chat group's tabs and behind the one in front,
+ * until the page has `cap` conversation tabs (or no room). A tab still on the
+ * workspace's start (no conversation yet) takes the first and selects it. A
+ * page without a chat is left as it is; so is one that already has them all.
+ */
+export function showWorkspaceTabs(page: WorkspacePage, conversations: readonly ViewTarget[], cap: number, newID: () => string): WorkspacePage {
+  const chats = visibleChats(page);
+  if (!chats.length) return page;
+  const missing = conversations.filter(target => target.sessionId && !tabFor(page, target));
+  if (!missing.length) return page;
+  let next = page;
+  const start = chats.find(panel => !resolveTarget(panel, page.selection).sessionId);
+  if (start) {
+    const first = missing.shift()!;
+    next = withSelection(mapPagePanels(next, panel => panel.id === start.id ? chatTab(panel.id, first) : panel), first);
+  }
+  const group = chatGroup(next);
+  if (!group) return next;
+  for (const target of missing) {
+    if (visibleChats(next).length >= cap || allPanels(next).length >= PANEL_LIMIT) break;
+    const last = groupOf(next, group.panels[0].id)?.panels.at(-1);
+    next = insertTab(next, group.id, chatTab(newID(), target), { after: last?.id, front: false });
+  }
+  return next;
+}
+/**
+ * A conversation that is gone (deleted): its tabs leave every page, and a
+ * card for it in its own window too. The same layout when it had none.
+ */
+export function forgetConversation(layout: WorkspaceLayout, sessionId: string): WorkspaceLayout {
+  if (!sessionId) return layout;
+  const shows = (page: WorkspacePage, panel: Panel) => panel.kind === 'chat' && resolveTarget(panel, page.selection).sessionId === sessionId;
+  const pages = layout.pages.map(page => {
+    const gone = allPanels(page).filter(panel => shows(page, panel));
+    return gone.length ? gone.reduce((result, panel) => closeTab(result, panel.id), page) : page;
+  });
+  return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
 }
 /** The preview tab a full page can close to make room: the first one, in reading order. */
 export function oldestPreview(page: WorkspacePage): Panel | undefined { return visibleChats(page).find(panel => panel.preview); }
@@ -813,10 +858,10 @@ export function redockPopouts(page: WorkspacePage): WorkspacePage {
   return { ...page, layout, popouts: [] };
 }
 /** What loading a saved page fixes: windows that are gone, chats that follow the page (they become its preview tab), duplicate chats, Agents hidden behind Workspaces, and Agents as the window has it (`agents`, see fitSidebarAgents). */
-export function repairLayout(layout: WorkspaceLayout, agents?: SidebarAgents): WorkspaceLayout {
+export function repairLayout(layout: WorkspaceLayout, agents?: SidebarAgents, previews = true): WorkspaceLayout {
   const pages = layout.pages.map(page => {
     const docked = redockPopouts(page), stacked = stackSidebar(docked.layout);
-    const next = fitSidebarAgents(dedupeChats(settleChats(stacked === docked.layout ? docked : { ...docked, layout: stacked }), page.selection), agents);
+    const next = fitSidebarAgents(dedupeChats(settleChats(stacked === docked.layout ? docked : { ...docked, layout: stacked }, previews), page.selection), agents);
     return next.layout === page.layout && next.floating === page.floating && next.popouts === page.popouts && next.detached === page.detached ? page : next;
   });
   return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };

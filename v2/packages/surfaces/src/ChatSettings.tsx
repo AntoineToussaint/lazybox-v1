@@ -5,6 +5,7 @@ import { ChatTextSettings } from './AppearanceSettings';
 import { SettingsGroup, SettingsHeader } from './settings-parts';
 import { ToolLineContext, ToolLines } from './ToolLine';
 import { ACTIVITY_DETAILS, type ToolEntry } from './tool-lines';
+import { useTabsSetting } from './useConversationTabs';
 
 const ROOT = '/work/api';
 const at = (s: number) => 1_700_000_000_000 + s * 1000;
@@ -22,9 +23,17 @@ const SAMPLE: ToolEntry[] = [
 /** Settings → Chat: how much of the agents' tool activity conversations show. */
 export function ChatSettings({ store }: { store?: ViewStateStore }) {
   const [detail, setDetail] = useActivityDefault(store);
+  const [tabs, setTabs] = useTabsSetting(store);
   const scope = useMemo(() => ({ root: ROOT, detail }), [detail]);
   return <section className="chat-settings" aria-labelledby="chat-settings-title">
     <SettingsHeader id="chat-settings-title" title="Chat" description="How conversations read and how much of the agents’ work they show."/>
+    <SettingsGroup title="Tabs" description="Conversations open as tabs of the chat, like files in an editor.">
+      <label className="settings-row">
+        <span className="settings-row-text"><span className="settings-row-label">Open a workspace’s conversations as tabs</span>
+          <small>{tabs ? 'Each conversation you open stays in a tab, and a workspace opens with its conversations as tabs (the six most recent).' : 'A single click shows a conversation in the preview tab, in italics, which the next one replaces; double-click to keep it.'}</small></span>
+        <span className="settings-row-control settings-switch"><input type="checkbox" role="switch" aria-label="Open a workspace’s conversations as tabs" checked={tabs} onChange={event => setTabs(event.target.checked)}/></span>
+      </label>
+    </SettingsGroup>
     <SettingsGroup title="Activity detail" description={<>How much of an agent’s tool calls a conversation shows. Change one conversation from its ⋯ menu, the command palette, or <kbd>]</kbd> <kbd>]</kbd> <kbd>v</kbd>. Every call stays in the Activity dialog.</>}>
       <div role="radiogroup" aria-label="Activity detail">
         {ACTIVITY_DETAILS.map(choice => <label key={choice} className="settings-row chat-settings-choice">

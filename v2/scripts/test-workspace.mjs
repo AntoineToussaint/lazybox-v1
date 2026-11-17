@@ -19,6 +19,8 @@ try {
   const url = `http://127.0.0.1:${server.httpServer.address().port}/?view=workspace#token=${fixture.token}`;
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
+  // One chat that shows the conversation chosen (the preview tab): "Open a workspace's conversations as tabs" off; test-conversation-tabs covers it on.
+  await context.addInitScript(() => { try { localStorage.setItem('lazybox:workspace.conversation-tabs', 'off'); } catch { /* a popup without storage */ } });
   let page = await context.newPage();
   const errors = [];
   context.on('page', page => page.on('pageerror', error => errors.push(String(error))));
@@ -210,6 +212,7 @@ try {
   assert.equal(fixture.mutations.length, 1, 'restoring assistant started another provider');
   fixture.sessions.push(...['a', 'b', 'c'].map(id => ({ ...fixture.sessions[0], id: `plain-${id}`, collectionId: '', title: `Conversation ${id}` })));
   const olderContext = await browser.newContext();
+  await olderContext.addInitScript(() => { try { localStorage.setItem('lazybox:workspace.conversation-tabs', 'off'); } catch { /* a popup without storage */ } });
   const olderPage = await olderContext.newPage();
   await olderPage.clock.install();
   await olderPage.clock.pauseAt(new Date());
