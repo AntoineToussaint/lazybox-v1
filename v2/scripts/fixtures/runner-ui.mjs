@@ -627,8 +627,9 @@ actions:
        mutations.push({method,body});const values=[];const members=[];
        for(const identity of body.repositoryIdentities||[]){const choice=catalogEntries().find(r=>r.identity===identity);if(!choice)return error('not_found','Unknown repository identity');let repo=library.find(r=>r.id===choice.repositoryId);if(!repo){if(preparationFailures.delete(identity)){res.writeHead(200,{'Content-Type':'application/connect+json'});res.end(Buffer.concat([...values.map(v=>frame(v)),frame({error:{code:'failed_precondition',message:'Fixture preparation failure'}},2)]));return;}const remote=githubRepositories.find(r=>'github:'+r.fullName.toLowerCase()===identity);repo={id:remote?'github-'+remote.id:'local-'+(library.length+1),name:choice.name.split('/').at(-1),path:choice.path||'/fixture/repos/'+remote.id,gitIdentity:identity};library.push(repo);prepared.push(identity);}values.push({identity,message:'Preparing '+choice.name});members.push({repositoryId:repo.id,name:repo.name||repo.id,...(body.branch&&!body.collectionId?{branch:body.branch}:{})});}
        let collection=requests.get(body.requestKey);if(!collection){if(body.collectionId){collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Missing workspace');collection.members.push(...members.map(spec=>({spec,path:collection.root+'/'+spec.name,ready:true})));}else{const id='created-'+collections.length;collection={id,name:body.name,...(body.item?{origin:{provider:body.item.provider||'github',key:body.item.key}}:{}),root:'/fixture/collections/'+id,state:'ready',members:members.map(spec=>({spec,path:'/fixture/collections/'+id+'/'+spec.name,ready:true}))};collections.push(collection);}requests.set(body.requestKey,collection);}values.push({message:'Ready',collection});
-       // Answering an agent's request for a repository: the request is resolved (the agent told).
-       if(body.repositoryRequestId){
+       // Answering an agent's request for a repository: the request is resolved (the agent told)
+       // once the repository is in the workspace, as the Runner does, not when preparation starts.
+       const answer=()=>{if(!body.repositoryRequestId)return;
         // The asking agent is told, as the Runner tells it: a message with its origin, shown as an event.
         const asker=sessions.find(s=>(s.pending||[]).some(p=>p.requestId===body.repositoryRequestId)),request=asker?.pending.find(p=>p.requestId===body.repositoryRequestId);
         const asked=request?JSON.parse(Buffer.from(request.providerDataJson,'base64').toString()):{};
@@ -636,11 +637,11 @@ actions:
         if(asker){const added=members.map(spec=>({name:spec.name,path:collection.root+'/'+spec.name,branch:asked.branch||''}));
          eventStreams.get(asker.id)?.push({type:'operation_accepted',operationId:'repository-note-'+body.repositoryRequestId,text:`[Lazybox] You asked to add ${asked.query||added[0]?.name} to this workspace. The person added it:\n${added.map(a=>`- ${a.name} at ${a.path} (branch ${a.branch})`).join('\n')}\nContinue with what you needed it for.`,
           providerDataJson:Buffer.from(JSON.stringify({files:[],origin:{kind:'repository_added',summary:`Added ${added.map(a=>a.name).join(', ')} to this workspace`,detail:asked.branch||'',copy:added.map(a=>a.path).join('\n')}})).toString('base64')});}
-       }
+       };
        res.writeHead(200,{'Content-Type':'application/connect+json'});
        // preparationDelayMs streams each step apart, as a clone does.
-       if(runner.preparationDelayMs){for(const value of values){res.write(frame(value));await new Promise(resolve=>setTimeout(resolve,runner.preparationDelayMs));}res.end(frame({},2));return;}
-       res.end(stream(values));return;
+       if(runner.preparationDelayMs){for(const value of values){res.write(frame(value));await new Promise(resolve=>setTimeout(resolve,runner.preparationDelayMs));}answer();res.end(frame({},2));return;}
+       answer();res.end(stream(values));return;
       }
       case 'DeclineRepositoryRequest': {
        mutations.push({method,body});const pending=sessions.flatMap(s=>s.pending||[]).find(p=>p.requestId===body.requestId);if(!pending)return error('failed_precondition','This request was already answered');

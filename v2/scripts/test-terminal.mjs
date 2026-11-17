@@ -17,7 +17,10 @@ let browser;
 try {
  await server.listen();browser=await (process.env.TEST_CHROMIUM?chromium:webkit).launch();
  const context=await browser.newContext({viewport:{width:1440,height:900}});
- const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ const page=await context.newPage();
+ // A reload cuts in-flight requests (a CloseTerminal still on its way on a slow machine), which WebKit reports as page errors ("access control checks") on the page being left: not failures.
+ let navigating=false;const errors=[];page.on('pageerror',e=>{if(!navigating)errors.push(String(e));});
+ const reload=async()=>{navigating=true;await page.reload();await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('ran: ls -la');navigating=false;};
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
  await expect(page.locator('.panel-chat').getByRole('textbox',{name:'Message',exact:true})).toBeVisible();
  assert.equal(calls('OpenTerminal').length,0,'showing a workspace never starts a shell');
@@ -63,8 +66,7 @@ try {
 
  // A reload re-attaches to the running shell with its scrollback.
  const opened=calls('OpenTerminal').length;
- await page.reload();
- await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('ran: ls -la');
+ await reload();
  assert.equal(calls('OpenTerminal').length,opened,'re-attaching does not start another shell');
 
  // Rearranging never remounts a neighbour: the chat keeps its element and its event stream.
@@ -89,8 +91,7 @@ try {
  assert.equal(await page.locator('.panel-chat').getAttribute('data-qa-identity'),'kept','closing and docking neighbours keeps the chat mounted');
  assert.equal(calls('WatchEvents').length,streams,'the chat did not reconnect');
  await page.screenshot({path:'/tmp/lazybox-docked-panels.png'});
- await page.reload();
- await expect(page.locator('.panel-terminal').getByTestId('terminal')).toContainText('ran: ls -la');
+ await reload();
  const restored=await arrangement();
  assert.ok(Math.abs(restored.o.x-shown.o.x)<4&&Math.abs(restored.t.x-shown.t.x)<4,'reload keeps the docked layout');
 

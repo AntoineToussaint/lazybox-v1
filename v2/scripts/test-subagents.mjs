@@ -93,7 +93,10 @@ try{
  await expect(messages.locator('.subagent-card .subagent-who').filter({hasText:/^Sub-agent$/})).toHaveCount(0);
  await expect(card(A)).toHaveAttribute('data-status','running');
  await expect(card(A).locator('.subagent-now-text')).toHaveText('Reading packages/surfaces/src/transcript-model.ts');
- await expect(card(A).locator('.subagent-stats')).toContainText(/1m 3\d+s · 14 tools · 48k tokens/);
+ await expect(card(A).locator('.subagent-stats')).toContainText(/\d+m \d+s · 14 tools · 48k tokens/);
+ // Its clock counts from its spawn, 95 s before the fixture was made: however long the page took to load.
+ {const [,m,sec]=(await card(A).locator('.subagent-stats').textContent()).match(/(\d+)m (\d+)s/),shown=Number(m)*60+Number(sec),since=(Date.now()-now)/1000;
+  assert.ok(shown>=94&&shown<=96+since,`elapsed ${shown}s, ${Math.round(since)}s after the fixture`);}
  // One elapsed time: the card's. The current step does not run a second clock.
  await expect(card(A).locator('time')).toHaveCount(1);
  // Its numbers and actions sit in its header row, inside the card.

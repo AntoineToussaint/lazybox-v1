@@ -57,11 +57,14 @@ try{
 
  // ── Add: the workspace's own add path, its progress in the card, then gone.
  fixture.runner.preparationDelayMs=400;
+ // The done line shows until the next session poll drops the answered card, which can be at once on
+ // a slow machine: watched every frame from before the click, so a brief one is still seen.
+ const done=page.waitForFunction(()=>document.querySelector('.request.repository-request-card .repository-done')?.textContent.replace(/\s+/g,' ').trim(),undefined,{polling:'raf'});
  await card.getByRole('button',{name:'Add acme/module-directory'}).click();
  await expect(card.getByRole('status')).toContainText('Preparing acme/module-directory');
  await expect(card.getByRole('progressbar',{name:'Adding acme/module-directory'})).toBeVisible();
  await page.screenshot({path:'.cache/repository-request-adding.png'});
- await expect(card.locator('.repository-done')).toHaveText('Added acme/module-directory · Claude is told');
+ assert.equal(await (await done).jsonValue(),'Added acme/module-directory · Claude is told');
  assert.deepEqual(mutations('PrepareWorkspace').map(({collectionId,repositoryIdentities,repositoryRequestId,requestKey})=>({collectionId,repositoryIdentities,repositoryRequestId,key:requestKey.startsWith('repository-request:repo-module:')})),
   [{collectionId:'alpha',repositoryIdentities:['github:acme/module-directory'],repositoryRequestId:'repo-module',key:true}]);
  await expect(card).toHaveCount(0);

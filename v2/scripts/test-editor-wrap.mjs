@@ -17,7 +17,9 @@ try{
  await server.listen();browser=await webkit.launch({headless:true});const page=await browser.newPage({viewport:{width:1200,height:900}});page.setDefaultTimeout(20000);
  const errors=[];page.on('pageerror',error=>errors.push(String(error)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
- const open=async()=>{await page.getByRole('button',{name:'README',exact:true}).click({modifiers:['Alt']});const dialog=page.getByRole('dialog',{name:'File preview',exact:true});await dialog.getByRole('button',{name:'Edit file',exact:true}).click();await expect(dialog.locator('.view-lines')).toContainText('Canonical');return dialog;};
+ const open=async()=>{await page.getByRole('button',{name:'README',exact:true}).click({modifiers:['Alt']});const dialog=page.getByRole('dialog',{name:'File preview',exact:true});await dialog.getByRole('button',{name:'Edit file',exact:true}).click();
+  // Monaco's first load from a cold dev server outlasts expect's 5 s on a CI runner.
+  await expect(dialog.locator('.view-lines')).toContainText('Canonical',{timeout:20000});return dialog;};
  const rows=dialog=>dialog.locator('.view-lines .view-line').count();
  let dialog=await open();
  // 3 lines of Markdown, the long one wrapped onto several rows, nothing past the right edge.

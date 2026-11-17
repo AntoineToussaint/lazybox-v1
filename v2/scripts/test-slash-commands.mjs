@@ -84,6 +84,8 @@ try{
  // A command without an argument goes at once.
  await page.keyboard.type('/ini');await page.keyboard.press('Enter');
  await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/init');
+ // The box empties after a send; typing before it has would lose the first keys.
+ await expect(message).toHaveValue('');
  // /compact is Claude's own /compact, sent without touching the draft.
  await page.keyboard.type('/compact');await page.keyboard.press('Enter');
  await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/compact');
@@ -105,8 +107,10 @@ try{
  assert.equal(applies().length,before,'not sent yet');
  await page.keyboard.press('Enter');
  await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/deploy now');
+ await expect(message).toHaveValue('');
  // A path is a message like any other.
  await page.keyboard.type('/usr/local/bin is missing');await expect(menu).toBeHidden();
+ await expect(message).toHaveValue('/usr/local/bin is missing');
  await page.keyboard.press('Enter');
  await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/usr/local/bin is missing');
 
