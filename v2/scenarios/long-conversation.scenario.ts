@@ -1,4 +1,4 @@
-import { scenario, caption, say, press, click, expect, reload, scroll, wait, button, region, css, text, transcript, type History } from './lib/dsl.ts';
+import { scenario, composer, caption, say, press, click, expect, reload, scroll, wait, button, region, css, text, transcript, type History } from './lib/dsl.ts';
 
 const TURNS = 140;
 const FILES = ['TranscriptView.tsx', 'transcript-model.ts', 'MessageList.tsx', 'useConversation.ts', 'scroll-anchor.ts', 'RichContent.tsx', 'tool-lines.ts'];
@@ -49,8 +49,10 @@ export default scenario({
       press('Enter'),
       expect.visible(strip),
       expect.text(strip, 'Skip the dev server'),
-      caption('…until you say **Send now**: it stops that step and goes next'),
-      click(button('Send now').in(strip)),
+      caption('…until you press **⌘↵**, Send now: it stops that step and goes next'),
+      expect.visible(button('Send now').in(strip)),
+      click(composer()),
+      press('Mod+Enter'),
       expect.call('Apply', body => body.deliverQueued?.how === 'now'),
       expect.hidden(strip),
       expect.exactText(css('.stopped-line').last(), 'Stopped to send your message'),

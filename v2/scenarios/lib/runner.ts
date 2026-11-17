@@ -191,6 +191,7 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
     for (const [index, item] of steps.entries()) {
       if (failed) { report.steps.push({ index, kind: item.kind, label: item.label, status: 'skipped', checks: [] }); continue; }
       checks = []; during = `step ${index + 1}, ${item.label}`;
+      if (process.env.SCENARIO_DEBUG) console.error(`${name}: ${during}`);
       if (item.caption) { if (captionOpen) await keyframe(captionOpen); captionOpen = item.caption; }
       const at = recorder ? Math.round(recorder.elapsed()) : undefined, t0 = performance.now();
       try {

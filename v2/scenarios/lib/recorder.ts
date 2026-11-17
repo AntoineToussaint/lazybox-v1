@@ -39,18 +39,18 @@ export class FrameRecorder {
     this.encoder.stderr!.on('data', chunk => { errors += chunk; });
     this.encoder.stdin!.on('error', () => {});
     this.encoded = new Promise((resolve, reject) => this.encoder!.on('close', code => code === 0 ? resolve() : reject(new Error(`ffmpeg exited with ${code}: ${errors.trim().split('\n').slice(-2).join(' | ')}`))));
-    this.cdp = await this.context.newCDPSession(this.page);
-    // A CDP session of our own sees the page at 1× unless it asks for the same
-    // device metrics Playwright emulates; then a capture is at device pixels.
-    await this.cdp.send('Emulation.setDeviceMetricsOverride', { width: this.viewport.width, height: this.viewport.height, deviceScaleFactor: this.scale, mobile: false });
+    await this.attach();
     this.running = true; this.started = performance.now();
     const clip = { x: 0, y: 0, width: this.viewport.width, height: this.viewport.height, scale: 1 };
     this.loop = (async () => {
       while (this.running) {
         const before = performance.now();
         try {
-          const { data } = await this.cdp!.send('Page.captureScreenshot', { format: 'jpeg', quality: 92, clip, optimizeForSpeed: true } as never) as { data: string };
-          this.add({ image: Buffer.from(data, 'base64'), at: (before + performance.now()) / 2 - this.started });
+          // A capture never answered (it happens across a reload) must not stall the recording.
+          const capture = this.cdp!.send('Page.captureScreenshot', { format: 'jpeg', quality: 92, clip, optimizeForSpeed: true } as never) as Promise<{ data: string }>;
+          const answer = await Promise.race([capture, new Promise<undefined>(resolve => setTimeout(resolve, 2500))]);
+          if (!answer) { capture.catch(() => {}); if (this.running) await this.attach(); continue; }
+          this.add({ image: Buffer.from(answer.data, 'base64'), at: (before + performance.now()) / 2 - this.started });
         } catch {
           if (!this.running) break;
           // A navigation can drop one capture; the next one follows.
@@ -58,6 +58,15 @@ export class FrameRecorder {
         }
       }
     })();
+  }
+  /**
+   * A CDP session of our own. It sees the page at 1× unless it asks for the
+   * device metrics Playwright emulates; then a capture is at device pixels.
+   */
+  private async attach() {
+    await this.cdp?.detach().catch(() => {});
+    this.cdp = await this.context.newCDPSession(this.page);
+    await this.cdp.send('Emulation.setDeviceMetricsOverride', { width: this.viewport.width, height: this.viewport.height, deviceScaleFactor: this.scale, mobile: false });
   }
   /** Puts a frame on the 30 fps timeline: the previous one fills every slot until this one's time. */
   private add(frame: Frame) {

@@ -33,6 +33,10 @@ The other options are `--no-video` (run it as a test), `--no-webm`, `--scale=N`
 (device pixels per CSS pixel, default 2) and `--timeout=ms` (per check,
 default 10000).
 
+`SCENARIO_DEBUG=1` prints each step as it starts, with the page's errors and
+their stacks. `SCENARIO_REAL_CLOCK=1` leaves the page's clock real, so you can
+tell an artefact of the fixed clock from a bug.
+
 Video needs `ffmpeg` on `PATH`, or `FFMPEG=/path/to/ffmpeg`. Without it the
 run says so and writes Playwright's own WebM instead, which is 1× and softer.
 
