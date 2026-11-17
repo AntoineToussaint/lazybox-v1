@@ -209,16 +209,18 @@ Anthropic.
    a `0700` folder; the Runner has no Keychain storage to reuse), never returns
    it (only its last four characters), and gives it to the `claude-default`
    account's agents as `ANTHROPIC_API_KEY`, removing the other Claude
-   credentials from their environment. A subscription token pasted as a key
+   credentials from their environment. Each Runner (Working, Dev) keeps its
+   own. A subscription token pasted as a key
    (`sk-ant-oat…`) is refused. Bedrock, Vertex, Foundry and Claude Platform on
    AWS work by setting their variables in the Runner's environment; Settings
    says which one is in effect. Onboarding recommends the API key.
 2. **Lazybox no longer offers a Claude sign-in by default** (R1, R2). Adding a
    Claude subscription in Settings, and starting or switching a conversation
    onto one saved there, need **Settings → Agents & workspaces → Claude →
-   Claude sign-in in Lazybox**, which is off. Turning it on shows what this page says, in a few
-   lines, with links. Codex subscriptions are unaffected: OpenAI documents Sign
-   in with ChatGPT for third-party apps.
+   Claude sign-in in Lazybox**, which is off. Its description says why, in a
+   few lines, with a link to the terms; on, a warning stays under it. Existing
+   users get a one-time notice. Codex subscriptions are unaffected: OpenAI
+   documents Sign in with ChatGPT for third-party apps.
 3. **The person's own Claude Code sign-in still works** (R3), labelled for what
    it is: the `claude` program they installed and signed in to themselves, run
    unmodified. Lazybox shows no login for it. This is the case we ask Anthropic

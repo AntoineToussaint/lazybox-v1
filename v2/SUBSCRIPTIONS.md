@@ -6,8 +6,16 @@ This requirement applies from the first agent contract. Provider-specific accoun
 
 The implementation preserves inherited native settings and credentials by
 default. On 2026-10-29 the user explicitly requested once-only enrollment and
-rotation among saved subscriptions. Rotation is on by default: a new
-conversation's pool is every other signed-in subscription (enrolled, isolated
+rotation among saved subscriptions. On 2026-11-17 automatic rotation left the
+core ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md)): the core keeps several
+accounts per provider, chosen explicitly per conversation, and switching by
+itself at a limit is an extension's **account policy**
+([EXTENSIONS.md](EXTENSIONS.md#account-policy)), off until the person adds and
+allows one (Lazybox bundles *Subscription rotation*, not installed). Without a
+policy a conversation's pool is empty, and a pool saved with a conversation
+switches nothing: the rotation supervisor asks at every limit whether a policy
+covers the provider. With one, a new conversation's pool is the policy's
+ordered accounts, or every other signed-in subscription (enrolled, isolated
 profile) of the same provider, sorted by ID and capped at 16. Two opt-outs
 narrow it: **Settings → Subscriptions → Automatic switching** takes one account
 out of every new conversation's pool (`RunnerSettings.rotation_excluded_profile_ids`),
@@ -20,6 +28,16 @@ subscriptions added or excluded later apply to conversations started afterwards,
 and a resumed conversation keeps its saved pool. An empty pool leaves account
 selection unchanged. No implicit provider change, global logout/login, or
 API-key fallback is used.
+
+Claude is different ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md)). The
+recommended credential is an Anthropic API key the person saves in Settings →
+Agents & workspaces → Claude (`SetClaudeApiKey`, kept in
+`<state>/secrets/anthropic-api-key`, `0600`): the `claude-default` account's
+agents get it as `ANTHROPIC_API_KEY`, every other Claude credential removed.
+Without one, `claude-default` runs on the person's own Claude Code sign-in.
+Claude subscriptions saved through Lazybox's own sign-in start only with
+`RunnerSettings.claude_subscription_sign_in` on (off by default), and Lazybox
+imports no Claude subscription token.
 
 ## Implemented local Runner path
 
@@ -51,7 +69,8 @@ resume it when capacity returns.
 ### Switching on request
 
 The owner can move a running conversation at any time (`SwitchSubscription`,
-owner only; agent and terminal credentials are refused). It uses the same
+owner only; agent and terminal credentials are refused). This explicit switch
+is core and needs no account policy; `enable_rotation` does. It uses the same
 attempt mechanism as automatic rotation, in the same execution: the old native
 process is closed before the new one starts, credentials are resolved first so
 a profile that cannot start never costs the running agent, and the new account
@@ -68,8 +87,8 @@ still accepts messages: they are journaled once, wait in the queue and are
 delivered after the switch or the retry, after the interrupted request. No
 operation is replayed. Other faults still refuse messages until reconciled.
 
-`SetSessionRotation` turns automatic switching on or off for a running
-conversation (its pool is resolved as for a new conversation on its current
+`SetSessionRotation` (refused without an account policy when turning it on)
+turns automatic switching on or off for a running conversation (its pool is resolved as for a new conversation on its current
 subscription, honouring Settings exclusions, and saved with it). With
 `all_sessions` it applies to every running conversation of the provider that
 did not opt out when it started, and turning it on takes the provider's
@@ -77,10 +96,11 @@ subscriptions back into automatic switching in Settings.
 
 In the conversation, an automatic switch is one quiet line ("Switched to Work ·
 Personal is back at 6:00 PM"). Without one, a single card names the limit and
-when the subscription is back ("back at 6:00 PM (in 2h 10m)"), offers the best other subscription first (a picker when there are
-several, with each one's state and reset), **Wait for reset**, and **Always
-switch automatically** (on by default; the first time, one question offers it
-for every conversation). Waiting continues the request on the same subscription
+when the subscription is back ("back at 6:00 PM (in 2h 10m)"), offers **Switch
+to** the best other subscription first (a picker when there are several, with
+each one's state and reset) and **Wait for reset**. Only while an account
+policy covers the provider does it also offer **Always switch automatically**
+(the first time, one question offers it for every conversation). Waiting continues the request on the same subscription
 at the reset while the conversation is open in a window, or the next time it is
 opened; this is the client's timer, not the Runner's. The session ⋯ menu has
 **Switch subscription…** at any time. Provider tokens are never shown.
@@ -98,17 +118,18 @@ card says so. An available card names only its next reset, of its most-used
 window.
 
 Use **Settings → Subscriptions → Add subscription** in the main workspace,
-or enroll on the Runner host using `lazybox account-login` as described in
-[Running](RUNNING.md#enroll-subscriptions-once). Codex uses its native login
-with an isolated `CODEX_HOME` and an explicitly selected file auth store.
-Claude runs its native `auth login --claudeai` command with a private
-`CLAUDE_CONFIG_DIR`. Lazybox opens the native browser URL; Claude owns the local
+or enroll a Codex account on the Runner host using `lazybox account-login` as
+described in [Running](RUNNING.md#enroll-subscriptions-once). Codex uses its
+native login with an isolated `CODEX_HOME` and an explicitly selected file auth
+store. Claude, only with Claude sign-in in Lazybox on, runs its native
+`auth login --claudeai` command with a private `CLAUDE_CONFIG_DIR`. Lazybox opens the native browser URL; Claude owns the local
 callback, code exchange and credential persistence. A fresh `auth status`
 process must confirm `claude.ai`, a saved login and the expected config directory
 before the account is registered. The native login is reused when switching.
 Only permission and sandbox preferences are seeded from existing user settings;
 auth and account metadata are not copied and the source settings are never written.
-The CLI-only setup-token import remains available for automated provisioning.
+The setup-token import is refused for Claude (Lazybox may not store a Claude.ai
+credential); an account imported that way earlier no longer starts.
 Settings reloads the registry live; no Runner restart is required. Existing
 profiles are never overwritten. Credentials stay out of profile metadata,
 journals, RPC responses and checkpoints.

@@ -102,9 +102,11 @@ Runner), so they open straight to the welcome below.
 
 On a fresh install Lazybox greets you once with the three things it needs:
 
-1. **Connect a subscription.** Opens Settings → Subscriptions. Your existing
-   `claude` or `codex` sign-in already works as *Local CLI sign-in*; add named
-   accounts here if you have several (see [Subscriptions and limits](guides/subscriptions.md)).
+1. **Connect your agents.** **Add an API key** opens Settings → Agents &
+   workspaces → Claude, where an Anthropic API key is the way Anthropic
+   documents for apps like Lazybox; your own `claude` sign-in also works.
+   **Sign in to Codex** opens Settings → Subscriptions; your existing `codex`
+   sign-in already works as *Local CLI sign-in* (see [Subscriptions and limits](guides/subscriptions.md)).
 2. **Start a task.** Opens **New task**: repositories, an agent and what to
    do, in one sheet (next section).
 3. **Five keys** — shown with *your* bindings. They are also

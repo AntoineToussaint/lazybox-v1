@@ -108,11 +108,12 @@ See [Artifacts](guides/artifacts.md).
 ## Subscriptions
 
 A **subscription** is an account an agent runs on: your existing `claude` or
-`codex` sign-in, or named accounts you add in Settings → Subscriptions (each
-signed in once, kept isolated). Lazybox shows each account's usage windows and
-reset times. When a conversation hits an account's limit it can **switch to
-another subscription** of the same provider — automatically by default — and
-carry on in the same conversation. See [Subscriptions and limits](guides/subscriptions.md).
+`codex` sign-in, an Anthropic API key for Claude, or named accounts you add in
+Settings → Subscriptions (each signed in once, kept isolated). Lazybox shows
+each account's usage windows and reset times. When a conversation hits an
+account's limit you can **switch it to another subscription** of the same
+provider and carry on in the same conversation; switching by itself is the
+*Subscription rotation* extension's. See [Subscriptions and limits](guides/subscriptions.md).
 
 ## Commands and the console
 

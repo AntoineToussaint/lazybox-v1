@@ -55,17 +55,20 @@ turn for 5m"* or *"no event for 12m while a turn runs"*. `lazybox watch
 each agent needs. Lazybox runs agents with your own subscription, on the
 Runner's computer, so each needs its program and a sign-in:
 
-- **Claude Code — Not installed.** Claude Code ships with Lazybox; this means
-  that copy is missing. Reinstall Lazybox (in a checkout: `make -C v2 deps`).
-  To use a Claude Code you install yourself, run the command the panel shows
-  (`curl -fsSL https://claude.ai/install.sh | bash`) and restart the Runner
-  (Settings → Runner) so it finds it.
+- **Claude Code — Not installed.** A Lazybox built without Claude Code (or
+  one whose copy is missing) runs the one on your PATH. Settings → Agents &
+  workspaces → Claude → **Install Claude Code** types Anthropic's installer
+  (`curl -fsSL https://claude.ai/install.sh | bash`) into a shell panel; then
+  restart the Runner (Settings → Runner) so it finds it. In a checkout,
+  `make -C v2 deps` restores the bundled copy.
 - **Codex — Not installed.** Run `npm install -g @openai/codex` (or `brew
   install codex`). An installed Lazybox's Runner reads the PATH once: run
   `lazybox service install` to refresh it, then **Check again**.
-- **Not signed in, or no subscription.** Settings → Subscriptions → add a Claude
-  or ChatGPT subscription; or sign in once in a terminal (`claude`, then
-  `/login`; `codex login`) and Lazybox uses that sign-in as *CLI sign-in*.
+- **Not signed in, or no subscription.** For Claude, save an Anthropic API key
+  in Settings → Agents & workspaces → Claude, or sign in once in a terminal
+  (`claude`, then `/login`) and Lazybox uses that sign-in as *CLI sign-in*. For
+  Codex, Settings → Subscriptions → add a ChatGPT subscription, or `codex
+  login`. Why Claude differs: [Subscriptions and limits](guides/subscriptions.md#claude-an-api-key-or-your-own-claude-code-sign-in).
 - **Limit reached · back at …** Every subscription of that agent is at its
   limit. Wait for the reset, or add another subscription.
 - **Cannot run.** The panel says why (a program that does not start, the Claude
@@ -80,12 +83,14 @@ works without any agent. More in [Ask Lazybox](guides/ask-lazybox.md).
 **You see** a card: *Personal Claude reached its limit (resets 6:00 PM)*, or the
 sidebar reads *Waiting for reset 6:00 PM*.
 
-- **Continue with** another subscription of the same provider — the same
+- **Switch to** another subscription of the same provider — the same
   conversation carries on. Several to choose from? The picker shows each one's
   state and reset.
 - **Wait for reset** — it resumes by itself at the reset while the window is open.
-- **Always switch automatically** — the default for new conversations; this
-  turns it on for running ones too.
+
+Lazybox switches only when you ask. To switch by itself at a limit, add the
+**Subscription rotation** extension (Settings → Extensions); the card then
+also offers **Always switch automatically**.
 
 Messages you send meanwhile are kept and delivered once it continues. No other
 subscription? Add one in Settings → Subscriptions. Details:

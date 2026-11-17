@@ -61,6 +61,10 @@ its own requests only. **No grant reads a conversation's messages, a command's
 output, a file or a terminal, changes a setting, starts or stops work,
 approves anything or sees a credential** — there is no grant to ask for.
 
+`switch:claude` and `switch:codex` are not bridge grants: they admit no RPC to
+a panel. They are what an [account policy](#account-policy) may do, and the
+Runner acts on them itself.
+
 ## Installing, updating, removing
 
 - **Nothing runs until approved.** A new folder shows as *Needs your approval*
@@ -89,6 +93,66 @@ approves anything or sees a credential** — there is no grant to ask for.
   `do:inbox.open`) are bundled; *Add* copies one into the folder, then the sheet
   asks. `lazybox extension new my-panel [--example agent-board]` writes a
   starter (with `lazybox.d.ts` for the editor).
+
+## Account policy
+
+The core keeps several signed-in accounts per provider (a personal and a work
+one), chosen **explicitly** per conversation, and never moves a conversation to
+another account by itself: at a limit, the limit card offers **Switch to
+*another account*** and the person chooses. Switching by itself at a limit is an
+extension's **account policy** ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md):
+for Claude it may break Anthropic's terms, so it is nobody's default).
+
+```yaml
+lazybox: 1
+name: Subscription rotation
+grants: [switch:codex, switch:claude]
+accountPolicy:
+  switchOnLimit: true
+  accounts: []      # profile ids to try, in order; empty: every other signed-in account, sorted
+```
+
+- **The grants say which providers.** A policy needs at least one
+  `switch:<provider>` grant, and a switch grant needs a policy (either alone is
+  an error by line). So approving the sheet is approving the policy, a manifest
+  that adds a provider is *Asks for more* until reviewed, and one that drops a
+  provider stops switching it at once (approved ∩ asked).
+- **The Runner interprets it** (`internal/runner/account_policy.go`): a new
+  conversation's pool is the policy's accounts (or every other signed-in
+  account of the provider), minus Settings → Subscriptions → *Automatic
+  switching* exclusions, and an explicit per-conversation opt-out still wins.
+  The rotation supervisor asks again at **every** limit whether a policy
+  covers the provider (`rotation.Adapter.Switching`): turning the extension
+  off, removing it, or removing a grant stops switching for running
+  conversations too, and a pool saved with a conversation switches nothing
+  without one. `SetSessionRotation` and `SwitchSubscription(enable_rotation)`
+  are refused (`FailedPrecondition`) without a policy;
+  `RunnerSettings.automatic_switching_providers` tells clients which providers
+  one covers, so the UI shows *Always switch automatically* only then.
+- **First party, off by default.** *Subscription rotation*
+  (`internal/power/extensions/examples/subscription-rotation/`) is bundled as
+  an example: neither installed nor approved until the person adds it in
+  Settings → Extensions. Approving it for Claude shows a plain warning with a
+  link to Anthropic's terms, in the sheet and on its card.
+- **Migration.** A Runner state from before this change gets one notice
+  (`RunnerSettings.notices`, "automatic-switching-moved") when switching was in
+  effect for someone: a signed-in account, not excluded, beside another account
+  of its provider, or a configured `defaults.rotationProfiles`. Nothing is
+  turned back on. The notice is dismissed for good by a save that leaves it
+  out; a save never adds one.
+
+**Why declarative, not code.** An extension's code runs in a sandboxed panel
+with an opaque origin and a credential that admits only read and show RPCs.
+A policy written as code would need one of: running extension code in the
+Runner (a new, unsandboxed execution environment with the person's accounts in
+reach), or a new RPC that lets a panel move conversations between accounts
+(a panel that is closed, frozen or not loaded would then decide nothing, and a
+compromised one could move every conversation). The decision is small and
+fixed (whether, and to which account, in which order), so it fits in data the
+person reads in the sheet before allowing it, that `lazybox extension validate`
+checks by line, and that the Runner applies even with no window open. If a
+later policy needs more than an ordered list and a flag, it gets more
+declarative fields, each a sentence in the sheet.
 
 ## Where an extension runs
 
@@ -216,7 +280,9 @@ app window (Lazybox origin)
 
 | Where | What |
 |---|---|
-| `internal/power/extensions.go` | Manifest parser, folder scan and limits, approvals, sessions and credentials, examples and the starter, the schema |
+| `internal/power/extensions.go` | Manifest parser (with `accountPolicy`), folder scan and limits, approvals, sessions and credentials, examples and the starter, the schema |
+| `internal/runner/account_policy.go`, `internal/accounts/policy.go` | Account policies from enabled extensions, the pool they give, the one-time notices |
+| `internal/power/extensions/examples/subscription-rotation/` | The first-party Subscription rotation policy |
 | `internal/power/extension_content.go` | The content origin and its two policies |
 | `internal/power/extensions/runtime/` | `shell.html/js/css`, `lazybox.js` (the bridge client), `lazybox.css`, `lazybox.d.ts`, `policy.json` |
 | `internal/power/extensions/examples/` | Cost dashboard, Agent board |
@@ -227,6 +293,16 @@ app window (Lazybox origin)
 
 ## Verification
 
+- Account policy: `internal/power` (`TestAccountPolicyIsWhatThePersonApproved`:
+  policy and grants agree, a panel-less policy loads, nothing switches before
+  approval or once off, a narrowed manifest stops a provider at once),
+  `internal/runner/rotation` (`TestNoAccountPolicyNeverSwitchesByItself`),
+  `internal/transport` (`TestAutomaticSwitchingIsTheAccountPolicys`: no pool
+  and no switch without a policy, the person's switch still works, the policy
+  switching at a limit, turning it off stopping a running conversation;
+  `TestAccountsMigrationNoticesOnce`), and the UI suite
+  `npm run test:claude-compliance` (adding and allowing Subscription rotation
+  with its Claude warning) and `npm run test:subscription-switch`.
 - Go: `internal/power` — the manifest by line (unknown grants and keys with
   suggestions, unsafe actions, hosts that would widen the policy, entries that
   leave the folder), the approval lifecycle (nothing before approval, exactly

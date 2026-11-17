@@ -2,7 +2,8 @@
 
 An extension is a panel you write in HTML, JavaScript and CSS — a board of
 your agents, a cost dashboard, a view of your own service — and keep in a
-folder. It runs in a sandbox, apart from Lazybox, and can read and do **only
+folder. It can also be an [account policy](#account-policies) with no panel at
+all, such as *Subscription rotation*. It runs in a sandbox, apart from Lazybox, and can read and do **only
 what you allow** it, which Lazybox shows you in words before it runs. It cannot
 read your files, terminals or messages, run commands, change a setting, see a
 credential, or reach any site you did not allow.
@@ -42,6 +43,7 @@ When you allow an extension, you allow exactly the grants its sheet lists:
 | Show a conversation | `show:conversations` |
 | Run “Open the inbox” (one action that only shows, focuses or arranges) | `do:inbox.open` |
 | Send messages as you | `send:messages` |
+| Move Claude (or Codex) conversations to another of your accounts at a limit | `switch:claude`, `switch:codex` (an [account policy](#account-policies)) |
 
 and the network hosts it lists, if any (“what it can see, it could send to
 these sites”). Everything else is refused; the panel says so quietly
@@ -55,6 +57,29 @@ bar; the sheet marks what is new. Asking for less needs nothing from you.
 **Settings → Extensions** lists them all with what each may do: the switch
 turns one off or on, **Access** shows the sheet again, × removes it (its
 folder and what you allowed).
+
+## Account policies
+
+An account policy says what Lazybox does when a conversation reaches its
+subscription's limit. It is a few lines of the manifest that the Runner reads
+itself; no code of the extension runs, and no panel is needed:
+
+```yaml
+# extensions/subscription-rotation/extension.yaml (bundled; Settings → Extensions → Examples)
+lazybox: 1
+name: Subscription rotation
+grants: [switch:codex, switch:claude]    # the providers it may switch
+accountPolicy:
+  switchOnLimit: true
+  accounts: []          # accounts to try, in order (ids); empty is every other signed-in one
+```
+
+Nothing switches until you allow it, for exactly the providers its grants name;
+an edit that adds one is asked again. Turning it off stops switching at the
+next limit, running conversations included. Settings → Subscriptions →
+**Automatic switching** still leaves one account out. For Claude, the sheet and
+Settings say plainly that Anthropic's terms may not allow moving between Claude
+subscriptions to keep working past a usage limit, with a link to them.
 
 ## Make your own
 

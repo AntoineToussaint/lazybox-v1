@@ -37,6 +37,13 @@ leave out.
 - **Codex, tested** Lazybox is tested with Codex 0.164 to 0.169; another version says so in one line at the start of a conversation instead of failing silently.
 - **ACP agents are a preview** Gemini CLI, Goose and the other ACP agents are marked Preview in New conversation and Settings, and Settings → Agents says when an installed agent does not take the flag Lazybox starts it with. An agent's own commands, such as /compact, are in the / menu.
 
+### Claude and your accounts
+
+- **An Anthropic API key for Claude** Settings → Agents & workspaces → Claude takes an Anthropic API key, the way Anthropic documents for apps built on its Agent SDK. Lazybox keeps it on your Mac and only ever shows its last four characters; the section also says what Claude agents sign in with now.
+- **Switching accounts is your choice** At a limit, the card offers Switch to another of your accounts, or waiting for the reset; Lazybox no longer moves a conversation by itself. Add the Subscription rotation extension in Settings → Extensions to switch automatically again; for Claude it says plainly that Anthropic's terms may not allow it.
+- **Claude sign-in in Lazybox is off** Claude subscriptions saved in Settings → Subscriptions wait until you turn Claude sign-in in Lazybox on, at your own risk; an API key and your own Claude Code sign-in work as they are. Lazybox no longer imports Claude subscription tokens.
+- **Install Claude Code** When Claude Code is missing from your Mac, Settings → Agents & workspaces → Claude runs Anthropic's installer in a shell panel you watch.
+
 ### Workspaces and tabs
 
 - **Conversations are tabs** A workspace opens with its conversations as tabs, most recent first. A click brings one forward, ⌘-click opens one behind, and a tab you close stays closed. Prefer one preview tab? Settings → Chat.

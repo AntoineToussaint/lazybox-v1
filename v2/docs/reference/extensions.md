@@ -16,8 +16,9 @@ completion.
 | `name` | What Settings and the panel show (48 characters). Required. |
 | `version`, `description`, `author` | Shown in Settings and the approval sheet. |
 | `homepage` | An `https://` address. |
-| `panels` | 1–8 panels: `id` (lowercase, digits, dashes), `title`, `entry` (an `.html` page of the folder, default `index.html`), `icon`, `description`. |
-| `grants` | What it asks for (below), up to 40. |
+| `panels` | 1–8 panels: `id` (lowercase, digits, dashes), `title`, `entry` (an `.html` page of the folder, default `index.html`), `icon`, `description`. Optional with an `accountPolicy`. |
+| `grants` | What it asks for (below), up to 40. `switch:claude` and `switch:codex` are an account policy's: the providers it may switch. |
+| `accountPolicy` | What the Runner does at a subscription limit: `switchOnLimit` (`true` moves the conversation to another signed-in account of its provider) and `accounts` (ids to try, in order; empty is every other one). Needs a `switch:<provider>` grant. See [account policies](../guides/extensions.md#account-policies). |
 | `network` | Origins it may fetch from, up to 16: `https://host[:port]`, `https://*.example.com`, or `http://localhost[:port]` / `http://127.0.0.1[:port]`. No paths. |
 
 Icons: `puzzle` (default), `chart`, `columns`, `activity`, `target`, `sliders`,
