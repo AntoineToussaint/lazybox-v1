@@ -14,6 +14,15 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.14] - 2026-11-17 · The pull requests your agents open, tracked
+
+- **Every pull request a workspace delivers** Lazybox now tracks the pull requests your agents open, not only the one you open from Changes: one an agent opens with gh pr create, one opened from any branch the workspace worked on, or one it links with lazybox link URL. Links and their state survive a Runner restart, and a deleted workspace's stay as history.
+- **Where you look already** The header shows a pill per open pull request with its checks dot (the branch's own opens the PR loop), and each sidebar row one badge for its most urgent: checks failed, then changes requested, then ready to merge.
+- **A Pull requests panel** ⌘K, Show pull requests (or the panels menu) lists every tracked pull request: Needs you, Waiting on others, Merged this week, and what conversations only mentioned. j/k move, Enter opens the workspace at the conversation that opened it, s sends the failures, r the review, m merges, each after a confirmation. In ⌘K, ! searches them.
+- **One click back to the agent** In the Inbox and the panel, Send the failures gives the agent the failing GitHub Actions steps compacted as lazybox run does, with each full log saved for it; Address the review puts GitHub's review comments in the Review tray on their lines and sends them. Both arrive with a chip, wait for a turn in progress, and never go without your click.
+- **Told when it changes** Checks failed or passed, changes requested, approved, merged, closed, conflicts: once each, as a quiet line in the conversation, a phone notification under your settings, and new hook events (pr.opened, pr.checks-passed, pr.approved, pr.merged…).
+- **Light on GitHub** Open pull requests are checked about every minute while Lazybox has your focus, every five minutes otherwise, and an unchanged one costs nothing against GitHub's rate limit; if the limit is reached, checking pauses and says until when.
+
 ## [2026-11-17.13] - 2026-11-17 · Send now sends
 
 - **Send now is one click, and it sends** A queued message's Send now stops the agent's current step and sends your message right away, the other queued messages in order after it, even after Lazybox restarted. The conversation shows one quiet line, Stopped to send your message, never an error from the provider.

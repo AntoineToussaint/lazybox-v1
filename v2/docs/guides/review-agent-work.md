@@ -125,3 +125,57 @@ Commit and push work with any git remote. Pull requests need a GitHub
 connection: Settings → Repositories → *Connections & folders* → **Connect with
 a personal token** (a classic token with `repo` scope covers everything; `gh auth
 token` works too).
+
+## Pull requests your agents open
+
+Lazybox tracks every pull request a workspace delivers, whoever opened it and
+on whatever branch, and keeps it fresh while you do something else:
+
+- the one you open with **Create PR…**;
+- one opened from any branch a workspace repository has been on, found on the
+  next check (about a minute);
+- one an agent opens with `gh pr create`, `hub pull-request` or `glab mr
+  create`: Lazybox reads the URL it prints. Other pull request or issue links
+  in an agent's output are listed as **Mentioned**, never tracked;
+- one an agent links itself with `lazybox link URL` (agents are told to,
+  when they open one some other way).
+
+**Where you see them.**
+
+| Where | What |
+| --- | --- |
+| The header | A pill per open pull request of the workspace, most urgent first, each with its checks dot. The branch's own opens the PR loop in Changes; another opens it on GitHub. |
+| The sidebar | One badge per workspace: its most urgent pull request (checks failed, then changes requested, then ready to merge), and `+N` for the rest. |
+| **Pull requests** (⌘K *Show pull requests*, or the panels menu) | Every tracked pull request: **Needs you**, **Waiting on others**, **Merged this week**, and **Mentioned** folded below. |
+| ⌘K | Type `!` to search pull requests; those that need you are listed first when the palette opens. |
+| The Inbox | A row for each one that needs you, with the next step ready. |
+| The conversation | One quiet line when its pull request changes: checks failed, approved, merged. |
+| Your phone | The same Inbox rows, and a notification under your existing settings (failures, ready for review). |
+
+**One click to the agent.** Nothing is sent for you; each is your click:
+
+- **Send the failures to Claude** (or Codex): Lazybox reads the failing GitHub
+  Actions jobs' logs, keeps the failing step's output through the same filter
+  as `lazybox run` (failures kept, progress dropped), saves each full log to a
+  file the agent is pointed at, and sends it to the conversation that opened
+  the pull request, with a **PR checks** chip. Checks from another CI are
+  named with their link. If the agent is mid-turn, the message waits for its
+  turn to end. A token that cannot read Actions logs gets a note saying to add
+  **Actions: read** (fine-grained token: Repository permissions → Actions).
+- **Address the review**: GitHub's review comments land in the Review tray on
+  their lines (each once, marked as GitHub's, replies included), with the
+  reviewers' summaries, and go to the agent with a **PR review** chip.
+- **Merge**: the same merge as the PR loop, after a confirmation, only the
+  head you saw.
+
+In the Pull requests panel: `j`/`k` move, `↵` opens the workspace at the
+conversation that delivered it, `s` sends the failures, `r` addresses the
+review, `m` merges (each asks first), `o` opens it on GitHub. The Inbox's
+**Dismiss** hides a row until something new happens to it (a new push, a new
+review).
+
+Open pull requests are checked about every minute while Lazybox has your
+focus and every five minutes otherwise; merged or closed ones once a day for
+a week. Unchanged pull requests cost nothing against GitHub's rate limit; if
+the limit is reached, checking pauses and the panel says until when.
+Automatic reactions are not available: every send is yours.

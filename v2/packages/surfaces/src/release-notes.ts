@@ -9,6 +9,19 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.14',
+    date: '2026-11-17',
+    title: 'The pull requests your agents open, tracked',
+    items: [
+      { title: 'Every pull request a workspace delivers', body: 'Lazybox now tracks the pull requests your agents open, not only the one you open from Changes: one an agent opens with gh pr create, one opened from any branch the workspace worked on, or one it links with lazybox link URL. Links and their state survive a Runner restart, and a deleted workspace\'s stay as history.' },
+      { title: 'Where you look already', body: 'The header shows a pill per open pull request with its checks dot (the branch\'s own opens the PR loop), and each sidebar row one badge for its most urgent: checks failed, then changes requested, then ready to merge.' },
+      { title: 'A Pull requests panel', body: '⌘K, Show pull requests (or the panels menu) lists every tracked pull request: Needs you, Waiting on others, Merged this week, and what conversations only mentioned. j/k move, Enter opens the workspace at the conversation that opened it, s sends the failures, r the review, m merges, each after a confirmation. In ⌘K, ! searches them.' },
+      { title: 'One click back to the agent', body: 'In the Inbox and the panel, Send the failures gives the agent the failing GitHub Actions steps compacted as lazybox run does, with each full log saved for it; Address the review puts GitHub\'s review comments in the Review tray on their lines and sends them. Both arrive with a chip, wait for a turn in progress, and never go without your click.' },
+      { title: 'Told when it changes', body: 'Checks failed or passed, changes requested, approved, merged, closed, conflicts: once each, as a quiet line in the conversation, a phone notification under your settings, and new hook events (pr.opened, pr.checks-passed, pr.approved, pr.merged…).' },
+      { title: 'Light on GitHub', body: 'Open pull requests are checked about every minute while Lazybox has your focus, every five minutes otherwise, and an unchanged one costs nothing against GitHub\'s rate limit; if the limit is reached, checking pauses and says until when.' },
+    ],
+  },
+  {
     id: '2026-11-17.13',
     date: '2026-11-17',
     title: 'Send now sends',

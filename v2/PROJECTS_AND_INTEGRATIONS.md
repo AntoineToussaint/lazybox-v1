@@ -1,6 +1,10 @@
 # Projects, work items and integrations
 
-**Status: accepted 2026-11-17; phase 2 (PR tracking) in progress.** It answers three requests:
+**Status: accepted 2026-11-17.** Phase 2 is implemented: tracking the pull
+requests agents open, their events and one-click reactions
+([GITHUB.md](GITHUB.md#tracked-pull-requests)), and starting a workspace from a
+GitHub issue. Projects (phase 1) and provider extensions (phase 3) are not. It
+answers three requests:
 
 1. "I often create a workspace from the same set of repositories. Can I save that
    set and start it again and again, save a workspace as one, and edit it?"

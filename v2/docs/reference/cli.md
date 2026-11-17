@@ -55,7 +55,7 @@ workspace. An ambiguous name lists the candidates and exits 2.
 | `lazybox do --list [WORDS…]` | Every action of the app by group, with its default keys, its argument, and **safe** when a hook may run it. |
 
 Panels for `--panel` and `shot`: `chat`, `console`, `terminal`, `assistant`,
-`changes`, `usage`, `sessions`, `missions`, `processes`, `actions`, `preview`,
+`changes`, `usage`, `sessions`, `missions`, `pulls`, `processes`, `actions`, `preview`,
 `files`, `editor`, `artifacts`, `settings`, `inbox`.
 
 ## Missions, artifacts, actions, hooks
@@ -74,6 +74,8 @@ Panels for `--panel` and `shot`: `chat`, `console`, `terminal`, `assistant`,
 | `lazybox config export [--out F] [--actions]` · `import F\|- [--dry-run]` | Every config file in one YAML bundle (actions.yaml only with `--actions`: its webhook headers may be secrets), and back: each file is checked first, a replaced one is kept as `.bak`. |
 | `lazybox extension new <id> [--example E]` · `validate [<id>\|PATH…]` · `list` · `path` | Your [extensions](extensions.md#lazybox-extension): a starter (or an example) in the extensions folder, each checked by `file:line`, what each may do and whether it is on. Approving is in the app. |
 | `lazybox process validate\|show\|explain EVENT\|events\|schema` | Check [`.lazybox/process.yaml`](configuration.md#lazyboxprocessyaml-how-missions-run) from files, no Runner needed. |
+| `lazybox link URL [--role delivers\|mentions] [--workspace W]` | Track a [pull request](../guides/review-agent-work.md#pull-requests-your-agents-open) this workspace delivers (the default for a pull request URL), or list an item it only mentions. An agent links to its own workspace; you name one with `--workspace`. |
+| `lazybox items [--workspace W \| --all]` | The workspace's tracked pull requests: state, checks (failing ones with their links), review, and what it mentions. `--all` is every workspace's (your credential). |
 
 ## Command output
 
@@ -97,7 +99,7 @@ For the installed app ([Install](../install.md)):
 | `lazybox --version` | The release. The app, the CLI and the Runner always share it. |
 | `lazybox doctor` | Checks everything the app needs and prints the fix beside each problem. |
 | `lazybox service [status\|install\|start\|stop\|restart\|logs [-f]\|plan\|uninstall]` | The Runner's launchd service. `install` also repairs it and refreshes the PATH agents get; a restart or update keeps agents running. |
-| `lazybox link [--dir DIR]` | Puts this `lazybox` on your PATH with completions, no password. |
+| `lazybox link [--dir DIR]` | Puts this `lazybox` on your PATH with completions, no password. (`lazybox link URL` tracks a pull request instead, above.) |
 | `lazybox uninstall [--dry-run] [--remove-data]` | Removes the service, link and completions; `--remove-data` also your conversations and workspaces, after asking. |
 | `lazybox schema [actions\|process\|workspace\|keys\|settings\|layout\|theme] [--write DIR]` | The JSON Schemas of the files you write, for your editor; they ship with the CLI, nothing is fetched. |
 

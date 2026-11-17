@@ -134,7 +134,8 @@ or **Merge** is next. Nothing happens without an explicit click.
   repository's default branch as base and a draft option. It pushes unpushed
   commits first, and says so; uncommitted files are named as not included.
 - The **card** shows state, review decision and every check run and commit
-  status of the head, failing first, each with a **Logs** link. It refreshes
+  status of the head, failing first, each with a **Logs** link. Every pull
+  request the loop reads or creates is also [tracked](#tracked-pull-requests). It refreshes
   every 30 s while checks run, every 2 minutes otherwise (not while the
   window is hidden), and on demand.
 - **Send failing checks to the agent** opens the conversation beside Changes
@@ -180,6 +181,121 @@ scoped credential is denied, like every RPC off its allowlist).
 A repository whose origin is not on GitHub can commit and push; its card says
 pull requests need GitHub. Without a GitHub connection, a GitHub origin says to
 connect one.
+
+## Tracked pull requests
+
+The PR loop acts on a workspace branch's pull request. Agents also open pull
+requests themselves, on other branches, with `gh pr create`. Lazybox tracks
+every pull request a workspace **delivers**, whoever opened it, and brings
+what happens to it back to the agent in one click
+([PROJECTS_AND_INTEGRATIONS.md](PROJECTS_AND_INTEGRATIONS.md), phase 2; the
+user guide is [Review an agent's work](docs/guides/review-agent-work.md#pull-requests-your-agents-open)).
+
+### The store and the provider
+
+`internal/runner/items` keeps, in one private file written atomically
+(`<state>/items/items.json`):
+
+- **links**: item, workspace (its name kept for history), conversation, role
+  (`origin`, `delivers`, `mentions`), source (`person`, `branch`,
+  `agent-output`, `cli`, `started-from`) and when;
+- **snapshots** of each linked item (state category and label, head and base,
+  checks with their runs, review decision, mergeable state, when it closed),
+  with each read's validators;
+- **branch sightings**: every branch a workspace repository has been on;
+- the latest **transitions** (200).
+
+A Runner restart loses nothing, and the first read after one is compared with
+the persisted snapshot, so what happened while it was down is emitted once. A
+deleted workspace's delivered pull requests stay, marked deleted (its mentions
+and branches go).
+
+GitHub is the built-in **provider**, behind the contract phase 3's extension
+providers implement: `Name`, `Resolve(url)` (no network) and
+`Refresh(items, etags)`, which returns only what changed; an optional
+`BranchFinder` lists the pull requests of a branch. The sidebar's git
+summaries read their pull request from the store (`BranchPullRequest`), so
+`ListWorkspaceGitSummaries` never waits on GitHub.
+
+### Detectors
+
+| Detector | How | Role |
+| --- | --- | --- |
+| Person | The PR loop's **Create PR** (and any read of the branch's pull request) | delivers |
+| Branch | Each branch the sidebar's summaries or the background pass (every minute) see a repository on; a pushed one is asked about (`head=owner:branch`, conditional) until a week after it was last seen. An open pull request is linked; a closed one only if opened after the branch was first seen. | delivers |
+| Agent output | The engine hands every tool call and result to the Runner (`TurnHooks.Tool`). A call whose command opens a pull request (`gh pr create`, `hub pull-request`, `glab mr create`, a tool named `create_pull_request`) delivers the last pull request URL its output prints; `git push`'s hint (`/pull/new/branch`) is not a pull request. A finished `lazybox run` of such a command is read the same way. Any other GitHub pull request or issue URL in a tool's output is a mention (at most five per output, a hundred per workspace), never tracked or notified. | delivers / mentions |
+| Explicit | `lazybox link URL [--role]` with the agent's scoped credential (its own workspace and conversation only), or the owner's `LinkItem`. The briefing tells agents to run it when they open a pull request some other way. | delivers / mentions |
+
+### Tracking
+
+A background pass every ten seconds reads what is due, in batches of 25:
+
+- open pull requests about every **60 s** while a window has focus (a window
+  asks `ListLinks` with `focused`; it counts for two minutes), every **5 min**
+  otherwise;
+- merged or closed ones **once a day**, until **7 days** after they ended;
+- reads that keep failing back off (doubling, up to 30 min).
+
+Every read is conditional: the pull request, its head's check runs and its
+commit statuses each carry their ETag (`If-None-Match`), and a 304 costs no
+rate limit. Reviews are read again only when the pull request changed
+(submitting a review changes it). A 403 or 429 rate limit pauses tracking
+until its reset (at least five minutes) and `ListLinks` says so; a revoked
+credential stops it until reconnected. Only linked, delivered items are
+polled.
+
+### Events
+
+Each transition is emitted once, never on a poll that finds nothing new:
+`pr.opened`, `pr.checks-failed` (per head), `pr.checks-passed`,
+`pr.changes-requested`, `pr.approved`, `pr.merged`, `pr.closed`,
+`pr.conflicts`. A pull request first seen open is opened; first seen already
+failing, with changes requested or in conflict, it says so too; first seen
+merged is history. Each event goes to:
+
+- **hooks** ([automate.md](docs/guides/automate.md)), with the pull request in
+  the event (`LAZYBOX_EVENT_PR_URL`);
+- the **delivering conversation's journal** as a `pull_request` record, one
+  quiet line in the conversation (`WatchEvents`);
+- **phone push**, under the existing settings: checks failed, changes
+  requested and conflicts as failures, checks passed, approved and merged as
+  ready for review;
+- the **Inbox**, whose rows are derived from the current state (a row per
+  delivered pull request that checks failed on, has changes requested, is in
+  conflict or is ready to merge; **Dismiss** hides one until its state or head
+  changes).
+
+### Reactions
+
+Always a person's click; automatic reactions are not offered. Both go to the
+conversation that delivered the pull request (else the workspace's most
+recent), as a message Lazybox wrote with its origin chip, queued behind a turn
+in progress.
+
+- **Send the failures** (`SendPullRequestFailures`, prompt source
+  `pr-checks`): for each failing GitHub Actions job (at most six), the job's
+  log (`/actions/jobs/{id}/logs`, its storage redirect followed without the
+  credential); its failing step (the one GitHub ended with `##[error]`) goes
+  through `commands.Compressor`, the filter `lazybox run` uses, keyed by the
+  step's command, so `go test` output gets the go-test filter. The full log is
+  saved in the agent's output folder and named in the message. A token
+  without Actions read access gets a note naming the permission; a check from
+  another CI is named with its link and summary.
+- **Address the review** (`ImportPullRequestReview`, prompt source
+  `pr-review`): GitHub's inline review comments become Review comments on
+  their lines (quoted from the diff hunk the reviewer read, anchored like any
+  comment; replies folded in; author `github`, key `github:<id>`, each
+  imported once), with the reviews' own summaries; the review loop's message
+  for them is sent and they are marked sent. Replying on GitHub is not done.
+- **Merge**: `MergePullRequest` with `item` merges a tracked pull request on
+  any branch of a workspace that delivers it, only at the head the person saw.
+
+### Access
+
+`ListLinks` and `LinkItem` admit an agent's credential for its own execution
+only (the Runner derives the workspace and conversation). Everything else —
+`UnlinkItem`, the reactions, merging — is the owner's; a paired phone reads
+with `read` and sends failures or a review with `respond`, never merges.
 
 ## Review comments
 
@@ -476,10 +592,15 @@ and starting a workspace from an issue (search, read and quote, tested against
 the same fake API; not yet exercised against github.com).
 The repository browser does not expose a second issue/PR browsing workflow. See [runtime evidence](RUNTIME_EVIDENCE.md).
 
-Not yet implemented: background inbox synchronization, durable task/event
-reconciliation, incremental
-fetching of imported source copies, publishing review comments to GitHub, auto-merge, or
-remote Hub coordination. Re-importing an existing repository is idempotent; it
+Also implemented: [tracked pull requests](#tracked-pull-requests) (detection,
+conditional tracking, events, one-click reactions) and starting a workspace
+from an issue, tested against the fake GitHub API in `sources/github/githubtest`,
+not yet against github.com.
+
+Not yet implemented: automatic reactions, replying to review comments on
+GitHub, tracking issues over time, background inbox synchronization,
+incremental fetching of imported source copies, publishing review comments to
+GitHub, auto-merge, or remote Hub coordination. Re-importing an existing repository is idempotent; it
 does not fetch a newer base. Live App identity and repository listing have been verified. Live personal-token
 authorization, organization-policy behavior and private cloning remain unverified;
 no personal credential was borrowed from local CLI stores for tests. These limitations must stay explicit before claiming full GitHub
