@@ -7,10 +7,11 @@ import { settingsError } from './settings-parts';
 import './claude-auth.css';
 
 /**
- * The one-time notices the Runner raised when automatic switching left the
- * core and Claude sign-in in Lazybox was turned off (CLAUDE_COMPLIANCE.md).
- * Each says what changed and where to change it back; Got it dismisses it for
- * good (the Runner keeps the dismissal, so every window and device agrees).
+ * The one-time notices the Runner raised when automatic switching became an
+ * extension and Claude sign-in in Lazybox a setting (CLAUDE_COMPLIANCE.md):
+ * an existing setup kept working, and each says where to review it. Got it
+ * dismisses it for good (the Runner keeps the dismissal, so every window and
+ * device agrees).
  */
 export function AccountNotices({ onOpenSettings }: { onOpenSettings(tab: 'extensions' | 'agents'): void }) {
   const { api } = useRunner();
@@ -30,7 +31,7 @@ export function AccountNotices({ onOpenSettings }: { onOpenSettings(tab: 'extens
       <Icon name="bell" size={15}/>
       <div className="account-notice-body">
         <strong>{notice.title}</strong>
-        <p>{notice.body}</p>
+        <p>{notice.body}{notice.link && <> <a href={notice.link.href} target="_blank" rel="noreferrer">{notice.link.label}</a></>}</p>
         <div className="account-notice-actions">
           <button type="button" className="primary" onClick={() => onOpenSettings(notice.tab)}>{notice.action}</button>
           <button type="button" disabled={busy === id} onClick={() => void dismiss(id)}>{busy === id ? 'Saving…' : 'Got it'}</button>

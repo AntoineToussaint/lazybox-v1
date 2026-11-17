@@ -11,7 +11,15 @@ import (
 
 func (s *Service) wireProfile(p accounts.Profile) *pb.Profile {
 	observation := s.Bench.Accounts.Observation(p.ID)
-	return &pb.Profile{Id: p.ID, Provider: p.Provider, Label: p.Label, Managed: p.Managed, Isolation: p.Isolation, Availability: wireAccount(&observation)}
+	return &pb.Profile{Id: p.ID, Provider: p.Provider, Label: p.Label, Managed: p.Managed, Isolation: p.Isolation, Availability: wireAccount(&observation), TokenImported: p.TokenFile != ""}
+}
+
+// RemoveSubscription forgets a subscription saved in Lazybox.
+func (s *Service) RemoveSubscription(ctx context.Context, r *pb.RemoveSubscriptionRequest) (*pb.InfoResponse, error) {
+	if err := s.Bench.RemoveSubscription(r.ProfileId); err != nil {
+		return nil, rpcError(err)
+	}
+	return s.Info(ctx, &pb.InfoRequest{})
 }
 func wireEnrollment(flow runner.Enrollment) *pb.SubscriptionEnrollment {
 	return &pb.SubscriptionEnrollment{Id: flow.ID, State: flow.State, ProfileId: flow.ProfileID, Provider: flow.Provider, Label: flow.Label, SignInUrl: flow.URL, UserCode: flow.UserCode, Error: flow.Error, SignInMethod: flow.Method, ErrorCode: flow.ErrorCode}

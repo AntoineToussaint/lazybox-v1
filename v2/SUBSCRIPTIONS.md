@@ -12,8 +12,8 @@ accounts per provider, chosen explicitly per conversation, and switching by
 itself at a limit is an extension's **account policy**
 ([EXTENSIONS.md](EXTENSIONS.md#account-policy)), off until the person adds and
 allows one (Lazybox bundles *Subscription rotation*, not installed). Without a
-policy a conversation's pool is empty, and a pool saved with a conversation
-switches nothing: the rotation supervisor asks at every limit whether a policy
+policy (fresh state) a conversation's pool is empty, and a pool saved with a
+conversation switches nothing: the rotation supervisor asks at every limit whether a policy
 covers the provider. With one, a new conversation's pool is the policy's
 ordered accounts, or every other signed-in subscription (enrolled, isolated
 profile) of the same provider, sorted by ID and capped at 16. Two opt-outs
@@ -129,7 +129,12 @@ before the account is registered. The native login is reused when switching.
 Only permission and sandbox preferences are seeded from existing user settings;
 auth and account metadata are not copied and the source settings are never written.
 The setup-token import is refused for Claude (Lazybox may not store a Claude.ai
-credential); an account imported that way earlier no longer starts.
+credential). An account imported that way earlier keeps working while Claude
+sign-in in Lazybox is on, marked *Imported token; not recommended* with
+**Remove** in Settings. A Runner state that already had Claude subscriptions
+saved, or automatic switching on, keeps them working: the migration carries
+Claude sign-in in Lazybox over on and installs and approves Subscription
+rotation ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md#existing-setups-keep-working)).
 Settings reloads the registry live; no Runner restart is required. Existing
 profiles are never overwritten. Credentials stay out of profile metadata,
 journals, RPC responses and checkpoints.

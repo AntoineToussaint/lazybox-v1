@@ -217,32 +217,56 @@ Anthropic.
 2. **Lazybox no longer offers a Claude sign-in by default** (R1, R2). Adding a
    Claude subscription in Settings, and starting or switching a conversation
    onto one saved there, need **Settings → Agents & workspaces → Claude →
-   Claude sign-in in Lazybox**, which is off. Its description says why, in a
-   few lines, with a link to the terms; on, a warning stays under it. Existing
-   users get a one-time notice. Codex subscriptions are unaffected: OpenAI
-   documents Sign in with ChatGPT for third-party apps.
+   Claude sign-in in Lazybox**, which is off for new state. Its description
+   says why, in a few lines, with a link to the terms; on, a warning stays
+   under it. Codex subscriptions are unaffected: OpenAI documents Sign in with
+   ChatGPT for third-party apps.
 3. **The person's own Claude Code sign-in still works** (R3), labelled for what
    it is: the `claude` program they installed and signed in to themselves, run
    unmodified. Lazybox shows no login for it. This is the case we ask Anthropic
    about.
 4. **The setup-token import is refused for Claude** (R2). `lazybox
    account-login --provider claude` says why and points at the API key.
-   Accounts imported before keep their file but no longer start; signing in
-   again through Claude Code's own flow, or an API key, replaces them.
+   Accounts imported before keep working while Claude sign-in in Lazybox is on;
+   Settings → Subscriptions marks each *Imported token; not recommended*, with
+   **Remove** (`RemoveSubscription`, which deletes its folder and token).
 5. **Automatic switching left the core** (R6). Several accounts per provider
    stay, chosen explicitly per conversation; the limit card offers *Switch to
    <other account>* as a manual action. Switching by itself at a limit is now an
    **account policy** of an extension ([EXTENSIONS.md](EXTENSIONS.md#account-policy)),
    and Lazybox's own *Subscription rotation* extension is bundled but neither
-   installed nor approved by default. Approving it for Claude shows a plain
-   warning with a link to the terms. Existing users see a one-time notice;
-   automatic switching is not kept on for anyone.
+   installed nor approved for new state. Approving it for Claude shows a plain
+   warning with a link to the terms.
 6. **Releases can leave the program out** (R4). `make release
    RELEASE_FLAGS=--without-claude-code` (or `LAZYBOX_RELEASE_CLAUDE_CODE=omit`)
    builds without the SDK's platform package. The Runner then uses the `claude`
    on its PATH, and the app offers **Install Claude Code**, which runs
    Anthropic's installer (`curl -fsSL https://claude.ai/install.sh | bash`) in
    the shell panel, where the person sees and runs it.
+
+### Existing setups keep working
+
+Compliant defaults apply to new Runner state; a setup that already existed
+when this version first runs keeps working (`internal/runner/account_policy.go`,
+once per state):
+
+- **Claude subscriptions already saved in Lazybox** (signed in, or imported
+  from a token): Claude sign-in in Lazybox is carried over **on** for that
+  state (`RunnerSettings.claude_sign_in_carried_over`), so they keep starting,
+  and one notice says: *Lazybox now follows Anthropic's terms for Claude
+  sign-in. Your saved Claude accounts keep working; review in Settings → Agents
+  → Claude*, with a link to the terms. Only new token imports are refused.
+- **Automatic switching that was on** (a signed-in account not excluded,
+  beside another account of its provider, or a configured pool): the bundled
+  *Subscription rotation* extension is installed and approved for that state,
+  with the same settings (exclusions and configured pools stay), for Codex and
+  Claude as before, and one notice says so. It is not silently turned off.
+- **Fresh state** gets the compliant defaults: sign-in off, no extension.
+
+This keeps the people already depending on it working, which is the
+owner's call: those carried-over paths remain the ones this page reads as not
+allowed without Anthropic's approval (R1, R2, R6). The person can turn either
+off in Settings; the migration never turns them back on.
 
 ## Decisions left to the owner
 
@@ -251,9 +275,11 @@ Anthropic.
   Commercial Terms, the cautious default is to omit it.
 - **Whether to keep the person's-own-sign-in path ungated** (change 3) until
   Anthropic answers.
-- **`DISABLE_LOGIN_COMMAND` in saved-subscription agents.** It only applies to
-  the gated path now; removing it would let one account's agent sign another
-  out.
+- **`DISABLE_LOGIN_COMMAND` in saved-subscription agents.** Kept as it is on
+  the gated path; removing it would let one account's agent sign another out.
+- **How long carried-over state stays on.** Existing setups keep Claude
+  sign-in in Lazybox and Subscription rotation on until the person turns them
+  off; a later release could ask again once Anthropic answers.
 
 ## Questions to ask Anthropic
 

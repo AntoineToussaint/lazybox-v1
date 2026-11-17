@@ -11,6 +11,7 @@ import (
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/power"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"google.golang.org/grpc/codes"
@@ -227,57 +228,183 @@ func TestAutomaticSwitchingIsTheAccountPolicys(t *testing.T) {
 	}
 }
 
-// Moving switching out of the core tells the people it affects, once, and
-// turns nothing back on for them.
-func TestAccountsMigrationNoticesOnce(t *testing.T) {
+// The migration: compliant defaults for new state, and an existing setup
+// keeps working. Each case opens a Runner on state an earlier version left.
+
+// openRunner opens a Runner on state, as a restart of Lazybox Dev does.
+func openRunner(t *testing.T, state string) *Service {
+	t.Helper()
+	b, err := runner.New(runner.Config{State: state, OutputFallbackRoot: t.TempDir(), WorktreeRoot: t.TempDir(), ItemPoll: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	return &Service{Bench: b}
+}
+
+// Claude subscriptions already saved in Lazybox, one signed in and one
+// imported from a token, keep starting: the gate is carried over on, said
+// once, and only a new token import is refused. The imported one can be
+// removed.
+func TestMigrationKeepsSavedClaudeAccountsWorking(t *testing.T) {
 	state := t.TempDir()
 	root := filepath.Join(state, "accounts")
+	for _, id := range []string{"claude-work", "claude-imported"} {
+		if err := os.MkdirAll(filepath.Join(root, id, "claude"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	token := filepath.Join(root, "claude-imported", "oauth-token")
+	if err := os.WriteFile(token, []byte("fixture-imported-token"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	for _, p := range []accounts.Profile{
-		{ID: "work", Provider: "codex", Isolation: "environment", Home: filepath.Join(root, "work", "codex")},
-		{ID: "claude-work", Provider: "claude", Isolation: "environment", Home: filepath.Join(root, "claude-work", "claude"), NativeLogin: true},
+		{ID: "claude-work", Label: "Work", Provider: "claude", Isolation: "environment", Home: filepath.Join(root, "claude-work", "claude"), NativeLogin: true},
+		{ID: "claude-imported", Label: "Imported", Provider: "claude", Isolation: "environment", Home: filepath.Join(root, "claude-imported", "claude"), TokenFile: token},
 	} {
 		if err := accounts.StoreProfile(state, p); err != nil {
 			t.Fatal(err)
 		}
 	}
-	open := func(state string) *Service {
-		t.Helper()
-		b, err := runner.New(runner.Config{State: state, OutputFallbackRoot: t.TempDir(), WorktreeRoot: t.TempDir(), ItemPoll: -1})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return &Service{Bench: b}
-	}
+	service := openRunner(t, state)
+	adapter := rotatingFixture{opened: make(chan *rotatingNative, 4)}
+	service.Bench.Adapters["claude"] = adapter
 	ctx := context.Background()
-	service := open(state)
 	settings, err := service.GetRunnerSettings(ctx, &pb.InfoRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(settings.Notices, []string{runner.NoticeSwitchingMoved, runner.NoticeClaudeSignInGated}) || settings.ClaudeSubscriptionSignIn || len(settings.AutomaticSwitchingProviders) != 0 {
-		t.Fatalf("after the migration: notices %v, sign-in %v, switching %v", settings.Notices, settings.ClaudeSubscriptionSignIn, settings.AutomaticSwitchingProviders)
+	if !settings.ClaudeSubscriptionSignIn || !settings.ClaudeSignInCarriedOver || !slices.Contains(settings.Notices, runner.NoticeClaudeSignInKept) {
+		t.Fatalf("not carried over: sign-in %v, carried %v, notices %v", settings.ClaudeSubscriptionSignIn, settings.ClaudeSignInCarriedOver, settings.Notices)
 	}
-	// A save never adds a notice; leaving one out dismisses it.
-	settings.Notices = []string{runner.NoticeClaudeSignInGated, "made-up"}
-	if settings, err = service.SaveRunnerSettings(ctx, settings); err != nil || !slices.Equal(settings.Notices, []string{runner.NoticeClaudeSignInGated}) {
-		t.Fatalf("dismissed: %v %v", settings.Notices, err)
+	for _, id := range []string{"claude-work", "claude-imported"} {
+		if _, err = service.OpenSession(ctx, &pb.OpenSessionRequest{ProfileId: id, Cwd: t.TempDir()}); err != nil {
+			t.Fatalf("%s no longer starts: %v", id, err)
+		}
+		env := strings.Join((<-adapter.opened).Open.Env, "\n")
+		if id == "claude-imported" && !strings.Contains(env, "CLAUDE_CODE_OAUTH_TOKEN=fixture-imported-token") {
+			t.Fatal("the imported account lost its credential")
+		}
 	}
-	settings.Notices = nil
-	if _, err = service.SaveRunnerSettings(ctx, settings); err != nil {
+	info, err := service.Info(ctx, &pb.InfoRequest{})
+	if err != nil {
 		t.Fatal(err)
+	}
+	for _, p := range info.Profiles {
+		if p.TokenImported != (p.Id == "claude-imported") {
+			t.Fatalf("%s token_imported %v", p.Id, p.TokenImported)
+		}
+	}
+	if strings.Contains(info.String(), "fixture-imported-token") {
+		t.Fatal("the token reached the wire")
+	}
+	if _, err = service.AddSubscription(ctx, &pb.AddSubscriptionRequest{RequestKey: "new", Provider: "claude", Label: "New", SubscriptionToken: "sk-ant-oat01-fixture"}); err == nil || !strings.Contains(err.Error(), "does not store Claude subscription tokens") {
+		t.Fatalf("a new token import was accepted: %v", err)
+	}
+	// A conversation runs on it: removing it waits.
+	if _, err = service.RemoveSubscription(ctx, &pb.RemoveSubscriptionRequest{ProfileId: "claude-imported"}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("removed under a running conversation: %v", err)
+	}
+	for _, e := range service.Bench.List() {
+		if e.Profile.ID == "claude-imported" {
+			if _, err = service.CloseSession(ctx, &pb.SessionRequest{SessionId: e.ID}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	info, err = service.RemoveSubscription(ctx, &pb.RemoveSubscriptionRequest{ProfileId: "claude-imported"})
+	if err != nil || slices.ContainsFunc(info.Profiles, func(p *pb.Profile) bool { return p.Id == "claude-imported" }) {
+		t.Fatalf("not removed: %v", err)
+	}
+	if _, err = os.Stat(token); !os.IsNotExist(err) {
+		t.Fatal("the imported token outlived its account")
+	}
+	if _, err = service.RemoveSubscription(ctx, &pb.RemoveSubscriptionRequest{ProfileId: "claude-default"}); err == nil {
+		t.Fatal("the person's own CLI sign-in was removed")
+	}
+	// Once: turned off and restarted, it stays off.
+	settings, _ = service.GetRunnerSettings(ctx, &pb.InfoRequest{})
+	settings.ClaudeSubscriptionSignIn, settings.Notices = false, nil
+	if settings, err = service.SaveRunnerSettings(ctx, settings); err != nil || settings.ClaudeSignInCarriedOver {
+		t.Fatalf("turned off: %v %v", settings, err)
 	}
 	if err = service.Bench.Close(); err != nil {
 		t.Fatal(err)
 	}
-	service = open(state)
-	defer service.Bench.Close()
-	if settings, _ = service.GetRunnerSettings(ctx, &pb.InfoRequest{}); len(settings.Notices) != 0 {
-		t.Fatalf("the migration ran twice: %v", settings.Notices)
+	again := openRunner(t, state)
+	if settings, _ = again.GetRunnerSettings(ctx, &pb.InfoRequest{}); settings.ClaudeSubscriptionSignIn || len(settings.Notices) != 0 {
+		t.Fatalf("the migration ran twice: %v", settings)
 	}
-	// A fresh Runner had nothing to move: no notice.
-	fresh := open(t.TempDir())
-	defer fresh.Bench.Close()
-	if settings, _ = fresh.GetRunnerSettings(ctx, &pb.InfoRequest{}); len(settings.Notices) != 0 {
-		t.Fatalf("notices on a fresh Runner: %v", settings.Notices)
+}
+
+// Fresh state: the compliant defaults, and nothing to say.
+func TestMigrationFreshStateKeepsCompliantDefaults(t *testing.T) {
+	service := openRunner(t, t.TempDir())
+	settings, err := service.GetRunnerSettings(context.Background(), &pb.InfoRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.ClaudeSubscriptionSignIn || settings.ClaudeSignInCarriedOver || len(settings.Notices) != 0 || len(settings.AutomaticSwitchingProviders) != 0 || settings.Revision != 1 {
+		t.Fatalf("fresh state: %v", settings)
+	}
+	if _, ok := service.Bench.Extensions().Snapshot().Find(runner.RotationExtension); ok {
+		t.Fatal("Subscription rotation installed on a fresh Runner")
+	}
+}
+
+// Where automatic switching was on, it stays on, now through the bundled
+// Subscription rotation extension, installed and allowed, with the same
+// settings (an account left out stays out), for Codex as before.
+func TestMigrationKeepsAutomaticSwitchingThroughTheExtension(t *testing.T) {
+	state := t.TempDir()
+	root := filepath.Join(state, "accounts")
+	for _, id := range []string{"work", "spare"} {
+		if err := accounts.StoreProfile(state, accounts.Profile{ID: id, Provider: "codex", Isolation: "environment", Home: filepath.Join(root, id, "codex")}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(state, "runner-settings.json"), []byte(`{"revision":3,"naming":"repositories","rotationExcluded":["spare"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service := openRunner(t, state)
+	b := service.Bench
+	adapter := rotatingFixture{opened: make(chan *rotatingNative, 4)}
+	b.Adapters["codex"] = adapter
+	ctx := context.Background()
+	info, ok := b.Extensions().Snapshot().Find(runner.RotationExtension)
+	if !ok || info.State != power.ExtensionEnabled {
+		t.Fatalf("Subscription rotation not installed and on: %+v", info)
+	}
+	settings, _ := service.GetRunnerSettings(ctx, &pb.InfoRequest{})
+	if !slices.Equal(settings.AutomaticSwitchingProviders, []string{"claude", "codex"}) || !slices.Contains(settings.Notices, runner.NoticeSwitchingMoved) || strings.Join(settings.RotationExcludedProfileIds, ",") != "spare" || settings.ClaudeSubscriptionSignIn {
+		t.Fatalf("after the migration: %v", settings)
+	}
+	r, err := service.OpenSession(ctx, &pb.OpenSessionRequest{ProfileId: "codex-default", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(r.Session.RotationProfileIds, ",") != "work" {
+		t.Fatalf("pool %v: the same settings as before (spare left out)", r.Session.RotationProfileIds)
+	}
+	first := <-adapter.opened
+	first.Events <- agentFailure("exhausted")
+	select {
+	case second := <-adapter.opened:
+		if second.Open.Profile != "work" {
+			t.Fatalf("moved to %s", second.Open.Profile)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("automatic switching stopped with the migration")
+	}
+	// The person turns it off: a restart does not turn it back on.
+	if _, err = b.Extensions().SetEnabled(runner.RotationExtension, false); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	again := openRunner(t, state)
+	if info, _ = again.Bench.Extensions().Snapshot().Find(runner.RotationExtension); info.State != power.ExtensionDisabled {
+		t.Fatalf("the migration ran twice: %s", info.State)
 	}
 }

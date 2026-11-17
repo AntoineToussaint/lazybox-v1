@@ -163,6 +163,42 @@ func writeProfiles(dir string, profiles []Profile) error {
 
 // StoreProfile commits an already authenticated isolated profile. Existing
 // metadata is never replaced by a login completion or retry.
+// RemoveProfile forgets a saved account: its registry entry and its private
+// folder (the provider's own sign-in, or an imported token). Other accounts
+// and the person's own CLI sign-ins are untouched.
+func RemoveProfile(state, id string) error {
+	if !filepath.IsAbs(state) || !profileID.MatchString(id) {
+		return errors.New("invalid subscription")
+	}
+	dir := filepath.Join(state, "accounts")
+	lock, err := os.OpenFile(filepath.Join(dir, "enrollment.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return errors.New("an enrollment is committing; try again")
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	profiles, err := LoadProfiles(state)
+	if err != nil {
+		return err
+	}
+	kept := profiles[:0]
+	for _, p := range profiles {
+		if p.ID != id {
+			kept = append(kept, p)
+		}
+	}
+	if len(kept) == len(profiles) {
+		return os.ErrNotExist
+	}
+	if err = writeProfiles(dir, kept); err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(dir, id))
+}
+
 func StoreProfile(state string, p Profile) error {
 	if !filepath.IsAbs(state) || !profileID.MatchString(p.ID) || (p.Provider != "codex" && p.Provider != "claude") || p.Isolation != "environment" || p.Home != filepath.Join(state, "accounts", p.ID, p.Provider) {
 		return errors.New("invalid prepared subscription profile")

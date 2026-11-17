@@ -1032,16 +1032,25 @@ inference was used.
   a Claude subscription saved through Lazybox's sign-in does not start, adding
   one and importing a token are refused, and both work once it is turned on.
   `TestClaudeSubscriptionTokenIsNeverStored`: `account-login --token-stdin` is
-  refused before writing anything, and an account imported earlier no longer
-  resolves.
+  refused before writing anything; an account imported earlier keeps its own
+  credential and is removed with its folder.
+- **Existing setups keep working.** `TestMigrationKeepsSavedClaudeAccountsWorking`
+  (a signed-in and a token-imported Claude account saved before: sign-in
+  carried over on with its notice, both start, the imported one keeps its
+  token, is marked on the wire without it, is not removed under a running
+  conversation and is removed after; a new token import is refused; turned
+  off, a restart does not turn it back on),
+  `TestMigrationFreshStateKeepsCompliantDefaults` (off, no notice, no
+  extension, revision 1), `TestMigrationKeepsAutomaticSwitchingThroughTheExtension`
+  (Subscription rotation installed and enabled, the same exclusion, a Codex
+  conversation switching at its limit; turned off, a restart leaves it off).
 - **No switching without an account policy.** `internal/runner/rotation`
   (`TestNoAccountPolicyNeverSwitchesByItself`: a pool switches nothing with no
   policy or one turned off, and switches once it is on);
   `TestAutomaticSwitchingIsTheAccountPolicys` (no pool and no switch at a limit
   by default; the person's explicit switch works; with Subscription rotation
   approved the conversation moves at the limit; turned off, a running
-  conversation stops at its next limit); `TestAccountsMigrationNoticesOnce`
-  (the notices raised once, dismissed for good, none on a fresh Runner);
+  conversation stops at its next limit);
   `internal/power` (`TestAccountPolicyIsWhatThePersonApproved`).
 - **UI.** `npm run test:claude-compliance` (new, WebKit, fake Runner): the
   notices; the Claude section's sign-in line; a key saved, shown by its last

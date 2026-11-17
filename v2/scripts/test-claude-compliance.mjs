@@ -1,5 +1,7 @@
 // Fixture only (CLAUDE_COMPLIANCE.md): no key, sign-in or provider is real.
-// The one-time notices; Settings → Agents & workspaces → Claude: how Claude
+// State the migration carried over (Claude sign-in kept on for saved Claude
+// accounts, one of them imported from a token, which can be removed); the
+// one-time notices; Settings → Agents & workspaces → Claude: how Claude
 // agents sign in, an Anthropic API key saved and forgotten (a subscription
 // token refused, the key never shown again), Claude sign-in in Lazybox off by
 // default and what that changes in Subscriptions, Install Claude Code in the
@@ -8,9 +10,10 @@
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {webkit,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const f=await startRunnerFixture();
-// Someone for whom both changes matter: switching was on, and a Claude subscription was saved in Lazybox.
-f.runnerSettings.notices=['automatic-switching-moved','claude-sign-in-gated'];
-f.profiles.push({id:'claude-work',provider:'claude',label:'Work',managed:true,isolation:'environment',availability:{state:'available'}});
+// Someone for whom both changes matter, as the migration leaves them: switching was on (kept, through the
+// extension), and Claude subscriptions were saved in Lazybox (kept working: sign-in carried over on), one imported from a token.
+Object.assign(f.runnerSettings,{notices:['automatic-switching-moved','claude-sign-in-kept'],claudeSubscriptionSignIn:true,claudeSignInCarriedOver:true});
+f.profiles.push({id:'claude-work',provider:'claude',label:'Work',managed:true,isolation:'environment',availability:{state:'available'}},{id:'claude-old',provider:'claude',label:'Old',managed:true,isolation:'environment',tokenImported:true,availability:{state:'available'}});
 const KEY='sk-ant-api03-fixture-not-a-real-key-abcd';
 const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 const saves=()=>f.mutations.filter(m=>m.method==='SaveRunnerSettings').map(m=>m.body);
@@ -21,16 +24,17 @@ try{
  const base=`http://127.0.0.1:${server.httpServer.address().port}`;
  await page.goto(`${base}/?view=workspace&collection=alpha#token=${f.token}`);
 
- // 1. The notices: what changed and where to change it back; Got it dismisses one for good.
- const moved=page.getByRole('status',{name:'Automatic switching moved to an extension'});
- const gated=page.getByRole('status',{name:'Claude subscriptions saved in Lazybox are paused'});
- await expect(moved).toContainText('turn on Subscription rotation in Settings → Extensions');
- await expect(gated).toBeVisible();
+ // 1. The notices: what stayed on and where to review it; Got it dismisses one for good.
+ const moved=page.getByRole('status',{name:'Automatic switching is now an extension'});
+ const kept=page.getByRole('status',{name:'Lazybox now follows Anthropic’s terms for Claude sign-in'});
+ await expect(moved).toContainText('Your conversations still switch subscription at a limit, as before');
+ await expect(kept).toContainText('Your saved Claude accounts keep working; review in Settings → Agents → Claude.');
+ await expect(kept.getByRole('link',{name:'Anthropic’s terms'})).toHaveAttribute('href','https://code.claude.com/docs/en/legal-and-compliance');
  await page.screenshot({path:'.cache/claude-compliance-notices.png'});
  await moved.getByRole('button',{name:'Got it'}).click();
  await expect(moved).toHaveCount(0);
- await expect.poll(()=>saves().at(-1)?.notices).toEqual(['claude-sign-in-gated']);
- await gated.getByRole('button',{name:'Open Claude settings'}).click();
+ await expect.poll(()=>saves().at(-1)?.notices).toEqual(['claude-sign-in-kept']);
+ await kept.getByRole('button',{name:'Review Claude settings'}).click();
  await expect(page.getByRole('tab',{name:'Agents & workspaces'})).toHaveAttribute('aria-selected','true');
 
  // 2. How Claude agents sign in: the person's own Claude Code sign-in, said as unconfirmed.
@@ -61,10 +65,24 @@ try{
  await expect(claude.getByRole('textbox',{name:'Use an Anthropic API key'})).toBeVisible();
  assert.equal(f.claudeAuth.key,'');
 
- // 4. Claude sign-in in Lazybox is off: Subscriptions offers no Claude sign-in, and a saved Claude subscription says it is not used.
+ // 4. Claude sign-in in Lazybox, carried over on for the saved accounts and said so; turned off,
+ // Subscriptions offers no Claude sign-in, and a saved Claude subscription says it is not used.
  const signIn=claude.getByRole('switch',{name:'Claude sign-in in Lazybox'});
+ await expect(signIn).toBeChecked();
+ await expect(claude.getByRole('note')).toContainText('Kept on so the Claude accounts you had saved keep working.');
+ await signIn.uncheck();
+ await expect.poll(()=>saves().at(-1)?.claudeSubscriptionSignIn??false).toBe(false);
  await expect(signIn).not.toBeChecked();
  await page.getByRole('tab',{name:'Subscriptions'}).click();
+ // The account imported from a token: marked, and removed on request.
+ const old=page.getByRole('article',{name:'Old subscription'});
+ await expect(old).toContainText('Imported token; not recommended');
+ await old.getByRole('button',{name:'Remove'}).click();
+ const confirm=page.getByRole('dialog',{name:'Remove Old?'});
+ await expect(confirm).toContainText('deletes its saved credential');
+ await confirm.getByRole('button',{name:'Remove'}).click();
+ await expect.poll(()=>f.mutations.findLast(m=>m.method==='RemoveSubscription')?.body).toEqual({profileId:'claude-old'});
+ await expect(old).toHaveCount(0);
  await expect(page.getByRole('article',{name:'Work subscription'})).toContainText('Not used: Claude sign-in in Lazybox is off');
  await page.getByRole('button',{name:'Add subscription',exact:true}).click();
  const add=page.getByRole('dialog',{name:'Connect a subscription'});
@@ -80,7 +98,7 @@ try{
  // Turned on: saved at once, and said plainly.
  await signIn.check();
  await expect.poll(()=>saves().at(-1)?.claudeSubscriptionSignIn).toBe(true);
- await expect(claude.getByRole('note')).toContainText('Claude sign-in in Lazybox is on. Anthropic has not confirmed that this is allowed');
+ await expect(claude.getByRole('note')).toHaveText('Claude sign-in in Lazybox is on. Anthropic has not confirmed that this is allowed; an API key is the way it documents.');
  await signIn.uncheck();
  await expect.poll(()=>saves().at(-1)?.claudeSubscriptionSignIn??false).toBe(false);
 
@@ -126,5 +144,5 @@ try{
  await page.evaluate(()=>window.dispatchEvent(new Event('lazybox-settings-saved')));
  await expect(page.getByRole('article',{name:'Saved Codex subscription'}).getByRole('switch',{name:'Automatic switching'})).toBeChecked();
  assert.deepEqual(errors,[]);
- console.log('PASS notices (shown, dismissed for good, open where to change it back), Claude sign-in line, an API key saved by its last four characters and forgotten (a subscription token refused), Claude sign-in in Lazybox off by default (no Claude sign-in offered, saved Claude subscriptions marked unused) and on with a warning, Install Claude Code in the shell, Subscription rotation allowed with its Claude warning turning automatic switching on. Fixture only.');
+ console.log('PASS notices of what the migration kept (shown, dismissed for good, open where to review it), Claude sign-in carried over on and turned off, an imported-token account marked and removed, Claude sign-in line, an API key saved by its last four characters and forgotten (a subscription token refused), Claude sign-in in Lazybox off by default (no Claude sign-in offered, saved Claude subscriptions marked unused) and on with a warning, Install Claude Code in the shell, Subscription rotation allowed with its Claude warning turning automatic switching on. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}

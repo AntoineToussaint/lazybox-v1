@@ -95,6 +95,9 @@ const (
 	// RunnerServiceRefreshSubscriptionProcedure is the fully-qualified name of the RunnerService's
 	// RefreshSubscription RPC.
 	RunnerServiceRefreshSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/RefreshSubscription"
+	// RunnerServiceRemoveSubscriptionProcedure is the fully-qualified name of the RunnerService's
+	// RemoveSubscription RPC.
+	RunnerServiceRemoveSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/RemoveSubscription"
 	// RunnerServiceGetGitHubConnectionProcedure is the fully-qualified name of the RunnerService's
 	// GetGitHubConnection RPC.
 	RunnerServiceGetGitHubConnectionProcedure = "/lazybox.bench.v1.RunnerService/GetGitHubConnection"
@@ -685,6 +688,10 @@ type RunnerServiceClient interface {
 	GetSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	CancelSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	RefreshSubscription(context.Context, *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error)
+	// Owner only. Forgets a subscription saved in Lazybox: its registry entry and
+	// its private folder (an imported token among them). Refused while a running
+	// conversation uses it. The person's own CLI sign-ins are never touched.
+	RemoveSubscription(context.Context, *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error)
 	GetGitHubConnection(context.Context, *connect.Request[gen.GetGitHubConnectionRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConfigureGitHubApp(context.Context, *connect.Request[gen.ConfigureGitHubAppRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConnectGitHubPersonalToken(context.Context, *connect.Request[gen.ConnectGitHubPersonalTokenRequest]) (*connect.Response[gen.GitHubConnection], error)
@@ -1252,6 +1259,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRefreshSubscriptionProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RefreshSubscription")),
+			connect.WithClientOptions(opts...),
+		),
+		removeSubscription: connect.NewClient[gen.RemoveSubscriptionRequest, gen.InfoResponse](
+			httpClient,
+			baseURL+RunnerServiceRemoveSubscriptionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RemoveSubscription")),
 			connect.WithClientOptions(opts...),
 		),
 		getGitHubConnection: connect.NewClient[gen.GetGitHubConnectionRequest, gen.GitHubConnection](
@@ -2384,6 +2397,7 @@ type runnerServiceClient struct {
 	getSubscriptionEnrollment    *connect.Client[gen.SubscriptionEnrollmentRequest, gen.SubscriptionEnrollment]
 	cancelSubscriptionEnrollment *connect.Client[gen.SubscriptionEnrollmentRequest, gen.SubscriptionEnrollment]
 	refreshSubscription          *connect.Client[gen.RefreshSubscriptionRequest, gen.Profile]
+	removeSubscription           *connect.Client[gen.RemoveSubscriptionRequest, gen.InfoResponse]
 	getGitHubConnection          *connect.Client[gen.GetGitHubConnectionRequest, gen.GitHubConnection]
 	configureGitHubApp           *connect.Client[gen.ConfigureGitHubAppRequest, gen.GitHubConnection]
 	connectGitHubPersonalToken   *connect.Client[gen.ConnectGitHubPersonalTokenRequest, gen.GitHubConnection]
@@ -2673,6 +2687,11 @@ func (c *runnerServiceClient) CancelSubscriptionEnrollment(ctx context.Context, 
 // RefreshSubscription calls lazybox.bench.v1.RunnerService.RefreshSubscription.
 func (c *runnerServiceClient) RefreshSubscription(ctx context.Context, req *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error) {
 	return c.refreshSubscription.CallUnary(ctx, req)
+}
+
+// RemoveSubscription calls lazybox.bench.v1.RunnerService.RemoveSubscription.
+func (c *runnerServiceClient) RemoveSubscription(ctx context.Context, req *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error) {
+	return c.removeSubscription.CallUnary(ctx, req)
 }
 
 // GetGitHubConnection calls lazybox.bench.v1.RunnerService.GetGitHubConnection.
@@ -3638,6 +3657,10 @@ type RunnerServiceHandler interface {
 	GetSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	CancelSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	RefreshSubscription(context.Context, *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error)
+	// Owner only. Forgets a subscription saved in Lazybox: its registry entry and
+	// its private folder (an imported token among them). Refused while a running
+	// conversation uses it. The person's own CLI sign-ins are never touched.
+	RemoveSubscription(context.Context, *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error)
 	GetGitHubConnection(context.Context, *connect.Request[gen.GetGitHubConnectionRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConfigureGitHubApp(context.Context, *connect.Request[gen.ConfigureGitHubAppRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConnectGitHubPersonalToken(context.Context, *connect.Request[gen.ConnectGitHubPersonalTokenRequest]) (*connect.Response[gen.GitHubConnection], error)
@@ -4201,6 +4224,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRefreshSubscriptionProcedure,
 		svc.RefreshSubscription,
 		connect.WithSchema(runnerServiceMethods.ByName("RefreshSubscription")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRemoveSubscriptionHandler := connect.NewUnaryHandler(
+		RunnerServiceRemoveSubscriptionProcedure,
+		svc.RemoveSubscription,
+		connect.WithSchema(runnerServiceMethods.ByName("RemoveSubscription")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceGetGitHubConnectionHandler := connect.NewUnaryHandler(
@@ -5351,6 +5380,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceCancelSubscriptionEnrollmentHandler.ServeHTTP(w, r)
 		case RunnerServiceRefreshSubscriptionProcedure:
 			runnerServiceRefreshSubscriptionHandler.ServeHTTP(w, r)
+		case RunnerServiceRemoveSubscriptionProcedure:
+			runnerServiceRemoveSubscriptionHandler.ServeHTTP(w, r)
 		case RunnerServiceGetGitHubConnectionProcedure:
 			runnerServiceGetGitHubConnectionHandler.ServeHTTP(w, r)
 		case RunnerServiceConfigureGitHubAppProcedure:
@@ -5810,6 +5841,10 @@ func (UnimplementedRunnerServiceHandler) CancelSubscriptionEnrollment(context.Co
 
 func (UnimplementedRunnerServiceHandler) RefreshSubscription(context.Context, *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RefreshSubscription is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RemoveSubscription(context.Context, *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RemoveSubscription is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) GetGitHubConnection(context.Context, *connect.Request[gen.GetGitHubConnectionRequest]) (*connect.Response[gen.GitHubConnection], error) {

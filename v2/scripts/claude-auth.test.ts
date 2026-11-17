@@ -27,11 +27,11 @@ test('Install Claude Code runs Anthropic’s own installer, the one its setup pa
 });
 
 test('the notices this client shows are the Runner’s, each with where to change it back', () => {
-  assert.deepEqual(shownNotices(['automatic-switching-moved', 'something-newer', 'claude-sign-in-gated']), ['automatic-switching-moved', 'claude-sign-in-gated']);
+  assert.deepEqual(shownNotices(['automatic-switching-moved', 'something-newer', 'claude-sign-in-kept']), ['automatic-switching-moved', 'claude-sign-in-kept']);
   assert.deepEqual(shownNotices(undefined), []);
   assert.equal(accountNotices['automatic-switching-moved'].tab, 'extensions');
   assert.match(accountNotices['automatic-switching-moved'].body, /Settings → Extensions/);
-  assert.equal(accountNotices['claude-sign-in-gated'].tab, 'agents');
+  assert.equal(accountNotices['claude-sign-in-kept'].tab, 'agents');
   // The ids are the Runner's own (account_policy.go).
   const runner = readFileSync(new URL('../services/runner/code/internal/runner/account_policy.go', import.meta.url), 'utf8');
   for (const id of Object.keys(accountNotices)) assert.ok(runner.includes(`"${id}"`), id);

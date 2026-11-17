@@ -16,9 +16,10 @@ import { Fragment, useEffect, useRef, useState, type FormEvent, type KeyboardEve
 import type { Profile, SubscriptionEnrollment, UsageWindow } from '@lazybox/protocol';
 import type { AppHost, ViewStateStore, ZoomHost } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
-import { backWhen, comeback, resetTime, signInDefault, untilText, type Comeback, type SignInMethod } from './subscription-model';
+import { backWhen, comeback, resetTime, signInDefault, subscriptionName, untilText, type Comeback, type SignInMethod } from './subscription-model';
 import { showToast } from './toasts';
-import { SettingsHeader, useNow } from './settings-parts';
+import { SettingsHeader, settingsError, useNow } from './settings-parts';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from './Icons';
 import './settings.css';
 import { RepositoryBrowser } from './RepositoryBrowser';
@@ -286,6 +287,8 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
   };
   // Per-account opt-out of automatic switching; every saved subscription is in by default.
   const { settings: runnerSettings, setSettings: setRunnerSettings } = useRunnerSettings();
+  // An account imported from a token earlier: Settings → Subscriptions → Remove.
+  const [removing, setRemoving] = useState<Profile>();
   // Claude sign-in in Lazybox is off unless the person turned it on (CLAUDE_COMPLIANCE.md).
   const claudeGated = !!runnerSettings && !runnerSettings.claudeSubscriptionSignIn;
   const [rotationSaving, setRotationSaving] = useState('');
@@ -368,11 +371,16 @@ export function SettingsPage({ app, zoom, viewState, openSignIn, copySignInCode,
       {!info && <p className="settings-empty" role="status">Loading subscriptions…</p>}
       {info && !profiles.length && <div className="settings-empty"><h3>No subscriptions yet</h3><p>Add a Claude or Codex account so agents can run on it. Your CLI sign-ins keep working either way.</p></div>}
       <div className="subscription-grid">{profiles.map(profile => <SubscriptionCard key={profile.id} profile={profile} now={now} refreshing={refreshing.has(profile.id)} error={refreshErrors[profile.id]} onRefresh={() => void updateUsage(profile)}
-        footer={profile.provider === 'claude' && profile.isolation === 'environment' && runnerSettings && !runnerSettings.claudeSubscriptionSignIn
+        footer={profile.tokenImported ? <span className="subscription-imported"><small className="subscription-gated" title="Lazybox no longer imports subscription tokens: Anthropic does not allow apps to store Claude.ai credentials. Sign in again, or use an API key.">Imported token; not recommended</small><button type="button" className="quiet" onClick={() => setRemoving(profile)}>Remove</button></span>
+          : profile.provider === 'claude' && profile.isolation === 'environment' && runnerSettings && !runnerSettings.claudeSubscriptionSignIn
           ? <small className="subscription-gated" title="Claude sign-in in Lazybox is off (Settings → Agents & workspaces → Claude)">Not used: Claude sign-in in Lazybox is off</small>
           // Only an account policy switches by itself (Settings → Extensions); this leaves one account out of it.
           : profile.isolation === 'environment' && runnerSettings?.automaticSwitchingProviders.includes(profile.provider) ? <label className="rotation-toggle" title={`When another ${profile.provider === 'codex' ? 'Codex' : 'Claude'} subscription hits a limit, its conversations can continue on this one. Applies to conversations started afterwards.`}><input type="checkbox" role="switch" checked={!excluded.includes(profile.id)} disabled={!runnerSettings || !!rotationSaving} onChange={event => void setRotation(profile, event.target.checked)}/><span>Automatic switching</span></label> : <small>{profile.isolation === 'inherited' ? 'Uses current CLI sign-in' : info?.sharedSubscriptions ? 'Shared subscription' : 'Saved on this Runner'}</small>}/>)}</div>
       {profiles.length > 0 && <p className="usage-note">Usage is what each provider reports for the subscription. Lazybox never guesses a number it was not given.</p>}
+      {removing && <ConfirmDialog title={`Remove ${subscriptionName(removing, removing.id)}?`} closeLabel="Keep it" cancelLabel="Keep it" confirm="Remove" working="Removing…" onClose={() => setRemoving(undefined)}
+        onConfirm={async () => { try { await api.removeSubscription({ profileId: removing.id }, { timeoutMs: 10000 }); refresh(); setRemoving(undefined); } catch (e) { setError(settingsError(e)); setRemoving(undefined); } }}>
+        Lazybox forgets this account and deletes its saved credential. Your own Claude Code sign-in is not touched. A conversation on it must be switched or closed first.
+      </ConfirmDialog>}
     </section>
     </div>
    </div>

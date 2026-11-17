@@ -27,11 +27,17 @@ without its approval. So for Claude:
   never shows a sign-in for it. Anthropic has not confirmed that apps built on
   its Agent SDK may use it, and the Claude section says so.
 
-**Claude sign-in in Lazybox** (same section) is off. While it is off, Settings
-→ Subscriptions offers no Claude sign-in, and Claude subscriptions you saved
-there earlier do not start (their card says *Not used*). Turning it on brings
-both back, at your own risk with your own accounts;
+**Claude sign-in in Lazybox** (same section) is off on a new install. While it
+is off, Settings → Subscriptions offers no Claude sign-in, and Claude
+subscriptions saved there do not start (their card says *Not used*). Turning it
+on brings both back, at your own risk with your own accounts;
 [what Anthropic's terms say](../../CLAUDE_COMPLIANCE.md).
+
+If you already had Claude subscriptions saved in Lazybox, it stays **on** for
+you, so they keep working, and Lazybox says so once. An account you imported
+from a token earlier is marked *Imported token; not recommended*: it still
+works, and **Remove** forgets it and deletes the token. Lazybox no longer
+imports new ones.
 
 Lazybox runs Anthropic's Claude Code program, unmodified. If it is not on this
 computer, **Install Claude Code** in the Claude section types Anthropic's
@@ -102,8 +108,9 @@ keep working past a usage limit; remove `switch:claude` from its
 `extension.yaml` to keep it to Codex. How it works:
 [Extensions → account policies](extensions.md#account-policies).
 
-If you used automatic switching before it moved, Lazybox says so once, with a
-button to Settings → Extensions. Nothing is turned back on for you.
+If automatic switching was on for you before it moved, it stays on: Lazybox
+added and allowed Subscription rotation for you, with your settings, and says
+so once, with a button to Settings → Extensions.
 
 ## Control it
 

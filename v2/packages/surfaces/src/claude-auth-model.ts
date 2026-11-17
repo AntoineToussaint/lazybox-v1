@@ -27,17 +27,22 @@ export function claudeSignInLine(auth: Pick<ClaudeAuth, 'apiKeySet' | 'apiKeyHin
   return { title: 'Your Claude Code sign-in', detail: 'Whatever you signed in to Claude Code with, yourself. Anthropic has not confirmed that apps built on its Agent SDK may use it; an API key is the way it documents.', icon: 'alert', tone: 'warn' };
 }
 
-/** One-time notices the Runner raises (RunnerSettings.notices), in words. */
-export const accountNotices: Record<string, { title: string; body: string; action: string; tab: 'extensions' | 'agents' }> = {
+/**
+ * One-time notices the Runner raises (RunnerSettings.notices), in words. The
+ * migration keeps an existing setup working, so each says what stayed on and
+ * where to review it.
+ */
+export const accountNotices: Record<string, { title: string; body: string; action: string; tab: 'extensions' | 'agents'; link?: { href: string; label: string } }> = {
   'automatic-switching-moved': {
-    title: 'Automatic switching moved to an extension',
-    body: 'Lazybox no longer moves a conversation to another subscription by itself at a limit; you choose on the limit card. To switch automatically again, turn on Subscription rotation in Settings → Extensions.',
+    title: 'Automatic switching is now an extension',
+    body: 'Your conversations still switch subscription at a limit, as before: Lazybox turned on the Subscription rotation extension for you, with your settings. Review or turn it off in Settings → Extensions.',
     action: 'Open Extensions', tab: 'extensions',
   },
-  'claude-sign-in-gated': {
-    title: 'Claude subscriptions saved in Lazybox are paused',
-    body: 'Anthropic does not allow apps built on its Agent SDK to offer claude.ai sign-in without its approval. Use an Anthropic API key, or your own Claude Code sign-in; or turn Claude sign-in in Lazybox back on, at your own risk.',
-    action: 'Open Claude settings', tab: 'agents',
+  'claude-sign-in-kept': {
+    title: 'Lazybox now follows Anthropic’s terms for Claude sign-in',
+    body: 'Your saved Claude accounts keep working; review in Settings → Agents → Claude.',
+    action: 'Review Claude settings', tab: 'agents',
+    link: { href: 'https://code.claude.com/docs/en/legal-and-compliance', label: 'Anthropic’s terms' },
   },
 };
 

@@ -67,7 +67,7 @@ export function ClaudeAuthSettings({ onRunInShell }: { onRunInShell?(command: st
     <SettingsRow label="Claude sign-in in Lazybox" htmlFor="claude-sign-in" description={<>Off: Lazybox offers no Claude sign-in, and Claude subscriptions saved in Settings → Subscriptions do not start. Anthropic does not allow apps built on its Agent SDK to offer claude.ai sign-in without its approval, so turning this on is at your own risk with your own accounts. <a href={CLAUDE_TERMS_URL} target="_blank" rel="noreferrer">Anthropic’s terms</a></>}>
       <span className="settings-switch"><input id="claude-sign-in" type="checkbox" role="switch" checked={!!settings?.claudeSubscriptionSignIn} disabled={!settings || !!busy} onChange={event => signIn(event.target.checked)}/></span>
     </SettingsRow>
-    {settings?.claudeSubscriptionSignIn && <p className="settings-callout tone-warn" role="note"><Icon name="alert" size={14}/>Claude sign-in in Lazybox is on. Anthropic has not confirmed that this is allowed; an API key is the way it documents.</p>}
+    {settings?.claudeSubscriptionSignIn && <p className="settings-callout tone-warn" role="note"><Icon name="alert" size={14}/>{settings.claudeSignInCarriedOver ? 'Kept on so the Claude accounts you had saved keep working. ' : ''}Claude sign-in in Lazybox is on. Anthropic has not confirmed that this is allowed; an API key is the way it documents.</p>}
     {error && <p className="settings-error" role="alert">{error}</p>}
     {saved && <p className="settings-saved" role="status">{saved}</p>}
   </SettingsGroup>;

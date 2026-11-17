@@ -45,6 +45,10 @@ service RunnerService {
   rpc GetSubscriptionEnrollment(SubscriptionEnrollmentRequest) returns (SubscriptionEnrollment);
   rpc CancelSubscriptionEnrollment(SubscriptionEnrollmentRequest) returns (SubscriptionEnrollment);
   rpc RefreshSubscription(RefreshSubscriptionRequest) returns (Profile);
+  // Owner only. Forgets a subscription saved in Lazybox: its registry entry and
+  // its private folder (an imported token among them). Refused while a running
+  // conversation uses it. The person's own CLI sign-ins are never touched.
+  rpc RemoveSubscription(RemoveSubscriptionRequest) returns (InfoResponse);
   rpc GetGitHubConnection(GetGitHubConnectionRequest) returns (GitHubConnection);
   rpc ConfigureGitHubApp(ConfigureGitHubAppRequest) returns (GitHubConnection);
   rpc ConnectGitHubPersonalToken(ConnectGitHubPersonalTokenRequest) returns (GitHubConnection);
@@ -504,12 +508,15 @@ message RunnerSettings { uint64 revision = 1; string naming = 2; string permissi
   // default; CLAUDE_COMPLIANCE.md says why.
   bool claude_subscription_sign_in = 14;
   // One-time notices the person has not dismissed yet, by id
-  // ("automatic-switching-moved", "claude-sign-in-gated"). Saving the settings
+  // ("automatic-switching-moved", "claude-sign-in-kept"). Saving the settings
   // without one dismisses it; a save never adds one.
   repeated string notices = 15;
   // Read only: the providers an enabled extension's account policy switches
   // automatically at a limit. Empty: switching is always the person's choice.
   repeated string automatic_switching_providers = 16;
+  // Read only: claude_subscription_sign_in was turned on by the migration,
+  // because this Runner already had Claude subscriptions saved in Lazybox.
+  bool claude_sign_in_carried_over = 17;
 }
 message ClaudeAuth {
   // An Anthropic API key is saved; the claude-default account's agents use it.
@@ -679,6 +686,12 @@ message Profile {
   AccountObservation availability = 4;
   string label = 5;
   bool managed = 6;
+  // A Claude account an earlier Lazybox imported from a subscription token
+  // (no longer done; not recommended). The token itself is never sent.
+  bool token_imported = 7;
+}
+message RemoveSubscriptionRequest {
+  string profile_id = 1;
 }
 message Gateway {
   string id = 1;

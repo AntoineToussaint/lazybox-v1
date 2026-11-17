@@ -40,8 +40,8 @@ leave out.
 ### Claude and your accounts
 
 - **An Anthropic API key for Claude** Settings → Agents & workspaces → Claude takes an Anthropic API key, the way Anthropic documents for apps built on its Agent SDK. Lazybox keeps it on your Mac and only ever shows its last four characters; the section also says what Claude agents sign in with now.
-- **Switching accounts is your choice** At a limit, the card offers Switch to another of your accounts, or waiting for the reset; Lazybox no longer moves a conversation by itself. Add the Subscription rotation extension in Settings → Extensions to switch automatically again; for Claude it says plainly that Anthropic's terms may not allow it.
-- **Claude sign-in in Lazybox is off** Claude subscriptions saved in Settings → Subscriptions wait until you turn Claude sign-in in Lazybox on, at your own risk; an API key and your own Claude Code sign-in work as they are. Lazybox no longer imports Claude subscription tokens.
+- **Switching accounts is an extension** At a limit, the card offers Switch to another of your accounts, or waiting for the reset. Switching by itself is the Subscription rotation extension in Settings → Extensions; for Claude it says plainly that Anthropic's terms may not allow it. If you had automatic switching on, Lazybox turned the extension on for you, with your settings.
+- **Claude sign-in follows Anthropic's terms** On a new install, Lazybox offers no Claude sign-in until you turn Claude sign-in in Lazybox on, at your own risk. Claude accounts you already saved keep working, and Lazybox says so once. It no longer imports Claude subscription tokens; one imported earlier is marked not recommended, with Remove.
 - **Install Claude Code** When Claude Code is missing from your Mac, Settings → Agents & workspaces → Claude runs Anthropic's installer in a shell panel you watch.
 
 ### Workspaces and tabs

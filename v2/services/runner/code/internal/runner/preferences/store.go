@@ -9,7 +9,6 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +39,9 @@ type Data struct {
 	// sign-in and run conversations on the subscriptions saved that way. Off
 	// by default (CLAUDE_COMPLIANCE.md).
 	ClaudeSubscriptionSignIn bool `json:"claudeSubscriptionSignIn,omitempty"`
+	// ClaudeSignInCarriedOver: the migration turned ClaudeSubscriptionSignIn on
+	// because Claude subscriptions were already saved in Lazybox.
+	ClaudeSignInCarriedOver bool `json:"claudeSignInCarriedOver,omitempty"`
 	// Notices are one-time notices not dismissed yet, by id.
 	Notices []string `json:"notices,omitempty"`
 	// Migration is the last one-time migration of these settings that ran.
@@ -256,27 +258,31 @@ func (s *Store) Save(next Data) error {
 	return s.commit(next)
 }
 
-// Migrate records that one-time migration n ran, adding notices for the
-// person. It changes the revision only when a notice is added, so a fresh
-// Runner's settings stay at their first revision.
-func (s *Store) Migrate(n int, notices []string) error {
+// Migrate records that one-time migration n ran, after apply changed what it
+// carries over and added notices for the person. It changes the revision only
+// when something a client sees changed, so a fresh Runner's settings stay at
+// their first revision.
+func (s *Store) Migrate(n int, apply func(*Data)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.data.Migration >= n {
 		return nil
 	}
 	next := clone(s.data)
-	next.Migration = n
-	for _, id := range notices {
-		if !slices.Contains(next.Notices, id) {
-			next.Notices = append(next.Notices, id)
-		}
+	if apply != nil {
+		apply(&next)
 	}
-	if len(next.Notices) != len(s.data.Notices) {
+	next.Migration, next.Revision = n, s.data.Revision
+	seen := clone(s.data)
+	seen.Migration = n
+	if a, b := comparable(next), comparable(seen); a != b {
 		next.Revision++
 	}
 	return s.commit(next)
 }
+
+// comparable is d as a client would compare it.
+func comparable(d Data) string { data, _ := json.Marshal(d); return string(data) }
 
 func (s *Store) SetRate(revision uint64, key string, rate telemetry.Rate, remove bool) error {
 	s.mu.Lock()

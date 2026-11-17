@@ -41,6 +41,7 @@ const (
 	RunnerService_GetSubscriptionEnrollment_FullMethodName    = "/lazybox.bench.v1.RunnerService/GetSubscriptionEnrollment"
 	RunnerService_CancelSubscriptionEnrollment_FullMethodName = "/lazybox.bench.v1.RunnerService/CancelSubscriptionEnrollment"
 	RunnerService_RefreshSubscription_FullMethodName          = "/lazybox.bench.v1.RunnerService/RefreshSubscription"
+	RunnerService_RemoveSubscription_FullMethodName           = "/lazybox.bench.v1.RunnerService/RemoveSubscription"
 	RunnerService_GetGitHubConnection_FullMethodName          = "/lazybox.bench.v1.RunnerService/GetGitHubConnection"
 	RunnerService_ConfigureGitHubApp_FullMethodName           = "/lazybox.bench.v1.RunnerService/ConfigureGitHubApp"
 	RunnerService_ConnectGitHubPersonalToken_FullMethodName   = "/lazybox.bench.v1.RunnerService/ConnectGitHubPersonalToken"
@@ -272,6 +273,10 @@ type RunnerServiceClient interface {
 	GetSubscriptionEnrollment(ctx context.Context, in *SubscriptionEnrollmentRequest, opts ...grpc.CallOption) (*SubscriptionEnrollment, error)
 	CancelSubscriptionEnrollment(ctx context.Context, in *SubscriptionEnrollmentRequest, opts ...grpc.CallOption) (*SubscriptionEnrollment, error)
 	RefreshSubscription(ctx context.Context, in *RefreshSubscriptionRequest, opts ...grpc.CallOption) (*Profile, error)
+	// Owner only. Forgets a subscription saved in Lazybox: its registry entry and
+	// its private folder (an imported token among them). Refused while a running
+	// conversation uses it. The person's own CLI sign-ins are never touched.
+	RemoveSubscription(ctx context.Context, in *RemoveSubscriptionRequest, opts ...grpc.CallOption) (*InfoResponse, error)
 	GetGitHubConnection(ctx context.Context, in *GetGitHubConnectionRequest, opts ...grpc.CallOption) (*GitHubConnection, error)
 	ConfigureGitHubApp(ctx context.Context, in *ConfigureGitHubAppRequest, opts ...grpc.CallOption) (*GitHubConnection, error)
 	ConnectGitHubPersonalToken(ctx context.Context, in *ConnectGitHubPersonalTokenRequest, opts ...grpc.CallOption) (*GitHubConnection, error)
@@ -925,6 +930,16 @@ func (c *runnerServiceClient) RefreshSubscription(ctx context.Context, in *Refre
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Profile)
 	err := c.cc.Invoke(ctx, RunnerService_RefreshSubscription_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RemoveSubscription(ctx context.Context, in *RemoveSubscriptionRequest, opts ...grpc.CallOption) (*InfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InfoResponse)
+	err := c.cc.Invoke(ctx, RunnerService_RemoveSubscription_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2861,6 +2876,10 @@ type RunnerServiceServer interface {
 	GetSubscriptionEnrollment(context.Context, *SubscriptionEnrollmentRequest) (*SubscriptionEnrollment, error)
 	CancelSubscriptionEnrollment(context.Context, *SubscriptionEnrollmentRequest) (*SubscriptionEnrollment, error)
 	RefreshSubscription(context.Context, *RefreshSubscriptionRequest) (*Profile, error)
+	// Owner only. Forgets a subscription saved in Lazybox: its registry entry and
+	// its private folder (an imported token among them). Refused while a running
+	// conversation uses it. The person's own CLI sign-ins are never touched.
+	RemoveSubscription(context.Context, *RemoveSubscriptionRequest) (*InfoResponse, error)
 	GetGitHubConnection(context.Context, *GetGitHubConnectionRequest) (*GitHubConnection, error)
 	ConfigureGitHubApp(context.Context, *ConfigureGitHubAppRequest) (*GitHubConnection, error)
 	ConnectGitHubPersonalToken(context.Context, *ConnectGitHubPersonalTokenRequest) (*GitHubConnection, error)
@@ -3363,6 +3382,9 @@ func (UnimplementedRunnerServiceServer) CancelSubscriptionEnrollment(context.Con
 }
 func (UnimplementedRunnerServiceServer) RefreshSubscription(context.Context, *RefreshSubscriptionRequest) (*Profile, error) {
 	return nil, status.Error(codes.Unimplemented, "method RefreshSubscription not implemented")
+}
+func (UnimplementedRunnerServiceServer) RemoveSubscription(context.Context, *RemoveSubscriptionRequest) (*InfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveSubscription not implemented")
 }
 func (UnimplementedRunnerServiceServer) GetGitHubConnection(context.Context, *GetGitHubConnectionRequest) (*GitHubConnection, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGitHubConnection not implemented")
@@ -4304,6 +4326,24 @@ func _RunnerService_RefreshSubscription_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).RefreshSubscription(ctx, req.(*RefreshSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RemoveSubscription_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveSubscriptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RemoveSubscription(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RemoveSubscription_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RemoveSubscription(ctx, req.(*RemoveSubscriptionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7671,6 +7711,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RefreshSubscription",
 			Handler:    _RunnerService_RefreshSubscription_Handler,
+		},
+		{
+			MethodName: "RemoveSubscription",
+			Handler:    _RunnerService_RemoveSubscription_Handler,
 		},
 		{
 			MethodName: "GetGitHubConnection",

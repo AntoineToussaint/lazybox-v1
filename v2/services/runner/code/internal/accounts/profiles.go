@@ -22,8 +22,8 @@ type Profile struct {
 	EnvRefs   map[string]string `json:"envRefs,omitempty"`
 	Home      string            `json:"home,omitempty"`
 	Isolation string            `json:"isolation"`
-	// A Claude setup-token an earlier Lazybox imported. Such an account no
-	// longer starts (ErrImportedToken); the field remains so it is recognised.
+	// A Claude setup-token an earlier Lazybox imported; never returned on the
+	// wire. No new ones are imported (ErrClaudeTokenImport).
 	TokenFile string `json:"tokenFile,omitempty"`
 	// A native claude.ai login stored in this managed profile's private directory.
 	NativeLogin bool `json:"nativeLogin,omitempty"`
@@ -172,9 +172,29 @@ func Resolve(p Profile, inherited []string) ([]string, error) {
 		}
 	}
 	if p.TokenFile != "" {
-		// An account imported from a Claude subscription token before Lazybox
-		// stopped storing them (ErrClaudeTokenImport): it no longer starts.
-		return nil, ErrImportedToken
+		// An account an earlier Lazybox imported from a Claude subscription
+		// token. No new ones are imported (ErrClaudeTokenImport); an existing
+		// one keeps working while Claude sign-in in Lazybox is on (the Runner
+		// checks that), and Settings offers to remove it.
+		if p.Provider != "claude" || !filepath.IsAbs(p.TokenFile) {
+			return nil, errors.New("OAuth token file requires Claude and an absolute path")
+		}
+		info, err := os.Lstat(p.TokenFile)
+		if err != nil {
+			return nil, errors.New("OAuth token file unavailable")
+		}
+		if !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() > 16384 {
+			return nil, errors.New("OAuth token file must be a private regular file (0600)")
+		}
+		data, err := os.ReadFile(p.TokenFile)
+		if err != nil {
+			return nil, errors.New("OAuth token file unreadable")
+		}
+		token := strings.TrimSpace(string(data))
+		if token == "" || strings.ContainsAny(token, "\x00\r\n") {
+			return nil, errors.New("invalid OAuth token file")
+		}
+		env["CLAUDE_CODE_OAUTH_TOKEN"] = token
 	}
 	for target, ref := range p.EnvRefs {
 		if p.Isolation == "environment" && (target == "HOME" || target == "CODEX_HOME" || target == "CLAUDE_CONFIG_DIR") {
@@ -200,9 +220,6 @@ func Resolve(p Profile, inherited []string) ([]string, error) {
 	}
 	return result, nil
 }
-
-// ErrImportedToken is an account imported from a Claude subscription token.
-var ErrImportedToken = errors.New("this Claude account was imported from a subscription token, which Lazybox no longer uses (CLAUDE_COMPLIANCE.md); remove it and use an Anthropic API key, or sign in again")
 
 type Availability string
 

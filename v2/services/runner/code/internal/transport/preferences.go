@@ -41,7 +41,7 @@ func wireClaudeAuth(a runner.ClaudeAuth) *pb.ClaudeAuth {
 func (s *Service) GetRunnerSettings(context.Context, *pb.InfoRequest) (*pb.RunnerSettings, error) {
 	d, rates := s.Bench.Preferences.SnapshotRates()
 	w := &pb.RunnerSettings{Revision: d.Revision, Naming: d.Naming, Permission: d.Permission, Context: d.Context, ClaudeContext: d.ClaudeContext, CodexContext: d.CodexContext, ProcessBackend: d.ProcessBackend, RotationExcludedProfileIds: d.RotationExcluded, ClaudeAiConnectors: d.ClaudeAIConnectors, PlainTitles: d.PlainTitles, SuggestedName: petname.Generate(3, "-"),
-		ClaudeSubscriptionSignIn: d.ClaudeSubscriptionSignIn, Notices: d.Notices, AutomaticSwitchingProviders: s.Bench.AutomaticSwitchingProviders(),
+		ClaudeSubscriptionSignIn: d.ClaudeSubscriptionSignIn, ClaudeSignInCarriedOver: d.ClaudeSignInCarriedOver, Notices: d.Notices, AutomaticSwitchingProviders: s.Bench.AutomaticSwitchingProviders(),
 		Review: &pb.ReviewSettings{Reviewer: d.Review.Reviewer, Template: d.Review.Template, AutoStart: d.Review.AutoStart, DefaultTemplate: reviews.DefaultTemplate, Loop: firstNonEmptyString(d.Review.Loop, reviews.LoopAsk), MaxRounds: uint32(reviews.ClampRounds(d.Review.MaxRounds)), ReviewerMode: d.Review.ReviewerModeOf(), ReviewerModel: d.Review.ReviewerModel}}
 	for key, r := range rates {
 		provider, model, _ := strings.Cut(key, "/")
@@ -79,7 +79,7 @@ func (s *Service) SaveRunnerSettings(ctx context.Context, r *pb.RunnerSettings) 
 		}
 	}
 	err := s.Bench.Preferences.Save(preferences.Data{Revision: r.Revision, Naming: r.Naming, Permission: r.Permission, Context: r.Context, ClaudeContext: r.ClaudeContext, CodexContext: r.CodexContext, ProcessBackend: r.ProcessBackend, RotationExcluded: r.RotationExcludedProfileIds, ClaudeAIConnectors: r.ClaudeAiConnectors, PlainTitles: r.PlainTitles,
-		ClaudeSubscriptionSignIn: r.ClaudeSubscriptionSignIn, Notices: notices, Migration: current.Migration, Review: review})
+		ClaudeSubscriptionSignIn: r.ClaudeSubscriptionSignIn, ClaudeSignInCarriedOver: current.ClaudeSignInCarriedOver && r.ClaudeSubscriptionSignIn, Notices: notices, Migration: current.Migration, Review: review})
 	if err != nil {
 		return nil, settingsError(err)
 	}

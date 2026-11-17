@@ -83,11 +83,11 @@ try{
   // them, anchors, Back, and search; Escape closes.
   await help(page,'Documentation');
   const docs=page.getByRole('dialog',{name:'Documentation'});await expect(docs).toBeVisible();
-  await expect(docs.locator('.docs-page h1')).toContainText('Lazybox V2 documentation');
+  await expect(docs.locator('.docs-page h1')).toContainText('Lazybox documentation');
   await docs.locator('.docs-page a.doc-link',{hasText:'Getting started'}).first().click();
   await expect(docs.locator('.docs-page h1')).toContainText('Getting started');
   await docs.getByRole('button',{name:'Back'}).click();
-  await expect(docs.locator('.docs-page h1')).toContainText('Lazybox V2 documentation');
+  await expect(docs.locator('.docs-page h1')).toContainText('Lazybox documentation');
   await docs.getByRole('searchbox',{name:'Search the documentation'}).fill('keyboard shortcuts');
   await expect(docs.getByRole('navigation',{name:'Search results'}).getByRole('button').first()).toBeVisible();
   await docs.getByRole('searchbox',{name:'Search the documentation'}).press('Enter');

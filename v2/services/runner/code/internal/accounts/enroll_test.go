@@ -11,8 +11,9 @@ import (
 )
 
 // Lazybox does not store a Claude.ai credential (CLAUDE_COMPLIANCE.md): a
-// subscription token is refused before anything is written, and an account
-// an earlier Lazybox imported from one no longer starts.
+// subscription token is refused before anything is written. An account an
+// earlier Lazybox imported keeps its credential, isolated from the person's
+// own login, and can be removed with its folder.
 func TestClaudeSubscriptionTokenIsNeverStored(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "current-login")
 	root := t.TempDir()
@@ -25,12 +26,37 @@ func TestClaudeSubscriptionTokenIsNeverStored(t *testing.T) {
 	if profiles, err := LoadProfiles(root); err != nil || len(profiles) != 0 {
 		t.Fatal(profiles, err)
 	}
-	token := filepath.Join(root, "oauth-token")
+	// An account imported before: registered with its token file.
+	home := filepath.Join(root, "accounts", "imported", "claude")
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	token := filepath.Join(root, "accounts", "imported", "oauth-token")
 	if err := os.WriteFile(token, []byte("fixture-subscription-token"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Resolve(Profile{ID: "imported", Provider: "claude", Isolation: "environment", Home: t.TempDir(), TokenFile: token}, nil); !errors.Is(err, ErrImportedToken) {
-		t.Fatalf("an imported token still resolves: %v", err)
+	if err := StoreProfile(root, Profile{ID: "imported", Provider: "claude", Isolation: "environment", Home: home, TokenFile: token}); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := LoadProfiles(root)
+	if err != nil || len(profiles) != 1 {
+		t.Fatal(profiles, err)
+	}
+	env, err := Resolve(profiles[0], []string{"CLAUDE_CODE_OAUTH_TOKEN=current-login", "ANTHROPIC_API_KEY=other-billing"})
+	if joined := strings.Join(env, "\n"); err != nil || !strings.Contains(joined, "CLAUDE_CODE_OAUTH_TOKEN=fixture-subscription-token") || strings.Contains(joined, "other-billing") || strings.Contains(joined, "current-login") {
+		t.Fatalf("an existing imported account must keep its own credential: %v", err)
+	}
+	if err = RemoveProfile(root, "imported"); err != nil {
+		t.Fatal(err)
+	}
+	if profiles, _ = LoadProfiles(root); len(profiles) != 0 {
+		t.Fatal("removed account still registered")
+	}
+	if _, err = os.Stat(token); !os.IsNotExist(err) {
+		t.Fatal("the imported token outlived its account")
+	}
+	if err = RemoveProfile(root, "imported"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("removing twice: %v", err)
 	}
 	if os.Getenv("CLAUDE_CODE_OAUTH_TOKEN") != "current-login" {
 		t.Fatal("global login changed")

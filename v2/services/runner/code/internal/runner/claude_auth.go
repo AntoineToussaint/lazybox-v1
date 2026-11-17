@@ -3,6 +3,7 @@ package runner
 import (
 	"errors"
 	"os"
+	"slices"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 )
@@ -54,15 +55,44 @@ func (b *Bench) profileEnv(p accounts.Profile) ([]string, error) {
 // Lazybox offered while Claude sign-in in Lazybox is off. Other accounts,
 // and every Codex account, are not affected.
 func (b *Bench) claudeSignInAllowed(p accounts.Profile) error {
+	// An account imported from a token earlier is a Claude.ai credential
+	// Lazybox holds: the same gate, and Settings marks it not recommended.
 	if p.Provider != "claude" || !p.Managed || !(p.NativeLogin || p.TokenFile != "") {
 		return nil
-	}
-	if p.TokenFile != "" {
-		return accounts.ErrImportedToken
 	}
 	if !b.Preferences.Snapshot().ClaudeSubscriptionSignIn {
 		return ErrClaudeSignInOff
 	}
+	return nil
+}
+
+// RemoveSubscription forgets a subscription saved in Lazybox (an imported
+// token included). It is refused while a running conversation is on it.
+func (b *Bench) RemoveSubscription(id string) error {
+	var target accounts.Profile
+	for _, p := range b.Profiles() {
+		if p.ID == id {
+			target = p
+		}
+	}
+	if target.ID == "" {
+		return os.ErrNotExist
+	}
+	if !target.Managed {
+		return errors.New("only a subscription saved in Lazybox can be removed here; your CLI sign-in is the CLI's")
+	}
+	for _, e := range b.List() {
+		if live, err := liveEngine(e); err == nil && !live.Snapshot().Closed && live.Snapshot().Profile == id {
+			return errors.New("a running conversation uses this subscription; switch it or close it first")
+		}
+	}
+	if err := accounts.RemoveProfile(b.Config.SubscriptionState, id); err != nil {
+		return err
+	}
+	// The registry only ever adds on reload: the removed one leaves here.
+	b.profileMu.Lock()
+	b.profiles = slices.DeleteFunc(b.profiles, func(p accounts.Profile) bool { return p.ID == id && p.Managed })
+	b.profileMu.Unlock()
 	return nil
 }
 

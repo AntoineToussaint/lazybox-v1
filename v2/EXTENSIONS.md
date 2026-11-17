@@ -134,12 +134,17 @@ accountPolicy:
   an example: neither installed nor approved until the person adds it in
   Settings → Extensions. Approving it for Claude shows a plain warning with a
   link to Anthropic's terms, in the sheet and on its card.
-- **Migration.** A Runner state from before this change gets one notice
-  (`RunnerSettings.notices`, "automatic-switching-moved") when switching was in
-  effect for someone: a signed-in account, not excluded, beside another account
-  of its provider, or a configured `defaults.rotationProfiles`. Nothing is
-  turned back on. The notice is dismissed for good by a save that leaves it
-  out; a save never adds one.
+- **Migration: existing setups keep working.** A Runner state from before
+  this change where switching was in effect (a signed-in account, not
+  excluded, beside another account of its provider, or a configured
+  `defaults.rotationProfiles`) gets *Subscription rotation* installed and
+  approved, exactly what its manifest asks, as the person would; the same
+  exclusions and pools apply, so it switches as before, Codex and Claude. One
+  notice (`RunnerSettings.notices`, "automatic-switching-moved") says so; it is
+  dismissed for good by a save that leaves it out, and a save never adds one.
+  This is the one approval Lazybox makes on the person's behalf, once per
+  state; a copy the person turned off is left off, and fresh state gets
+  nothing.
 
 **Why declarative, not code.** An extension's code runs in a sandboxed panel
 with an opaque origin and a credential that admits only read and show RPCs.
@@ -299,8 +304,9 @@ app window (Lazybox origin)
   `internal/runner/rotation` (`TestNoAccountPolicyNeverSwitchesByItself`),
   `internal/transport` (`TestAutomaticSwitchingIsTheAccountPolicys`: no pool
   and no switch without a policy, the person's switch still works, the policy
-  switching at a limit, turning it off stopping a running conversation;
-  `TestAccountsMigrationNoticesOnce`), and the UI suite
+  switching at a limit, turning it off stopping a running conversation; and
+  the `TestMigration…` tests: existing switching kept through the extension,
+  fresh state left alone), and the UI suite
   `npm run test:claude-compliance` (adding and allowing Subscription rotation
   with its Claude warning) and `npm run test:subscription-switch`.
 - Go: `internal/power` — the manifest by line (unknown grants and keys with

@@ -270,7 +270,7 @@ export async function startRunnerFixture() {
   // every mutation, the test's own included.
   const themeFolder={directory:'/fixture/state/themes',files:[]};
   const themeReply=()=>({directory:themeFolder.directory,files:themeFolder.files,revision:createHash('sha256').update(JSON.stringify(themeFolder.files)).digest('hex').slice(0,16)});
-  let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:'',rotationExcludedProfileIds:[],claudeSubscriptionSignIn:false,notices:[]};
+  let runnerSettings={revision:'1',naming:'repositories',permission:'',context:'You are running inside Lazybox.',claudeContext:'',codexContext:'',suggestedName:'gentle-copper-otter',prices:[],processBackend:'',rotationExcludedProfileIds:[],claudeSubscriptionSignIn:false,claudeSignInCarriedOver:false,notices:[]};
   // How Claude agents sign in (GetClaudeAuth), explicitly fake: a key is kept in memory and only its last four characters are answered.
   const claudeAuth={key:'',cloudProvider:''};
   const claudeAuthReply=()=>({apiKeySet:!!claudeAuth.key,apiKeyHint:claudeAuth.key.slice(-4),cloudProvider:claudeAuth.cloudProvider});
@@ -514,6 +514,12 @@ actions:
       // The Runner's version and which lazybox agents' shells reach (Settings → About).
       case 'Version': return json(versionInfo);
       case 'GetClaudeAuth': return json(claudeAuthReply());
+      case 'RemoveSubscription': {
+        const i=profiles.findIndex(p=>p.id===body.profileId);if(i<0)return error('not_found','no such subscription');
+        if(!profiles[i].managed)return error('failed_precondition','only a subscription saved in Lazybox can be removed here');
+        mutations.push({method,body});profiles.splice(i,1);
+        return json({restartAvailable:runner.restartAvailable,instanceId:runner.instanceId,profiles,sessions});
+      }
       case 'SetClaudeApiKey': {
         mutations.push({method,body:{...body,apiKey:body.apiKey?'(a key)':''}});
         if(body.clear){claudeAuth.key='';return json(claudeAuthReply());}
@@ -578,7 +584,9 @@ actions:
         const zero={naming:'',permission:'',context:'',claudeContext:'',codexContext:'',processBackend:'',rotationExcludedProfileIds:[],claudeAiConnectors:false,plainTitles:false,claudeSubscriptionSignIn:false,notices:[]};
         // A save never adds a notice; it dismisses the ones it leaves out. The switching providers are the Runner's own.
         const {automaticSwitchingProviders:__,...saved}=body;const notices=(runnerSettings.notices||[]).filter(n=>(saved.notices||[]).includes(n));
-        runnerSettings={...runnerSettings,...zero,...saved,notices,review,revision:String(Number(runnerSettings.revision)+1)};return json({...runnerSettings,automaticSwitchingProviders:await extensions.switching()});
+        // Carried over by the migration only while it stays on, as the Runner keeps it.
+        const claudeSignInCarriedOver=!!runnerSettings.claudeSignInCarriedOver&&!!saved.claudeSubscriptionSignIn;
+        runnerSettings={...runnerSettings,...zero,...saved,notices,claudeSignInCarriedOver,review,revision:String(Number(runnerSettings.revision)+1)};return json({...runnerSettings,automaticSwitchingProviders:await extensions.switching()});
       }
       case 'SetModelPrice': {
         if(body.revision!==runnerSettings.revision)return error('aborted','Settings changed');

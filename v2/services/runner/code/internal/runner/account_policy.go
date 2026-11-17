@@ -2,9 +2,13 @@ package runner
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"slices"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
+	"github.com/AntoineToussaint/lazybox/v2/internal/power"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/preferences"
 )
 
 // Account policies (EXTENSIONS.md, "Account policy"). The core keeps several
@@ -61,22 +65,31 @@ func rotationPool(options accounts.Options, configured []string, profiles []acco
 
 // One-time notices (RunnerSettings.notices).
 const (
-	// NoticeSwitchingMoved: automatic switching was on by default and is now
-	// an extension, off until the person turns it on.
+	// NoticeSwitchingMoved: automatic switching was on and is now the
+	// Subscription rotation extension, which the migration turned on.
 	NoticeSwitchingMoved = "automatic-switching-moved"
-	// NoticeClaudeSignInGated: Claude subscriptions saved in Lazybox no longer
-	// start until the person turns Claude sign-in in Lazybox on.
-	NoticeClaudeSignInGated = "claude-sign-in-gated"
+	// NoticeClaudeSignInKept: Lazybox now follows Anthropic's terms for Claude
+	// sign-in; the Claude accounts already saved keep working.
+	NoticeClaudeSignInKept = "claude-sign-in-kept"
 )
+
+// RotationExtension is the bundled extension whose account policy is the
+// automatic switching the core used to do.
+const RotationExtension = "subscription-rotation"
 
 // accountsMigration is the preferences migration that moved automatic
 // switching out of the core and gated Claude sign-in (CLAUDE_COMPLIANCE.md).
 const accountsMigration = 1
 
-// migrateAccounts runs once per Runner state: a person for whom automatic
-// switching was in effect (a signed-in subscription that was not excluded, or
-// a configured pool) and a person with Claude subscriptions saved in Lazybox
-// are told what changed, once. Nothing is turned back on for them.
+// migrateAccounts runs once per Runner state: compliant defaults for new
+// state, and an existing setup keeps working. With Claude subscriptions
+// already saved in Lazybox (signed in or imported from a token), Claude
+// sign-in in Lazybox is carried over on. Where automatic switching was in
+// effect (a signed-in subscription not excluded, beside another account of
+// its provider, or a configured pool), the bundled Subscription rotation
+// extension is installed and approved, so it goes on switching with the same
+// settings (exclusions and configured pools stay where they were). Each change
+// is said once, in a notice.
 func (b *Bench) migrateAccounts() error {
 	data := b.Preferences.Snapshot()
 	if data.Migration >= accountsMigration {
@@ -100,8 +113,50 @@ func (b *Bench) migrateAccounts() error {
 			add(NoticeSwitchingMoved)
 		}
 		if p.Provider == "claude" && p.Managed && (p.NativeLogin || p.TokenFile != "") {
-			add(NoticeClaudeSignInGated)
+			add(NoticeClaudeSignInKept)
 		}
 	}
-	return b.Preferences.Migrate(accountsMigration, notices)
+	if slices.Contains(notices, NoticeSwitchingMoved) {
+		// A Runner always starts: a folder that will not take the extension
+		// is said in the log, and the notice still points at Settings.
+		if err := b.keepRotation(); err != nil {
+			log.Printf("account migration: %v", err)
+		}
+	}
+	return b.Preferences.Migrate(accountsMigration, func(d *preferences.Data) {
+		for _, id := range notices {
+			if !slices.Contains(d.Notices, id) {
+				d.Notices = append(d.Notices, id)
+			}
+		}
+		if slices.Contains(notices, NoticeClaudeSignInKept) {
+			d.ClaudeSubscriptionSignIn, d.ClaudeSignInCarriedOver = true, true
+		}
+	})
+}
+
+// keepRotation installs the bundled Subscription rotation extension and
+// approves exactly what it asks for, as the person would in Settings →
+// Extensions, so automatic switching that was on stays on. A copy already in
+// the folder is approved as it is, unless the person turned it off.
+func (b *Bench) keepRotation() error {
+	ext := b.power.Extensions
+	if ext == nil {
+		return nil
+	}
+	snap := ext.Snapshot()
+	if _, ok := snap.Find(RotationExtension); !ok {
+		var err error
+		if snap, err = ext.InstallExample(RotationExtension); err != nil {
+			return fmt.Errorf("keeping automatic switching: %w", err)
+		}
+	}
+	info, ok := snap.Find(RotationExtension)
+	if !ok || info.State == power.ExtensionEnabled || info.State == power.ExtensionDisabled {
+		return nil
+	}
+	if _, err := ext.Approve(info.ID, info.Manifest.Grants, info.Manifest.Hosts); err != nil {
+		return fmt.Errorf("keeping automatic switching: %w", err)
+	}
+	return nil
 }
