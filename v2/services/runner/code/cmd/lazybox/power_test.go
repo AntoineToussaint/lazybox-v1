@@ -646,7 +646,8 @@ func TestAgentCredentialIsDeniedOwnerVerbs(t *testing.T) {
 	// `ls` lists the agent's own commands (agent_commands_test.go); here the session is not its own.
 	for _, args := range [][]string{{"ls"}, {"send", "agent", "hi"}, {"inbox"}, {"hooks", "runs"}, {"actions"}} {
 		out := r.cli(env, "", args...)
-		if out.code != exitDenied || !strings.Contains(out.err.Error(), "scoped credential") {
+		// One line: what was refused and the next step, no paragraph of what agents may do.
+		if out.code != exitDenied || !strings.HasPrefix(out.err.Error(), "refused: ") || strings.Contains(out.err.Error(), "\n") {
 			t.Fatalf("%v with an agent credential: %+v", args, out)
 		}
 	}
