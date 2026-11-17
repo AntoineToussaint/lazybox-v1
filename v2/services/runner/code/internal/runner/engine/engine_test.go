@@ -184,12 +184,12 @@ func TestNextMessageContinuesAfterAProviderErrorEndsATurn(t *testing.T) {
 }
 
 func TestRunnerFaultsStillRefuseMessages(t *testing.T) {
-	for _, fault := range []string{"provider delivery failed; reconcile before continuing", "event capture failed: disk", "native_exit_unconfirmed", "provider startup failed"} {
+	for _, fault := range []string{"provider delivery failed; reconcile before continuing", "event capture failed: disk", "native_exit_unconfirmed", "provider startup failed", "provider_process_exit", "sdk_error"} {
 		if agent.TurnFault(fault) {
 			t.Fatalf("%q treated as a turn fault", fault)
 		}
 	}
-	for _, fault := range []string{"provider_error", "provider_failure", "sdk_error", "invalid_request"} {
+	for _, fault := range []string{"provider_error", "provider_failure", "invalid_request"} {
 		if !agent.TurnFault(fault) {
 			t.Fatalf("%q not treated as a turn fault", fault)
 		}

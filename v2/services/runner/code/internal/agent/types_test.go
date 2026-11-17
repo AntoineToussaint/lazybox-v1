@@ -16,3 +16,18 @@ func TestPromptPreservesUserTextAndProvidesEscapedGenericFileReferences(t *testi
 		t.Fatalf("generic file references were not delivered escaped: %q", text)
 	}
 }
+
+// A provider process that ended, or a worker whose SDK stream failed, leaves
+// nothing to take the next message: those are Runner faults, never turn faults.
+func TestTurnFaultClassification(t *testing.T) {
+	for _, fault := range []string{"provider_error", "provider_failure", "invalid_request", "unknown"} {
+		if !TurnFault(fault) {
+			t.Errorf("%q not treated as a turn fault", fault)
+		}
+	}
+	for _, fault := range []string{"", "provider_process_exit", "sdk_error", "provider stream ended: EOF", "native_exit_unconfirmed", "provider startup failed", "exhausted", "auth_required"} {
+		if TurnFault(fault) {
+			t.Errorf("%q treated as a turn fault", fault)
+		}
+	}
+}

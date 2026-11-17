@@ -210,6 +210,8 @@ export function failureSentence(status = '', text = ''): string {
  */
 export function turnFault(fault = ''): boolean {
   if (!fault || isLimitState(fault)) return false;
+  // The agent process ended, or the worker's SDK stream failed: nothing takes the next message.
+  if (fault === 'provider_process_exit' || fault === 'sdk_error') return false;
   return !['provider delivery failed', 'event capture failed', 'provider stream ended', 'invalid or excessive pending provider requests', 'native_exit_unconfirmed', 'provider startup failed'].some(prefix => fault.startsWith(prefix));
 }
 

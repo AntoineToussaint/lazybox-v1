@@ -364,6 +364,12 @@ type Event struct {
 	Attempt uint64 `json:"-"`
 }
 
+// UnreadableEvent records a provider line an adapter skipped because it could
+// not read it. One odd line never ends supervision of a live agent: the
+// adapter goes on, and this record (journal only, not shown in the
+// conversation) says what was skipped.
+const UnreadableEvent = "unreadable_event"
+
 type Adapter interface {
 	Open(context.Context, Open) (Session, error)
 }
@@ -392,14 +398,20 @@ type ProfileSwitcher interface {
 	SetRotation(ids []string) error
 }
 
-// LimitFault reports whether a session fault is an account limit a profile
-// switch (or a reset) resolves, rather than a fault to reconcile.
 // TurnFault reports whether a fault came from the provider ending one turn with
 // an error (an API error, an image it could not read, an overloaded service),
 // as opposed to the Runner losing track of the provider. After a turn fault
 // the conversation is intact: the person's next message continues it.
+//
+// A provider process that ended (provider_process_exit) or a worker whose SDK
+// stream failed (sdk_error) is not a turn fault: nothing is left to take the
+// next message.
 func TurnFault(fault string) bool {
 	if fault == "" || LimitFault(fault) {
+		return false
+	}
+	switch fault {
+	case "provider_process_exit", "sdk_error":
 		return false
 	}
 	for _, runner := range []string{"provider delivery failed", "event capture failed", "provider stream ended", "invalid or excessive pending provider requests", "native_exit_unconfirmed", "provider startup failed"} {
@@ -410,6 +422,8 @@ func TurnFault(fault string) bool {
 	return true
 }
 
+// LimitFault reports whether a session fault is an account limit a profile
+// switch (or a reset) resolves, rather than a fault to reconcile.
 func LimitFault(fault string) bool {
 	return fault == "exhausted" || fault == "throttled" || fault == "auth_required" || fault == "billing_error"
 }
