@@ -4,7 +4,7 @@
 .docs-viewer>header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line,var(--line-subtle))}
 .docs-viewer>header h2{margin:0;font-size:calc(14px * var(--text-scale));font-weight:600;white-space:nowrap}
 .docs-viewer .docs-back{width:28px;height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center}
-.docs-search{flex:1;display:flex;align-items:center;gap:6px;max-width:420px;margin-left:auto;height:28px;padding:0 8px;border:1px solid var(--line,var(--line-subtle));border-radius:6px;color:var(--muted,var(--text-muted))}
+.docs-search{flex:1;display:flex;flex-direction:row;align-items:center;gap:6px;max-width:420px;margin-left:auto;height:28px;padding:0 8px;border:1px solid var(--line,var(--line-subtle));border-radius:6px;color:var(--muted,var(--text-muted))}
 .docs-viewer .docs-search input{flex:1;min-width:0;height:auto;margin:0;padding:0;border:0;box-shadow:none;background:transparent;color:var(--text,var(--text));font:inherit;outline:none}
 .docs-search:focus-within{border-color:var(--accent,var(--focus))}
 .docs-body{flex:1;min-height:0;display:grid;grid-template-columns:var(--split-docs-nav,240px) minmax(0,1fr)}

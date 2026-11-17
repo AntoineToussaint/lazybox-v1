@@ -141,6 +141,42 @@ try{
  await expect(groups.nth(1).getByRole('option').first()).toBeFocused();
  await page.keyboard.press('Enter');
  await expect(page.getByRole('article',{name:'Security review'}).locator('.artifact-document')).toContainText('No blockers.');
+
+ // Enough artifacts to filter: the header is one row (the count, then a search field with its icon
+ // inside), the scope switch under it at one height, and no box drawn inside another.
+ for(const [i,collectionId] of ['alpha','beta','alpha'].entries())fixture.artifacts.agentPut({collectionId,sessionId:`${collectionId}-session`,conversationId:`conversation-${collectionId}`,title:`Note ${i+1}`,kind:'plan',content:`# Note ${i+1}\n`});
+ const backToList=page.getByRole('article',{name:'Security review'}).getByRole('button',{name:'Back to artifacts'});
+ if(await backToList.isVisible())await backToList.click();
+ const header=panel.locator('.artifacts-list-header'),artifactFilter=header.getByRole('searchbox',{name:'Filter artifacts'});
+ await expect(header.locator('strong')).toHaveText('6 artifacts in 2 workspaces',{timeout:20000});
+ await expect(artifactFilter).toBeVisible();
+ const headerReport=()=>header.evaluate(node=>{
+  const box=el=>el.getBoundingClientRect(),bordered=el=>{const s=getComputedStyle(el);return ['Top','Right','Bottom','Left'].some(side=>parseFloat(s[`border${side}Width`])>0&&s[`border${side}Style`]!=='none'&&!/^(transparent|rgba\(.*, 0\))$/.test(s[`border${side}Color`]));};
+  const nested=[...node.querySelectorAll('*')].filter(el=>el.getClientRects().length&&bordered(el)&&[...el.querySelectorAll('*')].some(child=>child.getClientRects().length&&bordered(child))).map(el=>el.className);
+  const count=box(node.querySelector('strong')),field=box(node.querySelector('.artifacts-search')),input=box(node.querySelector('.artifacts-search input')),icon=box(node.querySelector('.artifacts-search svg'));
+  const radios=[...node.querySelectorAll('[role=radio]')].map(el=>Math.round(box(el).height));
+  return {nested,countMid:count.top+count.height/2,fieldMid:field.top+field.height/2,countRight:count.right,field:{left:field.left,right:field.right,top:field.top,bottom:field.bottom},input:{left:input.left,right:input.right},icon:{left:icon.left,right:icon.right,top:icon.top,bottom:icon.bottom},radios,scope:node.querySelector('.artifacts-scope')&&box(node.querySelector('.artifacts-scope')).top,header:{left:box(node).left,right:box(node).right},overflow:node.scrollWidth>node.clientWidth+1};
+ });
+ for(const [width,label] of [[0,'wide'],[230,'narrow']]){
+  if(width)await panel.locator('.artifacts-list').evaluate((node,width)=>{node.style.setProperty('width',`${width}px`,'important');node.style.setProperty('flex','none','important');},width);await page.waitForTimeout(100);
+  for(const scheme of ['dark','light']){await page.emulateMedia({colorScheme:scheme});await page.waitForTimeout(150);await header.screenshot({path:`.cache/find-artifacts-header-${label}-${scheme}.png`});}
+  await page.emulateMedia({colorScheme:null});
+  const r=await headerReport();
+  assert.deepEqual(r.nested,[],`${label}: no bordered box inside another`);
+  assert.ok(r.icon.left>=r.field.left&&r.icon.right<=r.field.right&&r.icon.top>=r.field.top&&r.icon.bottom<=r.field.bottom,`${label}: the search icon is inside the field`);
+  assert.ok(r.icon.right<=r.input.left+1,`${label}: the icon leads the text`);
+  assert.ok(r.field.right<=r.header.right+1&&r.field.left>=r.header.left-1&&!r.overflow,`${label}: the field stays in the header`);
+  assert.ok(new Set(r.radios).size===1,`${label}: the scope switch is one height (${r.radios})`);
+  assert.ok(r.scope>r.field.bottom-1,`${label}: the scope switch is under the count and search`);
+  if(label==='wide'){
+   assert.ok(Math.abs(r.countMid-r.fieldMid)<2,'the count and the search share a row');
+   assert.ok(r.field.left>r.countRight,'the search is right of the count');
+   assert.ok(Math.abs(r.field.right-(r.header.right-12))<2,'the search ends at the header\'s padding');
+  }
+ }
+ await artifactFilter.fill('Note 2');
+ await expect(panel.getByRole('option')).toHaveCount(1);
+ await artifactFilter.fill('');
  assert.deepEqual(errors,[]);
  console.log('PASS: an agent\'s artifact put shows a card that opens the page (and an update its changes); the header chip counts this conversation\'s artifacts and opens the panel on them; ⌘K (and its * prefix) finds an artifact of another workspace and opens it there; All workspaces groups by workspace; with none, no card or chip and a one-sentence empty state. Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}

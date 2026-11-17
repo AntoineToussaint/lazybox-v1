@@ -107,11 +107,19 @@
 .artifacts-list{display:flex;flex-direction:column;width:var(--split-artifacts-list,280px);flex:none;min-height:0;border-right:1px solid var(--line,var(--line-subtle))}
 .artifacts-panel:not(.has-selection) .artifacts-list{width:auto;flex:1;border-right:0}
 .artifacts-panel:not(.has-selection):has(.artifact-page.is-placeholder) .artifacts-list{width:var(--split-artifacts-list,280px);flex:none;border-right:1px solid var(--line,var(--line-subtle))}
-.artifacts-list-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:6px 12px;border-bottom:1px solid var(--line,var(--line-subtle));background:var(--surface)}
-.artifacts-list-header strong{font-size:calc(12px * var(--text-scale));font-weight:600;color:var(--text,var(--text))}
+.artifacts-list-header{container-type:inline-size;display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:7px 12px 8px;border-bottom:1px solid var(--line,var(--line-subtle));background:var(--surface)}
+.artifacts-list-header strong{flex:1 1 auto;min-width:0;font-size:calc(12px * var(--text-scale));font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .artifacts-list-header small{font-size:calc(11px * var(--text-scale));color:var(--text-muted);font-variant-numeric:tabular-nums}
-.artifacts-search{display:flex;align-items:center;gap:5px;margin-left:auto;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface-sunken);color:var(--text-muted)}
-.artifacts-search input{width:110px;padding:4px 0;border:0;background:transparent;color:var(--text);font-size:calc(12px * var(--text-scale));outline:none}
+/* One field: the icon inside the box, the input borderless within it (a label is a column app-wide). */
+.artifacts-list-header .artifacts-search{display:flex;flex-direction:row;align-items:center;gap:6px;flex:1 1 120px;min-width:120px;max-width:220px;height:26px;margin:0 0 0 auto;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface-sunken);color:var(--text-muted);font-size:calc(12px * var(--text-scale));cursor:text}
+.artifacts-list-header .artifacts-search:hover{border-color:var(--line-strong)}
+.artifacts-list-header .artifacts-search:focus-within{border-color:var(--accent-line);box-shadow:0 0 0 1px var(--accent-line-subtle)}
+.artifacts-list-header .artifacts-search>svg{flex:none}
+.artifacts-list-header .artifacts-search input{-webkit-appearance:none;appearance:none;flex:1;min-width:0;width:auto;height:100%;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--text);font-size:calc(12px * var(--text-scale));outline:none}
+.artifacts-list-header .artifacts-search input:focus-visible{outline:none}
+.artifacts-list-header .artifacts-search input::placeholder{color:var(--text-faint)}
+/* A slim list: the search takes its own line under the count, as wide as the scope switch. */
+@container (max-width:300px){.artifacts-list-header .artifacts-search{flex-basis:100%;max-width:none;margin-left:0}.artifacts-list-header .artifacts-scope button[role=radio]{padding:0 4px}}
 .artifacts-rows{list-style:none;margin:0;padding:6px;overflow:auto;flex:1;min-height:0;display:grid;align-content:start;gap:2px}
 .artifact-row{display:flex;align-items:flex-start;gap:11px;padding:9px 10px;border-radius:9px;cursor:pointer;min-width:0}
 .artifact-row-aside{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:none;padding-top:2px;font-size:calc(11px * var(--text-scale));color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -274,11 +282,11 @@
   html[data-scheme=dark].printing-artifact .artifact-print-sheet .mermaid-block img{filter:invert(1) hue-rotate(180deg)}
 }
 /* "This workspace / All workspaces": a quiet segmented control under the count. */
-.artifacts-scope{order:3;flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface-sunken)}
-.artifacts-scope button{min-height:0;height:24px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--text-tertiary);font-size:calc(11.5px * var(--text-scale));font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.artifacts-scope button:hover{background:var(--surface-hover);color:var(--text)}
-.artifacts-scope button[aria-checked=true]{background:var(--surface-raised);color:var(--text-strong);box-shadow:0 0 0 1px var(--line-strong),0 1px 2px color-mix(in srgb,var(--shadow) calc(30% * var(--shadow-strength)),transparent)}
-.artifacts-scope button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.artifacts-scope{order:3;flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;align-items:stretch;gap:2px;height:28px;padding:2px;border:1px solid var(--line);border-radius:7px;background:var(--surface-sunken)}
+.artifacts-list-header .artifacts-scope button{min-height:0;height:auto;margin:0;padding:0 8px;border:0;border-radius:5px;background:transparent;color:var(--text-tertiary);font-size:calc(11.5px * var(--text-scale));font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.artifacts-list-header .artifacts-scope button:hover{background:var(--surface-hover);color:var(--text)}
+.artifacts-list-header .artifacts-scope button[aria-checked=true]{background:var(--surface-raised);color:var(--text-strong);box-shadow:0 0 0 1px var(--line-strong),0 1px 2px color-mix(in srgb,var(--shadow) calc(30% * var(--shadow-strength)),transparent)}
+.artifacts-list-header .artifacts-scope button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .artifacts-conversation-filter{display:flex;align-items:center;gap:6px;margin:6px 8px 0;padding:3px 4px 3px 9px;border-radius:999px;background:var(--accent-bg);color:var(--accent-soft);font-size:calc(11.5px * var(--text-scale));align-self:flex-start;max-width:calc(100% - 16px)}
 .artifacts-conversation-filter span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .artifacts-conversation-filter .icon-button{width:18px;height:18px;min-height:0;padding:0;border-radius:50%;color:inherit}
