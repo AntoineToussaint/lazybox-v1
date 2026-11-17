@@ -137,10 +137,13 @@ export function answerValues(q: Question, a: Answer = empty): string[] {
   return q.multi ? [...a.picked, ...other] : other.length ? other : a.picked.slice(0, 1);
 }
 
+/** Answers typed or picked, per request, kept while the card remounts (a refresh, the phone re-rendering its list). */
+const answerDrafts = new Map<string, Record<string, Answer>>();
 function QuestionCard({ request, api, session, onError, position }: RequestCardProps) {
   const data = useMemo(() => providerData(request.providerDataJson), [request.providerDataJson]);
   const questions = useMemo(() => questionsOf(data), [data]);
-  const [answers, setAnswers] = useState<Record<string, Answer>>({});
+  const [answers, setAnswersState] = useState<Record<string, Answer>>(() => answerDrafts.get(request.requestId) || {});
+  const setAnswers = (next: (all: Record<string, Answer>) => Record<string, Answer>) => setAnswersState(all => { const value = next(all); answerDrafts.set(request.requestId, value); return value; });
   const [waiting, setWaiting] = useState(false);
   const card = useRef<HTMLElement>(null);
   const complete = questions.length > 0 && questions.every(q => answerValues(q, answers[q.key]).length > 0);
@@ -149,7 +152,7 @@ function QuestionCard({ request, api, session, onError, position }: RequestCardP
   const send = async () => {
     if (!complete || sent.current) return;
     sent.current = true; setWaiting(true);
-    try { await api.apply({ sessionId: session, operationId: crypto.randomUUID(), operation: { case: 'answer', value: { requestId: request.requestId, answers: Object.fromEntries(questions.map(q => [q.key, { values: answerValues(q, answers[q.key]) }])) } } }); }
+    try { await api.apply({ sessionId: session, operationId: crypto.randomUUID(), operation: { case: 'answer', value: { requestId: request.requestId, answers: Object.fromEntries(questions.map(q => [q.key, { values: answerValues(q, answers[q.key]) }])) } } }); answerDrafts.delete(request.requestId); }
     catch (e) { onError(String(e)); setWaiting(false); sent.current = false; }
   };
   const update = (q: Question, change: (a: Answer) => Answer) => setAnswers(all => ({ ...all, [q.key]: change(all[q.key] || empty) }));
