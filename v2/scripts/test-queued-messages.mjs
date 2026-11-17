@@ -103,7 +103,7 @@ try{
  await expect(chat.getByRole('alert')).toHaveCount(0);
  {const order=await chat.locator('[data-message-id]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim()));
   const typedAt=order.findIndex(t=>t.includes('Actually use port 5000.')),stoppedAt=order.lastIndexOf('Stopped to send your message'),repliedAt=order.findIndex(t=>t.includes('Restarting on port 5000.'));
-  assert.ok(typedAt>=0&&typedAt<stoppedAt&&stoppedAt<repliedAt,`the typed message, the stop, then its turn: ${JSON.stringify(order)}`);}
+  assert.ok(typedAt>=0&&stoppedAt<typedAt&&typedAt<repliedAt,`the stop, then the typed message where the agent got it, then its turn: ${JSON.stringify(order)}`);}
 
  // ── Several queued messages: two shown, the rest counted, and the strip can be put away.
  for(const text of ['First follow-up','Second follow-up','Third follow-up']){await composer.fill(text);await composer.press('Enter');await expect.poll(()=>claude.queuedMessages.length).toBeGreaterThan(0);}
