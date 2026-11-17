@@ -119,7 +119,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	fail := func(err error) (agent.Session, error) { cancel(); p.Close(); return nil, err }
 	setup, done := context.WithTimeout(life, 30*time.Second)
 	defer done()
-	_, err = p.Call(setup, "initialize", map[string]any{"clientInfo": map[string]string{"name": "lazybox_v2_testbench", "title": "Lazybox V2 test bench", "version": "0.1.0"}, "capabilities": map[string]any{"experimentalApi": true}})
+	initialized, err := p.Call(setup, "initialize", map[string]any{"clientInfo": map[string]string{"name": "lazybox_v2_testbench", "title": "Lazybox V2 test bench", "version": "0.1.0"}, "capabilities": map[string]any{"experimentalApi": true}})
 	if err != nil {
 		return fail(err)
 	}
@@ -199,6 +199,11 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 		if model := s.overrides["model"]; len(model) > 0 {
 			_ = json.Unmarshal(model, &s.model)
 		}
+	}
+	// A Codex outside the tested range may break in ways no error reports
+	// (version.go): the conversation says so first, in one line.
+	if notice, untested := versionNotice(initialized); untested {
+		s.events <- notice
 	}
 	go s.read()
 	// The models this subscription can switch to, for /model and the picker.

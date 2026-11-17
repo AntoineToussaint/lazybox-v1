@@ -94,7 +94,7 @@ export function systemEventView(origin: MessageOrigin, agentName = 'the agent'):
 }
 
 /** A Runner restart that left something uncertain, in one quiet line. */
-export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'agent-lost' | 'reverted' | 'cli' | 'pull-request' | 'connection-lost' | 'storage';
+export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'agent-lost' | 'reverted' | 'cli' | 'pull-request' | 'connection-lost' | 'storage' | 'provider';
 export const NOTICE_ICONS: Record<RunnerNotice, { icon: string; tone: SystemTone }> = {
   'delivery-unknown': { icon: 'alert', tone: 'warn' },
   'outcome-unknown': { icon: 'alert', tone: 'warn' },
@@ -104,6 +104,7 @@ export const NOTICE_ICONS: Record<RunnerNotice, { icon: string; tone: SystemTone
   'pull-request': { icon: 'pullRequest', tone: 'muted' },
   'connection-lost': { icon: 'alert', tone: 'warn' },
   storage: { icon: 'alert', tone: 'warn' },
+  provider: { icon: 'alert', tone: 'warn' },
 };
 
 const clock = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

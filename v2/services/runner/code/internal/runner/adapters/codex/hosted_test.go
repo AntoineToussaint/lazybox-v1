@@ -51,7 +51,11 @@ func fixtureAppServer() {
 		}
 		switch m.Method {
 		case "initialize":
-			send(map[string]any{"id": m.ID, "result": map[string]any{}})
+			result := map[string]any{}
+			if v := os.Getenv("FIXTURE_CODEX_VERSION"); v != "" {
+				result["userAgent"] = "lazybox_v2_testbench/" + v + " (Mac OS 27.2.1; arm64) fixture (lazybox_v2_testbench; 0.1.0)"
+			}
+			send(map[string]any{"id": m.ID, "result": result})
 		case "thread/start":
 			send(map[string]any{"id": m.ID, "result": map[string]any{"model": "fixture-model", "thread": map[string]string{"id": "thread-1"}}})
 		case "turn/start":

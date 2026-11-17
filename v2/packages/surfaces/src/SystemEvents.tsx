@@ -62,6 +62,7 @@ const NOTICE_LINES: Record<RunnerNotice, string> = {
   'pull-request': '',
   'connection-lost': '',
   storage: '',
+  provider: '',
 };
 
 /** What a Runner restart (or a revert) left to know: one line, its whole sentence on hover. */
