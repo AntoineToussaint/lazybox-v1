@@ -60,6 +60,35 @@ export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]
 
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {}, catalog: emptyCatalog() });
 
+/** A message waiting behind the turn in progress, as the Queued strip shows it. */
+export type QueuedEntry = { operationId: string; text: string; /** A message Lazybox wrote (QueuedMessage.origin, or the transcript's parsed one). */ origin?: unknown };
+/**
+ * What the Queued strip shows: the Runner's queue (polled every 1.5 s)
+ * merged with the transcript's, which knows at once. A message accepted
+ * behind a busy turn is in the transcript's queue the moment its record
+ * arrives, before the next poll; one the agent got is in the conversation
+ * the moment its receipt does, though the last poll still lists it. Either
+ * way it is in one place only: never gone for a poll, never shown twice.
+ * The Runner's order wins; the transcript's newer ones follow it.
+ */
+export function queuedMessages(polled: readonly QueuedEntry[] | undefined, transcript: Pick<Transcript, 'pending' | 'messages'>): QueuedEntry[] {
+  const pending = transcript.pending ?? {};
+  const out: QueuedEntry[] = [];
+  let placed: Set<string> | undefined;
+  for (const message of polled ?? []) {
+    const waiting = pending[message.operationId];
+    if (!waiting) {
+      // In the conversation already: the agent got it since the poll.
+      placed ??= new Set(transcript.messages.flatMap(m => m.operationId ? [m.operationId] : []));
+      if (placed.has(message.operationId)) continue;
+    }
+    out.push(message);
+  }
+  const listed = new Set(out.map(message => message.operationId));
+  for (const [operationId, message] of Object.entries(pending)) if (!listed.has(operationId)) out.push({ operationId, text: message.text, ...(message.origin ? { origin: message.origin } : {}) });
+  return out;
+}
+
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
 export function appendTranscript(state: Transcript, record: JournalEvent): Transcript {
   return foldTranscript(state, [record]);

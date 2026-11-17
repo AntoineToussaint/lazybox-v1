@@ -22,6 +22,7 @@ import { readDraft, writeDraft } from './view-state';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
 import { AttentionScope, useMarkViewed } from './useAttention';
 import { useComposeRequests } from './compose';
+import { queuedMessages } from './transcript-model';
 export type { RunnerConnection } from './RunnerContext';
 import './style.css';
 import './chat-header.css';
@@ -66,6 +67,7 @@ import { useSlashCommands } from './useSlashCommands';
 import { showToast } from './toasts';
 import { useReadAloudReplies } from './voice/useReadAloudReplies';
 import { ItemOriginChip } from './WorkItems';
+import { humanError } from './human-error';
 
 const HANDOVER_NOTICE = 'Added the compact view of a terminal run. Review it, add what you want, and send.';
 
@@ -139,7 +141,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       saveSnippetUse(viewState, snippet.key);
       if (entry.mode === 'send' && !message.trim() && !files.length && !missingFiles.length && !sending) void send(undefined, snippet.body);
       else { const next = message + (message && !message.endsWith('\n') ? '\n' : '') + snippet.body; setMessage(next); persistDraft(next, files, missingFiles); requestAnimationFrame(() => composer.current?.focus()); }
-    }, error => setError(String(error)));
+    }, error => setError(humanError(error)));
   });
   // Enter while a send is in flight (the box is read-only meanwhile) does nothing: the send under way says how it went.
   useKeyboardAction('chat.send', () => { const focused = document.activeElement as HTMLTextAreaElement; if (focused === composer.current && !sendingRef.current && (canSend || missingFiles.length > 0 || !!message.trim())) focused.form?.requestSubmit(); });
@@ -200,7 +202,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     if (claimedFor === sessionID && !sending) { addToDraft(text, `“${command.title}” was shared from your terminal. Review it, add what you want, and send.`); return; }
     // The view moved on after the claim: keep the run in that conversation's draft.
     try { const draft = readDraft(viewState, claimedFor); writeDraft(viewState, claimedFor, { ...draft, text: appendToDraft(draft.text, text) }); }
-    catch (e) { setError(`Could not keep the shared run in its draft: ${String(e)}`); }
+    catch (e) { setError(`Could not keep the shared run in its draft: ${humanError(e)}`); }
   });
   // Another panel (Changes: failing checks, Quote in reply, Ask to fix) puts
   // text after any draft, for the person to review and send; it is never sent
@@ -220,7 +222,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     return () => { control.abort(); lifetime.current = null; };
   }, []);
 
-  useSessionRefresh({
+  const refreshSession = useSessionRefresh({
     api, sessionID, connected: !!info, showCommands, reader: transcript.reader, sending: sendingRef, setSession, setCommands, setRefreshError,
     onSuccessor: next => { setSessionID(next.id); onSessionChange?.(next.id); },
   });
@@ -276,18 +278,20 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       try { await api.apply({ sessionId: destination, operationId: attempt.id, operation: { case: 'message', value: { text, attachments } } }, { signal: AbortSignal.any([signal, deadline]) }); }
       catch (e) { if (deadline.aborted && !signal.aborted) throw new Error('The Runner did not confirm this message within 30 seconds. Press Enter to send it again: it will not be delivered twice.'); throw e; }
       savePrompt(viewState, text, session?.conversationId || sessionID); recall.reset();
+      // Queued behind a busy turn, it shows above the box now, not at the next poll.
+      refreshSession();
       // Behind a busy turn the message was queued: it goes next, the turn stopped for it.
       if (now && destination === sessionID && session?.busy && !session.closed) void queuedDelivery.deliver(attempt.id, 'now', true);
       if (!signal.aborted) { setMessage(''); setFiles([]); boxes.clearRejected(); setUncertainSend(''); sendAttempt.current = null; persistDraft('', [], []); if (destination !== sessionID) { writeDraft(viewState, destination, { text: '', files: [], operationId: '' }); setSessionID(destination); onSessionChange?.(destination); refresh(); } }
       return !signal.aborted;
-    } catch (e) { if (!signal.aborted) { setError(String(e)); if (snippetText) setMessage(text); } return false; }
+    } catch (e) { if (!signal.aborted) { setError(humanError(e)); if (snippetText) setMessage(text); } return false; }
     finally { if (!signal.aborted) { sendingRef.current = false; setSending(false); } }
   };
   // Files chosen, dropped or pasted: those over a limit become error boxes (useComposerAttachments).
   const selectFiles = boxes.select;
   const interrupt = async () => {
     try { await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'interrupt', value: {} } }); }
-    catch (e) { setError(String(e)); }
+    catch (e) { setError(humanError(e)); }
   };
   const [restartTo, setRestartTo] = useState('');
   // An agent whose worker predates live permission changes restarts in the new
@@ -298,7 +302,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       const result = await api.restartWithPermission({ sessionId: sessionID, mode });
       if (!result.session) throw new Error('Runner did not return the restarted conversation');
       adopt(result.session);
-    } catch (e) { setError(String(e)); }
+    } catch (e) { setError(humanError(e)); }
   };
   /** The conversation continues in a new agent (a restart in another mode or model). */
   const adopt = (next: Session) => { continueConversation(api, sessionID, next); setSessionID(next.id); onSessionChange?.(next.id); refresh(); };
@@ -307,16 +311,18 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     try {
       await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'permission', value: { mode } } });
       setSession(current => current ? { ...current, permission: mode } : current);
-    } catch (e) { setError(String(e)); }
+    } catch (e) { setError(humanError(e)); }
   };
   const close = async () => {
     try { const result = await api.stopSessionResources({ sessionId: sessionID }); setSession(result.session); }
-    catch (e) { setError(String(e)); }
+    catch (e) { setError(humanError(e)); }
   };
   const live = useLiveStatus(session, events);
   // Send now from the keyboard (⌘↵): the typed message, or with an empty box
   // the oldest queued one, interrupting the turn in progress. Idle, it is a send.
-  const queuedDelivery = useQueuedDelivery(api, sessionID, session?.queuedMessages);
+  // What waits behind the turn: the Runner's queue and the transcript's, merged (transcript-model.ts).
+  const queued = useMemo(() => queuedMessages(session?.queuedMessages, transcript), [session?.queuedMessages, transcript.pending, transcript.messages]);
+  const queuedDelivery = useQueuedDelivery(api, sessionID, queued);
   const sendNowAt = useRef(0);
   const sendNowBinding = bindings(keymap['chat.send-now'])[0];
   const sendNowKey = sendNowBinding ? displayBinding(sendNowBinding).join(' ') : '';
@@ -328,7 +334,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       composer.current?.form?.requestSubmit();
       return;
     }
-    const oldest = workingTurn() ? session?.queuedMessages?.[0] : undefined;
+    const oldest = workingTurn() ? queued[0] : undefined;
     if (oldest) { jumpToLatest(); void queuedDelivery.deliver(oldest.operationId, 'now'); }
     else showMenuNotice(workingTurn() ? 'Nothing queued to send now' : 'Nothing to send');
   };
@@ -336,7 +342,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     'chat.send-now': mode === 'agent' && !!sessionID && {
       run: sendNow,
       // From the message box always (an empty one says so); from the palette, in the chat in front, when there is something to send now.
-      enabled: () => document.activeElement === composer.current || (activity.current() && canCompose && workingTurn() && (draftToSend() || !!session?.queuedMessages?.length)),
+      enabled: () => document.activeElement === composer.current || (activity.current() && canCompose && workingTurn() && (draftToSend() || queued.length > 0)),
     },
   });
   const disconnected = stream.startsWith('Disconnected') || stream === 'Reconnecting';
@@ -353,7 +359,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   });
   useEffect(() => {
     if (!onViewChange) return;
-    void (async () => { try { await onViewChange({ sessionId: sessionID, commandId: currentCommand || '', commandsOpen }); } catch (e) { setError(`Could not save this window: ${String(e)}`); } })();
+    void (async () => { try { await onViewChange({ sessionId: sessionID, commandId: currentCommand || '', commandsOpen }); } catch (e) { setError(`Could not save this window: ${humanError(e)}`); } })();
   }, [onViewChange, sessionID, currentCommand, commandsOpen]);
   const newSession = () => {
     setSessionID(''); setSession(undefined); setCommands([]); setCommand(''); setMessage(''); setFiles([]); setMissingFiles([]); setUncertainSend(''); sendAttempt.current = null; setError(''); onSessionChange?.('');
@@ -409,7 +415,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       return 'drafted';
     }
     await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'message', value: { text, attachments: [] } } }, { signal: AbortSignal.any([lifetime.current!.signal, AbortSignal.timeout(30_000)]) });
-    jumpToLatest();
+    jumpToLatest(); refreshSession();
     return 'sent';
   };
   const runActions: RunActions = {
@@ -459,8 +465,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
         if (!ready) { if (canCompose) addToDraft(text, 'Sending this continues the conversation and runs the command.'); else setError('This conversation cannot take a message now.'); return false; }
         try {
           await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'message', value: { text, attachments: [] } } }, { signal: AbortSignal.any([lifetime.current!.signal, AbortSignal.timeout(30_000)]) });
-          savePrompt(viewState, text, session?.conversationId || sessionID); jumpToLatest(); return true;
-        } catch (e) { setError(String(e)); return false; }
+          savePrompt(viewState, text, session?.conversationId || sessionID); jumpToLatest(); refreshSession(); return true;
+        } catch (e) { setError(humanError(e)); return false; }
       },
       interrupt: () => void interrupt(), setPermission, switchSubscription: () => setSwitchingSubscription(true), adopt,
       clear: async () => {
@@ -531,7 +537,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/></CodeRunContext.Provider>
           {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} viewState={viewState} onInterrupt={() => void interrupt()}
             onOpenCommand={openCommand} onOpenFile={session?.collectionId ? openFile : undefined}/>}
-          {!transcript.error && !disconnected && <QueuedMessages session={session} live={live} agentName={agentName} activity={transcript.activity} delivery={queuedDelivery} sendNowKey={sendNowKey}/>}
+          {!transcript.error && !disconnected && <QueuedMessages session={session} queued={queued} turnRunning={transcript.turnRunning} live={live} agentName={agentName} activity={transcript.activity} delivery={queuedDelivery} sendNowKey={sendNowKey}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} attachments={boxes} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}

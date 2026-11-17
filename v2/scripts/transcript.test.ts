@@ -299,6 +299,31 @@ test('a message accepted mid-turn is not said until delivered, then starts the n
  assert.equal(done.messages.find(m=>m.operationId==='focus')!.id,'6','the message keeps its identity: the record that accepted it');
 });
 
+// The Queued strip read only the session poll (every 1.5 s) while the
+// conversation read the stream: a message vanished (hidden from the
+// conversation, not yet polled), then showed twice (in the conversation and
+// in the last poll). The strip merges both queues: in one place at a time.
+import {queuedMessages} from '../packages/surfaces/src/transcript-model.ts';
+test('the Queued strip: at once from the transcript, never also in the conversation, in the Runner\'s order',()=>{
+ const records=journalOf(queuedMidTurn),delivery=queuedMidTurn.findIndex(e=>e.receipt?.operationId==='focus');
+ const waiting=foldTranscript(emptyTranscript(),records.slice(0,delivery));
+ const ids=(polled:any[]|undefined,t:Transcript)=>queuedMessages(polled,t).map(m=>`${m.operationId}: ${m.text}`);
+ // Accepted, not polled yet: shown now.
+ assert.deepEqual(ids([],waiting),['focus: for now, REALLY focus on unit tests and API / proto']);
+ assert.deepEqual(ids(undefined,waiting),['focus: for now, REALLY focus on unit tests and API / proto']);
+ // Polled too: once, the Runner's entry.
+ assert.deepEqual(ids([{operationId:'focus',text:'for now, REALLY focus…'}],waiting),['focus: for now, REALLY focus…']);
+ // Delivered, still in the last poll: in the conversation only.
+ const done=foldTranscript(waiting,records.slice(delivery));
+ assert.deepEqual(ids([{operationId:'focus',text:'for now, REALLY focus…'}],done),[]);
+ // Queued where the stream has not said it yet (it lags): the poll shows it. The Runner's order first.
+ assert.deepEqual(ids([{operationId:'other',text:'Also the docs.'},{operationId:'focus',text:'focus'}],waiting),['other: Also the docs.','focus: focus']);
+ // A message Lazybox wrote keeps saying what it is.
+ const origin={kind:'review_findings',summary:'Codex review · 3 findings',detail:'',copy:'',from:'Codex'};
+ const fromLazybox=foldAll([q.accepted('first','Go.'),q.receipt('first'),q.started,{type:'operation_accepted',operationId:'findings',text:'Findings…',providerDataJson:Buffer.from(JSON.stringify({origin})).toString('base64')}]);
+ assert.equal((queuedMessages([],fromLazybox)[0].origin as any)?.kind,'review_findings');
+});
+
 test('a queued message never delivered is never said; one the closing session dropped neither',()=>{
  const t=foldAll([q.accepted('first','Start the server.'),q.receipt('first'),q.started,q.tool('t1','npm run dev'),q.accepted('later','Then check the logs.'),q.delta('Started on port 3000.')]);
  assert.deepEqual(lines(t),['You: Start the server.','tools t1','Agent: Started on port 3000.']);

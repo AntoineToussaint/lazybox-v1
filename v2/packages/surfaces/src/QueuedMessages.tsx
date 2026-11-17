@@ -10,13 +10,15 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
-import type { JournalEvent, QueuedMessage, Session } from '@lazybox/protocol';
+import type { JournalEvent, Session } from '@lazybox/protocol';
 import { Icon } from './Icons';
 import { elapsedLabel, toolLabel, type LiveStatus } from './live-status';
 import { useNow } from './LiveIndicator';
 import { rootStep, stepDetail } from './live-step';
 import { messageOrigin, systemEventView } from './system-events';
+import type { QueuedEntry } from './transcript-model';
 import './queued-messages.css';
+import { humanError } from './human-error';
 
 /**
  * The step a Send now would stop, as the strip names it: its command, else its
@@ -46,7 +48,9 @@ export type QueuedDelivery = {
    */
   deliver(operationId: string, how: 'now' | 'steer', justSent?: boolean): Promise<void>;
 };
-export function useQueuedDelivery(api: RunnerClient, sessionID: string, queued: readonly QueuedMessage[] | undefined): QueuedDelivery {
+/** How long Send now or Steer may say it is at work before the strip gives the buttons back to try again. */
+export const DELIVERY_TIMEOUT_MS = 20_000;
+export function useQueuedDelivery(api: RunnerClient, sessionID: string, queued: readonly { operationId: string }[] | undefined): QueuedDelivery {
   const [working, setWorking] = useState<{ id: string; how: 'now' | 'steer' }>();
   const [error, setError] = useState<{ id: string; text: string }>();
   // A message that left the queue takes its confirmation, progress and error with it.
@@ -57,12 +61,23 @@ export function useQueuedDelivery(api: RunnerClient, sessionID: string, queued: 
     if (error && !present.has(error.id)) setError(undefined);
   }, [ids]);
   useEffect(() => { setWorking(undefined); setError(undefined); }, [sessionID]);
+  // An interrupt that never takes (the agent ignores it, the Runner restarted
+  // meanwhile) must not leave "Stopping the current step…" for good: the
+  // buttons come back, saying so, to try again.
+  useEffect(() => {
+    if (!working) return;
+    const timer = setTimeout(() => {
+      setWorking(current => current === working ? undefined : current);
+      setError({ id: working.id, text: working.how === 'steer' ? 'The agent has not taken it yet. Steer again, or Send now.' : 'The current step has not stopped yet. Send now again to retry.' });
+    }, DELIVERY_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [working]);
   const deliver = async (operationId: string, how: 'now' | 'steer', justSent = false) => {
     setError(undefined); setWorking({ id: operationId, how });
     try { await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'deliverQueued', value: { operationId, how } } }); }
     catch (e) {
       setWorking(undefined);
-      const why = String(e instanceof Error ? e.message : e).replace(/^\[\w+\]\s*/, '');
+      const why = humanError(e);
       if (justSent && /no longer queued/.test(why)) return;
       setError({ id: operationId, text: `${how === 'steer' ? 'Could not steer' : 'Could not send it now'}: ${why}` });
     }
@@ -70,8 +85,12 @@ export function useQueuedDelivery(api: RunnerClient, sessionID: string, queued: 
   return { working, error, deliver };
 }
 
-export function QueuedMessages({ session, live, agentName, activity, delivery, sendNowKey }: {
+export function QueuedMessages({ session, queued, turnRunning, live, agentName, activity, delivery, sendNowKey }: {
   session?: Session;
+  /** What waits, as `queuedMessages` (transcript-model.ts) merges it: at once, and in one place only. */
+  queued: readonly QueuedEntry[];
+  /** The transcript says a turn runs, before a poll of the session does. */
+  turnRunning?: boolean;
   live: LiveStatus;
   agentName: string;
   /** The conversation's activity, to name the step Send now stops. */
@@ -80,8 +99,7 @@ export function QueuedMessages({ session, live, agentName, activity, delivery, s
   /** Send now's key as it reads (⌘↵), when it has one: it sends the oldest queued message. */
   sendNowKey?: string;
 }) {
-  const queued = session?.queuedMessages || [];
-  const busy = !!session?.busy && !session.closed;
+  const busy = (!!session?.busy || !!turnRunning) && !!session && !session.closed;
   const [collapsed, setCollapsed] = useState(false);
   const { working, error } = delivery;
   const step = useMemo(() => busy ? stepName(activity) : {}, [busy, activity]);
@@ -89,18 +107,19 @@ export function QueuedMessages({ session, live, agentName, activity, delivery, s
   if (!busy || !queued.length) return null;
 
   const steer = !!session?.capabilities?.steer;
-  const deliver = (message: QueuedMessage, how: 'now' | 'steer') => delivery.deliver(message.operationId, how);
+  const deliver = (message: QueuedEntry, how: 'now' | 'steer') => delivery.deliver(message.operationId, how);
   const many = queued.length > 1;
   const shown = collapsed ? [] : many && queued.length > 2 ? queued.slice(0, 2) : queued;
   // What the agent is busy with, as the live bar says it: the step and its time, else the status line.
   const stops = step.code ? `Stop ${step.code}` : step.words ? `Stop the running step (${step.words.charAt(0).toLowerCase() + step.words.slice(1)})` : `Stop what ${agentName} is doing`;
-  const busyWith = step.label ? `${step.label}${step.startedAt !== undefined && now >= step.startedAt ? ` · ${elapsedLabel(now - step.startedAt)}` : ''}`
-    : live.tone === 'busy' || live.tone === 'waiting' ? live.text : 'working';
+  // The time ticks every second: it is not part of what the status line announces, or a screen reader repeats the line each second.
+  const busyWith = step.label || (live.tone === 'busy' || live.tone === 'waiting' ? live.text : 'working');
+  const busyFor = step.label && step.startedAt !== undefined && now >= step.startedAt ? ` · ${elapsedLabel(now - step.startedAt)}` : '';
 
   return <section className="queued-messages" aria-label="Queued messages">
     <header className="queued-head">
       <Icon name="pending" size={12}/>
-      <span role="status"><strong>{many ? `${queued.length} messages queued` : 'Queued'}</strong> — {agentName} is busy ({busyWith})</span>
+      <span role="status"><strong>{many ? `${queued.length} messages queued` : 'Queued'}</strong> — {agentName} is busy ({busyWith}{busyFor && <span aria-hidden="true">{busyFor}</span>})</span>
       <button type="button" className="queued-toggle" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}
         title={collapsed ? 'Show the queued messages' : 'Hide them here; they still go after the current turn'}>
         <Icon name={collapsed ? 'expand' : 'collapse'} size={11}/><span>{collapsed ? 'Show' : 'Hide'}</span>
