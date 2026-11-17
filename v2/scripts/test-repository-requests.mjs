@@ -48,12 +48,12 @@ try{
  const inboxButton=page.locator('.inbox-action');
  await expect(inboxButton).toHaveAccessibleName(/Inbox, 1 conversation needs attention/);
  await inboxButton.click();
- const inbox=page.getByRole('dialog',{name:'Inbox'});
- const row=inbox.locator('.group-needs-input .inbox-item').filter({hasText:'Fix the parser'});
- await expect(row.locator('.inbox-line')).toHaveText('Repository request · Add acme/module-directory to this workspace');
+ // The Inbox is the docked Agents panel (audit R1): the row says what is asked.
+ const row=page.locator('.panel-agents li[data-state="needs-input"]').filter({hasText:'Fix the parser'});
+ await expect(row.locator('.agent-meta')).toContainText('Repository request');
+ await expect(row.locator('.agent-meta')).toContainText('Add acme/module-directory to this workspace');
  await page.screenshot({path:'.cache/repository-request-inbox.png'});
- await row.locator('.inbox-row').click();
- await expect(inbox).toHaveCount(0);
+ await row.locator('.agent-row').click();
 
  // ── Add: the workspace's own add path, its progress in the card, then gone.
  fixture.runner.preparationDelayMs=400;

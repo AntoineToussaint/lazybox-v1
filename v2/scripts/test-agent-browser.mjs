@@ -132,10 +132,10 @@ try {
   await page.screenshot({ path: '.cache/agent-browser-site-card.png' });
   // The Inbox lists it as needing the person.
   await page.locator('.inbox-action').click();
-  const inbox = page.getByRole('dialog', { name: 'Inbox' });
-  await expect(inbox.locator('.group-needs-input .inbox-item').filter({ hasText: 'Research the release notes' }).locator('.inbox-line')).toHaveText('Browser · Open news.example.org');
-  await page.keyboard.press('Escape');
-  await expect(inbox).toHaveCount(0);
+  // The Inbox is the docked Agents panel (audit R1): the row says what is asked.
+  const row = page.locator('.panel-agents li[data-state="needs-input"]').filter({ hasText: 'Research the release notes' });
+  await expect(row.locator('.agent-meta')).toContainText('Browser');
+  await expect(row.locator('.agent-meta')).toContainText('Open news.example.org');
   await card.getByRole('button', { name: 'Allow once' }).focus();
   await page.keyboard.press('c');
   await expect.poll(() => fake.decisions.at(-1)).toEqual({ requestId: 'site-1', decision: 'conversation', reason: '' });

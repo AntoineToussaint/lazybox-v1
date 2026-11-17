@@ -67,6 +67,11 @@ test('every relative link and anchor in v2/README.md and v2/docs resolves', () =
       const where = `${relative(v2, page)}:${line} → ${target}`;
       const [pathPart, fragment] = target.split('#', 2) as [string, string | undefined];
       const file = pathPart ? resolve(dirname(page), decodeURIComponent(pathPart)) : page;
+      // A link that leaves v2/ points into the monorepo root. A frozen release source (and the new
+      // repository) has no parent: scripts/export-repo.mjs rewrites such links to its root files or to
+      // the pinned V1 repository, so there they count as resolved when the monorepo is absent.
+      const outside = relative(v2, file).startsWith('..');
+      if (outside && !existsSync(file) && !existsSync(join(v2, '..', 'v2'))) continue;
       if (!existsSync(file)) { problems.push(`${where}: no such file`); continue; }
       if (fragment === undefined || fragment === '') continue;
       if (!file.endsWith('.md')) { problems.push(`${where}: an anchor into a file that is not Markdown`); continue; }
