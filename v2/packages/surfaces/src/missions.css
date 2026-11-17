@@ -3,7 +3,15 @@
 .missions-panel{display:flex;flex-direction:column;flex:1;min-height:0;background:var(--canvas,var(--surface));container-type:inline-size;font-family:var(--font-ui)}
 .missions-header{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 12px;border-bottom:1px solid var(--line,var(--line-subtle));background:var(--surface)}
 .mission-picker{flex:1;min-width:0}
-.missions-panel .mission-picker select{width:100%;min-width:0;padding:5px 8px;font-size:calc(12px * var(--text-scale));border-radius:6px;background:var(--surface-hover);border:1px solid var(--line);color:var(--text,var(--text));text-overflow:ellipsis}
+.missions-panel .mission-picker>summary{display:flex;align-items:center;gap:8px;width:100%;min-width:0;padding:5px 8px;font-size:calc(12px * var(--text-scale));border-radius:6px;background:var(--surface-hover);border:1px solid var(--line);color:var(--text);cursor:pointer;list-style:none}
+.missions-panel .mission-picker>summary::-webkit-details-marker{display:none}
+.missions-panel .mission-picker>summary:hover{background:var(--surface-selected)}
+.mission-picker-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.missions-panel .mission-picker>summary>small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted,var(--text-subtle))}
+.missions-panel .mission-picker>summary>svg{flex:none;color:var(--text-subtle)}
+.mission-picker>.action-popover{min-width:280px;max-width:min(420px,calc(100vw - 16px))}
+.mission-picker>.action-popover>button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left}
+.mission-picker>.action-popover>button[aria-current]{background:var(--surface-selected)}
 .missions-heading{flex:1;font-size:calc(12px * var(--text-scale));font-weight:600}
 .missions-tools{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
 .missions-panel .mission-new{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;font-size:calc(11px * var(--text-scale))}

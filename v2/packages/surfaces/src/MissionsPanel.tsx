@@ -7,6 +7,8 @@ import type { ViewStateStore } from '@lazybox/platform';
 import { useRunner } from './RunnerContext';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
+import { ActionMenu } from './ActionMenu';
+import { ActionMenuItems } from './ActionMenuItems';
 import { conversationName } from './conversation-model';
 import { readPreference, writePreference } from './view-state';
 import type { ModuleProps } from './PanelRegistry';
@@ -43,11 +45,13 @@ export function MissionsPanel({ workspaceId, collections, viewState, onShowSessi
   const open = missions.missions.filter(m => !m.canceled), closed = missions.missions.filter(m => m.canceled);
   return <section className="missions-panel" aria-label="Missions and tasks">
     <header className="missions-header">
-      {missions.missions.length > 0 && !creating && <label className="mission-picker"><span className="sr-only">Mission</span>
-        <select value={current?.id || ''} onChange={event => choose(event.target.value)} aria-label="Mission">
-          {open.map(m => <option key={m.id} value={m.id}>{m.title} — {missionSummary(m)}</option>)}
-          {closed.length > 0 && <optgroup label="Canceled">{closed.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}</optgroup>}
-        </select></label>}
+      {missions.missions.length > 0 && !creating && current && <ActionMenu className="mission-picker" align="start" label={`Mission: ${current.title}`} title="Choose the mission"
+        summary={<><span className="mission-picker-title">{current.title}</span><small>{current.canceled ? 'Canceled' : missionSummary(current)}</small><Icon name="chevron" size={11}/></>}>
+        <ActionMenuItems items={[
+          ...open.map(m => ({ label: m.title, note: missionSummary(m), checked: m.id === current.id, run: () => choose(m.id) })),
+          closed.length > 0 && { label: 'Canceled', submenu: closed.map(m => ({ label: m.title, checked: m.id === current.id, run: () => choose(m.id) })) },
+        ]}/>
+      </ActionMenu>}
       {creating && <strong className="missions-heading">New mission</strong>}
       <div className="missions-tools">
         {!creating && <button type="button" className="mission-new" onClick={() => setCreating(true)}><Icon name="plus" size={13}/> New mission</button>}
@@ -118,7 +122,7 @@ function MissionBoard({ missionId, workspaceId, collections, viewState, onShowSe
   return <div className="mission-board" data-mission={mission.id}>
     <div className="mission-head">
       <div className="mission-title"><h3>{mission.title}</h3>
-        <span className="mission-process" title={`Process ${mission.process}, pinned when the mission started (${mission.processDigest}). A report asks you to accept the task; only you can.`}>{mission.process === 'solo-pair' ? 'Solo pair' : mission.process} · you accept each task</span>
+        <span className="mission-process" title={`Process ${mission.process}, pinned when the mission started (${mission.processDigest}). A report asks you to accept the task; only you can.`}>{mission.process === 'solo-pair' ? 'One agent per task' : mission.process} · you accept each task</span>
       </div>
       <p className="mission-summary" role="status">{missionSummary(mission)}</p>
       {mission.brief && <details className="mission-brief"><summary>Brief</summary><p>{mission.brief}</p></details>}

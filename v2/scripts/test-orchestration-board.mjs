@@ -68,7 +68,8 @@ async function run(scheme) {
   await expect(panel).toBeVisible();
   const width = await panel.evaluate(node => node.getBoundingClientRect().width);
   assert.ok(width > 1000, `the board has the main area (${width}px)`);
-  await panel.getByLabel('Mission', { exact: true }).selectOption({ index: 0 });
+  await panel.locator('.mission-picker > summary').click();
+  await page.getByRole('group', { name: /^Mission: .* menu$/ }).getByRole('button').first().click();
   const columns = await panel.locator('.mission-column').evaluateAll(nodes => new Set(nodes.map(n => Math.round(n.getBoundingClientRect().top))).size);
   assert.equal(columns, 1, 'the four columns stand side by side');
   // A card flags its overlap; review full holds new agents.

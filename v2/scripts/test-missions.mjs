@@ -41,7 +41,7 @@ try {
   await panel.getByLabel(/Brief/).fill('parser.go is 4,000 lines; split it without changing behaviour.');
   await panel.getByRole('button', { name: 'Create mission' }).click();
   await expect(panel.getByRole('heading', { name: 'Ship the parser split' })).toBeVisible();
-  await expect(panel.locator('.mission-process')).toHaveText('Solo pair · you accept each task');
+  await expect(panel.locator('.mission-process')).toHaveText('One agent per task · you accept each task');
   await expect(panel.locator('.mission-summary')).toHaveText('No tasks yet');
 
   // Tasks: the brief starts from V1's four lines; a dependency makes the second wait.
@@ -198,7 +198,10 @@ try {
   await panel.getByLabel('Outcome').fill('Speed up startup');
   await panel.getByRole('button', { name: 'Create mission' }).click();
   await expect(panel.getByRole('heading', { name: 'Speed up startup' })).toBeVisible();
-  await panel.getByLabel('Mission', { exact: true }).selectOption({ label: 'Ship the parser split — 1 needs you · 1 of 2 done' });
+  // The mission picker is the app's menu, each mission with its summary.
+  await panel.getByLabel('Mission: Speed up startup', { exact: true }).click();
+  await page.getByRole('group', { name: 'Mission: Speed up startup menu' }).getByRole('button', { name: /^Ship the parser split\s*1 needs you · 1 of 2 done$/ }).click();
+  await expect(panel.getByLabel('Mission: Ship the parser split', { exact: true })).toBeVisible();
   assert.deepEqual(errors, []);
   navigating = true;
   await page.reload();

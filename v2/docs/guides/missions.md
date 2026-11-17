@@ -49,8 +49,9 @@ on GitHub.
 ## Accept or send back
 
 When the work looks finished, **Report done…** on the task's card records what
-was done (agents cannot report their own tasks yet). A reported task waits at
-its **gate** for you. The inbox lists
+was done. An agent an [orchestrator](orchestrator.md) started reports its own
+task with `lazybox agents report`; any other conversation's task is reported
+from its card. A reported task waits at its **gate** for you. The inbox lists
 *Awaiting acceptance* first, and counts it in its badge: **Accept**, or **Ask for
 changes** with a note. From a terminal:
 
@@ -66,11 +67,17 @@ A [hook](automate.md#hooks-run-something-when-an-agent-needs-you) on
 
 ## What is not there yet
 
-- **The agent cannot report its own task yet**: you use **Report done…**.
+- **Only an agent an orchestrator started reports its own task**
+  (`lazybox agents report`). A conversation you assigned yourself does not:
+  you use **Report done…** on its card.
 - **No automatic reviewer**: verdicts and findings from a second agent are
   designed but not built.
 - **The process file is not applied yet.** Every mission uses the built-in
-  *solo pair* process. You can already write and check a
+  process: one agent per task, and you accept each task (the board says so
+  under the mission's title; its id is `solo-pair`). You can already write and
+  check a
   [`.lazybox/process.yaml`](../reference/configuration.md#lazyboxprocessyaml-how-missions-run)
   with `lazybox process validate`.
-- Assigning does not create a workspace for the task; you pick one.
+- **Assigning from the board does not create a workspace**: you pick one. An
+  orchestrator can give an agent a workspace of its own
+  (`lazybox agents spawn --workspace new`).

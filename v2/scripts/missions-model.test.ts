@@ -38,7 +38,7 @@ test('awaiting acceptance is a task at a human gate, oldest report first, never 
 
 test('the next actions follow the status: assign, report, accept', () => {
   assert.deepEqual(taskActions(task({ status: 'ready' })), ['assign']);
-  assert.deepEqual(taskActions(task({ status: 'working', attempt: { endedAtUnixMillis: 0n } as never })), ['report', 'open']);
+  assert.deepEqual(taskActions(task({ status: 'working', attempt: { endedAtUnixMillis: 0n } as never })), ['open', 'report']);
   assert.deepEqual(taskActions(task({ status: 'needs_you', gate: 'reviewed' })), ['accept', 'reject', 'open']);
   assert.deepEqual(taskActions(task({ status: 'needs_you' })), ['open']);
   assert.deepEqual(taskActions(task({ status: 'failed' })), ['assign']);

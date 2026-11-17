@@ -107,7 +107,7 @@ export function taskActions(task: MissionTask): TaskAction[] {
   switch (task.status) {
     case 'ready': return live ? ['open', 'report', 'assign'] : ['assign'];
     case 'blocked': return ['assign'];
-    case 'working': return ['report', 'open'];
+    case 'working': return ['open', 'report'];
     case 'changes_requested': return live ? ['open', 'report'] : ['assign'];
     case 'needs_you': return task.gate ? ['accept', 'reject', 'open'] : ['open'];
     case 'claimed_done': return ['open'];

@@ -5,10 +5,11 @@ import { Icon } from './Icons';
 const shownButtons = (panel: HTMLElement) => [...panel.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')].filter(button => button.getClientRects().length > 0);
 
 /** Keep actions in the browser top layer, outside scrolling panel clipping. */
-export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; className?: string; /** Replaces the ⋯ icon of the menu button. */ summary?: ReactNode; icon?: string; title?: string; onToggle?(open: boolean): void; children: ReactNode }>(function ActionMenu({ label, className = '', summary, icon = 'more', title, onToggle, children }, forwardedRef) {
+export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; className?: string; /** Replaces the ⋯ icon of the menu button. */ summary?: ReactNode; icon?: string; title?: string; /** Which edge of the button the menu lines up with: its end (a ⋯ at the right), or its start (a picker at the left). */ align?: 'start' | 'end'; onToggle?(open: boolean): void; children: ReactNode }>(function ActionMenu({ label, className = '', summary, icon = 'more', title, align = 'end', onToggle, children }, forwardedRef) {
   const details = useRef<HTMLDetailsElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const onToggleRef = useRef(onToggle); onToggleRef.current = onToggle;
+  const alignRef = useRef(align); alignRef.current = align;
   useImperativeHandle(forwardedRef, () => details.current!, []);
   useEffect(() => {
     const owner = details.current!, panel = popup.current!;
@@ -19,7 +20,7 @@ export const ActionMenu = forwardRef<HTMLDetailsElement, { label: string; classN
       // In a panel popped out into its own window, the menu measures that window.
       const root = owner.ownerDocument.documentElement, width = root.clientWidth, height = root.clientHeight;
       const top = anchor.bottom + 4 + bounds.height <= height - 8 ? anchor.bottom + 4 : anchor.top - bounds.height - 4;
-      panel.style.left = `${Math.max(8, Math.min(anchor.right - bounds.width, width - bounds.width - 8))}px`;
+      panel.style.left = `${Math.max(8, Math.min(alignRef.current === 'start' ? anchor.left : anchor.right - bounds.width, width - bounds.width - 8))}px`;
       panel.style.top = `${Math.max(8, Math.min(top, height - bounds.height - 8))}px`;
     };
     const sync = () => {
