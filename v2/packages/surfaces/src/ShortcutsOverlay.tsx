@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useBackdropDismiss } from './dismiss';
 import { actionDefinitions, actionEnabled, actionGroups, bindings, displayBinding, runAction, type ActionDefinition } from './actions';
 import { fuzzyMatch } from './fuzzy';
 import { Icon } from './Icons';
@@ -33,6 +34,7 @@ export function shortcutRows(keymap: Keymap): Row[] {
  */
 export function ShortcutsOverlay({ keymap, onClose }: { keymap: Keymap; onClose(): void }) {
   const dialog = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null);
+  useBackdropDismiss(dialog);
   const returnFocus = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
   const [query, setQuery] = useState('');
   const restore = useRef(true);
@@ -46,7 +48,7 @@ export function ShortcutsOverlay({ keymap, onClose }: { keymap: Keymap; onClose(
   const close = () => onClose();
   const customizable = actionEnabled('settings.open');
   const escape = rows.find(row => row.fixed && row.keys.length);
-  return <dialog ref={dialog} className="shortcuts-overlay" aria-labelledby="shortcuts-title" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
+  return <dialog ref={dialog} className="shortcuts-overlay" aria-labelledby="shortcuts-title" onCancel={event => { event.preventDefault(); close(); }}>
     <header>
       <h2 id="shortcuts-title"><Icon name="keyboard" size={16}/>Keyboard shortcuts</h2>
       <input ref={input} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter shortcuts" aria-label="Filter shortcuts" spellCheck={false} autoComplete="off"/>

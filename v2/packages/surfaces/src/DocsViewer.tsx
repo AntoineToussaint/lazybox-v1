@@ -61,7 +61,7 @@ export function DocsViewer({ initial = 'README.md', onClose }: { /** The page to
     if ((event.altKey || event.metaKey) && event.key === 'ArrowLeft') { event.preventDefault(); back(); }
   };
   return <DraggableDialog ref={dialog} className="docs-viewer" aria-labelledby="docs-title" onKeyDown={onKey}
-    onCancel={event => { event.preventDefault(); if (query) setQuery(''); else onClose(); }} onClose={onClose}>
+    onCancel={event => { event.preventDefault(); if (query) setQuery(''); else onClose(); }} onClose={onClose} onDismiss={onClose}>
     <DialogHeader>
       <h2 id="docs-title">Documentation</h2>
       <button className="docs-back" disabled={!history.length} aria-label="Back" title="Back (⌥←)" onClick={back}><Icon name="back" size={14}/></button>

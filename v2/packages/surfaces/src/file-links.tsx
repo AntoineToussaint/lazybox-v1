@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useBackdropDismiss } from './dismiss';
 import { Code, ConnectError } from '@lazybox/client-core';
 import type { WorkspacePathMatch } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -75,6 +76,7 @@ export function useFileOpener(collectionId: string | undefined, viewState?: View
 /** Several files match a reference: show them, nearest first, and let the person pick (to open one, or to track it as an artifact). */
 export function PathChooser({ choice, onChoose, onClose }: { choice: Choice; onChoose(match: Choice['matches'][number]): void; onClose(): void }) {
  const dialog = useRef<HTMLDialogElement>(null), list = useRef<HTMLDivElement>(null);
+ useBackdropDismiss(dialog);
  useEffect(() => { dialog.current?.showModal(); list.current?.querySelector<HTMLButtonElement>('button')?.focus(); }, []);
  const keydown = (event: KeyboardEvent) => {
   const buttons = [...(list.current?.querySelectorAll<HTMLButtonElement>('button') || [])], index = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -85,7 +87,7 @@ export function PathChooser({ choice, onChoose, onClose }: { choice: Choice; onC
   else if (event.key === 'End') move(buttons.length - 1);
  };
  const name = choice.reference.path.split('/').filter(Boolean).pop() || choice.reference.path;
- return <dialog ref={dialog} className="path-chooser" aria-labelledby="path-chooser-title" onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === dialog.current) onClose(); }}>
+ return <dialog ref={dialog} className="path-chooser" aria-labelledby="path-chooser-title" onCancel={event => { event.preventDefault(); onClose(); }}>
   <header><h2 id="path-chooser-title">Which “{name}”?</h2><button className="icon-button" aria-label="Close" onClick={onClose}>×</button></header>
   <p>{choice.matches.length}{choice.truncated ? '+' : ''} files in this workspace match <code>{choice.reference.path}</code>{choice.reference.line ? ` (line ${choice.reference.line})` : ''}.</p>
   <div ref={list} className="path-chooser-list" role="list" onKeyDown={keydown}>

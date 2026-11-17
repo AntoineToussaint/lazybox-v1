@@ -1,4 +1,5 @@
 import { peekProps } from './peek-model';
+import { useBackdropDismiss } from './dismiss';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -63,6 +64,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
   const { info } = useRunner();
   const directory = useRunnerDirectory();
   const dialog = useRef<HTMLDialogElement>(null);
+  useBackdropDismiss(dialog);
   const actions = useConversationActions({ onOpen });
   const others = useRunnerActionHosts(() => useConversationActions({ onOpen }), value => value.dialogs);
   const actionsFor = (row: RunnerRow) => row.runner === inbox.here ? actions : others.get(row.runner);
@@ -96,8 +98,7 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
   };
   const waiting = inbox.counts['needs-input'] + useMissionAttention();
   const summary = waiting ? `${waiting} waiting for you` : unseen.length ? `${unseen.length} to review` : inbox.rows.length ? 'All caught up' : '';
-  return <dialog ref={dialog} className="inbox-dialog" aria-labelledby="inbox-title" onCancel={onClose} onKeyDown={keyDown}
-    onClick={event => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose(); } }}>
+  return <dialog ref={dialog} className="inbox-dialog" aria-labelledby="inbox-title" onCancel={onClose} onKeyDown={keyDown}>
     <header>
       <h2 id="inbox-title">Inbox</h2>
       {summary && <span className="inbox-summary" role="status">{summary}</span>}

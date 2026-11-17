@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useBackdropDismiss } from './dismiss';
 import type { ViewStateStore } from '@lazybox/platform';
 import { actionDefinition, actionDefinitions, actionEnabled, bindings, displayBinding, runAction, useActionRevision, type ActionDefinition } from './actions';
 import { showToast } from './toasts';
@@ -70,6 +71,7 @@ type VoiceNote = { tone: 'info' | 'confirm'; text: string; item?: Item };
  */
 export function CommandPalette({ keymap, navigator, viewState, initialQuery = '', onClose }: { keymap: Keymap; navigator: CommandNavigator; viewState?: ViewStateStore; initialQuery?: string; onClose(): void }) {
   const dialog = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null), list = useRef<HTMLDivElement>(null);
+  useBackdropDismiss(dialog);
   const returnFocus = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
   const [query, setQuery] = useState(initialQuery), [selected, setSelected] = useState(0);
   // A query said rather than typed ranks by words (voice-model.ts) and may run on its own.
@@ -287,7 +289,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
   const empty = scope?.kind === 'file' && !navigator.workbench ? 'Files are searched in a workspace window. Open the main window to go to a file.'
     : files.searching && !flat.length ? '' : files.error && scope?.kind === 'file' ? files.error : term ? `Nothing matches “${term}”.` : scope?.kind === 'file' ? 'Type a file name.' : 'Nothing here yet.';
   let index = -1;
-  return <dialog ref={dialog} className="command-palette" aria-label="Command palette" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
+  return <dialog ref={dialog} className="command-palette" aria-label="Command palette" onCancel={event => { event.preventDefault(); close(); }}>
     <div className="command-palette-field">
       <Icon name="search" size={16}/>
       {scope && <span className="command-palette-scope">{scope.label}</span>}

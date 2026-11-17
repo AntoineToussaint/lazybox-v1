@@ -213,8 +213,7 @@ function PeekOverlay({ state: { item, list }, navigation }: { state: PeekState; 
   };
   const noun = peekNouns[item.kind];
   return <DraggableDialog ref={dialog} className="peek-dialog" aria-label={`Peek: ${title || peekTitle(item)}`} aria-roledescription="peek"
-    onCancel={event => { event.preventDefault(); closePeek(); }} onKeyDown={keys}
-    onClick={event => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) closePeek(); } }}>
+    onCancel={event => { event.preventDefault(); closePeek(); }} onKeyDown={keys}>
     <DialogHeader className="peek-header">
       <span className="peek-kind" aria-hidden="true"><Icon name={peekIcons[item.kind]} size={15}/></span>
       <div className="peek-heading">

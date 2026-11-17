@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icons';
+import { useDismiss } from './dismiss';
 import type { TranscriptMessage } from './transcript-model';
 import './prompt-navigator.css';
 
@@ -13,7 +14,7 @@ const firstLine = (text: string) => text.trim().split('\n', 1)[0].slice(0, 120);
 export function PromptNavigator({ messages, paneRef, onReveal }: { messages: TranscriptMessage[]; paneRef: RefObject<HTMLDivElement | null>; onReveal(id: string): void }) {
  const prompts = useMemo(() => messages.map((message, index) => ({ message, index })).filter(({ message }) => message.type === 'operation_accepted' && !message.origin && message.text.trim()), [messages]);
  const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [active, setActive] = useState(0);
- const search = useRef<HTMLInputElement>(null);
+ const search = useRef<HTMLInputElement>(null), panel = useRef<HTMLDivElement>(null), toggle = useRef<HTMLButtonElement>(null);
  // The chip belongs to the chat's header, where it covers nothing; floating over the transcript it sat on
  // whatever scrolled under it. A window without that header keeps it in the transcript's corner.
  const [slot, setSlot] = useState<Element | null>(null);
@@ -63,6 +64,8 @@ export function PromptNavigator({ messages, paneRef, onReveal }: { messages: Tra
  }, [prompts, query]);
  useEffect(() => { if (open) { setActive(0); requestAnimationFrame(() => search.current?.focus()); } }, [open]);
  useEffect(() => setActive(0), [query]);
+ // A press outside or Escape closes the list; focus goes back where it was (the message box).
+ useDismiss(open, () => setOpen(false), [panel, toggle]);
  if (prompts.length < 2) return null;
 
  const choose = (id: string) => { setOpen(false); setQuery(''); onReveal(id); };
@@ -72,10 +75,10 @@ export function PromptNavigator({ messages, paneRef, onReveal }: { messages: Tra
    {prompts.map(({ message, index }, k) => <button key={message.id} type="button" style={{ top: `${(index / last) * 100}%` }} title={`#${k + 1} · ${firstLine(message.text)}`} aria-label={`Prompt ${k + 1}: ${firstLine(message.text)}`} onClick={() => onReveal(message.id)}/>)}
   </nav>
   {(() => { const jump = <div className={`prompt-jump${slot ? ' in-header' : ''}`}>
-   <button type="button" className="prompt-jump-toggle" aria-expanded={open} aria-label="Your prompts" title="Your prompts · Alt+↑ / Alt+↓" onClick={() => setOpen(value => !value)}><Icon name="chat" size={14}/><span>{prompts.length}<span className="prompt-jump-noun"> prompts</span></span></button>
-   {open && <div className="prompt-jump-list" role="dialog" aria-label="Jump to a prompt" onKeyDown={event => {
-    if (event.key === 'Escape') { event.preventDefault(); setOpen(false); }
-    else if (event.key === 'ArrowDown') { event.preventDefault(); setActive(value => Math.min(filtered.length - 1, value + 1)); }
+   {/* A press keeps the focus where it is, so closing the list can give it back. */}
+   <button ref={toggle} type="button" className="prompt-jump-toggle" aria-haspopup="dialog" aria-expanded={open} onMouseDown={event => event.preventDefault()} aria-label="Your prompts" title="Your prompts · Alt+↑ / Alt+↓" onClick={() => setOpen(value => !value)}><Icon name="chat" size={14}/><span>{prompts.length}<span className="prompt-jump-noun"> prompts</span></span></button>
+   {open && <div ref={panel} className="prompt-jump-list" role="dialog" aria-label="Jump to a prompt" onKeyDown={event => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); setActive(value => Math.min(filtered.length - 1, value + 1)); }
     else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(value => Math.max(0, value - 1)); }
     else if (event.key === 'Enter' && filtered[active]) { event.preventDefault(); choose(filtered[active].message.id); }
    }}>

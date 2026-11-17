@@ -100,6 +100,7 @@
     { "id": "layout-keyboard", "scope": "ui", "script": "test:layout-keyboard" },
     { "id": "agents-visible", "scope": "ui", "script": "test:agents-visible" },
     { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" },
+    { "id": "dismiss-outside", "scope": "ui", "script": "test:dismiss-outside" },
     { "id": "updates", "scope": "ui", "script": "test:updates" },
     { "id": "feedback", "scope": "ui", "script": "test:feedback" }
   ],

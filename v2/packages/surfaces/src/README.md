@@ -28,6 +28,12 @@ A menu is assembled from sections, innermost first: Copy when the click is on a 
 
 Features add items without editing the place that declares the menu: `registerContextMenu(scope, context => items)` or `useContextMenuContribution`. The scopes, the `detail` each receives and the item format are documented in the header of `ContextMenu.tsx`. The model (placement, keyboard, type-ahead) is pure and tested in `scripts/context-menu.test.ts`; `npm run test:context-menus` right-clicks every wired place in WebKit against the fake Runner.
 
+## Dismissing dialogs and popovers
+
+One rule everywhere (`dismiss.ts`): Escape closes the surface in front, and so does a click outside it. Over a modal dialog's backdrop the click is swallowed; beside a popover it goes on to what it landed on. Only a press and a release both on the backdrop count, so a text selection dragged out of a dialog never closes it. A dialog holding something the person typed or changed does not lose it to a stray click: it stays open and its footer (Cancel / Save) shakes, as a macOS sheet does; Escape, Cancel and × still close it. A busy dialog ignores the click as it ignores Escape, because the click asks through the same `cancel` event.
+
+`DraggableDialog` does all of this, so a new dialog gets it for free: a field changed since it opened (not a search field: `type="search"`, a combobox, or `data-dismiss-query`) guards it, and `draft="kept"` says the dialog keeps its draft when closed (New task), so it closes like Escape. A dialog of its own `<dialog>` uses `useBackdropDismiss`; a popover, picker or menu uses `useDismiss(open, close, [panel, trigger])`, which also gives the focus back where it was (the message box) when it would otherwise be lost. Native `popover="auto"` surfaces get light dismiss from the browser. `npm run test:dismiss-outside` drives it in WebKit.
+
 ## Actions, keys and the command palette
 
 Every command is declared once in `actions.ts` (id, title, group, icon, default keys, scope). Components register what an action does with `useAction`/`useActions` (or the older `useKeyboardAction`), optionally with a when-enabled predicate; `runAction(id)` runs it. The keymap (`keyboard.ts`), the `]]` which-key card, the command palette, the shortcuts overlay, the desktop menu bar (`nativeMenuItems`, published by the main window through the `set_action_menu` command and rebuilt when keys change) and context menus (`actionsFor`, `actionMenuItems`, which return items in `ContextMenu`'s shape) all read it.

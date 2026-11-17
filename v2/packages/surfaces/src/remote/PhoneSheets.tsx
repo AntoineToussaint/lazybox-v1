@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useBackdropDismiss } from '../dismiss';
 import { Icon } from '../Icons';
 
 /** How long a row's answer waits for Undo before it is sent. */
@@ -11,9 +12,9 @@ export const UNDO_MS = 4500;
  */
 export function Sheet({ title, detail, onClose, children, label }: { title: ReactNode; detail?: ReactNode; label: string; onClose(): void; children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  useBackdropDismiss(dialog);
   useEffect(() => { const node = dialog.current; if (node && !node.open) node.showModal(); }, []);
-  return <dialog ref={dialog} className="remote-sheet" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }}
-    onClick={event => { if (event.target === dialog.current) onClose(); }}>
+  return <dialog ref={dialog} className="remote-sheet" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }}>
     <div className="remote-sheet-body">
       <span className="remote-sheet-grip" aria-hidden="true"/>
       <header><strong>{title}</strong>{detail && <div className="remote-sheet-detail">{detail}</div>}</header>

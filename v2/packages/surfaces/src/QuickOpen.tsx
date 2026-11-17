@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useBackdropDismiss } from './dismiss';
 import { ConnectError } from '@lazybox/client-core';
 import { FileIcon } from './DirectoryListing';
 import { preloadEditor } from './editor-loader';
@@ -22,6 +23,7 @@ export function highlight(text: string, positions: number[], offset = 0): ReactN
  * the files opened most recently. */
 export function QuickOpen({ workbench, onClose }: { workbench: Workbench; onClose(): void }) {
  const dialog = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null), list = useRef<HTMLDivElement>(null);
+ useBackdropDismiss(dialog);
  const { layout } = useWorkbenchState(workbench);
  const [query, setQuery] = useState(''), [results, setResults] = useState<Result[]>([]), [selected, setSelected] = useState(0);
  const [status, setStatus] = useState<{ searching: boolean; error: string; truncated: boolean; indexed: number }>({ searching: false, error: '', truncated: false, indexed: 0 });
@@ -59,7 +61,7 @@ export function QuickOpen({ workbench, onClose }: { workbench: Workbench; onClos
   else if (event.key === 'Enter') { event.preventDefault(); choose(results[selected], { side: modKey(event), quick: event.altKey }); }
  };
  const empty = term ? (status.searching ? '' : status.error || 'No matching files.') : 'Type a file name. Recently opened files appear here.';
- return <dialog ref={dialog} className="quick-open" aria-label="Go to file" onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === dialog.current) onClose(); }}>
+ return <dialog ref={dialog} className="quick-open" aria-label="Go to file" onCancel={event => { event.preventDefault(); onClose(); }}>
   <div className="quick-open-field">
    <input ref={input} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={keydown} placeholder="Go to file — name, path, or name:line" aria-label="File name" role="combobox" aria-expanded="true" aria-controls="quick-open-results" aria-activedescendant={results[selected] ? `quick-open-${selected}` : undefined} spellCheck={false} autoComplete="off"/>
    {status.searching && <span className="quick-open-busy" aria-hidden="true"/>}

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { formatBytes, type LoadedImage } from './attachment-images';
 import { Icon } from './Icons';
+import { useBackdropDismiss } from './dismiss';
 import './attachments.css';
 
 /**
@@ -13,6 +14,8 @@ import './attachments.css';
 export function ImageLightbox({ image, name, onClose }: { image: LoadedImage; name: string; onClose(): void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef<HTMLButtonElement>(null);
+  // The dialog fills the window: around the picture, it and its figure are the backdrop.
+  useBackdropDismiss(dialog, event => event.target === dialog.current || (event.target instanceof Element && event.target.matches('.image-lightbox > figure')));
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const node = dialog.current;
@@ -24,10 +27,8 @@ export function ImageLightbox({ image, name, onClose }: { image: LoadedImage; na
   // On the document, not inside the composer or the message: no panel's styles reach it.
   return createPortal(<dialog ref={dialog} className="image-lightbox" aria-label={name}
     onCancel={event => { event.preventDefault(); onClose(); }}
-    // A click on the dialog itself is a click on the backdrop around the picture.
-    onClick={event => { if (event.target === event.currentTarget) onClose(); }}
     onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); } }}>
-    <figure onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <figure>
       <img src={image.url} alt={name} decoding="async" width={image.width || undefined} height={image.height || undefined}/>
       <figcaption><span className="image-lightbox-name" title={name}>{name}</span>{details && <span className="image-lightbox-details">{details}</span>}<small>Esc to close</small></figcaption>
     </figure>

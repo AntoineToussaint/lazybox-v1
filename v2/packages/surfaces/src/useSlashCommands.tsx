@@ -14,6 +14,7 @@ import type { VimMode } from './composer-vim';
 import { conversationArtifacts, trackable } from './MessageArtifactActions';
 import { saveSnippetUse } from './snippet-usage';
 import { SlashMenu, SlashWarning, SLASH_MENU_ID, slashOptionId } from './SlashMenu';
+import { useDismiss } from './dismiss';
 import {
   decideSend, findCommand, lazyboxCommands, providerCommands, resolveModel, slashMenu, snippetCommands,
   type CommandCatalog, type SlashChoice, type SlashCommand, type SlashContext, type SlashMenuState,
@@ -314,8 +315,15 @@ export function useSlashCommands(o: Options) {
   useActions(handlers);
 
   // ---- What the composer shows ------------------------------------------
-  const menuElement = menu && <SlashMenu menu={menu} selected={selected} sessionId={sessionID} agentName={o.agentName}
-    onSelect={select} onChoose={index => choose(index)} onClose={() => { setDismissed(true); if (stash.current !== null) finish(); latest.current.textarea.current?.focus(); }}/>;
+  // A press outside the menu and the message box puts the menu away, as Escape
+  // does (Escape stays with the box's keys, above), and gives a borrowed box its draft back.
+  const menuBox = useRef<HTMLDivElement>(null);
+  useDismiss(!!menu, () => {
+    setDismissed(true);
+    if (stash.current !== null) { const back = stash.current; stash.current = null; latest.current.setText(back); }
+  }, [menuBox, o.textarea], { escape: false, restoreFocus: false });
+  const menuElement = menu && <div ref={menuBox} style={{ display: 'contents' }}><SlashMenu menu={menu} selected={selected} sessionId={sessionID} agentName={o.agentName}
+    onSelect={select} onChoose={index => choose(index)} onClose={() => { setDismissed(true); if (stash.current !== null) finish(); latest.current.textarea.current?.focus(); }}/></div>;
   const unknown = warning !== null ? decideSend(warning, commands) : undefined;
   const above: ReactNode = <>
     {menuElement}

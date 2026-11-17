@@ -1,12 +1,30 @@
 import { forwardRef, useLayoutEffect, useImperativeHandle, useRef, useState, type ComponentPropsWithoutRef } from 'react';
 import { createPortal } from 'react-dom';
+import { bindBackdropDismiss, isEditField, nudge, requestDialogClose } from './dismiss';
 import './dialog.css';
+
+type DismissProps = {
+  /**
+   * What happens to what the person typed when the dialog closes. `guard`
+   * (the default): it would be lost, so once a field was changed a click
+   * outside keeps the dialog open and nudges its footer; Escape, Cancel and ×
+   * still close it. `kept`: the dialog keeps its draft (New task does), so a
+   * click outside closes it like Escape.
+   */
+  draft?: 'guard' | 'kept';
+  /** Replaces the `cancel` a click outside sends, for a dialog whose Escape does something else first (clears a search, say). */
+  onDismiss?(): void;
+};
 
 // Preserve native dialog focus, modality and Escape behavior. Position belongs
 // to this presentation only, never to a session or saved workspace layout.
-export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWithoutRef<'dialog'>>(function DraggableDialog({ className = '', children, ...props }, forwardedRef) {
+// A click on the backdrop closes the dialog as Escape does (`dismiss.ts`).
+export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWithoutRef<'dialog'> & DismissProps>(function DraggableDialog({ className = '', children, draft = 'guard', onDismiss, ...props }, forwardedRef) {
   const dialog = useRef<HTMLDialogElement>(null);
   useImperativeHandle(forwardedRef, () => dialog.current!, []);
+  const dismissal = useRef({ draft, onDismiss }); dismissal.current = { draft, onDismiss };
+  /** A field of this dialog changed since it opened: its work would be lost. */
+  const edited = useRef(false);
   const drag = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
   const moved = useRef(false);
   const [dragging, setDragging] = useState(false);
@@ -39,6 +57,7 @@ export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWitho
     };
     const open = new MutationObserver(()=>{
       center();
+      edited.current = false;
       if(!node.open)return;
       const designated=node.querySelector<HTMLElement>('[data-autofocus]');
       if(designated)designated.focus();
@@ -49,7 +68,14 @@ export const DraggableDialog = forwardRef<HTMLDialogElement, ComponentPropsWitho
     const size = new ResizeObserver(fit); size.observe(node);
     window.addEventListener('resize', fit);
     window.addEventListener('blur', stop);
-    return () => { open.disconnect(); size.disconnect(); window.removeEventListener('resize', fit); window.removeEventListener('blur', stop); };
+    const change = (event: Event) => { if (event.isTrusted && isEditField(event.target)) edited.current = true; };
+    node.addEventListener('input', change); node.addEventListener('change', change);
+    const unbind = bindBackdropDismiss(node, () => {
+      const { draft, onDismiss } = dismissal.current;
+      if (draft === 'guard' && edited.current) { nudge(node); return; }
+      if (onDismiss) onDismiss(); else requestDialogClose(node);
+    });
+    return () => { open.disconnect(); size.disconnect(); window.removeEventListener('resize', fit); window.removeEventListener('blur', stop); node.removeEventListener('input', change); node.removeEventListener('change', change); unbind(); };
   }, []);
 
   const isHandle = (target: EventTarget) => target instanceof Element && !!target.closest('[data-dialog-drag-handle]') && !target.closest('button, input, select, textarea, a, [contenteditable="true"]');

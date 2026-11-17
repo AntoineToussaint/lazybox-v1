@@ -1,4 +1,5 @@
 import { peekProps } from './peek-model';
+import { useDismiss } from './dismiss';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ConnectError } from '@lazybox/client-core';
 import type { Collection, Mission, MissionEvidence, MissionTask, Session } from '@lazybox/protocol';
@@ -288,16 +289,11 @@ function TrustBadge({ trust }: { trust: string }) {
 function TaskMenu({ task, onCancel, onAssign }: { task: MissionTask; onCancel(): void; onAssign(): void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) setOpen(false); };
-    window.addEventListener('pointerup', close);
-    return () => window.removeEventListener('pointerup', close);
-  }, [open]);
+  useDismiss(open, () => setOpen(false), [ref]);
   if (task.status === 'done' || task.status === 'canceled') return null;
   return <div className="mission-menu" ref={ref}>
     <button type="button" className="icon-button" aria-label={`More actions for ${task.title}`} aria-expanded={open} onClick={() => setOpen(v => !v)}><Icon name="more" size={14}/></button>
-    {open && <div className="mission-menu-list" role="menu" onKeyDown={event => { if (event.key === 'Escape') setOpen(false); }}>
+    {open && <div className="mission-menu-list" role="menu">
       {task.attempt && <button role="menuitem" type="button" onClick={() => { setOpen(false); onAssign(); }}>Assign to another conversation…</button>}
       <button role="menuitem" type="button" className="danger" onClick={() => { setOpen(false); onCancel(); }}>Cancel task…</button>
     </div>}

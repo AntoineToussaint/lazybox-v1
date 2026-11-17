@@ -222,7 +222,7 @@ function NewTaskSheet({ ref, viewState, failure, onClose, onStarted, onFailed, r
   useEffect(() => { if (listOpen) ref.current?.querySelector(`#${CSS.escape(`${id}-repo-${active}`)}`)?.scrollIntoView({ block: 'nearest' }); }, [active, listOpen]);
 
   const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+';
-  return <DraggableDialog ref={ref} className="new-task-sheet" aria-labelledby={`${id}-title`} onKeyDownCapture={sheetKeys}
+  return <DraggableDialog ref={ref} className="new-task-sheet" aria-labelledby={`${id}-title`} draft="kept" onKeyDownCapture={sheetKeys}
     onCancel={event => { event.preventDefault(); if (busy) moveToBackground(); else onClose(); }} onClose={() => { if (!busy) onClose(); }}>
     <DialogHeader>
       <div><h2 id={`${id}-title`}>New task</h2><p>A workspace on its own branch, an agent, and your first message.</p></div>

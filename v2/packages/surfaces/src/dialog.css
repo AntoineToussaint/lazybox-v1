@@ -54,3 +54,9 @@
 
 .workspace-shell.dialog-layer{display:contents}
 .snippet-filters small{margin-left:auto}.snippet-star{color:var(--warn);margin-right:5px;font-weight:400}.snippet-uses{font-variant-numeric:tabular-nums}.snippet-empty{margin:0;padding:12px 4px;font-size:calc(12px * var(--text-scale));color:var(--text-muted)}
+
+/* A click outside a dialog holding unsaved edits: the footer shakes, like a macOS sheet (dismiss.ts). */
+@keyframes dismiss-nudge{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
+@keyframes dismiss-flash{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 2px var(--focus)}}
+.dismiss-nudge{animation:dismiss-nudge .38s ease-in-out}
+@media (prefers-reduced-motion:reduce){.dismiss-nudge{animation:dismiss-flash .45s ease-in-out;border-radius:6px}}

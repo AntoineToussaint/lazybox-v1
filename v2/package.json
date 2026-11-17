@@ -127,7 +127,8 @@
     "test:layout-keyboard": "node scripts/test-layout-keyboard.mjs",
     "test:agents-visible": "node scripts/test-agents-visible.mjs",
     "test:voice": "node scripts/test-voice.mjs",
-    "test:console-log": "node scripts/test-console-log.mjs"
+    "test:console-log": "node scripts/test-console-log.mjs",
+    "test:dismiss-outside": "node scripts/test-dismiss-outside.mjs"
   },
   "devDependencies": {
     "@bufbuild/buf": "1.75.0",
