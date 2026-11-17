@@ -161,8 +161,9 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
     if (!printPending || view !== 'document' || reading === undefined) return;
     setPrintPending(false);
     // After the document's first paint, so the sheet copies what is on screen.
-    const frame = requestAnimationFrame(() => printNow.current());
-    return () => cancelAnimationFrame(frame);
+    // Not cancelled by the effect's cleanup: clearing the flag re-runs this effect before the frame.
+    // Unmounted by then, the page has no document and nothing prints (printDocument).
+    requestAnimationFrame(() => printNow.current());
   }, [printPending, view, reading]);
 
   if (missing) return <div className="artifact-page is-empty"><p className="module-empty">This artifact was deleted.</p>{onBack && <button onClick={onBack}>Back to artifacts</button>}</div>;

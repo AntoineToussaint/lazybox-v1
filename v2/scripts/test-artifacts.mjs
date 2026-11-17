@@ -104,7 +104,8 @@ try{
  await artifactPage.getByLabel('Export',{exact:true}).click();
  await page.getByRole('button',{name:'Print or save as PDF…'}).click();
  await expect(artifactPage.getByRole('tab',{name:'Document'})).toHaveAttribute('aria-selected','true');
- await expect.poll(()=>page.evaluate(()=>window.__prints)).toBe(1);
+ // Print waits (up to 4 s) for diagrams still drawing, so give it that long.
+ await expect.poll(()=>page.evaluate(()=>window.__prints),{timeout:10000}).toBe(1);
  await page.waitForTimeout(600);
  assert.equal(await page.evaluate(()=>window.__prints),1,'printed once');
  await artifactPage.getByRole('tab',{name:'Document'}).click();
