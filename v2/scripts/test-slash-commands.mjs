@@ -127,7 +127,7 @@ try{
  await expect.poll(()=>applies().at(-1)?.body.message?.text).toBe('/usr/local/bin is missing');
 
  // /detail and /help do the real thing.
- // The send above clears the box once answered: a key typed before that is cleared with it.
+ // The box takes no keys while the send above is in flight, and empties once it is answered: type after that.
  await expect(message).toHaveValue('');await page.keyboard.type('/detail verbose');await page.keyboard.press('Enter');
  await expect(page.locator('.toast').filter({hasText:'Activity detail: Verbose'})).toBeVisible();
  await page.keyboard.type('/help');await page.keyboard.press('Enter');

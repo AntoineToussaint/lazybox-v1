@@ -126,8 +126,10 @@ existing launcher cleanup for its descendants. Cleanup failure cannot become a
 passing gate.
 
 The policy fingerprint includes npm script commands, the catalog, Makefile and
-gate runner implementation. Source mutation during checking fails the run.
-Receipts are local validation records, not signed attestations against a malicious
+gate runner implementation. Source mutation during checking fails the run,
+even when every gate passed; the run names the files that changed (the
+receipt's `sourceChanged`, the log, and the CI job summary). A gate writes only
+under `.cache` or a temporary directory. Receipts are local validation records, not signed attestations against a malicious
 operator with write access to the release store. External toolchain distributions
 still need P00/P02 version qualification and packaging.
 
