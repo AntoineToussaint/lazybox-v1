@@ -690,9 +690,12 @@ actions:
           // `pace` paces a replay like the Runner's one-message-per-record stream: a
           // flush every `pace` records instead of one write of the whole journal.
           // Records pushed meanwhile follow the replay; then the stream is live.
+          // A reader that asks for heartbeats hears one once it has every record there was, as
+          // from the Runner; `channel.noHeartbeats` is a Runner from before them.
+          const beat=sent=>{if(body.heartbeats&&!channel.noHeartbeats&&!res.destroyed){channel.heartbeats=(channel.heartbeats||0)+1;res.write(frame({cursor:String(sent),heartbeat:true,retained:String(Math.max(Number(head),sent))}));}};
           if(channel.pace){void (async()=>{let sent=Number(body.after||0);while(!res.destroyed&&sent<channel.events.length){const chunk=channel.events.slice(sent,sent+channel.pace);res.write(Buffer.concat(chunk.map(event=>frame({...event,retained:String(Math.max(Number(head),Number(event.cursor)))}))));sent+=chunk.length;await new Promise(resolve=>setTimeout(resolve,channel.paceMs??1));}
-            if(res.destroyed)return;if(channel.done){res.end(frame({},2));return;}channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));})();return;}
-          channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));for(const event of backlog)res.write(frame(event));if(channel.done){channel.clients.delete(res);res.end(frame({},2));}return;}
+            if(res.destroyed)return;if(channel.done){res.end(frame({},2));return;}beat(sent);channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));})();return;}
+          channel.clients.add(res);res.on('close',()=>channel.clients.delete(res));for(const event of backlog)res.write(frame(event));if(channel.done){channel.clients.delete(res);res.end(frame({},2));return;}beat(Math.max(Number(body.after||0),channel.events.length));return;}
         const events=lineageEvents(body.sessionId);
         res.writeHead(200, { 'Content-Type': 'application/connect+json' }); res.end(stream(events.filter(value => BigInt(value.cursor) > BigInt(body.after || 0)))); return;
       }

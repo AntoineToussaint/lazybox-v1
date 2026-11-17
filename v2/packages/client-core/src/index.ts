@@ -124,7 +124,10 @@ export type RunnerClient = ReturnType<typeof createClient<typeof RunnerService>>
 
 // Each view owns its own cursor. Rendering speed never participates in the
 // producer's delivery and disconnecting a view only aborts its subscription.
-export async function follow<T extends { cursor: bigint }>(
+// A heartbeat (WatchEvents with `heartbeats`) is no record: it says the stream
+// is open and caught up, so an idle one reads Live instead of Connecting or
+// Reconnecting forever. A Runner that sends none leaves that to the next record.
+export async function follow<T extends { cursor: bigint; heartbeat?: boolean }>(
   open: (after: bigint, signal: AbortSignal) => AsyncIterable<T>,
   signal: AbortSignal, receive: (event: T) => void, status: (value: string) => void,
   failed?: (error: ConnectError) => void,
@@ -136,6 +139,7 @@ export async function follow<T extends { cursor: bigint }>(
     try {
       status(firstAttempt ? 'Connecting' : 'Reconnecting'); firstAttempt=false;
       for await (const event of open(after, signal)) {
+        if (event.heartbeat) { if (signal.aborted) return; status('Live'); continue; }
         if (event.cursor <= after) continue;
         if (event.cursor !== after + 1n) throw new ConnectError('Replay gap: retained cursor is not contiguous', Code.OutOfRange);
         if (signal.aborted) return;

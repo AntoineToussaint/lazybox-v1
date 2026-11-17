@@ -1437,6 +1437,12 @@ message WatchEventsRequest {
   string session_id = 1;
   uint64 after = 2;
   bool include_previous = 3;
+  // Ask for heartbeats: a JournalEvent with `heartbeat` set once the stream has
+  // replayed everything there was (at once when there was nothing to replay),
+  // then one every 15 seconds while no record arrives. A reader can then tell
+  // a live but idle conversation from a stream that never connected. A Runner
+  // from before this field sends none.
+  bool heartbeats = 4;
 }
 message JournalEvent {
   uint64 cursor = 1;
@@ -1448,6 +1454,10 @@ message JournalEvent {
   // reader whose cursor reaches it has replayed the history that existed when
   // it asked; later records are live. Zero when the Runner does not say.
   uint64 retained = 6;
+  // A heartbeat (WatchEventsRequest.heartbeats), not a record: no event, and
+  // `cursor` repeats the last record sent (0 before any). The reader is
+  // caught up and the stream is alive.
+  bool heartbeat = 7;
 }
 // A page of a conversation's timeline (the records WatchEvents replays with
 // include_previous), read backward from `before`.

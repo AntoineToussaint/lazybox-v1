@@ -51,7 +51,7 @@ export class ConversationReader {
   if(this.since)void this.complete(controller);
  }
  private follow(controller:AbortController){
-  void follow((after,signal)=>this.api.watchEvents({sessionId:this.id,after,includePrevious:true},{signal}),controller.signal,
+  void follow((after,signal)=>this.api.watchEvents({sessionId:this.id,after,includePrevious:true,heartbeats:true},{signal}),controller.signal,
    event=>{if(!controller.signal.aborted)this.receive(event);},
    status=>{if(!controller.signal.aborted)this.status(status);},
    error=>{if(!controller.signal.aborted){this.flush();this.publish({error:error.message,loading:false});}},this.snapshot.cursor);

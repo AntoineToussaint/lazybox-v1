@@ -10648,8 +10648,14 @@ type WatchEventsRequest struct {
 	SessionId       string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	After           uint64                 `protobuf:"varint,2,opt,name=after,proto3" json:"after,omitempty"`
 	IncludePrevious bool                   `protobuf:"varint,3,opt,name=include_previous,json=includePrevious,proto3" json:"include_previous,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Ask for heartbeats: a JournalEvent with `heartbeat` set once the stream has
+	// replayed everything there was (at once when there was nothing to replay),
+	// then one every 15 seconds while no record arrives. A reader can then tell
+	// a live but idle conversation from a stream that never connected. A Runner
+	// from before this field sends none.
+	Heartbeats    bool `protobuf:"varint,4,opt,name=heartbeats,proto3" json:"heartbeats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *WatchEventsRequest) Reset() {
@@ -10703,6 +10709,13 @@ func (x *WatchEventsRequest) GetIncludePrevious() bool {
 	return false
 }
 
+func (x *WatchEventsRequest) GetHeartbeats() bool {
+	if x != nil {
+		return x.Heartbeats
+	}
+	return false
+}
+
 type JournalEvent struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
 	Cursor       uint64                 `protobuf:"varint,1,opt,name=cursor,proto3" json:"cursor,omitempty"`
@@ -10713,7 +10726,11 @@ type JournalEvent struct {
 	// The last cursor the timeline had retained when this record was sent. A
 	// reader whose cursor reaches it has replayed the history that existed when
 	// it asked; later records are live. Zero when the Runner does not say.
-	Retained      uint64 `protobuf:"varint,6,opt,name=retained,proto3" json:"retained,omitempty"`
+	Retained uint64 `protobuf:"varint,6,opt,name=retained,proto3" json:"retained,omitempty"`
+	// A heartbeat (WatchEventsRequest.heartbeats), not a record: no event, and
+	// `cursor` repeats the last record sent (0 before any). The reader is
+	// caught up and the stream is alive.
+	Heartbeat     bool `protobuf:"varint,7,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10788,6 +10805,13 @@ func (x *JournalEvent) GetRetained() uint64 {
 		return x.Retained
 	}
 	return 0
+}
+
+func (x *JournalEvent) GetHeartbeat() bool {
+	if x != nil {
+		return x.Heartbeat
+	}
+	return false
 }
 
 // A page of a conversation's timeline (the records WatchEvents replays with
@@ -33477,12 +33501,15 @@ const file_api_proto_rawDesc = "" +
 	"\bdelivery\x18\x02 \x01(\tR\bdelivery\x12\x1f\n" +
 	"\vprovider_id\x18\x03 \x01(\tR\n" +
 	"providerId\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error\"t\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\x94\x01\n" +
 	"\x12WatchEventsRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
 	"\x05after\x18\x02 \x01(\x04R\x05after\x12)\n" +
-	"\x10include_previous\x18\x03 \x01(\bR\x0fincludePrevious\"\xf1\x01\n" +
+	"\x10include_previous\x18\x03 \x01(\bR\x0fincludePrevious\x12\x1e\n" +
+	"\n" +
+	"heartbeats\x18\x04 \x01(\bR\n" +
+	"heartbeats\"\x8f\x02\n" +
 	"\fJournalEvent\x12\x16\n" +
 	"\x06cursor\x18\x01 \x01(\x04R\x06cursor\x12\x1f\n" +
 	"\vcaptured_at\x18\x02 \x01(\tR\n" +
@@ -33490,7 +33517,8 @@ const file_api_proto_rawDesc = "" +
 	"\x05event\x18\x03 \x01(\v2\x1c.lazybox.bench.v1.AgentEventR\x05event\x123\n" +
 	"\areceipt\x18\x04 \x01(\v2\x19.lazybox.bench.v1.ReceiptR\areceipt\x12#\n" +
 	"\rmetadata_json\x18\x05 \x01(\fR\fmetadataJson\x12\x1a\n" +
-	"\bretained\x18\x06 \x01(\x04R\bretained\"\x82\x01\n" +
+	"\bretained\x18\x06 \x01(\x04R\bretained\x12\x1c\n" +
+	"\theartbeat\x18\a \x01(\bR\theartbeat\"\x82\x01\n" +
 	"\x16ReadSessionTailRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x16\n" +

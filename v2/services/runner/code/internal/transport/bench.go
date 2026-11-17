@@ -470,12 +470,44 @@ func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStream
 	// can tell replay from live records: it renders a long conversation once,
 	// when it has caught up, instead of every step of the replay.
 	var retained uint64
+	head := func() uint64 {
+		if timeline != nil {
+			return timeline.Retained()
+		}
+		return e.Retained()
+	}
+	// A reader that asked for heartbeats hears one as soon as it has every
+	// record there was, then one per quiet interval: an idle conversation's
+	// stream says nothing else, and its reader could not tell it from one
+	// that never connected.
+	caughtUp := !r.Heartbeats
+	beat := func() error {
+		return stream.Send(&pb.JournalEvent{Cursor: cursor, Retained: max(retained, cursor), Heartbeat: true})
+	}
+	if !caughtUp && cursor >= head() {
+		if err = beat(); err != nil {
+			return err
+		}
+		caughtUp = true
+	}
 	for {
 		var record journal.Record
+		read, cancel := ctx, context.CancelFunc(func() {})
+		if r.Heartbeats {
+			read, cancel = context.WithTimeout(ctx, watchHeartbeat)
+		}
 		if timeline != nil {
-			record, err = timeline.Next(ctx, cursor)
+			record, err = timeline.Next(read, cursor)
 		} else {
-			record, err = e.Engine.Events(ctx, cursor)
+			record, err = e.Engine.Events(read, cursor)
+		}
+		cancel()
+		if r.Heartbeats && errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			if err = beat(); err != nil {
+				return err
+			}
+			caughtUp = true
+			continue
 		}
 		if err == nil && record.Sequence >= retained {
 			if timeline != nil {
@@ -505,8 +537,18 @@ func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStream
 			return err
 		}
 		cursor = record.Sequence
+		if !caughtUp && cursor >= retained {
+			if err = beat(); err != nil {
+				return err
+			}
+			caughtUp = true
+		}
 	}
 }
+
+// watchHeartbeat is how long a WatchEvents stream that asked for heartbeats
+// stays quiet before it sends one.
+var watchHeartbeat = 15 * time.Second
 
 // journalEvent is a journal record as clients read it.
 func journalEvent(record journal.Record, retained uint64) (*pb.JournalEvent, error) {
