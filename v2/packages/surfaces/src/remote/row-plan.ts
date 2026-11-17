@@ -47,6 +47,7 @@ export function rowPlan(row: Attention, respond: boolean): RowPlan {
   if (!request || !respond) return { kind: 'none' };
   if (request.type === 'repository_request') return { kind: 'elsewhere', request, text: 'Add the repository or decline on your computer.' };
   if (request.type === 'browser_request') return { kind: 'elsewhere', request, text: 'The agent’s browser waits for you on your computer.' };
+  if (request.type === 'conversation_request') return { kind: 'elsewhere', request, text: 'Open it to start the conversation or deny it.' };
   const data = providerData(request.providerDataJson);
   if (request.type === 'question') {
     const questions = questionsOf(data);

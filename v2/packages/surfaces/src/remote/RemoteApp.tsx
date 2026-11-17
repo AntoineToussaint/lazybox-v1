@@ -280,7 +280,7 @@ function PhoneConversation({ sessionId, commandId, device, collections, go }: { 
         : request.type === 'browser_request'
         ? <p key={request.requestId} className="remote-hint">Browser · {requestSummary(request)}? The agent's browsing waits for you. Answer on your computer.</p>
         : respond
-        ? <RequestCard key={request.requestId} request={request} api={api} session={session.id} onError={setError} agentName={agentName} confirmAllow={confirmAllow}/>
+        ? <RequestCard key={request.requestId} request={request} api={api} session={session.id} onError={setError} agentName={agentName} confirmAllow={confirmAllow} remote/>
         : <p key={request.requestId} className="remote-hint">The agent is waiting for an answer. This phone can only read; answer on your computer.</p>)}
       {session && !session.closed && status.tone === 'busy' && <div className="remote-activity" aria-hidden="true"><LiveIndicator tone="busy"/>{status.text}</div>}
       <div ref={end}/>

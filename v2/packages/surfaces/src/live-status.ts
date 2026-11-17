@@ -115,6 +115,7 @@ export function liveStatus(session: Session | undefined, now: number, events?: r
     const more = session.pending.length > 1 ? ` · ${session.pending.length} waiting` : '';
     if (session.pending[0]?.type === 'repository_request') return fixed('waiting', 'Waiting for a repository' + more);
     if (session.pending[0]?.type === 'browser_request') return fixed('waiting', 'Waiting for you' + more);
+    if (session.pending[0]?.type === 'conversation_request') return fixed('waiting', 'Waiting to start a conversation' + more);
     return fixed('waiting', (question ? 'Waiting for your answer' : 'Waiting for approval') + more);
   }
   // A subscription limit is a decision for the person, not a failure.

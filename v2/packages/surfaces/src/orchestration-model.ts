@@ -180,5 +180,5 @@ export function reviewHeld(mission: Mission): { waiting: number; limit: number }
 }
 
 /** Lineage lines Lazybox records in a conversation (runner/orchestrator.go). */
-export const LINEAGE_EVENTS = new Set(['agent_spawned', 'agent_message', 'agent_stopped', 'orchestration_granted', 'orchestration_revoked', 'plan_proposed', 'plan_decided', 'budget_exhausted', 'budget_raised', 'overlap_detected', 'wip_held']);
-export const lineageIcon: Record<string, string> = { agent_spawned: 'subagent', agent_message: 'send', agent_stopped: 'stop', orchestration_granted: 'shield', orchestration_revoked: 'lock', plan_proposed: 'checklist', plan_decided: 'check', budget_exhausted: 'alert', budget_raised: 'card', overlap_detected: 'alert', wip_held: 'pending' };
+export const LINEAGE_EVENTS = new Set(['agent_spawned', 'agent_message', 'agent_stopped', 'orchestration_granted', 'orchestration_revoked', 'plan_proposed', 'plan_decided', 'budget_exhausted', 'budget_raised', 'overlap_detected', 'wip_held', 'conversation_started', 'conversation_declined']);
+export const lineageIcon: Record<string, string> = { agent_spawned: 'subagent', agent_message: 'send', agent_stopped: 'stop', orchestration_granted: 'shield', orchestration_revoked: 'lock', plan_proposed: 'checklist', plan_decided: 'check', budget_exhausted: 'alert', budget_raised: 'card', overlap_detected: 'alert', wip_held: 'pending', conversation_started: 'chat', conversation_declined: 'close' };

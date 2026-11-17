@@ -92,6 +92,7 @@
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
     { "id": "slash-commands", "scope": "ui", "script": "test:slash-commands" },
     { "id": "repository-requests", "scope": "ui", "script": "test:repository-requests" },
+    { "id": "agent-starts-conversation", "scope": "ui", "script": "test:agent-starts-conversation" },
     { "id": "agent-browser", "scope": "ui", "script": "test:agent-browser" },
     { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },
     { "id": "peek", "scope": "ui", "script": "test:peek" },

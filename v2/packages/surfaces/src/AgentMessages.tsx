@@ -37,7 +37,7 @@ export function OpenSender({ origin }: { origin: MessageOrigin }) {
 /** One quiet line about this conversation's agent tree: an agent started, a message sent, a grant given or taken back. */
 export function LineageLine({ message, note }: { message: TranscriptMessage; note: LineageNote }) {
   const open = useOpenConversation();
-  const target = note.kind === 'agent_spawned' || note.kind === 'agent_message' || note.kind === 'agent_stopped' ? note.conversation : '';
+  const target = note.kind === 'agent_spawned' || note.kind === 'agent_message' || note.kind === 'agent_stopped' || note.kind === 'conversation_started' ? note.conversation : '';
   return <div className={`lineage-line kind-${note.kind}`} role="note" data-message-id={message.id}>
     <Icon name={lineageIcon[note.kind] || 'subagent'} size={12}/>
     <span title={message.text}>{message.text}</span>

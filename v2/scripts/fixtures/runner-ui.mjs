@@ -667,6 +667,21 @@ actions:
        for(const s of sessions)s.pending=(s.pending||[]).filter(p=>p.requestId!==body.requestId);repositoryRequests.set(body.requestId,{state:'declined',reason:body.reason||''});
        return json({id:body.requestId,state:'declined',declineReason:body.reason||''});
       }
+      // An agent's request to start a conversation (runner/conversation_starts.go): Start opens a
+      // peer conversation (in a new workspace when asked), Decline drops the request.
+      case 'AnswerConversationStart': {
+       mutations.push({method,body});const asker=sessions.find(s=>(s.pending||[]).some(p=>p.requestId===body.requestId));const pending=asker?.pending.find(p=>p.requestId===body.requestId);
+       if(!pending)return error('failed_precondition','this request was already answered');
+       const asked=JSON.parse(Buffer.from(pending.providerDataJson,'base64').toString());
+       for(const s of sessions)s.pending=(s.pending||[]).filter(p=>p.requestId!==body.requestId);
+       if(body.decision==='decline'){repositoryRequests.set(body.requestId,{state:'declined',reason:body.reason||''});return json({...asked,state:'declined',declineReason:body.reason||''});}
+       const mode=body.workspace||asked.workspace||'same';let collection=collections.find(c=>c.id===asked.collectionId);
+       if(mode==='new'){const id='created-'+collections.length;collection={...structuredClone(collection),id,name:body.title||asked.title,root:'/fixture/collections/'+id,ownerExecutionId:''};collections.push(collection);}
+       const title=body.title||asked.title;const started={id:`started-${sessions.length}`,collectionId:collection.id,workId:collection.id,profileId:body.profileId||asked.profileId,title,capabilities:{files:true},status:'ready',pending:[]};sessions.push(started);
+       if(runner.journalMessages)openEvents(started.id);
+       repositoryRequests.set(body.requestId,{state:'started',session:started.id,title,brief:body.brief||asked.brief,workspace:mode,profileId:started.profileId,model:body.model||asked.model});
+       return json({...asked,title,workspace:mode,state:'started',startedSessionId:started.id,startedConversationId:started.id,startedCollectionId:collection.id,startedTitle:title});
+      }
       case 'ListRepositories': return json({ repositories: library.map(r => homes.has(r.id) ? { ...r, homePath: homes.get(r.id).path, homeKind: 'configured' } : r) });
       case 'ListRepositoryHomes': return json({ root: homeRoot, homes: library.filter(r => !body.repositoryIds?.length || body.repositoryIds.includes(r.id)).map(homeView) });
       case 'SetRepositoryHome': {

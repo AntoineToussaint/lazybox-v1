@@ -75,6 +75,10 @@ const KINDS: Record<string, Kind> = {
   plan_decided: { icon: 'checklist', tone: 'neutral', kind: 'Plan decision', fallback: 'The person decided the plan' },
   overlap_detected: { icon: 'alert', tone: 'warn', kind: 'Agents overlap', fallback: 'Two of your agents changed the same files' },
   continuation: { icon: 'history', tone: 'neutral', kind: 'Continuation', fallback: 'Continued from a checkpoint' },
+  // A conversation another one asked the person to start: its brief; and, to the asking agent, the answer (runner/conversation_starts.go).
+  conversation_brief: { icon: 'chat', tone: 'ask', kind: 'Brief from another conversation', fallback: 'Started at your request from another conversation' },
+  conversation_started: { icon: 'chat', tone: 'ok', kind: 'Conversation started', fallback: 'The person started the conversation it asked for' },
+  conversation_declined: { icon: 'chat', tone: 'muted', kind: 'Conversation declined', fallback: 'The person declined starting a conversation' },
   // A tracked pull request's reactions (runner/item_reactions.go): the person chose to send them.
   pr_checks: { icon: 'pullRequest', tone: 'warn', kind: 'PR checks', fallback: 'The pull request’s failing checks' },
   pr_review: { icon: 'review', tone: 'review', kind: 'PR review', fallback: 'The pull request’s review on GitHub' },

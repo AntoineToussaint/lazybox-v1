@@ -9,6 +9,7 @@ import { shortPath } from './tool-lines';
 import { CardHead, editable, Kbd, useChatKeys, useInitialFocus, type RequestPosition } from './request-parts';
 import { RepositoryRequestCard } from './RepositoryRequestCard';
 import { BrowserRequestCard } from './BrowserRequestCard';
+import { ConversationRequestCard } from './ConversationRequestCard';
 import './requests.css';
 import { humanError } from './human-error';
 
@@ -29,11 +30,14 @@ export type RequestCardProps = {
   agentName?: string;
   /** Asks before allowing a flagged or default-to-no request (the phone does; the computer shows the flags). */
   confirmAllow?(approval: Approval): Promise<boolean>;
+  /** On a paired phone: a request to start a conversation is Start or Deny, as asked. */
+  remote?: boolean;
 };
 
 export function AgentRequestCard(props: RequestCardProps) {
   if (props.request.type === 'repository_request') return <RepositoryRequestCard {...props}/>;
   if (props.request.type === 'browser_request') return <BrowserRequestCard {...props}/>;
+  if (props.request.type === 'conversation_request') return <ConversationRequestCard {...props}/>;
   return props.request.type === 'question' ? <QuestionCard {...props}/> : <ApprovalCard {...props}/>;
 }
 

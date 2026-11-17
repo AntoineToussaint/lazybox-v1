@@ -115,3 +115,25 @@ button.danger:hover{background:var(--danger-line)}
 .browser-request-url>span{min-width:0;font-size:calc(12px * var(--code-scale));color:var(--text);overflow-wrap:anywhere;word-break:break-all}
 .browser-request-note{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:calc(11.5px * var(--text-scale));line-height:1.5;color:var(--text-muted)}
 .browser-request-note>svg{flex:none;margin-top:2px}
+
+/* An agent asks to start a conversation (ConversationRequestCard.tsx). */
+.start-request-card h3 strong{font-weight:650}
+.start-brief{margin:8px 0 0;padding:8px 10px;border-left:2px solid var(--line-bold);background:var(--surface-sunken);border-radius:0 7px 7px 0}
+.start-brief-preview{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:calc(12.5px * var(--text-scale));line-height:1.5;color:var(--text-secondary)}
+.start-brief-full{margin-top:6px}
+.start-brief-full>summary{cursor:pointer;font-size:calc(11.5px * var(--text-scale));color:var(--text-muted)}
+.start-brief-full pre{margin:6px 0 0;max-height:min(260px,36dvh);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:calc(12px * var(--text-scale));line-height:1.5;color:var(--text-secondary)}
+.start-facts [data-shared] strong::after{content:' · shared';font-weight:500;color:var(--text-muted)}
+.start-open-artifact{font-size:inherit}
+.start-grant{display:inline-flex;align-items:center;gap:6px;margin-top:10px;text-decoration:none;color:var(--text-muted)}
+.start-grant:hover,.start-grant:focus-visible{color:var(--text);text-decoration:underline}
+.start-edit{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.start-edit label{display:flex;flex-direction:column;gap:4px;font-size:calc(12px * var(--text-scale));color:var(--text-soft)}
+.start-edit textarea{resize:vertical;min-height:84px;font-size:calc(12.5px * var(--text-scale))}
+.start-edit-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.start-edit-workspace{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding:0;border:0;font-size:calc(12px * var(--text-scale))}
+.start-edit-workspace legend{padding:0;margin-bottom:4px;color:var(--text-soft)}
+.start-edit-workspace label{flex-direction:row;align-items:center;gap:6px;color:var(--text)}
+.start-edit .row{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.start-edit-hint{margin-right:auto;color:var(--text-subtle)}
+@media (max-width:640px){.start-edit-hint{display:none}}
