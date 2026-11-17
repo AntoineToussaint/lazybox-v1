@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"connectrpc.com/connect"
 	workitems "github.com/AntoineToussaint/lazybox/v2/internal/runner/items"
@@ -164,19 +165,21 @@ func (c *cli) items(args []string) error {
 	if len(delivered) == 0 && len(mentioned) == 0 {
 		fmt.Fprintln(c.stdout, "No pull requests tracked here yet. Lazybox finds the ones opened from this workspace's branches; `lazybox link URL` adds one.")
 	}
+	// Titles, check names and URLs are written by whoever can push to the
+	// pull request: what reaches the terminal is printable text only.
 	for _, l := range delivered {
 		fmt.Fprintf(c.stdout, "%s  %s\n", itemName(l.Item), itemState(l.Item))
-		if title := l.Item.GetTitle(); title != "" {
+		if title := printable(l.Item.GetTitle()); title != "" {
 			fmt.Fprintf(c.stdout, "    %s\n", title)
 		}
 		for _, check := range l.Item.GetPullRequest().GetFailingChecks() {
-			fmt.Fprintf(c.stdout, "    ✕ %s %s\n", check.Name, check.Url)
+			fmt.Fprintf(c.stdout, "    ✕ %s %s\n", printable(check.Name), printable(check.Url))
 		}
 		where := l.Source
 		if *all && l.CollectionName != "" {
 			where = l.CollectionName + " · " + where
 		}
-		fmt.Fprintf(c.stdout, "    %s  (%s)\n", l.Item.GetUrl(), where)
+		fmt.Fprintf(c.stdout, "    %s  (%s)\n", printable(l.Item.GetUrl()), printable(where))
 	}
 	if len(mentioned) > 0 {
 		fmt.Fprintln(c.stdout, "Mentioned (not tracked):")
@@ -185,17 +188,34 @@ func (c *cli) items(args []string) error {
 			if name == "" {
 				name = itemName(l.Item)
 			}
-			fmt.Fprintf(c.stdout, "  %s\n", name)
+			fmt.Fprintf(c.stdout, "  %s\n", printable(name))
 		}
 	}
 	if links.TrackingError != "" {
-		fmt.Fprintf(c.stderr, "[lazybox] %s\n", links.TrackingError)
+		fmt.Fprintf(c.stderr, "[lazybox] %s\n", printable(links.TrackingError))
 	}
 	return nil
 }
 
 func itemName(item *pb.Item) string {
-	return item.GetRef().GetKey()
+	return printable(item.GetRef().GetKey())
+}
+
+// printable is s as one line of plain text for a terminal: control
+// characters (escape sequences, carriage returns, C1 controls) and
+// bidirectional overrides are dropped, line and paragraph separators become
+// spaces, so text from GitHub cannot move the cursor, rewrite earlier lines
+// or change the terminal's state.
+func printable(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\t' || r == '\n' || r == '\u2028' || r == '\u2029':
+			return ' '
+		case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r):
+			return -1
+		}
+		return r
+	}, s)
 }
 
 // itemState says, in words, where a pull request stands.

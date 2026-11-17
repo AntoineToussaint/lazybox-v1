@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -24,9 +25,19 @@ func TestAgentLinksAndListsItsPullRequests(t *testing.T) {
 		t.Fatalf("agent environment: %v", env)
 	}
 
+	// The workspace's repository comes from obin-ai/platform: an agent
+	// delivers only a pull request of a repository its members come from.
+	source := r.bench.Collections.Repositories()[0].Path
+	if raw, err := exec.Command("git", "-C", source, "remote", "add", "origin", "https://github.com/obin-ai/platform.git").CombinedOutput(); err != nil {
+		t.Fatalf("git remote add: %v %s", err, raw)
+	}
 	out := r.cli(env, "", "link", "https://github.com/obin-ai/platform/pull/1121")
 	if out.code != 0 || !strings.Contains(out.stdout, "Tracking obin-ai/platform#1121 in this workspace") {
 		t.Fatalf("link: %+v", out)
+	}
+	out = r.cli(env, "", "link", "https://github.com/someone/else/pull/5")
+	if out.code != 0 || !strings.Contains(out.stdout, "Listed (not tracked) someone/else#5") {
+		t.Fatalf("link to a repository the workspace is not: %+v", out)
 	}
 	// Without its scheme, after a flag, as a mention.
 	out = r.cli(env, "", "link", "--role", "mentions", "github.com/obin-ai/platform/issues/7")
@@ -34,7 +45,7 @@ func TestAgentLinksAndListsItsPullRequests(t *testing.T) {
 		t.Fatalf("link a mention: %+v", out)
 	}
 	links := r.bench.WorkItems().Links(workitems.Filter{Workspace: r.collection.Id})
-	if len(links) != 2 {
+	if len(links) != 3 {
 		t.Fatalf("links: %+v", links)
 	}
 	for _, l := range links {
@@ -89,6 +100,25 @@ func TestItemURLArgumentsAreToldFromLinkingTheCLI(t *testing.T) {
 	} {
 		if got := itemURL(in); got != want {
 			t.Errorf("%q → %q, want %q", in, got, want)
+		}
+	}
+}
+
+// What GitHub wrote reaches the terminal as one line of plain text: no escape
+// sequence, carriage return or bidirectional override from a pull request's
+// title or a check's name.
+func TestPrintableDropsControlCharacters(t *testing.T) {
+	for in, want := range map[string]string{
+		"Fix refunds":                      "Fix refunds",
+		"evil\x1b]0;pwned\x07\x1b[2Jtitle": "evil]0;pwned[2Jtitle",
+		"ok\rFAKE":                         "okFAKE",
+		"a\nb\tc\u2028d\u2029e":            "a b c d e",
+		"\u202eexe.txt\u2066x\u2069":       "exe.txtx",
+		"c1\u009bcontrol\u0085":            "c1control",
+		"√ unicode ✕ stays":                "√ unicode ✕ stays",
+	} {
+		if got := printable(in); got != want {
+			t.Errorf("printable(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
