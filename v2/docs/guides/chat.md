@@ -136,7 +136,9 @@ runs and `Esc` closes it and leaves your text. It works in Vim insert mode too.
   to (`next:`) come first.
 
 A switch of model or permissions, or a compaction, leaves one quiet line in the
-conversation rather than a message. A message that merely starts with a slash
+conversation rather than a message. Codex compacts its context on its own; its
+line says so, with the size before (*Context compacted automatically from 156k
+tokens*: Codex does not report the size after). A message that merely starts with a slash
 (`/usr/local/bin is missing`) is sent as written; an unknown `/word` asks
 "Not a command — send as text?" first, and `Enter` again sends it.
 

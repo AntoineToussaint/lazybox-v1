@@ -590,6 +590,9 @@ func (s *session) read() {
 	}
 	// noted: methods whose unreadable params were already recorded once.
 	noted := map[string]bool{}
+	// The main thread's context in use, from its latest token usage, and the
+	// turns whose compaction was already said (compaction.go).
+	compactions := compactionState{}
 	for {
 		m, err := s.p.Receive(s.ctx)
 		cursor = m.Seq
@@ -808,6 +811,15 @@ func (s *session) read() {
 			case "thread/tokenUsage/updated":
 				ev.Type = "usage"
 				ev.Data = m.Params
+				if ev.AgentID == "root" {
+					compactions.usage(m.Params)
+				}
+			case "thread/compacted":
+				// Deprecated for the contextCompaction item; said once either way.
+				if ev.AgentID != "root" || !compactions.first(p.TurnID) {
+					return
+				}
+				ev.Type, ev.Data = "compacted", compactions.data()
 			case "error":
 				var failure struct {
 					WillRetry bool `json:"willRetry"`
@@ -841,6 +853,19 @@ func (s *session) read() {
 			case "item/started", "item/completed":
 				for _, activity := range collaborationEvents(m.Params, root) {
 					emit(activity)
+				}
+				if compactionItem(m.Params) {
+					// The context compaction Claude's conversations show too:
+					// a phase while it runs, then one line.
+					if m.Method == "item/started" {
+						activity(agent.Event{Type: "activity", AgentID: ev.AgentID, Status: "compacting"})
+						return
+					}
+					if ev.AgentID != "root" || !compactions.first(p.TurnID) {
+						return
+					}
+					ev.Type, ev.Data = "compacted", compactions.data()
+					break
 				}
 				ev.Type = "tool_activity"
 				ev.Status = "running"

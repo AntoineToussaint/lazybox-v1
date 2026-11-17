@@ -75,6 +75,17 @@ func fixtureAppServer() {
 				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
 				continue
 			}
+			if os.Getenv("FIXTURE_COMPACTION") != "" {
+				// A compaction as 0.169 reports it: the item, then the deprecated notification.
+				item := map[string]any{"type": "contextCompaction", "id": "compact-1"}
+				send(map[string]any{"method": "thread/tokenUsage/updated", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "tokenUsage": map[string]any{"total": map[string]int{"totalTokens": 400000}, "last": map[string]int{"totalTokens": 156000}, "modelContextWindow": 200000}}})
+				send(map[string]any{"method": "item/started", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "item": item}})
+				send(map[string]any{"method": "item/completed", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "item": item}})
+				send(map[string]any{"method": "thread/compacted", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1"}})
+				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": "after"}})
+				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
+				continue
+			}
 			if os.Getenv("FIXTURE_PERMISSIONS_APPROVAL") != "" {
 				send(map[string]any{"id": 43, "method": "item/permissions/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "itemId": "item-1", "environmentId": nil, "startedAtMs": 1, "cwd": "/w", "reason": nil, "permissions": map[string]any{"network": map[string]any{"enabled": true}, "fileSystem": nil}}})
 				continue
