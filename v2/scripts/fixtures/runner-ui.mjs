@@ -105,7 +105,7 @@ export async function startRunnerFixture() {
   const library = [{ id: 'backend', path: '/fixture/backend' }, { id: 'frontend', path: '/fixture/frontend' }];
   // Home checkouts by repository id (WORKSPACES.md, "Home checkouts"): explicitly fake, nothing is cloned.
   const homes = new Map(), homeRoot = '/fixture/home/lazybox/repos';
-  const homeView = r => { const h = homes.get(r.id); return { repositoryId: r.id, name: r.name || r.id, path: h?.path || '', kind: h ? 'configured' : '', exists: !!h, branch: h ? (h.branch || 'main') : '', dirty: h?.dirty || 0, suggestedPath: `${homeRoot}/fixture-team/${r.name || r.id}`, head: h ? 'abc1234' : '' }; };
+  const homeView = r => { const h = homes.get(r.id); return { repositoryId: r.id, name: r.name || r.id, path: h?.path || '', kind: h ? 'configured' : '', exists: !!h, branch: h ? (h.branch || 'main') : '', dirty: h?.dirty || 0, suggestedPath: `${homeRoot}/fixture-team/${r.name || r.id}`, head: h ? (h.head || 'abc1234') : '', defaultBranch: h ? 'main' : '', behind: h?.behind || 0 }; };
   const github = { state: 'setup_required', clientId: '', appSlug: '', login: '', userId: '0', pendingSignIn: undefined };
   const githubFlows = new Map();
   const discovery = { roots: [] };
@@ -152,7 +152,9 @@ export async function startRunnerFixture() {
 
   // Terminals echo what is typed and answer each line, like a minimal shell.
   const terminals=new Map();
-  const terminalStatus=t=>({id:t.id,collectionId:t.collectionId,directory:t.directory,title:t.title,shell:'/bin/fixture-sh',cols:t.cols,rows:t.rows,offset:String(t.output.length),retained:String(t.output.length),done:t.done,...(t.done?{exitCode:0}:{}),createdAtUnixMillis:String(t.createdAt),...(t.place?{place:t.place,repositoryId:t.repositoryId||'',cwd:t.cwd}:{})});
+  const terminalStatus=t=>({id:t.id,collectionId:t.collectionId,directory:t.directory,title:t.title,shell:'/bin/fixture-sh',cols:t.cols,rows:t.rows,offset:String(t.output.length),retained:String(t.output.length),done:t.done,...(t.done?{exitCode:0}:{}),createdAtUnixMillis:String(t.createdAt),...(t.place?{place:t.place,repositoryId:t.repositoryId||'',cwd:t.cwd}:{}),...commandEnds(t)});
+  // As the Runner does: the shell's command-end marks (OSC 133;D;<status>) counted, with the latest status.
+  const commandEnds=t=>{const marks=[...t.output.toString().matchAll(/\x1b\]133;D;(\d+)\x07/g)];return marks.length?{commandEnds:String(marks.length),lastCommandStatus:Number(marks.at(-1)[1])}:{};};
   const terminalOutput=(t,text)=>{const offset=t.output.length;const data=Buffer.from(text);t.output=Buffer.concat([t.output,data]);for(const res of t.clients)res.write(frame({offset:String(offset),data:data.toString('base64'),status:terminalStatus(t)}));};
 
   // The PR loop per workspace member: uncommitted files, branch commits, push
@@ -675,6 +677,13 @@ actions:
         else return error('failed_precondition', 'action must be create, adopt or clear');
         return json(homeView(repo));
       }
+      case 'UpdateRepositoryHome': {
+        mutations.push({ method, body }); const repo = library.find(r => r.id === body.repositoryId), h = homes.get(body.repositoryId); if (!repo || !h) return error('failed_precondition', 'this repository has no home checkout yet: create one in Settings → Repositories');
+        if (h.dirty) return json({ home: homeView(repo), updated: false, message: 'Fetched origin. Not updated: main has uncommitted changes; commit or stash them yourself first.' });
+        if (!h.behind) return json({ home: homeView(repo), updated: false, message: `Already at the latest origin/main (${h.head || 'abc1234'}).` });
+        h.behind = 0; h.head = 'def5678';
+        return json({ home: homeView(repo), updated: true, message: 'Updated main to the latest origin/main (abc1234 → def5678).' });
+      }
       case 'OpenRepositoryHome': { mutations.push({ method, body }); if (!homes.has(body.repositoryId)) return error('failed_precondition', 'this repository has no home checkout yet: create one in Settings → Repositories'); return json({}); }
       case 'ResolveWorkspacePath': {const files=treeFiles(body.collectionId),folders=treeFolders(body.collectionId),path=String(body.path||'').replace(/^\.\//,'');const members=collections.find(c=>c.id===body.collectionId)?.members.map(m=>m.spec.name)||[];
         const exists=p=>files.includes(p)||folders.has(p),match=p=>({path:p,directory:folders.has(p)});
@@ -749,7 +758,7 @@ actions:
         if(body.repositoryHome){const home=homes.get(body.repositoryHome);if(!home)return error('failed_precondition','this repository has no home checkout yet: create one in Settings → Repositories');const member=collection.members.find(m=>m.spec.repositoryId===body.repositoryHome);place='repository-home';cwd=home.path;placeTitle=(member?.spec.name||body.repositoryHome)+' home';}
         else if(body.userHome){place='user-home';cwd='/fixture/home';placeTitle='~';}
         const t={id:'terminal-'+(terminals.size+1),requestKey:body.requestKey,collectionId:collection.id,place,repositoryId:body.repositoryHome||'',cwd,directory:place?'':body.directory||'',title:place?placeTitle:collection.name+(body.directory?' / '+body.directory:''),cols:body.cols,rows:body.rows,createdAt:Date.now(),output:Buffer.alloc(0),line:'',input:[],resizes:[],done:false,clients:new Set()};
-        terminals.set(t.id,t);terminalOutput(t,`fixture shell in ${place?cwd:t.title}\r\n$ `);return json(terminalStatus(t));
+        terminals.set(t.id,t);terminalOutput(t,`fixture shell in ${place?cwd:t.title}\r\n\x1b]133;D;0\x07$ `);return json(terminalStatus(t));
       }
       case 'ListTerminals': return json({terminals:[...terminals.values()].filter(t=>!body.collectionId||t.collectionId===body.collectionId).map(terminalStatus)});
       case 'WatchTerminal': {
@@ -762,7 +771,7 @@ actions:
       case 'WriteTerminal': {
         const t=terminals.get(body.terminalId);if(!t||t.done)return error(t?'failed_precondition':'not_found','Terminal unavailable');
         const text=Buffer.from(body.data||'','base64').toString();t.input.push(text);
-        for(const character of text){if(character==='\r'){const line=t.line;t.line='';if(line==='exit'){terminalOutput(t,'\r\nexit\r\n');t.done=true;for(const client of t.clients)client.end(Buffer.concat([frame({offset:String(t.output.length),status:terminalStatus(t)}),frame({},2)]));break;}terminalOutput(t,`\r\nran: ${line}\r\n$ `);}else{t.line+=character;terminalOutput(t,character);}}
+        for(const character of text){if(character==='\r'){const line=t.line;t.line='';if(line==='exit'){terminalOutput(t,'\r\nexit\r\n');t.done=true;for(const client of t.clients)client.end(Buffer.concat([frame({offset:String(t.output.length),status:terminalStatus(t)}),frame({},2)]));break;}const status=/^(?:false|exit [1-9])|\bfail/.test(line)?1:0;terminalOutput(t,`\r\nran: ${line}\r\n\x1b]133;D;${status}\x07$ `);}else{t.line+=character;terminalOutput(t,character);}}
         return json(terminalStatus(t));
       }
       case 'ResizeTerminal': {const t=terminals.get(body.terminalId);if(!t)return error('not_found','Terminal missing');Object.assign(t,{cols:body.cols,rows:body.rows});t.resizes.push([body.cols,body.rows]);return json(terminalStatus(t));}

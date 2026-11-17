@@ -87,10 +87,11 @@ export function homeItems(api: RunnerClient, workspaceId: string, home: { reposi
 }
 
 /** The state of a home in a few words: "main · 2 changed", "missing". */
-export function homeState(home: Pick<RepositoryHome, 'exists' | 'branch' | 'detached' | 'dirty' | 'error'>): string {
+export function homeState(home: Pick<RepositoryHome, 'exists' | 'branch' | 'detached' | 'dirty' | 'error' | 'behind' | 'defaultBranch'>): string {
   if (home.error) return home.error;
   const branch = home.detached ? 'detached HEAD' : home.branch;
-  return home.dirty ? `${branch} · ${home.dirty} changed` : `${branch} · clean`;
+  const behind = home.behind ? ` · ${home.behind} behind origin/${home.defaultBranch}` : '';
+  return (home.dirty ? `${branch} · ${home.dirty} changed` : `${branch} · clean`) + behind;
 }
 
 // ---- Setting one -------------------------------------------------------------
@@ -122,6 +123,17 @@ function HomeRow({ home, label = home.name, workspaceId, chooseFolder, onChanged
     if (result.error) setError(result.error);
     else if (result.home) { onChanged(result.home); setTyping(false); setPath(''); showMenuNotice(action === 'create' ? `Cloned ${home.name} into ${shortPath(result.home.path)}` : action === 'adopt' ? `${shortPath(result.home.path)} is ${home.name}’s home` : 'Forgot the home checkout; its files are unchanged'); }
   };
+  // Update to latest main: fetch, then fast-forward only a clean default branch; otherwise the Runner says why.
+  const update = async () => {
+    setBusy('update'); setError('');
+    try {
+      const result = await api.updateRepositoryHome({ repositoryId: home.repositoryId }, { timeoutMs: 5 * 60_000 });
+      if (result.home) onChanged(result.home);
+      showMenuNotice(result.message);
+      if (!result.updated && result.message.includes('Not updated')) setError(result.message);
+    } catch (failure) { setError(homeError(failure)); }
+    finally { setBusy(''); }
+  };
   const adopt = async () => {
     if (!chooseFolder) { setTyping(true); return; }
     const chosen = await chooseFolder().catch(() => null);
@@ -134,6 +146,7 @@ function HomeRow({ home, label = home.name, workspaceId, chooseFolder, onChanged
     openContextMenu({ x: box.left, y: box.bottom + 4 }, [
       ...homeItems(api, workspaceId, { repositoryId: home.repositoryId, name: short, path: home.path }, shell),
       'separator',
+      { label: `Update to latest ${home.defaultBranch || 'main'}`, icon: 'refresh', disabled: busy ? 'Busy' : undefined, run: () => void update() },
       { label: 'Use another folder…', icon: 'folder', run: () => void adopt() },
       { label: 'Forget this home', icon: 'close', disabled: home.kind === 'source' ? 'It is the folder this repository was added from' : undefined, run: () => void act('clear') },
     ], { keyboard, target, label: `${short} home` });
@@ -159,6 +172,8 @@ function HomeRow({ home, label = home.name, workspaceId, chooseFolder, onChanged
         {workspaceId
           ? <button type="button" title={`A shell in ${shortPath(home.path)}, in this workspace’s Terminal panel`} onClick={shell}><Icon name="terminal" size={13}/>Open in terminal</button>
           : <button type="button" title={home.path} onClick={() => void openIn(api, home.repositoryId, 'finder', isMac ? 'Finder' : 'the file manager')}><Icon name="folder" size={13}/>{isMac ? 'Open in Finder' : 'Open folder'}</button>}
+        {home.behind > 0 && <button type="button" disabled={!!busy} title={`Fetch, then move ${home.defaultBranch} to origin/${home.defaultBranch} if it is checked out and clean; nothing is discarded`}
+          onClick={() => void update()}><Icon name="refresh" size={13}/>{busy === 'update' ? 'Updating…' : `Update to latest ${home.defaultBranch}`}</button>}
         <button type="button" aria-label={`More for ${short} home`} aria-haspopup="menu" title="Finder, editor, path, another folder"
           onClick={event => menu(event.currentTarget, event.detail === 0)}><Icon name="more" size={13}/></button>
       </> : <>

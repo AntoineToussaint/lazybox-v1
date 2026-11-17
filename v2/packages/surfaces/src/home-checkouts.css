@@ -151,6 +151,50 @@ section.settings-group.home-checkouts-settings {
   background: transparent;
 }
 
+/* An offer is a split button (run here · ⌄ elsewhere), then how its run went. */
+.home-runs .home-run-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+.home-runs .home-run-split {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+}
+.home-runs .home-run-split .home-run {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.home-runs .home-run-split .home-run-more {
+  padding: 4px 6px;
+  border: 1px solid var(--accent-line);
+  border-left: 0;
+  border-radius: 0 7px 7px 0;
+  background: var(--accent-bg);
+  color: var(--accent-strong);
+}
+.code-run-terminal {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.code-run .code-run-tag {
+  align-self: center;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--warn-line, var(--line));
+  background: var(--warn-bg, transparent);
+  color: var(--text-soft);
+  font-size: calc(10.5px * var(--text-scale));
+  white-space: nowrap;
+}
+
 /* A Terminal panel tab of a shell outside the workspace: the home mark before its name. */
 .workspace-shell .terminal-tab button > svg {
   margin-right: 4px;

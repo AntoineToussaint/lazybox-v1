@@ -459,7 +459,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     const why = myself && codeRuns.whyNotRunMyself();
     if (why) { showMenuNotice(why); return; }
     scroll.revealMessage(block.messageId);
-    if (myself) codeRuns.openConfirm(block.messageId, block.script); else void codeRuns.askAgent(block.messageId, block.script, block.language);
+    // Run opens the Terminal panel with the command at the prompt, as the block's own Run does; never a message to the agent.
+    if (myself) codeRuns.openConfirm(block.messageId, block.script); else void codeRuns.runIn(block.messageId, block.script, { kind: 'here' });
   };
   const canRunLast = () => !!codeRuns && activity.current() && !!lastBlock.current;
   useActions({

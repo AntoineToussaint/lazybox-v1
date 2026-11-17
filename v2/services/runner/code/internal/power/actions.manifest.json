@@ -580,14 +580,14 @@
   },
   {
    "id": "code.run-last",
-   "title": "Run the last command block",
+   "title": "Run the last command block in the terminal",
    "group": "Conversation",
    "scope": "global",
    "keys": "] ] r"
   },
   {
    "id": "code.run-last-myself",
-   "title": "Run the last command block myself…",
+   "title": "Run the last command block as command output…",
    "group": "Conversation",
    "scope": "global",
    "keys": ""

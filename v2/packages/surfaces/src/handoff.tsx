@@ -24,6 +24,8 @@ export type ExternalTerminalHost = {
 };
 let terminalHost: ExternalTerminalHost | undefined;
 export function configureExternalTerminal(host: ExternalTerminalHost | undefined) { terminalHost = host; installedApps = undefined; }
+/** Whether this window can open the person's own terminal app (the desktop app), rather than offer a `cd` to paste. */
+export const hasTerminalHost = () => !!terminalHost;
 let installedApps: Promise<string[]> | undefined;
 const installed = () => (installedApps ??= terminalHost ? terminalHost.installed().catch(() => []) : Promise.resolve([]));
 

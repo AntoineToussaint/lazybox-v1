@@ -158,8 +158,8 @@ const tail = [
   { id: 'activity.verbose', title: 'Activity detail: Verbose', group: 'Conversation', icon: 'expand', keys: '', scope: 'global', safe: true, keywords: 'tool calls commands steps every line all full show' },
   { id: 'activity.default', title: 'Activity detail: Use the default', group: 'Conversation', icon: 'refresh', keys: '', scope: 'global', safe: true, keywords: 'tool calls commands reset settings' },
   // The agent's latest shell code block (code-runs.tsx).
-  { id: 'code.run-last', title: 'Run the last command block', group: 'Conversation', icon: 'play', keys: '] ] r', scope: 'global', keywords: 'shell bash script execute code block agent ask' },
-  { id: 'code.run-last-myself', title: 'Run the last command block myself…', group: 'Conversation', icon: 'terminal', keys: '', scope: 'global', keywords: 'shell bash script execute code block console yourself' },
+  { id: 'code.run-last', title: 'Run the last command block in the terminal', group: 'Conversation', icon: 'terminal', keys: '] ] r', scope: 'global', keywords: 'shell bash script execute code block terminal prompt login' },
+  { id: 'code.run-last-myself', title: 'Run the last command block as command output…', group: 'Conversation', icon: 'output', keys: '', scope: 'global', keywords: 'shell bash script execute code block console yourself myself no terminal' },
   // Lazybox's slash commands (slash-commands.ts): the same commands from the palette.
   { id: 'chat.commands', title: 'Slash commands', group: 'Conversation', icon: 'chevronRight', keys: '', scope: 'global', keywords: 'slash / commands menu agent claude codex' },
   { id: 'chat.model', title: 'Switch model…', group: 'Conversation', icon: 'sparkle', keys: '', scope: 'global', keywords: '/model opus sonnet haiku gpt agent' },

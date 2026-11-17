@@ -141,8 +141,8 @@ Act on the conversation you last clicked or focused.
 | Activity detail: Smart | — | — |
 | Activity detail: Verbose | — | — |
 | Activity detail: Use the default | — | — |
-| Run the last command block | `]] r` | `]] r` |
-| Run the last command block myself… | — | — |
+| Run the last command block in the terminal | `]] r` | `]] r` |
+| Run the last command block as command output… | — | — |
 | Slash commands | — | — |
 | Switch model… | — | — |
 | Change permissions… | — | — |
