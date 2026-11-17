@@ -14,6 +14,16 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.29] - 2026-11-17 · Artifacts beside a chat in its own window, and a steadier shell
+
+- **Artifacts open where you are** In a chat you moved to its own window, an artifact's Open or Compare, and the header's 1 artifact, show it beside the chat in that same window. Drag its edge to resize it; × or Esc closes it; Open in main window shows it in the workspace.
+- **Dialogs read right in light mode** Stop, Delete and Replace buttons keep a white label on their red fill in every theme. Every dialog has the same title size, close button and footer.
+- **The editor keeps to itself** ⌘\ and ⌥⌘←/→ belong to the editor only while you are typing in it; elsewhere ⌘\ splits the panel in front.
+- **A workspace with unreadable pages still opens** Its saved pages are kept, and it opens on the default layout with a notice and Reset retained layout. Errors other than a lost connection have × to dismiss them instead of Retry now.
+- **A typed note is not lost** In the Inbox, a click outside no longer throws away an Ask for changes note you are writing, and Esc in the note goes back. j and k stop on tasks and plans waiting for you.
+- **Menus close alone** A click outside a right-click menu, or Esc, closes the menu and leaves the dialog or list under it open. A dialog gives the focus back to what opened it, and New workspace starts on its name.
+- **Smaller fixes** Printing an artifact from Changes prints once; the Artifacts filter stays while it filters; Changes shows a new comparison's files, not the old list; diff keys no longer fire from the review tray; unsaved shortcut edits survive switching Settings sections; Missions and Processes name every agent correctly; checkboxes sit beside their words, and text everywhere follows the text size setting.
+
 ## [2026-11-17.28] - 2026-11-17 · A cost dashboard you can read at a glance
 
 - **Spend for a period** The Cost dashboard example opens on the last 7 days; Today, 30 days and All switch it, by click or the arrow keys. The total leads, with how it compares to the period before (▲ 12% vs $15.73 the 7 days before), the average a day and how many turns had no price.

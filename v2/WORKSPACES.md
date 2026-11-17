@@ -445,7 +445,13 @@ that still has Agents as a tab beside Workspaces gets the same column when it
 is loaded; nothing else in it moves. The original text is kept beside the migrated one
 (the same key with `:v1` appended), once, so a migration never loses a
 layout; a layout that cannot be read is left untouched, with a notice and
-**Reset retained layout**.
+**Reset retained layout**. That holds whether it is read at startup or when
+the workspace is switched to: the workspace opens on the default layout,
+locked (the dock draws it and saves no rearrangement) until it is reset or a
+layout is imported. The error banner offers **Retry now** only for a dropped
+Runner connection; any other error has × to dismiss it. Opening Changes or
+Missions on a page of its own when the workspace has eight pages says to
+remove one first.
 
 A conversation shows in at most one chat panel per page. Choosing a
 conversation brings its tab forward, including one brought back from its own
