@@ -74,6 +74,18 @@
 .dock-tab-badge[data-tone=failed]{background:var(--danger-bg-strong,var(--surface-selected));color:var(--danger)}
 @keyframes dock-tab-badge-pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.dock-tab-badge[data-tone=busy]::before{animation:none}}
+/* A chat group's preview tab: the next conversation chosen with a single click replaces it (double-click keeps it). */
+.dock-tab[data-preview] .dock-tab-title{font-style:italic}
+/* A conversation's status before its title: working, needs you, failed, done. */
+.dock-tab-status{flex:none;width:7px;height:7px;margin:0 -2px;border-radius:50%;background:var(--text-tertiary)}
+.dock-tab-status[hidden]{display:none}
+.dock-tab-status[data-state=working]{background:var(--running,var(--accent))}
+.dock-tab-status[data-state=needs-you]{background:var(--warn)}
+.dock-tab-status[data-state=failed]{background:var(--danger)}
+.dock-tab-status[data-state=done]{background:var(--ok)}
+.dock-tab-status[data-state=idle]{background:var(--text-disabled)}
+@media (prefers-reduced-motion:no-preference){.dock-tab-status[data-state=working]{animation:dock-tab-working 1.6s ease-in-out infinite}}
+@keyframes dock-tab-working{50%{opacity:.45}}
 /* Quiet, but never so faint that a panel looks like it cannot be closed. */
 .workspace-shell .dock-tab-close,.dock-tab-close{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:1px;border:0;border-radius:4px;background:transparent;color:inherit;opacity:.85;transition:opacity .12s,background .12s}
 .dock-tab-close:hover{opacity:1!important;background:var(--surface-selected)}

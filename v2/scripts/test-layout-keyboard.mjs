@@ -38,9 +38,10 @@ async function scenario(browser,scheme){
  const shot=name=>page.screenshot({path:`.cache/layout-keyboard-${name}-${scheme}.png`});
  await page.goto(url);
  const tab=kind=>page.locator('.dv-tab').filter({has:page.locator(`[data-kind="${kind}"]`)});
- const content=kind=>page.locator(`[data-dock-panel]:has(> .panel-host > .panel-${kind})`);
+ // A typed-in conversation stays in its tab, so ⌘] opens the next one in a preview tab beside it: the chat is the one in view.
+ const content=kind=>{const all=page.locator(`[data-dock-panel]:has(> .panel-host > .panel-${kind})`);return kind==='chat'?all.filter({visible:true}):all;};
  const titles=()=>page.locator('.dv-tab .dock-tab-title');
- const composer=page.locator('.page-layout .panel-chat').getByRole('textbox',{name:'Message',exact:true});
+ const composer=page.locator('.page-layout .panel-chat').filter({visible:true}).getByRole('textbox',{name:'Message',exact:true});
  const said=page.getByTestId('dock-announcer');
  const ring=page.locator('.dock-focus-ring');
  const key=async combo=>{await page.keyboard.press(combo);await page.waitForTimeout(60);};
@@ -234,7 +235,7 @@ async function scenario(browser,scheme){
  await key('Meta+]');
  await expect(content('chat')).toBeVisible();
  await expect(content('changes')).toBeHidden();
- await expect(page.locator('.page-layout .panel-chat')).not.toContainText('Retained conversation for alpha-session');
+ await expect(content('chat')).not.toContainText('Retained conversation for alpha-session');
  await expect(page.getByRole('button',{name:'Restore layout'})).toBeVisible();
  await key('Meta+[');
  await expect(content('chat')).toBeVisible();
@@ -271,6 +272,9 @@ async function scenario(browser,scheme){
  await key('Escape');
 
  // ---- ⌘\ splits: a lone panel asks what goes beside it; a tab of a group splits out at once.
+ // ⌘] showed the next conversation in a preview tab beside the typed-in one: closed, the chat is alone again.
+ await page.locator('.dock-tab[data-kind="chat"][data-preview] .dock-tab-close').click();
+ await expect(page.locator('.dock-tab[data-kind="chat"]')).toHaveCount(1);
  await composer.click();
  await key('Meta+\\');
  await expect(page.locator('.panels-menu .action-menu-heading')).toHaveText('Open beside Agent chat');

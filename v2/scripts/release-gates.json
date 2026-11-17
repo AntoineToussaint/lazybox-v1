@@ -104,6 +104,7 @@
     { "id": "docking", "scope": "ui", "script": "test:docking" },
     { "id": "reattach", "scope": "ui", "script": "test:reattach" },
     { "id": "layout-keyboard", "scope": "ui", "script": "test:layout-keyboard" },
+    { "id": "conversation-tabs", "scope": "ui", "script": "test:conversation-tabs" },
     { "id": "agents-visible", "scope": "ui", "script": "test:agents-visible" },
     { "id": "queued-messages", "scope": "ui", "script": "test:queued-messages" },
     { "id": "dismiss-outside", "scope": "ui", "script": "test:dismiss-outside" },

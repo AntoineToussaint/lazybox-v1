@@ -33,6 +33,8 @@ export type DockHandle = {
   /** Moves the front tab of the active group into a new group beside it; false when it is alone. */
   splitActive(side: 'right' | 'below'): boolean;
   cycleGroups(step: 1 | -1): void;
+  /** The next (or previous) tab of the active group; past its last, the next group's first (its last, going back). */
+  cycleTabs(step: 1 | -1): void;
   /** Opens the panel's group in its own window (same page process: nothing remounts). */
   popout(panelID: string): Promise<boolean>;
   float(panelID: string): void;
@@ -73,6 +75,10 @@ type Props = {
   /** A badge on a panel's tab ("3 findings", a live dot), beside its title. */
   badgeOf?(panel: Panel): { text: string; tone: string; label: string } | undefined;
   canClose(panel: Panel): boolean;
+  /** A conversation tab's status (working, needs you, failed, done), as a dot before its title. */
+  statusOf?(panel: Panel): { state: string; label: string } | undefined;
+  /** A tab double-clicked: true when the page handled it (a preview tab kept open); otherwise it maximizes. */
+  onTabDoubleClick?(panel: Panel): boolean;
   /** What closing it does, for its × ("Close Changes page" when it is the last panel of a page that goes with it). */
   closeLabel?(panel: Panel, title: string): string;
   sidebarWidth: number;
@@ -95,7 +101,9 @@ const theme: DockviewTheme = { name: 'lazybox', className: 'dockview-theme-lazyb
 /** A tab bar's height (see dock.css): a minimized group keeps exactly this. */
 export const TAB_BAR = 32;
 const BIG = Number.MAX_SAFE_INTEGER;
-const panelFrom = (id: string, params: unknown): Panel => { const value = (params || {}) as Partial<PanelParams>; return { id, kind: value.kind || 'unknown', binding: value.binding || { mode: 'follow' }, detached: !!value.detached }; };
+const panelFrom = (id: string, params: unknown): Panel => { const value = (params || {}) as Partial<PanelParams>; return { id, kind: value.kind || 'unknown', binding: value.binding || { mode: 'follow' }, detached: !!value.detached, ...(value.preview ? { preview: true } : {}) }; };
+/** A tab's hover text: what it is, and what dragging and double-clicking it do. */
+const tabHint = (title: string, preview: boolean) => preview ? `${title} · preview: the next conversation you choose replaces it · double-click to keep it open` : `${title} · drag to move, double-click to maximize`;
 const sameArrangement = (a: Arranged, b: Arranged) => structureKey(a) === structureKey(b) && sameSizes(a.layout, b.layout) && [...groupStates(a).entries()].every(([id, group]) => groupStates(b).get(id)?.active === group.active)
   && a.floating.every((value, index) => ['left', 'top', 'right', 'bottom', 'width', 'height'].every(key => Math.abs((value.box[key as 'width'] ?? 0) - (b.floating[index]?.box[key as 'width'] ?? 0)) <= 2));
 const overlayOf = (page: Arranged): Overlay => {
@@ -160,6 +168,8 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
     if (element.dataset.tone !== badge.tone) element.dataset.tone = badge.tone;
     if (element.title !== badge.label) { element.title = badge.label; element.setAttribute('aria-label', badge.label); }
   };
+  /** Each tab, whose preview mark and status dot follow the page without a rebuild. */
+  const tabs = useRef(new Map<string, { tab: HTMLElement; status: HTMLElement }>());
   const size = useRef({ width: 0, height: 0 });
   const [actionHosts, setActionHosts] = useState(() => new Map<string, HTMLElement>());
   /** Where each group's `+` is drawn, right after its tabs. */
@@ -190,6 +200,18 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   const bump = () => setVersion(value => value + 1);
 
   const geometry = () => ({ width: size.current.width, height: size.current.height, sidebarWidth: latest.current.sidebarWidth, header: TAB_BAR, title: latest.current.titleOf });
+  /** A tab as its panel is now: a preview tab's title in italics, a conversation's status dot, the hover text. */
+  const decorateTab = (id: string, panel: Panel, title: string) => {
+    const found = tabs.current.get(id);
+    if (!found) return;
+    const preview = !!panel.preview, status = latest.current.statusOf?.(panel);
+    found.tab.toggleAttribute('data-preview', preview);
+    found.status.hidden = !status;
+    if (status && found.status.dataset.state !== status.state) found.status.dataset.state = status.state;
+    found.status.setAttribute('aria-hidden', 'true');
+    const hint = tabHint(title, preview) + (status ? ` · ${status.label}` : '');
+    if (found.tab.title !== hint) found.tab.title = hint;
+  };
   const read = (): Arranged | undefined => api.current ? fromDockview(api.current.toJSON(), overlayOf(latest.current.page)) : undefined;
   const silently = (change: () => void) => { applying.current++; try { change(); } finally { applying.current--; } };
 
@@ -423,6 +445,8 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
         tab.className = 'dock-tab';
         const title = document.createElement('span'); title.className = 'dock-tab-title';
         const close = document.createElement('button'); close.type = 'button'; close.className = 'dock-tab-close';
+        // A conversation's status before its title (working, needs you, failed, done); empty for other panels.
+        const status = document.createElement('span'); status.className = 'dock-tab-status'; status.hidden = true;
         const disposers: (() => void)[] = [];
         return {
           element: tab,
@@ -439,10 +463,11 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
             };
             const badge = document.createElement('span'); badge.className = 'dock-tab-badge'; badge.setAttribute('role', 'status'); badge.hidden = true;
             badges.current.set(id, badge); disposers.push(() => { if (badges.current.get(id) === badge) badges.current.delete(id); });
-            tab.replaceChildren(icon(), title, badge);
+            tab.replaceChildren(icon(), status, title, badge);
             paintBadge(id, panel);
             const name = () => parameters.api.title || latest.current.titleOf(panel);
-            tab.title = `${name()} · drag to move, double-click to maximize`;
+            tabs.current.set(id, { tab, status });
+            decorateTab(id, panel, name());
             if (latest.current.canClose(panel)) {
               close.replaceChildren(iconElement('close', 12));
               close.setAttribute('aria-label', latest.current.closeLabel?.(panel, name()) ?? `Close ${name()} panel`); closes.current.set(id, close); close.title = panel.kind === 'terminal' ? 'Close panel (shells keep running)' : 'Close panel';
@@ -450,9 +475,18 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
               close.onclick = event => { event.stopPropagation(); latest.current.onClose(panelFrom(id, api.current?.getPanel(id)?.params)); };
               tab.append(close);
             }
-            const titled = parameters.api.onDidTitleChange(event => { title.textContent = event.title; tab.firstChild?.replaceWith(icon()); close.setAttribute('aria-label', latest.current.closeLabel?.(panel, event.title) ?? `Close ${event.title} panel`); tab.title = `${event.title} · drag to move, double-click to maximize`; });
-            disposers.push(() => titled.dispose());
-            tab.ondblclick = event => { event.preventDefault(); handle.toggleMaximize(id); };
+            /** The panel as it is now (a preview tab kept open changes its params). */
+            const current = () => panelFrom(id, api.current?.getPanel(id)?.params ?? parameters.params);
+            const titled = parameters.api.onDidTitleChange(event => { title.textContent = event.title; tab.firstChild?.replaceWith(icon()); close.setAttribute('aria-label', latest.current.closeLabel?.(panel, event.title) ?? `Close ${event.title} panel`); decorateTab(id, current(), event.title); });
+            disposers.push(() => titled.dispose(), () => { if (tabs.current.get(id)?.tab === tab) tabs.current.delete(id); });
+            // A preview tab double-clicked is kept open; any other tab maximizes.
+            tab.ondblclick = event => { event.preventDefault(); if (latest.current.onTabDoubleClick?.(current())) return; handle.toggleMaximize(id); };
+            // A middle-click closes a tab, as in a browser.
+            tab.onmousedown = event => { if (event.button === 1) event.preventDefault(); };
+            tab.onauxclick = event => {
+              if (event.button !== 1 || !latest.current.canClose(current())) return;
+              event.preventDefault(); event.stopPropagation(); latest.current.onClose(current());
+            };
             // A minimized group opens again from its tab.
             tab.onclick = () => { const group = api.current?.getPanel(id)?.group; if (group?.element.classList.contains('dock-group-minimized')) latest.current.onRestore(group.id); };
           },
@@ -571,6 +605,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
         paintBadge(panel.id, saved);
         const close = closes.current.get(panel.id), label = latest.current.closeLabel?.(saved, title) ?? `Close ${title} panel`;
         if (close && close.getAttribute('aria-label') !== label) close.setAttribute('aria-label', label);
+        decorateTab(panel.id, saved, title);
       }
     });
   });
@@ -617,6 +652,18 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   /** Each docked group's place, from the saved arrangement (a maximized group hides the others on screen). */
   const rects = () => groupRects(latest.current.page.layout, { width: size.current.width, height: size.current.height, sidebarWidth: latest.current.sidebarWidth, header: TAB_BAR });
   const words: Record<LayoutDirection, string> = { left: 'to the left', right: 'to the right', up: 'above', down: 'below' };
+  /** The next group in turn, in front: its tab in front, or (`byTab`, walking every tab) its first tab, its last going back. */
+  const cycle = (step: 1 | -1, byTab: boolean) => {
+    const dock = api.current;
+    if (!dock || !dock.groups.length) return;
+    // While a group is maximized, only the docked groups take turns (the zoom moves along).
+    const order = dock.groups.filter(group => !group.panels.some(panel => panel.id === EMPTY_CONTENT) && (!dock.hasMaximizedGroup() || group.api.location.type === 'grid')), index = order.findIndex(group => group === dock.activeGroup);
+    const next = order[(index + step + order.length) % order.length];
+    if (!next) return;
+    const front = byTab && next.panels.length > 1 ? next.panels[step > 0 ? 0 : next.panels.length - 1] : next.activePanel;
+    if (front) handle.focusPanel(front.id); else next.api.setActive();
+    if (order.length > 1) announce(`${titleIn(next)}, group ${order.indexOf(next) + 1} of ${order.length}${byTab && next.panels.length > 1 ? `, tab ${next.panels.indexOf(front!) + 1} of ${next.panels.length}` : ''}${dock.hasMaximizedGroup() ? ', maximized' : ''}`);
+  };
   const handle: DockHandle = {
     toggleMaximize: panelID => {
       const dock = api.current, panel = panelOf(panelID);
@@ -631,15 +678,14 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
       panel.api.moveTo({ group: panel.group, position: side === 'right' ? 'right' : 'bottom' });
       return true;
     },
-    cycleGroups: step => {
-      const dock = api.current;
-      if (!dock || !dock.groups.length) return;
-      // While a group is maximized, only the docked groups take turns (the zoom moves along).
-      const order = dock.groups.filter(group => !group.panels.some(panel => panel.id === EMPTY_CONTENT) && (!dock.hasMaximizedGroup() || group.api.location.type === 'grid')), index = order.findIndex(group => group === dock.activeGroup);
-      const next = order[(index + step + order.length) % order.length];
-      if (!next) return;
-      if (next.activePanel) handle.focusPanel(next.activePanel.id); else next.api.setActive();
-      if (order.length > 1) announce(`${titleIn(next)}, group ${order.indexOf(next) + 1} of ${order.length}${dock.hasMaximizedGroup() ? ', maximized' : ''}`);
+    cycleGroups: step => cycle(step, false),
+    cycleTabs: step => {
+      const group = api.current?.activeGroup, panels = group?.panels || [], index = group?.activePanel ? panels.indexOf(group.activePanel) : -1;
+      const next = panels[index + step];
+      // Within the group first; past its last tab (its first, going back) the next group takes over.
+      if (!group || index < 0 || !next) { cycle(step, true); return; }
+      handle.focusPanel(next.id);
+      announce(`Tab ${index + step + 1} of ${panels.length}: ${next.title || 'panel'}`);
     },
     popout: async panelID => {
       const dock = api.current, panel = panelOf(panelID);

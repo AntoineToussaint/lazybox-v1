@@ -17,7 +17,8 @@ import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { consolePlace, followConsole, noteConsoleUse, readFollowRuns, useRunFollowing } from './console-follow';
 import { requestTerminal } from './TerminalPanel';
-import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, openBesideChat, pageShowing, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, settleLayout, sameConversation, tabFor, withSelection, closeTab, keepTab, previewTab, followFrontTab, isChatTab, openConversation, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { useConversationTabs } from './useConversationTabs';
 import './workspace.css';
 import './workspace-shell.css';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
@@ -52,7 +53,7 @@ import { lastWebPanel, requestWebPage, WebWindowContext } from './WebPanel';
 import { PowerLayer } from './PowerLayer';
 import { DockLayout, type DockHandle } from './DockLayout';
 import { GroupActions, GroupAdd, groupMenuItems, LayoutMenu, PanelsMenu, type AddCommands, type GroupCommands } from './DockMenus';
-import { showMenuNotice, useContextMenuContribution } from './ContextMenu';
+import { useContextMenuContribution } from './ContextMenu';
 import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBinding, layoutDirections, useActions, type LayoutDirection } from './actions';
 import { movePanel } from './dock-keyboard';
 import { showToast } from './toasts';
@@ -62,7 +63,7 @@ import { LayoutImportDialog, useLayoutFiles } from './layout-files';
 import { requestAsk } from './help-requests';
 import { useProvideConversationOpeners } from './conversation-requests';
 import { ReviewActions } from './ReviewActions';
-import { useConversationRequests, useReviewHost, useReviewTabRequests } from './review-client';
+import { useConversationRequests, useReviewHost } from './review-client';
 import { useWorkspaceReview } from './useWorkspaceReview';
 import { reviewTabBadge } from './review-model';
 import { useMissionsPageHost } from './navigate-requests';
@@ -222,7 +223,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const commit = (next: WorkspaceLayout, reset = false) => {
     try {
       if (locked && !reset) throw new Error('Restore, import, or explicitly reset the retained layout before editing.');
-      const checked = parseLayout(JSON.stringify(fitAgentsEverywhere(next, agentsChoice.current)));
+      // Chats are conversation tabs: one that follows the page (a template's, an import's) becomes its preview tab.
+      const checked = parseLayout(JSON.stringify(fitAgentsEverywhere(settleLayout(next), agentsChoice.current)));
       viewState?.setItem(key, JSON.stringify(checked)); current.current = checked; setLayout(checked); setError(''); if (reset) setLocked(false);
       return true;
     } catch (error) { setError(String(error)); return false; }
@@ -230,6 +232,13 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const livePage = () => current.current.pages.find(value => value.id === page.id)!;
   const changePage = (next: WorkspacePage) => commit({ ...current.current, pages: current.current.pages.map(value => value.id === next.id ? next : value) });
   const changePanel = (panelID: string, change: (panel: Panel) => Panel) => changePage(mapPagePanels(livePage(), panel => panel.id === panelID ? change(panel) : panel));
+  // Conversations are tabs (preview and regular, ⇧⌘T, related ones beside their parent): useConversationTabs.ts.
+  const tabs = useConversationTabs({
+    livePage, layout: () => current.current, changePage, commit: next => commit(next), closePanel: panel => closePanel(panel), scope: workspaceID,
+    shown: (id, how) => { setSettings(false); setMobilePanelId(id); if (how === 'focus') focusAfter.current = { panel: id }; else revealAfter.current = id; },
+    title: target => conversationTitle(info?.sessions.find(session => session.id === target.sessionId)) || 'Conversation',
+    announce: text => dock.current?.announce(text), error: setError,
+  });
   const select = (requested: RunnerTarget) => {
     if (switched(requested)) return;
     const target = localTarget(requested);
@@ -238,7 +247,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       try {
         if (!locked) viewState?.setItem(workspaceKey(workspaceID), JSON.stringify(current.current));
         let next = loadPages(viewState, workspaceKey(target.collectionId), target, agentsChoice.current);
-        if (target.sessionId) next = { ...next, pages: next.pages.map(page => page.id === next.selectedPage ? { ...page, selection: target } : page) };
+        // The conversation asked for shows as a single click shows it: its tab, else the preview tab.
+        // A page the person left without a chat stays as it is, with the conversation selected.
+        const shows = (page: WorkspacePage) => shownPanels(page).some(isChatTab) ? openConversation(page, target, { mode: 'preview' }, () => crypto.randomUUID()).page : { ...page, selection: target };
+        if (target.sessionId) next = { ...next, pages: next.pages.map(page => page.id === next.selectedPage ? shows(page) : page) };
         // Switching workspace never moves the dividers: the target keeps its own
         // pages and panels, but takes the current split sizes wherever its
         // arrangement matches (the sidebar has one fixed width everywhere).
@@ -249,7 +261,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       } catch (error) { setError(`Could not open workspace layout: ${String(error)}`); }
       return;
     }
-    changePage(dedupeChats({ ...livePage(), selection: target }, target));
+    // Another conversation (or the workspace's start) shows in its tab or the preview tab; the same one keeps its tab.
+    const live = livePage();
+    if (!sameConversation(target, live.selection)) { tabs.open(target, 'preview'); return; }
+    changePage(dedupeChats({ ...live, selection: target }));
   };
   useEffect(() => {
     if (page.selection.sessionId && !page.selection.collectionId) {
@@ -283,7 +298,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const output = followConsole(live);
     changePage({ ...(open && output ? activatePanel(live, output.id) : live), selection: { ...live.selection, commandId } });
   });
-  const canShowNewSession = shownPanels(page).some(p => p.kind === 'chat' && p.binding.mode === 'follow' && !p.detached) || allPanels(page).length < PANEL_LIMIT;
+  // A new conversation opens in a tab: the page needs room for one, or a preview tab to show it in.
+  const canShowNewSession = shownPanels(page).some(p => isChatTab(p) && p.preview) || allPanels(page).length < PANEL_LIMIT;
   const showSession = (requested: RunnerTarget) => {
     if (switched(requested)) { setSettings(false); setNewSession(false); return; }
     const selection = localTarget(requested);
@@ -291,18 +307,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (selection.collectionId !== workspaceID) { select(selection); setSettings(false); setNewSession(false); return; }
     const live = livePage();
     const open = detachedFor(live, selection);
-    // A conversation already in a tab of its own (a review beside the work, one opened beside):
-    // that tab comes to the front and takes the focus; the page's conversation stays.
-    const tab = shownPanels(live).find(panel => panel.kind === 'chat' && !panel.detached && panel.binding.mode === 'pinned' && panel.binding.target.sessionId === selection.sessionId);
-    if (tab && live.selection.sessionId !== selection.sessionId) {
-      if (changePage(activatePanel(live, tab.id))) { setSettings(false); setNewSession(false); setMobilePanelId(tab.id); revealAfter.current = tab.id; focusAfter.current = { panel: tab.id }; }
-      return;
-    }
     if (open && chatHost) { if (changePage({ ...live, selection })) { setSettings(false); setNewSession(false); } void chatHost.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
-    // Reuse the page's chat panel; never stack a second panel on the same conversation.
-    const shown = routeChat({ ...live, selection }, selection, () => crypto.randomUUID());
-    // While a panel is maximized, the conversation shows maximized (the zoom moves to the chat; ⌘J, ⌘] keep it).
-    if (changePage({ ...shown.page, selection })) { setSettings(false); setNewSession(false); setMobilePanelId(shown.id); revealAfter.current = shown.id; }
+    // Its tab if it has one, else the preview tab; never a second panel on the same conversation.
+    if (tabs.open(selection, 'preview')) setNewSession(false);
   };
   const showChanges = () => {
     const existing = current.current.pages.find(value => shownPanels(value).some(panel => panel.kind === 'changes'));
@@ -327,21 +334,6 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   // A review started anywhere shows its reviewer conversation; "Open review" its findings.
   useConversationRequests(workspaceID, request => showSession({ collectionId: request.collectionId, sessionId: request.sessionId, commandId: '' }));
   useReviewHost(workspaceID, showChanges);
-  // A review started from here opens as a background tab beside the conversation it reviews,
-  // on the page that shows it: the person stays in their chat and can watch it.
-  useReviewTabRequests(workspaceID, request => {
-    if (locked) return false;
-    const all = current.current, host = pageShowing(all, request.beside) || all.pages.find(value => value.id === all.selectedPage);
-    if (!host) return false;
-    const opened = openBesideChat(host, { collectionId: request.collectionId, sessionId: request.sessionId, commandId: '' }, request.beside, () => crypto.randomUUID());
-    if (!opened) {
-      if (allPanels(host).length < PANEL_LIMIT) return false;
-      showMenuNotice(`The review is under way; this page already has ${PANEL_LIMIT} panels, so open it from the sidebar.`);
-      return true;
-    }
-    if (opened.added) commit({ ...all, pages: all.pages.map(value => value.id === host.id ? opened.page : value) });
-    return true;
-  });
   // The edge a person last docked each kind of panel at is a personal preference,
   // shared by every workspace and window: a terminal they moved left opens left.
   const dockKey = (kind: string) => `${viewState?.root || viewState?.key}:dock:${kind}`;
@@ -358,7 +350,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const frame = requestAnimationFrame(() => {
       if (focusAfter.current === request) focusAfter.current = null;
       if (request !== 'content') { dock.current?.focusPanel(request.panel); return; }
-      document.querySelector<HTMLElement>('.page-layout .panel-chat textarea:not(:disabled)')?.focus({ preventScroll: true });
+      // The conversation in view: a chat tab behind another one has a message box too.
+      [...document.querySelectorAll<HTMLElement>('.page-layout .panel-chat textarea:not(:disabled)')].find(box => box.getClientRects().length > 0)?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [layout]);
@@ -461,7 +454,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (panel.detached) return;
     // Agents closes for the whole window (commit takes it off every page), not just this page.
     if (panel.kind === 'agents' && !locked) chooseAgents('closed');
-    const live = livePage(), next = removeFromPage(live, panel.id);
+    // A conversation tab closes without ending its conversation; ⇧⌘T brings it back, and its neighbour comes forward.
+    const live = livePage(), next = closeTab(live, panel.id), group = groupOf(live, panel.id);
+    tabs.remember(live, panel);
     if (!shownPanels(next).length && !next.detached.length) {
       // The last panel of a page takes the page with it (a Changes page opened from the header closes like any panel);
       // the last page keeps its last panel.
@@ -471,7 +466,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     }
     if (!changePage(next)) return;
     if (panel.kind === 'console') putConsoleAway(true);
-    focusAfter.current = 'content';
+    const front = isChatTab(panel) && group ? groupOf(next, group.panels.find(value => value.id !== panel.id)?.id || '')?.active : undefined;
+    focusAfter.current = front ? { panel: front } : 'content';
   };
   const setMinimized = (groupID: string, minimized: boolean) => {
     const live = livePage();
@@ -495,10 +491,13 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   /** The group whose `+` started the conversation being created: it shows there. */
   const conversationGroup = useRef('');
+  /** A conversation just started: a tab of its own, in front (in the group whose + started it), as a new file opens in an editor. */
   const showNewSession = (sessionId: string) => {
-    showSession({ collectionId: workspaceID || info?.sessions.find(s => s.id === sessionId)?.collectionId || '', sessionId, commandId: '' });
+    const target = { collectionId: workspaceID || info?.sessions.find(s => s.id === sessionId)?.collectionId || '', sessionId, commandId: '' };
     const group = conversationGroup.current; conversationGroup.current = '';
-    if (group) openHere(group, 'chat');
+    if (target.collectionId !== workspaceID) showSession(target);
+    // Started either way: on a full page it waits in the sidebar while the page offers room.
+    else { tabs.open(target, 'tab', group ? { group } : {}); setNewSession(false); }
     refreshRunner();
   };
   /**
@@ -509,7 +508,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const live = livePage(), target = groupById(live, groupID);
     if (!target || sidebarKinds.has(kind)) return;
     const multiple = !!registry[kind]?.multiple;
-    const existing = multiple ? undefined : shownPanels(live).find(panel => panel.kind === kind && !panel.detached && (kind !== 'chat' || panel.binding.mode === 'follow')) || (kind === 'chat' ? shownPanels(live).find(panel => panel.kind === 'chat' && !panel.detached) : undefined);
+    const existing = multiple ? undefined : kind === 'chat' ? tabFor(live, live.selection) || shownPanels(live).find(isChatTab) : shownPanels(live).find(panel => panel.kind === kind && !panel.detached);
     if (existing && target.panels.some(panel => panel.id === existing.id)) { changePage(activatePanel(live, existing.id)); focusAfter.current = { panel: existing.id }; return; }
     if (!existing && allPanels(live).length >= PANEL_LIMIT) { setError(`This page already has ${PANEL_LIMIT} panels; close one to add ${sentence(registry[kind]?.title || kind)}.`); return; }
     const panel: Panel = existing || { id: crypto.randomUUID(), kind, binding: { mode: 'follow' }, detached: false };
@@ -540,18 +539,27 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   // A conversation row (Workspaces, Agents, the Inbox) opens its conversation
   // beside the one on screen or in its own window, and the Inbox shows the
   // Agents panel: ConversationActions and Inbox ask through these.
+  /** A conversation beside (or below) the one on screen, in a group of its own; one already in a tab moves there. */
+  const openSplit = (target: ViewTarget, side: 'right' | 'bottom') => {
+    const live = livePage(), chats = shownPanels(live).filter(isChatTab), already = tabFor(live, target);
+    const anchor = tabFor(live, live.selection) || chats[0], group = anchor && groupOf(live, anchor.id);
+    const docked = !!group && groups(live.layout).some(value => value.id === group.id);
+    // Already beside it, or alone in its group: it is brought forward where it is.
+    if (already && (!group?.panels.includes(already) || group.panels.length < 2)) { if (changePage(withSelection(activatePanel(live, already.id), target))) { setSettings(false); setMobilePanelId(already.id); focusAfter.current = { panel: already.id }; } return; }
+    if (!already && allPanels(live).length >= PANEL_LIMIT) { setError(`This page already has ${PANEL_LIMIT} panels; close one to open a conversation ${side === 'right' ? 'beside' : 'below'}.`); return; }
+    const panel: Panel = already ? { ...already, preview: undefined } : { id: crypto.randomUUID(), kind: 'chat', binding: { mode: 'pinned', target: { ...target, commandId: '' } }, detached: false };
+    const without = already ? removeFromPage(live, already.id) : live;
+    if (!changePage(withSelection({ ...without, layout: docked ? splitBeside(without.layout, group!.id, panel, side) : insertDocked(without.layout, panel, side, 0.5) }, target))) return;
+    setSettings(false); setMobilePanelId(panel.id); focusAfter.current = { panel: panel.id };
+  };
   useProvideConversationOpeners({
-    beside: target => {
-      const live = livePage(), chats = shownPanels(live).filter(panel => panel.kind === 'chat' && !panel.detached);
-      const already = chats.find(panel => resolveTarget(panel, live.selection).sessionId === target.sessionId);
-      if (already) { if (changePage(activatePanel(live, already.id))) { setSettings(false); setMobilePanelId(already.id); focusAfter.current = { panel: already.id }; } return; }
-      if (allPanels(live).length >= PANEL_LIMIT) { setError(`This page already has ${PANEL_LIMIT} panels; close one to open a conversation beside.`); return; }
-      const panel: Panel = { id: crypto.randomUUID(), kind: 'chat', binding: { mode: 'pinned', target: { ...target, commandId: '' } }, detached: false };
-      const anchor = chats.find(value => value.binding.mode === 'follow') || chats[0], group = anchor && groupOf(live, anchor.id);
-      const docked = !!group && groups(live.layout).some(value => value.id === group.id);
-      if (!changePage({ ...live, layout: docked ? splitBeside(live.layout, group!.id, panel, 'right') : insertDocked(live.layout, panel, 'right', 0.5) })) return;
-      setSettings(false); setMobilePanelId(panel.id); focusAfter.current = { panel: panel.id };
-    },
+    beside: target => openSplit(target, 'right'),
+    below: target => openSplit(target, 'bottom'),
+    open: (target, mode) => { if (target.collectionId !== workspaceID && mode === 'preview') showSession(target); else tabs.open(target, mode); },
+    related: (parent, target, options) => tabs.related(parent, target, options),
+    newPage: (target, title) => tabs.newPage(target, title),
+    tabOf: target => tabs.tabOf(target),
+    closeTabs: (target, which) => { const tab = tabs.tabOf(target)?.panel; if (tab) tabs.closeTabs(tab, which); },
     window: chatHost ? target => {
       const live = livePage(), open = detachedFor(live, target);
       if (open) { void chatHost.openChat({ panelId: open.id, ...pinnedTarget(open) }).catch(error => setError(String(error))); return; }
@@ -691,9 +699,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     toggleEditing: () => { if (!settings) setEditing(value => !value); }, toggleConfiguring: () => { if (!settings) { setJSON(JSON.stringify(current.current, null, 2)); setConfiguring(value => !value); } },
   });
   const kindIcons = useMemo(() => Object.fromEntries(Object.entries(registry).map(([kind, module]) => [kind, module.icon])), [registry]);
+  /** A preview tab stays on its conversation (a regular tab); a regular tab becomes the preview tab, on the selected conversation. */
   const togglePin = (panel: Panel) => {
-    const target = resolveTarget(panel, page.selection);
-    changePanel(panel.id, value => ({ ...value, binding: value.binding.mode === 'pinned' ? { mode: 'follow' } : { mode: 'pinned', target: { ...target } } }));
+    const live = livePage(), now = shownPanels(live).find(value => value.id === panel.id);
+    if (now) changePage(now.preview || now.binding.mode === 'follow' ? keepTab(live, panel.id) : previewTab(live, panel.id));
   };
   const groupCommands: GroupCommands = {
     title: titleOf,
@@ -720,6 +729,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       requestAnimationFrame(() => { if (panelsMenu.current) panelsMenu.current.open = true; });
     },
     togglePin,
+    moveToNewPage: panel => tabs.newPage(resolveTarget(panel, livePage().selection), titleOf(panel)),
+    closeTabs: tabs.closeTabs,
   };
   const newConversationKeys = bindings(keymap['conversation.new'])[0];
   const addCommands: AddCommands = {
@@ -756,8 +767,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       command('layout.split-down', 'Split down', 'Layout', () => splitActive('below'), () => docked && !!panel),
       command('layout.close', 'Close panel', 'Layout', closeActive, () => docked && !!panel && !panel.detached, keymap['layout.close']),
       command('layout.maximize', 'Maximize or restore panel', 'Layout', () => dock.current?.toggleMaximize(), () => docked && !!panel, keymap['layout.maximize']),
-      command('layout.next-group', 'Next panel group', 'Layout', () => dock.current?.cycleGroups(1), () => docked, keymap['layout.next-group']),
-      command('layout.previous-group', 'Previous panel group', 'Layout', () => dock.current?.cycleGroups(-1)),
+      command('layout.next-group', 'Next tab or panel group', 'Layout', () => dock.current?.cycleTabs(1), () => docked, keymap['layout.next-group']),
+      command('layout.previous-group', 'Previous tab or panel group', 'Layout', () => dock.current?.cycleTabs(-1)),
+      command('layout.reopen-tab', 'Reopen the last closed conversation tab', 'Layout', () => tabs.reopen(), () => docked && tabs.canReopen(), keymap['layout.reopen-tab']),
       command('layout.float', 'Float panel over the page', 'Layout', () => panel && dock.current?.float(panel.id), () => docked && !!panel && group?.location === 'grid'),
       command('layout.window', 'Open panel in new window', 'Layout', () => panel && dock.current && groupCommands.openWindow(panel, dock.current), () => docked && !!panel && groupCommands.canOpenWindow(panel)),
       command('layout.minimize', 'Minimize or restore panel group', 'Layout', () => group && setMinimized(group.id, !group.minimized), () => docked && !!group?.canMinimize),
@@ -781,8 +793,10 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   useKeyboardAction('layout.split-down', () => splitActive('below'), hasActive);
   useKeyboardAction('layout.close', closeActive, () => hasActive() && !activePanel()!.detached);
   useKeyboardAction('layout.maximize', () => dock.current?.toggleMaximize(), hasActive);
-  useKeyboardAction('layout.next-group', () => dock.current?.cycleGroups(1), docked);
-  useKeyboardAction('layout.previous-group', () => dock.current?.cycleGroups(-1), docked);
+  // ⌃⇥ walks every tab: the active group's, then the next group's (one tab a group is one group a step, as before).
+  useKeyboardAction('layout.next-group', () => dock.current?.cycleTabs(1), docked);
+  useKeyboardAction('layout.previous-group', () => dock.current?.cycleTabs(-1), docked);
+  useKeyboardAction('layout.reopen-tab', () => tabs.reopen(), docked);
   useKeyboardAction('layout.float', () => { const panel = activePanel(); if (panel) dock.current?.float(panel.id); }, () => hasActive() && dock.current?.activeGroup()?.location === 'grid');
   useKeyboardAction('layout.window', () => { const panel = activePanel(); if (panel && dock.current) groupCommands.openWindow(panel, dock.current); }, () => hasActive() && groupCommands.canOpenWindow(activePanel()!));
   useKeyboardAction('layout.minimize', () => { const group = dock.current?.activeGroup(); if (group) setMinimized(group.id, !group.minimized); }, () => docked() && !!dock.current?.activeGroup()?.canMinimize);
@@ -861,7 +875,13 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const panelActions: PanelActions = {
     close: closePanel, showSession,
     title: (panel, title) => setLiveTitles(titles => titles[panel.id]?.text === title?.text && titles[panel.id]?.icon === title?.icon ? titles : { ...titles, [panel.id]: title }),
-    retarget: (panel, target: RunnerTarget) => panel.binding.mode === 'pinned' && !elsewhere(target, here) ? changePanel(panel.id, value => ({ ...value, binding: { mode: 'pinned', target: localTarget(target) } })) : select(target),
+    retarget: (panel, target: RunnerTarget) => {
+      if (panel.binding.mode !== 'pinned' || elsewhere(target, here)) { select(target); return; }
+      const live = livePage(), next = localTarget(target), was = resolveTarget(panel, live.selection);
+      const moved = mapPagePanels(live, value => value.id === panel.id ? { ...value, binding: { mode: 'pinned', target: next } } : value);
+      // A conversation tab moving on (a conversation started in it, its successor) takes the selection with it.
+      changePage(dedupeChats(isChatTab(panel) && sameConversation(was, live.selection) ? withSelection(moved, next) : moved));
+    },
     detach: panel => void detach(panel),
     dock: panel => void bringBack(panel),
   };
@@ -935,7 +955,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
             : <DockLayout ref={dock} page={page} hostFor={panelHosts.hostFor} titleOf={titleOf} badgeOf={badgeOf} iconOf={iconOf} imageOf={panel => liveTitles[panel.id]?.icon} canClose={groupCommands.canClose}
               sidebarWidth={sidebarWidth} onSidebarWidth={saveSidebarWidth} popoutUrl={POPOUT_URL}
               closeLabel={(panel, title) => layout.pages.length > 1 && shownPanels(page).length === 1 && !page.detached.length && shownPanels(page)[0].id === panel.id ? `Close ${title} page` : `Close ${title} panel`}
-              onArrange={next => changePage({ ...livePage(), ...next })}
+              onArrange={next => { const live = livePage(); changePage(followFrontTab(live, { ...live, ...next })); }}
+              statusOf={panel => tabs.statusOf(panel, page.selection)}
+              onTabDoubleClick={panel => { const live = livePage(); if (!shownPanels(live).some(value => value.id === panel.id && value.preview)) return false; changePage(keepTab(live, panel.id)); return true; }}
               onClose={closePanel}
               onRestore={groupID => setMinimized(groupID, false)}
               onPopoutKey={(event, groupID) => {

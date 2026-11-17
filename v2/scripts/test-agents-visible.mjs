@@ -191,7 +191,7 @@ try {
   const menu = page.locator('.context-menu[data-depth="0"]');
   // The development build adds Inspect element after everything, in its own section.
   const entries = () => menu.evaluate(n => [...n.children].map(child => child.getAttribute('role') === 'separator' ? '—' : child.querySelector('.context-menu-label')?.textContent || '')).then(list => list.join('|').replace(/\|—\|Inspect element$/, '').split('|'));
-  const expected = ['Open', 'Open beside', 'Open in new window', 'Peek', '—', 'Rename', 'Pin', 'Mark as read', '—', 'Copy ID', 'Stop', 'Open in Terminal…', 'Continue in Claude Code…', '—', 'Archive…', 'Delete…'];
+  const expected = ['Open', 'Open in new tab', 'Open beside', 'Open below', 'Open in new window', 'Move to new page', 'Peek', '—', 'Rename', 'Pin', 'Mark as read', '—', 'Copy ID', 'Stop', 'Open in Terminal…', 'Continue in Claude Code…', '—', 'Archive…', 'Delete…'];
   await agents.locator('li', {hasText: 'Refactor the parser'}).locator('.agent-row').click({button: 'right'});
   await expect(menu).toBeVisible();
   assert.deepEqual(await entries(), expected, 'the Agents row menu');

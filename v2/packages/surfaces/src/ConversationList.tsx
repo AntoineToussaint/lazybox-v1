@@ -14,6 +14,11 @@ import { activityAt, ageLabel } from './attention';
 import { archivedAt, isArchivedAway, isPinned, pinnedAt } from './agents-model';
 import { InlineConversationRename, useConversationActions } from './ConversationActions';
 import type { ViewTarget } from './workspace-model';
+import { conversationRowGestures } from './conversation-requests';
+import { isMac } from './actions';
+
+/** How a row opens as a tab, on hover (a click shows it in the preview tab). */
+const ROW_HINT = `Double-click: keep it in a tab · ${isMac ? '⌘' : 'Ctrl'}-click: open behind`;
 import { useUnread } from './useAttention';
 import './inbox.css';
 
@@ -90,7 +95,8 @@ export function ConversationList({ collectionId = '', target, onTarget, compact 
         {renaming === session.id
           ? <div className="conversation-renaming"><SessionMark session={session} unread={marker}/><InlineConversationRename session={session} onDone={() => setRenaming('')}/></div>
           : <button className="conversation-link" {...peekProps({ kind: 'conversation', sessionId: session.id, workspaceId: session.collectionId, title: session.title })} aria-current={target.sessionId===session.id?'page':undefined}
-              title={[title, `${status} · ${details}`].join('\n')} onClick={() => open(session)}>
+              title={[title, `${status} · ${details}`, ROW_HINT].join('\n')}
+              {...conversationRowGestures({ collectionId: session.collectionId, sessionId: session.id, commandId: '' }, () => open(session))}>
               <SessionMark session={session} unread={marker} title={marker ? (marker === 'failed' ? 'Failed · unread' : 'Ready for review · unread') : status}/>
               <span className="sr-only">{marker ? (marker === 'failed' ? 'Failed, unread' : 'Ready for review, unread') : status}{pinned ? ', pinned' : ''}{archived ? ', archived' : ''}: </span>
               <span className="conversation-label">

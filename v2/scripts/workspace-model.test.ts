@@ -87,17 +87,27 @@ test('Files and the editor pair up: one opens beside the other', () => {
 
 test('chats: one panel per conversation, routed, detached into their own window and brought back', () => {
   const base = work(target('s'));
-  const pinnedOnly = mapPagePanels(base, panel => panel.kind === 'chat' ? pinnedChat(panel.id, 's') : panel);
+  // The default page's conversation is its preview tab: choosing conversations reuses it, never adds a panel.
   const before = counter;
+  let routed = base;
   for (const session of ['s', 's', 'other', 's']) {
-    const routed = routeChat(pinnedOnly, target(session), id);
-    assert.equal(shownPanels(routed.page).filter(panel => panel.kind === 'chat').length, 1);
-    assert.equal(routed.id, 'w-work-chat');
+    const next = routeChat(routed, target(session), id);
+    routed = next.page;
+    assert.deepEqual(shownPanels(routed).filter(panel => panel.kind === 'chat').map(panel => panel.id), ['w-work-chat']);
+    assert.equal(next.id, 'w-work-chat');
+    assert.equal(resolveTarget(shownPanels(routed).find(panel => panel.kind === 'chat')!, routed.selection).sessionId, session);
   }
-  assert.equal(counter, before, 'no chat panel is added while one is visible');
-  assert.equal(shownPanels(routeChat(pinnedOnly, target('other'), id).page).find(panel => panel.kind === 'chat')!.binding.mode, 'follow');
+  assert.equal(counter, before, 'no chat panel is added while the preview tab is there');
+  // A regular tab stays on its conversation: another one opens in a preview tab beside it, in its group.
+  const regular = mapPagePanels(base, panel => panel.kind === 'chat' ? pinnedChat(panel.id, 's') : panel);
+  const beside = routeChat(regular, target('other'), id);
+  assert.equal(beside.added, true);
+  assert.deepEqual(groupOf(beside.page, beside.id)!.panels.map(panel => [panel.id, resolveTarget(panel, beside.page.selection).sessionId, !!panel.preview]), [['w-work-chat', 's', false], [beside.id, 'other', true]]);
+  // A regular tab and the preview tab on the same conversation: it is the regular tab's.
   const both = { ...base, layout: insertDocked(base.layout, pinnedChat('pinned-s', 's'), 'right') };
-  assert.deepEqual(shownPanels(routeChat(both, target('s'), id).page).filter(panel => panel.kind === 'chat').map(panel => panel.id), ['w-work-chat']);
+  const once = routeChat(both, target('s'), id);
+  assert.deepEqual(shownPanels(once.page).filter(panel => panel.kind === 'chat').map(panel => panel.id), ['pinned-s']);
+  assert.equal(once.id, 'pinned-s');
   // Detach: the only content panel stays as a card; with another content panel it leaves no gap.
   const card = detachChat(base, 'w-work-chat', target('s'));
   assert.equal(panels(card.layout).find(panel => panel.id === 'w-work-chat')!.detached, true);
@@ -143,7 +153,7 @@ test('a review opens as a background tab beside the chat it reviews, once, withi
   while (allPanels(full).length < PANEL_LIMIT) full = { ...full, layout: insertDocked(full.layout, follow(`x-${allPanels(full).length}`, 'editor'), 'right') };
   assert.equal(openBesideChat(full, target('review-5'), 's', id), undefined);
   // The page that shows a conversation: the selected one first.
-  const layout = { version: 2 as const, selectedPage: 'p2', pages: [{ ...base, id: 'p1' }, { ...beside, id: 'p2', selection: target('t') }] };
+  const layout = { version: 2 as const, selectedPage: 'p2', pages: [{ ...base, id: 'p1' }, { ...routeChat(beside, target('t'), id).page, id: 'p2' }] };
   assert.equal(pageShowing(layout, 'a')?.id, 'p2');
   assert.equal(pageShowing(layout, 's')?.id, 'p1');
   assert.equal(pageShowing(layout, 'nowhere'), undefined);
@@ -213,7 +223,8 @@ test('repair on load: duplicate chats removed, popped-out groups docked back', (
   page = { ...page, layout: insertDocked(insertDocked(page.layout, pinnedChat('dup', 's'), 'right'), pinnedChat('other', 't'), 'right') };
   page = { ...page, popouts: [{ type: 'group', id: 'gp', panels: [follow('ed', 'editor')], active: 'ed' }] };
   const repaired = repairLayout({ version: 2, selectedPage: page.id, pages: [page] }).pages[0];
-  assert.deepEqual(shownPanels(repaired).filter(panel => panel.kind === 'chat').map(panel => panel.id), ['w-work-chat', 'other']);
+  // The preview tab and a regular tab on the same conversation: the regular tab stays.
+  assert.deepEqual(shownPanels(repaired).filter(panel => panel.kind === 'chat').map(panel => panel.id), ['dup', 'other']);
   assert.equal(repaired.popouts.length, 0);
   assert.ok(panels(repaired.layout).some(panel => panel.id === 'ed'), 'a popped-out editor comes back docked');
   assert.deepEqual(redockPopouts(work()), work());

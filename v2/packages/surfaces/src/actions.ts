@@ -115,8 +115,10 @@ const tail = [
   { id: 'layout.split-down', title: 'Split the active panel down', group: 'Layout', icon: 'split-down', keys: '', scope: 'global', keywords: 'dock pane below stacked' },
   { id: 'layout.close', title: 'Close the active panel', group: 'Layout', icon: 'close', keys: 'Mod+w', scope: 'global', keywords: 'dock pane hide' },
   { id: 'layout.maximize', title: 'Maximize or restore the active panel', group: 'Layout', icon: 'maximize', keys: 'Mod+Shift+m or ] ] m', scope: 'global', safe: true, keywords: 'zoom dock pane full screen' },
-  { id: 'layout.next-group', title: 'Next panel group', group: 'Layout', icon: 'chevronRight', keys: 'Ctrl+Tab', scope: 'global', safe: true, keywords: 'dock pane focus cycle' },
-  { id: 'layout.previous-group', title: 'Previous panel group', group: 'Layout', icon: 'back', keys: 'Ctrl+Shift+Tab', scope: 'global', safe: true, keywords: 'dock pane focus cycle' },
+  // Every tab of the page in turn: the active group's, then the next group's (a group of one tab is one step, as before).
+  { id: 'layout.next-group', title: 'Next tab or panel group', group: 'Layout', icon: 'chevronRight', keys: 'Ctrl+Tab', scope: 'global', safe: true, keywords: 'dock pane focus cycle conversation tab' },
+  { id: 'layout.previous-group', title: 'Previous tab or panel group', group: 'Layout', icon: 'back', keys: 'Ctrl+Shift+Tab', scope: 'global', safe: true, keywords: 'dock pane focus cycle conversation tab' },
+  { id: 'layout.reopen-tab', title: 'Reopen the last closed conversation tab', group: 'Layout', icon: 'refresh', keys: 'Mod+Shift+t', scope: 'global', keywords: 'undo close restore conversation chat tab back' },
   { id: 'layout.float', title: 'Float the active panel over the page', group: 'Layout', icon: 'float', keys: '', scope: 'global', keywords: 'dock pane window overlay' },
   { id: 'layout.window', title: 'Open the active panel in a new window', group: 'Layout', icon: 'external', keys: '', scope: 'global', keywords: 'dock pane pop out detach second screen' },
   // Panels in windows of their own (a chat's window, a popped-out group): back where they came from.

@@ -25,7 +25,7 @@ export const EMPTY_CONTENT = 'lazybox-empty-content';
 export const needsEmptyContent = (page: Pick<WorkspacePage, 'layout'>) => !!page.layout && isSidebar(page.layout);
 export const TAB_COMPONENT = 'tab';
 /** What dockview keeps for each panel: enough to rebuild the saved panel. */
-export type PanelParams = { kind: string; binding: Binding; detached?: boolean };
+export type PanelParams = { kind: string; binding: Binding; detached?: boolean; /** A chat group's preview tab. */ preview?: boolean };
 export type Geometry = {
   width: number;
   height: number;
@@ -39,7 +39,8 @@ type Arranged = Pick<WorkspacePage, 'layout' | 'floating' | 'popouts'>;
 
 const MIN_PX = 48;
 const orientationOf = (direction: 'row' | 'column') => direction === 'row' ? 'HORIZONTAL' : 'VERTICAL';
-export const paramsOf = (panel: Panel): PanelParams => ({ kind: panel.kind, binding: panel.binding, ...(panel.detached ? { detached: true } : {}) });
+// A chat always says whether it is the preview tab: dockview merges parameters, so a mark left out would stay.
+export const paramsOf = (panel: Panel): PanelParams => ({ kind: panel.kind, binding: panel.binding, ...(panel.detached ? { detached: true } : {}), ...(panel.kind === 'chat' ? { preview: !!panel.preview } : {}) });
 
 /** Pixel sizes for a split's children along its direction. */
 export function childPixels(node: Extract<LayoutNode, { type: 'split' }>, extent: number, root: boolean, geometry: Pick<Geometry, 'sidebarWidth' | 'header'>): number[] {
@@ -106,7 +107,7 @@ export function fromDockview(json: SerializedDockview, overlay: Overlay = { mini
   const panel = (viewID: string): Panel | undefined => {
     const params = json.panels[viewID]?.params as PanelParams | undefined;
     if (!params || typeof params.kind !== 'string' || !params.binding) return undefined;
-    return { id: viewID, kind: params.kind, binding: params.binding, detached: !!params.detached };
+    return { id: viewID, kind: params.kind, binding: params.binding, detached: !!params.detached, ...(params.preview ? { preview: true } : {}) };
   };
   const group = (data: GroupPanelViewState): Group | null => {
     const members = data.views.map(panel).filter((value): value is Panel => !!value);

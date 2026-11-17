@@ -47,7 +47,8 @@ async function run(scheme) {
   const page = await context.newPage();
   const errors = []; page.on('pageerror', error => errors.push(String(error)));
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
-  const chat = page.locator('.panel-chat');
+  // The conversation in view: typing in one keeps its tab, so the child opens in a preview tab beside it.
+  const chat = page.locator('.panel-chat').filter({ visible: true });
   const composer = chat.getByRole('textbox', { name: 'Message', exact: true });
   await expect(composer).toBeVisible();
   // A conversation that holds no grant shows nothing about one.

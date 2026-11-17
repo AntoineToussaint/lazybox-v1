@@ -20,7 +20,9 @@ import type { ViewTarget } from './workspace-model';
  * first, then naming and marking, then the agent, and the two that take the
  * conversation away come last, apart, each behind a confirmation.
  *
- *   Open · Open beside · Open in new window · Peek
+ *   Open · Open in new tab · Open beside · Open below · Open in new window ·
+ *   Move to new page · Peek
+ *   Close other tabs · Close tabs to the right (when its tab has neighbours)
  *   Rename · Pin · Mark as read
  *   Copy ID · Stop · Open in Terminal · Continue in Claude Code…
  *   Archive… · Delete…
@@ -56,11 +58,21 @@ export function useConversationActions({ onOpen, onDeleted }: { onOpen?(target: 
   const items = (session: Session, row: { rename?(): void } = {}): MenuItem[] => {
     const openers = conversationOpeners(), here = target(session), pinned = isPinned(session), archived = archivedAt(session) > 0;
     const state = attention(session);
+    // Tabs belong to the page of this Runner, in a workspace window.
+    const tabs = !openers ? 'Only in a workspace window' : !onPage ? 'Show its Runner first' : false;
+    const tab = !tabs ? openers?.tabOf(here) : undefined;
     return [
       onOpen && { label: 'Open', icon: 'chat', shortcut: 'Enter', run: () => onOpen(here) },
-      { label: 'Open beside', icon: 'columns', disabled: !openers && 'Only in a workspace window', run: () => openers?.beside(here) },
+      { label: 'Open in new tab', icon: 'plus', disabled: tabs, run: () => openers?.open(here, 'tab') },
+      { label: 'Open beside', icon: 'split-right', disabled: tabs, run: () => openers?.beside(here) },
+      { label: 'Open below', icon: 'split-down', disabled: tabs, run: () => openers?.below(here) },
       { label: 'Open in new window', icon: 'external', disabled: !onPage ? 'Show its Runner first' : !openers?.window && 'This window cannot open another one', run: () => openers?.window?.(here) },
+      { label: 'Move to new page', icon: 'panels', disabled: tabs, run: () => openers?.newPage(here, conversationName(session)) },
       { label: 'Peek', icon: 'eye', shortcut: 'Space', run: () => openPeek({ kind: 'conversation', sessionId: session.id, workspaceId: session.collectionId, title: session.title, ...(multi ? { runner } : {}) }) },
+      // Open in a tab with others beside it: close them from here, as from the tab.
+      !!tab?.others && 'separator',
+      !!tab?.others && { label: 'Close other tabs', icon: 'close', run: () => openers?.closeTabs(here, 'others') },
+      !!tab?.others && { label: 'Close tabs to the right', icon: 'close', disabled: !tab.right && 'No tab to its right', run: () => openers?.closeTabs(here, 'right') },
       'separator',
       { label: 'Rename', icon: 'pencil', shortcut: 'F2', disabled: !row.rename && 'Rename it from its header', run: () => row.rename?.() },
       { label: pinned ? 'Unpin' : 'Pin', icon: 'pin', shortcut: 'P', run: () => void pin(session, !pinned) },

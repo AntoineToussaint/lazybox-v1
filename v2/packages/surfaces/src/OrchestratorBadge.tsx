@@ -76,11 +76,11 @@ function OrchestratorChip({ session }: { session: Session }) {
       onClick={() => setOpen(v => !v)}>
       <Icon name="subagent" size={11}/><span>Orchestrator</span><b>{live}/{max}</b>
     </button>
-    {open && createPortal(<div className="workspace-shell orchestrator-layer"><OrchestratorCard cardRef={cardRef} at={at} mission={held?.mission} conversation={conversation} missionTitle={lineage.missionTitle} grantId={lineage.grantId} onClose={() => { setOpen(false); ref.current?.querySelector('button')?.focus(); }}/></div>, document.body)}
+    {open && createPortal(<div className="workspace-shell orchestrator-layer"><OrchestratorCard cardRef={cardRef} at={at} mission={held?.mission} conversation={conversation} parent={{ collectionId: session.collectionId, sessionId: session.id }} missionTitle={lineage.missionTitle} grantId={lineage.grantId} onClose={() => { setOpen(false); ref.current?.querySelector('button')?.focus(); }}/></div>, document.body)}
   </span>;
 }
 
-function OrchestratorCard({ mission, conversation, missionTitle, grantId, onClose, cardRef, at }: { mission?: Mission; conversation: string; missionTitle: string; grantId: string; onClose(): void; cardRef: React.RefObject<HTMLDivElement | null>; at: { left: number; top: number } }) {
+function OrchestratorCard({ mission, conversation, parent, missionTitle, grantId, onClose, cardRef, at }: { mission?: Mission; conversation: string; /** The orchestrator's own conversation: its agents open as tabs next to it. */ parent: { collectionId: string; sessionId: string }; missionTitle: string; grantId: string; onClose(): void; cardRef: React.RefObject<HTMLDivElement | null>; at: { left: number; top: number } }) {
   const missions = useMissions();
   const { info } = useRunner();
   const open = useOpenConversation();
@@ -109,7 +109,7 @@ function OrchestratorCard({ mission, conversation, missionTitle, grantId, onClos
     <ul className="orchestrator-children">{children.map(({ task, attempt }) => {
       const state = childState(task, attempt);
       return <li key={attempt.id}>
-        <button type="button" onClick={() => { open(attempt.conversationId, attempt.sessionId); onClose(); }} title="Open its conversation">
+        <button type="button" onClick={() => { open(attempt.conversationId, attempt.sessionId, parent); onClose(); }} title="Open its conversation in a tab next to this one">
           <span className={`child-dot tone-${state.tone}`} aria-hidden="true"/>
           <span className="child-title">{attempt.title || task.title}</span>
           <small>{attempt.role || 'worker'} · {permissionLabel[attempt.permission] || attempt.permission}</small>

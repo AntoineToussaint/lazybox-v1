@@ -7,6 +7,7 @@ import { errorText } from './PullRequestFlow';
 import { reviewerChoices, unavailableAgents, type ReviewerChoice } from './review-model';
 import { useProviderAvailability } from './useProviderAvailability';
 import { refreshWorkspaceReview } from './useWorkspaceReview';
+import { openRelatedConversation } from './conversation-requests';
 
 /**
  * One-click cross-agent review, the client half (GITHUB.md, "Agent review"):
@@ -70,23 +71,17 @@ export function useReviewTrayRequests(workspaceId: string, open: (request: Revie
 }
 
 // The reviewer conversation as a background tab beside the work it reviews.
-const REVIEW_TAB = 'lazybox-review-tab';
-/** `beside`: the conversation reviewed, whose panel group the tab joins. */
+/** `beside`: the conversation reviewed, whose tab the review's joins. */
 export type ReviewTabRequest = { collectionId: string; sessionId: string; beside: string };
-/** Ask the workspace to open a reviewer conversation as a tab beside the work, without taking the focus. */
+/**
+ * Open a reviewer conversation as a related tab (conversation-requests.ts):
+ * right after the reviewed conversation's tab, behind it, without taking the
+ * focus. With no workspace page to hold it (a phone, a detached chat
+ * window), it is shown the old way.
+ */
 export function openReviewTab(request: ReviewTabRequest) {
-  const event = new CustomEvent<ReviewTabRequest>(REVIEW_TAB, { detail: request, cancelable: true });
-  // No workspace took it (a phone, a detached chat window): show it the old way.
-  if (window.dispatchEvent(event)) showConversation({ collectionId: request.collectionId, sessionId: request.sessionId });
-}
-/** The workspace opens review tabs asked for in it. */
-export function useReviewTabRequests(workspaceId: string, open: (request: ReviewTabRequest) => boolean) {
-  const ref = useRef(open); ref.current = open;
-  useEffect(() => {
-    const listener = (event: Event) => { const request = (event as CustomEvent<ReviewTabRequest>).detail; if (workspaceId && request.collectionId === workspaceId && ref.current(request)) event.preventDefault(); };
-    window.addEventListener(REVIEW_TAB, listener);
-    return () => window.removeEventListener(REVIEW_TAB, listener);
-  }, [workspaceId]);
+  const target = { collectionId: request.collectionId, sessionId: request.sessionId, commandId: '' };
+  if (!openRelatedConversation({ collectionId: request.collectionId, sessionId: request.beside, commandId: '' }, target, { background: true })) showConversation({ collectionId: request.collectionId, sessionId: request.sessionId });
 }
 
 // ---- Starting one -----------------------------------------------------------

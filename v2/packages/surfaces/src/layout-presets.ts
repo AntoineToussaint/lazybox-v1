@@ -4,7 +4,7 @@
  * applies to any workspace). Applying one keeps every panel the page already
  * has of a kind it uses, so conversations, drafts and shells carry over.
  */
-import { AGENTS_SHARE, groupID, normalize, shownPanels, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
+import { AGENTS_SHARE, groupID, isChatTab, normalize, resolveTarget, sameConversation, shownPanels, type Group, type LayoutNode, type Panel, type WorkspacePage } from './workspace-model';
 
 export type TemplateNode = { type: 'group'; kinds: string[]; minimized?: boolean } | { type: 'split'; direction: 'row' | 'column'; sizes: number[]; children: TemplateNode[] };
 export type LayoutPreset = { id: string; name: string; description: string; layout: TemplateNode };
@@ -44,15 +44,25 @@ export function applyTemplate(page: WorkspacePage, template: TemplateNode, newID
   const pool = shownPanels(page).filter(panel => !panel.detached || panel.kind === 'chat');
   const used = new Set<string>(), groupIDs: string[] = [];
   const take = (kind: string): Panel => {
-    // A chat following the page is preferred, so the selected conversation stays in view.
+    // The chat on the selected conversation (or one following the page) is preferred, so it stays in view.
     const candidates = pool.filter(panel => panel.kind === kind && !used.has(panel.id));
-    const panel = candidates.find(value => value.kind !== 'chat' || (value.binding.mode === 'follow' && !value.detached)) || candidates.find(value => !value.detached) || { id: newID(), kind, binding: { mode: 'follow' as const }, detached: false };
+    const shows = (value: Panel) => value.binding.mode === 'follow' || sameConversation(resolveTarget(value, page.selection), page.selection);
+    const panel = candidates.find(value => value.kind !== 'chat' || (shows(value) && !value.detached)) || candidates.find(value => !value.detached) || { id: newID(), kind, binding: { mode: 'follow' as const }, detached: false };
     used.add(panel.id);
     return panel;
   };
+  // The page's other conversation tabs stay open, as tabs of the template's first chat group.
+  let tabsPlaced = false;
+  const withTabs = (members: Panel[]): Panel[] => {
+    if (tabsPlaced || !members.some(panel => panel.kind === 'chat')) return members;
+    tabsPlaced = true;
+    const rest = pool.filter(panel => isChatTab(panel) && !used.has(panel.id));
+    rest.forEach(panel => used.add(panel.id));
+    return [...members, ...rest];
+  };
   const build = (node: TemplateNode): LayoutNode => {
     if (node.type === 'split') return { type: 'split', direction: node.direction, sizes: [...node.sizes], children: node.children.map(build) };
-    const members = node.kinds.map(take), id = groupID(members[0].id, groupIDs);
+    const members = withTabs(node.kinds.map(take)), id = groupID(members[0].id, groupIDs);
     groupIDs.push(id);
     const group: Group = { type: 'group', id, panels: members, active: members[0].id };
     return node.minimized ? { ...group, minimized: true } : group;
@@ -62,8 +72,10 @@ export function applyTemplate(page: WorkspacePage, template: TemplateNode, newID
 
 /** A page's docked arrangement as a template (kinds and shares). */
 export function templateOf(page: WorkspacePage): TemplateNode | null {
+  // A group's conversation tabs are one chat in the arrangement: the conversations are not its shape.
+  const kinds = (panels: Panel[]) => panels.filter((panel, index) => panel.kind !== 'chat' || panels.findIndex(other => other.kind === 'chat') === index).map(panel => panel.kind);
   const visit = (node: LayoutNode): TemplateNode => node.type === 'group'
-    ? { type: 'group', kinds: node.panels.map(panel => panel.kind), ...(node.minimized ? { minimized: true } : {}) }
+    ? { type: 'group', kinds: kinds(node.panels), ...(node.minimized ? { minimized: true } : {}) }
     : { type: 'split', direction: node.direction, sizes: node.sizes.map(size => Math.round(size * 100) / 100), children: node.children.map(visit) };
   return page.layout ? visit(page.layout) : null;
 }

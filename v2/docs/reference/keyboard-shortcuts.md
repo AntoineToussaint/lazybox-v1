@@ -98,8 +98,9 @@ Act on the active panel group: the one you last clicked or focused, ringed while
 | Split the active panel down | — | — |
 | Close the active panel | `⌘W` | `Ctrl+W` |
 | Maximize or restore the active panel | `⇧⌘M` or `]] m` | `Ctrl+Shift+M` or `]] m` |
-| Next panel group | `⌃⇥` | `Ctrl+⇥` |
-| Previous panel group | `⌃⇧⇥` | `Ctrl+Shift+⇥` |
+| Next tab or panel group | `⌃⇥` | `Ctrl+⇥` |
+| Previous tab or panel group | `⌃⇧⇥` | `Ctrl+Shift+⇥` |
+| Reopen the last closed conversation tab | `⇧⌘T` | `Ctrl+Shift+T` |
 | Float the active panel over the page | — | — |
 | Open the active panel in a new window | — | — |
 | Put back in main window | `⇧⌘D` | `Ctrl+Shift+D` |

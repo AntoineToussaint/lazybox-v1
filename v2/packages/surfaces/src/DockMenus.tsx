@@ -140,8 +140,12 @@ export type GroupCommands = {
   minimize(groupID: string, minimized: boolean): void;
   dockTo(panel: Panel, side: DockSide): void;
   splitWith(groupID: string, panel: Panel, side: 'right' | 'below'): void;
-  /** Chat: stay on this conversation, or follow the selected one. */
+  /** Chat: stay on this conversation (a preview tab kept open), or become the preview tab that follows the selected one. */
   togglePin?(panel: Panel): void;
+  /** Chat: the conversation on a page of its own. */
+  moveToNewPage?(panel: Panel): void;
+  /** Close the group's other tabs, or those to the right of this one. */
+  closeTabs?(panel: Panel, which: 'others' | 'right'): void;
 };
 type Keys = { split: string; close: string; maximize: string; /** Put back in main window, as the person's keys show it (⇧⌘D). */ putBack?: string };
 /** A group's menu: the ⋯ beside its tabs and a tab's context menu show the same items. Shortcuts are in `shortcut()` notation. */
@@ -149,6 +153,10 @@ export function groupMenuItems(group: GroupView, handle: DockHandle, commands: G
   const panel = group.active;
   if (!panel) return [];
   const name = commands.title(panel), docked = group.location === 'grid';
+  // Tabs that "Close other tabs" and "Close tabs to the right" would close (the sidebar's lists stay).
+  const closable = (value: Panel) => value.id !== panel.id && commands.canClose(value) && value.kind !== 'collections' && value.kind !== 'agents';
+  const index = group.panels.findIndex(value => value.id === panel.id), others = group.panels.filter(closable), right = group.panels.slice(index + 1).filter(closable);
+  const previewed = panel.preview || panel.binding.mode === 'follow';
   return [
     { label: 'Split right', icon: 'split-right', shortcut: keys.split, run: () => commands.splitWith(group.id, panel, 'right') },
     { label: 'Split down', icon: 'split-down', run: () => commands.splitWith(group.id, panel, 'below') },
@@ -160,10 +168,14 @@ export function groupMenuItems(group: GroupView, handle: DockHandle, commands: G
       : group.location === 'popout'
         ? { label: 'Put back in main window', icon: 'put-back', run: () => handle.dockBack(group.id) }
         : { label: 'Dock into the page', icon: 'back', run: () => handle.dockBack(group.id) },
-    !!commands.togglePin && panel.kind === 'chat' && { label: panel.binding.mode === 'pinned' ? 'Follow the selected conversation' : 'Stay on this conversation', icon: 'target', run: () => commands.togglePin!(panel) },
+    !!commands.moveToNewPage && panel.kind === 'chat' && !panel.detached && { label: 'Move to new page', icon: 'panels', run: () => commands.moveToNewPage!(panel) },
+    // A preview tab (italic) is kept open; a regular tab becomes the preview tab, which follows the conversation chosen.
+    !!commands.togglePin && panel.kind === 'chat' && { label: previewed ? 'Stay on this conversation' : 'Follow the selected conversation', icon: 'target', run: () => commands.togglePin!(panel) },
     'separator',
     ...dockSides.map(side => ({ label: `Dock ${side}`, icon: `dock-${side}`, className: 'dock-option', run: () => commands.dockTo(panel, side) })),
     'separator',
+    !!commands.closeTabs && others.length > 0 && { label: 'Close other tabs', icon: 'close', run: () => commands.closeTabs!(panel, 'others') },
+    !!commands.closeTabs && others.length > 0 && { label: 'Close tabs to the right', icon: 'close', disabled: right.length ? false : 'No tab to its right', run: () => commands.closeTabs!(panel, 'right') },
     commands.canClose(panel) && { label: `Close ${name}`, icon: 'close', danger: true, shortcut: keys.close, run: () => commands.close(panel) },
   ];
 }

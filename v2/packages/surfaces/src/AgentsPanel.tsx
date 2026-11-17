@@ -14,7 +14,7 @@ import { readPreference, writePreference } from './view-state';
 import { contextMenu } from './ContextMenu';
 import { peekProps } from './peek-model';
 import { InlineConversationRename, useConversationActions } from './ConversationActions';
-import { useAgentsFocusRequests } from './conversation-requests';
+import { conversationRowGestures, useAgentsFocusRequests } from './conversation-requests';
 import { LiveIndicator } from './LiveIndicator';
 import { MissionInboxSection } from './MissionInbox';
 import { PullRequestInboxSection, usePullInboxCount } from './PullRequestInbox';
@@ -162,7 +162,8 @@ export function AgentsPanel({ collections, target, viewState, onShowSession }: {
             {renaming === row.key
               ? <div className="agent-renaming"><AttentionIcon state={row.state} size={14}/><RunnerScope runner={row.runner} here={!elsewhere}><InlineConversationRename session={row.session} onDone={() => { setRenaming(''); requestAnimationFrame(() => panel.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(row.key)}"] .agent-row`)?.focus()); }}/></RunnerScope></div>
               : <button className="agent-row" {...peekProps({ kind: 'conversation', sessionId: row.session.id, workspaceId: row.session.collectionId, title: row.session.title, ...(inbox.multi ? { runner: row.runner } : {}) })}
-                  aria-current={!elsewhere && row.session.id === target.sessionId ? 'true' : undefined} title={[title, conversationDetails(row.session, info?.profiles || []), row.line].filter(Boolean).join('\n')} onClick={() => open(row)}>
+                  aria-current={!elsewhere && row.session.id === target.sessionId ? 'true' : undefined} title={[title, conversationDetails(row.session, info?.profiles || []), row.line].filter(Boolean).join('\n')}
+                  {...(elsewhere ? { onClick: () => open(row) } : conversationRowGestures({ collectionId: row.session.collectionId, sessionId: row.session.id, commandId: '' }, () => open(row)))}>
                   <span className="agent-mark"><AttentionIcon state={row.state} size={14}/>{dot && <i className="unread-dot"/>}</span>
                   <span className="sr-only">{attentionTitle[row.state]}{dot ? ', unread' : ''}{pinned ? ', pinned' : ''}: </span>
                   <span className="agent-main">

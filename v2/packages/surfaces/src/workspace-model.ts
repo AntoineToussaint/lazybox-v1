@@ -13,7 +13,12 @@
  */
 export type ViewTarget = { collectionId: string; sessionId: string; commandId: string };
 export type Binding = { mode: 'follow' } | { mode: 'pinned'; target: ViewTarget };
-export type Panel = { id: string; kind: string; binding: Binding; detached: boolean; origin?: PanelOrigin };
+/**
+ * One panel of a page. A chat is a conversation tab: `preview` marks its
+ * group's preview tab (see "Conversations" below), shown in italics, which the
+ * next conversation chosen with a single click replaces.
+ */
+export type Panel = { id: string; kind: string; binding: Binding; detached: boolean; origin?: PanelOrigin; preview?: boolean };
 /**
  * Where a panel sat before it went to a window of its own, so putting it back
  * returns it there: as a tab of the group it left (at its place among the
@@ -49,7 +54,9 @@ export const dockSides: readonly DockSide[] = ['left', 'right', 'top', 'bottom']
 export const isDockSide = (value: unknown): value is DockSide => dockSides.includes(value as DockSide);
 /** At most this many panels on one page, wherever they are. */
 export const PANEL_LIMIT = 16;
-const PAGE_LIMIT = 8, SIZE_LIMIT = 192 << 10, DEPTH_LIMIT = 10;
+/** At most this many pages per workspace. */
+export const PAGE_LIMIT = 8;
+const SIZE_LIMIT = 192 << 10, DEPTH_LIMIT = 10;
 
 const idPattern = /^[a-zA-Z0-9_-]{1,128}$/;
 const kindPattern = /^[a-z][a-z0-9-]{0,63}$/;
@@ -409,52 +416,236 @@ export function showCodePanel(page: WorkspacePage, kind: 'files' | 'editor', sid
 // ---------------------------------------------------------------------------
 // Conversations.
 
-const visibleChats = (page: WorkspacePage) => shownPanels(page).filter(panel => panel.kind === 'chat' && !panel.detached);
-/** One visible chat panel per conversation: a pinned panel showing what a following panel
- * (or an earlier pinned one) already shows is a duplicate and is dropped. Never drops the last chat. */
-export function dedupeChats(page: WorkspacePage, selection: ViewTarget): WorkspacePage {
+// Every chat panel is a tab of one conversation, as editors are tabs of files
+// in an IDE. A chat group's **preview tab** (`preview`, its title in italics)
+// is where a single click shows a conversation: the next single click
+// replaces it. A **regular tab** stays on its conversation until it is closed:
+// a double-click, typing in it, ⌘-click (in the background) or Open in new
+// tab make one. Every chat keeps its own conversation (a `pinned` binding); a
+// chat following the page (`follow`, from older pages and templates) becomes
+// the preview tab of what it shows (`settleChats`). The page's selection is
+// the conversation of the tab in front: bringing a chat tab forward selects
+// its conversation, so the sidebar, command output and Changes follow it.
+
+/** A chat shown on the page (not a card for one in its own window). */
+export const isChatTab = (panel: Panel) => panel.kind === 'chat' && !panel.detached;
+const visibleChats = (page: WorkspacePage) => shownPanels(page).filter(isChatTab);
+/** Two targets are the same conversation: the same session, or, with none, the same workspace's start. */
+export const sameConversation = (a: ViewTarget, b: ViewTarget) => a.sessionId ? a.sessionId === b.sessionId : !b.sessionId && a.collectionId === b.collectionId;
+const conversationKey = (target: ViewTarget) => target.sessionId ? `s:${target.sessionId}` : `w:${target.collectionId}`;
+/** A chat tab on a conversation; `preview` makes it its group's preview tab. */
+export const chatTab = (panelID: string, target: ViewTarget, preview = false): Panel => ({ id: panelID, kind: 'chat', binding: { mode: 'pinned', target: { ...target } }, detached: false, ...(preview ? { preview: true } : {}) });
+const withoutPreview = ({ preview: _, ...panel }: Panel): Panel => panel;
+/** The chat tab showing a conversation on this page, if any: a regular tab before a preview (dedupeChats keeps the regular one). */
+export function tabFor(page: WorkspacePage, target: ViewTarget): Panel | undefined {
+  const showing = visibleChats(page).filter(panel => sameConversation(resolveTarget(panel, page.selection), target));
+  return showing.find(panel => !panel.preview && panel.binding.mode === 'pinned') || showing[0];
+}
+/** The page selecting a conversation: its command stays chosen while it is the same conversation. */
+export function withSelection(page: WorkspacePage, target: ViewTarget): WorkspacePage {
+  const commandId = target.commandId || (target.sessionId && target.sessionId === page.selection.sessionId ? page.selection.commandId : '');
+  return { ...page, selection: { collectionId: target.collectionId, sessionId: target.sessionId, commandId } };
+}
+
+/**
+ * Chats as tabs: a chat following the page becomes the preview tab of the
+ * conversation it shows, and a group keeps one preview tab (the one in front,
+ * else its first); others become regular tabs. The same page when nothing changes.
+ */
+export function settleChats(page: WorkspacePage): WorkspacePage {
+  const settle = (group: Group): Group => {
+    if (!group.panels.some(panel => panel.preview || (isChatTab(panel) && panel.binding.mode === 'follow'))) return group;
+    const converted = group.panels.map(panel => isChatTab(panel) && panel.binding.mode === 'follow' ? chatTab(panel.id, page.selection, true) : panel);
+    const previews = converted.filter(panel => isChatTab(panel) && panel.preview);
+    const keep = (previews.find(panel => panel.id === group.active) || previews[0])?.id;
+    const panels = converted.map(panel => panel.preview && (panel.id !== keep || !isChatTab(panel)) ? withoutPreview(panel) : panel);
+    return panels.every((panel, index) => panel === group.panels[index]) ? group : { ...group, panels };
+  };
+  const before = pageGroups(page), next = mapPageGroups(page, settle);
+  return pageGroups(next).every((group, index) => group === before[index]) ? page : next;
+}
+/** Every page of a layout with its chats as tabs (settleChats); the same layout when none changes. */
+export function settleLayout(layout: WorkspaceLayout): WorkspaceLayout {
+  const pages = layout.pages.map(settleChats);
+  return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
+}
+
+/**
+ * One visible chat per conversation: of two tabs on the same conversation the
+ * regular one stays and a preview goes (else the first stays). Never drops
+ * the last chat.
+ */
+export function dedupeChats(page: WorkspacePage, selection: ViewTarget = page.selection): WorkspacePage {
   const chats = visibleChats(page), shown = new Set<string>();
+  const preview = (panel: Panel) => !!panel.preview || panel.binding.mode === 'follow';
   let result = page;
-  for (const panel of [...chats.filter(value => value.binding.mode === 'follow'), ...chats.filter(value => value.binding.mode === 'pinned')]) {
-    const session = resolveTarget(panel, selection).sessionId;
-    if (!shown.has(session)) { shown.add(session); continue; }
+  for (const panel of [...chats.filter(value => !preview(value)), ...chats.filter(preview)]) {
+    const key = conversationKey(resolveTarget(panel, selection));
+    if (!shown.has(key)) { shown.add(key); continue; }
     result = removeFromPage(result, panel.id);
   }
   return result;
 }
-/** The chat panel that shows a selected conversation: the following panel, else one pinned to it,
- * else the first visible chat switched to follow the page. A chat is added only when the page has none. */
-export function routeChat(page: WorkspacePage, selection: ViewTarget, newID: () => string): { page: WorkspacePage; id: string } {
-  const chats = visibleChats(page);
-  const chosen = chats.find(panel => panel.binding.mode === 'follow')
-    || chats.find(panel => panel.binding.mode === 'pinned' && panel.binding.target.sessionId === selection.sessionId)
-    || chats[0];
-  if (!chosen) { const id = newID(); return { page: { ...page, layout: insertDocked(page.layout, { id, kind: 'chat', binding: { mode: 'follow' }, detached: false }, 'right', 0.5) }, id }; }
-  const pinnedHere = chosen.binding.mode === 'pinned' && chosen.binding.target.sessionId === selection.sessionId;
-  const next = mapPagePanels(activatePanel(page, chosen.id), panel => panel.id !== chosen.id ? panel : { ...panel, binding: chosen.binding.mode === 'follow' || pinnedHere ? panel.binding : { mode: 'follow' } });
-  return { page: dedupeChats({ ...next, selection }, selection), id: chosen.id };
+
+/**
+ * The group a conversation opens in: the one showing the selected
+ * conversation, else the one with a preview tab, else the first with a chat.
+ */
+export function chatGroup(page: WorkspacePage): Group | undefined {
+  const all = pageGroups(page), chats = visibleChats(page);
+  const holding = (panel?: Panel) => panel && all.find(group => group.panels.includes(panel));
+  return holding(chats.find(panel => sameConversation(resolveTarget(panel, page.selection), page.selection)))
+    || holding(chats.find(panel => panel.preview))
+    || holding(chats[0]);
+}
+/** A new tab in a group: right after `after`, at `index`, or right after the tab in front; `front` brings it forward. */
+export function insertTab(page: WorkspacePage, groupId: string, panel: Panel, place: { after?: string; index?: number; front: boolean }): WorkspacePage {
+  return mapPageGroups(page, group => {
+    if (group.id !== groupId) return group;
+    const anchor = place.after ? group.panels.findIndex(value => value.id === place.after) : -1;
+    const at = anchor >= 0 ? anchor + 1 : place.index !== undefined ? Math.max(0, Math.min(group.panels.length, place.index)) : group.panels.findIndex(value => value.id === group.active) + 1;
+    const panels = [...group.panels.slice(0, at), panel, ...group.panels.slice(at)];
+    const { minimized: _, ...open } = group;
+    return place.front ? { ...open, panels, active: panel.id } : { ...group, panels };
+  });
+}
+
+/**
+ * How a conversation is opened: `preview` (a single click: the chat group's
+ * preview tab shows it), `tab` (a regular tab, in front: a double-click, Open
+ * in new tab, a new conversation) or `background` (a regular tab behind the
+ * one in front: ⌘-click, middle-click, a related conversation).
+ */
+export type OpenMode = 'preview' | 'tab' | 'background';
+export type OpenOptions = {
+  mode: OpenMode;
+  /** The group it opens in (a group's +, a closed tab reopened); else the chat group. */
+  group?: string;
+  /** Right after this tab: a related conversation beside its parent. */
+  after?: string;
+  /** At this place among the group's tabs: a closed tab reopened where it was. */
+  index?: number;
+};
+/** `full`: the page already has PANEL_LIMIT panels, so nothing was opened. */
+export type Opened = { page: WorkspacePage; id: string; added: boolean; full?: boolean };
+
+/**
+ * Open a conversation as a tab. A conversation already in a tab is brought
+ * forward there (a background open leaves the page as it is), never shown
+ * twice; otherwise the chat group's preview tab takes it (a preview open, or
+ * a tab opened while the preview shows no conversation yet), or it gets a new
+ * tab, while the page has room. Opening it in front selects it.
+ */
+export function openConversation(page: WorkspacePage, target: ViewTarget, options: OpenOptions, newID: () => string): Opened {
+  const settled = settleChats(page), existing = tabFor(settled, target);
+  if (existing) {
+    if (options.mode === 'background') return { page: settled, id: existing.id, added: false };
+    const kept = options.mode === 'tab' ? keepTab(settled, existing.id) : settled;
+    return { page: dedupeChats(withSelection(activatePanel(kept, existing.id), target)), id: existing.id, added: false };
+  }
+  const all = pageGroups(settled);
+  const group = (options.group ? all.find(value => value.id === options.group) : undefined) || chatGroup(settled);
+  const preview = group?.panels.find(panel => isChatTab(panel) && panel.preview);
+  if (preview && options.mode !== 'background' && (options.mode === 'preview' || !resolveTarget(preview, settled.selection).sessionId)) {
+    const shown = mapPagePanels(settled, panel => panel.id === preview.id ? chatTab(panel.id, target, options.mode === 'preview') : panel);
+    return { page: dedupeChats(withSelection(activatePanel(shown, preview.id), target)), id: preview.id, added: false };
+  }
+  if (allPanels(settled).length >= PANEL_LIMIT) return { page: settled, id: '', added: false, full: true };
+  const panel = chatTab(newID(), target, options.mode === 'preview'), front = options.mode !== 'background';
+  const placed = group ? insertTab(settled, group.id, panel, { after: options.after, index: options.index, front }) : { ...settled, layout: insertDocked(settled.layout, panel, 'right', 0.5) };
+  return { page: front ? withSelection(placed, target) : placed, id: panel.id, added: true };
+}
+/** The chat panel that shows a selected conversation: its tab, else the preview tab (see openConversation). */
+export function routeChat(page: WorkspacePage, selection: ViewTarget, newID: () => string): Opened {
+  return openConversation(page, selection, { mode: 'preview' }, newID);
 }
 /**
- * A conversation opened as a background tab beside another (a review beside
- * the work it reviews): a chat pinned to it, right after the tab of the chat
- * that shows `beside` (else the page's following chat) in that chat's group,
- * behind the tab in front — nothing else moves and the focus stays. A chat
- * that already shows the conversation is kept as it is (one panel per
- * conversation). Undefined when the page has no chat to join or is full.
+ * A conversation opened from another one (a review of it, a child an
+ * orchestrator started): a tab right after its parent's, behind it by default,
+ * so the conversation in front is not replaced.
+ */
+export function openRelated(page: WorkspacePage, parent: ViewTarget, target: ViewTarget, options: { background: boolean }, newID: () => string): Opened {
+  const settled = settleChats(page), home = parent.sessionId ? tabFor(settled, parent) : undefined, group = home && groupOf(settled, home.id);
+  return openConversation(settled, target, { mode: options.background ? 'background' : 'tab', ...(home && group ? { group: group.id, after: home.id } : {}) }, newID);
+}
+/** A preview tab kept open: it becomes a regular tab. */
+export function keepTab(page: WorkspacePage, panelID: string): WorkspacePage {
+  return shownPanels(page).some(value => value.id === panelID && value.preview) ? mapPagePanels(page, value => value.id === panelID ? withoutPreview(value) : value) : page;
+}
+/**
+ * A tab made its group's preview tab, on the selected conversation ("Follow
+ * the selected conversation"): another tab on that conversation closes into
+ * it, and another preview tab of its group becomes a regular tab.
+ */
+export function previewTab(page: WorkspacePage, panelID: string): WorkspacePage {
+  const settled = settleChats(page), group = groupOf(settled, panelID);
+  if (!group) return page;
+  const others = visibleChats(settled).filter(panel => panel.id !== panelID && sameConversation(resolveTarget(panel, settled.selection), settled.selection));
+  const without = others.reduce((result, panel) => removeFromPage(result, panel.id), settled);
+  return mapPagePanels(without, panel => panel.id === panelID ? chatTab(panel.id, settled.selection, true) : panel.preview && group.panels.some(value => value.id === panel.id) ? withoutPreview(panel) : panel);
+}
+/**
+ * A panel closed. A chat tab in front hands the front to its neighbour (the
+ * tab to its right, else to its left), and when it showed the selected
+ * conversation, the neighbour's conversation is selected.
+ */
+export function closeTab(page: WorkspacePage, panelID: string): WorkspacePage {
+  const group = groupOf(page, panelID), panel = group?.panels.find(value => value.id === panelID), next = removeFromPage(page, panelID);
+  if (!group || !panel || !isChatTab(panel) || group.active !== panelID || group.panels.length < 2) return next;
+  const index = group.panels.indexOf(panel), neighbour = group.panels[index + 1] || group.panels[index - 1];
+  const fronted = mapPageGroups(next, value => value.id === group.id ? { ...value, active: neighbour.id } : value);
+  return isChatTab(neighbour) && sameConversation(resolveTarget(panel, page.selection), page.selection) ? withSelection(fronted, resolveTarget(neighbour, page.selection)) : fronted;
+}
+/** What "Close other tabs" (or "Close tabs to the right") closes: tabs of the panel's group, never the sidebar's lists nor a card for a window. */
+export function tabsToClose(page: WorkspacePage, panelID: string, which: 'others' | 'right'): Panel[] {
+  const group = groupOf(page, panelID);
+  if (!group) return [];
+  const index = group.panels.findIndex(panel => panel.id === panelID);
+  return group.panels.filter((panel, at) => panel.id !== panelID && (which === 'others' || at > index) && !sidebarKinds.has(panel.kind) && !panel.detached);
+}
+/**
+ * After the person rearranged the dock (a tab clicked or dragged, ⌃1, ⌃⇥):
+ * a chat tab brought to the front of its group selects its conversation.
+ */
+export function followFrontTab(before: WorkspacePage, after: WorkspacePage): WorkspacePage {
+  const was = new Map(pageGroups(before).map(group => [group.id, group.active]));
+  for (const group of pageGroups(after)) {
+    const front = group.panels.find(panel => panel.id === group.active);
+    if (!front || !isChatTab(front) || was.get(group.id) === front.id) continue;
+    const target = resolveTarget(front, after.selection);
+    return sameConversation(target, after.selection) ? after : withSelection(after, target);
+  }
+  return after;
+}
+/** The preview tab a full page can close to make room: the first one, in reading order. */
+export function oldestPreview(page: WorkspacePage): Panel | undefined { return visibleChats(page).find(panel => panel.preview); }
+/** A page name from a conversation's title: one line, at most 64 characters. */
+export function pageName(title: string): string {
+  const clean = title.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return (clean.length > 64 ? `${clean.slice(0, 63)}…` : clean) || 'Conversation';
+}
+/**
+ * A conversation moved to a page of its own (named after it, in front): its
+ * tab leaves the page it was on, or a new tab is made for it.
+ */
+export function moveToNewPage(layout: WorkspaceLayout, fromPage: string, target: ViewTarget, title: string, newID: () => string): { layout: WorkspaceLayout; page: string } | { error: string } {
+  if (layout.pages.length >= PAGE_LIMIT) return { error: `A workspace has at most ${PAGE_LIMIT} pages; remove one to move this conversation to a page of its own.` };
+  const from = layout.pages.find(page => page.id === fromPage), existing = from && tabFor(from, target);
+  const panel = existing ? { ...withoutPreview(existing), binding: { mode: 'pinned' as const, target: { ...resolveTarget(existing, from!.selection) } } } : chatTab(newID(), target);
+  const id = newID(), created = emptyPage(id, pageName(title), { ...target, commandId: '' }, groupFor(panel));
+  const pages = layout.pages.map(page => page.id === fromPage && existing ? closeTab(page, existing.id) : page);
+  return { layout: { ...layout, pages: [...pages, created], selectedPage: id }, page: id };
+}
+/**
+ * A review beside the work it reviews: `openRelated` in the background, right
+ * after the tab of the conversation reviewed (`beside`), else in the chat
+ * group; one already open is kept as it is. Undefined when the page has no
+ * chat to join or is full (the caller says so).
  */
 export function openBesideChat(page: WorkspacePage, target: ViewTarget, beside: string, newID: () => string): { page: WorkspacePage; id: string; added: boolean } | undefined {
-  const chats = visibleChats(page);
-  const shown = chats.find(panel => resolveTarget(panel, page.selection).sessionId === target.sessionId);
-  if (shown) return { page, id: shown.id, added: false };
-  const anchor = chats.find(panel => resolveTarget(panel, page.selection).sessionId === beside) || chats.find(panel => panel.binding.mode === 'follow') || chats[0];
-  const group = anchor && groupOf(page, anchor.id);
-  if (!anchor || !group || allPanels(page).length >= PANEL_LIMIT) return undefined;
-  const panel: Panel = { id: newID(), kind: 'chat', binding: { mode: 'pinned', target: { ...target, commandId: '' } }, detached: false };
-  return { page: mapPageGroups(page, value => {
-    if (value.id !== group.id) return value;
-    const at = value.panels.findIndex(other => other.id === anchor.id) + 1;
-    return { ...value, panels: [...value.panels.slice(0, at), panel, ...value.panels.slice(at)] };
-  }), id: panel.id, added: true };
+  if (!visibleChats(page).length) return undefined;
+  const opened = openRelated(page, { collectionId: target.collectionId, sessionId: beside, commandId: '' }, target, { background: true }, newID);
+  return opened.full ? undefined : { page: opened.page, id: opened.id, added: opened.added };
 }
 /** The page whose visible chat shows a conversation: the selected page first. */
 export function pageShowing(layout: WorkspaceLayout, sessionId: string): WorkspacePage | undefined {
@@ -471,7 +662,7 @@ const content = (panel: Panel) => !sidebarKinds.has(panel.kind) && panel.kind !=
 export function detachChat(page: WorkspacePage, panelID: string, target: ViewTarget): WorkspacePage {
   const panel = shownPanels(page).find(value => value.id === panelID);
   if (!panel) return page;
-  const moved: Panel = { ...panel, binding: { mode: 'pinned', target: { ...target } }, detached: true };
+  const moved: Panel = { ...withoutPreview(panel), binding: { mode: 'pinned', target: { ...target } }, detached: true };
   const others = shownPanels(page).filter(value => value.id !== panelID && content(value) && !value.detached);
   if (!others.length) return mapPagePanels(page, value => value.id === panelID ? moved : value);
   const origin = originOf(page.layout, panelID);
@@ -595,7 +786,8 @@ export function defaultLayout(selection = emptyTarget(), agents?: SidebarAgents)
   const panel = (panelID: string, kind: string) => followPanel(selection.collectionId ? `${selection.collectionId}-${panelID}` : panelID, kind);
   const layout: LayoutNode = { type: 'split', direction: 'row', sizes: [0.2, 0.8], children: [
     { type: 'split', direction: 'column', sizes: [1 - AGENTS_SHARE, AGENTS_SHARE], children: [leaf(panel('work-collections', 'collections')), leaf(panel('work-agents', 'agents'))] },
-    { type: 'split', direction: 'column', sizes: [0.62, 0.38], children: [leaf(panel('work-chat', 'chat')), leaf(panel('work-console', 'console'), true)] },
+    // The conversation is the page's preview tab: choosing another one in the sidebar shows it there.
+    { type: 'split', direction: 'column', sizes: [0.62, 0.38], children: [leaf(chatTab(panel('work-chat', 'chat').id, selection, true)), leaf(panel('work-console', 'console'), true)] },
   ] };
   return { version: 2, selectedPage: 'work', pages: [fitSidebarAgents(emptyPage('work', 'Work', selection, layout), agents)] };
 }
@@ -622,11 +814,11 @@ export function redockPopouts(page: WorkspacePage): WorkspacePage {
   for (const group of page.popouts) layout = dockAt(layout, group, 'right', 0.3, group.panels[0]?.kind);
   return { ...page, layout, popouts: [] };
 }
-/** What loading a saved page fixes: windows that are gone, duplicate chats, Agents hidden behind Workspaces, and Agents as the window has it (`agents`, see fitSidebarAgents). */
+/** What loading a saved page fixes: windows that are gone, chats that follow the page (they become its preview tab), duplicate chats, Agents hidden behind Workspaces, and Agents as the window has it (`agents`, see fitSidebarAgents). */
 export function repairLayout(layout: WorkspaceLayout, agents?: SidebarAgents): WorkspaceLayout {
   const pages = layout.pages.map(page => {
     const docked = redockPopouts(page), stacked = stackSidebar(docked.layout);
-    const next = fitSidebarAgents(dedupeChats(stacked === docked.layout ? docked : { ...docked, layout: stacked }, page.selection), agents);
+    const next = fitSidebarAgents(dedupeChats(settleChats(stacked === docked.layout ? docked : { ...docked, layout: stacked }), page.selection), agents);
     return next.layout === page.layout && next.floating === page.floating && next.popouts === page.popouts && next.detached === page.detached ? page : next;
   });
   return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
@@ -662,13 +854,15 @@ function parseGroup(value: unknown, panelIDs: Set<string>, groupIDs: Set<string>
   return { type: 'group', id: value.id, panels: parsed, active: value.active, ...(value.minimized ? { minimized: true } : {}) };
 }
 function parsePanel(p: unknown, panelIDs: Set<string>): Panel {
-  if (!object(p) || !keys(p, ['id', 'kind', 'binding', 'detached', 'origin']) || !id(p.id) || panelIDs.has(p.id) || typeof p.kind !== 'string' || !kindPattern.test(p.kind) || typeof p.detached !== 'boolean' || !object(p.binding)) throw new Error('Invalid panel');
+  if (!object(p) || !keys(p, ['id', 'kind', 'binding', 'detached', 'origin', 'preview']) || !id(p.id) || panelIDs.has(p.id) || typeof p.kind !== 'string' || !kindPattern.test(p.kind) || typeof p.detached !== 'boolean' || !object(p.binding) || (p.preview !== undefined && typeof p.preview !== 'boolean')) throw new Error('Invalid panel');
   panelIDs.add(p.id);
   const bindingValid = p.binding.mode === 'follow' ? keys(p.binding, ['mode']) : p.binding.mode === 'pinned' && keys(p.binding, ['mode', 'target']) && validTarget(p.binding.target);
   if (!bindingValid) throw new Error('Invalid panel binding');
   if (p.detached && !(p.kind === 'chat' && p.binding.mode === 'pinned' && !!(p.binding.target as ViewTarget).sessionId)) throw new Error('Only a chat pinned to a conversation opens in its own window');
   const origin = p.origin === undefined ? undefined : parseOrigin(p.origin);
-  return { id: p.id, kind: p.kind, binding: p.binding as Binding, detached: p.detached, ...(origin && p.detached ? { origin } : {}) };
+  // Only a chat on the page is a preview tab.
+  const preview = p.preview === true && p.kind === 'chat' && !p.detached;
+  return { id: p.id, kind: p.kind, binding: p.binding as Binding, detached: p.detached, ...(origin && p.detached ? { origin } : {}), ...(preview ? { preview } : {}) };
 }
 function parseOrigin(value: unknown): PanelOrigin {
   if (!object(value) || !keys(value, ['group', 'index', 'beside', 'side', 'share', 'minimized']) || (value.minimized !== undefined && typeof value.minimized !== 'boolean') || !id(value.group) || !Number.isInteger(value.index) || (value.index as number) < 0 || (value.index as number) > PANEL_LIMIT

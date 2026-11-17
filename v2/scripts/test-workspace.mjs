@@ -80,15 +80,23 @@ try {
   fixture.mutations.splice(fixture.mutations.findIndex(m => m.method === 'Apply' && m.body.permission), 1);
   await expect(chat.getByRole('status').filter({ hasText: 'Instructions updated' })).toBeVisible();
 
-  // A chat stays on its conversation from its group menu (right-click its tab), or follows the page again.
+  // Typing in the chat kept it as a tab of its own: it stays on its conversation, and choosing
+  // another shows that one in a preview tab beside it. From its menu (right-click its tab) it
+  // follows the selected conversation again, as the preview tab; a preview tab offers to stay.
   await page.getByRole('tab', { name: 'Agent chat', exact: true }).click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Stay on this conversation', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Follow the selected conversation', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
   await session.selectOption('alpha-second');
   await expect(chat).toContainText('Retained conversation for alpha-session');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
+  await expect(page.locator('.page-layout .panel-chat')).toHaveCount(2);
   await page.getByRole('tab', { name: 'Agent chat', exact: true }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Follow the selected conversation', exact: true }).click();
   await expect(chat).toContainText('Retained conversation for alpha-second');
+  await expect(page.locator('.page-layout .panel-chat'), 'the preview tab on that conversation closed into it').toHaveCount(1);
+  await page.locator('.dv-tab').filter({ has: page.locator('.dock-tab[data-kind="chat"][data-preview]') }).click({ button: 'right' });
+  await expect(page.getByRole('menuitem', { name: 'Stay on this conversation', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
   await collection.selectOption('alpha'); await session.selectOption('alpha-session');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('unsent cross-repository draft');
   await page.getByLabel('Page actions',{exact:true}).click();await page.getByRole('button', { name: 'Customize pages', exact: true }).click();
@@ -146,13 +154,14 @@ try {
   await expect(popup.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
   closed = popup.waitForEvent('close'); await page.getByRole('region', { name: 'In other windows' }).getByRole('button', { name: /^Put .* back$/ }).click(); await closed;
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
-  // The chat brought back stays pinned to its conversation; choosing conversations in the
-  // sidebar reuses it and never stacks a second panel on the same conversation.
+  // The chat brought back stays on its conversation (a regular tab); choosing conversations in the
+  // sidebar brings its tab forward, shows the others in one preview tab beside it, and never
+  // stacks a second panel on the same conversation.
   const links = page.locator('.page-layout .panel-collections .conversation-link');
   const second = links.filter({ hasText: 'Second alpha conversation' }), first = links.filter({ hasNotText: 'Second alpha conversation' }).first();
-  for (const link of [first, first, second, second, first, first]) {
+  for (const [link, count] of [[first, 1], [first, 1], [second, 2], [second, 2], [first, 2], [first, 2]]) {
     await link.click();
-    await expect(page.locator('.page-layout .panel-chat')).toHaveCount(1);
+    await expect(page.locator('.page-layout .panel-chat')).toHaveCount(count);
   }
   await expect(chat).toContainText('Retained conversation for alpha-session');
   await expect(chat.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('draft from detached chat');
