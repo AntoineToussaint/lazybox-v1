@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { essentialKeys, keyParts, releaseGroups, welcomeDecision, whatsNewDecision, type Release } from '../packages/surfaces/src/onboarding-model.ts';
 import { keyboardPreset } from '../packages/surfaces/src/keyboard.ts';
+import { displayBinding } from '../packages/surfaces/src/actions.ts';
 import { releaseNotes } from '../packages/surfaces/src/release-notes.ts';
 
 const fresh = { seen: false, workspacesLoaded: true, workspaces: 0, conversationsLoaded: true, conversations: 0 };
@@ -59,11 +60,11 @@ test('a big release shows its items under their groups, in order', () => {
 
 test('the five keys come from the person’s own keymap', () => {
   assert.deepEqual(keyParts(' ] ]  c '), [']', ']', 'c']);
-  const vim = essentialKeys(keyboardPreset('vim'), '⌘P');
+  const vim = essentialKeys(keyboardPreset('vim', true), '⌘P', binding => displayBinding(binding, true));
   assert.equal(vim.length, 5);
-  assert.deepEqual(vim.map(k => k.label), ['Leave the agent', 'New conversation', 'Go to file', 'Inbox', 'Next / previous']);
+  assert.deepEqual(vim.map(k => k.label), ['Leave the agent', 'New task', 'Go to file', 'Inbox', 'Next / previous']);
   assert.deepEqual(vim[0].keys, [[']', ']']]);
-  assert.deepEqual(vim[1].keys, [[']', ']', 'c']]);
+  assert.deepEqual(vim[1].keys, [['⌘N']]);
   assert.deepEqual(vim[2].keys, [['⌘P']]);
   assert.deepEqual(vim[4].keys, [['j'], ['k']]);
   const tmux = essentialKeys(keyboardPreset('tmux'), 'Ctrl+P');

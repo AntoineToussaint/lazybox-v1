@@ -4,6 +4,8 @@ import type { AppHost, ViewStateStore } from '@lazybox/platform';
 import { UpdateNotice } from './AboutSettings';
 import { ActionMenu } from './ActionMenu';
 import { Icon } from './Icons';
+import { actionEnabled, bindings, displayBinding, runAction, useActionRevision } from './actions';
+import { useKeymap } from './keyboard';
 import { AttentionCenter } from './Inbox';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { RunControl } from './RunControl';
@@ -63,6 +65,11 @@ export function WorkspaceHeader({ app, pages, selectedPage, settings, pending, f
   // Each repository's current branch: a pill whose pull request is on it opens the PR loop.
   const git = useGitSummaries();
   const branches = new Map((git.byWorkspace.get(workspaceID)?.repositories || []).map(repo => [repo.member, repo.branch]));
+  // New task where this window can start one (a workspace's own window cannot: it has no sheet).
+  const keymap = useKeymap(viewState);
+  useActionRevision();
+  const keysOf = (id: 'task.new' | 'conversation.new') => { const first = bindings(keymap[id])[0]; return first ? displayBinding(first).join('') : ''; };
+  const taskKeys = fixedWorkspace ? undefined : keysOf('task.new'), conversationKeys = keysOf('conversation.new');
   return <header className="workspace-header">
     <button className="mobile-navigation-button icon-button" aria-label="Open workspace navigator" aria-expanded={navigatorOpen} onClick={onOpenNavigator}><Icon name="sidebar"/></button>
     <div className="workspace-brand"><span className="brand-mark">l<span>↗</span></span><strong>lazybox</strong></div>
@@ -77,7 +84,11 @@ export function WorkspaceHeader({ app, pages, selectedPage, settings, pending, f
       <button className="toolbar-action phone-overflow" disabled={!workspaceID} aria-label="Browse files" title={`Browse files · Go to file ${shortcut('Mod+P')}`} onClick={onBrowseFiles}><Icon name="folder"/><span>Files</span></button>
       <RunControl workspaceId={workspaceID} disabled={!terminalReady} onShowPanel={onShowModule}/>
       <button className="toolbar-action phone-overflow" disabled={!terminalReady} aria-label="Open terminal" title="Open a terminal in this workspace" onClick={onShowTerminal}><Icon name="terminal"/><span>Terminal</span></button>
-      <button className="toolbar-action new-conversation-action" disabled={!info || pending || !canShowNewSession} aria-label="New conversation" title="New conversation" onClick={onNewConversation}><Icon name="plus"/><span>New conversation</span></button>
+      {/* One name for starting work: New task (⌘N) leads; a conversation in this workspace (⇧⌘N) is the secondary half. */}
+      <span className="new-work-split" role="group" aria-label="Start work">
+        {taskKeys !== undefined && <button className="toolbar-action new-task-action" disabled={!actionEnabled('task.new')} aria-label="New task" title={`New task: repositories, an agent and what to do${taskKeys ? ` (${taskKeys})` : ''}`} onClick={() => runAction('task.new')}><Icon name="plus"/><span>New task</span>{taskKeys && <kbd>{taskKeys}</kbd>}</button>}
+        <button className={`toolbar-action new-conversation-action${taskKeys !== undefined ? ' icon-only' : ''}`} disabled={!info || pending || !canShowNewSession} aria-label="New conversation" title={`New conversation in this workspace${conversationKeys ? ` (${conversationKeys})` : ''}`} onClick={onNewConversation}><Icon name={taskKeys !== undefined ? 'chat' : 'plus'}/>{taskKeys === undefined && <span>New conversation</span>}</button>
+      </span>
       {/* Panels, Layout and Help (with What's new) sit together: how the window is arranged and explained. */}
       {layoutMenu}
       <HelpMenu settings={!fixedWorkspace}/>

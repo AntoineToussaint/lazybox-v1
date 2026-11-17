@@ -70,12 +70,15 @@ export type KeyLesson = { keys: string[][]; label: string; detail: string };
 /**
  * The five keys that matter, from the person's own keymap (vim, arrows or
  * tmux preset, or their edits). `goToFile` is the platform's Go to file
- * chord, already formatted (⌘P on a Mac).
+ * chord, already formatted (⌘P on a Mac); `chord` formats a chord binding
+ * such as New task's ("Mod+n" → ["⌘N"]).
  */
-export function essentialKeys(map: Keymap, goToFile: string): KeyLesson[] {
+export function essentialKeys(map: Keymap, goToFile: string, chord: (binding: string) => string[] = keyParts): KeyLesson[] {
+  const firstBinding = (value: string | undefined) => (value || '').split(/\s+or\s+/)[0]?.trim() || '';
   return [
     { keys: [keyParts(map['navigation.exit'])], label: 'Leave the agent', detail: 'From the message box to navigation; every other shortcut starts here.' },
-    { keys: [lessonKeys(map['conversation.new'])], label: 'New conversation', detail: 'In the workspace you are in.' },
+    // One name for starting work: New task (the header's button, the welcome's step) makes the workspace and starts the agent.
+    { keys: [chord(firstBinding(map['task.new']))], label: 'New task', detail: 'Repositories, an agent and what to do, on a branch of its own.' },
     { keys: [[goToFile]], label: 'Go to file', detail: 'Fuzzy-find any file in the workspace, from anywhere.' },
     { keys: [keyParts(map['inbox.open'])], label: 'Inbox', detail: 'Everything waiting for you: questions, approvals, finished work.' },
     { keys: [keyParts(map['navigation.next']), keyParts(map['navigation.previous'])], label: 'Next / previous', detail: 'Move through workspaces and conversations in navigation.' },

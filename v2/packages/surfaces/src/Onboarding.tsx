@@ -5,7 +5,7 @@ import { isAcp } from './providers';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { invokeAction, readKeymap } from './keyboard';
-import { runAction, useActions } from './actions';
+import { displayBinding, runAction, useActions } from './actions';
 import { readPreference, writePreference } from './view-state';
 import { shortcut } from './workbench';
 import { useRunner } from './RunnerContext';
@@ -110,7 +110,7 @@ export function Onboarding({ viewState, collections, collectionsLoaded, automati
     }}/>}
     {welcome && <Welcome viewState={viewState} onClose={closeWelcome}
       onSubscription={() => { closeWelcome(); onOpenSettings('subscriptions'); }}
-      onWorkspace={() => { closeWelcome(); requestAnimationFrame(() => invokeAction('workspace.new')); }}/>}
+      onTask={() => { closeWelcome(); requestAnimationFrame(() => invokeAction('task.new')); }}/>}
     {whatsNew && <WhatsNew releases={whatsNew.releases} focus={whatsNew.asked} updated={whatsNew.updated} failed={whatsNew.failed} onDismiss={dismissWhatsNew} onUpdates={() => { setWhatsNew(undefined); openUpdates(); }}/>}
     {docs && <Suspense fallback={null}><DocsViewer key={docs} initial={docs} onClose={() => setDocs('')}/></Suspense>}
     {feedback && <Suspense fallback={null}><FeedbackDialog host={host} shot={feedback} sessionId={sessionId} onClose={() => setFeedback(undefined)}/></Suspense>}
@@ -131,9 +131,9 @@ function Keys({ keys }: { keys: string[] }) {
   return <span className="onboarding-keys">{keys.map((key, i) => <kbd key={i}>{key}</kbd>)}</span>;
 }
 
-function Welcome({ viewState, onClose, onSubscription, onWorkspace }: { viewState?: ViewStateStore; onClose(): void; onSubscription(): void; onWorkspace(): void }) {
+function Welcome({ viewState, onClose, onSubscription, onTask }: { viewState?: ViewStateStore; onClose(): void; onSubscription(): void; onTask(): void }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const lessons = useMemo(() => essentialKeys(readKeymap(viewState), shortcut('Mod+P')), [viewState]);
+  const lessons = useMemo(() => essentialKeys(readKeymap(viewState), shortcut('Mod+P'), binding => displayBinding(binding)), [viewState]);
   useEffect(() => { const node = dialog.current; if (node && !node.open) node.showModal(); node?.querySelector<HTMLElement>('[data-autofocus]')?.focus(); }, []);
   return <DraggableDialog ref={dialog} className="onboarding-welcome" aria-labelledby="onboarding-welcome-title" onCancel={event => { event.preventDefault(); onClose(); }}>
     <DialogHeader>
@@ -149,8 +149,8 @@ function Welcome({ viewState, onClose, onSubscription, onWorkspace }: { viewStat
       </li>
       <li>
         <span className="onboarding-step-icon" aria-hidden="true"><Icon name="repository" size={16}/></span>
-        <div><h3>Add a repository</h3><p>Create a workspace from one or more repositories. Each conversation in it works on the workspace's branches, never on your checkout.</p></div>
-        <button onClick={onWorkspace}>Create a workspace</button>
+        <div><h3>Start a task</h3><p>Pick one or more repositories, an agent and what to do. Lazybox makes the task its workspace, on its own branches, never your checkout.</p></div>
+        <button onClick={onTask}>New task</button>
       </li>
       <li className="onboarding-keys-step">
         <span className="onboarding-step-icon" aria-hidden="true"><Icon name="keyboard" size={16}/></span>

@@ -39,8 +39,8 @@ try{
   // The five keys, from the default (vim) keymap, and Go to file for this platform.
   const list=welcome.locator('dl[aria-label="The five keys that matter"]');
   await expect(list.locator('dt')).toHaveCount(5);
-  await expect(list).toContainText('Leave the agent');await expect(list).toContainText('New conversation');await expect(list).toContainText('Go to file');await expect(list).toContainText('Inbox');await expect(list).toContainText('Next / previous');
-  assert.deepEqual(await list.locator('div').nth(1).locator('kbd').allTextContents(),[']',']','c']);
+  await expect(list).toContainText('Leave the agent');await expect(list).toContainText('New task');await expect(list).toContainText('Go to file');await expect(list).toContainText('Inbox');await expect(list).toContainText('Next / previous');
+  assert.match(await list.locator('div').nth(1).locator('kbd').textContent(),/^(⌘N|Ctrl\+N)$/);
   assert.deepEqual(await list.locator('div').nth(4).locator('kbd').allTextContents(),['j','k']);
   assert.match((await list.locator('div').nth(2).locator('kbd').textContent()),/^(⌘P|Ctrl\+P)$/);
   // The documentation ships with the app: a button, never a web link.
@@ -60,16 +60,16 @@ try{
   await expect(page.getByText('Start a task: its repositories, an agent and your first message, in a workspace of its own.')).toBeVisible();
   await page.waitForTimeout(600);
   await expect(page.getByRole('dialog',{name:'Welcome to Lazybox'})).toHaveCount(0);
-  // Help reopens it; Escape closes it; Create a workspace opens the new-workspace flow.
+  // Help reopens it; Escape closes it; New task opens the New task sheet (one name for starting work).
   await help(page,'Welcome & getting started');
   await expect(welcome).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(welcome).toHaveCount(0);
   await help(page,'Welcome & getting started');
-  await welcome.getByRole('button',{name:'Create a workspace'}).click();
+  await welcome.getByRole('button',{name:'New task',exact:true}).click();
   await expect(welcome).toHaveCount(0);
-  await expect(page.getByRole('dialog',{name:'New workspace'})).toBeVisible();
-  await page.getByRole('button',{name:'Close workspace dialog'}).click();
+  await expect(page.getByRole('dialog',{name:'New task'})).toBeVisible();
+  await page.keyboard.press('Escape');await expect(page.getByRole('dialog',{name:'New task'})).toHaveCount(0);
   // Help → Keyboard shortcuts opens the shortcuts overlay (Customize there leads to Settings).
   await help(page,'Keyboard shortcuts');
   const overlay=page.getByRole('dialog',{name:'Keyboard shortcuts'});await expect(overlay).toBeVisible();await page.keyboard.press('Escape');await expect(overlay).toHaveCount(0);

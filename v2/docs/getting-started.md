@@ -82,14 +82,15 @@ offers to remove it (`brew uninstall lazybox`, shown before it runs). More in
 [Install → First run](install.md#first-run). Dev and Working
 skip this window: their launcher runs the Runner.
 
-![The first-run welcome: connect a subscription, add a repository, five keys](images/welcome.webp)
+![The first-run welcome: connect a subscription, start a task, five keys](images/welcome.webp)
 
 On a fresh install Lazybox greets you once with the three things it needs:
 
 1. **Connect a subscription.** Opens Settings → Subscriptions. Your existing
    `claude` or `codex` sign-in already works as *Local CLI sign-in*; add named
    accounts here if you have several (see [Subscriptions and limits](guides/subscriptions.md)).
-2. **Add a repository.** Opens the New workspace picker (next section).
+2. **Start a task.** Opens **New task**: repositories, an agent and what to
+   do, in one sheet (next section).
 3. **Five keys** — shown with *your* bindings. They are also
    [below](#the-keys-that-matter).
 
@@ -100,7 +101,8 @@ started**. After an update, a quiet card in the corner lists **What's new**.
 
 ![New task: the first message, a repository, the branch it suggests, the agent and its mode, in one sheet](images/new-task.webp)
 
-`⌘N` (File → New Task…, or **New task** where the window is empty) opens one
+`⌘N` (File → New Task…, **New task** in the header, or where the window is
+empty) opens one
 sheet: type what the agent should do, pick the repositories (recent ones
 first; type to search), check the branch it suggests from your message (Edit
 to change it or the workspace's name), the agent and how it works (Ask for
@@ -151,8 +153,9 @@ Lazybox asks you to **review its scripts** before running its setup — see
    - **Read only** — it can look, not change.
    - **YOLO** — full access, no prompts. Use it in workspaces you can throw away.
 
-   *Model, gateway & context* holds the rest: a specific model, **Metered ·
-   track workspace cost**, a *Plan* workflow, extra instructions.
+   *Model & context* holds the rest: a specific model, a *Plan* workflow,
+   extra instructions, and a **Gateway** (such as **Metered · track workspace
+   cost**) when the Runner has one besides the direct connection.
 3. **Start**, then type what you want and press `Enter` (`Shift+Enter` for a
    new line). Drop files or paste a screenshot to attach them.
 
