@@ -1114,7 +1114,10 @@ actions:
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
   return { items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
-    availability, acp, tracked, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
+    availability, acp, tracked,
+    /** A conversation's open journal, without replacing it (openEvents starts a new one). */
+    eventsOf: id => eventStreams.get(id),
+    get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */

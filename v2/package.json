@@ -25,6 +25,8 @@
     "docs:shortcuts": "node --import tsx scripts/docs-shortcuts.ts",
     "generate:manifest": "node --import tsx scripts/action-manifest.ts",
     "docs:screenshots": "node scripts/docs-screenshots.mjs",
+    "scenario": "node --import tsx scenarios/run.ts",
+    "test:scenarios": "node --import tsx scenarios/run.ts all --no-video",
     "test:worker": "node --import tsx --test workers/claude-sdk/src/*.test.ts",
     "test:browser-service": "node --import tsx --test workers/browser/src/*.test.ts",
     "test:startup": "node scripts/test-startup.mjs",
