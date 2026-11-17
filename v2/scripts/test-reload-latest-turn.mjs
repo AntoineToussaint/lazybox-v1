@@ -9,10 +9,13 @@
 // does the same.
 //
 // The journal is driven like the Runner's: a message queued mid-turn is
-// journaled when accepted, Send now interrupts the turn and delivers it, and
-// its turn goes on working while another message waits in the queue. Then the
-// page reloads: thousands of events replay, only the latest messages are
-// mounted, and they end with the turn in progress.
+// journaled when accepted, Send now interrupts the turn and delivers it (its
+// receipt), and its turn goes on working while another message waits in the
+// queue. A queued message is in one place at a time: the Queued strip while it
+// waits, the conversation once delivered, at the start of the turn it began.
+// Then the page reloads: thousands of events replay, only the latest messages
+// are mounted, they end with the turn in progress, and every message is where
+// it was.
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {chromium,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import assert from 'node:assert/strict';import {mkdir} from 'node:fs/promises';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 import {longConversation,deliveredQueuedTurn} from './fixtures/long-conversation.mjs';
@@ -28,7 +31,9 @@ assert.ok(ch.events.length>4000,`a long history (${ch.events.length} events)`);
 const {events:latest}=deliveredQueuedTurn();
 const step=marker=>{const i=latest.findIndex(marker);assert.ok(i>=0);return i;};
 // The Runner journals what the person does: the queued messages are the ones typed below.
-const queuedAt=step(e=>e.operationId==='op-teams'),interruptAt=step(e=>e.operationId==='op-teams:now'),behindAt=step(e=>e.operationId==='op-continue');
+const queuedAt=step(e=>e.operationId==='op-teams'),interruptAt=step(e=>e.operationId==='op-teams:now');
+// The delivered message's turn, as the agent records it after the receipt (the fixture journals the stop, the receipt and the turn's start).
+const workingAt=step((e,i)=>e.type==='turn_started'&&i>interruptAt)+1;
 const pushAll=events=>{for(const event of events)ch.push(event);};
 const accepted=(text,operationId)=>ch.push({type:'operation_accepted',text,operationId});
 const messages=()=>f.mutations.filter(m=>m.method==='Apply'&&m.body.message);
@@ -52,44 +57,54 @@ try{
  // ── A message sent mid-turn waits in the queue; the Runner journals it when it accepts it.
  await composer.fill('QUEUED_DELIVERED: only two teams and two users in every solution.');await composer.press('Enter');
  await expect(strip).toBeVisible({timeout:5000});
- // (The fixture journals it on acceptance, as the Runner does.)
+ // (The fixture journals it on acceptance, as the Runner does.) The agent goes on:
+ // the strip is its only place, not a "You" bubble in the running turn.
  pushAll(latest.slice(queuedAt+1,interruptAt));
+ const you=pane.locator('article.message.operation_accepted'),said=text=>you.filter({hasText:text});
+ await expect(pane.getByRole('list',{name:'Tool calls'}).last()).toBeVisible();
+ await expect(said('QUEUED_DELIVERED')).toHaveCount(0);
+ await expect(you.last()).toContainText('Make the fixture global');
  // ── Send now: the turn is interrupted, and the queued message is delivered next.
  await strip.getByRole('listitem').getByRole('button',{name:'Send now'}).click();
  await expect.poll(()=>claude.interrupted).toBe(1);
  await expect(strip).toHaveCount(0,{timeout:5000});
- pushAll(latest.slice(interruptAt,behindAt));
- // ── Another message waits behind the delivered one.
+ await expect(said('QUEUED_DELIVERED')).toHaveCount(1);
+ // ── Another message waits behind the delivered one, in the strip only.
  await composer.fill('QUEUED_BEHIND: ok so continue');await composer.press('Enter');
  await expect.poll(()=>claude.queuedMessages.length).toBe(1);
- // (Journaled on acceptance by the fixture.)
- // ── The delivered message's turn: its receipt, then the agent working.
- pushAll(latest.slice(behindAt+1));
+ await expect(strip).toBeVisible({timeout:5000});
+ // ── The delivered message's turn: the agent working.
+ pushAll(latest.slice(workingAt));
+ await expect(pane.getByRole('list',{name:'Tool calls'}).last()).toContainText(/2 commands/,{timeout:10000});
  // A turn's commands are one line until opened; the last line is the turn in progress.
  const latestCommands=async()=>{const run=pane.getByRole('list',{name:'Tool calls'}).last();await run.getByRole('button').first().click();await expect(run).toContainText(/lazybox artifact put plan\.md/i);await expect(run).toContainText(/go test \.\/libraries\/authority-core/i);};
- await expect(pane.locator('article.message.operation_accepted').last()).toContainText('QUEUED_BEHIND: ok so continue',{timeout:10000});
  await latestCommands();
+ /** Every message once, where it reached the agent; the queued one nowhere in the conversation. */
+ const inPlace=async()=>{
+  await expect(you.last()).toContainText('QUEUED_DELIVERED: only two teams',{timeout:30000});
+  await expect(said('QUEUED_DELIVERED: only two teams')).toHaveCount(1);
+  await expect(said('Make the fixture global')).toHaveCount(1);
+  await expect(said('QUEUED_BEHIND')).toHaveCount(0);
+  const order=await pane.evaluate(node=>{const text=node.innerText.toLowerCase();return ['answer_end_59','roles_answer','stopped to send your message','queued_delivered','lazybox artifact put plan.md','go test ./libraries/authority-core'].map(s=>text.lastIndexOf(s));});
+  assert.ok(order.every((at,i)=>at>=0&&(i===0||at>order[i-1])),`latest turn last, in order: ${order}`);
+ };
+ await inPlace();
 
- // ── Reload in the middle of that turn: everything up to the latest is shown.
+ // ── Reload in the middle of that turn: everything up to the latest is shown, each message in its place.
  await page.reload();
- const you=pane.locator('article.message.operation_accepted');
- await expect(you.last()).toContainText('QUEUED_BEHIND: ok so continue',{timeout:30000});
- await expect(you.filter({hasText:'QUEUED_DELIVERED: only two teams'})).toHaveCount(1);
- await expect(you.filter({hasText:'Make the fixture global'})).toHaveCount(1);
- await expect(pane).toContainText('ROLES_ANSWER');
+ await expect(pane).toContainText('ROLES_ANSWER',{timeout:30000});
  // Thousands of events, but only the latest messages are mounted.
  await expect(chat.getByRole('button',{name:/Show earlier messages/})).toBeVisible();
  await expect(pane).not.toContainText('ANSWER_END_10');
  // The view is at its end: the turn in progress, not an earlier turn.
  await expect.poll(()=>pane.evaluate(node=>node.scrollHeight-node.clientHeight-node.scrollTop)).toBeLessThan(3);
  await latestCommands();
- const order=await pane.evaluate(node=>{const text=node.innerText.toLowerCase();return ['answer_end_59','roles_answer','queued_delivered','queued_behind','lazybox artifact put plan.md','go test ./libraries/authority-core'].map(s=>text.lastIndexOf(s));});
- assert.ok(order.every((at,i)=>at>=0&&(i===0||at>order[i-1])),`latest turn last, in order: ${order}`);
+ await inPlace();
  // The agent is still working on it, and the message behind it still waits.
  await expect(chat.getByRole('region',{name:'What the agent is doing'})).toBeVisible();
  await expect(strip).toBeVisible();
  await expect(strip.getByRole('listitem').locator('q')).toHaveText('QUEUED_BEHIND: ok so continue');
  await page.screenshot({path:'.cache/reload-latest-turn.png'});
  assert.deepEqual(errors,[]);
- console.log(`PASS reload latest turn: a busy conversation of ${ch.events.length} events follows a Runner restart (its stream ends Unavailable and reconnects from its cursor); a message queued mid-turn and delivered by Send now, its turn's activity and the message queued behind it are all shown after a reload, at the end of the view, with only the latest messages mounted. Fixture only.`);
+ console.log(`PASS reload latest turn: a busy conversation of ${ch.events.length} events follows a Runner restart (its stream ends Unavailable and reconnects from its cursor); a message queued mid-turn is in the strip only until Send now delivers it, then said once at the start of its turn; its turn's activity and the message queued behind it (in the strip, not the conversation) are all shown the same after a reload, at the end of the view, with only the latest messages mounted. Fixture only.`);
 }finally{await browser?.close();await server.close();await f.close();}

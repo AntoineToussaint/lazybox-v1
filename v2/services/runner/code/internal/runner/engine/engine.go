@@ -516,7 +516,9 @@ func (e *Engine) DeliverQueued(ctx context.Context, id, how string) (agent.Recei
 		old := e.ops[op.ID]
 		old.receipt = r
 		e.ops[op.ID] = old
-		e.appendLocked(map[string]any{"type": "receipt", "receipt": r})
+		// The receipt says it was steered: a client shows the message here,
+		// inside the running turn, where every other delivery starts a turn.
+		e.appendLocked(map[string]any{"type": "receipt", "receipt": r, "status": "steered"})
 		e.mu.Unlock()
 		return r, nil
 	}

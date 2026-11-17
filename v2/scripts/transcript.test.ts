@@ -204,12 +204,16 @@ test('a reader cut by a Runner restart reconnects from its cursor and shows the 
  assert.deepEqual(asked,[0n,BigInt(history.length)],'the reader reconnects after the last record it had');
  assert.equal(state.cursor,BigInt(history.length+latest.length));assert.equal(state.status,'Live');assert.equal(state.error,'');
  const texts=state.messages.map(m=>m.text);
- for(const text of ['Make the fixture global: two roles, admin and user.','QUEUED_DELIVERED: only two teams and two users in every solution.','QUEUED_BEHIND: ok so continue'])assert.ok(texts.includes(text),`shows "${text}"`);
+ for(const text of ['Make the fixture global: two roles, admin and user.','QUEUED_DELIVERED: only two teams and two users in every solution.'])assert.equal(texts.filter(t=>t===text).length,1,`shows "${text}" once`);
+ // The message delivered by Send now starts its turn, after the stop; the one behind it still waits, so it is not said yet.
+ const stopped=state.messages.findIndex(m=>m.type==='stopped'),delivered=texts.indexOf('QUEUED_DELIVERED: only two teams and two users in every solution.');
+ assert.ok(stopped>=0&&delivered===stopped+1,`the stop, then the message: ${JSON.stringify(state.messages.map(m=>m.type))}`);
+ assert.ok(!texts.some(t=>t.startsWith('QUEUED_BEHIND')),'a queued message is not in the conversation');
+ assert.deepEqual(Object.values(state.pending!).map(m=>m.text),['QUEUED_BEHIND: ok so continue']);
  // The delivered message's turn is the last thing shown, still working.
  const last=state.messages.at(-1)!;assert.equal(last.type,'tools');
  assert.deepEqual(last.tools!.map(t=>t.status),['completed','completed','completed']);
  assert.ok(JSON.stringify(last.tools).includes('lazybox artifact put plan.md'));
- assert.ok(state.messages.findIndex(m=>m.text.startsWith('QUEUED_BEHIND'))<state.messages.length-1);
 });
 // A finished conversation's stream ends cleanly; that, and only that, stops the reader.
 test('a reader stops following a conversation whose stream ended',async()=>{
@@ -235,9 +239,12 @@ test('a turn Send now stopped is one quiet line; a raw provider diagnostic is ne
  add({type:'operation_accepted',operationId:'urgent:now',text:''});
  add({type:'failure',status:'provider_error',text:ede,account:{state:'unknown',reason:'error_during_execution'}});
  add({type:'turn_ended',status:'interrupted'});
- assert.deepEqual(state.messages.map(m=>[m.type,m.text]),[['operation_accepted','Run the build'],['tools',''],['operation_accepted','Use port 4000 instead'],['stopped','Stopped to send your message']]);
+ assert.deepEqual(state.messages.map(m=>[m.type,m.text]),[['operation_accepted','Run the build'],['tools',''],['stopped','Stopped to send your message']]);
  assert.equal(state.messages[1].tools![0].status,'unknown','the step it stopped is no longer shown running');
  assert.equal(state.sendingNow,false);
+ // Delivered, the message is the next turn's start.
+ state=appendTranscript(state,create(JournalEventSchema,{cursor:state.cursor+1n,event:{type:'receipt'},receipt:{operationId:'urgent',delivery:'submitted'}}));
+ assert.deepEqual(state.messages.slice(2).map(m=>[m.type,m.text]),[['stopped','Stopped to send your message'],['operation_accepted','Use port 4000 instead']]);
  // The next turn's failure, with no stop asked for, is a failure: in plain words.
  add({type:'turn_started'});
  add({type:'failure',status:'provider_error',text:ede});
@@ -248,4 +255,124 @@ test('a turn Send now stopped is one quiet line; a raw provider diagnostic is ne
  add({type:'operation_accepted',operationId:'other:now',text:''});
  add({type:'failure',status:'exhausted',account:{state:'exhausted'}});
  assert.equal(state.sendingNow,true);
+});
+
+// ── A message sent while the agent works is queued, not said ───────────────
+// The Runner journals a message when it accepts it, queued behind the turn in
+// progress or not, and its receipt when the agent gets it. A real conversation
+// showed one sent mid-turn twice: as a "You" bubble inside the running turn,
+// above the agent's next words, and in the Queued strip. The conversation
+// shows a message once, where it reached the agent; the strip shows it while
+// it waits.
+import type {Transcript} from '../packages/surfaces/src/transcript-model.ts';
+const q={
+ accepted:(operationId:string,text:string)=>({type:'operation_accepted',operationId,text}),
+ receipt:(operationId:string,delivery='submitted',status='')=>({type:'receipt',status,receipt:{operationId,delivery}}),
+ delta:(text:string)=>({type:'message_delta',text}),
+ tool:(id:string,command:string,status='running')=>({type:'tool_activity',providerDataJson:Buffer.from(JSON.stringify({type:'tool_call',id,name:'Bash',status,...(status==='running'?{input:{command}}:{output:'ok'})})).toString('base64')}),
+ started:{type:'turn_started'},ended:{type:'turn_ended',status:'completed'},
+};
+/** Journal records as WatchEvents sends them, numbered from 1. */
+const journalOf=(events:any[])=>wireJournal(events,1,events.length);
+/** The conversation as lines: who said what, and the runs of tool calls. */
+const lines=(t:Transcript)=>t.messages.map(m=>m.type==='operation_accepted'?`You${m.steered?' (steered)':''}: ${m.text}`:m.type==='tools'?`tools ${m.tools!.filter(x=>x.name==='Bash').map(x=>x.id).join(',')}`:m.type==='message_delta'?`Agent: ${m.text}`:`${m.type}${m.text?`: ${m.text}`:''}`);
+const foldAll=(events:any[])=>foldTranscript(emptyTranscript(),journalOf(events));
+/** The real conversation's shape: a message accepted mid-turn, the turn going on, then delivered. */
+const queuedMidTurn:any[]=[
+ q.accepted('first','Make the fixture global.'),q.receipt('first'),q.started,
+ q.delta('Looking at the fixture.'),q.tool('t1','cat module/fixtures/dev-admin.yaml'),
+ q.accepted('focus','for now, REALLY focus on unit tests and API / proto'),
+ q.tool('t1','','completed'),q.delta('The fixture seeds three teams.'),q.tool('t2','go test ./...'),q.tool('t2','','completed'),
+ q.ended,q.receipt('focus'),q.started,q.delta('Focusing on unit tests.'),q.ended,
+];
+
+test('a message accepted mid-turn is not said until delivered, then starts the next turn after the previous one',()=>{
+ const records=journalOf(queuedMidTurn),delivery=queuedMidTurn.findIndex(e=>e.receipt?.operationId==='focus');
+ // While it waits: nowhere in the conversation, the agent's words unbroken by it.
+ const waiting=foldTranscript(emptyTranscript(),records.slice(0,delivery));
+ assert.deepEqual(lines(waiting),['You: Make the fixture global.','Agent: Looking at the fixture.','tools t1','Agent: The fixture seeds three teams.','tools t2']);
+ assert.deepEqual(Object.keys(waiting.pending!),['focus']);
+ // Delivered: once, after the turn it waited for, before the turn it starts.
+ const done=foldTranscript(waiting,records.slice(delivery));
+ assert.deepEqual(lines(done),['You: Make the fixture global.','Agent: Looking at the fixture.','tools t1','Agent: The fixture seeds three teams.','tools t2','You: for now, REALLY focus on unit tests and API / proto','Agent: Focusing on unit tests.']);
+ assert.deepEqual(done.pending,{});
+ assert.equal(done.messages.find(m=>m.operationId==='focus')!.id,'6','the message keeps its identity: the record that accepted it');
+});
+
+test('a queued message never delivered is never said; one the closing session dropped neither',()=>{
+ const t=foldAll([q.accepted('first','Start the server.'),q.receipt('first'),q.started,q.tool('t1','npm run dev'),q.accepted('later','Then check the logs.'),q.delta('Started on port 3000.')]);
+ assert.deepEqual(lines(t),['You: Start the server.','tools t1','Agent: Started on port 3000.']);
+ assert.deepEqual(Object.values(t.pending!).map(m=>m.text),['Then check the logs.']);
+ // engine.Close writes a dropped message's receipt as an event of its own.
+ const closed=foldTranscript(t,wireJournal([{type:'receipt',operationId:'later',status:'canceled_before_delivery'},{type:'session_closed'}],7,8));
+ assert.deepEqual(lines(closed),lines(t));assert.deepEqual(closed.pending,{});
+});
+
+test('Send now: the stop, then the message, then its turn',()=>{
+ const ede='[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use';
+ const t=foldAll([
+  q.accepted('build','Run the build'),q.receipt('build'),q.started,q.tool('t1','npm run dev'),
+  q.accepted('urgent','Use port 4000 instead'),q.tool('t2','curl localhost:3000'),
+  q.accepted('urgent:now',''),q.receipt('urgent:now','acknowledged'),
+  {type:'failure',status:'provider_error',text:ede,account:{state:'unknown',reason:'error_during_execution'}},{type:'turn_ended',status:'interrupted'},
+  q.receipt('urgent'),q.started,q.delta('Switching to port 4000.'),
+ ]);
+ assert.deepEqual(lines(t),['You: Run the build','tools t1,t2','stopped: Stopped to send your message','You: Use port 4000 instead','Agent: Switching to port 4000.']);
+ assert.ok(t.messages[1].tools!.every(x=>x.status!=='running'),'the stopped steps are no longer running');
+});
+
+test('several queued messages are said in the order delivered, each starting its turn',()=>{
+ const t=foldAll([
+  q.accepted('a','A'),q.receipt('a'),q.started,q.delta('working on A'),
+  q.accepted('b','B'),q.accepted('c','C'),q.delta(' still A'),q.ended,
+  // Sent while the queue still holds B and C: it waits behind them, though no turn runs.
+  q.accepted('d','D'),
+  q.receipt('b'),q.started,q.delta('answer B'),q.ended,
+  q.receipt('c'),q.started,q.delta('answer C'),q.ended,
+  q.receipt('d'),q.started,q.delta('answer D'),q.ended,
+ ]);
+ assert.deepEqual(lines(t),['You: A','Agent: working on A still A','You: B','Agent: answer B','You: C','Agent: answer C','You: D','Agent: answer D']);
+});
+
+test('a message sent while the agent is idle is said at once, as before',()=>{
+ const t=foldAll([q.accepted('a','Hello'),q.receipt('a'),q.started,q.delta('Hi.'),q.ended,q.accepted('b','Again')]);
+ assert.deepEqual(lines(t),['You: Hello','Agent: Hi.','You: Again'],'shown before its receipt arrives');
+ assert.deepEqual(t.pending??{},{});
+ assert.deepEqual(lines(foldTranscript(t,wireJournal([q.receipt('b'),q.started,q.delta('Hi again.')],7,9))),['You: Hello','Agent: Hi.','You: Again','Agent: Hi again.']);
+});
+
+test('a turn recorded a moment before its message\'s receipt still opens with the message (Codex)',()=>{
+ const t=foldAll([q.accepted('a','A'),q.receipt('a'),q.started,q.delta('working'),q.accepted('b','B'),q.ended,q.started,q.delta('answer'),q.receipt('b'),q.delta(' to B')]);
+ assert.deepEqual(lines(t),['You: A','Agent: working','You: B','Agent: answer to B'],'the reply is still one message after the moved one');
+});
+
+test('a steered message is said where it reached the running turn, and says it was steered',()=>{
+ const t=foldAll([q.accepted('a','Start the server'),q.receipt('a','acknowledged'),q.started,q.tool('t1','npm run dev'),q.accepted('b','Also log the port'),q.delta('Starting.'),q.receipt('b','acknowledged','steered'),q.tool('t1','','completed'),q.delta('Logged port 3000.'),q.ended]);
+ assert.deepEqual(lines(t),['You: Start the server','tools t1','Agent: Starting.','You (steered): Also log the port','Agent: Logged port 3000.']);
+ assert.equal(t.messages[1].tools![0].status,'completed','a call from before the steer still gets its result');
+});
+
+test('a queued message the Runner restart left unconfirmed is said before the line that says so',()=>{
+ const t=foldAll([q.accepted('a','A'),q.receipt('a'),q.started,q.accepted('b','B'),q.ended,{type:'runner_reattached',status:'native_process_adopted'},q.receipt('b','unknown_after_runner_restart')]);
+ assert.deepEqual(lines(t).slice(-2),['You: B','notice: The Runner restarted before it could confirm this message reached the agent. It was not sent again; resend it if it is still needed.']);
+});
+
+// Reload, a reconnect after a Runner restart, a cache: any split of the same
+// journal folds to the same conversation, so placement depends on the events alone.
+test('queued messages land in the same place however the journal is split',()=>{
+ const events=[...queuedMidTurn,
+  q.accepted('x','X'),q.receipt('x'),q.started,q.accepted('y','Y'),q.delta('on X'),q.accepted('y:now',''),q.receipt('y:now','acknowledged'),{type:'turn_ended',status:'interrupted'},q.receipt('y'),q.started,q.accepted('z','Z'),q.delta('on Y'),q.receipt('z','acknowledged','steered'),q.delta(' and Z'),q.ended,
+  q.accepted('w','W'),q.started,q.receipt('w'),q.delta('on W'),q.accepted('v','still waiting')];
+ const records=journalOf(events),whole=foldTranscript(emptyTranscript(),records);
+ let one=emptyTranscript();for(const record of records)one=appendTranscript(one,record);
+ assert.deepEqual(one.messages,whole.messages);
+ for(const size of [2,3,5,8,13]){
+  let chunked=emptyTranscript();for(let i=0;i<records.length;i+=size)chunked=foldTranscript(chunked,records.slice(i,i+size));
+  assert.deepEqual(chunked.messages,whole.messages,`chunks of ${size}`);assert.deepEqual(chunked.pending,whole.pending);
+ }
+ // A live view that saw a message queued, then delivered, matches a reload of the whole journal.
+ const live=foldTranscript(foldTranscript(emptyTranscript(),records.slice(0,5)),records.slice(5));
+ assert.deepEqual(live.messages,whole.messages);
+ assert.deepEqual(lines(whole).slice(7),['You: X','Agent: on X','stopped: Stopped to send your message','You: Y','Agent: on Y','You (steered): Z','Agent:  and Z','You: W','Agent: on W']);
+ assert.deepEqual(Object.values(whole.pending!).map(m=>m.text),['still waiting']);
 });

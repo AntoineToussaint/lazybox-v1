@@ -14,6 +14,10 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.19] - 2026-11-17 · A queued message shows once
+
+- **Queued or sent, never both** A message you send while the agent works waits above the message box, and only there: it no longer also shows in the conversation, inside the turn it is waiting for. Once the agent gets it, it shows once, where it did: after that turn (and after Stopped to send your message, for Send now), starting its own; a message steered into a Codex turn shows there, marked steered. A reload shows the same.
+
 ## [2026-11-17.18] - 2026-11-17 · Send now from the keyboard
 
 - **⌘↵ sends now** While the agent works, ↵ still queues your message, and ⌘↵ sends it now: the agent's current step stops and your message is the next turn. Pressed ↵ and saw it queued? ⌘↵ with an empty message box sends the oldest queued message now. While the agent is idle, ⌘↵ sends like ↵, also while you dictate.

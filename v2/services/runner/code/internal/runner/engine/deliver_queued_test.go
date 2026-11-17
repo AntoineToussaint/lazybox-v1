@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -69,5 +70,120 @@ func TestQueuedMessagesAreListedAndDeliveredNowOrSteered(t *testing.T) {
 				t.Fatal("steering must not end the turn")
 			}
 		})
+	}
+}
+
+// receiptRecord is a journaled receipt as a client reads it: the receipt, and
+// the record's status ("steered" for a message steered into a running turn).
+type receiptRecord struct {
+	Receipt agent.Receipt `json:"receipt"`
+	Status  string        `json:"status"`
+}
+
+// awaitReceipt waits for id's receipt in e's journal.
+func awaitReceipt(t *testing.T, e *Engine, id string) receiptRecord {
+	t.Helper()
+	ctx := contextFor(t)
+	for cursor := uint64(0); ; {
+		r, err := e.Events(ctx, cursor)
+		if err != nil {
+			t.Fatalf("no receipt for %q: %v", id, err)
+		}
+		var v struct {
+			Type    string        `json:"type"`
+			Receipt agent.Receipt `json:"receipt"`
+			Status  string        `json:"status"`
+		}
+		if json.Unmarshal(r.Value, &v) == nil && v.Type == "receipt" && v.Receipt.ID == id {
+			return receiptRecord{Receipt: v.Receipt, Status: v.Status}
+		}
+		cursor = r.Sequence
+	}
+}
+
+// A client shows a queued message where its receipt says it reached the
+// agent, so every way a message is delivered journals that receipt: at once,
+// at the end of the turn it waited for, by Send now, and by Steer, whose
+// receipt says so.
+func TestEveryDeliveryOfAMessageJournalsItsReceipt(t *testing.T) {
+	for _, steer := range []bool{false, true} {
+		t.Run(map[bool]string{false: "claude-like", true: "codex-like"}[steer], func(t *testing.T) {
+			e, s := bench(t, steer)
+			ctx := contextFor(t)
+			if _, err := e.Apply(ctx, agent.Operation{ID: "at-once", Kind: agent.Message, Text: "start"}); err != nil {
+				t.Fatal(err)
+			}
+			applied(t, s)
+			if r := awaitReceipt(t, e, "at-once"); r.Receipt.Delivery != "acknowledged" || r.Status != "" {
+				t.Fatalf("a message sent while idle: %+v", r)
+			}
+			s.Events <- agent.Event{Type: "turn_started"}
+			for _, id := range []string{"drained", "urgent"} {
+				if _, err := e.Apply(ctx, agent.Operation{ID: id, Kind: agent.Message, Text: id}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if steer {
+				if _, err := e.DeliverQueued(ctx, "urgent", DeliverSteer); err != nil {
+					t.Fatal(err)
+				}
+				applied(t, s)
+				if r := awaitReceipt(t, e, "urgent"); r.Receipt.Delivery == "" || r.Status != "steered" {
+					t.Fatalf("a steered message's receipt does not say it was steered: %+v", r)
+				}
+			} else {
+				if _, err := e.DeliverQueued(ctx, "urgent", DeliverNow); err != nil {
+					t.Fatal(err)
+				}
+				if op := applied(t, s); op.Kind != agent.Interrupt {
+					t.Fatalf("send now did not interrupt: %+v", op)
+				}
+				s.Events <- agent.Event{Type: "turn_ended", Status: "interrupted"}
+				if op := applied(t, s); op.ID != "urgent" {
+					t.Fatalf("send now: %+v", op)
+				}
+				if r := awaitReceipt(t, e, "urgent"); r.Receipt.Delivery != "acknowledged" || r.Status != "" {
+					t.Fatalf("a message sent now: %+v", r)
+				}
+				s.Events <- agent.Event{Type: "turn_started"}
+			}
+			s.Events <- agent.Event{Type: "turn_ended", Status: "completed"}
+			if op := applied(t, s); op.ID != "drained" {
+				t.Fatalf("the queue drains in order: %+v", op)
+			}
+			if r := awaitReceipt(t, e, "drained"); r.Receipt.Delivery != "acknowledged" || r.Status != "" {
+				t.Fatalf("a message delivered at the end of a turn: %+v", r)
+			}
+		})
+	}
+}
+
+// A message still queued when the Runner restarts is delivered by the next
+// one, which journals its receipt.
+func TestAMessageQueuedAcrossARestartJournalsItsReceipt(t *testing.T) {
+	e, native, st, path := durableEngine(t)
+	ctx := contextFor(t)
+	if _, err := e.Apply(ctx, agent.Operation{ID: "first", Kind: agent.Message, Text: "build it"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = applied(t, native)
+	native.Events <- agent.Event{Type: "turn_started", SessionID: "native-ref", Cursor: 1}
+	await(t, e, "turn_started")
+	if _, err := e.Apply(ctx, agent.Operation{ID: "waiting", Kind: agent.Message, Text: "then this"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Detach(); err != nil {
+		t.Fatal(err)
+	}
+	next, a, err := adopt(t, path, st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Session.Events <- agent.Event{Type: "turn_ended", Status: "completed", Cursor: 2}
+	if op := applied(t, a.Session); op.ID != "waiting" {
+		t.Fatalf("the queued message after the restart: %+v", op)
+	}
+	if r := awaitReceipt(t, next, "waiting"); r.Receipt.Delivery != "acknowledged" {
+		t.Fatalf("its receipt: %+v", r)
 	}
 }

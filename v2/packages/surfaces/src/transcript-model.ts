@@ -23,7 +23,9 @@ export type TranscriptMessage = { id: string; type: string; text: string; turnId
   /** `lineage`: an agent-tree line (started, messaged, stopped, granted) and what it points at. */
   lineage?: LineageNote;
   /** A `failure`: what the provider said, when the line says it in plain words instead. */
-  detail?: string };
+  detail?: string;
+  /** A queued message given to the agent inside its running turn (Steer), shown where it was. */
+  steered?: boolean };
 /** One line about an agent tree, as the Runner recorded it (runner/orchestrator.go). */
 export type LineageNote = { kind: string; conversation: string; session: string; mission: string; direction: string; plan: string };
 /** An agent review of this conversation's work (the Runner's review_started /
@@ -39,7 +41,17 @@ function reviewNote(data: Record<string, unknown>, finished: boolean): ReviewNot
 /** `requests`: what each question or approval asked, to say how it was answered. */
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote>; /** The agent's slash commands and models (`command_catalog`). */ catalog: CommandCatalog;
   /** Send now stopped the turn in progress, which has not ended yet. */
-  sendingNow?: boolean };
+  sendingNow?: boolean;
+  /** The agent's turn is running (or a switch of subscription started one): a message accepted now waits in the queue. */
+  turnRunning?: boolean;
+  /** Where the running turn's output starts in `messages`, until a receipt arrives in it. */
+  turnStart?: number;
+  /**
+   * Messages accepted while the agent was busy and not delivered yet, by
+   * operation ID, in the order accepted. The Queued strip shows them; the
+   * conversation shows each once, where its receipt says the agent got it.
+   */
+  pending?: Record<string, TranscriptMessage> };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {}, catalog: emptyCatalog() });
 
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
@@ -70,6 +82,30 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
   let subagents: SubagentFold | undefined;
   const replaceAt = (index: number, message: TranscriptMessage) => { list()[index] = message; owned.add(message); };
   let requests: Record<string, RequestNote> | undefined;
+  let pending: Record<string, TranscriptMessage> | undefined;
+  const queued = () => pending ?? state.pending ?? {};
+  /** A message the person (or Lazybox) said, at the end or at `at`. */
+  const place = (message: TranscriptMessage, at?: number) => {
+    // A line the review already said ("Codex asked Claude: …") is this message now.
+    const said = message.origin?.summary ? saidBy(messages ?? state.messages, message.origin.summary, m => m.type === 'exchange') : -1;
+    if (said >= 0) {
+      list().splice(said, 1);
+      if (next.turnStart !== undefined && said < next.turnStart) next.turnStart--;
+      if (at !== undefined && said < at) at--;
+    }
+    if (at === undefined || at >= list().length) { add(message); next.appendToLast = false; }
+    else { list().splice(at, 0, message); owned.add(message); }
+  };
+  /**
+   * A message accepted while the agent is busy waits in the queue: the Queued
+   * strip shows it, and the conversation does once it is delivered. One sent
+   * while idle is the next turn's start, shown at once.
+   */
+  const accept = (message: TranscriptMessage) => {
+    const id = message.operationId;
+    if (id && (next.turnRunning || Object.keys(queued()).length)) (pending ??= { ...state.pending })[id] = message;
+    else place(message);
+  };
   for (const record of fresh) {
     next.cursor = record.cursor;
     const event = record.event;
@@ -81,6 +117,28 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       for (const agentId of fold.takeCards()) { add({ id: `subagent:${agentId}`, type: 'subagent', text: '', turnId: event!.turnId, agentId }); next.appendToLast = false; }
     }
     if (!event || (event.agentId && event.agentId !== 'root')) continue;
+    // While a turn runs (as the Runner counts it), a message waits in the queue.
+    if (event.type === 'turn_started') { next.turnRunning = true; next.turnStart = (messages ?? state.messages).length; }
+    else if (event.type === 'turn_ended' || event.type === 'session_closed') { next.turnRunning = false; next.turnStart = undefined; }
+    else if (event.type === 'profile_changed' && event.status !== 'checkpoint_next_message') next.turnRunning = true;
+    // A queued message joins the conversation where its receipt says the agent
+    // got it: after the turn it waited for (and the stop Send now made), as
+    // the start of its own turn; or, steered, inside the running one. One the
+    // session dropped while it waited never does.
+    const receipt = receiptOf(record);
+    if (receipt) {
+      const message = queued()[receipt.id];
+      if (message) {
+        delete (pending ??= { ...state.pending })[receipt.id];
+        if (receipt.delivery !== 'canceled_before_delivery') {
+          const steered = event.status === 'steered';
+          // The turn it starts can be recorded a moment before its receipt (Codex): it opens that turn.
+          place(steered ? { ...message, steered } : message, steered || !next.turnRunning ? undefined : next.turnStart);
+        }
+      }
+      // A receipt during a turn is its start's, or later than it.
+      if (next.turnRunning) next.turnStart = undefined;
+    }
     if (event.type === 'session_ready' || event.type === 'context' || event.type === 'usage') {
       const model = providerData(event.providerDataJson).model;
       if (typeof model === 'string' && model.trim()) next.reportedModel = model;
@@ -189,11 +247,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       const data = providerData(event.providerDataJson);
       const origin = messageOrigin(data.origin) ?? legacyOrigin(event.operationId);
       if (origin) {
-        // A line the review already said ("Codex asked Claude: …") is this event now.
-        const current = messages ?? state.messages, said = origin.summary ? saidBy(current, origin.summary, m => m.type === 'exchange') : -1;
-        if (said >= 0) list().splice(said, 1);
-        add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId, origin, ...(event.operationId ? { operationId: event.operationId } : {}), ...(Array.isArray(data.files) && data.files.length ? { files: data.files } : {}) });
-        next.appendToLast = false;
+        accept({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId, origin, ...(event.operationId ? { operationId: event.operationId } : {}), ...(Array.isArray(data.files) && data.files.length ? { files: data.files } : {}) });
         continue;
       }
     }
@@ -213,9 +267,11 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
         else replaceLast({ ...last, text: last.text + event.text });
       } else add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId });
       next.appendToLast = true;
-    } else if ((event.type === 'operation_accepted' || event.type === 'failure') && (event.text || files?.length)) {
-      const sentence = event.type === 'failure' ? failureSentence(event.status, event.text) : event.text;
-      add({ id: record.cursor.toString(), type: event.type, text: sentence, turnId: event.turnId, files, ...(event.type === 'failure' && event.text.trim() && sentence !== event.text.trim() ? { detail: event.text.trim() } : {}), ...(event.type === 'operation_accepted' && event.operationId ? { operationId: event.operationId } : {}), ...(event.type === 'operation_accepted' && ranCommand(event.text, next.catalog) ? { command: true } : {}) });
+    } else if (event.type === 'operation_accepted' && (event.text || files?.length)) {
+      accept({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId, files, ...(event.operationId ? { operationId: event.operationId } : {}), ...(ranCommand(event.text, next.catalog) ? { command: true } : {}) });
+    } else if (event.type === 'failure' && (event.text || files?.length)) {
+      const sentence = failureSentence(event.status, event.text);
+      add({ id: record.cursor.toString(), type: event.type, text: sentence, turnId: event.turnId, files, ...(event.text.trim() && sentence !== event.text.trim() ? { detail: event.text.trim() } : {}) });
       next.appendToLast = false;
     } else if (BOUNDARY_TYPES.has(event.type) || (event.type === 'activity' && event.status === 'tool')) {
       next.appendToLast = false;
@@ -224,6 +280,7 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
   if (messages) next.messages = messages;
   if (subagents) next.subagents = subagents.result();
   if (requests) next.requests = requests;
+  if (pending) next.pending = pending;
   if (activity.length) {
     // Bound only what is retained: a long replay drops most activity anyway.
     const room = ACTIVITY - activity.length;
@@ -244,7 +301,7 @@ function foldTool(messages: TranscriptMessage[], record: JournalEvent, list: () 
   const parsed = Date.parse(record.capturedAt), at = Number.isFinite(parsed) ? parsed : undefined;
   for (let i = messages.length - 1; i >= Math.max(0, messages.length - TOOL_LOOKBACK); i--) {
     const message = messages[i];
-    if (message.type === 'operation_accepted') break;
+    if (message.type === 'operation_accepted' && !message.steered) break;
     const index = message.tools?.findIndex(t => t.id === id) ?? -1;
     if (index < 0) continue;
     const entry = applyToolPayload(message.tools![index], payload, at);
@@ -289,7 +346,7 @@ function endThinking(current: TranscriptMessage[], replaceAt: (index: number, me
 function settleTools(messages: TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, owned: Set<TranscriptMessage>, pastQueued = false) {
   for (let i = messages.length - 1; i >= Math.max(0, messages.length - TOOL_LOOKBACK); i--) {
     const message = messages[i];
-    if (message.type === 'operation_accepted') { if (pastQueued) continue; break; }
+    if (message.type === 'operation_accepted' && !message.steered) { if (pastQueued) continue; break; }
     if (!message.tools?.some(t => t.status === 'running')) continue;
     const tools = message.tools.map(t => t.status === 'running' ? { ...t, status: 'unknown' as const } : t);
     if (owned.has(message)) message.tools = tools; else replaceAt(i, { ...message, tools });
@@ -309,6 +366,18 @@ export function ranCommand(text: string, catalog: CommandCatalog | undefined): b
  */
 function stopReport(status = '', account = ''): boolean {
   return ['', 'unknown', 'provider_error', 'error_during_execution'].includes(status) && ['', 'unknown', 'available'].includes(account);
+}
+/**
+ * The receipt a record carries: the operation and what became of it. The
+ * Runner writes most in the record's receipt; a message the closing session
+ * dropped from its queue is a "receipt" event of that operation, with
+ * `canceled_before_delivery` as its status (engine.Close).
+ */
+function receiptOf(record: JournalEvent): { id: string; delivery: string } | undefined {
+  if (record.receipt?.operationId) return { id: record.receipt.operationId, delivery: record.receipt.delivery };
+  const event = record.event;
+  if (event?.type === 'receipt' && event.operationId) return { id: event.operationId, delivery: event.status };
+  return undefined;
 }
 const ACTIVITY_TYPES = new Set(['tool_catalog', 'tool_activity', 'turn_ended', 'failure', 'session_closed']);
 const BOUNDARY_TYPES = new Set(['turn_started', 'turn_ended', 'session_closed', 'approval', 'question', 'request_resolved']);

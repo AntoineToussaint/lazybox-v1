@@ -25,6 +25,10 @@ it did.
   and your message goes as soon as the step stops, the other queued messages
   in order after it. A message never waits while the agent is idle, even
   after Lazybox restarted.
+  A queued message is in one place at a time: above the message box while it
+  waits, then in the conversation where the agent got it, starting its own
+  turn after the one it waited for (and after *Stopped to send your
+  message*), or, steered, inside the running turn, marked *You · steered*.
 - **Send now from the keyboard:** `⌘↵` (`Ctrl+Enter` on Windows and Linux).
   While the agent works, `↵` queues your message and `⌘↵` sends it now,
   stopping the current step. Pressed `↵` and saw it queued? `⌘↵` with an

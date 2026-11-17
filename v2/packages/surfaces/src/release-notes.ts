@@ -9,6 +9,14 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.19',
+    date: '2026-11-17',
+    title: 'A queued message shows once',
+    items: [
+      { title: 'Queued or sent, never both', body: 'A message you send while the agent works waits above the message box, and only there: it no longer also shows in the conversation, inside the turn it is waiting for. Once the agent gets it, it shows once, where it did: after that turn (and after Stopped to send your message, for Send now), starting its own; a message steered into a Codex turn shows there, marked steered. A reload shows the same.' },
+    ],
+  },
+  {
     id: '2026-11-17.18',
     date: '2026-11-17',
     title: 'Send now from the keyboard',

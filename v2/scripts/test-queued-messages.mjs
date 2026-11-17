@@ -4,9 +4,13 @@
 // warns which step it stops, then interrupts the turn and sends the message
 // next (Escape keeps waiting); Steer gives it to a Codex turn without stopping
 // it; for Claude the strip says it cannot take a message mid-turn. Several
-// queued messages collapse; a phone keeps it on screen. ⌘↵ (Send now's key)
-// sends the typed message now while the agent works, the oldest queued one
-// from an empty box, and is an ordinary send while the agent is idle.
+// queued messages collapse; a phone keeps it on screen. A queued message is in
+// one place at a time: the strip while it waits, never also a "You" bubble in
+// the running turn; once delivered, the conversation, where it reached the
+// agent (after the stop Send now made, or steered inside the turn), the same
+// after a reload.
+// ⌘↵ (Send now's key) sends the typed message now while the agent works, the
+// oldest queued one from an empty box, and is an ordinary send while idle.
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {chromium,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import assert from 'node:assert/strict';import {mkdir} from 'node:fs/promises';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 
@@ -17,12 +21,16 @@ const busy=(session,provider)=>Object.assign(session,{provider,busy:true,status:
 const [claude,codex]=f.sessions;
 busy(claude,'claude');claude.sentNowReply='Switching to port 4000.';
 busy(codex,'codex');Object.assign(codex,{profileId:'codex-default',capabilities:{...codex.capabilities,steer:true}});
+const channels={};
 for(const session of [claude,codex]){
- const ch=f.openEvents(session.id),at=offset=>new Date(now+offset).toISOString();
+ const ch=channels[session.id]=f.openEvents(session.id),at=offset=>new Date(now+offset).toISOString();
  ch.push({type:'operation_accepted',text:'Start the app and check the home page.'},at(-310000));
  ch.push({type:'turn_started'},at(-309000));
  ch.push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'toolu_dev',name:'Bash',status:'running',input:{command:'npm run dev'}})},at(-300000));
 }
+// The agent goes on after a message is queued: once its words are shown, the acceptance before them has been read too.
+const agentSays=async(chat,session,text)=>{channels[session.id].push({type:'message_delta',text});await expect(chat.getByText(text)).toBeVisible();};
+const youSaid=(chat,text)=>chat.locator('article.message.operation_accepted',{hasText:text});
 const deliveries=()=>f.mutations.filter(m=>m.method==='Apply'&&m.body.deliverQueued).map(m=>m.body.deliverQueued);
 const sentAs=text=>f.mutations.findLast(m=>m.method==='Apply'&&m.body.message?.text===text)?.body.operationId;
 
@@ -48,6 +56,9 @@ try{
  await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^Queued — Claude is busy \(Running a command · 5m \d\ds\)$/);
  const item=strip.getByRole('listitem');
  await expect(item.locator('q')).toHaveText('Use port 4000 instead, 3000 is taken.');
+ // Queued is one place: the strip. The running turn shows no "You" bubble for it.
+ await agentSays(chat,claude,'The dev server is still starting.');
+ await expect(youSaid(chat,'Use port 4000 instead')).toHaveCount(0);
  // Claude cannot take a message mid-turn: no Steer, and the strip says so.
  await expect(item.getByRole('button',{name:'Steer'})).toHaveCount(0);
  await expect(strip.locator('.queued-note')).toHaveText(`Claude can’t take a message in the middle of a turn: Send now (${nowKey}) stops its current step first, then sends yours.`);
@@ -70,9 +81,14 @@ try{
  await expect(chat.getByText(/error from the provider/i)).toHaveCount(0);
  await expect(chat.getByText(/ede_diagnostic/)).toHaveCount(0);
  await expect(chat.getByRole('alert')).toHaveCount(0);
- const order=await chat.locator('[data-message-id]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim()));
- const queuedAt=order.findIndex(t=>t.includes('Use port 4000 instead, 3000 is taken.')),stoppedAt=order.indexOf('Stopped to send your message'),repliedAt=order.findIndex(t=>t.includes('Switching to port 4000.'));
- assert.ok(queuedAt>=0&&queuedAt<stoppedAt&&stoppedAt<repliedAt,`the message, the stop, then its turn: ${JSON.stringify(order)}`);
+ // Delivered, it is said once, where it reached the agent: after the turn it stopped, starting its own.
+ const sentNowOrder=async()=>{
+  await expect(youSaid(chat,'Use port 4000 instead')).toHaveCount(1);
+  const order=await chat.locator('[data-message-id]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim()));
+  const startingAt=order.findIndex(t=>t.includes('The dev server is still starting.')),stoppedAt=order.indexOf('Stopped to send your message'),queuedAt=order.findIndex(t=>t.includes('Use port 4000 instead, 3000 is taken.')),repliedAt=order.findIndex(t=>t.includes('Switching to port 4000.'));
+  assert.ok(startingAt>=0&&startingAt<stoppedAt&&stoppedAt<queuedAt&&queuedAt<repliedAt,`the turn, the stop, the message, then its turn: ${JSON.stringify(order)}`);
+ };
+ await sentNowOrder();
  await page.screenshot({path:'.cache/queued-sent-now.png'});
 
  // ── Typed, then ⌘↵ while the agent works: the message goes now, never left waiting in the queue.
@@ -95,6 +111,14 @@ try{
  await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^3 messages queued — Claude is busy/,{timeout:5000});
  await expect(strip.getByRole('listitem')).toHaveCount(2);
  await expect(strip.locator('.queued-more')).toHaveText('and 1 more, sent in order after these');
+ await agentSays(chat,claude,'Port 4000 is free.');
+ for(const text of ['First follow-up','Second follow-up','Third follow-up'])await expect(youSaid(chat,text)).toHaveCount(0);
+ // A reload shows the same: the delivered message once, in its place; the queued ones in the strip only.
+ await page.reload();
+ await expect(chat.getByText('Port 4000 is free.')).toBeVisible();
+ await sentNowOrder();
+ for(const text of ['First follow-up','Second follow-up','Third follow-up'])await expect(youSaid(chat,text)).toHaveCount(0);
+ await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^3 messages queued — Claude is busy/);
  await strip.getByRole('button',{name:'Hide'}).click();
  await expect(strip.getByRole('listitem')).toHaveCount(0);
  await expect(strip.getByRole('button',{name:'Show'})).toHaveAttribute('aria-expanded','false');
@@ -126,11 +150,17 @@ try{
  await expect(strip).toBeVisible({timeout:5000});
  await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^Queued — Codex is busy \(Running a command/);
  await expect(strip.locator('.queued-note')).toHaveCount(0);
+ await agentSays(chat,codex,'Codex is reading the server logs.');
+ await expect(youSaid(chat,'Also log the port it picked.')).toHaveCount(0);
  await page.screenshot({path:'.cache/queued-codex.png'});
  await strip.getByRole('listitem').getByRole('button',{name:'Steer'}).click();
  await expect.poll(()=>deliveries().at(-1)).toEqual({operationId:f.mutations.findLast(m=>m.method==='Apply'&&m.body.message)?.body.operationId,how:'steer'});
  assert.equal(codex.interrupted,undefined,'steering does not interrupt the turn');
  await expect(strip).toHaveCount(0,{timeout:5000});
+ // Steered, it is said where it reached the running turn, and says so.
+ await expect(youSaid(chat,'Also log the port it picked.')).toHaveCount(1);
+ await expect(youSaid(chat,'Also log the port it picked.').locator('.eyebrow')).toHaveText('You · steered');
+
  // Steer stays a button: ⌘↵ with nothing typed and nothing queued sends nothing, and says so quietly.
  const before=f.mutations.filter(m=>m.method==='Apply').length;
  await composer.focus();await composer.press(sendNowKey);
@@ -146,5 +176,5 @@ try{
  await expect(composer).toHaveValue('');
  assert.equal(deliveries().length,delivered,'no Send now');assert.equal(codex.interrupted,undefined,'nothing interrupted');
  assert.deepEqual(errors,[]);
- console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with; Send now delivers it in one click (interrupt, then next) and its tooltip names the step it stops; Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width; ⌘↵ sends the typed message now while busy, the oldest queued one from an empty box, says so when there is nothing, and is a plain send while idle. Fixture only.');
+ console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with; it is in the strip only, never also a bubble in the running turn; Send now delivers it in one click (interrupt, then next), said once after the stop, also after a reload, and its tooltip names the step it stops; Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}
