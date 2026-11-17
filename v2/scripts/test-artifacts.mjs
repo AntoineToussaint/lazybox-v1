@@ -169,6 +169,65 @@ try{
  await elsewhere.getByRole('option',{name:/Plan from Beta/}).click();
  await expect(page.getByRole('article',{name:'Plan from Beta'})).toBeVisible();
  await page.screenshot({path:'.cache/artifacts-panel.png'});
+
+ // A Markdown file an agent names is tracked from its link: the artifact follows the file, not the line of chat.
+ fixture.artifacts.fileChanged('alpha','docs/PLAN.md','# Rollout plan\n\nShip it in three phases.\n');
+ channel.push({type:'operation_accepted',text:'Write the rollout plan to a file'});
+ channel.push({type:'message_delta',text:'Wrote `docs/PLAN.md`; the old draft in `src/main.go` and `/elsewhere/missing/NOTES.md` stays.',turnId:'t3'});
+ const wrote=page.locator('.messages article.message.message_delta').filter({hasText:'Wrote docs/PLAN.md'});
+ const planLink=wrote.getByRole('button',{name:'docs/PLAN.md'});
+ await planLink.click({button:'right'});
+ const linkMenu=page.getByRole('menu');
+ // The link's own item, then the message's, which says it is about the message.
+ await expect(linkMenu.getByRole('menuitem',{name:'Track as artifact',exact:true})).toBeEnabled();
+ await expect(linkMenu.getByRole('menuitem',{name:'Track this message as artifact…'})).toBeVisible();
+ await expect(linkMenu.getByRole('menuitem',{name:'Track as artifact…'})).toHaveCount(0);
+ const putsBefore=fixture.mutations.filter(m=>m.method==='PutArtifact').length;
+ await linkMenu.getByRole('menuitem',{name:'Track as artifact',exact:true}).click();
+ await expect.poll(()=>fixture.mutations.filter(m=>m.method==='TrackArtifactFile').map(m=>m.body.path)).toContain('docs/PLAN.md');
+ const planPage=page.getByRole('article',{name:'Rollout plan'});
+ await expect(planPage.locator('.doc-title-block')).toContainText('Synced with docs/PLAN.md');
+ await expect(planPage.locator('.artifact-document')).toContainText('Ship it in three phases.');
+ assert.equal(fixture.mutations.filter(m=>m.method==='PutArtifact').length,putsBefore,'the file is tracked, not the message');
+ // Only Markdown can be tracked, as in the Files tree.
+ await wrote.getByRole('button',{name:'src/main.go'}).click({button:'right'});
+ await expect(page.getByRole('menu').getByRole('menuitem',{name:/^Track as artifact/}).first()).toBeDisabled();
+ await expect(page.getByRole('menu')).toContainText('Markdown only');
+ await page.keyboard.press('Escape');
+ // A file outside the workspace: the Runner's refusal, in the file-link notice.
+ await wrote.getByRole('button',{name:'/elsewhere/missing/NOTES.md'}).click({button:'right'});
+ await page.getByRole('menu').getByRole('menuitem',{name:'Track as artifact',exact:true}).click();
+ await expect(page.locator('.file-link-notice[role="alert"]')).toContainText('file is outside this workspace');
+ await page.locator('.file-link-notice').getByRole('button',{name:'Dismiss'}).click();
+
+ // The message's own Track: a short message naming a Markdown file offers the file first, chosen already.
+ await wrote.hover();await wrote.getByRole('button',{name:'Track as artifact…'}).click();
+ const trackWrote=page.getByRole('dialog',{name:'Track as artifact'});
+ const fileChoice=trackWrote.getByRole('radio',{name:/^Track docs\/PLAN\.md/});
+ await expect(fileChoice).toBeChecked();await expect(fileChoice).toBeFocused();
+ await expect(trackWrote.getByLabel('Title')).toHaveCount(0);
+ await expect(trackWrote.getByRole('button',{name:'Track file'})).toBeEnabled();
+ await page.screenshot({path:'.cache/artifacts-track-file-choice.png'});
+ await trackWrote.getByRole('radio',{name:/this message’s text/}).check();
+ await expect(trackWrote.getByLabel('Title')).toBeVisible();
+ await trackWrote.getByRole('button',{name:'Cancel'}).click();await expect(trackWrote).toHaveCount(0);
+ // From the link, the message's item tracks the message: its text is chosen, the file still offered.
+ await planLink.click({button:'right'});
+ await page.getByRole('menuitem',{name:'Track this message as artifact…'}).click();
+ await expect(trackWrote.getByRole('radio',{name:/this message’s text/})).toBeChecked();
+ await expect(trackWrote.getByRole('radio',{name:/^Track docs\/PLAN\.md/})).not.toBeChecked();
+ await trackWrote.getByRole('button',{name:'Cancel'}).click();await expect(trackWrote).toHaveCount(0);
+ // A long reply is its own content: no file to choose from.
+ await message.hover();await message.getByRole('button',{name:'Track as artifact…'}).click();
+ await expect(trackWrote.getByRole('radio',{name:/^Track /})).toHaveCount(0);
+ await trackWrote.getByRole('button',{name:'Cancel'}).click();
+ // From the keyboard: the chosen file has the focus, and Enter tracks it.
+ const fileTracks=()=>fixture.mutations.filter(m=>m.method==='TrackArtifactFile').length,tracksBefore=fileTracks();
+ await wrote.hover();await wrote.getByRole('button',{name:'Track as artifact…'}).click();
+ await expect(fileChoice).toBeFocused();await page.keyboard.press('Enter');
+ await expect(trackWrote).toHaveCount(0);
+ assert.equal(fileTracks(),tracksBefore+1);assert.equal(fixture.mutations.filter(m=>m.method==='TrackArtifactFile').at(-1).body.path,'docs/PLAN.md');
+ await expect(planPage.locator('.doc-title-block')).toContainText('Synced with docs/PLAN.md');
  assert.deepEqual(errors,[]);
- console.log('PASS: track a chat message as an artifact (right-click and hover), update it after a reviewed diff, browse versions and changes, copy and download, rename, open in its own window, list an agent\'s artifact, track a Markdown file that follows disk changes, delete with confirmation. Fixture only.');
+ console.log('PASS: track a chat message as an artifact (right-click and hover), update it after a reviewed diff, browse versions and changes, copy and download, rename, open in its own window, list an agent\'s artifact, track a Markdown file that follows disk changes, delete with confirmation, track a file an agent links (from the link, and offered first by a short message\'s Track). Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}

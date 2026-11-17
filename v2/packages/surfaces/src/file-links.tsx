@@ -15,6 +15,7 @@ export type OpenModifiers = { altKey?: boolean; metaKey?: boolean; ctrlKey?: boo
  /** From a context menu: show it in the Files panel instead of opening it. */ reveal?: boolean;
  /** From a context menu: copy its path, absolute or relative to the workspace, instead of opening it. */ copy?: 'absolute' | 'relative' };
 type Choice = { reference: FileLink; matches: { path: string; directory: boolean }[]; truncated: boolean; how: OpenModifiers };
+export type PathChoice = Choice;
 
 /** Opens file references the way a person means them. The Runner resolves
  * what an agent wrote (a bare name, a path without the repository folder, a
@@ -71,8 +72,8 @@ export function useFileOpener(collectionId: string | undefined, viewState?: View
  return { open, element };
 }
 
-/** Several files match a reference: show them, nearest first, and let the person pick. */
-function PathChooser({ choice, onChoose, onClose }: { choice: Choice; onChoose(match: Choice['matches'][number]): void; onClose(): void }) {
+/** Several files match a reference: show them, nearest first, and let the person pick (to open one, or to track it as an artifact). */
+export function PathChooser({ choice, onChoose, onClose }: { choice: Choice; onChoose(match: Choice['matches'][number]): void; onClose(): void }) {
  const dialog = useRef<HTMLDialogElement>(null), list = useRef<HTMLDivElement>(null);
  useEffect(() => { dialog.current?.showModal(); list.current?.querySelector<HTMLButtonElement>('button')?.focus(); }, []);
  const keydown = (event: KeyboardEvent) => {

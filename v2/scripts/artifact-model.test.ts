@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agentReference, ago, authorShort, diffStats, guessKind, hunks, lineDiff, slug, suggestedPath, titleFromMarkdown, updatedLine, updatedSinceSeen } from '../packages/surfaces/src/artifact-model.ts';
+import { agentReference, ago, authorShort, diffStats, guessKind, hunks, lineDiff, linkedMarkdownFiles, mostlyNamesFile, slug, suggestedPath, titleFromMarkdown, trackableFile, updatedLine, updatedSinceSeen } from '../packages/surfaces/src/artifact-model.ts';
 
 test('the title is the first heading outside code, else the first prose line', () => {
   assert.equal(titleFromMarkdown('Some intro\n\n# Migration **plan**\n\n## Steps'), 'Migration plan');
@@ -93,4 +93,22 @@ test('the list says who made the latest version, and marks one the person has no
   assert.equal(updatedSinceSeen(of(agent), '1000'), true, 'a newer version since');
   assert.equal(updatedSinceSeen(of(file), '1000'), true);
   assert.equal(updatedSinceSeen(of(person), undefined), false, 'your own version is never news');
+});
+
+test('a message links the Markdown files its links and inline code name, each once, in order', () => {
+  assert.deepEqual(linkedMarkdownFiles('Wrote `docs/PLAN.md`.'), ['docs/PLAN.md']);
+  assert.deepEqual(linkedMarkdownFiles('See [the plan](docs/PLAN.md:12) and `README.md`, then [it again](docs/PLAN.md#L3).'), ['docs/PLAN.md', 'README.md']);
+  assert.deepEqual(linkedMarkdownFiles('`/Users/me/repo/notes/design.markdown:4` beside ``api/SPEC.mdx``'), ['/Users/me/repo/notes/design.markdown', 'api/SPEC.mdx']);
+  // Not Markdown, not a file, an image, a web link, or code in a fence: none of these.
+  assert.deepEqual(linkedMarkdownFiles('Changed `src/main.go` and `rate.limit`; ![diagram](docs/flow.md) [site](https://example.com/a.md)\n```\ncat docs/HIDDEN.md `x.md`\n```'), []);
+});
+
+test('a short message that names a file prefers the file; a long reply or a code block does not', () => {
+  assert.equal(mostlyNamesFile('Wrote `docs/PLAN.md`.'), true);
+  assert.equal(mostlyNamesFile('Updated the rollout plan in [PLAN.md](docs/PLAN.md) with the new phases.'), true);
+  assert.equal(mostlyNamesFile('Wrote docs/PLAN.md'), false);
+  assert.equal(mostlyNamesFile('Here is the plan in full. ' + 'Words of prose. '.repeat(12) + 'It is also in `docs/PLAN.md`.'), false);
+  assert.equal(mostlyNamesFile('Wrote `docs/PLAN.md`:\n```md\n# Plan\n```'), false);
+  assert.equal(trackableFile('docs/PLAN.MD'), true);
+  assert.equal(trackableFile('src/main.go'), false);
 });

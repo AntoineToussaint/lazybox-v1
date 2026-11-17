@@ -5,6 +5,7 @@ import type { OpenModifiers } from './file-links';
 import type { FileLink } from './file-reference';
 import { ConversationLoading, MessageList } from './MessageList';
 import { MessageScopeProvider } from './MessageArtifactActions';
+import { useFileLinkTracking } from './FileArtifactActions';
 import { useRevealRequests } from './artifact-events';
 import { PromptNavigator } from './PromptNavigator';
 import { RequestCard } from './session-parts';
@@ -45,6 +46,8 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
   const conversation = transcript.messages;
   // Artifact actions on agent messages, and "Open source message" from an artifact.
   const artifactScope = useMemo(() => session?.collectionId ? { collectionId: session.collectionId, sessionId: sessionID, conversationId: session.conversationId } : undefined, [session?.collectionId, session?.conversationId, sessionID]);
+  // A file an agent named is tracked from its link, as from the Files tree.
+  const fileTracking = useFileLinkTracking(artifactScope?.collectionId, scroll.paneRef);
   useRevealRequests(sessionID, !transcript.loading && conversation.length > 0, scroll.revealMessage);
   // Coding turns are checkpointed: each gets a marker to show or revert its changes.
   const coding = !!session && (!session.purpose || session.purpose === 'coding');
@@ -66,6 +69,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
         </div>
       </div>
     </div>
+    {fileTracking.element}
     {!scroll.followingLatest && conversation.length > 0 && <button className="jump-to-latest" onClick={scroll.jumpToLatest}>Jump to latest</button>}
   </>;
 }

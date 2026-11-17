@@ -136,5 +136,7 @@ dialog.path-chooser::backdrop{background:color-mix(in srgb,var(--shadow) calc(40
 .path-chooser-folder{color:var(--text-faint);font-size:calc(11.5px * var(--text-scale));overflow:hidden;text-overflow:ellipsis;min-width:0}
 .file-link-notice{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;max-width:min(560px,calc(100vw - 32px));padding:9px 10px 9px 14px;border:1px solid var(--danger-line-subtle);border-radius:8px;background:var(--danger-bg);color:var(--danger-strong);font-size:calc(12.5px * var(--text-scale));box-shadow:0 10px 30px color-mix(in srgb,var(--shadow) calc(53% * var(--shadow-strength)),transparent)}
 .file-link-notice button{border:0;background:transparent;color:inherit}
+/* Not a failure: where something went (an artifact the window could not show). */
+.file-link-notice.is-quiet{border-color:var(--line-strong);background:var(--surface-raised);color:var(--text-secondary)}
 
 @media(max-width:760px){.editor-tab{max-width:160px}.editor-group-actions .icon-button{display:none!important}.editor-shortcuts{display:none}}

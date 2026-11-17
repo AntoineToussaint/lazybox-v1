@@ -61,6 +61,8 @@ export function artifactFixture({ workspaceFiles, mutations }) {
       }
       case 'TrackArtifactFile': {
         mutations.push({ method, body });
+        // The fixture workspace has no root on disk: an absolute path is somewhere else, as the Runner says.
+        if (String(body.path).startsWith('/')) return error('invalid_argument', 'file is outside this workspace');
         const existing = [...artifacts.values()].find(e => e.meta.collectionId === body.collectionId && e.meta.trackedPath === body.path);
         if (existing) return json(wire(existing));
         const file = workspaceFiles.get(body.collectionId + '/' + body.path) || { text: '# File preview\nA retained file.\n' };

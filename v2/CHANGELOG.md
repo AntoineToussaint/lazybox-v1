@@ -14,6 +14,11 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.8] - 2026-11-17 · Track the file an agent names
+
+- **Track a linked file** Right-click a Markdown file an agent names in a message, such as `docs/PLAN.md`, and choose Track as artifact: the file is tracked, as from Files, and the artifact stays in sync with it. Other files show the item disabled, Markdown only; a file outside the workspace says why.
+- **The file first, for a message that names one** Track on a message that links a Markdown file offers Track docs/PLAN.md (stays in sync with the file) above Track this message's text, and a short message that mostly names the file chooses the file already. On a file link, the message's own item reads Track this message as artifact….
+
 ## [2026-11-17.7] - 2026-11-17 · Updates you choose, feedback you read first
 
 - **Updates you choose** Settings → Updates shows what changed since your version and installs only when you choose Install and restart. Skip a version, or be reminded tomorrow; turn off the automatic check (every six hours) if you prefer to check yourself. Nothing is ever forced.

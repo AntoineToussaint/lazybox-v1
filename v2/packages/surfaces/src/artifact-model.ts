@@ -1,4 +1,5 @@
 import type { Artifact, ArtifactVersion } from '@lazybox/protocol';
+import { fileReference } from './file-reference';
 
 /** Pure helpers for artifacts: titles, kinds, line diffs, summaries. No React, no Runner. */
 
@@ -198,3 +199,36 @@ export function updatedSinceSeen(artifact: Pick<Artifact, 'updatedAtUnixMillis' 
 
 /** A workspace path for "Save to repository": `member/docs/<slug>.md`. */
 export const suggestedPath = (member: string, title: string) => `${member ? member + '/' : ''}docs/${slug(title)}.md`;
+
+/** Files an artifact can follow: Markdown, which the artifact page renders. */
+export const trackableFile = (path: string) => /\.(md|markdown|mdx)$/i.test(path);
+
+// A code span (its backtick run, its text), or a Markdown link or image (its `!`, its target).
+const spanOrLink = /(`+)([^`][^]*?)\1(?!`)|(!?)\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g;
+
+/**
+ * The Markdown files a message links, as `RichContent` makes them links: a
+ * Markdown link to a file, or inline code that names one. Each once, in the
+ * order written; nothing inside a fenced code block counts.
+ */
+export function linkedMarkdownFiles(text: string): string[] {
+  const found: string[] = [];
+  let fenced = false;
+  for (const line of text.split('\n')) {
+    if (/^\s{0,3}(```|~~~)/.test(line)) { fenced = !fenced; continue; }
+    if (fenced) continue;
+    for (const match of line.matchAll(spanOrLink)) {
+      const link = match[1] ? fileReference(match[2], 'automatic') : match[3] ? undefined : fileReference(match[4]);
+      if (link && trackableFile(link.path) && !found.includes(link.path)) found.push(link.path);
+    }
+  }
+  return found;
+}
+
+/**
+ * A message that mostly names a file ("Wrote `docs/PLAN.md`."): what is worth
+ * tracking is the file, not the words around it. A longer reply is its own
+ * content, whatever it links.
+ */
+export const mostlyNamesFile = (text: string, words = 30) =>
+  !/^\s{0,3}(```|~~~)/m.test(text) && text.trim().split(/\s+/).length <= words && linkedMarkdownFiles(text).length > 0;

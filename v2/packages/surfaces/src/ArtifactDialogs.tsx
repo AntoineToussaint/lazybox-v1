@@ -37,33 +37,47 @@ const measure = (text: string) => { const lines = text.split('\n').length, words
 /**
  * "Track as artifact…" for a chat message: a title taken from its first
  * heading, a suggested kind, and a preview. If this conversation already has
- * an artifact, updating it is one click away.
+ * an artifact, updating it is one click away. When the message links Markdown
+ * files of the workspace (`files`, workspace-relative), tracking one of them
+ * comes first: the artifact then follows the file on disk. `preferFile`
+ * chooses it already, for a message that mostly names the file.
  */
-export function TrackArtifactDialog({ collectionId, content, source, existing = [], onClose, onTracked, onUpdateInstead }: { collectionId: string; content: string; source: SourceInput; existing?: Artifact[]; onClose(): void; onTracked(artifact: Artifact): void; onUpdateInstead?(artifact: Artifact): void }) {
+export function TrackArtifactDialog({ collectionId, content, source, existing = [], files = [], preferFile = false, onClose, onTracked, onUpdateInstead }: { collectionId: string; content: string; source: SourceInput; existing?: Artifact[]; files?: string[]; preferFile?: boolean; onClose(): void; onTracked(artifact: Artifact): void; onUpdateInstead?(artifact: Artifact): void }) {
   const { api } = useRunner();
   const suggested = useMemo(() => titleFromMarkdown(content, 'Untitled artifact'), [content]);
   const [title, setTitle] = useState(suggested), [kind, setKind] = useState<ArtifactKind>(() => guessKind(suggested, content));
   const [kindTouched, setKindTouched] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  // The file to track instead of the message's text, or '' for the text.
+  const [file, setFile] = useState(() => preferFile ? files[0] || '' : '');
   const modal = useModal(onClose, busy);
-  const titleInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { titleInput.current?.select(); }, []);
+  const titleInput = useRef<HTMLInputElement>(null), fileChoice = useRef<HTMLInputElement>(null);
+  // The title is ready to type over; a file chosen already has the focus instead, so Enter tracks it.
+  useEffect(() => { titleInput.current?.select(); fileChoice.current?.focus(); }, []);
   const submit = async () => {
-    if (!title.trim() || busy) return;
+    if ((!file && !title.trim()) || busy) return;
     setBusy(true); setError('');
-    try { const tracked = await api.putArtifact({ collectionId, title: title.trim(), kind, content, source }, { timeoutMs: 15000 }); artifactsChanged(collectionId); onTracked(tracked); }
-    catch (e) { setError(errorText(e)); setBusy(false); }
+    try {
+      const tracked = file ? await api.trackArtifactFile({ collectionId, path: file }, { timeoutMs: 15000 }) : await api.putArtifact({ collectionId, title: title.trim(), kind, content, source }, { timeoutMs: 15000 });
+      artifactsChanged(collectionId); onTracked(tracked);
+    } catch (e) { setError(errorText(e)); setBusy(false); }
   };
   return <DraggableDialog ref={modal.ref} className="artifact-dialog" aria-label="Track as artifact" onCancel={modal.onCancel}>
     <DialogHeader><h2><Icon name="artifact" size={18}/>Track as artifact</h2><button type="button" aria-label="Close" disabled={busy} onClick={onClose}><Icon name="close"/></button></DialogHeader>
     <p className="artifact-dialog-lead">It becomes its own page in this workspace, with versions you can compare, export and hand to an agent.</p>
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
+      {files.length > 0 && <fieldset className="artifact-source-choice" disabled={busy}><legend>What to track</legend>
+        {files.map(path => <label key={path} className="artifact-check"><input type="radio" name="artifact-source" ref={file === path ? fileChoice : undefined} checked={file === path} onChange={() => setFile(path)}/><span>Track <code>{path}</code><small>Stays in sync with the file: its later edits, by you or an agent, become new versions.</small></span></label>)}
+        <label className="artifact-check"><input type="radio" name="artifact-source" checked={!file} onChange={() => setFile('')}/><span>Track this message’s text<small>A page of its own made from what the agent wrote here.</small></span></label>
+      </fieldset>}
+      {!file && <>
       <label className="artifact-field"><span>Title</span><input ref={titleInput} data-autofocus value={title} maxLength={200} disabled={busy} onChange={event => { setTitle(event.target.value); if (!kindTouched) setKind(guessKind(event.target.value, content)); }}/></label>
       <div className="artifact-field"><span id="artifact-kind-label">Kind</span><KindPicker value={kind} disabled={busy} onChange={next => { setKind(next); setKindTouched(true); }}/></div>
       {existing.length > 0 && onUpdateInstead && <div className="artifact-existing" role="note"><Icon name="history" size={14}/><span>This conversation already has {existing.length === 1 ? <>“{existing[0].title}”</> : `${existing.length} artifacts`}.</span>{existing.slice(0, 3).map(artifact => <button key={artifact.id} type="button" className="link-button" onClick={() => onUpdateInstead(artifact)}>Update “{artifact.title}” instead</button>)}</div>}
       <section className="artifact-preview" aria-label="Preview"><header><span>Preview</span><small>{measure(content)}</small></header><div className="artifact-preview-body"><RichContent text={content}/></div></section>
+      </>}
       {error && <p className="artifact-error" role="alert">{error}</p>}
-      <footer><button type="button" disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className="primary" disabled={busy || !title.trim()}>{busy ? 'Tracking…' : 'Track artifact'}</button></footer>
+      <footer><button type="button" disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className="primary" disabled={busy || (!file && !title.trim())}>{busy ? 'Tracking…' : file ? 'Track file' : 'Track artifact'}</button></footer>
     </form>
   </DraggableDialog>;
 }

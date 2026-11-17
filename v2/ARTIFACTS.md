@@ -47,6 +47,13 @@ It also shows a preview. When the conversation already has an artifact, the
 dialog offers to update that one instead. Once tracked, the Artifacts panel
 opens on the new page.
 
+When the message links Markdown files of the workspace (a Markdown link, or
+inline code naming one, as `docs/PLAN.md`), the dialog first asks what to
+track: **Track `docs/PLAN.md`** (stays in sync with the file, as below) or
+**Track this message's text**. A short message that mostly names the file
+(at most 30 words, no code block) has the file chosen already; a longer reply
+has its text chosen. Links resolve as opening them does.
+
 On later messages of the same conversation, the right-click menu also offers
 **Update "Title" from this message…**. This shows a line diff against the
 latest version, folded around the changes, with a toggle to see the result.
@@ -54,7 +61,12 @@ Saving names the version that was compared. If someone saved a newer version
 meanwhile, the diff is redone against it and nothing is overwritten.
 
 **A repository file.** In Files, right-click a Markdown file and choose
-**Track as artifact**. The editor's tab menu has the same action. The Runner
+**Track as artifact**. The editor's tab menu has the same action, and so does
+the right-click menu of a file an agent names in a message: the link resolves
+as opening it does (a choice when several files match), a non-Markdown file
+shows the item disabled, and a file outside the workspace gets the Runner's
+refusal. On a file link, the message's own item reads **Track this message as
+artifact…**. The Runner
 then checks the file every 2 seconds. A change becomes a new version (author
 `file`) once the same content has been on disk for 2 seconds, so an agent
 writing in several steps produces one version. The page shows "Synced with

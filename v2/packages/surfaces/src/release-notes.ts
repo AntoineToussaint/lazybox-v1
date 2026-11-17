@@ -9,6 +9,15 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.8',
+    date: '2026-11-17',
+    title: 'Track the file an agent names',
+    items: [
+      { title: 'Track a linked file', body: 'Right-click a Markdown file an agent names in a message, such as `docs/PLAN.md`, and choose Track as artifact: the file is tracked, as from Files, and the artifact stays in sync with it. Other files show the item disabled, Markdown only; a file outside the workspace says why.' },
+      { title: 'The file first, for a message that names one', body: 'Track on a message that links a Markdown file offers Track docs/PLAN.md (stays in sync with the file) above Track this message\'s text, and a short message that mostly names the file chooses the file already. On a file link, the message\'s own item reads Track this message as artifact….' },
+    ],
+  },
+  {
     id: '2026-11-17.7',
     date: '2026-11-17',
     title: 'Updates you choose, feedback you read first',

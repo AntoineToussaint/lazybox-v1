@@ -52,7 +52,7 @@
  * | `message`       | a chat message (artifacts add Track/Update) | `{ message: TranscriptMessage; role: 'agent' \| 'user' \| 'notice'; sessionId: string }` |
  * | `code-block`    | a code block in rich content (a shell block of an agent's adds Run) | `{ text: string; language: string }` |
  * | `inline-code`   | inline code an agent wrote that reads as a command | `{ text: string; command: string }`  |
- * | `file-link`     | a file reference in a message | `{ path: string; line?: number }`                             |
+ * | `file-link`     | a file reference in a message (artifacts add Track) | `{ path: string; line?: number }`       |
  * | `file`          | a Files tree row              | `{ path: string; directory: boolean; workspaceId: string }`  |
  * | `editor-tab`    | an editor tab                 | `{ path: string; group: string; workspaceId: string }`       |
  * | `panel`         | a panel header                | `{ kind: string; id: string }`                                |
