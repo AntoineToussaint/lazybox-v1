@@ -1,6 +1,6 @@
 // Renders the disk image window's background (packaging/dmg/background.html)
 // at 1x and 2x with the Playwright Chromium the UI tests already use. The
-// PNGs are committed; run this after editing the HTML:
+// PNG files are committed; run this after editing the HTML:
 //
 //   node scripts/release/dmg-background.mjs
 import { chromium } from '@playwright/test';
