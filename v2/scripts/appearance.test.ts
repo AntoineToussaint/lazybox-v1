@@ -174,6 +174,9 @@ test('the token sweep maps literals by role and keeps print styles', () => {
   assert.match(css, /font:600 calc\(14px \* var\(--text-scale\)\)\/calc\(20px \* var\(--text-scale\)\) var\(--font-ui\)/);
   assert.match(css, /pre\{font-size:calc\(12px \* var\(--code-scale\)\)\}/);
   assert.match(css, /@media print\{\.p\{color:#111\}\}/);
+  // A shorthand with a unitless line height scales its size and keeps the line height.
+  assert.equal(tokenizeCss('.d{font:600 10px/1.6 var(--font-ui)}'), '.d{font:600 calc(10px * var(--text-scale))/1.6 var(--font-ui)}');
+  assert.deepEqual(literalFontSizes('.d{font:600 10px/1.6 var(--font-ui)}.e{font:11px var(--font-mono)}.f{font:inherit}.g{font:calc(12px * var(--text-scale))/1.5 x}'), ['10px', '11px']);
 });
 
 // The guard every stylesheet change meets: colours and text sizes are tokens,

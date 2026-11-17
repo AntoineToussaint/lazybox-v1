@@ -19,7 +19,7 @@
 @container chat-heading (max-width:720px){.chat-heading .chat-review>.chat-review-button>span{display:none}.chat-heading .chat-review>.chat-review-button{padding:0 6px}}
 @container chat-heading (max-width:600px){.chat-heading .chat-review{display:none}}
 
-.review-severity{font:700 10px/1.6 var(--font-ui);letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:4px;white-space:nowrap;background:var(--surface-selected);color:var(--text-tertiary)}
+.review-severity{font:700 calc(10px * var(--text-scale))/1.6 var(--font-ui);letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:4px;white-space:nowrap;background:var(--surface-selected);color:var(--text-tertiary)}
 .review-severity.sev-blocker{background:var(--danger-bg-strong);color:var(--danger)}
 .review-severity.sev-major{background:var(--warn-bg-strong);color:var(--warn)}
 .review-severity.sev-minor{background:var(--info-bg);color:var(--info-soft)}

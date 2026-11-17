@@ -91,7 +91,7 @@ small{color:var(--text-muted);font-size:calc(11px * var(--text-scale));overflow-
 .console{margin:10px 24px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .console .panel-title{padding:16px}
 .console .panel-title h2{font-size:calc(12px * var(--text-scale));max-width:260px;overflow:hidden}
-.command-report{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:4px 0 0;font:10px/1.4 var(--mono,ui-monospace,monospace);color:var(--text-subtle)}
+.command-report{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:4px 0 0;font:calc(10px * var(--code-scale))/1.4 var(--mono,ui-monospace,monospace);color:var(--text-subtle)}
 .command-report button{padding:0;border:0;background:none;font-size:calc(10px * var(--text-scale));color:var(--info);text-decoration:underline;cursor:pointer}
 .command-meta{padding:6px 12px 8px;border-bottom:1px solid var(--line-subtle)}
 .command-meta .command-report{margin:0}

@@ -28,6 +28,6 @@
 .slash-warning{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 6px;padding:6px 8px;border-radius:6px;background:var(--warn-bg);border:1px solid var(--warn-line-subtle);color:var(--text);font-size:calc(12px * var(--text-scale));line-height:1.4}
 .slash-warning span{flex:1 1 auto;min-width:0}
 .slash-warning button{padding:2px 8px;font-size:inherit}
-.slash-warning kbd{margin-left:4px;font:10px/1.4 var(--font-mono,ui-monospace,monospace);color:inherit;opacity:.7}
+.slash-warning kbd{margin-left:4px;font:calc(10px * var(--code-scale))/1.4 var(--font-mono,ui-monospace,monospace);color:inherit;opacity:.7}
 .restart-model{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 @media (max-width:520px){.slash-description{display:none}.slash-item[aria-selected=true] .slash-description{display:block}}

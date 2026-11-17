@@ -24,7 +24,7 @@
 .onboarding-key-list dd strong{font-size:calc(12px * var(--text-scale));font-weight:550;color:var(--text,var(--text))}
 .onboarding-key-list dd small{font-size:calc(11px * var(--text-scale));color:var(--text-muted,var(--text-muted))}
 .onboarding-keys{display:inline-flex;gap:3px}
-.onboarding-welcome kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--border-strong,var(--line-bold));border-bottom-width:2px;border-radius:5px;background:var(--surface-sunken,var(--surface-sunken));color:var(--text,var(--text));font:600 11px/1 var(--font-mono)}
+.onboarding-welcome kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--border-strong,var(--line-bold));border-bottom-width:2px;border-radius:5px;background:var(--surface-sunken,var(--surface-sunken));color:var(--text,var(--text));font:600 calc(11px * var(--code-scale))/1 var(--font-mono)}
 .onboarding-or{color:var(--text-muted,var(--text-faint))}
 .onboarding-welcome>footer{display:flex;align-items:center;gap:12px;margin-top:16px}
 .onboarding-welcome>footer small{flex:1;font-size:calc(11px * var(--text-scale));color:var(--text-muted,var(--text-muted))}
@@ -64,7 +64,7 @@
 .whats-new.is-failed .whats-new-body p{margin:0;line-height:1.55;color:var(--text-tertiary)}
 
 /* Help (?) in the header. */
-.help-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1.5px solid currentColor;border-radius:50%;font:700 11px/1 var(--font-ui)}
+.help-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1.5px solid currentColor;border-radius:50%;font:700 calc(11px * var(--text-scale))/1 var(--font-ui)}
 .workspace-header-actions>.help-menu>summary{color:var(--text-muted,var(--text-subtle))}
 .help-menu>.action-popover>button{display:flex;align-items:center;gap:9px}
 .help-menu>.action-popover>button>svg{flex:none;color:var(--text-muted,var(--text-subtle))}

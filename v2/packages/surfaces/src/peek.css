@@ -34,7 +34,7 @@
 .peek-transcript{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
 .peek-transcript .message{max-width:none}
 .peek-composer{display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:end;padding-top:10px;margin-top:8px;border-top:1px solid var(--peek-line,var(--line-subtle))}
-.peek-composer textarea{resize:none;min-height:40px;max-height:140px;padding:8px 10px;border-radius:8px;border:1px solid var(--peek-border,var(--line-strong));background:var(--peek-input,var(--bg));color:var(--text,var(--text));font:13px/1.45 var(--font-ui,system-ui)}
+.peek-composer textarea{resize:none;min-height:40px;max-height:140px;padding:8px 10px;border-radius:8px;border:1px solid var(--peek-border,var(--line-strong));background:var(--peek-input,var(--bg));color:var(--text,var(--text));font:calc(13px * var(--text-scale))/1.45 var(--font-ui,system-ui)}
 .peek-composer textarea:focus{outline:2px solid var(--accent,var(--focus));outline-offset:0;border-color:transparent}
 .peek-composer button{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px}
 .peek-composer small{grid-column:1/-1}

@@ -34,7 +34,6 @@
 .workspace-shell .history-shortcut{margin-top:16px;border-top:1px solid var(--line);border-radius:0;padding-top:12px;padding-bottom:12px}
 .workspace-shell .new-session-dialog{width:min(520px,calc(100vw - 32px));padding:24px;background:var(--surface-raised);border-color:var(--line-strong)}
 .workspace-shell .new-session-dialog>header{margin-bottom:12px}
-.workspace-shell .new-session-dialog>header>strong{font-size:calc(18px * var(--text-scale));letter-spacing:-.3px}
 .workspace-shell .new-session-dialog .quick-start-option{display:block;margin:0 0 8px auto;padding:6px 0;color:var(--accent);font-size:calc(12px * var(--text-scale))}
 .workspace-shell .new-session-dialog .session-setup{padding:8px 0}
 .workspace-shell .new-session-dialog .session-setup>.eyebrow,.workspace-shell .new-session-dialog .session-setup>h2,.workspace-shell .new-session-dialog .session-setup>p{display:none}

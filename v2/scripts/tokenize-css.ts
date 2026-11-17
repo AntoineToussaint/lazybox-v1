@@ -189,15 +189,18 @@ function scalePixels(value: string, scale: string): string {
   if (/var\(|calc\(/.test(value)) return value;
   return value.replace(PIXELS, (_m, lead, n) => `${lead}calc(${n}px * var(${scale}))`);
 }
-/** The size (and px line height) of a `font:` shorthand such as `600 14px/20px var(--font-ui)`. */
+/** The size (and px line height) of a `font:` shorthand such as `600 14px/20px var(--font-ui)`; a unitless line height is kept. */
 function scaleFontShorthand(value: string, scale: string): string {
   if (/calc\(/.test(value)) return value;
-  return value.replace(/(^|\s)(\d*\.?\d+px)(\/(\d*\.?\d+px))?(?=\s)/, (_m, lead, size, _l, line) => `${lead}calc(${size} * var(${scale}))${line ? `/calc(${line} * var(${scale}))` : ''}`);
+  return value.replace(/(^|\s)(\d*\.?\d+px)(?:\/(\d*\.?\d+)(px)?)?(?=\s)/, (_m, lead, size, line, px) => `${lead}calc(${size} * var(${scale}))${line ? px ? `/calc(${line}px * var(${scale}))` : `/${line}` : ''}`);
 }
-/** Pixel font sizes left in a stylesheet (print excluded), which no text size setting reaches. */
+/** Pixel font sizes left in a stylesheet (print excluded), which no text size setting reaches: `font-size: 12px`, or a `font:` shorthand's `11px/1.5`. */
 export function literalFontSizes(text: string): string[] {
   const visible = withoutPrint(text.replace(/\/\*[\s\S]*?\*\//g, ''));
-  return [...visible.matchAll(/font-size\s*:\s*(\d*\.?\d+px)/g)].map(m => m[1]);
+  return [
+    ...[...visible.matchAll(/font-size\s*:\s*(\d*\.?\d+px)/g)].map(m => m[1]),
+    ...[...visible.matchAll(/(?:^|[;{\s])font\s*:\s*([^;}]*)/g)].flatMap(m => /calc\(/.test(m[1]) ? [] : [/(?:^|\s)(\d*\.?\d+px)(?=[\s/])/.exec(m[1])?.[1]].filter((size): size is string => !!size)),
+  ];
 }
 type Declaration = { raw: string; prefix: string; property: string; value: string; suffix: string };
 function splitDeclarations(body: string): Declaration[] {

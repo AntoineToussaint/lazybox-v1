@@ -208,7 +208,7 @@
 .workspace-detail-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 14px;gap:8px}.workspace-detail-heading>div{display:grid;gap:4px;min-width:0}.workspace-detail-heading strong{overflow-wrap:anywhere;font-size:calc(12px * var(--text-scale));color:var(--text-soft)}.workspace-detail-heading small{font-size:calc(10px * var(--text-scale));color:var(--text-muted)}
 .workspace-actions{position:relative}.workspace-actions>summary{cursor:pointer;list-style:none;padding:5px}
 .workspace-repositories>summary{cursor:pointer;font-size:calc(11px * var(--text-scale));font-weight:550;color:var(--text-subtle)}.workspace-repositories>summary span{float:right;font-size:calc(10px * var(--text-scale));color:var(--text-faint)}.workspace-repositories .repository-shortcut{margin:5px 0 12px}.collection-detail{margin-top:22px;padding-top:16px;border-top:1px solid var(--line-subtle)}.source-details{margin-top:12px}
-.workspace-shell button.danger{color:var(--danger-soft)}
+:where(.workspace-shell) button.danger{color:var(--danger-soft)}
 .workspace-shell .conversation-search-toggle{font-size:calc(10px * var(--text-scale));color:var(--text-muted);padding:5px 7px;text-align:left}
 
 .collection-group .workspace-actions>summary{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;list-style:none;color:var(--text-muted);border-radius:5px}
@@ -302,13 +302,13 @@
 
 .composer-chip{align-self:center;margin-right:auto;padding:2px 8px;border:1px solid var(--accent-line);border-radius:10px;font-size:calc(11px * var(--text-scale));color:var(--accent);background:var(--accent-bg);cursor:help;white-space:nowrap}
 /* Vim editing: a quiet chip for the mode, a block cursor in normal mode. */
-.vim-mode-chip{align-self:center;flex:none;padding:1px 7px;border:1px solid var(--line-strong);border-radius:5px;font:600 10px/1.6 var(--font-mono);letter-spacing:.06em;color:var(--text-muted);white-space:nowrap;cursor:help}
+.vim-mode-chip{align-self:center;flex:none;padding:1px 7px;border:1px solid var(--line-strong);border-radius:5px;font:600 calc(10px * var(--code-scale))/1.6 var(--font-mono);letter-spacing:.06em;color:var(--text-muted);white-space:nowrap;cursor:help}
 .vim-mode-chip[data-mode=normal]{color:var(--text);background:var(--accent-bg-strong);border-color:var(--accent-line)}
 .vim-mode-chip[data-mode=visual]{color:var(--on-warn);background:var(--warn);border-color:var(--warn)}
 .composer textarea[data-vim-mode=normal]::selection{background:var(--accent);color:var(--on-accent)}
 .composer textarea[data-vim-mode=normal],.composer textarea[data-vim-mode=visual]{caret-color:var(--accent)}
 .code-editor-frame{display:flex;flex-direction:column;flex:1;min-height:0}
-.vim-status{display:flex;align-items:center;gap:10px;min-height:26px;padding:3px 12px;border-top:1px solid var(--line);background:var(--surface-raised);font:11px/1.5 var(--font-mono);color:var(--text-tertiary)}
+.vim-status{display:flex;align-items:center;gap:10px;min-height:26px;padding:3px 12px;border-top:1px solid var(--line);background:var(--surface-raised);font:calc(11px * var(--code-scale))/1.5 var(--font-mono);color:var(--text-tertiary)}
 .vim-status .vim-status-bar{display:flex!important;flex:1;align-items:center;gap:10px;min-width:0}
 .vim-status .vim-status-bar>span:first-child{flex:none;padding:0 6px;border-radius:4px;background:var(--accent-bg-strong);color:var(--text);font-weight:600;letter-spacing:.04em}
 .vim-status .vim-status-bar>span:first-child:empty{display:none}
@@ -324,7 +324,7 @@
 .leader-menu header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px}.leader-menu header small{font-size:calc(11px * var(--text-scale));color:var(--text-muted)}
 .leader-menu ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 18px}
 .leader-menu li{display:flex;align-items:center;gap:10px;font-size:calc(12px * var(--text-scale));color:var(--text-soft);min-width:0}.leader-menu li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.leader-menu kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;padding:2px 6px;border:1px solid var(--line-bold);border-bottom-width:2px;border-radius:5px;background:var(--surface-selected);color:var(--text);font:12px/1.3 var(--font-mono)}
+.leader-menu kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;padding:2px 6px;border:1px solid var(--line-bold);border-bottom-width:2px;border-radius:5px;background:var(--surface-selected);color:var(--text);font:calc(12px * var(--code-scale))/1.3 var(--font-mono)}
 .leader-menu-settings{margin-top:28px;border-top:1px solid var(--line);padding-top:20px}.leader-menu-rows{display:grid;gap:10px}.leader-menu-row{display:grid;grid-template-columns:70px minmax(0,1.4fr) minmax(0,1fr) 100px auto;gap:10px;align-items:end}.leader-menu-actions{display:flex;gap:10px;margin-top:12px}
 @media(max-width:700px){.leader-menu-row{grid-template-columns:1fr 1fr}}
 .workspace-directory{padding:8px 14px}.workspace-directory>button{display:flex;align-items:center;width:100%;gap:10px;padding:7px 10px;text-align:left;font-size:calc(13px * var(--text-scale));background:transparent;border:0;border-radius:6px;color:var(--text-soft)}

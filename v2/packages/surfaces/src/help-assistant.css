@@ -46,7 +46,7 @@
 .help-need-state.ready{color:var(--ok,var(--text-muted))}
 .help-needs p{margin:0;font-size:calc(12px * var(--text-scale));line-height:1.5;color:var(--text-muted,var(--text-tertiary))}
 .help-command{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;border:1px solid var(--border,var(--line-subtle));border-radius:6px;background:var(--surface-sunken,var(--surface))}
-.help-command code{flex:1;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 var(--font-mono);user-select:all}
+.help-command code{flex:1;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;font:calc(12px * var(--code-scale))/1.6 var(--font-mono);user-select:all}
 .help-command button{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:calc(11px * var(--text-scale));border-radius:5px}
 .help-need-actions{display:flex;flex-wrap:wrap;gap:6px}
 .help-need-actions:empty{display:none}

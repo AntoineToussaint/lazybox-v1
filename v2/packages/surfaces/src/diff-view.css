@@ -21,7 +21,7 @@
 .review-split-row:hover .review-add,.review-split-side.is-selected .review-add{opacity:1;transform:none}
 
 /* Unchanged lines: a fold inside a hunk, and the gap before or after one. */
-.review-row.is-fold,.review-row.is-gap{display:block;padding:0;background:var(--diff-gap-bg,var(--surface));color:var(--muted,var(--text-muted));font:11px/1.9 var(--font-ui)}
+.review-row.is-fold,.review-row.is-gap{display:block;padding:0;background:var(--diff-gap-bg,var(--surface));color:var(--muted,var(--text-muted));font:calc(11px * var(--code-scale))/1.9 var(--font-ui)}
 .review-row.is-gap .diff-gap-count{display:block;padding:0 12px;user-select:none}
 .review-diff .diff-expand{display:flex;align-items:center;gap:8px;width:100%;padding:0 12px;border:0;border-radius:0;background:transparent;color:var(--diff-expand,var(--info));font:inherit;text-align:left;cursor:pointer}
 .review-diff .diff-expand:hover:not(:disabled),.review-diff .diff-expand:focus-visible{background:var(--diff-expand-hover,var(--accent-bg));color:var(--text,var(--text))}
@@ -41,7 +41,7 @@
 .diff-view .diff-mode button[aria-pressed=true]{background:var(--accent-bg,var(--accent-bg-strong));color:var(--text,var(--text))}
 .diff-view .diff-mode-note{display:inline;margin:0;color:var(--muted,var(--text-muted));font-size:calc(11px * var(--text-scale));white-space:nowrap}
 .diff-keys{padding:0 12px 6px;color:var(--muted,var(--text-faint));font-size:calc(11px * var(--text-scale))}
-.diff-keys kbd{font:10px/1 var(--font-mono);padding:1px 4px;border:1px solid var(--border,var(--line-strong));border-radius:3px;background:var(--surface);color:var(--text-secondary)}
+.diff-keys kbd{font:calc(10px * var(--code-scale))/1 var(--font-mono);padding:1px 4px;border:1px solid var(--border,var(--line-strong));border-radius:3px;background:var(--surface);color:var(--text-secondary)}
 .changes-viewed-count{color:var(--muted,var(--text-muted));font-size:calc(11px * var(--text-scale));white-space:nowrap}
 
 /* File rows with their Viewed box; a viewed file steps back. */

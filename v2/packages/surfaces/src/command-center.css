@@ -1,5 +1,5 @@
 /* Command palette, shortcuts overlay and toasts (CommandCenter.tsx). */
-.command-palette kbd,.shortcuts-overlay kbd,.toast-hint{display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 5px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--surface-active);color:var(--text-secondary);font:10.5px/1.6 var(--font-mono,ui-monospace,monospace);white-space:nowrap}
+.command-palette kbd,.shortcuts-overlay kbd,.toast-hint{display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 5px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--surface-active);color:var(--text-secondary);font:calc(10.5px * var(--text-scale))/1.6 var(--font-mono,ui-monospace,monospace);white-space:nowrap}
 
 dialog.command-palette{position:fixed;top:12vh;margin:0 auto;width:min(680px,calc(100vw - 32px));max-height:min(600px,78vh);padding:0;border:1px solid var(--accent-line-subtle);border-radius:12px;background:var(--surface-raised);color:var(--text,var(--text));box-shadow:0 24px 70px color-mix(in srgb,var(--shadow) calc(67% * var(--shadow-strength)),transparent);overflow:hidden}
 dialog.command-palette[open]{display:flex;flex-direction:column}

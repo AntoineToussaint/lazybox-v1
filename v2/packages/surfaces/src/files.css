@@ -1,5 +1,5 @@
 /* Files panel, Editor panel, Go to file, and the file-reference chooser. */
-.file-kbd,.explorer-find kbd,.editor-empty kbd,.quick-open-footer kbd,.editor-shortcuts kbd{display:inline-flex;align-items:center;min-width:16px;padding:0 5px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--surface-active);color:var(--text-secondary);font:10px/1.5 var(--font-mono);white-space:nowrap}
+.file-kbd,.explorer-find kbd,.editor-empty kbd,.quick-open-footer kbd,.editor-shortcuts kbd{display:inline-flex;align-items:center;min-width:16px;padding:0 5px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--surface-active);color:var(--text-secondary);font:calc(10px * var(--code-scale))/1.5 var(--font-mono);white-space:nowrap}
 
 /* Files ------------------------------------------------------------------ */
 .file-explorer{display:flex;flex-direction:column;flex:1;min-height:0;background:var(--sidebar,var(--surface-sunken))}

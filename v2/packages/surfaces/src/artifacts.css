@@ -70,13 +70,8 @@
 .artifact-notice{margin:0 0 10px;padding:8px 10px;border-radius:6px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-strong);font-size:calc(12px * var(--text-scale))}
 .artifact-replace{display:flex;gap:8px;align-items:flex-start;padding:10px;border-radius:7px;background:var(--danger-bg);border:1px solid var(--danger-line-subtle);color:var(--text-soft);font-size:calc(12px * var(--text-scale));line-height:1.5}
 .artifact-replace svg{flex:none;margin-top:1px}
-.artifact-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.artifact-dialog footer{margin-top:18px}
 .artifact-dialog form footer{margin-top:4px}
-.artifact-dialog footer button{padding:8px 14px;font-size:calc(12px * var(--text-scale));border-radius:6px;line-height:calc(18px * var(--text-scale))}
-.artifact-dialog footer .primary{background:var(--accent-solid);border:1px solid var(--accent-solid);color:var(--on-accent-solid)}
-.artifact-dialog footer .primary:hover:not(:disabled){background:var(--accent-solid)}
-.artifact-dialog footer .danger{background:var(--danger-solid);border:1px solid var(--danger-solid-hover);color:var(--on-danger-solid)}
-.artifact-dialog footer button:disabled{opacity:.55;cursor:default}
 .artifact-update-summary{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;font-size:calc(12px * var(--text-scale));color:var(--text-tertiary)}
 .artifact-update-summary .artifact-segmented{margin-left:auto}
 
@@ -87,7 +82,7 @@
 .artifact-segmented button:disabled{opacity:.45;cursor:default}
 
 /* Diff. */
-.artifact-diff{border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:min(56dvh,560px);background:var(--surface-sunken);font:12px/1.55 var(--font-mono)}
+.artifact-diff{border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:min(56dvh,560px);background:var(--surface-sunken);font:calc(12px * var(--code-scale))/1.55 var(--font-mono)}
 .artifact-page .artifact-diff{max-height:none}
 .artifact-diff-hunk+.artifact-diff-hunk{border-top:1px solid var(--line-subtle)}
 .artifact-diff-line{display:grid;grid-template-columns:3.2em 3.2em 1.4em minmax(0,1fr);min-width:max-content}

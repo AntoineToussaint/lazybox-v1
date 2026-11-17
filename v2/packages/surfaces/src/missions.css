@@ -24,7 +24,7 @@
 .mission-form{display:grid;gap:10px;margin:0 0 14px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-raised)}
 .mission-form label,.mission-dialog form>label{display:grid;gap:5px;font-size:calc(11px * var(--text-scale));font-weight:500;color:var(--text-tertiary)}
 .mission-form small,.mission-dialog small{font-weight:400;color:var(--text-faint)}
-.mission-form input,.mission-form textarea,.mission-form select,.mission-dialog select,.mission-dialog textarea{box-sizing:border-box;width:100%;padding:7px 9px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-sunken);color:var(--text,var(--text));font:12px/1.5 var(--font-ui)}
+.mission-form input,.mission-form textarea,.mission-form select,.mission-dialog select,.mission-dialog textarea{box-sizing:border-box;width:100%;padding:7px 9px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-sunken);color:var(--text,var(--text));font:calc(12px * var(--text-scale))/1.5 var(--font-ui)}
 .mission-form textarea,.mission-dialog textarea{resize:vertical;min-height:56px}
 .task-form textarea{font-family:var(--font-mono,ui-monospace,monospace);font-size:calc(11px * var(--code-scale))}
 .mission-form-actions{display:flex;justify-content:flex-end;gap:8px}
@@ -129,15 +129,12 @@
 .mission-history .actor-human{color:var(--trust-accepted)}
 
 .mission-dialog{width:min(480px,calc(100vw - 32px));padding:22px;border-color:var(--line-strong);font-family:var(--font-ui);font-size:calc(13px * var(--text-scale))}
-.mission-dialog h2{margin:0;font-size:calc(16px * var(--text-scale));line-height:calc(22px * var(--text-scale));font-weight:600;overflow-wrap:anywhere}
-.mission-dialog>[data-dialog-drag-handle]>button{width:28px;height:28px;padding:0;border:0;background:transparent;color:var(--text-muted);font-size:calc(20px * var(--text-scale))}
 .mission-dialog form{display:grid;gap:12px}
 .mission-assign-mode{display:flex;flex-wrap:wrap;gap:14px;margin:0;padding:0;border:0}
 .mission-assign-mode label,.mission-dialog .mission-check{display:inline-flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:7px;font-size:calc(12px * var(--text-scale));font-weight:400;color:var(--text-soft);cursor:pointer}
 .mission-assign-mode input,.mission-check input{width:15px;height:15px;flex:none;margin:0;padding:0;accent-color:var(--accent,var(--accent))}
-.mission-brief-preview{margin:0;max-height:140px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-sunken);color:var(--text-tertiary);font:11px/1.5 var(--font-mono,ui-monospace,monospace);white-space:pre-wrap}
-.mission-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
-.mission-dialog footer .danger{background:var(--danger-solid);border:1px solid var(--danger-solid-hover);color:var(--on-danger-solid)}
+.mission-brief-preview{margin:0;max-height:140px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-sunken);color:var(--text-tertiary);font:calc(11px * var(--code-scale))/1.5 var(--font-mono,ui-monospace,monospace);white-space:pre-wrap}
+.mission-dialog footer{margin-top:6px}
 
 /* Inbox: tasks that wait for a decision come first. */
 .inbox-missions .inbox-group h3{color:var(--attention-input,var(--warn))}
@@ -149,7 +146,7 @@
 .inbox-task-reason{margin:0;font-size:calc(11px * var(--text-scale));line-height:1.5;color:var(--text-subtle)}
 .inbox-task-actions{display:flex;flex-wrap:wrap;gap:5px}
 .inbox-task-actions button{padding:3px 9px;font-size:calc(11px * var(--text-scale))}
-.inbox-task-actions textarea{flex-basis:100%;box-sizing:border-box;padding:6px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-sunken);color:var(--text);font:12px/1.5 var(--font-ui)}
+.inbox-task-actions textarea{flex-basis:100%;box-sizing:border-box;padding:6px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-sunken);color:var(--text);font:calc(12px * var(--text-scale))/1.5 var(--font-ui)}
 @media(max-width:760px){.missions-panel .mission-actions button,.inbox-task-actions button{min-height:36px}}
 .mission-orchestrator-budget{font-variant-numeric:tabular-nums;color:var(--text-subtle)}
 .mission-orchestrator-budget.budget-warning{color:var(--warn-strong)}

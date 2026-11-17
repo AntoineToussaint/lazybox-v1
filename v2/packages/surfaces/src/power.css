@@ -57,7 +57,7 @@
 .power-runs>li{flex-wrap:wrap}
 .power-run-state{flex:none;display:grid;place-items:center;width:18px;color:var(--s-muted)}
 .power-run-state.succeeded{color:var(--s-ok)}.power-run-state.failed{color:var(--s-bad)}.power-run-state.skipped{color:var(--s-faint)}
-.power-log{flex-basis:100%;margin:6px 0 0;max-height:220px;overflow:auto;padding:8px 10px;border-radius:6px;background:var(--surface-sunken);font:11px/1.5 var(--font-mono);color:var(--s-text-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.power-log{flex-basis:100%;margin:6px 0 0;max-height:220px;overflow:auto;padding:8px 10px;border-radius:6px;background:var(--surface-sunken);font:calc(11px * var(--code-scale))/1.5 var(--font-mono);color:var(--s-text-2);white-space:pre-wrap;overflow-wrap:anywhere}
 .power-cheats{display:grid;gap:0}
 .power-cheats>div{display:flex;align-items:center;gap:10px;padding:8px 14px;min-width:0}
 .power-cheats>div+div{border-top:1px solid var(--s-line)}
