@@ -1,9 +1,11 @@
 # Install Lazybox
 
-Lazybox is a Mac app (Apple Silicon, macOS 12 or later). It brings everything
+Lazybox is a Mac app (Apple Silicon, macOS 13.5 or later). It brings everything
 it runs: its background service (the **Runner**), the Claude worker and the
-Node that runs it, and the `lazybox` command. You need the agents you want to
-use signed in as usual (Claude Code, Codex), and `git`.
+Node that runs it, Claude Code, and the `lazybox` command. Claude Code only
+needs you to sign in: the account your `claude` command already uses, or one
+you add in Settings → Subscriptions. Codex, if you use it, is installed and
+signed in as usual. You also need `git`.
 
 ## Install
 
@@ -24,15 +26,26 @@ Runner (below).
 ### Unsigned builds
 
 A release whose title says *(unsigned)* is not signed with an Apple Developer
-ID. macOS refuses to open it the first time ("Apple could not verify…"):
-Control-click Lazybox in Applications, choose **Open**, then **Open** again.
-Or, in a terminal:
+ID or notarized. macOS refuses to open it the first time (*"Lazybox" Not
+Opened* or *Apple could not verify "Lazybox" is free of malware…*). On macOS
+15 and later, Control-click → **Open** no longer gets past this. Instead:
+
+1. Open Lazybox from Applications once, and choose **Done** when macOS refuses.
+2. Open **System Settings → Privacy & Security**, scroll to **Security**, and
+   choose **Open Anyway** next to *"Lazybox" was blocked…*. Confirm with your
+   password or Touch ID.
+3. Open Lazybox again and choose **Open Anyway** (or **Open**). macOS does not
+   ask again for this copy.
+
+Or, in a terminal, remove the quarantine macOS put on the download, then open
+Lazybox as usual:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/Lazybox.app
 ```
 
-Signed releases open without asking.
+A new unsigned release installed from a disk image or with Homebrew asks
+again. Signed releases open without asking.
 
 ## First run
 

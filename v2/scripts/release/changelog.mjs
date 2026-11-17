@@ -12,6 +12,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const changelogPath = resolve(root, 'CHANGELOG.md');
 export const releaseNotesPath = resolve(root, 'packages/surfaces/src/release-notes.ts');
 
+// The install guide the GitHub release links to. The path is written from the
+// repository root of this tree's monorepo (v2/ is its folder there);
+// export-repo.mjs's v2-prefix rewrite drops that prefix in the standalone
+// repository, where docs/ is at the root, so the link resolves in both.
+export const installGuidePath = 'v2/docs/install.md';
+export const installGuide = `https://github.com/AntoineToussaint/lazybox/blob/main/${installGuidePath}`;
+
 const heading = /^## \[([A-Za-z0-9][A-Za-z0-9.+-]*)\] - (\d{4}-\d{2}-\d{2}) · (.+)$/;
 const groupHeading = /^### (.+)$/;
 const item = /^- \*\*(.+?)\*\* (.+)$/;
@@ -104,7 +111,7 @@ export function releaseBody(releases, version, { unsigned = false } = {}) {
   }
   const out = [];
   if (unsigned) {
-    out.push('> **Unsigned build.** This release is not signed with an Apple Developer ID or notarized. macOS will refuse to open it at first: Control-click Lazybox in Applications, choose **Open**, then **Open** again (or run `xattr -dr com.apple.quarantine /Applications/Lazybox.app`). See [INSTALL.md](https://github.com/AntoineToussaint/lazybox/blob/main/v2/INSTALL.md#unsigned-builds).', '');
+    out.push(`> **Unsigned build.** This release is not signed with an Apple Developer ID or notarized, so macOS refuses to open it the first time. Open Lazybox once and choose **Done**, then **System Settings → Privacy & Security → Open Anyway**, and open it again (on macOS 15 and later, Control-click → Open no longer does this). Or run \`xattr -dr com.apple.quarantine /Applications/Lazybox.app\` in a terminal. See [Unsigned builds](${installGuide}#unsigned-builds).`, '');
   }
   included.forEach((r, i) => {
     const level = i === 0 ? '##' : '###';
@@ -115,7 +122,7 @@ export function releaseBody(releases, version, { unsigned = false } = {}) {
       out.push('');
     }
   });
-  out.push('Install: download the disk image below and drag Lazybox to Applications, or `brew install --cask AntoineToussaint/lazybox/lazybox-v2`. Already installed? Lazybox offers the update and installs it only when you choose to (Settings → Updates). Full instructions: [INSTALL.md](https://github.com/AntoineToussaint/lazybox/blob/main/v2/INSTALL.md).');
+  out.push(`Install: download the disk image below and drag Lazybox to Applications, or \`brew install --cask AntoineToussaint/lazybox/lazybox-v2\`. Already installed? Lazybox offers the update and installs it only when you choose to (Settings → Updates). Full instructions: [the install guide](${installGuide}).`);
   return out.join('\n') + '\n';
 }
 

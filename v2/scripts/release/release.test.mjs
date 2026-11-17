@@ -4,7 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { artifactNames, latestJson, renderCask, signingPlan, tagOf, tauriReleaseConfig, downloadURL } from './build.mjs';
-import { parseChangelog, renderReleaseNotes, releaseBody, updaterNotes, updaterReleases, changelogPath, releaseNotesPath } from './changelog.mjs';
+import { parseChangelog, renderReleaseNotes, releaseBody, updaterNotes, updaterReleases, changelogPath, releaseNotesPath, installGuide, installGuidePath } from './changelog.mjs';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -38,6 +40,16 @@ test('the cask is the template with the version and the disk image checksum', as
   assert.ok(cask.includes('releases/download/v2-v#{version}/Lazybox_#{version}_aarch64.dmg'));
   assert.equal(artifactNames('0.2.0').dmg, 'Lazybox_0.2.0_aarch64.dmg');
   assert.throws(() => renderCask(template, '0.2.0', 'not-a-sum'));
+  // The bundled Node needs macOS 13.5; Ventura is as close as a cask can say.
+  assert.match(cask, /depends_on macos: ">= :ventura"/);
+  // V1's formula owns `lazybox`: the cask's own name for the CLI never collides with it.
+  assert.match(cask, /binary "#\{appdir\}\/Lazybox\.app\/Contents\/Resources\/runtime\/bin\/lazybox", target: "lazybox-v2"/);
+  // Caveats: how to reach V2's CLI when V1 shadows it, and how to open an unsigned build.
+  const caveats = /caveats <<~EOS\n([^]*?)\n {2}EOS/.exec(cask)?.[1] || '';
+  for (const words of ['`lazybox-v2`', 'V1', 'Privacy & Security', 'Open Anyway', 'xattr -dr com.apple.quarantine /Applications/Lazybox.app']) assert.ok(caveats.includes(words), `the caveats lack ${words}`);
+  // The tap has no lazybox-desktop cask, and V1's site is not V2's home.
+  assert.ok(!/conflicts_with/.test(cask));
+  assert.match(cask, /homepage "https:\/\/github\.com\/AntoineToussaint\/lazybox"/);
 });
 
 test('signing follows the secrets present, never a flag', () => {
@@ -63,6 +75,7 @@ test('the release configuration adds the version, runtime and public key, and dr
   assert.deepEqual(config.bundle.resources, { '/stage/runtime/': 'runtime/' });
   assert.equal(config.bundle.macOS.signingIdentity, '-');
   assert.equal(config.bundle.macOS.hardenedRuntime, true);
+  assert.equal(config.bundle.macOS.minimumSystemVersion, '13.5', 'the bundled Node needs macOS 13.5');
   // The hardened runtime denies the microphone (voice dictation) without this entitlement.
   assert.equal(config.bundle.macOS.entitlements, 'Entitlements.plist');
   assert.match(await readFile(resolve(root, 'apps/desktop/src-tauri', config.bundle.macOS.entitlements), 'utf8'), /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\/>/);
@@ -130,4 +143,16 @@ test('the release notes of the current version are the whole of its section', as
   const [newest] = releases;
   const body = releaseBody(releases, newest.id);
   for (const item of newest.items) assert.ok(body.includes(`**${item.title}.** ${item.body}`), `${item.title} is missing from the notes`);
+});
+
+test('the release notes link to the install guide where the repository has it', async () => {
+  // From the repository root: v2/docs/install.md in the monorepo; the export
+  // drops the v2/ prefix along with the folder.
+  const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' }).trim();
+  assert.ok(existsSync(resolve(top, installGuidePath)), `${installGuidePath} is not in this repository`);
+  assert.equal(resolve(top, installGuidePath), resolve(root, 'docs/install.md'));
+  assert.match(await readFile(resolve(root, 'docs/install.md'), 'utf8'), /^### Unsigned builds$/m, 'the #unsigned-builds anchor the notes link to');
+  const notes = releaseBody(parseChangelog('## [1.0.0] - 2026-12-01 · T\n\n- **A** a'), '1.0.0', { unsigned: true });
+  assert.ok(notes.includes(`(${installGuide}#unsigned-builds)`));
+  assert.match(notes, /Privacy & Security → Open Anyway/);
 });
