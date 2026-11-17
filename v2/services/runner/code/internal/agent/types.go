@@ -307,6 +307,11 @@ const (
 	// Lazybox to an orchestrator: two of its agents changed the same files.
 	OriginOverlap      = "overlap_detected"
 	OriginContinuation = "continuation"
+	// A conversation another one asked the person to start: its brief; and,
+	// to the asking agent, the person's answer (runner/conversation_starts.go).
+	OriginConversationBrief    = "conversation_brief"
+	OriginConversationStarted  = "conversation_started"
+	OriginConversationDeclined = "conversation_declined"
 )
 
 // Delivery is "acknowledged" only if the provider actually replied. A pipe

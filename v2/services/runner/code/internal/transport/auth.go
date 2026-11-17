@@ -143,6 +143,22 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 		asker, err := agents.RepositoryRequestSession(r.RequestId)
 		return err == nil && asker == who.session
 	},
+	// An agent asks the person to start a conversation (conversation_starts.go)
+	// for its own execution, and waits for its own requests' answers; it
+	// never answers one.
+	pb.RunnerService_RequestConversationStart_FullMethodName: func(_ AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.RequestConversationStartRequest)
+		return ok && r.SessionId != "" && r.SessionId == who.session
+	},
+	pb.RunnerService_WaitConversationStart_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.WaitConversationStartRequest)
+		starts, can := agents.(ConversationStartCredentials)
+		if !ok || !can || r.RequestId == "" {
+			return false
+		}
+		asker, err := starts.ConversationStartSession(r.RequestId)
+		return err == nil && asker == who.session
+	},
 	// The Orchestrator verbs (agents.go), for the caller's own execution.
 	// Starting an agent needs a grant in force, which only the person gives;
 	// every target must be one of the children the caller started (or, for a

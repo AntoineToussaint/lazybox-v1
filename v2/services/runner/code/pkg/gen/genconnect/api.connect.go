@@ -598,6 +598,15 @@ const (
 	// RunnerServiceDeclineRepositoryRequestProcedure is the fully-qualified name of the RunnerService's
 	// DeclineRepositoryRequest RPC.
 	RunnerServiceDeclineRepositoryRequestProcedure = "/lazybox.bench.v1.RunnerService/DeclineRepositoryRequest"
+	// RunnerServiceRequestConversationStartProcedure is the fully-qualified name of the RunnerService's
+	// RequestConversationStart RPC.
+	RunnerServiceRequestConversationStartProcedure = "/lazybox.bench.v1.RunnerService/RequestConversationStart"
+	// RunnerServiceWaitConversationStartProcedure is the fully-qualified name of the RunnerService's
+	// WaitConversationStart RPC.
+	RunnerServiceWaitConversationStartProcedure = "/lazybox.bench.v1.RunnerService/WaitConversationStart"
+	// RunnerServiceAnswerConversationStartProcedure is the fully-qualified name of the RunnerService's
+	// AnswerConversationStart RPC.
+	RunnerServiceAnswerConversationStartProcedure = "/lazybox.bench.v1.RunnerService/AnswerConversationStart"
 	// RunnerServiceWatchBrowserProcedure is the fully-qualified name of the RunnerService's
 	// WatchBrowser RPC.
 	RunnerServiceWatchBrowserProcedure = "/lazybox.bench.v1.RunnerService/WatchBrowser"
@@ -1041,6 +1050,19 @@ type RunnerServiceClient interface {
 	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Agents ask the person to start a conversation (docs/guides/orchestrator.md,
+	// "Ask an agent to start another conversation"). An agent credential may
+	// ask for its own execution and wait for its own requests: it never starts
+	// one. The request waits in the asking conversation like an approval; the
+	// person starts it (as asked, or edited) or declines it. A conversation
+	// that holds an Orchestrator grant in force starts the agent at once, as
+	// SpawnAgent does, under that grant.
+	RequestConversationStart(context.Context, *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitConversationStart(context.Context, *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// The person's answer: start (with their edits) or decline. A paired phone
+	// that may respond answers it, without changing the agent or workspace.
+	AnswerConversationStart(context.Context, *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
 	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
 	// drives through its browser_* tools and the person watches beside the
 	// chat. Every RPC below is the owner's. An agent reaches only its own
@@ -2222,6 +2244,24 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
 			connect.WithClientOptions(opts...),
 		),
+		requestConversationStart: connect.NewClient[gen.RequestConversationStartRequest, gen.ConversationStartRequest](
+			httpClient,
+			baseURL+RunnerServiceRequestConversationStartProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RequestConversationStart")),
+			connect.WithClientOptions(opts...),
+		),
+		waitConversationStart: connect.NewClient[gen.WaitConversationStartRequest, gen.ConversationStartRequest](
+			httpClient,
+			baseURL+RunnerServiceWaitConversationStartProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitConversationStart")),
+			connect.WithClientOptions(opts...),
+		),
+		answerConversationStart: connect.NewClient[gen.AnswerConversationStartRequest, gen.ConversationStartRequest](
+			httpClient,
+			baseURL+RunnerServiceAnswerConversationStartProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AnswerConversationStart")),
+			connect.WithClientOptions(opts...),
+		),
 		watchBrowser: connect.NewClient[gen.WatchBrowserRequest, gen.BrowserEvent](
 			httpClient,
 			baseURL+RunnerServiceWatchBrowserProcedure,
@@ -2460,6 +2500,9 @@ type runnerServiceClient struct {
 	requestRepository            *connect.Client[gen.RequestRepositoryRequest, gen.RepositoryRequest]
 	waitRepositoryRequest        *connect.Client[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest]
 	declineRepositoryRequest     *connect.Client[gen.DeclineRepositoryRequestRequest, gen.RepositoryRequest]
+	requestConversationStart     *connect.Client[gen.RequestConversationStartRequest, gen.ConversationStartRequest]
+	waitConversationStart        *connect.Client[gen.WaitConversationStartRequest, gen.ConversationStartRequest]
+	answerConversationStart      *connect.Client[gen.AnswerConversationStartRequest, gen.ConversationStartRequest]
 	watchBrowser                 *connect.Client[gen.WatchBrowserRequest, gen.BrowserEvent]
 	controlBrowser               *connect.Client[gen.ControlBrowserRequest, gen.BrowserState]
 	sendBrowserInput             *connect.Client[gen.BrowserInputRequest, gen.BrowserState]
@@ -3424,6 +3467,21 @@ func (c *runnerServiceClient) DeclineRepositoryRequest(ctx context.Context, req 
 	return c.declineRepositoryRequest.CallUnary(ctx, req)
 }
 
+// RequestConversationStart calls lazybox.bench.v1.RunnerService.RequestConversationStart.
+func (c *runnerServiceClient) RequestConversationStart(ctx context.Context, req *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return c.requestConversationStart.CallUnary(ctx, req)
+}
+
+// WaitConversationStart calls lazybox.bench.v1.RunnerService.WaitConversationStart.
+func (c *runnerServiceClient) WaitConversationStart(ctx context.Context, req *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return c.waitConversationStart.CallUnary(ctx, req)
+}
+
+// AnswerConversationStart calls lazybox.bench.v1.RunnerService.AnswerConversationStart.
+func (c *runnerServiceClient) AnswerConversationStart(ctx context.Context, req *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return c.answerConversationStart.CallUnary(ctx, req)
+}
+
 // WatchBrowser calls lazybox.bench.v1.RunnerService.WatchBrowser.
 func (c *runnerServiceClient) WatchBrowser(ctx context.Context, req *connect.Request[gen.WatchBrowserRequest]) (*connect.ServerStreamForClient[gen.BrowserEvent], error) {
 	return c.watchBrowser.CallServerStream(ctx, req)
@@ -3879,6 +3937,19 @@ type RunnerServiceHandler interface {
 	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Agents ask the person to start a conversation (docs/guides/orchestrator.md,
+	// "Ask an agent to start another conversation"). An agent credential may
+	// ask for its own execution and wait for its own requests: it never starts
+	// one. The request waits in the asking conversation like an approval; the
+	// person starts it (as asked, or edited) or declines it. A conversation
+	// that holds an Orchestrator grant in force starts the agent at once, as
+	// SpawnAgent does, under that grant.
+	RequestConversationStart(context.Context, *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitConversationStart(context.Context, *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// The person's answer: start (with their edits) or decline. A paired phone
+	// that may respond answers it, without changing the agent or workspace.
+	AnswerConversationStart(context.Context, *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
 	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
 	// drives through its browser_* tools and the person watches beside the
 	// chat. Every RPC below is the owner's. An agent reaches only its own
@@ -5056,6 +5127,24 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceRequestConversationStartHandler := connect.NewUnaryHandler(
+		RunnerServiceRequestConversationStartProcedure,
+		svc.RequestConversationStart,
+		connect.WithSchema(runnerServiceMethods.ByName("RequestConversationStart")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitConversationStartHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitConversationStartProcedure,
+		svc.WaitConversationStart,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitConversationStart")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAnswerConversationStartHandler := connect.NewUnaryHandler(
+		RunnerServiceAnswerConversationStartProcedure,
+		svc.AnswerConversationStart,
+		connect.WithSchema(runnerServiceMethods.ByName("AnswerConversationStart")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceWatchBrowserHandler := connect.NewServerStreamHandler(
 		RunnerServiceWatchBrowserProcedure,
 		svc.WatchBrowser,
@@ -5482,6 +5571,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceWaitRepositoryRequestHandler.ServeHTTP(w, r)
 		case RunnerServiceDeclineRepositoryRequestProcedure:
 			runnerServiceDeclineRepositoryRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceRequestConversationStartProcedure:
+			runnerServiceRequestConversationStartHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitConversationStartProcedure:
+			runnerServiceWaitConversationStartHandler.ServeHTTP(w, r)
+		case RunnerServiceAnswerConversationStartProcedure:
+			runnerServiceAnswerConversationStartHandler.ServeHTTP(w, r)
 		case RunnerServiceWatchBrowserProcedure:
 			runnerServiceWatchBrowserHandler.ServeHTTP(w, r)
 		case RunnerServiceControlBrowserProcedure:
@@ -6267,6 +6362,18 @@ func (UnimplementedRunnerServiceHandler) WaitRepositoryRequest(context.Context, 
 
 func (UnimplementedRunnerServiceHandler) DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeclineRepositoryRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RequestConversationStart(context.Context, *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RequestConversationStart is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitConversationStart(context.Context, *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitConversationStart is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AnswerConversationStart(context.Context, *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AnswerConversationStart is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) WatchBrowser(context.Context, *connect.Request[gen.WatchBrowserRequest], *connect.ServerStream[gen.BrowserEvent]) error {

@@ -211,6 +211,9 @@ const (
 	RunnerService_RequestRepository_FullMethodName            = "/lazybox.bench.v1.RunnerService/RequestRepository"
 	RunnerService_WaitRepositoryRequest_FullMethodName        = "/lazybox.bench.v1.RunnerService/WaitRepositoryRequest"
 	RunnerService_DeclineRepositoryRequest_FullMethodName     = "/lazybox.bench.v1.RunnerService/DeclineRepositoryRequest"
+	RunnerService_RequestConversationStart_FullMethodName     = "/lazybox.bench.v1.RunnerService/RequestConversationStart"
+	RunnerService_WaitConversationStart_FullMethodName        = "/lazybox.bench.v1.RunnerService/WaitConversationStart"
+	RunnerService_AnswerConversationStart_FullMethodName      = "/lazybox.bench.v1.RunnerService/AnswerConversationStart"
 	RunnerService_WatchBrowser_FullMethodName                 = "/lazybox.bench.v1.RunnerService/WatchBrowser"
 	RunnerService_ControlBrowser_FullMethodName               = "/lazybox.bench.v1.RunnerService/ControlBrowser"
 	RunnerService_SendBrowserInput_FullMethodName             = "/lazybox.bench.v1.RunnerService/SendBrowserInput"
@@ -642,6 +645,19 @@ type RunnerServiceClient interface {
 	WaitRepositoryRequest(ctx context.Context, in *WaitRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(ctx context.Context, in *DeclineRepositoryRequestRequest, opts ...grpc.CallOption) (*RepositoryRequest, error)
+	// Agents ask the person to start a conversation (docs/guides/orchestrator.md,
+	// "Ask an agent to start another conversation"). An agent credential may
+	// ask for its own execution and wait for its own requests: it never starts
+	// one. The request waits in the asking conversation like an approval; the
+	// person starts it (as asked, or edited) or declines it. A conversation
+	// that holds an Orchestrator grant in force starts the agent at once, as
+	// SpawnAgent does, under that grant.
+	RequestConversationStart(ctx context.Context, in *RequestConversationStartRequest, opts ...grpc.CallOption) (*ConversationStartRequest, error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitConversationStart(ctx context.Context, in *WaitConversationStartRequest, opts ...grpc.CallOption) (*ConversationStartRequest, error)
+	// The person's answer: start (with their edits) or decline. A paired phone
+	// that may respond answers it, without changing the agent or workspace.
+	AnswerConversationStart(ctx context.Context, in *AnswerConversationStartRequest, opts ...grpc.CallOption) (*ConversationStartRequest, error)
 	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
 	// drives through its browser_* tools and the person watches beside the
 	// chat. Every RPC below is the owner's. An agent reaches only its own
@@ -2629,6 +2645,36 @@ func (c *runnerServiceClient) DeclineRepositoryRequest(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *runnerServiceClient) RequestConversationStart(ctx context.Context, in *RequestConversationStartRequest, opts ...grpc.CallOption) (*ConversationStartRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConversationStartRequest)
+	err := c.cc.Invoke(ctx, RunnerService_RequestConversationStart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) WaitConversationStart(ctx context.Context, in *WaitConversationStartRequest, opts ...grpc.CallOption) (*ConversationStartRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConversationStartRequest)
+	err := c.cc.Invoke(ctx, RunnerService_WaitConversationStart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) AnswerConversationStart(ctx context.Context, in *AnswerConversationStartRequest, opts ...grpc.CallOption) (*ConversationStartRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConversationStartRequest)
+	err := c.cc.Invoke(ctx, RunnerService_AnswerConversationStart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) WatchBrowser(ctx context.Context, in *WatchBrowserRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BrowserEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &RunnerService_ServiceDesc.Streams[5], RunnerService_WatchBrowser_FullMethodName, cOpts...)
@@ -3130,6 +3176,19 @@ type RunnerServiceServer interface {
 	WaitRepositoryRequest(context.Context, *WaitRepositoryRequestRequest) (*RepositoryRequest, error)
 	// Owner only. Declines a request; the agent is told the reason.
 	DeclineRepositoryRequest(context.Context, *DeclineRepositoryRequestRequest) (*RepositoryRequest, error)
+	// Agents ask the person to start a conversation (docs/guides/orchestrator.md,
+	// "Ask an agent to start another conversation"). An agent credential may
+	// ask for its own execution and wait for its own requests: it never starts
+	// one. The request waits in the asking conversation like an approval; the
+	// person starts it (as asked, or edited) or declines it. A conversation
+	// that holds an Orchestrator grant in force starts the agent at once, as
+	// SpawnAgent does, under that grant.
+	RequestConversationStart(context.Context, *RequestConversationStartRequest) (*ConversationStartRequest, error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitConversationStart(context.Context, *WaitConversationStartRequest) (*ConversationStartRequest, error)
+	// The person's answer: start (with their edits) or decline. A paired phone
+	// that may respond answers it, without changing the agent or workspace.
+	AnswerConversationStart(context.Context, *AnswerConversationStartRequest) (*ConversationStartRequest, error)
 	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
 	// drives through its browser_* tools and the person watches beside the
 	// chat. Every RPC below is the owner's. An agent reaches only its own
@@ -3734,6 +3793,15 @@ func (UnimplementedRunnerServiceServer) WaitRepositoryRequest(context.Context, *
 }
 func (UnimplementedRunnerServiceServer) DeclineRepositoryRequest(context.Context, *DeclineRepositoryRequestRequest) (*RepositoryRequest, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeclineRepositoryRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) RequestConversationStart(context.Context, *RequestConversationStartRequest) (*ConversationStartRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestConversationStart not implemented")
+}
+func (UnimplementedRunnerServiceServer) WaitConversationStart(context.Context, *WaitConversationStartRequest) (*ConversationStartRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method WaitConversationStart not implemented")
+}
+func (UnimplementedRunnerServiceServer) AnswerConversationStart(context.Context, *AnswerConversationStartRequest) (*ConversationStartRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "method AnswerConversationStart not implemented")
 }
 func (UnimplementedRunnerServiceServer) WatchBrowser(*WatchBrowserRequest, grpc.ServerStreamingServer[BrowserEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchBrowser not implemented")
@@ -7180,6 +7248,60 @@ func _RunnerService_DeclineRepositoryRequest_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_RequestConversationStart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestConversationStartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RequestConversationStart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RequestConversationStart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RequestConversationStart(ctx, req.(*RequestConversationStartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_WaitConversationStart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WaitConversationStartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).WaitConversationStart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_WaitConversationStart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).WaitConversationStart(ctx, req.(*WaitConversationStartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_AnswerConversationStart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AnswerConversationStartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).AnswerConversationStart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_AnswerConversationStart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).AnswerConversationStart(ctx, req.(*AnswerConversationStartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_WatchBrowser_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchBrowserRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -8049,6 +8171,18 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeclineRepositoryRequest",
 			Handler:    _RunnerService_DeclineRepositoryRequest_Handler,
+		},
+		{
+			MethodName: "RequestConversationStart",
+			Handler:    _RunnerService_RequestConversationStart_Handler,
+		},
+		{
+			MethodName: "WaitConversationStart",
+			Handler:    _RunnerService_WaitConversationStart_Handler,
+		},
+		{
+			MethodName: "AnswerConversationStart",
+			Handler:    _RunnerService_AnswerConversationStart_Handler,
 		},
 		{
 			MethodName: "ControlBrowser",

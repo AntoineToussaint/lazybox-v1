@@ -54,9 +54,9 @@ Plans, design docs, specs, reports, reviews and notes you write for the person a
 // path itself, never only the variable.
 const cliPlaceholder = "{{LAZYBOX_CLI}}"
 
-// briefing is commandBriefing for this Runner's CLI.
+// briefing is commandBriefing, then conversationBriefing (conversation_starts.go), for this Runner's CLI.
 func (b *Bench) briefing() string {
-	return strings.ReplaceAll(commandBriefing, cliPlaceholder, filepath.Join(b.Config.CLIDir, "lazybox"))
+	return strings.ReplaceAll(commandBriefing+"\n\n"+conversationBriefing, cliPlaceholder, filepath.Join(b.Config.CLIDir, "lazybox"))
 }
 
 // outputEnv names the execution's directory for full-output files. The CLI

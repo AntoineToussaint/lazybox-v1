@@ -108,6 +108,13 @@ var deviceRPCs = map[string]deviceRule{
 	}},
 	pb.RunnerService_SendPullRequestFailures_FullMethodName: {grant: devices.GrantRespond},
 	pb.RunnerService_ImportPullRequestReview_FullMethodName: {grant: devices.GrantRespond},
+	// An agent's request to start a conversation waits for the person like an
+	// approval: a phone that may respond starts it as asked, or declines it.
+	// Choosing another agent, model or workspace is the computer's (the card's Edit…).
+	pb.RunnerService_AnswerConversationStart_FullMethodName: {grant: devices.GrantRespond, allow: func(req any) bool {
+		r, ok := req.(*pb.AnswerConversationStartRequest)
+		return ok && (r.Decision == "start" || r.Decision == "decline") && r.ProfileId == "" && r.Model == "" && r.Workspace == ""
+	}},
 }
 
 // deviceStreams are the server streams a device may follow.

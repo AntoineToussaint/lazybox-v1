@@ -422,6 +422,19 @@ service RunnerService {
   rpc WaitRepositoryRequest(WaitRepositoryRequestRequest) returns (RepositoryRequest);
   // Owner only. Declines a request; the agent is told the reason.
   rpc DeclineRepositoryRequest(DeclineRepositoryRequestRequest) returns (RepositoryRequest);
+  // Agents ask the person to start a conversation (docs/guides/orchestrator.md,
+  // "Ask an agent to start another conversation"). An agent credential may
+  // ask for its own execution and wait for its own requests: it never starts
+  // one. The request waits in the asking conversation like an approval; the
+  // person starts it (as asked, or edited) or declines it. A conversation
+  // that holds an Orchestrator grant in force starts the agent at once, as
+  // SpawnAgent does, under that grant.
+  rpc RequestConversationStart(RequestConversationStartRequest) returns (ConversationStartRequest);
+  // Waits, at most timeout_seconds (bounded), for the person's answer.
+  rpc WaitConversationStart(WaitConversationStartRequest) returns (ConversationStartRequest);
+  // The person's answer: start (with their edits) or decline. A paired phone
+  // that may respond answers it, without changing the agent or workspace.
+  rpc AnswerConversationStart(AnswerConversationStartRequest) returns (ConversationStartRequest);
   // The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
   // drives through its browser_* tools and the person watches beside the
   // chat. Every RPC below is the owner's. An agent reaches only its own
@@ -3565,6 +3578,88 @@ message WaitRepositoryRequestRequest {
 message DeclineRepositoryRequestRequest {
   string request_id = 1;
   string reason = 2;
+}
+
+// An agent's request that the person start a conversation.
+message RequestConversationStartRequest {
+  // The asking execution; an agent may only name its own.
+  string session_id = 1;
+  // The new conversation's title, in a line.
+  string title = 2;
+  // Its first message: objective, done when, boundaries (at most 8 KB).
+  string brief = 3;
+  // A Lazybox artifact of the asking workspace that holds the brief; the new
+  // conversation's first message names it.
+  string brief_artifact_id = 4;
+  // same (default): the asking conversation's workspace; new: a workspace of
+  // its own, with new branches from this one's.
+  string workspace = 5;
+  // claude, codex or an ACP agent's provider; empty: the asking agent's.
+  string provider = 6;
+  // A subscription of that provider; empty: the asking one's, or the provider's first.
+  string profile_id = 7;
+  // Empty: the asking agent's model when the provider is the same, else the provider's default.
+  string model = 8;
+  // Why, in a line the person decides from (optional).
+  string reason = 9;
+}
+message ConversationStartRequest {
+  string id = 1;
+  string session_id = 2;
+  string conversation_id = 3;
+  string collection_id = 4;
+  // The asking conversation's title.
+  string from_title = 5;
+  string title = 6;
+  string brief = 7;
+  string reason = 8;
+  // same or new.
+  string workspace = 9;
+  string provider = 10;
+  string profile_id = 11;
+  string model = 12;
+  // The permission the new conversation runs at: the asking conversation's.
+  string permission = 13;
+  string brief_artifact_id = 14;
+  string brief_artifact_title = 15;
+  uint32 brief_artifact_version = 16;
+  // How many conversations are live in the asking workspace now, the asking
+  // one included: a new one there shares their files.
+  uint32 shared_with = 17;
+  // pending, started, declined or expired.
+  string state = 18;
+  string decline_reason = 19;
+  // started: the new conversation.
+  string started_session_id = 20;
+  string started_conversation_id = 21;
+  string started_collection_id = 22;
+  string started_title = 23;
+  // Started under the asking conversation's Orchestrator grant: an agent of
+  // its mission (mission_title), not a peer.
+  bool child = 24;
+  string mission_title = 25;
+  int64 created_at_unix_millis = 26;
+  int64 expires_at_unix_millis = 27;
+  int64 resolved_at_unix_millis = 28;
+}
+message WaitConversationStartRequest {
+  string request_id = 1;
+  // At most 60; 0 returns at once.
+  uint32 timeout_seconds = 2;
+}
+message AnswerConversationStartRequest {
+  string request_id = 1;
+  // start or decline.
+  string decision = 2;
+  // decline: why, told to the agent (optional).
+  string reason = 3;
+  // start: the person's edits; empty keeps what the agent asked for.
+  string title = 4;
+  string brief = 5;
+  // same or new.
+  string workspace = 6;
+  string profile_id = 7;
+  string model = 8;
 }
 
 // One conversation's agent browser (BROWSER.md).

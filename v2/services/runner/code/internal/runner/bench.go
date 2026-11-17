@@ -247,6 +247,8 @@ type Bench struct {
 	power powerState
 	// repositoryRequests are agents' requests for repositories (repository_requests.go).
 	repositoryRequests *repositoryRequests
+	// conversationStarts are agents' requests to start a conversation (conversation_starts.go).
+	conversationStarts *conversationStarts
 	// Browser is every conversation's agent browser (browser.go, BROWSER.md).
 	Browser *browser.Manager
 	// reviewAsks wakes agents waiting for an answer (review_loop.go).
@@ -489,6 +491,10 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	if b.repositoryRequests, err = openRepositoryRequests(filepath.Join(cfg.State, "repository-requests.json")); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.conversationStarts, err = openConversationStarts(filepath.Join(cfg.State, "conversation-starts.json")); err != nil {
 		_ = b.Detach()
 		return nil, err
 	}

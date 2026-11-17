@@ -85,10 +85,10 @@ func rpcError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = codes.DeadlineExceeded
 	}
-	if errors.Is(err, journal.ErrFull) || errors.Is(err, runner.ErrRepositoryRequestLimit) {
+	if errors.Is(err, journal.ErrFull) || errors.Is(err, runner.ErrRepositoryRequestLimit) || errors.Is(err, runner.ErrConversationStartLimit) {
 		code = codes.ResourceExhausted
 	}
-	if errors.Is(err, runner.ErrInvalidRepositoryRequest) || errors.Is(err, agent.ErrInvalidModel) {
+	if errors.Is(err, runner.ErrInvalidRepositoryRequest) || errors.Is(err, runner.ErrInvalidConversationStart) || errors.Is(err, agent.ErrInvalidModel) {
 		code = codes.InvalidArgument
 	}
 	return grpcError(code, err)
@@ -1064,6 +1064,10 @@ func (s *Service) sessionView(ctx context.Context, e *runner.Execution) (*pb.Ses
 	if !view.Closed {
 		for _, r := range s.Bench.PendingRepositoryRequests(e) {
 			view.Pending = append(view.Pending, repositoryRequestEvent(r))
+		}
+		// So does its request to start another conversation.
+		for _, r := range s.Bench.PendingConversationStarts(e) {
+			view.Pending = append(view.Pending, conversationStartEvent(r))
 		}
 	}
 	// So do the sites, downloads and sign-ins its agent browser asks about.
