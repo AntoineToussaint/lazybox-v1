@@ -75,7 +75,7 @@ func (b *Bench) FinishPipe(c *commands.Command, cause error, signal string, repo
 	state := c.Status()
 	b.recordRun(state, report)
 	// A `lazybox run -- gh pr create …` prints the pull request it opened.
-	b.itemPipeFinished(c)
+	go b.itemPipeFinished(c)
 	// A workspace run's view reaches an agent only if a person sends it, so it
 	// is not counted with what agents received.
 	if b.Telemetry != nil && state.Spec.SessionID != "" {

@@ -39,7 +39,9 @@ func TestReadPullRequestIsConditional(t *testing.T) {
 	}
 
 	// Only a check finished: the pull request is reused, the checks read again.
-	fake.Update(func(s *githubtest.Server) { s.Checks["abc"][0].Status, s.Checks["abc"][0].Conclusion = "completed", "failure" })
+	fake.Update(func(s *githubtest.Server) {
+		s.Checks["abc"][0].Status, s.Checks["abc"][0].Conclusion = "completed", "failure"
+	})
 	changed, err := client.ReadPullRequest(ctx, "ghp_fixture", "team/api", 7, &again)
 	if err != nil || changed.NotModified || changed.Status.ChecksState != "failure" || changed.Status.Title != "Add otter" || len(changed.Status.Checks) != 2 {
 		t.Fatalf("checks changed: %+v %v", changed, err)
@@ -54,7 +56,9 @@ func TestReadPullRequestIsConditional(t *testing.T) {
 
 	// A push moves the head: its checks are new resources, read in full.
 	fake.SetHead("team/api", "feature/otter", "def")
-	fake.Update(func(s *githubtest.Server) { s.Checks["def"] = []githubtest.Check{{Name: "test", Status: "completed", Conclusion: "success"}} })
+	fake.Update(func(s *githubtest.Server) {
+		s.Checks["def"] = []githubtest.Check{{Name: "test", Status: "completed", Conclusion: "success"}}
+	})
 	pushed, err := client.ReadPullRequest(ctx, "ghp_fixture", "team/api", 7, &reviewed)
 	if err != nil || pushed.Status.HeadSHA != "def" || pushed.Status.ChecksState != "success" || pushed.ETags.Head != "def" {
 		t.Fatalf("pushed: %+v %v", pushed, err)

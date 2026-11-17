@@ -346,7 +346,9 @@ func TestGitHubProviderRefreshUsesValidators(t *testing.T) {
 	if err != nil || len(second.Items) != 0 || len(second.Unchanged) != 1 {
 		t.Fatalf("second: %+v %v", second, err)
 	}
-	fake.Update(func(s *githubtest.Server) { s.Pulls["acme/api"][0].Merged, s.Pulls["acme/api"][0].State = true, "closed" })
+	fake.Update(func(s *githubtest.Server) {
+		s.Pulls["acme/api"][0].Merged, s.Pulls["acme/api"][0].State = true, "closed"
+	})
 	third, err := provider.Refresh(ctx, []Item{item}, first.ETags)
 	if err != nil || len(third.Items) != 1 || third.Items[0].State != StateMerged || third.Items[0].ClosedAt.IsZero() {
 		t.Fatalf("merged: %+v %v", third, err)

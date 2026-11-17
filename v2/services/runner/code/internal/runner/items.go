@@ -591,7 +591,11 @@ func (b *Bench) itemToolEvent(e *Execution, ev agent.Event) {
 	if json.Unmarshal(call.Output, &text) == nil {
 		output = text
 	}
-	b.linkFound(e, workitems.Scan(output, creates))
+	// Linking reads the worktrees' origins and writes the store: off the
+	// engine's event path.
+	if found := workitems.Scan(output, creates); len(found) > 0 {
+		go b.linkFound(e, found)
+	}
 }
 
 func (b *Bench) linkFound(e *Execution, found []workitems.Found) {

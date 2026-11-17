@@ -173,7 +173,9 @@ func TestTrackingFindsWhatAgentsOpenAndEmitsTransitionsOnce(t *testing.T) {
 	if f.github.NotModified <= notModified {
 		t.Fatal("unchanged reads are conditional")
 	}
-	f.github.Update(func(s *githubtest.Server) { s.Pulls["team/api"][0].Merged, s.Pulls["team/api"][0].State = true, "closed" })
+	f.github.Update(func(s *githubtest.Server) {
+		s.Pulls["team/api"][0].Merged, s.Pulls["team/api"][0].State = true, "closed"
+	})
 	b.TrackItems(ctx)
 	b.TrackItems(ctx)
 	pf := &powerFixture{client: f.client}
@@ -392,9 +394,18 @@ func TestTrackedItemsOnAPairedPhone(t *testing.T) {
 		t.Fatalf("respond reaches the reaction: %v", err)
 	}
 	for name, call := range map[string]func() error{
-		"link":   func() error { _, err := f.client.LinkItem(bearer(ctx, responder), &pb.LinkItemRequest{CollectionId: "w", Url: "https://github.com/a/b/pull/1"}); return err },
-		"unlink": func() error { _, err := f.client.UnlinkItem(bearer(ctx, responder), &pb.UnlinkItemRequest{CollectionId: "w"}); return err },
-		"merge":  func() error { _, err := f.client.MergePullRequest(bearer(ctx, responder), &pb.MergePullRequestRequest{CollectionId: "w"}); return err },
+		"link": func() error {
+			_, err := f.client.LinkItem(bearer(ctx, responder), &pb.LinkItemRequest{CollectionId: "w", Url: "https://github.com/a/b/pull/1"})
+			return err
+		},
+		"unlink": func() error {
+			_, err := f.client.UnlinkItem(bearer(ctx, responder), &pb.UnlinkItemRequest{CollectionId: "w"})
+			return err
+		},
+		"merge": func() error {
+			_, err := f.client.MergePullRequest(bearer(ctx, responder), &pb.MergePullRequestRequest{CollectionId: "w"})
+			return err
+		},
 	} {
 		if status.Code(call()) != codes.PermissionDenied {
 			t.Errorf("a phone may not %s", name)
