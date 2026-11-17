@@ -77,7 +77,8 @@ try{
  pushAll(latest.slice(workingAt));
  await expect(pane.getByRole('list',{name:'Tool calls'}).last()).toContainText(/2 commands/,{timeout:10000});
  // A turn's commands are one line until opened; the last line is the turn in progress.
- const latestCommands=async()=>{const run=pane.getByRole('list',{name:'Tool calls'}).last();await run.getByRole('button').first().click();await expect(run).toContainText(/lazybox artifact put plan\.md/i);await expect(run).toContainText(/go test \.\/libraries\/authority-core/i);};
+ // Opened once the turn's two commands are both in: the line regroups as they stream, which would close it again.
+ const latestCommands=async()=>{const run=pane.getByRole('list',{name:'Tool calls'}).last();await expect(run).toContainText(/2 commands/,{timeout:10000});await run.getByRole('button').first().click();await expect(run).toContainText(/lazybox artifact put plan\.md/i);await expect(run).toContainText(/go test \.\/libraries\/authority-core/i);};
  await latestCommands();
  /** Every message once, where it reached the agent; the queued one nowhere in the conversation. */
  const inPlace=async()=>{
