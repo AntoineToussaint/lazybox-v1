@@ -157,6 +157,9 @@ const (
 	// RunnerServiceOpenRepositoryHomeProcedure is the fully-qualified name of the RunnerService's
 	// OpenRepositoryHome RPC.
 	RunnerServiceOpenRepositoryHomeProcedure = "/lazybox.bench.v1.RunnerService/OpenRepositoryHome"
+	// RunnerServiceUpdateRepositoryHomeProcedure is the fully-qualified name of the RunnerService's
+	// UpdateRepositoryHome RPC.
+	RunnerServiceUpdateRepositoryHomeProcedure = "/lazybox.bench.v1.RunnerService/UpdateRepositoryHome"
 	// RunnerServiceCreateCollectionProcedure is the fully-qualified name of the RunnerService's
 	// CreateCollection RPC.
 	RunnerServiceCreateCollectionProcedure = "/lazybox.bench.v1.RunnerService/CreateCollection"
@@ -686,6 +689,10 @@ type RunnerServiceClient interface {
 	SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error)
 	// Opens a repository's home in Finder or an editor on the Runner's computer.
 	OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error)
+	// Fetches the home's origin, then fast-forwards its default branch to the
+	// remote's only when it is checked out and has no changes; otherwise says
+	// why. Never discards, resets or switches anything.
+	UpdateRepositoryHome(context.Context, *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error)
 	CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddCollectionRepositories(context.Context, *connect.Request[gen.AddCollectionRepositoriesRequest]) (*connect.Response[gen.CollectionResponse], error)
 	GetCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
@@ -1319,6 +1326,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceOpenRepositoryHomeProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("OpenRepositoryHome")),
+			connect.WithClientOptions(opts...),
+		),
+		updateRepositoryHome: connect.NewClient[gen.UpdateRepositoryHomeRequest, gen.RepositoryHomeUpdate](
+			httpClient,
+			baseURL+RunnerServiceUpdateRepositoryHomeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateRepositoryHome")),
 			connect.WithClientOptions(opts...),
 		),
 		createCollection: connect.NewClient[gen.CreateCollectionRequest, gen.CollectionResponse](
@@ -2298,6 +2311,7 @@ type runnerServiceClient struct {
 	listRepositoryHomes          *connect.Client[gen.ListRepositoryHomesRequest, gen.RepositoryHomes]
 	setRepositoryHome            *connect.Client[gen.SetRepositoryHomeRequest, gen.RepositoryHome]
 	openRepositoryHome           *connect.Client[gen.OpenRepositoryHomeRequest, gen.OpenRepositoryHomeResponse]
+	updateRepositoryHome         *connect.Client[gen.UpdateRepositoryHomeRequest, gen.RepositoryHomeUpdate]
 	createCollection             *connect.Client[gen.CreateCollectionRequest, gen.CollectionResponse]
 	addCollectionRepositories    *connect.Client[gen.AddCollectionRepositoriesRequest, gen.CollectionResponse]
 	getCollection                *connect.Client[gen.CollectionRequest, gen.CollectionResponse]
@@ -2663,6 +2677,11 @@ func (c *runnerServiceClient) SetRepositoryHome(ctx context.Context, req *connec
 // OpenRepositoryHome calls lazybox.bench.v1.RunnerService.OpenRepositoryHome.
 func (c *runnerServiceClient) OpenRepositoryHome(ctx context.Context, req *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error) {
 	return c.openRepositoryHome.CallUnary(ctx, req)
+}
+
+// UpdateRepositoryHome calls lazybox.bench.v1.RunnerService.UpdateRepositoryHome.
+func (c *runnerServiceClient) UpdateRepositoryHome(ctx context.Context, req *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error) {
+	return c.updateRepositoryHome.CallUnary(ctx, req)
 }
 
 // CreateCollection calls lazybox.bench.v1.RunnerService.CreateCollection.
@@ -3508,6 +3527,10 @@ type RunnerServiceHandler interface {
 	SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error)
 	// Opens a repository's home in Finder or an editor on the Runner's computer.
 	OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error)
+	// Fetches the home's origin, then fast-forwards its default branch to the
+	// remote's only when it is checked out and has no changes; otherwise says
+	// why. Never discards, resets or switches anything.
+	UpdateRepositoryHome(context.Context, *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error)
 	CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddCollectionRepositories(context.Context, *connect.Request[gen.AddCollectionRepositoriesRequest]) (*connect.Response[gen.CollectionResponse], error)
 	GetCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
@@ -4137,6 +4160,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceOpenRepositoryHomeProcedure,
 		svc.OpenRepositoryHome,
 		connect.WithSchema(runnerServiceMethods.ByName("OpenRepositoryHome")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateRepositoryHomeHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateRepositoryHomeProcedure,
+		svc.UpdateRepositoryHome,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateRepositoryHome")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceCreateCollectionHandler := connect.NewUnaryHandler(
@@ -5155,6 +5184,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSetRepositoryHomeHandler.ServeHTTP(w, r)
 		case RunnerServiceOpenRepositoryHomeProcedure:
 			runnerServiceOpenRepositoryHomeHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateRepositoryHomeProcedure:
+			runnerServiceUpdateRepositoryHomeHandler.ServeHTTP(w, r)
 		case RunnerServiceCreateCollectionProcedure:
 			runnerServiceCreateCollectionHandler.ServeHTTP(w, r)
 		case RunnerServiceAddCollectionRepositoriesProcedure:
@@ -5640,6 +5671,10 @@ func (UnimplementedRunnerServiceHandler) SetRepositoryHome(context.Context, *con
 
 func (UnimplementedRunnerServiceHandler) OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.OpenRepositoryHome is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateRepositoryHome(context.Context, *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateRepositoryHome is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {

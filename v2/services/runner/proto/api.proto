@@ -70,6 +70,10 @@ service RunnerService {
   rpc SetRepositoryHome(SetRepositoryHomeRequest) returns (RepositoryHome);
   // Opens a repository's home in Finder or an editor on the Runner's computer.
   rpc OpenRepositoryHome(OpenRepositoryHomeRequest) returns (OpenRepositoryHomeResponse);
+  // Fetches the home's origin, then fast-forwards its default branch to the
+  // remote's only when it is checked out and has no changes; otherwise says
+  // why. Never discards, resets or switches anything.
+  rpc UpdateRepositoryHome(UpdateRepositoryHomeRequest) returns (RepositoryHomeUpdate);
   rpc CreateCollection(CreateCollectionRequest) returns (CollectionResponse);
   rpc AddCollectionRepositories(AddCollectionRepositoriesRequest) returns (CollectionResponse);
   rpc GetCollection(CollectionRequest) returns (CollectionResponse);
@@ -1324,6 +1328,18 @@ message RepositoryHome {
   string suggested_path = 10;
   // Short commit of HEAD.
   string head = 11;
+  // The remote's default branch (main), and how many commits the checked-out
+  // branch is behind origin/<it> as last fetched.
+  string default_branch = 12;
+  uint32 behind = 13;
+}
+message UpdateRepositoryHomeRequest { string repository_id = 1; }
+message RepositoryHomeUpdate {
+  RepositoryHome home = 1;
+  // The default branch moved to the remote's.
+  bool updated = 2;
+  // What happened, as a sentence: updated, already current, or why not.
+  string message = 3;
 }
 message ListRepositoryHomesRequest {
   // Empty lists every repository of the library.
@@ -1773,6 +1789,11 @@ message TerminalStatus {
   string repository_id = 16;
   // Where the shell started, for a terminal outside the workspace.
   string cwd = 17;
+  // How many command lines the shell said ended (its OSC 133;D mark, from
+  // Lazybox's zsh integration), and the latest one's exit status: how a
+  // window learns that a command it typed for the person finished.
+  uint64 command_ends = 18;
+  int32 last_command_status = 19;
 }
 message ListTerminalsRequest {
   string collection_id = 1;

@@ -9,6 +9,7 @@
 package terminals
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -17,7 +18,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +60,14 @@ type Status struct {
 	ExitCode  *int      `json:"exitCode,omitempty"`
 	Signal    string    `json:"signal,omitempty"`
 	Error     string    `json:"error,omitempty"`
+
+	// CommandEnds counts the command lines the shell said ended (its OSC
+	// 133;D;<status> mark, agentshell's zsh integration) in the output this
+	// Runner has seen, and LastCommandStatus is the latest one's status: how
+	// the window learns that a command it typed for the person finished,
+	// without following the output itself.
+	CommandEnds       uint64 `json:"commandEnds,omitempty"`
+	LastCommandStatus int    `json:"lastCommandStatus,omitempty"`
 }
 
 // Options bound a manager. Zero values select the defaults.
@@ -114,6 +125,28 @@ type Terminal struct {
 	// detaching: this Runner is leaving the shell running for the next one.
 	detaching bool
 	following chan struct{}
+	// markTail is an unfinished escape at the end of the output, which a
+	// command-end mark may complete in the next chunk.
+	markTail []byte
+}
+
+// commandEnd is the shell's mark that a command line ended, with its status.
+var commandEnd = regexp.MustCompile("\x1b\\]133;D;([0-9]{1,3})(?:\x07|\x1b\\\\)")
+
+// countCommandEnds counts the command-end marks in data into s and returns
+// what to carry into the next chunk: an escape that may be a mark cut short.
+func countCommandEnds(s *Status, data []byte) []byte {
+	last := 0
+	for _, m := range commandEnd.FindAllSubmatchIndex(data, -1) {
+		s.CommandEnds++
+		s.LastCommandStatus, _ = strconv.Atoi(string(data[m[2]:m[3]]))
+		last = m[1]
+	}
+	rest := data[last:]
+	if i := bytes.LastIndexByte(rest, 0x1b); i >= 0 && len(rest)-i < 24 {
+		return append([]byte(nil), rest[i:]...)
+	}
+	return nil
 }
 
 // Open re-attaches every terminal a previous Runner left running. One whose
@@ -428,6 +461,7 @@ func (t *Terminal) append(data []byte, end uint64) {
 		t.buf = nil
 	}
 	t.buf = append(t.buf, data...)
+	t.markTail = countCommandEnds(&t.status, append(t.markTail, data...))
 	if limit := t.m.opts.Scrollback; len(t.buf) > 2*limit {
 		t.buf = append([]byte(nil), t.buf[len(t.buf)-limit:]...)
 	}

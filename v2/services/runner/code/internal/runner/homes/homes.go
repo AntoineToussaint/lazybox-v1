@@ -47,6 +47,11 @@ type Status struct {
 	// Dirty counts changed and untracked files, at most MaxDirty.
 	Dirty int
 	Error string
+	// DefaultBranch is the remote's default branch (origin/HEAD), and Behind
+	// how many commits the checked-out branch lacks from origin/<it>, as last
+	// fetched.
+	DefaultBranch string
+	Behind        int
 }
 
 // MaxDirty bounds how many changed files Inspect counts.
@@ -147,7 +152,73 @@ func Inspect(ctx context.Context, path string) Status {
 			}
 		}
 	}
+	s.DefaultBranch = defaultBranch(ctx, path)
+	if s.DefaultBranch != "" && !s.Detached {
+		if n, err := git(ctx, path, "rev-list", "--count", "HEAD..refs/remotes/origin/"+s.DefaultBranch); err == nil {
+			fmt.Sscan(n, &s.Behind)
+		}
+	}
 	return s
+}
+
+// defaultBranch is the remote's default branch: what origin/HEAD names, else
+// main or master when origin has one. "" when it cannot be told offline.
+func defaultBranch(ctx context.Context, path string) string {
+	if ref, err := git(ctx, path, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"); err == nil {
+		if name, ok := strings.CutPrefix(ref, "refs/remotes/origin/"); ok && name != "" {
+			return name
+		}
+	}
+	for _, name := range []string{"main", "master"} {
+		if _, err := git(ctx, path, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+name); err == nil {
+			return name
+		}
+	}
+	return ""
+}
+
+// Update brings a home to the remote's latest default branch, safely: it
+// fetches origin (with the person's own credentials; Git never prompts), then
+// fast-forwards only when the default branch is checked out, nothing tracked
+// is changed and the branch has no commits of its own. Otherwise it says why
+// and leaves everything as it was: nothing is reset, stashed, discarded or
+// switched. A fast-forward that would overwrite an untracked file is refused
+// by Git itself.
+func Update(ctx context.Context, path string) (updated bool, message string, err error) {
+	before := Inspect(ctx, path)
+	if !before.Exists || before.Error != "" {
+		return false, "", fmt.Errorf("cannot update the home checkout: %s", strings.ToLower(before.Error))
+	}
+	if _, err = git(ctx, path, "fetch", "--quiet", "--prune", "origin"); err != nil {
+		return false, "", fmt.Errorf("could not fetch origin (check your network and Git credentials for it): %w", err)
+	}
+	branch := defaultBranch(ctx, path)
+	upstream := "origin/" + branch
+	switch {
+	case branch == "":
+		return false, "Fetched origin. Not updated: its default branch is unknown (set it with git remote set-head origin --auto).", nil
+	case before.Detached || before.Branch != branch:
+		on := before.Branch
+		if before.Detached {
+			on = "a detached HEAD"
+		}
+		return false, fmt.Sprintf("Fetched origin. Not updated: the home is on %s, not %s; switch to %s yourself to update it.", on, branch, branch), nil
+	}
+	if changed, _ := git(ctx, path, "--no-optional-locks", "status", "--porcelain", "--untracked-files=no"); changed != "" {
+		return false, fmt.Sprintf("Fetched origin. Not updated: %s has uncommitted changes; commit or stash them yourself first.", branch), nil
+	}
+	if ahead, _ := git(ctx, path, "rev-list", "--count", upstream+"..HEAD"); ahead != "" && ahead != "0" {
+		return false, fmt.Sprintf("Fetched origin. Not updated: %s has %s commit(s) that are not on %s.", branch, ahead, upstream), nil
+	}
+	head, _ := git(ctx, path, "rev-parse", "--short", "HEAD")
+	target, _ := git(ctx, path, "rev-parse", "--short", upstream)
+	if head == target {
+		return false, fmt.Sprintf("Already at the latest %s (%s).", upstream, head), nil
+	}
+	if _, err = git(ctx, path, "merge", "--ff-only", "--quiet", upstream); err != nil {
+		return false, fmt.Sprintf("Fetched origin. Not updated: Git refused the fast-forward to %s (an untracked file would be overwritten?).", upstream), nil
+	}
+	return true, fmt.Sprintf("Updated %s to the latest %s (%s → %s).", branch, upstream, head, target), nil
 }
 
 // Identity is the checkout-independent identity of the repository a checkout

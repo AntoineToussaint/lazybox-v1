@@ -366,3 +366,35 @@ func contains(env []string, entry string) bool {
 	}
 	return false
 }
+
+// An interactive shell (a workspace terminal) marks where each command line
+// ended and its status, ahead of the person's own prompt hooks, so the window
+// can tell that a command it typed finished and how.
+func TestInteractiveZshMarksEachCommandsEnd(t *testing.T) {
+	zsh := shells(t, "zsh")["zsh"]
+	if zsh == "" {
+		t.Skip("no zsh")
+	}
+	h := newHostile(t)
+	// The person's own prompt hook, which changes $? itself, runs after the mark.
+	if err := os.WriteFile(filepath.Join(h.home, ".zshrc"), []byte("theirs() { true; }\nprecmd_functions+=(theirs)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(zsh, "-i")
+	cmd.Env = Env(h.base(), h.integration, h.cli)
+	cmd.Dir = h.home
+	cmd.Stdin = strings.NewReader("false\n(exit 3)\nexit\n")
+	out, _ := cmd.CombinedOutput()
+	marks := []string{}
+	for _, part := range strings.Split(string(out), "\x1b]133;D;")[1:] {
+		status, _, _ := strings.Cut(part, "\a")
+		marks = append(marks, status)
+	}
+	if strings.Join(marks, ",") != "0,1,3" {
+		t.Fatalf("marks %v in %q", marks, out)
+	}
+	// A command an agent runs is not interactive: no marks in its output.
+	if got := h.run(t, Env(h.base(), h.integration, h.cli), zsh, "-lc", "false; echo done"); strings.Contains(got, "\x1b]133") {
+		t.Fatalf("a non-interactive shell marked: %q", got)
+	}
+}

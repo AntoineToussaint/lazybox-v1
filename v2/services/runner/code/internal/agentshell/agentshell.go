@@ -90,6 +90,19 @@ const zshrcAfter = `if [[ -o interactive && -n ${LAZYBOX_V2_CLI_DIR-} ]]; then
   typeset -ga precmd_functions
   precmd_functions+=(_lazybox_cli_first)
 fi
+` + zshCommandEnd
+
+// zshCommandEnd marks, in an interactive shell (a workspace terminal), where
+// each command line ended and with what status: OSC 133;D;<status>, the
+// semantic-prompt mark other terminals use. The window reads it to say that
+// a command it typed for the person (Run in … home) finished, and how. It
+// runs first among the prompt hooks so the status is the command's own; a
+// terminal that does not know the mark ignores it.
+const zshCommandEnd = `if [[ -o interactive ]]; then
+  _lazybox_command_end() { local s=$?; print -rn -- $'\e]133;D;'$s$'\a'; return $s; }
+  typeset -ga precmd_functions
+  precmd_functions=(_lazybox_command_end ${precmd_functions:#_lazybox_command_end})
+fi
 `
 
 // bashEnv is BASH_ENV: bash reads it after its profile files for every

@@ -43,6 +43,11 @@ func TestTheCLIListsHomeCheckouts(t *testing.T) {
 		t.Fatalf("json row: %+v %v", row, err)
 	}
 
+	// Update to latest main: fetched; nothing new, so nothing moved.
+	if out = r.cli(r.owner(), "", "repo", "home", "api", "--update"); out.code != 0 || out.stdout != resolved+"\n" || !strings.Contains(out.stderr, "Already at the latest origin/main") {
+		t.Fatalf("update: %+v %v", out, out.err)
+	}
+
 	session, native := r.open("login")
 	agent := r.agentEnv(session, native.Open.Env)
 	if out = r.cli(agent, "", "repos"); out.code != 0 || !strings.Contains(out.stdout, "api") || !strings.Contains(out.stdout, resolved) {

@@ -62,6 +62,7 @@ const (
 	RunnerService_ListRepositoryHomes_FullMethodName          = "/lazybox.bench.v1.RunnerService/ListRepositoryHomes"
 	RunnerService_SetRepositoryHome_FullMethodName            = "/lazybox.bench.v1.RunnerService/SetRepositoryHome"
 	RunnerService_OpenRepositoryHome_FullMethodName           = "/lazybox.bench.v1.RunnerService/OpenRepositoryHome"
+	RunnerService_UpdateRepositoryHome_FullMethodName         = "/lazybox.bench.v1.RunnerService/UpdateRepositoryHome"
 	RunnerService_CreateCollection_FullMethodName             = "/lazybox.bench.v1.RunnerService/CreateCollection"
 	RunnerService_AddCollectionRepositories_FullMethodName    = "/lazybox.bench.v1.RunnerService/AddCollectionRepositories"
 	RunnerService_GetCollection_FullMethodName                = "/lazybox.bench.v1.RunnerService/GetCollection"
@@ -289,6 +290,10 @@ type RunnerServiceClient interface {
 	SetRepositoryHome(ctx context.Context, in *SetRepositoryHomeRequest, opts ...grpc.CallOption) (*RepositoryHome, error)
 	// Opens a repository's home in Finder or an editor on the Runner's computer.
 	OpenRepositoryHome(ctx context.Context, in *OpenRepositoryHomeRequest, opts ...grpc.CallOption) (*OpenRepositoryHomeResponse, error)
+	// Fetches the home's origin, then fast-forwards its default branch to the
+	// remote's only when it is checked out and has no changes; otherwise says
+	// why. Never discards, resets or switches anything.
+	UpdateRepositoryHome(ctx context.Context, in *UpdateRepositoryHomeRequest, opts ...grpc.CallOption) (*RepositoryHomeUpdate, error)
 	CreateCollection(ctx context.Context, in *CreateCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	AddCollectionRepositories(ctx context.Context, in *AddCollectionRepositoriesRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	GetCollection(ctx context.Context, in *CollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
@@ -1092,6 +1097,16 @@ func (c *runnerServiceClient) OpenRepositoryHome(ctx context.Context, in *OpenRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(OpenRepositoryHomeResponse)
 	err := c.cc.Invoke(ctx, RunnerService_OpenRepositoryHome_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) UpdateRepositoryHome(ctx context.Context, in *UpdateRepositoryHomeRequest, opts ...grpc.CallOption) (*RepositoryHomeUpdate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryHomeUpdate)
+	err := c.cc.Invoke(ctx, RunnerService_UpdateRepositoryHome_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2763,6 +2778,10 @@ type RunnerServiceServer interface {
 	SetRepositoryHome(context.Context, *SetRepositoryHomeRequest) (*RepositoryHome, error)
 	// Opens a repository's home in Finder or an editor on the Runner's computer.
 	OpenRepositoryHome(context.Context, *OpenRepositoryHomeRequest) (*OpenRepositoryHomeResponse, error)
+	// Fetches the home's origin, then fast-forwards its default branch to the
+	// remote's only when it is checked out and has no changes; otherwise says
+	// why. Never discards, resets or switches anything.
+	UpdateRepositoryHome(context.Context, *UpdateRepositoryHomeRequest) (*RepositoryHomeUpdate, error)
 	CreateCollection(context.Context, *CreateCollectionRequest) (*CollectionResponse, error)
 	AddCollectionRepositories(context.Context, *AddCollectionRepositoriesRequest) (*CollectionResponse, error)
 	GetCollection(context.Context, *CollectionRequest) (*CollectionResponse, error)
@@ -3268,6 +3287,9 @@ func (UnimplementedRunnerServiceServer) SetRepositoryHome(context.Context, *SetR
 }
 func (UnimplementedRunnerServiceServer) OpenRepositoryHome(context.Context, *OpenRepositoryHomeRequest) (*OpenRepositoryHomeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OpenRepositoryHome not implemented")
+}
+func (UnimplementedRunnerServiceServer) UpdateRepositoryHome(context.Context, *UpdateRepositoryHomeRequest) (*RepositoryHomeUpdate, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateRepositoryHome not implemented")
 }
 func (UnimplementedRunnerServiceServer) CreateCollection(context.Context, *CreateCollectionRequest) (*CollectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateCollection not implemented")
@@ -4500,6 +4522,24 @@ func _RunnerService_OpenRepositoryHome_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).OpenRepositoryHome(ctx, req.(*OpenRepositoryHomeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_UpdateRepositoryHome_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateRepositoryHomeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).UpdateRepositoryHome(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_UpdateRepositoryHome_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).UpdateRepositoryHome(ctx, req.(*UpdateRepositoryHomeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7429,6 +7469,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OpenRepositoryHome",
 			Handler:    _RunnerService_OpenRepositoryHome_Handler,
+		},
+		{
+			MethodName: "UpdateRepositoryHome",
+			Handler:    _RunnerService_UpdateRepositoryHome_Handler,
 		},
 		{
 			MethodName: "CreateCollection",

@@ -189,3 +189,70 @@ func TestSuggestAndOpenCommands(t *testing.T) {
 		t.Fatal("only known apps open")
 	}
 }
+
+// Update to latest main: fetch, then fast-forward only a clean default
+// branch; anything else is said and left exactly as it was.
+func TestUpdateFastForwardsOnlyACleanDefaultBranch(t *testing.T) {
+	ctx := context.Background()
+	bare, _ := source(t)
+	upstream := filepath.Join(filepath.Dir(bare), "upstream")
+	dest := filepath.Join(t.TempDir(), "api")
+	if err := Create(ctx, bare, dest); err != nil {
+		t.Fatal(err)
+	}
+	// Point origin at the local upstream so the test fetches offline.
+	run(t, dest, "remote", "set-url", "origin", upstream)
+	commit := func(name string) string {
+		if err := os.WriteFile(filepath.Join(upstream, name), []byte(name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		run(t, upstream, "add", ".")
+		run(t, upstream, "commit", "-m", name)
+		return run(t, upstream, "rev-parse", "HEAD")
+	}
+	if updated, message, err := Update(ctx, dest); err != nil || updated || !strings.HasPrefix(message, "Already at the latest origin/main") {
+		t.Fatalf("current: %v %q %v", updated, message, err)
+	}
+	head := commit("third.txt")
+	updated, message, err := Update(ctx, dest)
+	if err != nil || !updated || !strings.HasPrefix(message, "Updated main to the latest origin/main") || run(t, dest, "rev-parse", "HEAD") != head {
+		t.Fatalf("behind: %v %q %v", updated, message, err)
+	}
+
+	// A change of the person's: fetched (Behind says so), never touched.
+	commit("fourth.txt")
+	if err = os.WriteFile(filepath.Join(dest, "README.md"), []byte("mine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if updated, message, err = Update(ctx, dest); err != nil || updated || !strings.Contains(message, "uncommitted changes") {
+		t.Fatalf("dirty: %v %q %v", updated, message, err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dest, "README.md")); string(data) != "mine\n" {
+		t.Fatal("the person's change was discarded")
+	}
+	if s := Inspect(ctx, dest); s.Behind != 1 || s.DefaultBranch != "main" {
+		t.Fatalf("behind after fetch: %+v", s)
+	}
+	run(t, dest, "checkout", "--quiet", "--", "README.md")
+
+	// Another branch: not switched.
+	run(t, dest, "checkout", "--quiet", "-b", "experiment")
+	if updated, message, err = Update(ctx, dest); err != nil || updated || !strings.Contains(message, "on experiment, not main") {
+		t.Fatalf("other branch: %v %q %v", updated, message, err)
+	}
+	if got := run(t, dest, "rev-parse", "--abbrev-ref", "HEAD"); got != "experiment" {
+		t.Fatal("the branch was switched")
+	}
+	run(t, dest, "checkout", "--quiet", "main")
+
+	// Commits of the person's own on main: not merged, not reset.
+	if err = os.WriteFile(filepath.Join(dest, "local.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dest, "add", ".")
+	run(t, dest, "commit", "-m", "mine")
+	mine := run(t, dest, "rev-parse", "HEAD")
+	if updated, message, err = Update(ctx, dest); err != nil || updated || !strings.Contains(message, "1 commit(s) that are not on origin/main") || run(t, dest, "rev-parse", "HEAD") != mine {
+		t.Fatalf("diverged: %v %q %v", updated, message, err)
+	}
+}

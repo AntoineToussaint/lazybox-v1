@@ -266,5 +266,29 @@ func (b *Bench) homesBriefing(c collections.Collection) string {
 	if len(lines) == 0 {
 		return ""
 	}
-	return "Home checkouts (the person's own clones, outside this workspace; read-only for you, never commit, reset or switch branches there; tell the person to run logins and long-lived commands there):\n" + strings.Join(lines, "\n")
+	return "Home checkouts (the person's own clones, outside this workspace; read-only for you, never commit, reset or switch branches there; use them, not a temporary clone, to run a repository's own tools at its latest main; tell the person to run logins and long-lived commands there):\n" + strings.Join(lines, "\n")
+}
+
+// UpdateRepositoryHome fetches a home's origin and fast-forwards its default
+// branch when that is safe (homes.Update); message says what happened or why
+// not. Nothing in the home is ever discarded.
+func (b *Bench) UpdateRepositoryHome(ctx context.Context, id string) (RepositoryHome, bool, string, error) {
+	if b.Collections == nil {
+		return RepositoryHome{}, false, "", errors.New("repository library unavailable")
+	}
+	r, ok := b.Collections.Repository(id)
+	if !ok {
+		return RepositoryHome{}, false, "", fmt.Errorf("repository %s: %w", id, os.ErrNotExist)
+	}
+	path, _ := b.Collections.Home(id)
+	if path == "" {
+		return RepositoryHome{}, false, "", errors.New("this repository has no home checkout yet: create one in Settings → Repositories")
+	}
+	b.homeMu.Lock()
+	updated, message, err := homes.Update(ctx, path)
+	b.homeMu.Unlock()
+	if err != nil {
+		return RepositoryHome{}, false, "", err
+	}
+	return b.describeHome(ctx, r, true), updated, message, nil
 }

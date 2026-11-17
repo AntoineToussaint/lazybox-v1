@@ -18,7 +18,7 @@ import (
 
 const repoUsage = `Usage:
   lazybox repos
-  lazybox repo home <name|owner/repo> [--create [--path PATH] | --adopt PATH | --forget]`
+  lazybox repo home <name|owner/repo> [--create [--path PATH] | --adopt PATH | --forget | --update]`
 
 // homeRow is one repository and its home, whichever way it was read.
 type homeRow struct {
@@ -147,6 +147,7 @@ func (c *cli) repo(args []string) error {
 	path := f.String("path", "", "where --create clones it")
 	adopt := f.String("adopt", "", "use this existing checkout of the repository as its home")
 	forget := f.Bool("forget", false, "forget the home checkout (no file changes)")
+	update := f.Bool("update", false, "fetch, then fast-forward the default branch when it is checked out and clean (never discards anything)")
 	positional, err := c.parse(f, args[1:])
 	if err != nil {
 		return err
@@ -165,6 +166,22 @@ func (c *cli) repo(args []string) error {
 	row, err := findHome(rows, positional[0])
 	if err != nil {
 		return err
+	}
+	if *update {
+		if *create || *adopt != "" || *forget {
+			return fail(exitUsage, "choose one of --create, --adopt, --forget and --update")
+		}
+		u, err := got(cl.UpdateRepositoryHome(c.ctx, connect.NewRequest(&pb.UpdateRepositoryHomeRequest{RepositoryId: row.RepositoryID})))
+		if err != nil {
+			return err
+		}
+		if c.json {
+			return c.printProtoJSON(u)
+		}
+		// The path on stdout, as always; what happened on stderr.
+		c.note("%s\n", u.Message)
+		c.out("%s\n", u.Home.GetPath())
+		return nil
 	}
 	action, target := "", ""
 	switch {
