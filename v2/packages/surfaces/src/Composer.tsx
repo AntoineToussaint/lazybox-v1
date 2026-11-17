@@ -81,6 +81,8 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   // A pasted image (a screenshot, say) attaches like a dropped file; a large
   // text paste becomes a box; a short one stays a native paste.
   const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    // Read-only while a send is in flight: nothing joins the message, as text or as a box.
+    if (sending) { event.preventDefault(); return; }
     const pasted = pastedFiles(event.clipboardData);
     if (!pasted.length) {
       const text = event.clipboardData.getData('text/plain');

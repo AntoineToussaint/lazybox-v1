@@ -144,6 +144,7 @@ test('errors read as sentences: the Runner\'s words without the Connect wrapping
   assert.equal(humanError(new ConnectError('no active turn', Code.FailedPrecondition)), 'The agent is not working on anything: there is nothing to stop.');
   assert.match(humanError('Replay gap: retained cursor is not contiguous'), /history is missing/);
   assert.match(humanError(new ConnectError('Runner unreachable: Failed to fetch', Code.Unavailable)), /Runner is not answering/);
+  assert.equal(humanError(new ConnectError('Test delivery failure', Code.Unavailable)), 'Test delivery failure', 'the Runner\'s own words stand');
   assert.equal(humanError(new Error('Runner did not return the resumed conversation')), 'Runner did not return the resumed conversation');
   assert.doesNotMatch(humanError(new ConnectError('boom', Code.Internal)), /ConnectError|\[internal\]/);
   assert.equal(streamLabel('Disconnected: ConnectError: [unavailable] Runner unreachable'), 'Reconnecting…');

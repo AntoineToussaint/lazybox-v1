@@ -32,7 +32,8 @@ try{
  // One header: title, who and how, and the tools; no second or third bar.
  const chat=page.locator('.embedded-chat').first(),header=chat.locator('.chat-heading');
  await expect(header.locator('.conversation-title')).toContainText('Fix the flaky login test');
- await expect(header).toContainText('claude-fable-5-1');
+ // The model by name (/model's names), its id in the tooltip.
+ await expect(header).toContainText('Fable 5.1');
  await expect(header.locator('.chat-status')).toContainText('Running a command');
  await expect(chat.locator('.agent-inspection-bar')).toHaveCount(0);
  // No usage reported yet: no Context meter, not an empty grey bar (R12).

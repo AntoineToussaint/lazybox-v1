@@ -16,7 +16,9 @@ export function humanError(error: unknown): string {
   const failure = ConnectError.from(error);
   const raw = (failure.rawMessage || (error instanceof Error ? error.message : String(error))).trim();
   for (const [pattern, text] of PLAIN) if (pattern.test(raw)) return text;
-  if (failure.code === Code.Unavailable) return 'The Runner is not answering (it may be restarting). Try again in a moment.';
+  // The window could not reach the Runner at all (client-core says "Runner unreachable: …"):
+  // what the browser said is no help. When the Runner itself answers Unavailable, its words stand.
+  if (failure.code === Code.Unavailable && /^Runner unreachable\b|failed to fetch|load failed|networkerror|fetch failed/i.test(raw)) return 'The Runner is not answering (it may be restarting). Try again in a moment.';
   if (failure.code === Code.DeadlineExceeded) return 'The Runner did not answer in time. Try again.';
   return raw || 'Something went wrong.';
 }

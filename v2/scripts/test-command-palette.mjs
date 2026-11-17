@@ -64,7 +64,8 @@ try {
 
   // ⌘K from the message box: the empty palette documents its prefixes and leads with what needs you.
   // The message box is disabled until the conversation has loaded, and a disabled box takes no focus.
-  const composer = page.locator('[data-agent-composer]');
+  // A workspace's conversations open as tabs: the message box is the one in front.
+  const composer = page.locator('[data-agent-composer]').filter({visible: true}).first();
   await expect(composer).toBeEnabled();
   await composer.focus();
   await expect(composer).toBeFocused();
@@ -149,11 +150,11 @@ try {
   await page.keyboard.press(`${mod}+/`);
   await expect(overlay).toHaveCount(0);
   // ? typed in the message box is text, not the overlay.
-  await page.locator('[data-agent-composer]').focus();
+  await composer.focus();
   await page.keyboard.type('why?');
   await expect(overlay).toHaveCount(0);
-  await expect(page.locator('[data-agent-composer]')).toHaveValue('why?');
-  await page.locator('[data-agent-composer]').fill('');
+  await expect(composer).toHaveValue('why?');
+  await composer.fill('');
   // ⌘/ works from the message box, and Customize… opens Settings → Shortcuts.
   await page.keyboard.press(`${mod}+/`);
   await expect(overlay).toBeVisible();
@@ -225,8 +226,8 @@ try {
   const chat = await context.newPage();
   chat.on('pageerror', e => errors.push(String(e)));
   await chat.goto(`${origin}/?view=chat&panel=detached-test&collection=alpha&session=alpha-session#token=${f.token}`);
-  await expect(chat.locator('[data-agent-composer]')).toBeVisible();
-  await chat.locator('[data-agent-composer]').focus();
+  await expect(chat.locator('[data-agent-composer]').filter({visible: true}).first()).toBeVisible();
+  await chat.locator('[data-agent-composer]').filter({visible: true}).first().focus();
   await chat.keyboard.press(`${mod}+k`);
   const chatPalette = chat.getByRole('dialog', {name: 'Command palette'});
   await expect(chatPalette).toBeVisible();
@@ -235,7 +236,7 @@ try {
   await expect(conversation).toHaveValue('beta-session');
   await expect(workspace).toHaveValue('beta');
   // A chat command run from the palette leaves the message box's draft as it was (it used to empty it, saved copy and all).
-  const chatComposer = chat.locator('[data-agent-composer]');
+  const chatComposer = chat.locator('[data-agent-composer]').filter({visible: true}).first();
   await chatComposer.fill('a draft to keep');
   await chat.keyboard.press(`${mod}+k`);
   await chatPalette.getByRole('combobox').fill('Show context and token cost');
