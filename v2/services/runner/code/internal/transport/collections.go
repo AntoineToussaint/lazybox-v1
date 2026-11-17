@@ -17,6 +17,9 @@ func (s *Service) collectionStore() (*collections.Manager, error) {
 }
 func wireCollection(c collections.Collection) *pb.Collection {
 	w := &pb.Collection{Id: c.ID, Name: c.Name, WorkId: c.WorkID, Root: c.Root, State: c.State, Error: c.Error, OwnerExecutionId: c.OwnerExecutionID, OwnershipUncertain: c.OwnershipUncertain, OwnerExecutionIds: c.OwnerExecutionIDs}
+	if c.Origin != nil {
+		w.Origin = &pb.ItemRef{Provider: c.Origin.Provider, Key: c.Origin.Key}
+	}
 	for _, m := range c.Members {
 		w.Members = append(w.Members, &pb.CollectionWorktree{Spec: &pb.WorktreeSpec{Name: m.Name, RepositoryId: m.RepositoryID, BaseRef: m.BaseRef, Branch: m.Branch}, Path: m.Path, BaseCommit: m.BaseCommit, Ready: m.Ready})
 	}

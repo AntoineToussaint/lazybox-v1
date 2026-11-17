@@ -44,6 +44,8 @@ type Spec struct {
 	Name    string       `json:"name"`
 	WorkID  string       `json:"workId,omitempty"`
 	Members []MemberSpec `json:"members"`
+	// The work item the workspace starts from (origin.go).
+	Origin *Origin `json:"origin,omitempty"`
 }
 type Member struct {
 	MemberSpec
@@ -70,6 +72,8 @@ type Collection struct {
 	AddRequests             map[string]string `json:"addRequests,omitempty"`
 	OwnershipUncertain      bool              `json:"-"`
 	LastOwnershipResolution string            `json:"lastOwnershipResolution,omitempty"`
+	// The work item it was started from, if any (origin.go).
+	Origin *Origin `json:"origin,omitempty"`
 }
 
 var component = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$`)
@@ -285,6 +289,10 @@ func (c Collection) Branch() string {
 func clone(c Collection) Collection {
 	c.Members = append([]Member(nil), c.Members...)
 	c.OwnerExecutionIDs = append([]string(nil), c.OwnerExecutionIDs...)
+	if c.Origin != nil {
+		origin := *c.Origin
+		c.Origin = &origin
+	}
 	requests := map[string]string{}
 	for key, value := range c.AddRequests {
 		requests[key] = value
@@ -342,7 +350,17 @@ func (m *Manager) Create(ctx context.Context, key string, spec Spec) (Collection
 			spec.Members[i].BaseRef = "HEAD"
 		}
 	}
-	data, _ := json.Marshal(spec)
+	if err := spec.Origin.validate(); err != nil {
+		return Collection{}, err
+	}
+	// A retry is the same request when it names the same item; the snapshot
+	// (its title, read again) may differ. Without an origin the fingerprint is
+	// what it always was.
+	identity := spec
+	if spec.Origin != nil {
+		identity.Origin = &Origin{Provider: spec.Origin.Provider, Key: spec.Origin.Key}
+	}
+	data, _ := json.Marshal(identity)
 	hash := sha256.Sum256(data)
 	fingerprint := hex.EncodeToString(hash[:])
 	for _, c := range m.items {
@@ -372,6 +390,13 @@ func (m *Manager) Create(ctx context.Context, key string, spec Spec) (Collection
 		return Collection{}, errors.New("collection capacity exhausted")
 	}
 	c := Collection{Version: 4, ID: commands.ID(), Name: spec.Name, WorkID: spec.WorkID, State: "creating", RequestKey: key, Fingerprint: fingerprint}
+	if spec.Origin != nil {
+		origin := *spec.Origin
+		if origin.StartedAt.IsZero() {
+			origin.StartedAt = time.Now().UTC()
+		}
+		c.Origin = &origin
+	}
 	for attempt := 0; attempt < 32; attempt++ {
 		slug := petname.Generate(3, "-")
 		candidate := filepath.Join(m.root, slug)

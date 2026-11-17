@@ -129,7 +129,7 @@ func (b *Bench) RepositoryCatalogSnapshot(ctx context.Context, refresh bool) ([]
 // PrepareWorkspace owns source materialization; clients submit stable identities,
 // never temporary UI paths. Successful sources are reused when the request retries.
 func (b *Bench) PrepareWorkspace(ctx context.Context, key, workspaceID, name, branch string, identities []string, progress func(string, string) error) (collections.Collection, error) {
-	return b.prepareWorkspace(ctx, key, workspaceID, name, branch, identities, "", progress)
+	return b.prepareWorkspace(ctx, key, workspaceID, name, branch, identities, "", nil, progress)
 }
 
 // AddRequestedRepositories is PrepareWorkspace adding to a workspace in
@@ -139,10 +139,10 @@ func (b *Bench) AddRequestedRepositories(ctx context.Context, key, workspaceID, 
 	if err := b.checkRepositoryRequest(requestID, workspaceID); err != nil {
 		return collections.Collection{}, err
 	}
-	return b.prepareWorkspace(ctx, key, workspaceID, "", "", identities, requestID, progress)
+	return b.prepareWorkspace(ctx, key, workspaceID, "", "", identities, requestID, nil, progress)
 }
 
-func (b *Bench) prepareWorkspace(ctx context.Context, key, workspaceID, name, branch string, identities []string, requestID string, progress func(string, string) error) (collections.Collection, error) {
+func (b *Bench) prepareWorkspace(ctx context.Context, key, workspaceID, name, branch string, identities []string, requestID string, origin *collections.Origin, progress func(string, string) error) (collections.Collection, error) {
 	if b.Collections == nil {
 		return collections.Collection{}, errors.New("workspace storage unavailable")
 	}
@@ -231,7 +231,7 @@ func (b *Bench) prepareWorkspace(ctx context.Context, key, workspaceID, name, br
 				members[i].Branch = branch
 			}
 		}
-		workspace, err = b.Collections.Create(ctx, key, collections.Spec{Name: strings.TrimSpace(name), Members: members})
+		workspace, err = b.Collections.Create(ctx, key, collections.Spec{Name: strings.TrimSpace(name), Members: members, Origin: origin})
 	}
 	if err != nil {
 		return workspace, err

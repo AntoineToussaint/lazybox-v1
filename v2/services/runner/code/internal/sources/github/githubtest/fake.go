@@ -47,6 +47,8 @@ type Server struct {
 	Requests     []string
 	Unauthorized int
 	ReadOnly     bool
+	// Issues and their comments, for the start-from-an-issue reads (issues.go).
+	Issues IssueStore
 }
 
 func New(t *testing.T, token string) *Server {
@@ -113,6 +115,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Authorization") != "Bearer "+s.Token {
 		s.Unauthorized++
 		write(w, 401, map[string]any{"message": "Bad credentials"})
+		return
+	}
+	if s.serveIssues(w, r) {
 		return
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")

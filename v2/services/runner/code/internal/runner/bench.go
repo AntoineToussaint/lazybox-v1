@@ -163,10 +163,12 @@ type Bench struct {
 	Prices            telemetry.Pricer
 	Preferences       *preferences.Store
 	// Reviews holds each workspace's inline review comments.
-	Reviews             *reviews.Store
-	GitHub              *githubconnection.Manager
-	GitHubAPI           github.API
-	GitHubPulls         github.PullRequests
+	Reviews     *reviews.Store
+	GitHub      *githubconnection.Manager
+	GitHubAPI   github.API
+	GitHubPulls github.PullRequests
+	// GitHubIssues reads issues to start a workspace from one (work_items.go).
+	GitHubIssues        github.IssueReader
 	RepositoryImporter  *repositories.Importer
 	RepositoryDiscovery *repositories.Discovery
 	probes              int
@@ -398,7 +400,7 @@ func New(cfg Config) (*Bench, error) {
 	privateStore, err := githubconnection.NewFileStore(filepath.Join(cfg.State, "connections"))
 	if err == nil {
 		client := github.New()
-		b.GitHubAPI, b.GitHubPulls = client, client
+		b.GitHubAPI, b.GitHubPulls, b.GitHubIssues = client, client, client
 		b.GitHub, err = githubconnection.New(privateStore, b.GitHubAPI)
 	}
 	if err == nil && cfg.GitHubApp != nil {
@@ -621,6 +623,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 			Members  []collections.Member
 		}{c.ID, c.Root, c.Members})
 		workspaceContext := "Runner workspace (paths are on the Runner; branch and baseCommit describe initial provisioning):\n" + string(data) + "\nWork across these member directories. Read each repository's applicable agent instructions and follow the resolved work policies."
+		if line := originBriefing(c); line != "" {
+			workspaceContext += "\n" + line
+		}
 		if parent == nil {
 			contextText += "\n" + workspaceContext
 		}
