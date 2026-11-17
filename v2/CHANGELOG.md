@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.15] - 2026-11-17 · Find your artifacts from anywhere
+
+- **Artifacts show up in the conversation** When the agent publishes a plan or report, or a new version of one, a card shows under its steps with the title, the kind and the version: Open reads it in the Artifacts panel, and an update's Compare with v2 opens what changed. A message you tracked gets the same card.
+- **"3 artifacts" in the chat header** The conversation's header counts the artifacts it made (or the workspace's, when it made none) and opens the Artifacts panel on just those; nothing shows when there are none. On a narrow chat it folds into ⋯ with the other numbers.
+- **⌘K finds artifacts in every workspace** The palette lists every workspace's artifacts with the workspace's name, and * narrows it to artifacts. One from another workspace switches there and opens it.
+- **All workspaces in the Artifacts panel** This workspace / All workspaces at the top of the list shows every workspace's artifacts, grouped by workspace, newest first. An empty panel says in one sentence how artifacts appear.
+
 ## [2026-11-17.14] - 2026-11-17 · The pull requests your agents open, tracked
 
 - **Every pull request a workspace delivers** Lazybox now tracks the pull requests your agents open, not only the one you open from Changes: one an agent opens with gh pr create, one opened from any branch the workspace worked on, or one it links with lazybox link URL. Links and their state survive a Runner restart, and a deleted workspace's stay as history.

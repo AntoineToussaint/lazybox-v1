@@ -162,13 +162,19 @@ try{
  await expect(page.getByRole('article',{name:'File preview'})).toHaveCount(0);
  await expect(list.getByRole('option',{name:/File preview/})).toHaveCount(0);
  await expect(list.getByRole('option')).toHaveCount(2);
- // An artifact made in another workspace is one click away, not lost.
+ // An artifact made in another workspace is one click away, not lost: All workspaces lists it under its workspace.
  fixture.artifacts.agentPut({collectionId:'beta',sessionId:'beta-session',conversationId:'conversation-beta',title:'Plan from Beta',kind:'plan',content:'# Plan from Beta\n\nSteps.\n'});
- const elsewhere=page.getByRole('listbox',{name:'Artifacts in other workspaces'});
- await expect(elsewhere.getByRole('option',{name:/Plan from Beta/})).toContainText('Beta release',{timeout:20000});
+ const scopes=page.getByRole('radiogroup',{name:'Show artifacts of'});
+ await scopes.getByRole('radio',{name:'All workspaces'}).click();
+ const elsewhere=page.getByRole('listbox',{name:'Artifacts of every workspace'});
+ await expect(elsewhere.getByRole('group',{name:'Beta release'}).getByRole('option',{name:/Plan from Beta/})).toBeVisible({timeout:20000});
  await elsewhere.getByRole('option',{name:/Plan from Beta/}).click();
  await expect(page.getByRole('article',{name:'Plan from Beta'})).toBeVisible();
  await page.screenshot({path:'.cache/artifacts-panel.png'});
+ const fromBeta=page.getByRole('article',{name:'Plan from Beta'});
+ if(await fromBeta.getByRole('button',{name:'Back to artifacts'}).isVisible())await fromBeta.getByRole('button',{name:'Back to artifacts'}).click();
+ await scopes.getByRole('radio',{name:'This workspace'}).click();
+ await expect(fromBeta).toHaveCount(0);
 
  // A Markdown file an agent names is tracked from its link: the artifact follows the file, not the line of chat.
  fixture.artifacts.fileChanged('alpha','docs/PLAN.md','# Rollout plan\n\nShip it in three phases.\n');

@@ -10,6 +10,23 @@
 .message-artifact-note{max-width:320px;padding:4px 8px;border-radius:6px;background:var(--surface-selected);border:1px solid var(--line-strong);color:var(--text-secondary);font-size:calc(11px * var(--text-scale));line-height:1.4}
 @media (hover:none){.message-artifact-button{opacity:1}}
 
+/* An artifact in the conversation (ArtifactCard): published by an agent, or tracked from a message. */
+.artifact-cards{display:grid;gap:6px;margin:4px 0 8px}
+.message .artifact-cards{margin:10px 0 2px}
+.artifact-card{display:flex;align-items:center;flex-wrap:wrap;gap:10px;max-width:560px;padding:8px 10px;border:1px solid var(--line-subtle);border-radius:10px;background:var(--surface)}
+.artifact-card .artifact-kind-icon{width:28px;height:28px}
+.artifact-card-text{display:grid;gap:1px;flex:1 1 160px;min-width:0}
+.artifact-card-text strong{font-size:calc(13px * var(--text-scale));font-weight:580;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.artifact-card-text small{font-size:calc(11px * var(--text-scale));color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.artifact-card-actions{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+.artifact-card-actions button{min-height:0;height:26px;padding:0 10px;border-radius:6px;font-size:calc(12px * var(--text-scale));white-space:nowrap}
+.artifact-card-actions .artifact-card-open{border-color:var(--accent-line);color:var(--accent-soft)}
+.artifact-card-note{flex-basis:100%;font-size:calc(11px * var(--text-scale));color:var(--text-muted)}
+/* The chat header's "3 artifacts" (a number chip of ChatHeader: it folds into ⋯ like the others). */
+.chat-heading .chat-stat .chat-artifacts-button{display:inline-flex;align-items:center;gap:5px;height:22px;min-height:0;padding:0 6px!important;border:0;border-radius:6px;background:transparent;color:var(--accent-soft);font-size:calc(11px * var(--text-scale))!important;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chat-heading .chat-stat .chat-artifacts-button:hover{background:var(--surface-active)!important;color:var(--text)}
+.chat-details .chat-stat .chat-artifacts-button{margin-left:-6px;height:26px;color:var(--text)}
+
 /* Dialogs. */
 .artifact-dialog{width:min(620px,calc(100vw - 32px));padding:22px;border-color:var(--line-strong);font-family:var(--font-ui);font-size:calc(13px * var(--text-scale))}
 .artifact-dialog.is-wide{width:min(860px,calc(100vw - 32px))}
@@ -90,7 +107,7 @@
 .artifacts-list{display:flex;flex-direction:column;width:280px;flex:none;min-height:0;border-right:1px solid var(--line,var(--line-subtle))}
 .artifacts-panel:not(.has-selection) .artifacts-list{width:auto;flex:1;border-right:0}
 .artifacts-panel:not(.has-selection):has(.artifact-page.is-placeholder) .artifacts-list{width:280px;flex:none;border-right:1px solid var(--line,var(--line-subtle))}
-.artifacts-list-header{display:flex;align-items:center;gap:8px;min-height:40px;padding:6px 12px;border-bottom:1px solid var(--line,var(--line-subtle));background:var(--surface)}
+.artifacts-list-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:6px 12px;border-bottom:1px solid var(--line,var(--line-subtle));background:var(--surface)}
 .artifacts-list-header strong{font-size:calc(12px * var(--text-scale));font-weight:600;color:var(--text,var(--text))}
 .artifacts-list-header small{font-size:calc(11px * var(--text-scale));color:var(--text-muted);font-variant-numeric:tabular-nums}
 .artifacts-search{display:flex;align-items:center;gap:5px;margin-left:auto;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface-sunken);color:var(--text-muted)}
@@ -256,5 +273,17 @@
   html.printing-artifact .artifact-print-sheet .diagram-viewport,html.printing-artifact .artifact-print-sheet .mermaid-block{background:#fff!important}
   html[data-scheme=dark].printing-artifact .artifact-print-sheet .mermaid-block img{filter:invert(1) hue-rotate(180deg)}
 }
-.artifacts-elsewhere{border-top:1px solid var(--line,var(--line-subtle));padding-top:6px;min-height:0;overflow:auto}
-.artifacts-elsewhere h4{margin:4px 12px 2px;font-size:calc(10.5px * var(--text-scale));font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint)}
+/* "This workspace / All workspaces": a quiet segmented control under the count. */
+.artifacts-scope{order:3;flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface-sunken)}
+.artifacts-scope button{min-height:0;height:24px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--text-tertiary);font-size:calc(11.5px * var(--text-scale));font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.artifacts-scope button:hover{background:var(--surface-hover);color:var(--text)}
+.artifacts-scope button[aria-checked=true]{background:var(--surface-raised);color:var(--text-strong);box-shadow:0 0 0 1px var(--line-strong),0 1px 2px color-mix(in srgb,var(--shadow) calc(30% * var(--shadow-strength)),transparent)}
+.artifacts-scope button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.artifacts-conversation-filter{display:flex;align-items:center;gap:6px;margin:6px 8px 0;padding:3px 4px 3px 9px;border-radius:999px;background:var(--accent-bg);color:var(--accent-soft);font-size:calc(11.5px * var(--text-scale));align-self:flex-start;max-width:calc(100% - 16px)}
+.artifacts-conversation-filter span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.artifacts-conversation-filter .icon-button{width:18px;height:18px;min-height:0;padding:0;border-radius:50%;color:inherit}
+.artifacts-group{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.artifacts-group+.artifacts-group{margin-top:8px}
+.artifacts-group-name{display:flex;align-items:center;gap:6px;padding:4px 10px 2px;font-size:calc(10.5px * var(--text-scale));font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint)}
+.artifacts-group-name small{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-disabled)}
+.artifacts-empty button{margin-top:4px}

@@ -52,6 +52,7 @@
     { "id": "mermaid-robust", "scope": "ui", "script": "test:mermaid-robust" },
     { "id": "artifacts", "scope": "ui", "script": "test:artifacts" },
     { "id": "artifact-reader", "scope": "ui", "script": "test:artifact-reader" },
+    { "id": "find-artifacts", "scope": "ui", "script": "test:find-artifacts" },
     { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" },
     { "id": "prompt-navigation", "scope": "ui", "script": "test:prompt-navigation" },
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },

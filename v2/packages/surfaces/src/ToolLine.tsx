@@ -4,7 +4,9 @@ import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import { Icon } from './Icons';
 import { CodeBlock } from './RichContent';
-import { briefItems, commandText, describeGroup, describeTool, describeToolBrief, groupTools, keptInQuiet, kindOf, shortPath, stepsOf, summarizeRun, summarizeTurn, unfolded, type ActivityCategory, type ActivityDetail, type BriefItem, type ToolEntry, type ToolItem, type ToolKind } from './tool-lines';
+import { briefItems, commandText, describeGroup, describeTool, describeToolBrief, groupTools, keptInQuiet, kindOf, publishedArtifacts, shortPath, stepsOf, summarizeRun, summarizeTurn, unfolded, type ActivityCategory, type ActivityDetail, type BriefItem, type ToolEntry, type ToolItem, type ToolKind } from './tool-lines';
+import { ArtifactCard } from './ArtifactCard';
+import { useMessageScope } from './MessageArtifactActions';
 import { titleWhenTruncated } from './truncated-title';
 import './tool-lines.css';
 
@@ -44,12 +46,25 @@ export const ToolLines = memo(function ToolLines({ entries, turn }: { entries: r
   const { detail = 'verbose', latestPlan = '' } = useContext(ToolLineContext);
   const items = useMemo<(ToolItem | BriefItem)[]>(() => detail === 'verbose' ? groupTools(entries) : briefItems(entries, latestPlan, detail === 'quiet'), [entries, detail, latestPlan]);
   const showTurn = detail === 'quiet' && !!turn && (stepsOf(turn).length > 0 || turn.some(e => e.status === 'running'));
-  if (!items.length && !showTurn) return null;
-  return <div className="tool-lines" role="list" aria-label="Tool calls" data-detail={detail}>
-    {showTurn && <TurnLine entries={turn!} latestPlan={latestPlan}/>}
-    {items.map(item => <ToolItemLine key={itemKey(item)} item={item}/>)}
-  </div>;
+  if (!items.length && !showTurn) return <PublishedCards entries={entries}/>;
+  return <>
+    <div className="tool-lines" role="list" aria-label="Tool calls" data-detail={detail}>
+      {showTurn && <TurnLine entries={turn!} latestPlan={latestPlan}/>}
+      {items.map(item => <ToolItemLine key={itemKey(item)} item={item}/>)}
+    </div>
+    <PublishedCards entries={entries}/>
+  </>;
 });
+
+/** What the agent published with `lazybox artifact put`, as cards under the calls, at every activity detail. */
+function PublishedCards({ entries }: { entries: readonly ToolEntry[] }) {
+  const scope = useMessageScope();
+  const published = useMemo(() => entries.flatMap(entry => publishedArtifacts(entry)), [entries]);
+  if (!published.length || !scope?.collectionId) return null;
+  return <div className="artifact-cards">
+    {published.map(p => <ArtifactCard key={`${p.id}@${p.version}`} collectionId={scope.collectionId} artifactId={p.id} title={p.title} kind={p.kind} version={p.version} how={p.version > 1 ? 'updated by the agent' : 'published by the agent'}/>)}
+  </div>;
+}
 
 /** One line of a run: a call, a group of reads or edits, or (Smart) a run's summary. */
 export function ToolItemLine({ item }: { item: ToolItem | BriefItem }) {

@@ -232,3 +232,60 @@ export function linkedMarkdownFiles(text: string): string[] {
  */
 export const mostlyNamesFile = (text: string, words = 30) =>
   !/^\s{0,3}(```|~~~)/m.test(text) && text.trim().split(/\s+/).length <= words && linkedMarkdownFiles(text).length > 0;
+
+// ---- Finding artifacts ----------------------------------------------------
+//
+// An artifact belongs to its workspace, but people look for it from where
+// they are: the conversation that made it, the palette, another workspace.
+
+/** An artifact with the workspace that holds it. */
+export type FoundArtifact = { artifact: Artifact; collectionId: string; workspace: string };
+/** A conversation, by its session and its conversation id (either may be ''). */
+export type ConversationRef = { sessionId: string; conversationId: string };
+
+/** Whether a conversation made the artifact or any of its versions. */
+export function fromConversation(artifact: Pick<Artifact, 'originSessionId' | 'originConversationId' | 'versions'>, conversation: ConversationRef): boolean {
+  const { sessionId, conversationId } = conversation;
+  if (!sessionId && !conversationId) return false;
+  const same = (session = '', id = '') => (!!conversationId && id === conversationId) || (!!sessionId && session === sessionId);
+  return same(artifact.originSessionId, artifact.originConversationId)
+    || artifact.versions.some(v => same(v.source?.sessionId, v.source?.conversationId) || (!!sessionId && v.author?.sessionId === sessionId));
+}
+
+const changedAt = (found: FoundArtifact) => Number(found.artifact.updatedAtUnixMillis || 0n);
+
+/** Artifacts by workspace for "All workspaces": the workspace changed last first, each newest first. */
+export function groupByWorkspace(found: readonly FoundArtifact[]): { collectionId: string; workspace: string; items: FoundArtifact[] }[] {
+  const groups = new Map<string, { collectionId: string; workspace: string; items: FoundArtifact[] }>();
+  for (const item of [...found].sort((a, b) => changedAt(b) - changedAt(a))) {
+    let group = groups.get(item.collectionId);
+    if (!group) groups.set(item.collectionId, group = { collectionId: item.collectionId, workspace: item.workspace, items: [] });
+    group.items.push(item);
+  }
+  return [...groups.values()];
+}
+
+/** One artifact as the palette lists it: "Plan · v3 · Beta release". */
+export type ArtifactPaletteEntry = { key: string; title: string; detail: string; extra: string; collectionId: string; artifactId: string; here: boolean; icon: string };
+export function artifactPaletteEntries(found: readonly FoundArtifact[], currentWorkspace: string): ArtifactPaletteEntry[] {
+  return [...found].sort((a, b) => changedAt(b) - changedAt(a)).map(({ artifact, collectionId, workspace }) => {
+    const kind = asKind(artifact.kind), version = artifact.versions.at(-1)?.number ?? 1;
+    const here = collectionId === currentWorkspace;
+    return {
+      key: `artifact:${collectionId}:${artifact.id}`, title: artifact.title || 'Untitled artifact',
+      detail: `${kindLabel[kind]} · v${version} · ${here ? 'This workspace' : workspace}`,
+      // The workspace's name finds its artifacts ("beta plan"); a tracked file finds its artifact.
+      extra: [workspace, kindLabel[kind], artifact.trackedPath].filter(Boolean).join(' '),
+      collectionId, artifactId: artifact.id, here, icon: kindIcon[kind],
+    };
+  });
+}
+
+/** The chat header's chip: this conversation's artifacts, else the workspace's; nothing when there are none. */
+export function artifactChip(artifacts: readonly Artifact[], conversation: ConversationRef): { count: number; mine: boolean; label: string; title: string } | undefined {
+  if (!artifacts.length) return undefined;
+  const mine = artifacts.filter(a => fromConversation(a, conversation)).length;
+  const noun = (n: number) => `${n} artifact${n === 1 ? '' : 's'}`;
+  const title = mine ? `${noun(mine)} from this conversation${artifacts.length > mine ? ` · ${artifacts.length} in this workspace` : ''}` : `${noun(artifacts.length)} in this workspace`;
+  return { count: mine || artifacts.length, mine: mine > 0, label: noun(mine || artifacts.length), title };
+}

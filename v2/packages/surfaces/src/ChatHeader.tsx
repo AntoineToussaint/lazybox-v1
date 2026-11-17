@@ -44,10 +44,10 @@ type HeaderProps = {
 };
 
 /** The conversation's numbers, each a chip on the header's second line. */
-export type HeaderStats = { usage?: ReactNode; background?: ReactNode; tools?: ReactNode };
+export type HeaderStats = { usage?: ReactNode; background?: ReactNode; tools?: ReactNode; artifacts?: ReactNode };
 
 /** The words for each item, in the details popover and for screen readers. */
-const ITEM_LABEL: Record<HeaderItemId, string> = { status: 'Status', branch: 'Branch', model: 'Model', account: 'Subscription', prompts: 'Prompts', background: 'Background', usage: 'Context and cost', tools: 'Tool calls' };
+const ITEM_LABEL: Record<HeaderItemId, string> = { status: 'Status', branch: 'Branch', model: 'Model', account: 'Subscription', prompts: 'Prompts', background: 'Background', artifacts: 'Artifacts', usage: 'Context and cost', tools: 'Tool calls' };
 
 let canvas: CanvasRenderingContext2D | null | undefined;
 /** A text's width in a font, without laying it out (0 where there is no canvas). */
@@ -100,7 +100,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
   const [chips] = useState(() => {
     const chip = (id: string) => { const node = document.createElement('span'); node.className = 'chat-stat'; node.dataset.stat = id; return node; };
     const prompts = chip('prompts'); prompts.classList.add('prompt-jump-slot'); prompts.dataset.promptJumpSlot = '';
-    return { prompts, background: chip('background'), usage: chip('usage'), tools: chip('tools') };
+    return { prompts, background: chip('background'), artifacts: chip('artifacts'), usage: chip('usage'), tools: chip('tools') };
   });
   useLayoutEffect(() => {
     const node = line.current;
@@ -137,7 +137,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
     if (showBranch) items.push({ id: 'branch', width: dot + textWidth(branch!.name, mono) + 15 * scale });
     items.push({ id: 'model', width: dot + textWidth(modelText, font) + (onPickModel ? 17 : 0) * scale });
     if (shownAccount) items.push({ id: 'account', width: dot + textWidth(shownAccount, font) });
-    for (const id of ['prompts', 'background', 'usage', 'tools'] as const) if (present[id]) items.push({ id, width: chip + STAT_WIDTH[id] * scale, urgent: present[id] === 'running' });
+    for (const id of ['prompts', 'artifacts', 'background', 'usage', 'tools'] as const) if (present[id]) items.push({ id, width: chip + STAT_WIDTH[id] * scale, urgent: present[id] === 'running' });
     // A little slack: an estimate never runs the line under the panel's edge.
     return fitHeader(items, width - 6 - 12 * scale, 0, MORE_WIDTH * scale);
   }, [width, present, statusText, statusBusy, showBranch, branch, modelText, onPickModel, shownAccount]);
@@ -158,7 +158,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
       case 'account': return shownAccount && <span className="chat-account" title="Subscription">{shownAccount}</span>;
       // A number chip moves between the line and "⋯" without remounting: its open list, its
       // polling and the "N prompts" slot (PromptNavigator renders into it) stay as they are.
-      case 'prompts': case 'background': case 'usage': case 'tools': return <span className="chat-stat-host" ref={host => { if (host && chips[id].parentNode !== host) host.appendChild(chips[id]); }}/>;
+      case 'prompts': case 'artifacts': case 'background': case 'usage': case 'tools': return <span className="chat-stat-host" ref={host => { if (host && chips[id].parentNode !== host) host.appendChild(chips[id]); }}/>;
       default: return null;
     }
   };
@@ -192,7 +192,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
           aria-label={`More details: ${shownFolded.map(id => ITEM_LABEL[id]).join(', ')}`} title={`More: ${shownFolded.map(id => ITEM_LABEL[id].toLowerCase()).join(', ')}`} onClick={placeDetails}><Icon name="more" size={14}/></button>}
       </div>}
     </div>
-    {createPortal(stats.background, chips.background)}{createPortal(stats.usage, chips.usage)}{createPortal(stats.tools, chips.tools)}
+    {createPortal(stats.artifacts, chips.artifacts)}{createPortal(stats.background, chips.background)}{createPortal(stats.usage, chips.usage)}{createPortal(stats.tools, chips.tools)}
     <div ref={details} id={detailsId} popover="auto" className="chat-details" role="group" aria-label="Conversation details">
       {plan.folded.map(id => <div key={id} className="chat-details-row" data-item={id} data-stat={isStat(id) || undefined}><span className="chat-details-label">{ITEM_LABEL[id]}</span><span className="chat-details-value">{item(id)}</span></div>)}
     </div>

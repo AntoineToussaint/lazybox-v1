@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.15',
+    date: '2026-11-17',
+    title: 'Find your artifacts from anywhere',
+    items: [
+      { title: 'Artifacts show up in the conversation', body: 'When the agent publishes a plan or report, or a new version of one, a card shows under its steps with the title, the kind and the version: Open reads it in the Artifacts panel, and an update\'s Compare with v2 opens what changed. A message you tracked gets the same card.' },
+      { title: '"3 artifacts" in the chat header', body: 'The conversation\'s header counts the artifacts it made (or the workspace\'s, when it made none) and opens the Artifacts panel on just those; nothing shows when there are none. On a narrow chat it folds into ⋯ with the other numbers.' },
+      { title: '⌘K finds artifacts in every workspace', body: 'The palette lists every workspace\'s artifacts with the workspace\'s name, and * narrows it to artifacts. One from another workspace switches there and opens it.' },
+      { title: 'All workspaces in the Artifacts panel', body: 'This workspace / All workspaces at the top of the list shows every workspace\'s artifacts, grouped by workspace, newest first. An empty panel says in one sentence how artifacts appear.' },
+    ],
+  },
+  {
     id: '2026-11-17.14',
     date: '2026-11-17',
     title: 'The pull requests your agents open, tracked',

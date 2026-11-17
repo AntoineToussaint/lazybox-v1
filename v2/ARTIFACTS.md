@@ -122,8 +122,9 @@ What it does not cover:
 
 ## The Artifacts panel and page
 
-**The panel.** **Panels → Artifacts** (workspace header), or `] ] a`, opens
-it. Tracking something also opens it. The list shows each artifact's kind
+**The panel.** **Panels → Artifacts** (workspace header), `] ] a`, ⌘K
+*Show artifacts*, or the chat header's "N artifacts" opens it (see
+[Finding an artifact](#finding-an-artifact)). Tracking something also opens it. The list shows each artifact's kind
 icon, title, kind, latest version, who made that version, when, and the file
 it follows, if any. A dot marks an artifact **updated since you looked**: a
 version you did not make, newer than the last one you opened on this device
@@ -138,6 +139,55 @@ artifacts. The keyboard works the list:
 When the panel is wide, the list and the open page sit side by side. When it
 is narrow, the page replaces the list and **Back** returns to it. The panel
 docks, collapses and closes like any other panel.
+
+**This workspace / All workspaces.** With more than one workspace, a
+segmented control under the count switches the list (← → move between the
+two; the choice is kept per panel). **All workspaces** lists every
+workspace's artifacts grouped by workspace, the workspace changed last first
+and each group newest first; ↑/↓ run across the groups, and choosing one in
+another workspace reads it here. Delete is offered only for this workspace's
+own. With none here but some elsewhere, the empty list says how many and
+offers **Show all workspaces**; with none anywhere it says in one sentence
+how artifacts appear.
+
+## Finding an artifact
+
+An artifact belongs to its workspace, but it is reached from where the person
+is:
+
+- **In the conversation.** When an agent's shell command runs
+  `lazybox artifact put` (however the CLI is called) and its output has the
+  CLI's "Published “Title” as artifact ID, version N (kind)" line, the
+  conversation shows a card under the tool calls, at every activity detail:
+  the kind's icon, the title, "Plan · v3 · updated by the agent", **Open**, and
+  for an update **Compare with v2**. Open shows that version in the workspace's
+  Artifacts panel (the latest follows new versions; an older one says "You are
+  viewing v1 of 3"); Compare opens Changes on the two. A message tracked or
+  updated from shows the same card under it ("tracked from this message").
+  In a chat window of its own, with no workspace beside it, Open opens the
+  page in its own window. The card is read from the tool output
+  (`publishedArtifacts` in `tool-lines.ts`): the Runner journals no artifact
+  event of its own, so a put whose output was lost shows no card, though the
+  artifact is in the panel.
+- **The chat header.** "3 artifacts" is one of the header's number chips
+  (`artifacts` in `header-layout.ts`): it counts the artifacts this
+  conversation made or updated, or, when it made none, the workspace's, and
+  is absent when the workspace has none. Like the other numbers it folds whole
+  into ⋯ when the header is narrow. It opens the Artifacts panel on this
+  conversation's artifacts, with a "From this conversation" pill whose ×
+  shows the whole workspace again.
+- **⌘K.** The palette lists the artifacts of **every** workspace, newest
+  first, with the kind, the version and the workspace ("Spec · v1 · Beta
+  release"); a workspace's name finds its artifacts. `*` narrows the palette to
+  artifacts. Choosing one in another workspace switches to that workspace and
+  opens it in its Artifacts panel.
+
+The lists are read with `ListArtifacts`, one workspace per call: one list per
+workspace is shared by the panel, the chat, the chip and the palette
+(`useArtifacts.ts`), reread every 4 seconds while the panel shows it and every
+15 seconds otherwise, and only while the window is visible. Other workspaces
+are read only while the palette or "All workspaces" is open, or to count them
+for an empty workspace.
 
 **The page** is a reader. A slim toolbar holds Document / Changes, History,
 Send to agent, Export, Open in its own window and ⋯; once you scroll past the
@@ -242,6 +292,13 @@ on the artifact side:
 
 ## Known limits
 
+- **Every workspace is one call each:** "All workspaces" and ⌘K call
+  `ListArtifacts` once per workspace. That is fine on one machine with tens of
+  workspaces; a Runner with hundreds, or a remote one, would want an
+  all-workspaces `ListArtifacts` (additive in the proto, owner only, since an
+  agent's credential is limited to its own workspace).
+- **A workspace window fixed to one workspace** opens another workspace in its
+  own window from ⌘K; that window does not open the artifact chosen.
 - **Not verified in the native desktop window:** "Download .md" (an
   `<a download>`) and "Print" (`window.print()`) are tested in the browser
   only. If the webview ignores them, the next step is host actions

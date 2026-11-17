@@ -113,3 +113,13 @@ test('background work that is running keeps its place right after the status', (
   assert.ok(narrow.inline.includes('background'), narrow.inline.join());
   assert.ok(!fitHeader(everything, 300).inline.includes('background'), 'idle background work folds first');
 });
+
+test('the artifacts chip is one of the numbers: it folds whole, after the usage and before the account', () => {
+  const items: HeaderItem[] = [...everything, { id: 'artifacts', width: STAT_WIDTH.artifacts }];
+  assert.ok(HEADER_PRIORITY.indexOf('artifacts') > HEADER_PRIORITY.indexOf('usage') && HEADER_PRIORITY.indexOf('artifacts') < HEADER_PRIORITY.indexOf('account'));
+  assert.deepEqual(fitHeader(items, 1600).folded, [], 'wide: on the line');
+  // Narrower, it folds into ⋯ before the conversation's model does, and what stays fits.
+  const tight = fitHeader(items, 520);
+  assert.ok(tight.inline.includes('model') && tight.folded.includes('artifacts'), tight.inline.join());
+  assert.ok(lineWidth(items, tight.inline, true) <= 520, 'what stays fits');
+});

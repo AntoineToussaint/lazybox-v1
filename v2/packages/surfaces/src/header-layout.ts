@@ -8,23 +8,24 @@
  * refolds the line), so what folds depends on the panel's width and on texts
  * that rarely change (the branch, the model, the subscription).
  */
-export type HeaderItemId = 'status' | 'branch' | 'model' | 'account' | 'usage' | 'background' | 'tools' | 'prompts';
+export type HeaderItemId = 'status' | 'branch' | 'model' | 'account' | 'usage' | 'background' | 'artifacts' | 'tools' | 'prompts';
 
 /** Most important first. The status never folds. */
-export const HEADER_PRIORITY: readonly HeaderItemId[] = ['status', 'branch', 'model', 'usage', 'background', 'account', 'tools', 'prompts'];
+export const HEADER_PRIORITY: readonly HeaderItemId[] = ['status', 'branch', 'model', 'usage', 'background', 'artifacts', 'account', 'tools', 'prompts'];
 
 /** The order on the line: who and how on the left, the numbers on the right. */
-export const HEADER_ORDER: readonly HeaderItemId[] = ['status', 'branch', 'model', 'account', 'prompts', 'background', 'usage', 'tools'];
+export const HEADER_ORDER: readonly HeaderItemId[] = ['status', 'branch', 'model', 'account', 'prompts', 'artifacts', 'background', 'usage', 'tools'];
 
 /** Whether an item is one of the numbers (a chip on the right) or about the conversation (left). */
-export const isStat = (id: HeaderItemId) => id === 'usage' || id === 'background' || id === 'tools' || id === 'prompts';
+export const isStat = (id: HeaderItemId) => id === 'usage' || id === 'background' || id === 'tools' || id === 'prompts' || id === 'artifacts';
 
 /**
  * Reserved widths of the number chips at text scale 1, in CSS pixels: an icon,
  * three or four digits and the chip's padding (the usage chip: its bar, the
- * percentage and the cost; tools: the count and "N failed").
+ * percentage and the cost; tools: the count and "N failed"; artifacts: "12 artifacts",
+ * the one chip that keeps its noun, since a bare count would not say what it is).
  */
-export const STAT_WIDTH: Record<'usage' | 'background' | 'tools' | 'prompts', number> = { prompts: 50, background: 50, usage: 138, tools: 112 };
+export const STAT_WIDTH: Record<'usage' | 'background' | 'tools' | 'prompts' | 'artifacts', number> = { prompts: 50, background: 50, usage: 138, tools: 112, artifacts: 96 };
 
 /** The gap between items, and the "⋯" button's width, at text scale 1. */
 export const HEADER_GAP = 16, MORE_WIDTH = 30;

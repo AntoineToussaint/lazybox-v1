@@ -18,7 +18,8 @@ import { settingsTabs } from './SettingsPage';
 import { userPaletteItems, useUserCommands } from './user-commands';
 import { looksLikeLayoutYaml } from './config-files';
 import type { Keymap } from './keyboard';
-import { useArtifacts } from './useArtifacts';
+import { useArtifactsOf } from './useArtifacts';
+import { artifactPaletteEntries } from './artifact-model';
 import { RunnerBadge, useMergedInbox, useRunnerDirectory } from './RunnerDirectory';
 import { healthLabel, rowTarget } from './runner-directory';
 import { useMissions } from './useMissions';
@@ -46,6 +47,7 @@ export const prefixes: { prefix: string; kind: Kind; label: string }[] = [
   { prefix: '#', kind: 'workspace', label: 'Workspaces' },
   { prefix: '/', kind: 'file', label: 'Files' },
   { prefix: '!', kind: 'pull', label: 'Pull requests' },
+  { prefix: '*', kind: 'artifact', label: 'Artifacts' },
 ];
 const recentKey = 'palette:recent:v1';
 function readRecent(store?: ViewStateStore): string[] {
@@ -69,9 +71,9 @@ type VoiceNote = { tone: 'info' | 'confirm'; text: string; item?: Item };
 /**
  * The command palette: every action of the registry plus "go to" anything —
  * conversations in every workspace, workspaces, files, settings sections,
- * panels, artifacts and missions — in one fuzzy list. Keyboard only: type,
- * ↑/↓, Enter. A prefix narrows it: `>` actions, `@` conversations,
- * `#` workspaces, `/` files.
+ * panels, artifacts of every workspace and missions — in one fuzzy list.
+ * Keyboard only: type, ↑/↓, Enter. A prefix narrows it: `>` actions,
+ * `@` conversations, `#` workspaces, `/` files, `*` artifacts.
  */
 export function CommandPalette({ keymap, navigator, viewState, initialQuery = '', onClose }: { keymap: Keymap; navigator: CommandNavigator; viewState?: ViewStateStore; initialQuery?: string; onClose(): void }) {
   const dialog = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null), list = useRef<HTMLDivElement>(null);
@@ -103,7 +105,8 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
   const inbox = useMergedInbox();
   const directory = useRunnerDirectory();
   const workspaceId = navigator.current.collectionId;
-  const { artifacts } = useArtifacts(navigator.showPanel && !scope ? workspaceId : '');
+  // Artifacts of every workspace: one chosen elsewhere switches to its workspace and opens there.
+  const { items: found } = useArtifactsOf(navigator.showPanel && (!scope || scope.kind === 'artifact') ? navigator.collections : []);
   const missions = useMissions();
   const tracked = useTrackedItems();
   const files = useFileResults(navigator.workbench, scope?.kind === 'file' || (!scope && term.length >= 2) ? term : null);
@@ -163,9 +166,15 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
       key: `window:${item.id}`, kind: 'panel', title: `Put ${item.title} back in main window`, detail: 'In another window', extra: `${item.title} dock attach return window`, icon: <Icon name="put-back" size={15}/>,
       run: () => item.putBack(),
     }));
-    const artifactItems: Item[] = navigator.showPanel ? artifacts.map(artifact => ({
-      key: `artifact:${artifact.id}`, kind: 'artifact', title: artifact.title || 'Untitled artifact', detail: `Artifact · ${artifact.kind || artifact.format}`, extra: artifact.trackedPath, icon: <Icon name="artifact" size={15}/>,
-      run: () => { if (!openArtifact({ collectionId: artifact.collectionId, artifactId: artifact.id })) navigator.showPanel!('artifacts'); },
+    const artifactItems: Item[] = navigator.showPanel ? artifactPaletteEntries(found, workspaceId).map(entry => ({
+      key: entry.key, kind: 'artifact', title: entry.title, detail: entry.detail, extra: entry.extra, icon: <Icon name={entry.icon} size={15}/>,
+      run: () => {
+        const request = { collectionId: entry.collectionId, artifactId: entry.artifactId };
+        if (entry.here) { if (!openArtifact(request)) navigator.showPanel!('artifacts'); return; }
+        // Asked for first, so the workspace shows its Artifacts panel on the page it switches to.
+        openArtifact(request, { whenShown: true });
+        navigator.goTo({ collectionId: entry.collectionId, sessionId: '', commandId: '' });
+      },
     })) : [];
     const missionItems: Item[] = navigator.showPanel ? missions.missions.filter(mission => !mission.canceled).map(mission => ({
       key: `mission:${mission.id}`, kind: 'mission', title: mission.title || 'Untitled mission', detail: `Mission · ${mission.tasks.length} ${mission.tasks.length === 1 ? 'task' : 'tasks'}`, extra: mission.brief.slice(0, 200), icon: <Icon name="target" size={15}/>,
@@ -183,7 +192,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     // The person's own actions (POWER.md), after the built-in ones.
     actions.push(...userPaletteItems().map(item => ({ ...item, icon: <Icon name={item.icon || 'play'} size={15}/> })));
     return { actions, conversations, workspaces, settings, panels: [...windowItems, ...panels], artifactItems, missionItems, pullItems, pullsNeedingYou: pulls.needsYou.map(pull => `pull:${pull.key}`) };
-  }, [keymap, navigator, inbox.rows, inbox.multi, inbox.here, directory, artifacts, missions.missions, workspaceId, userActions, tracked.links]);
+  }, [keymap, navigator, inbox.rows, inbox.multi, inbox.here, directory, found, missions.missions, workspaceId, userActions, tracked.links]);
 
   const fileItem = (path: string): Item => {
     const slash = path.lastIndexOf('/');
@@ -199,6 +208,7 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
       if (scope?.kind === 'conversation') return [{ title: 'Conversations', items: plain(items.conversations) }];
       if (scope?.kind === 'workspace') return [{ title: 'Workspaces', items: plain(items.workspaces) }];
       if (scope?.kind === 'pull') return [{ title: 'Pull requests', items: plain(items.pullItems) }];
+      if (scope?.kind === 'artifact') return [{ title: 'Artifacts · newest first', items: plain(items.artifactItems) }];
       if (scope?.kind === 'file') return [{ title: navigator.workbench ? 'Recently opened' : '', items: plain(fileItems) }];
       const byKey = new Map(all.map(item => [item.key, item]));
       // Files chosen recently in this workspace come back as files.
@@ -300,9 +310,10 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     else if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); choose(flat[selected], modKey(event)); }
     else if (event.key === 'Backspace' && scope && query.length === 1) { event.preventDefault(); setQuery(''); }
   };
-  const placeholder = scope ? { action: 'Run an action…', conversation: 'Go to a conversation in any workspace…', workspace: 'Go to a workspace…', file: navigator.workbench ? 'Go to a file in this workspace…' : 'Files open in the main window' }[scope.kind as 'action'] : 'Search actions, conversations, workspaces, files, settings…';
+  const placeholder = scope ? { action: 'Run an action…', conversation: 'Go to a conversation in any workspace…', workspace: 'Go to a workspace…', artifact: 'Go to an artifact in any workspace…', file: navigator.workbench ? 'Go to a file in this workspace…' : 'Files open in the main window' }[scope.kind as 'action'] : 'Search actions, conversations, workspaces, files, settings…';
   const empty = scope?.kind === 'file' && !navigator.workbench ? 'Files are searched in a workspace window. Open the main window to go to a file.'
-    : files.searching && !flat.length ? '' : files.error && scope?.kind === 'file' ? files.error : term ? `Nothing matches “${term}”.` : scope?.kind === 'file' ? 'Type a file name.' : 'Nothing here yet.';
+    : scope?.kind === 'artifact' && !navigator.showPanel ? 'Artifacts open in the main window.'
+    : files.searching && !flat.length ? '' : files.error && scope?.kind === 'file' ? files.error : term ? `Nothing matches “${term}”.` : scope?.kind === 'file' ? 'Type a file name.' : scope?.kind === 'artifact' ? 'No artifacts in any workspace yet.' : 'Nothing here yet.';
   let index = -1;
   return <dialog ref={dialog} className="command-palette" aria-label="Command palette" onCancel={event => { event.preventDefault(); close(); }}>
     <div className="command-palette-field">

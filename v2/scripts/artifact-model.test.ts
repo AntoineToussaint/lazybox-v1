@@ -1,6 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agentReference, ago, authorShort, diffStats, guessKind, hunks, lineDiff, linkedMarkdownFiles, mostlyNamesFile, slug, suggestedPath, titleFromMarkdown, trackableFile, updatedLine, updatedSinceSeen } from '../packages/surfaces/src/artifact-model.ts';
+import { agentReference, ago, artifactChip, artifactPaletteEntries, authorShort, diffStats, fromConversation, groupByWorkspace, guessKind, hunks, lineDiff, linkedMarkdownFiles, mostlyNamesFile, slug, suggestedPath, titleFromMarkdown, trackableFile, updatedLine, updatedSinceSeen, type FoundArtifact } from '../packages/surfaces/src/artifact-model.ts';
+
+// Artifacts as the Runner lists them, for the finding helpers.
+const made = (id: string, collectionId: string, at: number, extra: Record<string, unknown> = {}) => ({ id, collectionId, title: `Title ${id}`, kind: 'plan', trackedPath: '', originSessionId: '', originConversationId: '', updatedAtUnixMillis: BigInt(at), versions: [{ number: 1 }], ...extra }) as never;
+const found = (artifact: never, workspace: string): FoundArtifact => ({ artifact, collectionId: (artifact as { collectionId: string }).collectionId, workspace });
+
+test('an artifact is from a conversation when it began there or any version came from it', () => {
+  const here = { sessionId: 's1', conversationId: 'c1' };
+  assert.equal(fromConversation(made('a', 'w', 1, { originConversationId: 'c1' }), here), true, 'taken from it');
+  assert.equal(fromConversation(made('b', 'w', 1, { originSessionId: 's1' }), here), true, 'an older execution of it, by session');
+  assert.equal(fromConversation(made('c', 'w', 1, { originConversationId: 'c9', versions: [{ number: 1 }, { number: 2, source: { kind: 'message', sessionId: 's9', conversationId: 'c1' } }] }), here), true, 'updated from one of its messages');
+  assert.equal(fromConversation(made('d', 'w', 1, { versions: [{ number: 1, author: { kind: 'agent', sessionId: 's1' }, source: { kind: 'agent' } }] }), here), true, 'published by its agent');
+  assert.equal(fromConversation(made('e', 'w', 1, { originConversationId: 'c9', versions: [{ number: 1, source: { kind: 'file', path: 'PLAN.md' } }] }), here), false, 'a file tracked elsewhere');
+  assert.equal(fromConversation(made('f', 'w', 1), { sessionId: '', conversationId: '' }), false, 'no conversation matches nothing');
+});
+
+test('all workspaces: grouped by workspace, the one changed last first, each newest first', () => {
+  const groups = groupByWorkspace([found(made('a1', 'alpha', 10), 'Alpha'), found(made('b1', 'beta', 30), 'Beta'), found(made('a2', 'alpha', 20), 'Alpha'), found(made('b2', 'beta', 5), 'Beta')]);
+  assert.deepEqual(groups.map(g => [g.workspace, g.items.map(i => (i.artifact as { id: string }).id)]), [['Beta', ['b1', 'b2']], ['Alpha', ['a2', 'a1']]]);
+  assert.deepEqual(groupByWorkspace([]), []);
+});
+
+test('the palette lists every workspace\'s artifacts, newest first, with the workspace in the detail', () => {
+  const entries = artifactPaletteEntries([
+    found(made('A1', 'alpha', 10, { kind: 'report', versions: [{ number: 1 }, { number: 3 }] }), 'Alpha feature'),
+    found(made('B1', 'beta', 20, { trackedPath: 'docs/PLAN.md' }), 'Beta release'),
+  ], 'alpha');
+  assert.deepEqual(entries.map(e => [e.key, e.title, e.detail, e.here]), [
+    ['artifact:beta:B1', 'Title B1', 'Plan · v1 · Beta release', false],
+    ['artifact:alpha:A1', 'Title A1', 'Report · v3 · This workspace', true],
+  ]);
+  // The workspace's name and a tracked file find an artifact too.
+  assert.match(entries[0].extra, /Beta release/);
+  assert.match(entries[0].extra, /docs\/PLAN\.md/);
+  assert.equal(entries[0].icon, 'checklist');
+  assert.equal(artifactPaletteEntries([found(made('X', 'w', 1, { title: '' }), 'W')], 'w')[0].title, 'Untitled artifact');
+});
+
+test('the header chip counts this conversation\'s artifacts first, the workspace\'s otherwise, and is absent with none', () => {
+  const here = { sessionId: 's1', conversationId: 'c1' };
+  assert.equal(artifactChip([], here), undefined);
+  const mine = made('a', 'w', 1, { originConversationId: 'c1' }), theirs = made('b', 'w', 1, { originConversationId: 'c2' });
+  assert.deepEqual(artifactChip([mine, theirs, theirs], here), { count: 1, mine: true, label: '1 artifact', title: '1 artifact from this conversation · 3 in this workspace' });
+  assert.deepEqual(artifactChip([theirs, theirs], here), { count: 2, mine: false, label: '2 artifacts', title: '2 artifacts in this workspace' });
+  assert.equal(artifactChip([mine], here)?.title, '1 artifact from this conversation');
+});
 
 test('the title is the first heading outside code, else the first prose line', () => {
   assert.equal(titleFromMarkdown('Some intro\n\n# Migration **plan**\n\n## Steps'), 'Migration plan');

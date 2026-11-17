@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema } from '@lazybox/protocol';
 import { emptyTranscript, foldTranscript } from '../packages/surfaces/src/transcript-model.ts';
-import { applyToolPayload, describeGroup, describeTool, groupTools, kindOf, latestPlanId, lineChange, shortPath, type ToolEntry } from '../packages/surfaces/src/tool-lines.ts';
+import { applyToolPayload, describeGroup, describeTool, groupTools, kindOf, latestPlanId, lineChange, publishedArtifacts, shortPath, type ToolEntry } from '../packages/surfaces/src/tool-lines.ts';
 import { answerNote, approvalOf, questionsOf, requestNote, risksOf } from '../packages/surfaces/src/request-model.ts';
 
 const ROOT = '/Users/me/ws/alpha';
@@ -12,6 +12,26 @@ const ran = (name: string, input: unknown, output?: unknown, extra: Record<strin
   const started = call({ type: 'tool_call', id: `${name}-${JSON.stringify(input).length}`, name, status: 'running', input }, undefined, 1000);
   return output === undefined ? started : call({ type: 'tool_call', id: started.id, status: extra.failed ? 'failed' : 'completed', output, ...extra }, started, 5200);
 };
+
+test('an agent\'s `lazybox artifact put` is recognized from what the CLI printed', () => {
+  const said = (title: string, id: string, version: number, kind: string) => `Published “${title}” as artifact ${id}, version ${version} (${kind}). The user sees it in Lazybox → Artifacts. Publish a new version with --id ${id}.\n`;
+  const first = ran('Bash', { command: 'lazybox artifact put PLAN.md --title "Migration plan" --kind plan', description: 'Publish the plan' }, said('Migration plan', 'ART123', 1, 'plan'));
+  assert.deepEqual(publishedArtifacts(first), [{ id: 'ART123', title: 'Migration plan', version: 1, kind: 'plan' }]);
+  // A new version, through the full path the briefing falls back to, in Claude's content blocks.
+  const update = ran('Bash', { command: '"/Applications/Lazybox.app/Contents/MacOS/lazybox" artifact put - --id ART123 < PLAN.md' }, [{ type: 'text', text: said('Migration plan', 'ART123', 3, 'plan') }]);
+  assert.deepEqual(publishedArtifacts(update), [{ id: 'ART123', title: 'Migration plan', version: 3, kind: 'plan' }]);
+  // Two in one command; a chained step that failed afterwards does not undo them.
+  const two = ran('Bash', { command: '$LAZYBOX_V2_CLI artifact put a.md --title A && lazybox artifact put b.md --title B && false' }, [{ type: 'text', text: 'Exit code 1\n' + said('A', 'ID_A', 1, 'other') + said('B', 'ID-B', 2, 'report') }], { failed: true });
+  assert.deepEqual(publishedArtifacts(two).map(p => `${p.id}@${p.version}`), ['ID_A@1', 'ID-B@2']);
+  // Codex's shell, the same.
+  assert.equal(publishedArtifacts(ran('exec_command', { cmd: 'lazybox artifact put r.md --title R --kind report' }, said('R', 'R1', 1, 'report'))).length, 1);
+  // Nothing published: an unchanged put, a read, the line quoted by another command, a call still running, another tool.
+  assert.deepEqual(publishedArtifacts(ran('Bash', { command: 'lazybox artifact put - --id ART123' }, 'Artifact ART123 “Migration plan” unchanged at version 3 (same content).\n')), []);
+  assert.deepEqual(publishedArtifacts(ran('Bash', { command: 'lazybox artifact get ART123' }, '# Plan\n')), []);
+  assert.deepEqual(publishedArtifacts(ran('Bash', { command: 'grep Published /tmp/log' }, said('Old', 'OLD1', 1, 'plan'))), []);
+  assert.deepEqual(publishedArtifacts(ran('Bash', { command: 'lazybox artifact put PLAN.md --title P' })), []);
+  assert.deepEqual(publishedArtifacts(ran('Read', { file_path: '/tmp/out.txt' }, said('Old', 'OLD1', 1, 'plan'))), []);
+});
 
 test('a call reads as a person says it: verb, target, short facts', () => {
   const read = ran('Read', { file_path: `${ROOT}/src/front_door/mcp.py` }, 'a\nb\nc\n');

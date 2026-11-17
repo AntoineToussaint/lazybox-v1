@@ -16,8 +16,16 @@ the workspace: compare versions, export it, and hand it back to an agent.
 
 ## Read and compare
 
-Open the panel with `]] a` (or the **Panels** menu in the header → Artifacts). The
-list shows each artifact's kind, latest version, who made it and when. On the
+An artifact lives in its workspace, and you reach it from wherever you are:
+
+| From | How |
+| --- | --- |
+| **The conversation** | When the agent publishes or updates one, a card shows under its steps: the title, "Plan · v3", **Open**, and **Compare with v2** for an update. A message you tracked gets the same card. |
+| **The chat header** | **3 artifacts** counts what this conversation made (or the workspace's, when it made none). Click it for the Artifacts panel showing just those; the pill's **×** shows the whole workspace. It is not there when there are none. |
+| **⌘K** | Lists the artifacts of every workspace, with the workspace's name. Type `*` to search only artifacts. One from another workspace switches there and opens it. |
+| **The Artifacts panel** | `]] a`, or the **Panels** menu in the header → Artifacts. **All workspaces** at the top lists every workspace's artifacts, grouped by workspace. |
+
+The list shows each artifact's kind, latest version, who made it and when. On the
 page:
 
 - **Document** — the rendered Markdown; Mermaid blocks render as diagrams.

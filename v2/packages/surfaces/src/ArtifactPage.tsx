@@ -34,6 +34,8 @@ type Props = {
   onDeleted?(): void;
   /** In its own window: the window is the page, so there is no "open in window". */
   standalone?: boolean;
+  /** A version to show, compared with another (a chat card's "Compare with v2"); a new `at` applies it again. */
+  focus?: { version?: number; compareWith?: number; at: number };
 };
 
 /** Per-window reading preferences: kept for this window only, and harmless when storage is unavailable. */
@@ -51,7 +53,7 @@ const fullDate = (unixMillis: bigint | number) => new Date(Number(unixMillis)).t
  * callouts, tables, diagrams), its versions with the changes between them,
  * where it came from, and every way out of Lazybox.
  */
-export function ArtifactPage({ collectionId, artifactId, summary, collection, onBack, onShowSession, conversationId, conversationTitle, onDeleted, standalone }: Props) {
+export function ArtifactPage({ collectionId, artifactId, summary, collection, onBack, onShowSession, conversationId, conversationTitle, onDeleted, standalone, focus }: Props) {
   const { api } = useRunner();
   const host = useContext(ArtifactHostContext);
   const workbench = useWorkbench();
@@ -79,11 +81,13 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   // The latest version, again whenever the list says the artifact changed.
   const stamp = summary ? `${summary.updatedAtUnixMillis}:${summary.title}:${summary.kind}:${summary.trackedPath}:${summary.trackingProblem}` : '';
   const [poll, setPoll] = useState(0);
+  // How many times the latest version came back: a version asked for from outside waits for a fresh one.
+  const [loads, setLoads] = useState(0);
   useEffect(() => {
     const control = new AbortController();
     void api.getArtifact({ collectionId, artifactId }, { signal: control.signal, timeoutMs: 10000 }).then(latest => {
       if (control.signal.aborted) return;
-      setArtifact(latest); setError(''); setMissing(false);
+      setArtifact(latest); setError(''); setMissing(false); setLoads(value => value + 1);
       setContents(current => current.get(latest.contentVersion) === latest.content ? current : new Map(current).set(latest.contentVersion, latest.content));
     }, e => { if (!control.signal.aborted) { const text = errorText(e); setError(text); setMissing(/not.?found|no such|does not exist/i.test(text)); } });
     return () => control.abort();
@@ -95,6 +99,18 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   const latestNumber = versions.at(-1)?.number || 0;
   const shown = selected || latestNumber;
   const baseNumber = base || Math.max(0, shown - 1);
+  // A version asked for from outside (a chat card), each request once: after reading the
+  // versions again, since the card may name one newer than the page has seen.
+  const focused = useRef(0), focusAfter = useRef({ at: 0, loads: 0 });
+  useEffect(() => {
+    if (!focus || focused.current === focus.at) return;
+    if (focusAfter.current.at !== focus.at) { focusAfter.current = { at: focus.at, loads }; setPoll(value => value + 1); return; }
+    if (loads <= focusAfter.current.loads || !latestNumber) return;
+    focused.current = focus.at;
+    const version = focus.version && focus.version < latestNumber ? focus.version : 0;
+    setSelected(version); setBase(focus.compareWith && focus.compareWith < (version || latestNumber) ? focus.compareWith : 0);
+    setView(focus.compareWith ? 'changes' : 'document');
+  }, [focus, loads, latestNumber]);
   // Load the content of a version that is shown or compared.
   useEffect(() => {
     const control = new AbortController();

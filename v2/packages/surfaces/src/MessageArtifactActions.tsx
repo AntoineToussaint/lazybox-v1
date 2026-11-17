@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArtifactCard } from './ArtifactCard';
+import { OTHER_ARTIFACTS_POLL_MS, useArtifacts } from './useArtifacts';
 import type { Artifact } from '@lazybox/protocol';
 import type { RunnerClient } from '@lazybox/client-core';
 import { useContextMenuContribution } from './ContextMenu';
@@ -15,8 +17,33 @@ import './artifacts.css';
 /** The conversation a message list shows, for its message actions. */
 export type MessageScope = { collectionId: string; sessionId: string; conversationId: string };
 const MessageScopeContext = createContext<MessageScope | undefined>(undefined);
+/** The workspace's artifacts by the message each version was tracked from, for the cards under those messages. */
+type TrackedFrom = Map<string, { artifact: Artifact; version: number }[]>;
+const TrackedContext = createContext<TrackedFrom>(new Map());
+/**
+ * The conversation a message list shows. It keeps the workspace's artifact
+ * list (shared with the panel and the header chip, so one poll for all) to
+ * put a card under each message that was tracked.
+ */
 export function MessageScopeProvider({ scope, children }: { scope?: MessageScope; children: ReactNode }) {
-  return <MessageScopeContext.Provider value={scope}>{children}</MessageScopeContext.Provider>;
+  const { artifacts } = useArtifacts(scope?.collectionId || '', OTHER_ARTIFACTS_POLL_MS);
+  const tracked = useMemo(() => scope ? trackedMessages(artifacts, scope) : new Map() as TrackedFrom, [artifacts, scope]);
+  return <MessageScopeContext.Provider value={scope}><TrackedContext.Provider value={tracked}>{children}</TrackedContext.Provider></MessageScopeContext.Provider>;
+}
+export const useMessageScope = () => useContext(MessageScopeContext);
+
+/** Each message of this conversation that a version was tracked from, with the newest such version per artifact. */
+export function trackedMessages(artifacts: readonly Artifact[], scope: MessageScope): TrackedFrom {
+  const out: TrackedFrom = new Map();
+  for (const artifact of artifacts) for (const version of artifact.versions) {
+    const source = version.source;
+    if (source?.kind !== 'message' || !source.messageId || !(source.sessionId === scope.sessionId || (!!scope.conversationId && source.conversationId === scope.conversationId))) continue;
+    const list = out.get(source.messageId) || [];
+    const same = list.find(entry => entry.artifact.id === artifact.id);
+    if (same) same.version = Math.max(same.version, version.number); else list.push({ artifact, version: version.number });
+    out.set(source.messageId, list);
+  }
+  return out;
 }
 
 /** Only an agent's prose can become an artifact; prompts, notices and failures cannot. */
@@ -51,7 +78,7 @@ async function messageFiles(api: RunnerClient, collectionId: string, text: strin
  * item says it is about the message.
  */
 export function MessageArtifactActions({ message }: { message: TranscriptMessage }) {
-  const scope = useContext(MessageScopeContext);
+  const scope = useContext(MessageScopeContext), tracked = useContext(TrackedContext);
   const { api } = useRunner();
   const anchor = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState<Open>(), [note, setNote] = useState('');
@@ -81,7 +108,10 @@ export function MessageArtifactActions({ message }: { message: TranscriptMessage
       ...updates.map(artifact => ({ label: `Update “${artifact.title}” from this message…`, icon: 'history', run: () => setOpen({ kind: 'update', artifact }) }))];
   });
   if (!enabled || !scope) return null;
-  return <span ref={anchor} className="message-artifact-actions">
+  const cards = tracked.get(message.id);
+  return <>{cards?.length ? <div className="artifact-cards">
+    {cards.map(({ artifact, version }) => <ArtifactCard key={artifact.id} collectionId={scope.collectionId} artifactId={artifact.id} title={artifact.title} kind={artifact.kind} version={version} how={version > 1 ? 'updated from this message' : 'tracked from this message'}/>)}
+  </div> : null}<span ref={anchor} className="message-artifact-actions">
     <button type="button" className="message-artifact-button" aria-label="Track as artifact…" title="Track as artifact… (or right-click the message)" onClick={() => void startTrack()}
 >
       <Icon name="artifact" size={14}/><span>Track</span>
@@ -91,5 +121,5 @@ export function MessageArtifactActions({ message }: { message: TranscriptMessage
       onClose={() => setOpen(undefined)} onTracked={artifact => done(artifact, 'Tracked')} onUpdateInstead={artifact => setOpen({ kind: 'update', artifact })}/>}
     {open?.kind === 'update' && <UpdateArtifactDialog collectionId={scope.collectionId} artifactId={open.artifact.id} content={message.text} source={source}
       onClose={() => setOpen(undefined)} onSaved={artifact => done(artifact, 'Updated')}/>}
-  </span>;
+  </span></>;
 }

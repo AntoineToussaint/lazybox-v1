@@ -248,6 +248,26 @@ export function commandText(entry: Pick<ToolEntry, 'name' | 'input'>): string {
   return '';
 }
 
+/** An artifact an agent published with `lazybox artifact put`, as the CLI reported it. */
+export type PublishedArtifact = { id: string; title: string; version: number; kind: string };
+// `lazybox artifact put` prints this line for each version it adds (cmd/lazybox/artifact.go); an unchanged put prints another.
+const PUBLISHED = /Published “([^”\n]*)” as artifact ([A-Za-z0-9_-]+), version (\d+) \(([a-z]*)\)/g;
+const ARTIFACT_PUT = /\blazybox\s+artifact\s+put\b/;
+/**
+ * The artifacts a call published: a shell command that ran `lazybox artifact
+ * put` (however the CLI was called) and whose output says what it published.
+ * A chained command that failed after publishing still published.
+ */
+export function publishedArtifacts(entry: Pick<ToolEntry, 'name' | 'input' | 'output'>): PublishedArtifact[] {
+  if (!entry.output || KINDS[entry.name] !== 'command') return [];
+  if (!ARTIFACT_PUT.test(plainLazybox(commandText(entry)))) return [];
+  const found: PublishedArtifact[] = [];
+  for (const [, title, id, version, kind] of entry.output.matchAll(PUBLISHED)) {
+    if (!found.some(p => p.id === id && p.version === Number(version))) found.push({ id, title, version: Number(version), kind });
+  }
+  return found;
+}
+
 export type ToolTitle = {
   /** The verb, in the tense of the call's state: "Read", "Running". */
   verb: string;

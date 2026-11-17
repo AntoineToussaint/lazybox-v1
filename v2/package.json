@@ -85,6 +85,7 @@
     "test:sounds": "node scripts/test-sounds.mjs",
     "test:artifacts": "node scripts/test-artifacts.mjs",
     "test:artifact-reader": "node scripts/test-artifact-reader.mjs",
+    "test:find-artifacts": "node scripts/test-find-artifacts.mjs",
     "screenshots:artifact-reader": "node scripts/artifact-reader-screenshots.mjs",
     "test:subscription-switch": "node scripts/test-subscription-switch.mjs",
     "test:settings-polish": "node scripts/test-settings-polish.mjs",
