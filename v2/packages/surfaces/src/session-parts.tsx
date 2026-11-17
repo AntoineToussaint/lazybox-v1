@@ -62,10 +62,19 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
   const readerScrolled = useRef(0);
   const readerScrolls = () => { readerScrolled.current = Date.now(); onUse?.(); };
   const hiddenRef = useRef(hidden); hiddenRef.current = hidden;
-  const saveView = (search: string, follow: boolean, hiddenSources: ReadonlySet<string> = hiddenRef.current) => {
-    try { writeConsoleState(viewState, command, { search, follow, scrollTop: pane.current?.scrollTop || 0, ...(hiddenSources.size ? { hidden: [...hiddenSources] } : {}) }); }
+  const saveView = (search: string, follow: boolean, hiddenSources: ReadonlySet<string> = hiddenRef.current, scrollTop = pane.current?.scrollTop || 0) => {
+    scrollSave.current = null; window.clearTimeout(scrollTimer.current);
+    try { writeConsoleState(viewState, command, { search, follow, scrollTop, ...(hiddenSources.size ? { hidden: [...hiddenSources] } : {}) }); }
     catch (error) { onError?.(`Could not save console view: ${String(error)}`); }
   };
+  // Scrolling saves where the reader is once it settles (each save is a write to the host),
+  // at once when following changes, and before the console shows another command or goes.
+  const scrollSave = useRef<(() => void) | null>(null), scrollTimer = useRef(0);
+  const saveScrollSoon = (save: () => void) => {
+    scrollSave.current = save; window.clearTimeout(scrollTimer.current);
+    scrollTimer.current = window.setTimeout(() => scrollSave.current?.(), 400);
+  };
+  useEffect(() => () => scrollSave.current?.(), [command]);
   const setHidden = (next: ReadonlySet<string>) => { setHiddenState(next); restoreScroll.current = null; saveView(search, followOutput, next); };
   useEffect(() => {
     model.current = new LogModel(); setVersion(value => value + 1); setMetadata(undefined); setOffset(0n);
@@ -168,7 +177,9 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
       const node = event.currentTarget; const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 24; if (restoreScroll.current !== null) return;
       // Only the reader leaves the end: a scroll that arriving output, a fold or the windowing caused keeps following.
       if (followOutput && !atEnd && Date.now() - readerScrolled.current > 800) { node.scrollTop = node.scrollHeight; return; }
-      if (atEnd !== followOutput) setFollowOutput(atEnd); saveView(search, atEnd); }}>
+      if (atEnd !== followOutput) { setFollowOutput(atEnd); saveView(search, atEnd); return; }
+      const scrollTop = node.scrollTop, hiddenSources = hiddenRef.current;
+      saveScrollSoon(() => saveView(search, atEnd, hiddenSources, scrollTop)); }}>
       {empty ? <p className="log-empty">{empty}</p> : <LogList rows={rows} layout={layout} actions={actions} openLists={openLists} scroller={pane} follow={followOutput} lineHeight={fontSize * 1.55}/>}
     </div>
     {!followOutput && text && <button className="console-jump" onClick={() => { setFollowOutput(true); restoreScroll.current = null; pane.current?.scrollTo({ top: pane.current.scrollHeight }); saveView(search, true); }}>↓ Latest output</button>}
