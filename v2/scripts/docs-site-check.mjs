@@ -66,9 +66,9 @@ for (const page of htmlFiles(out)) {
     const path = pathAndQuery.split('?')[0];
     let target = page;
     if (path) {
-      const absolute = path.startsWith('/') ? path : '/' + relative(out, resolve(page, '..', path)).split('\\').join('/');
-      if (!absolute.startsWith(base)) { problems.push(`${name}: ${url} is outside the base ${base}`); continue; }
-      target = fileFor(absolute.slice(base.length - 1));
+      // A relative link resolves against the page's folder (clean URLs keep it: /guides/chat is in /guides/).
+      if (path.startsWith('/') && !path.startsWith(base)) { problems.push(`${name}: ${url} is outside the base ${base}`); continue; }
+      target = fileFor(path.startsWith('/') ? path.slice(base.length - 1) : '/' + relative(out, resolve(page, '..', path)).split('\\').join('/'));
       if (!target) { problems.push(`${name}: ${attribute}="${url}" — no such page or file`); continue; }
     }
     if (fragment && target.endsWith('.html') && !idsOf(target).has(decodeURIComponent(fragment))) {

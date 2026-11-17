@@ -1,8 +1,11 @@
 // The Lazybox V2 documentation site: npm run docs:dev, docs:build, docs:preview,
 // docs:check; deployed by the standalone repository's Docs workflow (RELEASING.md,
-// "Publish the docs"). It renders v2/docs in place: srcDir is v2 itself, every file but docs/ (without docs/internal),
-// CHANGELOG.md and this folder's home page is excluded, and rewrites give the
-// pages short URLs (docs/guides/chat.md → /guides/chat).
+// "Publish the docs").
+//
+// It renders the docs in place, never a copy: srcDir is v2 itself; every file
+// but docs/ (without docs/internal), CHANGELOG.md and this folder's home page
+// is excluded; and rewrites give the pages short URLs (docs/guides/chat.md →
+// /guides/chat, docs/README.md → /overview, CHANGELOG.md → /changelog).
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
