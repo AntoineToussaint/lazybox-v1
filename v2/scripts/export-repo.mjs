@@ -25,6 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, chmodSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, join, posix, relative, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { check as checkFrontDoor } from './export-check.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const overlayRoot = join(scriptDir, 'export-repo', 'root');
@@ -345,6 +346,9 @@ rules, FILE_SAME_GO_PACKAGE included, in force.
   { file: '.github/workflows/ci.yml', find: '    shell: bash\n    working-directory: v2\n', replace: '    shell: bash\n' },
   { file: '.github/workflows/ci.yml', find: /\n {8}working-directory: \.\n/g, replace: '\n', all: true },
   { file: '.github/workflows/ci.yml', find: 'name: v2-ui-${{ matrix.shard }}', replace: 'name: ui-${{ matrix.shard }}' },
+  // What README and CONTRIBUTING tell people to run or open exists
+  // (scripts/export-check.mjs; it reads the root layout, so it runs only here).
+  { file: '.github/workflows/ci.yml', find: '      - run: make test-environments\n', replace: '      - run: make test-environments\n      - name: README and CONTRIBUTING name only what exists\n        run: node scripts/export-check.mjs\n' },
   // The gate report and most screenshots are under .cache/, a hidden folder,
   // which upload-artifact leaves out unless told; a failed shard then uploads
   // only /tmp's screenshots.
@@ -518,6 +522,10 @@ function main() {
       if (/(?<![\w./@~\\-])v2\/|make -C v2/.test(line) || (path.endsWith('.md') && /\]\((?:\.\.\/)+(?:crates|docs)\//.test(line))) leftovers.push(`${path}:${index + 1}: ${line.trim().slice(0, 140)}`);
     });
   }
+  // What README and CONTRIBUTING tell people to run or open must exist in
+  // the tree they clone (scripts/export-check.mjs).
+  const frontDoor = checkFrontDoor(dest);
+  if (frontDoor.length) throw new Error(`Export check failed: the front-door documents name what the exported tree lacks:\n  ${frontDoor.join('\n  ')}`);
   console.log(`Exported v2/ at ${sha} (${options.ref}) to ${dest}: ${output.size} files.`);
   console.log(`Go module: ${GO_MODULE.from} -> ${GO_MODULE.to}; V1 links pinned to ${V1_REPOSITORY}@${V1_REV.slice(0, 12)}.`);
   console.log(`\nRewritten or added (${summary.length}):`);
