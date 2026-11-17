@@ -1,15 +1,16 @@
 // Recording: frames of the page at device scale (2× by default, so text is
 // crisp), captured as fast as the browser renders them (about 20 per second
-// at 2880×1800), each with its time; ffmpeg turns them into a constant 30 fps
-// MP4 and WebM (and a GIF on request). Playwright's own video records at 1×
-// with a low bitrate, so it is only the fallback when ffmpeg is missing.
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdir, rm, writeFile, readFile, rename, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+// at 2880×1800), each with its time, and streamed straight into ffmpeg on a
+// 30 fps timeline: nothing is written to disk but the MP4. The WebM and the
+// GIF are made from it afterwards. Playwright's own video records at 1× with a
+// low bitrate, so it is only the fallback when ffmpeg is missing.
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { writeFile, rename, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import type { Browser, BrowserContext, CDPSession, Page } from '@playwright/test';
 
-export type Frame = { file: string; at: number };
+export type Frame = { image: Buffer; at: number };
+const FPS = 30;
 
 /** The system's ffmpeg, if there is one. */
 export function findFfmpeg(): string | undefined {
@@ -18,17 +19,26 @@ export function findFfmpeg(): string | undefined {
 }
 
 export class FrameRecorder {
-  frames: Frame[] = [];
+  /** Distinct frames captured. */
+  frames = 0;
   private cdp?: CDPSession;
   private running = false;
   private loop?: Promise<void>;
   private started = 0;
-  private writes: Promise<unknown>[] = [];
-  constructor(private context: BrowserContext, private page: Page, private viewport: { width: number; height: number }, private scale: number, readonly dir: string) {}
+  private encoder?: ChildProcess;
+  private encoded?: Promise<void>;
+  private last?: Frame;
+  private written = 0;
+  constructor(private context: BrowserContext, private page: Page, private viewport: { width: number; height: number }, private scale: number, private ffmpeg: string, readonly mp4: string) {}
 
   async start() {
-    await rm(this.dir, { recursive: true, force: true });
-    await mkdir(this.dir, { recursive: true });
+    const even = 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
+    this.encoder = spawn(this.ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-',
+      '-vf', `${even},format=yuv420p`, '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-movflags', '+faststart', this.mp4], { stdio: ['pipe', 'ignore', 'pipe'] });
+    let errors = '';
+    this.encoder.stderr!.on('data', chunk => { errors += chunk; });
+    this.encoder.stdin!.on('error', () => {});
+    this.encoded = new Promise((resolve, reject) => this.encoder!.on('close', code => code === 0 ? resolve() : reject(new Error(`ffmpeg exited with ${code}: ${errors.trim().split('\n').slice(-2).join(' | ')}`))));
     this.cdp = await this.context.newCDPSession(this.page);
     // A CDP session of our own sees the page at 1× unless it asks for the same
     // device metrics Playwright emulates; then a capture is at device pixels.
@@ -36,16 +46,12 @@ export class FrameRecorder {
     this.running = true; this.started = performance.now();
     const clip = { x: 0, y: 0, width: this.viewport.width, height: this.viewport.height, scale: 1 };
     this.loop = (async () => {
-      let n = 0;
       while (this.running) {
         const before = performance.now();
         try {
           const { data } = await this.cdp!.send('Page.captureScreenshot', { format: 'jpeg', quality: 92, clip, optimizeForSpeed: true } as never) as { data: string };
-          const at = Math.round((before + performance.now()) / 2) - this.started;
-          const file = join(this.dir, `f${String(++n).padStart(6, '0')}.jpg`);
-          this.writes.push(writeFile(file, Buffer.from(data, 'base64')));
-          this.frames.push({ file, at });
-        } catch (error) {
+          this.add({ image: Buffer.from(data, 'base64'), at: (before + performance.now()) / 2 - this.started });
+        } catch {
           if (!this.running) break;
           // A navigation can drop one capture; the next one follows.
           await new Promise(resolve => setTimeout(resolve, 30));
@@ -53,38 +59,39 @@ export class FrameRecorder {
       }
     })();
   }
+  /** Puts a frame on the 30 fps timeline: the previous one fills every slot until this one's time. */
+  private add(frame: Frame) {
+    this.fill(frame.at);
+    this.last = frame; this.frames++;
+  }
+  private fill(until: number) {
+    if (!this.last) return;
+    // Duplicates share one buffer: the pipe holds references, not copies.
+    while (this.written * 1000 / FPS < until) { this.encoder!.stdin!.write(this.last.image); this.written++; }
+  }
   /** Milliseconds since recording started. */
   elapsed() { return this.started ? performance.now() - this.started : 0; }
-  /** The newest frame (for a key frame of the contact sheet). */
-  latest(): Frame | undefined { return this.frames.at(-1); }
-  async stop() {
+  /** The newest frame (a key frame of the contact sheet). */
+  latest(): Frame | undefined { return this.last; }
+  /** Stops capturing, holds the last frame `endHold` seconds, and finishes the MP4. */
+  async stop(endHold = 1.2) {
     this.running = false;
     await this.loop;
-    await Promise.all(this.writes);
     await this.cdp?.detach().catch(() => {});
-    return this.elapsed();
+    if (!this.last) { this.encoder?.kill(); throw new Error('no frames were recorded'); }
+    this.fill(this.elapsed() + endHold * 1000);
+    this.encoder!.stdin!.end();
+    await this.encoded;
   }
+  /** Stops without a video (the scenario failed). */
+  async abort() { this.running = false; await this.loop; await this.cdp?.detach().catch(() => {}); this.encoder?.kill(); await this.encoded?.catch(() => {}); }
 
-  /** Encodes the frames to the requested files with ffmpeg. */
-  async encode(ffmpeg: string, outputs: { mp4?: string; webm?: string; gif?: string }, endHold = 1.2) {
-    if (!this.frames.length) throw new Error('no frames were recorded');
-    const list = ['ffconcat version 1.0'];
-    this.frames.forEach((frame, i) => {
-      const next = this.frames[i + 1];
-      const seconds = next ? Math.max(0.001, (next.at - frame.at) / 1000) : endHold;
-      list.push(`file '${frame.file}'`, `duration ${seconds.toFixed(4)}`);
-    });
-    list.push(`file '${this.frames.at(-1)!.file}'`);
-    const listFile = join(this.dir, 'frames.ffconcat');
-    await writeFile(listFile, list.join('\n') + '\n');
-    const even = 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
-    const input = ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', listFile];
-    if (outputs.mp4) await run(ffmpeg, [...input, '-vf', `fps=30,${even},format=yuv420p`, '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-movflags', '+faststart', outputs.mp4]);
-    const source = outputs.mp4 ? ['-hide_banner', '-loglevel', 'error', '-y', '-i', outputs.mp4] : input;
-    if (outputs.webm) await run(ffmpeg, [...source, '-vf', outputs.mp4 ? 'format=yuv420p' : `fps=30,${even},format=yuv420p`, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '34', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '5', outputs.webm]);
-    if (outputs.gif) await run(ffmpeg, [...source, '-vf', 'fps=12,scale=1200:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=200:stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle', outputs.gif]);
+  /** The WebM and the GIF, made from the MP4. */
+  async derive(outputs: { webm?: string; gif?: string }) {
+    const source = ['-hide_banner', '-loglevel', 'error', '-y', '-i', this.mp4];
+    if (outputs.webm) await run(this.ffmpeg, [...source, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '34', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '5', outputs.webm]);
+    if (outputs.gif) await run(this.ffmpeg, [...source, '-vf', 'fps=12,scale=1200:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=200:stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle', outputs.gif]);
   }
-  async cleanUp() { await rm(this.dir, { recursive: true, force: true }); }
 }
 
 function run(command: string, args: string[]) {
@@ -113,7 +120,7 @@ export async function savePlaywrightVideo(page: Page, file: string) {
   return file;
 }
 
-export const sha256 = async (file: string) => createHash('sha256').update(await readFile(file)).digest('hex').slice(0, 16);
+export const sha256 = (data: Buffer) => createHash('sha256').update(data).digest('hex').slice(0, 16);
 
 /**
  * The contact sheet: the key frames in a grid, each under its caption, with

@@ -113,7 +113,8 @@
     { "id": "reload-latest-turn", "scope": "ui", "script": "test:reload-latest-turn" },
     { "id": "conversation-load", "scope": "ui", "script": "test:conversation-load" },
     { "id": "updates", "scope": "ui", "script": "test:updates" },
-    { "id": "feedback", "scope": "ui", "script": "test:feedback" }
+    { "id": "feedback", "scope": "ui", "script": "test:feedback" },
+    { "id": "scenarios", "scope": "ui", "script": "test:scenarios", "timeoutMs": 600000 }
   ],
   "external": [
     { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }

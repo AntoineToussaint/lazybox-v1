@@ -248,5 +248,5 @@ export const expect = {
   /** Something the fake Runner received or holds, polled: `expect.runner('the merge', f => f.mutations.some(…))`. */
   runner: (label: string, predicate: (fixture: StepContext['fixture']) => unknown) => check(label, ctx => playwrightExpect.poll(() => !!predicate(ctx.fixture), { timeout: ctx.timeout }).toBe(true)),
   /** The Runner received this call (`expect.call('MergePullRequest', body => body.item.key === 'acme/api#812')`). */
-  call: (method: string, matches: (body: any) => boolean = () => true) => check(`the Runner got ${method}`, ctx => playwrightExpect.poll(() => ctx.fixture.mutations.some(m => m.method === method && matches(m.body)), { timeout: ctx.timeout }).toBe(true)),
+  call: (method: string, matches: (body: any) => boolean = () => true) => check(`the Runner got ${method}`, ctx => playwrightExpect.poll(() => ctx.fixture.calls.some(m => m.method === method && matches(m.body)), { timeout: ctx.timeout }).toBe(true)),
 };

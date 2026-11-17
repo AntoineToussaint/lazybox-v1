@@ -5,7 +5,7 @@
 import { createServer as createHttpServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { basename, join } from 'node:path';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { createServer, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium, devices, type Browser, type BrowserContext, type Page } from '@playwright/test';
@@ -42,7 +42,7 @@ export interface StepReport { index: number; kind: string; label: string; status
 export interface ScenarioReport {
   name: string; title: string; story: string; tags: string[]; viewport: { width: number; height: number }; theme: Theme; mode: 'video' | 'test';
   status: 'passed' | 'failed'; durationMs: number; steps: StepReport[]; checks: number; pageErrors: string[];
-  outputs: { file: string; bytes: number; seconds?: number }[]; keyframes: { label: string; file?: string; sha256?: string }[]; error?: string;
+  outputs: { file: string; bytes: number; seconds?: number }[]; keyframes: { label: string; sha256: string }[]; error?: string;
 }
 
 /** Every scenario in v2/scenarios, by name (the file name without `.scenario.ts`). */
@@ -155,14 +155,17 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
     await settle(page);
     await overlay.park();
 
-    if (options.video && ffmpeg) { recorder = new FrameRecorder(context, page, viewport, scale, join(OUTPUT_DIR, `.frames-${variant}`)); await recorder.start(); }
+    const out = (ext: string) => join(OUTPUT_DIR, `${variant}.${ext}`);
+    if (options.video && ffmpeg) { recorder = new FrameRecorder(context, page, viewport, scale, ffmpeg, out('mp4')); await recorder.start(); }
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     let checks: StepReport['checks'] = [];
     let captionOpen: string | undefined;
+    const keyframes: { image: Buffer; label: string }[] = [];
     const keyframe = async (label: string) => {
       if (!options.video) return;
-      if (recorder) { await sleep(60); const frame = recorder.latest(); if (frame) report.keyframes.push({ label, file: frame.file, sha256: await sha256(frame.file) }); }
-      else { const file = join(OUTPUT_DIR, `.keyframe-${variant}-${report.keyframes.length}.jpg`); await page.screenshot({ path: file, type: 'jpeg', quality: 90 }); report.keyframes.push({ label, file, sha256: await sha256(file) }); }
+      if (recorder) await sleep(60);
+      const image = recorder?.latest()?.image || await page.screenshot({ type: 'jpeg', quality: 90 });
+      keyframes.push({ image, label }); report.keyframes.push({ label, sha256: sha256(image) });
     };
     const ctx: StepContext = {
       page, fixture, world, clock, overlay, video: options.video, random, timeout: options.timeout,
@@ -194,6 +197,8 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
         failed = error as Error;
         report.steps.push({ index, kind: item.kind, label: item.label, status: 'failed', atMs: at, durationMs: Math.round(performance.now() - t0), checks, error: String(failed.message).split('\n')[0] });
         await page.screenshot({ path: join(OUTPUT_DIR, `${variant}-failed.png`) }).catch(() => {});
+        // What a locator sees, to fix the step: the page's accessibility tree.
+        await writeFile(join(OUTPUT_DIR, `${variant}-failed.aria.yaml`), await page.locator('body').ariaSnapshot().catch(() => '')).catch(() => {});
       }
     }
     if (!failed && options.video) { await ctx.beat(1.4); if (captionOpen) await keyframe(captionOpen); else await keyframe('The end'); }
@@ -202,25 +207,23 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
     else if (report.pageErrors.length) { report.status = 'failed'; report.error = `the page threw: ${report.pageErrors[0]}`; }
 
     // The recording, its files and the contact sheet.
-    if (recorder) {
+    if (recorder && failed) { await recorder.abort(); recorder = undefined; }
+    else if (recorder) {
       await recorder.stop();
-      const out = (ext: string) => join(OUTPUT_DIR, `${variant}.${ext}`);
-      await recorder.encode(ffmpeg!, { mp4: out('mp4'), ...(options.webm ? { webm: out('webm') } : {}), ...(options.gif ? { gif: out('gif') } : {}) });
+      await recorder.derive({ ...(options.webm ? { webm: out('webm') } : {}), ...(options.gif ? { gif: out('gif') } : {}) });
       for (const ext of ['mp4', ...(options.webm ? ['webm'] : []), ...(options.gif ? ['gif'] : [])]) report.outputs.push(await describeVideo(out(ext)));
     } else if (options.video) {
       const file = join(OUTPUT_DIR, `${variant}.webm`);
       await context.close(); context = undefined;
       if (await savePlaywrightVideo(page, file)) report.outputs.push(await describeVideo(file));
     }
-    if (options.video && report.keyframes.length) {
-      const sheet = join(OUTPUT_DIR, `${variant}.contact.png`);
-      await contactSheet(browser, sheet, { title: scenario.title, story: report.story, dark: theme === 'dark', columns: phone ? 4 : 3,
-        frames: await Promise.all(report.keyframes.filter(k => k.file).map(async k => ({ image: await readFile(k.file!), label: k.label }))) });
+    if (options.video && keyframes.length && !failed) {
+      const sheet = out('contact.png');
+      await contactSheet(browser, sheet, { title: scenario.title, story: report.story, dark: theme === 'dark', columns: phone ? 4 : 3, frames: keyframes });
       report.outputs.push(await describeVideo(sheet).catch(() => ({ file: sheet, bytes: 0 })));
-      report.keyframes = report.keyframes.map(({ label, sha256 }) => ({ label, sha256 }));
     }
-    await recorder?.cleanUp();
   } catch (error) {
+    await recorder?.abort();
     report.status = 'failed'; report.error = String((error as Error).message || error).split('\n')[0];
   } finally {
     await context?.close().catch(() => {});

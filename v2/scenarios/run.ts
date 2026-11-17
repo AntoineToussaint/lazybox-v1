@@ -54,7 +54,7 @@ try {
       console.log(`     ${report.error}`);
       const step = report.steps.find(s => s.status === 'failed');
       if (step) console.log(`     at step ${step.index + 1}: ${step.label}`);
-      console.log(`     screenshot: ${OUTPUT_DIR}${report.name}-failed.png`);
+      console.log(`     screenshot: ${OUTPUT_DIR}${report.name}-failed.png (accessibility tree: ${report.name}-failed.aria.yaml)`);
     }
   }
 } finally { await stage.stop(); }

@@ -189,14 +189,15 @@ export function createMissionFake({ sessions, collections, events }) {
   const push = (sessionId, { type, text, data, operationId }) => events?.get(sessionId)?.push({ type, text, ...(operationId ? { operationId } : {}), providerDataJson: Buffer.from(JSON.stringify(data || {})).toString('base64') });
   const refreshLineage = m => { for (const g of m.grants) { const s = sessions.find(v => v.id === g.sessionId); if (s?.lineage?.grantId === g.id) s.lineage.liveChildren = liveChildren(m, g); } };
   /** An orchestrator starts a child: a task, its attempt with lineage, a conversation, the brief as its first message. */
-  const spawnChild = (parentSessionId, { title, brief = '', role = 'worker', permission = 'ask', profileId = 'claude-default', collectionId } = {}) => {
+  // taskId: a task of an approved plan, which the child works on (otherwise a new task is added).
+  const spawnChild = (parentSessionId, { title, brief = '', role = 'worker', permission = 'ask', profileId = 'claude-default', collectionId, taskId } = {}) => {
     const parent = sessions.find(s => s.id === parentSessionId), conversation = conversationOf(parentSessionId);
     const m = missions.find(v => v.grants.some(g => g.live && g.conversationId === conversation)); if (!m) throw new Error('no grant for ' + parentSessionId);
     const g = m.grants.find(v => v.live && v.conversationId === conversation);
     const session = { id: `child-session-${sessions.length}`, collectionId: collectionId || parent.collectionId, workId: collectionId || parent.collectionId, profileId, title, status: 'running', busy: true, permission, capabilities: { files: true, resume: true }, pending: [], createdAtUnixMillis: ms(),
       lineage: { parentConversationId: conversation, parentTitle: parent.title || 'Orchestrator', missionId: m.id, missionTitle: m.title, taskId: '', role, grantId: '', liveChildren: 0, maxChildren: 0 } };
     sessions.push(session); events?.open(session.id);
-    const t = addTask(m, title, brief); session.lineage.taskId = t.id;
+    const t = (taskId && m.tasks.find(v => v.id === taskId)) || addTask(m, title, brief); session.lineage.taskId = t.id;
     t.attempts.push({ id: id('a'), conversationId: session.id, sessionId: session.id, collectionId: session.collectionId, at: ms(), new: true, parentConversationId: conversation, grantId: g.id, role, permission, profileId });
     append(m, 'task.assigned', 'task:' + t.id, { task: t.id }, 'agent', { conversationId: conversation });
     push(session.id, { type: 'operation_accepted', operationId: 'spawn-' + t.id, text: `${title}\n\n${brief || 'Objective: ' + title}\n\n(Task of the Lazybox mission “${m.title}”, from your orchestrator “${parent.title || 'Orchestrator'}”. Run tests and builds with \`lazybox run -- …\`. When done: \`lazybox agents report "…"\`.)`,

@@ -372,6 +372,8 @@ export class ConversationHandle {
         await ctx.pause(seconds);
         live.toolEnd(id, exit ? [{ type: 'text', text: `Exit code ${exit}\n${output}` }] : output || 'ok', exit ? 'failed' : 'completed');
       }
+      // A mission's agent: the run is evidence on its task, as the Runner records it.
+      if (live.session.lineage?.taskId) ctx.fixture.missions.recordRun(live.session.id, { title: command, exitCode: exit });
       await ctx.pause(0.3);
     });
   }
@@ -545,7 +547,9 @@ export class ConversationHandle {
       live.ensureTurn(); live.phase('tool', 'Bash');
       const id = live.toolStart('Bash', { command: `lazybox agents start --title "${task.title}" --role ${task.role || 'worker'}`, description: `Start “${task.title}”` });
       await ctx.pause(0.5);
-      const child = ctx.fixture.missions.spawnChild(live.session.id, task);
+      // The plan's task of that title, if the person approved one: the child takes it.
+      const planned = ctx.fixture.missions.missions.flatMap((m: any) => m.tasks).find((t: any) => t.title === task.title && t.planId && !t.attempts.length);
+      const child = ctx.fixture.missions.spawnChild(live.session.id, { ...task, ...(planned ? { taskId: planned.id } : {}) });
       Object.assign(child, { provider: 'claude', model: 'claude-sonnet-5', modelReported: true, agents: [{ id: 'root', name: 'Main agent', status: 'running', phase: 'thinking', phaseSinceUnixMillis: ctx.clock.ms(), updatedAtUnixMillis: ctx.clock.ms() }] });
       live.toolEnd(id, `Started “${task.title}” (${child.id}).\n`);
       await ctx.nudge();

@@ -73,6 +73,8 @@ export class Target {
   first(): Target { return new Target(`first ${this.describe}`, scope => this.find(scope).first()); }
   last(): Target { return new Target(`last ${this.describe}`, scope => this.find(scope).last()); }
   nth(index: number): Target { return new Target(`${this.describe} #${index + 1}`, scope => this.find(scope).nth(index)); }
+  /** This target, or `other` when this one is not there (a field whose name differs by layout). */
+  or(other: Target): Target { return new Target(`${this.describe} (or ${other.describe})`, scope => this.find(scope).or(other.locate(scope)).first()); }
   /** Only the matches that contain this text. */
   withText(text: string | RegExp): Target { return new Target(`${this.describe} with “${text}”`, scope => this.find(scope).filter({ hasText: text })); }
 }
