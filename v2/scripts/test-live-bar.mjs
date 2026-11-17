@@ -128,7 +128,8 @@ try{
 
  // The turn ends: the bar leaves; only background work would keep it.
  Object.assign(session,{busy:false,status:'ready',agents:[{id:'root',status:'done'}]});push(2,{type:'agent_status',agentId:'claude-tool:toolu_sa',status:'done',data:{toolUseId:'toolu_sa'}});push(3,{type:'turn_ended',status:'completed'});
- await expect(chat.locator('.live-bar')).toHaveCount(0);
+ // The "Moved to the background" notice may outlive the turn by a few seconds; the bar itself leaves.
+ await expect(chat.locator('.live-bar:not([data-only="notice"])')).toHaveCount(0);
  assert.deepEqual(errors,[]);
  console.log('PASS live bar: step with real command and directory, elapsed, managed output tail (3 lines, more, console), Stop command vs Interrupt, step in words, Move to background for a listening lazybox run (then out of the bar) and the may-never-end hint for a shell step, sub-agents in the bar, reduced motion, phone width, leaves when the turn ends. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}
