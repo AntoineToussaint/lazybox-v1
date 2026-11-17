@@ -36,6 +36,11 @@ export interface StepContext {
    * scenario's clock advances by it either way, so times read the same.
    */
   pause(seconds: number): Promise<void>;
+  /**
+   * Real time passing, in a test too, the clock ticking each second: for what
+   * the app measures by its own polls (a run long enough to take the console).
+   */
+  hold(seconds: number): Promise<void>;
   /** A pause of video only (a beat between actions); the clock does not move. */
   beat(seconds: number): Promise<void>;
   /** Records a named check in the report; throws (failing the step) when it fails. */

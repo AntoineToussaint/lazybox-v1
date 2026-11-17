@@ -37,6 +37,10 @@ test('a command reads as its program and what it acts on, never a script', () =>
     ['gh pr view 1963 --json title', 'gh pr view'],
     ['cargo test -p lazybox-core 2>&1 | tail -30', 'cargo test'],
     ['node --import tsx --test scripts/activity-detail.test.ts', 'node …/activity-detail.test.ts'],
+    // `lazybox run` reads as what it runs, past its `--`.
+    ['lazybox run -- go test ./...', 'lazybox run go test ./...'],
+    ['lazybox run --raw -- npm run test:client -- --watch', 'lazybox run npm run test:client'],
+    ['lazybox run go test ./ledger/...', 'lazybox run go test ./ledger/...'],
   ];
   for (const [command, short] of cases) assert.equal(shortCommand(command), short, command);
   assert.ok(shortCommand('x'.repeat(200)).length <= 60, 'bounded');

@@ -174,6 +174,10 @@ export async function runScenario(stage: Stage, name: string, scenario: Scenario
         if (!options.video) { clock.advance(left); await syncPage(); return; }
         while (left > 0) { const chunk = Math.min(1000, left); await sleep(chunk); clock.advance(chunk); left -= chunk; await syncPage(); }
       },
+      async hold(seconds) {
+        let left = Math.max(0, seconds * 1000);
+        while (left > 0) { const chunk = Math.min(1000, left); await sleep(chunk); clock.advance(chunk); left -= chunk; await syncPage(); }
+      },
       async beat(seconds) { if (options.video && seconds > 0) await sleep(seconds * 1000); },
       async check(description, assertion) {
         try { await assertion(); checks.push({ description, passed: true }); }

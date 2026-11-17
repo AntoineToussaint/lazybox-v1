@@ -563,6 +563,11 @@ export function shortCommand(command: string): string {
   const parsed = parseCommand(command);
   if (!parsed) return clip(firstLogicalLine(command) || command.trim(), 60);
   const { program, words, written } = parsed;
+  // `lazybox run [options] -- go test ./...` reads as what it runs: `lazybox run go test ./...`.
+  if (program === 'lazybox' && words[0] === 'run') {
+    const at = words.indexOf('--'), inner = at >= 0 ? words.slice(at + 1) : words.slice(1).filter(w => !w.startsWith('-'));
+    if (inner.length) return clip(`lazybox run ${shortCommand(inner.join(' '))}`, 60);
+  }
   const plain = plainWords(program, words);
   let rest: string[];
   if (program in SUBCOMMANDS) {
