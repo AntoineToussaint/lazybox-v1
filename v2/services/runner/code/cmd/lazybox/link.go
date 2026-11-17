@@ -107,6 +107,10 @@ func (c *cli) link(args []string) error {
 	if looksLikeItemURL(args) {
 		return c.linkItem(args)
 	}
+	if c.insideLazybox() {
+		fmt.Fprintln(c.stderr, itemsUsage)
+		return fail(exitUsage, "in an agent, lazybox link takes the URL of a pull request or issue to track: lazybox link https://github.com/OWNER/REPO/pull/N")
+	}
 	f := c.flags("link")
 	dir := f.String("dir", "", "directory to link lazybox into (default /usr/local/bin when writable, else ~/.local/bin)")
 	shell := f.String("shell", "", "shell to install completions for: zsh, bash or fish (default: your login shell)")

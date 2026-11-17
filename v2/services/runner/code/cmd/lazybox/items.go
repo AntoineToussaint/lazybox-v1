@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	workitems "github.com/AntoineToussaint/lazybox/v2/internal/runner/items"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 )
 
@@ -19,15 +20,38 @@ const itemsUsage = `Usage:
   lazybox link <pull request or issue URL> [--role delivers|mentions] [--workspace W]
   lazybox items [--workspace W | --all]`
 
-// looksLikeItemURL tells `lazybox link URL` from `lazybox link` (the CLI on PATH).
+// looksLikeItemURL tells `lazybox link URL` from `lazybox link` (the CLI on
+// PATH): a URL anywhere, with or without its scheme, or an item flag. Linking
+// the CLI takes no URL, so its refusal outside a release never meets one.
 func looksLikeItemURL(args []string) bool {
 	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			continue
+		name, _, _ := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if strings.HasPrefix(a, "-") && (name == "role" || name == "workspace") {
+			return true
 		}
-		return strings.HasPrefix(a, "https://") || strings.HasPrefix(a, "http://")
+		if !strings.HasPrefix(a, "-") && (strings.Contains(a, "://") || strings.HasPrefix(strings.TrimPrefix(a, "www."), "github.com/")) {
+			return true
+		}
 	}
 	return false
+}
+
+// itemURL is the URL as the Runner resolves it: https, with its scheme.
+func itemURL(arg string) string {
+	arg = strings.TrimSpace(arg)
+	if rest, ok := strings.CutPrefix(arg, "http://"); ok {
+		arg = "https://" + rest
+	}
+	if !strings.Contains(arg, "://") {
+		arg = "https://" + arg
+	}
+	return strings.Replace(arg, "https://www.github.com/", "https://github.com/", 1)
+}
+
+// insideLazybox: an agent, whose `lazybox link` can only mean an item (a
+// person in a workspace terminal may still put the CLI on PATH).
+func (c *cli) insideLazybox() bool {
+	return c.getenv("LAZYBOX_V2_SESSION_ID") != ""
 }
 
 // itemScope is who asks: an agent's own execution, or the workspace a person names.
@@ -77,15 +101,17 @@ func (c *cli) linkItem(args []string) error {
 	if err != nil {
 		return err
 	}
-	links, err := got(cl.LinkItem(c.ctx, connect.NewRequest(&pb.LinkItemRequest{SessionId: session, CollectionId: collection, Url: positional[0], Role: *role})))
+	url := itemURL(positional[0])
+	links, err := got(cl.LinkItem(c.ctx, connect.NewRequest(&pb.LinkItemRequest{SessionId: session, CollectionId: collection, Url: url, Role: *role})))
 	if err != nil {
 		return err
 	}
 	if c.json {
 		return c.printProtoJSON(links)
 	}
+	resolved, _ := workitems.ResolveGitHub(url)
 	for _, l := range links.Links {
-		if l.Item.GetUrl() != "" && strings.HasPrefix(positional[0], strings.TrimRight(l.Item.GetUrl(), "/")) {
+		if l.Item.GetRef().GetKey() == resolved.Ref.Key && l.Item.GetRef().GetProvider() == resolved.Ref.Provider {
 			verb := "Tracking"
 			if l.Role == "mentions" {
 				verb = "Listed (not tracked)"
@@ -94,7 +120,7 @@ func (c *cli) linkItem(args []string) error {
 			return nil
 		}
 	}
-	fmt.Fprintf(c.stdout, "Linked %s.\n", positional[0])
+	fmt.Fprintf(c.stdout, "Linked %s.\n", url)
 	return nil
 }
 
