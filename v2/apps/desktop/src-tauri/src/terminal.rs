@@ -6,8 +6,9 @@
 //!
 //! One narrowly scoped command, `open_terminal`: only the app's own windows
 //! (never a Web panel's viewer, never a console or artifact window) may call
-//! it, and the folder must be inside a workspace the Runner lists right now —
-//! the Runner is asked, never the page. `terminal_apps` reports which of the
+//! it, and the folder must be inside a workspace, or a repository's home
+//! checkout, that the Runner lists right now — the Runner is asked, never the
+//! page. `terminal_apps` reports which of the
 //! known terminals are installed, for Settings.
 use crate::host::Host;
 use serde::{Deserialize, Serialize};
@@ -189,7 +190,10 @@ fn inside(path: &Path, roots: &[PathBuf]) -> Result<PathBuf, String> {
     if within {
         Ok(dir)
     } else {
-        Err("Lazybox opens a terminal only in a workspace's folder".into())
+        Err(
+            "Lazybox opens a terminal only in a workspace's folder or a repository's home checkout"
+                .into(),
+        )
     }
 }
 
@@ -234,6 +238,51 @@ async fn workspace_roots(url: &str, token: &str) -> Result<Vec<PathBuf>, String>
     Ok(roots_of(list))
 }
 
+#[derive(Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct Repository {
+    home_path: String,
+}
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Repositories {
+    repositories: Vec<Repository>,
+}
+
+/// Every repository's home checkout the Runner records now (the person's own
+/// clone outside the workspaces; WORKSPACES.md, "Home checkouts"). A Runner
+/// that does not answer adds none: the workspaces still open.
+async fn home_roots(url: &str, token: &str) -> Vec<PathBuf> {
+    use tauri_plugin_http::reqwest;
+    let Ok(response) = reqwest::Client::new()
+        .post(format!("{url}{}ListRepositories", crate::RPC_PATH))
+        .bearer_auth(token)
+        .header("Content-Type", "application/json")
+        .body("{}")
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+    else {
+        return Vec::new();
+    };
+    if !response.status().is_success() {
+        return Vec::new();
+    }
+    match response.bytes().await {
+        Ok(bytes) => homes_of(serde_json::from_slice(&bytes).unwrap_or_default()),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn homes_of(list: Repositories) -> Vec<PathBuf> {
+    list.repositories
+        .into_iter()
+        .map(|r| r.home_path)
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
+
 fn roots_of(list: Collections) -> Vec<PathBuf> {
     list.collections
         .into_iter()
@@ -268,7 +317,8 @@ pub async fn open_terminal(
         let connection = host.connection.lock().map_err(|e| e.to_string())?;
         (connection.url.clone(), connection.token.clone())
     };
-    let roots = workspace_roots(&url, &token).await?;
+    let mut roots = workspace_roots(&url, &token).await?;
+    roots.extend(home_roots(&url, &token).await);
     let dir = inside(Path::new(&request.path), &roots)?;
     let plan = launch(
         &request.app,
@@ -404,6 +454,15 @@ mod tests {
         for bad in ["", "   ", "a\nb", "a\0b", &"x".repeat(COMMAND_LIMIT + 1)] {
             assert!(launch("custom", bad, dir, None).is_err(), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn repository_listing_reads_home_checkouts() {
+        let list: Repositories = serde_json::from_str(
+            r#"{"repositories":[{"id":"a","path":"/state/a.git","homePath":"/u/lazybox/repos/acme/api"},{"id":"b","path":"/src/b"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(homes_of(list), [PathBuf::from("/u/lazybox/repos/acme/api")]);
     }
 
     #[test]
