@@ -180,7 +180,8 @@ try {
   await inbox.locator('.inbox-row').filter({hasText: 'Index the API'}).click();
   await expect(inbox).toHaveCount(0);
 
-  assert.deepEqual(f.mutations, [], 'the inbox never starts, stops or answers an agent');
+  // Settings → Notifications saves to settings.yaml (UpdateConfigFile, package C): a preference, not an agent action.
+  assert.deepEqual(f.mutations.filter(m => m.method !== 'UpdateConfigFile'), [], 'the inbox never starts, stops or answers an agent');
   assert.deepEqual(errors, []);
   console.log('PASS inbox: counts across workspaces, grouping, j/k/m/Enter, open in workspace, seen on view, sidebar unread, notifications on watched transitions only, notification click, settings, phone.');
 } finally { await browser?.close(); await server.close(); await f.close(); }
