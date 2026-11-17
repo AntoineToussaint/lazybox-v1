@@ -93,14 +93,39 @@ func ourCLI(link, cli string) bool {
 	return target == cli || strings.HasSuffix(target, "/Contents/Resources/runtime/bin/lazybox")
 }
 
+// replaceWithLink points link at target atomically: a new symlink renamed
+// over whatever was there.
+func replaceWithLink(link, target string) error {
+	temporary := link + ".lazybox-new"
+	_ = os.Remove(temporary)
+	if err := os.Symlink(target, temporary); err != nil {
+		return err
+	}
+	if err := os.Rename(temporary, link); err != nil {
+		_ = os.Remove(temporary)
+		return err
+	}
+	return nil
+}
+
+func exists(path string) bool { _, err := os.Lstat(path); return err == nil }
+
 type linkResult struct {
-	Link       string   `json:"link"`
-	Target     string   `json:"target"`
-	Completion string   `json:"completion,omitempty"`
-	OnPath     bool     `json:"onPath"`
-	Shadowed   string   `json:"shadowedBy,omitempty"`
-	Hints      []string `json:"hints,omitempty"`
-	DryRun     bool     `json:"dryRun,omitempty"`
+	Link   string `json:"link"`
+	Target string `json:"target"`
+	// Alias is the lazybox-v2 link beside Link, which V1 cannot shadow.
+	Alias      string `json:"alias,omitempty"`
+	Completion string `json:"completion,omitempty"`
+	// OnPath and Shadowed are judged against the person's login-shell PATH
+	// (personPath), not this process's.
+	OnPath   bool   `json:"onPath"`
+	Shadowed string `json:"shadowedBy,omitempty"`
+	// ShadowedWhat says what the other lazybox is ("V1's lazybox (the Homebrew formula)").
+	ShadowedWhat string `json:"shadowedWhat,omitempty"`
+	// PathProblem: the login shell's PATH could not be read, so this process's was used.
+	PathProblem string   `json:"pathProblem,omitempty"`
+	Hints       []string `json:"hints,omitempty"`
+	DryRun      bool     `json:"dryRun,omitempty"`
 }
 
 func (c *cli) link(args []string) error {
@@ -145,6 +170,12 @@ func (c *cli) link(args []string) error {
 			return fail(exitFailure, "%s is already a %s that is not Lazybox's (perhaps the V1 lazybox TUI); pass --force to replace it, or --dir to link elsewhere", res.Link, kind)
 		}
 	}
+	// lazybox-v2 beside it, unless something else has that name there.
+	if alias := filepath.Join(target, aliasName); *force || !exists(alias) || ourCLI(alias, in.Layout.CLI()) {
+		res.Alias = alias
+	} else {
+		res.Hints = append(res.Hints, fmt.Sprintf("%s is not Lazybox's, so it was left alone (--force replaces it)", alias))
+	}
 	if *shell == "" {
 		*shell = filepath.Base(c.getenv("SHELL"))
 	}
@@ -163,7 +194,12 @@ func (c *cli) link(args []string) error {
 			}
 		}
 	}
-	res.OnPath = slices.Contains(filepath.SplitList(c.getenv("PATH")), target)
+	path, problem := c.personPath(c.ctx, in)
+	if problem != "" {
+		res.PathProblem = problem
+		res.Hints = append(res.Hints, "could not read your login shell's PATH ("+problem+"), so this checked the PATH lazybox was started with")
+	}
+	res.OnPath = slices.ContainsFunc(filepath.SplitList(path), func(dir string) bool { return dir != "" && filepath.Clean(dir) == filepath.Clean(target) })
 	if !res.OnPath {
 		line := `export PATH="` + target + `:$PATH"`
 		rc := "~/.zshrc"
@@ -175,28 +211,33 @@ func (c *cli) link(args []string) error {
 		}
 		res.Hints = append(res.Hints, fmt.Sprintf("%s is not on your PATH: add `%s` to %s and open a new terminal", target, line, rc))
 	}
-	if found, err := c.setup().lookPath("lazybox"); err == nil && filepath.Dir(found) != target {
-		if resolved, _ := filepath.EvalSymlinks(found); resolved != in.Layout.CLI() {
-			res.Shadowed = found
-			res.Hints = append(res.Hints, found+" comes first on your PATH, so `lazybox` runs that one; remove it or link with --dir into an earlier directory")
+	if found := shadowedBefore(path, target, in.Layout.CLI()); found != "" {
+		res.Shadowed, res.ShadowedWhat = found, whichLazybox(found)
+		use := "Run `" + aliasName + "` instead, which always runs this release"
+		if res.Alias == "" || !res.OnPath {
+			use = "Run this release as " + in.Layout.CLI()
 		}
+		way := "or link this release into a directory earlier on your PATH (`lazybox link --dir <dir>`)"
+		if strings.Contains(res.ShadowedWhat, "Homebrew formula") {
+			way = "or remove V1 with `brew uninstall lazybox`"
+		}
+		res.Hints = append(res.Hints, fmt.Sprintf("`lazybox` in your terminal runs %s at %s, which comes first on your PATH. %s, %s.", res.ShadowedWhat, found, use, way))
 	}
 	if !*dryRun {
 		if err = os.MkdirAll(target, 0o755); err != nil {
 			return err
 		}
-		temporary := res.Link + ".lazybox-new"
-		_ = os.Remove(temporary)
-		if err = os.Symlink(in.Layout.CLI(), temporary); err != nil {
-			return err
-		}
-		if err = os.Rename(temporary, res.Link); err != nil {
-			_ = os.Remove(temporary)
-			return err
-		}
 		record := readRecord(in.Paths)
-		if !slices.Contains(record.Links, res.Link) {
-			record.Links = append(record.Links, res.Link)
+		for _, link := range []string{res.Link, res.Alias} {
+			if link == "" {
+				continue
+			}
+			if err = replaceWithLink(link, in.Layout.CLI()); err != nil {
+				return err
+			}
+			if !slices.Contains(record.Links, link) {
+				record.Links = append(record.Links, link)
+			}
 		}
 		if res.Completion != "" {
 			if err = os.MkdirAll(filepath.Dir(res.Completion), 0o755); err != nil {
@@ -218,6 +259,9 @@ func (c *cli) link(args []string) error {
 	}
 	verb := map[bool]string{true: "Would link", false: "Linked"}[*dryRun]
 	c.out("%s %s %s → %s\n", c.paint(green, "✓"), verb, res.Link, res.Target)
+	if res.Alias != "" {
+		c.out("%s %s %s → %s\n", c.paint(green, "✓"), verb, res.Alias, res.Target)
+	}
 	if res.Completion != "" {
 		c.out("%s %s %s completions: %s\n", c.paint(green, "✓"), map[bool]string{true: "Would install", false: "Installed"}[*dryRun], *shell, res.Completion)
 	}

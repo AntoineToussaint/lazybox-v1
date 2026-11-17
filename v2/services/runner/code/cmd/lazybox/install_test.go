@@ -24,12 +24,15 @@ type release struct {
 	loaded  bool
 	calls   []string
 	ready   string // the version the "started" Runner answers with
-	path    string // the person's PATH
+	path    string // the PATH lazybox was started with (the app's, say)
+	// shell is the login shell's PATH, the one a terminal gets; shellProblem
+	// makes reading it fail.
+	shell, shellProblem string
 }
 
 func newRelease(t *testing.T, version string) *release {
 	t.Helper()
-	r := &release{t: t, home: t.TempDir(), ready: version}
+	r := &release{t: t, home: t.TempDir(), ready: version, shell: "/usr/bin:/bin"}
 	r.runtime = installation.Layout{Root: filepath.Join(t.TempDir(), "Lazybox.app", "Contents", "Resources", "runtime")}
 	r.write(version)
 	var err error
@@ -76,16 +79,13 @@ func (r *release) setup() setup {
 		installer: func() (installation.Installer, error) {
 			return installation.Installer{Paths: r.paths, Layout: r.runtime, Launchd: installation.Launchd{Domain: "gui/501", Run: r.launchctl},
 				Shell: func(context.Context) installation.ShellEnvironment {
-					return installation.ShellEnvironment{Path: "/usr/bin:/bin"}
+					if r.shellProblem != "" {
+						return installation.ShellEnvironment{Shell: "/bin/zsh", Problem: r.shellProblem}
+					}
+					return installation.ShellEnvironment{Shell: "/bin/zsh", Path: r.shell}
 				}}, nil
 		},
 		ready: func(context.Context, string, string) (string, error) { return r.ready, nil },
-		lookPath: func(name string) (string, error) {
-			if p := lookIn(name, r.path); p != "" {
-				return p, nil
-			}
-			return "", errors.New("not found")
-		},
 	}
 }
 
@@ -223,6 +223,19 @@ func TestDoctorChecksTheInstallationAndNamesTheFix(t *testing.T) {
 	}
 	if status["versions"].Fix == "" || !strings.Contains(status["versions"].Detail, "0.3.0") {
 		t.Errorf("versions: %+v", status["versions"])
+	}
+	// Whether agents can start work comes from the Runner's provider availability.
+	signIn := 0
+	for id, k := range status {
+		if strings.HasPrefix(id, "signin") {
+			signIn++
+			if id == "signin" {
+				t.Errorf("could not ask the Runner for sign-in: %+v", k)
+			}
+		}
+	}
+	if signIn == 0 && status["claude"].Status == checkOK {
+		t.Errorf("Claude Code runs but doctor says nothing of its sign-in: %+v", report.Checks)
 	}
 	if report.Healthy || got.code != exitFailure {
 		t.Fatalf("a failing check reported healthy: %+v", got)

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -29,8 +28,6 @@ type setup struct {
 	// ready waits for the service's Runner to answer, given the bearer the
 	// previous one held; it returns that Runner's version.
 	ready func(ctx context.Context, endpoint, previousToken string) (string, error)
-	// lookPath resolves a program on the person's PATH.
-	lookPath func(string) (string, error)
 }
 
 func defaultSetup(getenv func(string) string) setup {
@@ -52,8 +49,7 @@ func defaultSetup(getenv func(string) string) setup {
 					return installation.ReadShellEnvironment(ctx, getenv)
 				}}, nil
 		},
-		ready:    waitForRunner,
-		lookPath: exec.LookPath,
+		ready: waitForRunner,
 	}
 }
 
@@ -201,6 +197,12 @@ func (c *cli) serviceInstall(ctx context.Context, in installation.Installer, sta
 		c.note("%s %s; agents get a standard PATH (see `lazybox doctor`).\n", c.paint(yellow, "!"), result.Shell.Problem)
 	}
 	report := map[string]any{"version": result.Service.Version, "plist": in.Paths.Plist, "endpoint": in.Paths.Endpoint(), "log": in.Paths.Log(), "started": result.Started, "restarted": result.Restarted}
+	if result.Shell.Problem != "" {
+		// The app's setup window shows it: agents then get a standard PATH,
+		// which may lack the person's tools.
+		report["shellProblem"] = result.Shell.Problem
+		report["shell"] = result.Shell.Shell
+	}
 	if result.Previous != nil {
 		report["previousVersion"] = result.Previous.Version
 	}

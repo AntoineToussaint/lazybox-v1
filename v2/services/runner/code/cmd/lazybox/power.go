@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/installation"
 	"golang.org/x/term"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -122,6 +123,8 @@ type cli struct {
 	json bool
 	// install finds the release and the system around it (install.go).
 	install setup
+	// shellEnv is the login shell's environment, read once (personPath).
+	shellEnv *installation.ShellEnvironment
 	// last is the client the verb dialed, to explain its failure.
 	last *client
 }

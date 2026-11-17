@@ -181,11 +181,31 @@ func (c *cli) diagnose(ctx context.Context) []check {
 				add(check{ID: "github", Title: "GitHub", Status: checkWarn, Detail: detail, Fix: "Settings → GitHub in the app"})
 			}
 		}
+		// Whether each agent can start work: the Runner's own provider
+		// availability, the check New conversation and Ask Lazybox use.
+		if t, err := loadTarget("", in.Paths.Endpoint(), false); err == nil {
+			probe, cancel := context.WithTimeout(ctx, 30*time.Second)
+			av, err := dial(t).GetProviderAvailability(probe, connect.NewRequest(&pb.ProviderAvailabilityRequest{}))
+			cancel()
+			if err != nil {
+				add(check{ID: "signin", Title: "Agents' sign-in", Status: checkWarn, Detail: "could not ask the Runner: " + err.Error()})
+			} else {
+				for _, p := range av.Msg.Providers {
+					if k, ok := signInCheck(p); ok {
+						add(k)
+					}
+				}
+			}
+		}
 	}
 
-	// Room to work.
+	// Room to work, and the person's own shell.
 	add(diskCheck(in.Paths.Support))
-	add(c.pathCheck(in))
+	add(c.shellCheck(ctx, in))
+	if k, ok := c.servicePathCheck(ctx, in, report.Path); ok {
+		add(k)
+	}
+	add(c.pathCheck(ctx, in))
 	return checks
 }
 
@@ -211,6 +231,68 @@ func agentCLICheck(a *pb.AgentCliCheck) check {
 		k.Status, k.Detail = checkOK, a.Cli
 	}
 	return k
+}
+
+// signInCheck is one line per installed Claude Code or Codex: whether a
+// subscription can take work now, from the Runner's provider availability.
+// ACP agents sign in their own ways and are left out, as are providers that
+// are not installed (providerCheck says so).
+func signInCheck(p *pb.ProviderStatus) (check, bool) {
+	if p.GetAcp() != nil || !p.GetInstalled() || p.GetState() == "not_installed" {
+		return check{}, false
+	}
+	title := map[string]string{"claude": "Claude sign-in", "codex": "Codex sign-in"}[p.GetProvider()]
+	if title == "" {
+		title = p.GetTitle() + " sign-in"
+	}
+	k := check{ID: "signin-" + p.GetProvider(), Title: title, Status: checkWarn}
+	signIn := map[string]string{
+		"claude": "Settings → Subscriptions → Add subscription → Claude, or `claude` then /login in a terminal",
+		"codex":  "Settings → Subscriptions → Add subscription → Codex, or `codex login` in a terminal",
+	}[p.GetProvider()]
+	var usable, others []string
+	for _, s := range p.GetSubscriptions() {
+		label := firstNonEmpty(s.GetLabel(), "your CLI's sign-in")
+		switch s.GetState() {
+		case "available":
+			usable = append(usable, label)
+		case "unverified":
+			usable = append(usable, label+" (not checked yet)")
+		default:
+			why := firstNonEmpty(s.GetDetail(), s.GetState())
+			if !strings.EqualFold(why, "not signed in") {
+				others = append(others, label+": "+why)
+			}
+		}
+	}
+	why := func(lead string) string {
+		if len(others) == 0 {
+			return lead
+		}
+		return lead + " (" + strings.Join(others, "; ") + ")"
+	}
+	switch p.GetState() {
+	case "ready":
+		k.Status, k.Detail = checkOK, strings.Join(usable, ", ")
+	case "no_subscription", "sign_in":
+		k.Detail, k.Fix = why("not signed in"), signIn
+	case "limited":
+		k.Detail, k.Fix = why("every subscription is at its limit"), "Wait for the reset Settings → Subscriptions shows, or add another subscription there"
+	case "billing":
+		k.Detail, k.Fix = why("a billing problem"), "Check the account's plan and billing with the provider"
+	default:
+		k.Detail = firstNonEmpty(p.GetError(), p.GetState())
+	}
+	return k, true
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (c *cli) providerCheck(ctx context.Context, id, title, bundled, servicePath string) check {
@@ -279,14 +361,60 @@ func diskCheck(dir string) check {
 	return check{ID: "disk", Title: "Disk", Status: checkOK, Detail: detail}
 }
 
-func (c *cli) pathCheck(in installation.Installer) check {
-	found, err := c.setup().lookPath("lazybox")
-	if err != nil {
-		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: "not on your PATH", Fix: "`" + in.Layout.CLI() + " link`, or Settings → About in the app"}
+// shellCheck says whether the login shell's PATH could be read: the service
+// install and the PATH checks below depend on it.
+func (c *cli) shellCheck(ctx context.Context, in installation.Installer) check {
+	_, problem := c.personPath(ctx, in)
+	shell := c.shellEnv.Shell
+	if shell == "" {
+		shell = c.getenv("SHELL")
 	}
-	resolved, _ := filepath.EvalSymlinks(found)
-	if resolved != in.Layout.CLI() {
-		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: found + " is another lazybox (an older release or the V1 TUI)", Fix: "`" + in.Layout.CLI() + " link --dir <a directory earlier on PATH>`"}
+	if problem != "" {
+		return check{ID: "shell", Title: "Login shell", Status: checkWarn, Detail: shell + ": " + problem + "; agents get a standard PATH", Fix: "`" + shell + " -l -i -c true` must finish within a few seconds without asking anything; then `lazybox service install`"}
+	}
+	return check{ID: "shell", Title: "Login shell", Status: checkOK, Detail: shell + ": PATH read"}
+}
+
+// servicePathCheck compares the PATH the Runner gives agents (read from the
+// login shell when the service was installed) with the login shell's now:
+// a directory added since, such as a new version manager's, is missing for
+// agents until the service is installed again.
+func (c *cli) servicePathCheck(ctx context.Context, in installation.Installer, servicePath string) (check, bool) {
+	path, problem := c.personPath(ctx, in)
+	if problem != "" || servicePath == "" {
+		return check{}, false
+	}
+	have := map[string]bool{}
+	for _, dir := range filepath.SplitList(servicePath) {
+		have[filepath.Clean(dir)] = true
+	}
+	var missing []string
+	for _, dir := range filepath.SplitList(installation.ServicePath(path, in.Paths.Home)) {
+		if !have[filepath.Clean(dir)] {
+			missing = append(missing, dir)
+		}
+	}
+	if len(missing) > 0 {
+		return check{ID: "service-path", Title: "Agents' PATH", Status: checkWarn, Detail: "lacks " + strings.Join(missing, ", ") + ", which your login shell has", Fix: "`lazybox service install` reads your shell's PATH again; agents keep running"}, true
+	}
+	return check{ID: "service-path", Title: "Agents' PATH", Status: checkOK, Detail: "your login shell's PATH"}, true
+}
+
+// pathCheck says which lazybox a terminal runs, on the person's login-shell
+// PATH: V1's Homebrew formula in /opt/homebrew/bin usually comes before the
+// directory Lazybox links into.
+func (c *cli) pathCheck(ctx context.Context, in installation.Installer) check {
+	path, _ := c.personPath(ctx, in)
+	cli := in.Layout.CLI()
+	found, ours := runsOn("lazybox", path, cli)
+	switch {
+	case found == "":
+		if alias, ours := runsOn(aliasName, path, cli); ours {
+			return check{ID: "cli", Title: "lazybox on PATH", Status: checkOK, Detail: "as `" + aliasName + "` (" + alias + ")"}
+		}
+		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: "not on your PATH", Fix: "`" + cli + " link`, or Settings → About in the app"}
+	case !ours:
+		return check{ID: "cli", Title: "lazybox on PATH", Status: checkWarn, Detail: "`lazybox` runs " + whichLazybox(found) + " at " + found + ", which comes first on your PATH", Fix: shadowAdvice(found, path, cli)}
 	}
 	return check{ID: "cli", Title: "lazybox on PATH", Status: checkOK, Detail: found}
 }

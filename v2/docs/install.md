@@ -21,7 +21,8 @@ brew install --cask AntoineToussaint/lazybox/lazybox-v2
 ```
 
 Open Lazybox from Applications once afterwards: the first launch sets up the
-Runner (below).
+Runner (below). The cask also puts the CLI on your PATH as `lazybox-v2`, a
+name V1's `lazybox` formula cannot take over.
 
 ### Unsigned builds
 
@@ -56,10 +57,13 @@ The first time Lazybox opens it explains, once, what it needs to set up:
   they **keep working when you close the window or quit Lazybox**. It starts
   when you log in, answers only on this Mac (loopback), and keeps its data in
   `~/Library/Application Support/Lazybox`.
-- **The `lazybox` command** (optional, ticked by default): a link in
-  `/usr/local/bin` when you can write there without a password, otherwise in
-  `~/.local/bin`, plus completions for your shell. If that directory is not
-  on your PATH, Lazybox says which line to add.
+- **The `lazybox` command** (optional, ticked by default): `lazybox` and
+  `lazybox-v2` links in `/usr/local/bin` when you can write there without a
+  password, otherwise in `~/.local/bin`, plus completions for your shell. If
+  that directory is not on your PATH, Lazybox says which line to add. If
+  another `lazybox` comes first on your PATH (V1's Homebrew formula, in
+  `/opt/homebrew/bin`), it says that `lazybox` runs V1 there: use
+  `lazybox-v2`, which always runs this release.
 
 Choose **Set up Lazybox**; when it says the Runner is running, **Open
 Lazybox**. Closing the window instead quits without changing anything, and
@@ -187,8 +191,10 @@ lazybox doctor
 
 It checks the release, the service, the endpoint, that app, CLI and Runner
 are the same version, the bundled Node and Claude worker, Claude Code, Codex,
-`git` and `gh` on the PATH agents get, your GitHub connection and free disk
-space, and prints the fix next to anything that is not right. The app's setup
+`git` and `gh` on the PATH agents get, your GitHub connection, whether Claude
+Code and Codex are signed in, free disk space, your login shell's PATH (and
+whether agents have all of it), and which `lazybox` your terminal runs, and
+prints the fix next to anything that is not right. The app's setup
 window runs the same checks (**Run diagnostics**) when it cannot reach the
 Runner.
 
@@ -196,7 +202,7 @@ Runner.
 | --- | --- |
 | "Lazybox can't reach its Runner" | **Start the Runner**; if it stops again, **Show log** (or `lazybox service logs`). |
 | An agent cannot find `codex`, `gh`, `npm`… | The Runner's PATH comes from your login shell when the service was installed. Fix your shell's PATH, then `lazybox service install`. |
-| `lazybox` runs something else | Another `lazybox` (for example the V1 TUI) comes first on PATH. `lazybox doctor` names it; `lazybox link --dir <earlier directory>`. |
+| `lazybox` runs something else | Another `lazybox` comes first on your PATH, usually V1's Homebrew formula in `/opt/homebrew/bin`. `lazybox-v2 doctor` names it. Use `lazybox-v2`, remove V1 (`brew uninstall lazybox`), or `lazybox-v2 link --dir <earlier directory>`. |
 | Versions differ in Settings → Updates | **Move the Runner now** there, or quit and reopen Lazybox: it moves the Runner to its own version. Or `lazybox service install`. Agents keep running. |
 | macOS will not open the app | An unsigned build: see [Unsigned builds](#unsigned-builds). |
 

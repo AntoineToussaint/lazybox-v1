@@ -12,8 +12,11 @@ import './first-run.css';
 type ServiceStatus = { installed: boolean; loaded: boolean; running: boolean; reachable: boolean; version: string; runnerVersion: string; endpoint: string; log: string; state?: string; problem: string; unstable: string };
 type SetupState = { version: string; app: string; status: ServiceStatus };
 type Check = { id: string; title: string; status: 'ok' | 'warn' | 'fail'; detail: string; fix?: string };
-type LinkReport = { link?: string; completion?: string; hints?: string[]; error?: string };
-type Phase = { kind: 'idle' } | { kind: 'working'; text: string } | { kind: 'done'; link?: LinkReport } | { kind: 'failed'; message: string };
+/** `lazybox link --json`: judged against the person's login-shell PATH, not the app's. */
+type LinkReport = { link?: string; alias?: string; completion?: string; onPath?: boolean; shadowedBy?: string; shadowedWhat?: string; hints?: string[]; error?: string };
+/** `lazybox service install --json`; shellProblem: the login shell's PATH could not be read. */
+type InstallReport = { shellProblem?: string };
+type Phase = { kind: 'idle' } | { kind: 'working'; text: string } | { kind: 'done'; link?: LinkReport; shellProblem?: string } | { kind: 'failed'; message: string };
 
 export function FirstRun() {
   const [state, setState] = useState<SetupState>();
@@ -32,8 +35,8 @@ export function FirstRun() {
     setChecks(undefined);
     setPhase({ kind: 'working', text: state?.status.installed ? 'Reinstalling the Runner…' : 'Setting up the Runner…' });
     try {
-      const result = await invoke<{ link?: LinkReport | null }>('setup_install', { linkCli: linkCli && !state?.status.installed });
-      setPhase({ kind: 'done', link: result.link || undefined });
+      const result = await invoke<{ service?: InstallReport; link?: LinkReport | null }>('setup_install', { linkCli: linkCli && !state?.status.installed });
+      setPhase({ kind: 'done', link: result.link || undefined, shellProblem: result.service?.shellProblem });
       await load();
     } catch (e) { setPhase({ kind: 'failed', message: String(e) }); }
   };
@@ -79,7 +82,7 @@ export function FirstRun() {
         <li><strong>You stay in control:</strong> Settings → About, or <code>lazybox service stop</code>, stops or removes it.</li>
       </ul>
       <label className="first-run-option"><input type="checkbox" checked={linkCli} disabled={busy} onChange={e => setLinkCli(e.target.checked)}/>
-        <span>Add the <code>lazybox</code> command to your terminal<small>Links it into /usr/local/bin or ~/.local/bin, with completions for your shell. No password needed.</small></span>
+        <span>Add the <code>lazybox</code> command to your terminal<small>Links <code>lazybox</code> and <code>lazybox-v2</code> into /usr/local/bin or ~/.local/bin, with completions for your shell. No password needed.</small></span>
       </label>
     </section>}
 
@@ -87,10 +90,8 @@ export function FirstRun() {
     {phase.kind === 'failed' && <p className="first-run-error" role="alert">{phase.message}</p>}
     {phase.kind === 'done' && <section className="first-run-done" role="status">
       <p>✓ The Runner is running.</p>
-      {phase.link && (phase.link.error ? <p className="first-run-muted">The lazybox command was not linked: {phase.link.error}</p> : <>
-        <p className="first-run-muted">✓ <code>lazybox</code> is linked at {phase.link.link}.</p>
-        {phase.link.hints?.map(h => <p key={h} className="first-run-hint">{h}</p>)}
-      </>)}
+      {phase.link && (phase.link.error ? <p className="first-run-muted">The lazybox command was not linked: {phase.link.error}</p> : <LinkDone link={phase.link}/>)}
+      {phase.shellProblem && <p className="first-run-hint">Lazybox could not read your shell's PATH ({phase.shellProblem}), so agents get a standard one and may not find your tools. <code>lazybox doctor</code> says more.</p>}
     </section>}
     {checks && <ul className="first-run-checks" aria-label="Diagnostics">{checks.map(k => <li key={k.id} className={`check-${k.status}`}>
       <span aria-hidden="true">{k.status === 'ok' ? '✓' : k.status === 'warn' ? '!' : '✗'}</span><strong>{k.title}</strong> {k.detail}{k.fix && <small>{k.fix}</small>}
@@ -112,6 +113,24 @@ export function FirstRun() {
       <button disabled={busy} onClick={quit}>Quit</button>
     </div>
   </main>;
+}
+
+/**
+ * What linking did. When another `lazybox` comes first on the person's PATH
+ * (V1's Homebrew formula, usually), typing `lazybox` runs that one: said
+ * plainly, with the name that always runs this release.
+ */
+function LinkDone({ link }: { link: LinkReport }) {
+  const shadow = link.shadowedBy;
+  return <>
+    <p className="first-run-muted">✓ {link.alias ? <><code>lazybox</code> and <code>lazybox-v2</code> are linked at {link.link?.replace(/\/lazybox$/, '')}.</> : <><code>lazybox</code> is linked at {link.link}.</>}</p>
+    {shadow && <div className="first-run-warning" role="note">
+      <p><strong><code>lazybox</code> in your terminal runs {link.shadowedWhat || 'another lazybox'}</strong> ({shadow}), which comes first on your PATH.</p>
+      <p className="first-run-hint">{link.alias && link.onPath ? <>Use <code>lazybox-v2</code>: it always runs this Lazybox.</> : <>Run this Lazybox's command by its full path until its folder is on your PATH.</>}
+        {link.shadowedWhat?.includes('Homebrew') && <> Or remove V1 with <code>brew uninstall lazybox</code>.</>}</p>
+    </div>}
+    {link.hints?.filter(h => !(shadow && h.includes(shadow))).map(h => <p key={h} className="first-run-hint">{h}</p>)}
+  </>;
 }
 
 function Header({ version }: { version: string }) {
