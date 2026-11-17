@@ -12,7 +12,9 @@
 // A record whose line is incomplete (the process or the machine stopped part
 // way through writing it, or the disk filled) was never acknowledged. Opening
 // the journal for writing truncates it, keeping its bytes beside the segment
-// in `<segment>.torn`; opening it read-only reads up to it.
+// in `<segment>.torn`; opening it read-only reads up to it. A complete record
+// that does not read is damage: opening for writing refuses it, and
+// OpenExisting with Salvage reads up to it.
 package journal
 
 import (
@@ -56,6 +58,7 @@ type Journal struct {
 	size      int64   // the bytes of every segment's complete records
 	limit     int64   // a segment's budget (the whole journal's without Rollover)
 	rollover  bool
+	salvage   bool
 	total     int64 // with Rollover, the budget of every segment together; 0: none
 	notify    chan struct{}
 	closed    bool
@@ -85,12 +88,20 @@ func Rollover(total int64) Option {
 	return func(j *Journal) { j.rollover, j.total = true, total }
 }
 
+// Salvage makes OpenExisting read a journal with a damaged record up to it,
+// instead of refusing it; Damage says why it stopped. Opening for writing
+// still refuses it: nothing may be appended after a damaged record.
+func Salvage() Option {
+	return func(j *Journal) { j.salvage = true }
+}
+
 func Open(path string, limit int64, options ...Option) (*Journal, error) {
 	return open(path, limit, false, options)
 }
 
 // OpenExisting reads retained evidence without creating or changing a file.
-// It reads up to the first record it cannot read; Damage says why it stopped.
+// It reads up to a last record whose write never finished; with Salvage, up
+// to the first record it cannot read.
 func OpenExisting(path string, limit int64, options ...Option) (*Journal, error) {
 	return open(path, limit, true, options)
 }
@@ -166,7 +177,7 @@ func (j *Journal) load(path string, readonly, last bool) (stop bool, err error) 
 	// A record that does not read: refused when writing (nothing may follow
 	// it), the end of what is read otherwise.
 	damaged := func(err error) (bool, error) {
-		if !readonly {
+		if !readonly || !j.salvage {
 			f.Close()
 			return false, err
 		}

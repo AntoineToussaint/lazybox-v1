@@ -24,5 +24,5 @@ func (b *Bench) openJournal(id string) (*journal.Journal, error) {
 // readJournal opens execution id's event journal read-only, up to the first
 // record it cannot read (journal.Journal.Damage).
 func (b *Bench) readJournal(id string) (*journal.Journal, error) {
-	return journal.OpenExisting(b.journalPath(id), b.Config.EventBudget, b.journalOptions()...)
+	return journal.OpenExisting(b.journalPath(id), b.Config.EventBudget, append(b.journalOptions(), journal.Salvage())...)
 }

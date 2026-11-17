@@ -148,7 +148,8 @@ func TestJournalOfOnlyATornRecordOpensEmpty(t *testing.T) {
 }
 
 // A record that is complete but unreadable is damage, not a torn write: a
-// writer refuses it (nothing may follow it), a reader reads up to it.
+// writer refuses it (nothing may follow it), a reader refuses it too unless
+// it salvages what is before it.
 func TestCorruptRecordStopsAReaderAndRefusesAWriter(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "events")
 	j, err := Open(path, 4096)
@@ -170,7 +171,11 @@ func TestCorruptRecordStopsAReaderAndRefusesAWriter(t *testing.T) {
 		j.Dispose()
 		t.Fatal("appending after a corrupt record")
 	}
-	read, err := OpenExisting(path, 4096)
+	if j, err := OpenExisting(path, 4096); err == nil {
+		j.Dispose()
+		t.Fatal("read a corrupt journal without Salvage")
+	}
+	read, err := OpenExisting(path, 4096, Salvage())
 	if err != nil {
 		t.Fatal(err)
 	}

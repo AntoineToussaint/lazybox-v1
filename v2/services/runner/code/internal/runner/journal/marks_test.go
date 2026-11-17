@@ -57,7 +57,7 @@ func TestMarksAreIndexedOnAppendAndRebuiltOnOpen(t *testing.T) {
 
 // No index is built from a line that is not a record. A journal whose last
 // line was torn (a crash mid-append) opens without it; one with a line that
-// is not a record is refused for writing and read up to it.
+// is not a record is refused for writing and salvaged up to it.
 func TestMarkedJournalIndexesNoTornOrCorruptLine(t *testing.T) {
 	for name, tail := range map[string]string{"torn last line": `{"sequence":3,"value":"tu`, "corrupt line": "not a record\n"} {
 		path := filepath.Join(t.TempDir(), "events")
@@ -77,7 +77,7 @@ func TestMarkedJournalIndexesNoTornOrCorruptLine(t *testing.T) {
 		}
 		_, _ = f.WriteString(tail)
 		_ = f.Close()
-		read, err := OpenExisting(path, 1<<16, turn)
+		read, err := OpenExisting(path, 1<<16, turn, Salvage())
 		if err != nil {
 			t.Fatal(name, err)
 		}
