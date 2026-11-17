@@ -58,14 +58,14 @@ func TestExtensionContentPolicies(t *testing.T) {
 	if resp.StatusCode != 200 || !strings.Contains(body, "shell.js") {
 		t.Fatalf("shell: %d %s", resp.StatusCode, body)
 	}
-	for _, want := range []string{"default-src 'none'", "script-src " + s.Base + "_lazybox/shell.js;", "frame-src " + s.Base + ";", "sandbox allow-scripts", "frame-ancestors http://127.0.0.1:5173", "form-action 'none'"} {
+	for _, want := range []string{"default-src 'none'", "script-src " + s.Base + "_lazybox/shell.js;", "frame-src " + s.Base + ";", "sandbox allow-scripts", "frame-ancestors http://127.0.0.1:5173", "form-action 'none'", "webrtc 'block'"} {
 		if !strings.Contains(shell, want) {
 			t.Errorf("shell policy lacks %q: %s", want, shell)
 		}
 	}
 	resp, _ = get(t, s.Base+"index.html")
 	page := resp.Header.Get("Content-Security-Policy")
-	for _, want := range []string{"default-src 'none'", "script-src " + s.Base + ";", "style-src " + s.Base + ";", "connect-src https://api.example.com;", "frame-src 'none'", "worker-src 'none'", "base-uri 'none'", "form-action 'none'", "sandbox allow-scripts"} {
+	for _, want := range []string{"default-src 'none'", "script-src " + s.Base + ";", "style-src " + s.Base + ";", "connect-src https://api.example.com;", "frame-src 'none'", "worker-src 'none'", "base-uri 'none'", "form-action 'none'", "webrtc 'block'", "sandbox allow-scripts"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page policy lacks %q: %s", want, page)
 		}

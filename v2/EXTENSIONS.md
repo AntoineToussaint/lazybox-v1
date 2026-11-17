@@ -188,10 +188,20 @@ app window (Lazybox origin)
 - An approved extension can send what it may read to the hosts the person
   approved — that is what approving a host and a read grant together means, and
   the sheet says so.
-- WebRTC is not governed by CSP in every engine, and DNS prefetching of a name
-  is not fully preventable: a determined extension could signal a few bits to a
-  resolver it controls. Neither carries a bearer; both need the extension to be
-  installed and approved.
+- WebRTC is not governed by CSP in every engine. Both policies carry
+  `webrtc 'block'` (CSP Level 3), which an engine that implements it enforces
+  (no `RTCPeerConnection` reaches a STUN/TURN server or a peer) and one that
+  does not ignores. Desktop WebKit (WKWebView, through Tauri and wry) offers
+  no public setting to turn WebRTC off, per origin or per web view — only
+  private SPI (`WKPreferences._peerConnectionEnabled`), which Lazybox does not
+  use: it would be a hack, and it would turn WebRTC off for the whole window.
+  So on an engine without the directive, an approved extension could still
+  open a peer connection to a host it chose. DNS prefetching of a name is not
+  fully preventable either: a determined extension could signal a few bits to
+  a resolver it controls. Neither carries a bearer; both need the extension to
+  be installed and approved. **Not verified:** which shipping engines enforce
+  `webrtc 'block'` (the UI suite runs Chromium and checks the header, not the
+  block).
 - A busy loop can freeze the desktop window (above); it cannot read anything
   more by doing so.
 - An agent runs as the person's OS user and can write an extension folder (or
