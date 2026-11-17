@@ -7,26 +7,24 @@
 # | Job        | Runner       | Release gate it mirrors                         |
 # | ---------- | ------------ | ----------------------------------------------- |
 # | plan       | ubuntu-24.04 | reads the catalog; emits the UI shard matrix    |
-# | go         | macos-15     | core: fmt-check, go vet, `make test`, race run  |
+# | go         | macos-15     | core: fmt-check, go vet, `make test`, race run, |
+# |            |              | then the launcher's `make test-environments`    |
 # | generated  | ubuntu-24.04 | core: `make check-generated` (Codefly + Buf)    |
 # | typescript | ubuntu-24.04 | core: `make check-workspaces`                   |
-# | launcher   | macos-15     | core: `make test-environments`                  |
 # | desktop    | macos-15     | native: `make check-desktop`                    |
-# | ui (N)     | macos-15     | ui: every `scope: "ui"` gate, sharded           |
+# | ui (N)     | ubuntu-24.04 | ui: every `scope: "ui"` gate, sharded           |
 #
 # The UI matrix is generated from the catalog (`release-gates.mjs shards`), so a
 # gate added there runs here with no edit to this file. Live/real-provider tests
 # are the catalog's `external` entries and are never selected.
 #
-# macOS where the product's platform matters. The Runner is macOS-only today
+# macOS only for what cannot run elsewhere: the Runner is macOS-only today
 # (`internal/processguard` calls `syscall.Getsid`, which Go defines only for
-# darwin/BSD, so `go vet` fails for GOOS=linux), the launcher and Working
-# packaging refuse other hosts, the Tauri shell embeds WKWebView, and the UI
-# suites drive Playwright WebKit with layout/scroll assertions authored on
-# macOS. Linux carries the platform-independent checks. This repository is
-# public, so standard macOS runners cost no minutes; what binds is the
-# account's 5 concurrent macOS jobs. These are 6 (go, launcher, desktop and
-# UI_SHARDS shards), so the shortest can queue briefly behind the others.
+# darwin/BSD, so `go vet` fails for GOOS=linux), the launcher refuses other
+# hosts, and the Tauri shell embeds WKWebView. The UI suites run on Linux: they
+# drive Playwright against the fixture Runner, and their browsers make the page
+# report macOS (scripts/fixtures/playwright.mjs). Run `make stage` on a Mac
+# before a release: it runs every gate there, UI included.
 #
 # Not run here, with reasons, in v2/RELEASE_GATES.md ("CI").
 
@@ -58,8 +56,8 @@ concurrency:
 env:
   # Dev's installed LTS; package.json's engines floor is 24.
   NODE_VERSION: "26"
-  # Three UI shards keep a shard at about a dozen gates (~13 today), a few
-  # minutes each; more would only queue behind the 5-job macOS limit.
+  # Three UI shards keep a shard at about 40 gates (~115 today), about a
+  # quarter of an hour each on a Linux runner.
   UI_SHARDS: "3"
 
 defaults:
@@ -89,9 +87,9 @@ jobs:
           echo "ui=$matrix" >> "$GITHUB_OUTPUT"
 
   go:
-    name: go (vet, test, race)
+    name: go (vet, test, race, launcher)
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -120,6 +118,13 @@ jobs:
       # on one P: the configuration the release gate runs everything in.
       - name: Race-check the restart packages (GOMAXPROCS=1)
         run: make test-outlive GOMAXPROCS=1
+      # The launcher (environments, service, restart, gates): macOS-only, as
+      # the launcher refuses other hosts.
+      - run: make deps
+      - uses: ./.github/actions/v2-playwright
+        with:
+          browsers: chromium
+      - run: make test-environments
 
   generated:
     name: generated code (Codefly + Buf)
@@ -181,23 +186,6 @@ jobs:
       # typecheck + npm workspace links + test:client + test:worker
       - run: make check-workspaces
 
-  launcher:
-    name: launcher (environments, service, restart, gates)
-    runs-on: macos-15
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: v2/package-lock.json
-      - run: make deps
-      - uses: ./.github/actions/v2-playwright
-        with:
-          browsers: chromium
-      - run: make test-environments
-
   desktop:
     name: desktop (Tauri fmt, test, clippy)
     runs-on: macos-15
@@ -225,8 +213,8 @@ jobs:
   ui:
     name: ui ${{ matrix.shard }}
     needs: plan
-    runs-on: macos-15
-    timeout-minutes: 25
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.ui) }}
@@ -272,7 +260,7 @@ jobs:
   v2-ci:
     name: v2 ci
     if: always()
-    needs: [plan, go, generated, typescript, launcher, desktop, ui]
+    needs: [plan, go, generated, typescript, desktop, ui]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

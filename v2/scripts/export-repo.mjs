@@ -317,8 +317,7 @@ const PATCHES = [
   { file: 'STRUCTURE.md', find: '  scripts/                          viewer, browser checks, generation drift check\n', replace: "  scripts/                          viewer, browser checks, generation drift check\n  tools/lazybox-snippets/           snippet catalog helper linking V1's lazybox-config\n" },
   { file: 'WORKSPACES.md', find: 'helper links the existing `lazybox-config` Rust library so', replace: 'helper (`tools/lazybox-snippets`) links V1\'s `lazybox-config` Rust library, pinned to a lazybox-v1 revision, so' },
   { file: 'RELEASE_GATES.md', find: 'request that touches `v2/**` (and on pushes to `main`), so', replace: 'request (and on pushes to `main`), so' },
-  { file: 'RELEASE_GATES.md', find: 'The repository is public, so macOS\nrunners cost no minutes; their limit is five concurrent jobs per account, so\none of these six macOS jobs can queue behind the others.', replace: 'The repository is private, so macOS\nminutes are billed (at the macOS rate) against the account\'s included minutes;\nat most five macOS jobs run at once per account, so one of these six macOS jobs\ncan queue behind the others.' },
-  { file: 'RELEASE_GATES.md', find: "| `ui` ×3 | macOS | every `scope: \"ui\"` gate, through this gate runner |\n", replace: "| `ui` ×3 | macOS | every `scope: \"ui\"` gate, through this gate runner |\n| `typos` | Linux | spelling across the repository ([`typos.toml`](typos.toml)) |\n" },
+  { file: 'RELEASE_GATES.md', find: "| `ui` ×3 | Linux | every `scope: \"ui\"` gate, through this gate runner |\n", replace: "| `ui` ×3 | Linux | every `scope: \"ui\"` gate, through this gate runner |\n| `typos` | Linux | spelling across the repository ([`typos.toml`](typos.toml)) |\n" },
   { file: 'RELEASE_GATES.md', find: '`v2 ci` is one check that passes only when every job did. It runs only when the\nworkflow does, so requiring it in branch protection needs a paths-aware rule;\notherwise a PR without `v2/` changes waits on a check that never starts.', replace: '`ci` is one check that passes only when every job did; it is the one to\nrequire in branch protection.' },
   { file: 'DECISIONS.md', phase: 'post', find: '**Status:** source layout selected and scaffolded. **Needed for:** V2 007.\n', replace: `**Status:** source layout selected and scaffolded. **Needed for:** V2 007.
 
@@ -339,8 +338,7 @@ rules, FILE_SAME_GO_PACKAGE included, in force.
   // The V2 workflow, rewritten for a repository that is V2 alone.
   { file: '.github/workflows/ci.yml', find: '# V2 (`v2/**`) per-change CI. It runs', replace: '# Per-change CI. It runs' },
   { file: '.github/workflows/ci.yml', find: " V1's `ci.yml` is untouched and never\n# looks under `v2/`.\n", replace: '\n' },
-  { file: '.github/workflows/ci.yml', find: '# | ui (N)     | macos-15     | ui: every `scope: "ui"` gate, sharded           |\n', replace: '# | ui (N)     | macos-15     | ui: every `scope: "ui"` gate, sharded           |\n# | typos      | ubuntu-24.04 | spelling across the repository (typos.toml)     |\n' },
-  { file: '.github/workflows/ci.yml', find: '# macOS. Linux carries the platform-independent checks. This repository is\n# public, so standard macOS runners cost no minutes; what binds is the\n# account\'s 5 concurrent macOS jobs. These are 6 (go, launcher, desktop and\n# UI_SHARDS shards), so the shortest can queue briefly behind the others.', replace: '# macOS. Linux carries the platform-independent checks. This repository is\n# private, so macOS minutes are billed (at the macOS rate) against the\n# account\'s included minutes, and the account runs at most 5 macOS jobs at\n# once. These are 6 (go, launcher, desktop and UI_SHARDS shards), so the\n# shortest can queue briefly behind the others.' },
+  { file: '.github/workflows/ci.yml', find: '# | ui (N)     | ubuntu-24.04 | ui: every `scope: "ui"` gate, sharded           |\n', replace: '# | ui (N)     | ubuntu-24.04 | ui: every `scope: "ui"` gate, sharded           |\n# | typos      | ubuntu-24.04 | spelling across the repository (typos.toml)     |\n' },
   { file: '.github/workflows/ci.yml', find: 'name: V2 CI\n', replace: 'name: CI\n' },
   { file: '.github/workflows/ci.yml', find: /\non:\n[^]*?\n {2}workflow_dispatch:\n/, replace: '\non:\n  pull_request:\n  push:\n    branches: [main]\n  workflow_dispatch:\n' },
   { file: '.github/workflows/ci.yml', find: '    shell: bash\n    working-directory: v2\n', replace: '    shell: bash\n' },
@@ -368,7 +366,7 @@ rules, FILE_SAME_GO_PACKAGE included, in force.
   ci:
     name: ci
 ` },
-  { file: '.github/workflows/ci.yml', find: 'needs: [plan, go, generated, typescript, launcher, desktop, ui]', replace: 'needs: [plan, go, generated, typescript, launcher, desktop, ui, typos]' },
+  { file: '.github/workflows/ci.yml', find: 'needs: [plan, go, generated, typescript, desktop, ui]', replace: 'needs: [plan, go, generated, typescript, desktop, ui, typos]' },
   { file: '.github/workflows/ci.yml', find: '- name: Every V2 job passed', replace: '- name: Every job passed' },
   { file: '.github/actions/playwright/action.yml', find: "# Installs the Playwright browsers V2's suites launch, cached per OS, browser\n# set and Playwright version (read from v2's installed @playwright/test, so a", replace: "# Installs the Playwright browsers the UI suites launch, cached per OS, browser\n# set and Playwright version (read from the installed @playwright/test, so a" },
   { file: '.github/actions/playwright/action.yml', find: 'name: v2-playwright\ndescription: Install and cache Playwright browsers for v2.', replace: 'name: playwright\ndescription: Install and cache Playwright browsers for the UI suites.' },
