@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { Extension } from '@lazybox/protocol';
-import { DraggableDialog, DialogHeader } from './DraggableDialog';
+import { ConfirmDialog } from './ConfirmDialog';
 import { ExtensionApprovalSheet } from './ExtensionApprovalSheet';
 import { describeGrant, describeHost, extensionStateLabel, widening } from './extension-grants';
 import { Icon } from './Icons';
@@ -97,15 +97,7 @@ export function ExtensionsSettings() {
 }
 
 function RemoveExtensionDialog({ extension, onClose, onRemove }: { extension: Extension; onClose(): void; onRemove(): Promise<void> }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { dialog.current?.showModal(); }, []);
-  return <DraggableDialog ref={dialog} className="extension-remove" aria-labelledby="extension-remove-title" onCancel={() => onClose()}>
-    <DialogHeader><h2 id="extension-remove-title">Remove {extension.name || extension.id}?</h2><button type="button" aria-label="Keep it" onClick={onClose}>×</button></DialogHeader>
-    <p>This deletes its folder, <span className="mono">{extension.path}</span>, and what you allowed it. Its open panels close.</p>
-    <footer>
-      <button type="button" data-autofocus onClick={onClose}>Keep it</button>
-      <button type="button" className="danger" disabled={busy} onClick={() => { setBusy(true); void onRemove(); }}>{busy ? 'Removing…' : 'Remove'}</button>
-    </footer>
-  </DraggableDialog>;
+  return <ConfirmDialog title={`Remove ${extension.name || extension.id}?`} closeLabel="Keep it" cancelLabel="Keep it" confirm="Remove" working="Removing…" onClose={onClose} onConfirm={onRemove}>
+    This deletes its folder, <span className="mono">{extension.path}</span>, and what you allowed it. Its open panels close.
+  </ConfirmDialog>;
 }

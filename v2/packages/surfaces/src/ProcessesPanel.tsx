@@ -2,7 +2,7 @@ import { peekProps } from './peek-model';
 import { useEffect, useRef, useState } from 'react';
 import type { HostedProcess, ProcessHosting, ProcessInventory } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
-import { DraggableDialog, DialogHeader } from './DraggableDialog';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from './Icons';
 import { requestTerminal } from './TerminalPanel';
 import { backendLabel, formatMemory, formatUptime, groupProcesses, listeningLabel, processState, stopConsequence } from './processes-model';
@@ -103,10 +103,10 @@ export function ProcessesPanel({ workspaceId = '', onShowSession, onShowPanel }:
         <ul>{group.processes.map(p => <ProcessRow key={p.id} process={p} showWorkspace={!onlyHere} canOpen={openable(p)} onOpen={() => open(p)} onCopy={() => void copy(p)} onStop={() => setStopping(p)}/>)}</ul>
       </section>)}
     </div>
-    {stopping && <ConfirmDialog title={`Stop “${stopping.label}”?`} body={stopConsequence(stopping)} confirm={stopping.kind === 'agent' && stopping.attached ? 'Stop agent' : stopping.kind === 'terminal' && stopping.attached ? 'Close terminal' : 'Stop process'} onClose={() => setStopping(undefined)} onConfirm={async () => {
+    {stopping && <ConfirmDialog title={`Stop “${stopping.label}”?`} closeLabel="Close without stopping" working="Stopping…" children={stopConsequence(stopping)} confirm={stopping.kind === 'agent' && stopping.attached ? 'Stop agent' : stopping.kind === 'terminal' && stopping.attached ? 'Close terminal' : 'Stop process'} onClose={() => setStopping(undefined)} onConfirm={async () => {
       const next = await api.stopProcess({ id: stopping.id }); setInventory(next); setNotice(`Stopped “${stopping.label}”.`); setStopping(undefined);
     }}/>}
-    {cleaning && <ConfirmDialog title={`Stop ${plural(orphans.length, 'orphaned process', 'orphaned processes')}?`} body="These processes run with no Runner to supervise them. Cleaning up stops each of them and everything it started. Processes this Runner supervises are not touched." confirm="Clean up" onClose={() => setCleaning(false)} onConfirm={async () => {
+    {cleaning && <ConfirmDialog title={`Stop ${plural(orphans.length, 'orphaned process', 'orphaned processes')}?`} closeLabel="Close without stopping" working="Stopping…" children="These processes run with no Runner to supervise them. Cleaning up stops each of them and everything it started." kept="Processes this Runner supervises are not touched." confirm="Clean up" onClose={() => setCleaning(false)} onConfirm={async () => {
       const result = await api.cleanUpOrphanProcesses({}); if (result.inventory) setInventory(result.inventory);
       setNotice(result.problem ? `Stopped ${result.stopped}; some were left alone: ${result.problem}` : `Stopped ${plural(result.stopped, 'orphaned process', 'orphaned processes')}.`); setCleaning(false);
     }}/>}
@@ -148,20 +148,4 @@ function ProcessRow({ process: p, showWorkspace, canOpen, onOpen, onCopy, onStop
       <button type="button" className="danger" onClick={onStop} aria-label={`Stop ${p.label}…`}>Stop…</button>
     </div>
   </li>;
-}
-
-function ConfirmDialog({ title, body, confirm, onClose, onConfirm }: { title: string; body: string; confirm: string; onClose(): void; onConfirm(): Promise<void> }) {
-  const dialog = useRef<HTMLDialogElement>(null), cancel = useRef<HTMLButtonElement>(null);
-  const [busy, setBusy] = useState(false), [error, setError] = useState('');
-  // Stopping is destructive: Cancel has focus, so Enter does nothing harmful.
-  useEffect(() => { dialog.current?.showModal(); cancel.current?.focus(); }, []);
-  return <DraggableDialog ref={dialog} className="process-stop-dialog" aria-label={title} onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
-    <DialogHeader><h2>{title}</h2><button type="button" aria-label="Close without stopping" disabled={busy} onClick={onClose}>×</button></DialogHeader>
-    <p>{body}</p>
-    {error && <p className="settings-error" role="alert">{error}</p>}
-    <footer>
-      <button ref={cancel} type="button" autoFocus data-autofocus disabled={busy} onClick={onClose}>Cancel</button>
-      <button type="button" className="danger" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onConfirm(); } catch (e) { setError(String(e)); setBusy(false); } }}>{busy ? 'Stopping…' : confirm}</button>
-    </footer>
-  </DraggableDialog>;
 }

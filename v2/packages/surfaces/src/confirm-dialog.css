@@ -1,0 +1,41 @@
+/* ConfirmDialog.tsx: one type scale and rhythm for every confirmation, the
+   artifact dialogs' (17px title, 13px body, 12px notes and buttons). */
+.draggable-dialog.confirm-dialog{width:min(440px,calc(100vw - 32px));padding:22px;border-color:var(--line-strong);font-family:var(--font-ui);font-size:calc(13px * var(--text-scale));line-height:1.55;color:var(--text-secondary)}
+.draggable-dialog.confirm-dialog>[data-dialog-drag-handle]{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.confirm-dialog h2{margin:0;min-width:0;font-size:calc(17px * var(--text-scale));line-height:calc(24px * var(--text-scale));font-weight:600;letter-spacing:-.2px;color:var(--text-strong);overflow-wrap:anywhere}
+.confirm-dialog .confirm-close{flex:none;width:28px;height:28px;margin:-2px -6px 0 0;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--text-muted);font-size:calc(20px * var(--text-scale));line-height:1}
+.confirm-dialog .confirm-close:hover:not(:disabled){background:var(--surface-hover);color:var(--text)}
+
+/* The subject is a subtitle under the question, not a second heading. */
+.confirm-subject{display:flex;align-items:baseline;gap:10px;margin:-9px 0 14px;min-width:0;font-size:calc(13px * var(--text-scale));font-weight:500;color:var(--text-soft);overflow-wrap:anywhere}
+.confirm-subject>span{flex:1;min-width:0}
+.confirm-subject>small{flex:none;font-size:calc(12px * var(--text-scale));font-weight:400;color:var(--text-muted)}
+.confirm-body{display:flex;flex-direction:column;gap:6px}
+.confirm-body>p{margin:0;overflow-wrap:anywhere}
+.confirm-lead{color:var(--text-secondary)}
+.confirm-kept{font-size:calc(12px * var(--text-scale));color:var(--text-muted)}
+.confirm-status{margin:12px 0 0;font-size:calc(12px * var(--text-scale));color:var(--text-muted)}
+
+/* A risk beyond the usual, and the box to tick for it. */
+.confirm-warning{display:flex;flex-direction:column;gap:8px;margin:16px 0 0;padding:12px;border:1px solid var(--danger-line-subtle);border-radius:8px;background:var(--danger-bg);font-size:calc(12px * var(--text-scale));line-height:1.5;color:var(--text-secondary);overflow-wrap:anywhere}
+.confirm-warning+.confirm-warning{margin-top:10px}
+.confirm-warning>strong{font-weight:600;color:var(--danger-strong)}
+.confirm-warning>p{margin:0}
+/* A label is a quiet column app-wide (style.css, workspace.css): this one is a row of body text, the box on its first line. */
+.confirm-dialog label.confirm-check{display:flex;flex-direction:row;align-items:flex-start;gap:9px;margin:0;font-size:calc(12.5px * var(--text-scale));line-height:calc(18px * var(--text-scale));color:var(--text);cursor:pointer}
+.confirm-check>input{flex:none;width:15px;height:15px;margin:calc((18px * var(--text-scale) - 15px) / 2) 0 0;padding:0;accent-color:var(--danger-solid);cursor:pointer}
+.confirm-check-text{flex:1;min-width:0}
+.confirm-check-text>small{display:block;margin-top:2px;font-size:calc(11px * var(--text-scale));color:var(--text-muted)}
+.confirm-dialog label.confirm-check:has(input:disabled){cursor:default;color:var(--text-muted)}
+
+.confirm-error{margin:14px 0 0;padding:8px 10px;border-radius:6px;background:var(--danger-bg);color:var(--danger-strong);font-size:calc(12px * var(--text-scale));overflow-wrap:anywhere}
+
+.confirm-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+.confirm-dialog footer button{min-height:0;padding:7px 14px;font-size:calc(12px * var(--text-scale));line-height:calc(18px * var(--text-scale));font-weight:500;border-radius:6px}
+/* The confirm button means it: a full fill and white text. Off, it is plainly off, not a faded red. */
+.confirm-dialog footer button.danger{background:var(--danger-solid);border:1px solid var(--danger-solid);color:var(--on-danger-solid);font-weight:600}
+.confirm-dialog footer button.danger:hover:not(:disabled){background:var(--danger-solid-hover);border-color:var(--danger-solid-hover)}
+.confirm-dialog footer button.primary{background:var(--accent-solid);border:1px solid var(--accent-solid);color:var(--on-accent-solid);font-weight:600}
+.confirm-dialog footer button.primary:hover:not(:disabled){background:var(--accent-solid-hover);border-color:var(--accent-solid-hover)}
+.confirm-dialog footer button:is(.danger,.primary):disabled{opacity:1;background:var(--surface-strong);border-color:var(--line);color:var(--text-disabled);font-weight:500}
+.confirm-dialog footer button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}

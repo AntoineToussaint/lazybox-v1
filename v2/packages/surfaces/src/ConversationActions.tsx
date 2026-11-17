@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Session } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { useRunnerDirectory, useRunnerIdentity } from './RunnerDirectory';
@@ -11,7 +11,7 @@ import { copyText, showMenuNotice, type MenuItem } from './ContextMenu';
 import { openPeek } from './Peek';
 import { conversationHandoffItems } from './handoff';
 import { DeleteConversationDialog } from './DeleteConversationDialog';
-import { DraggableDialog, DialogHeader } from './DraggableDialog';
+import { ConfirmDialog } from './ConfirmDialog';
 import type { ViewTarget } from './workspace-model';
 
 /**
@@ -100,22 +100,12 @@ export function useConversationActions({ onOpen, onDeleted }: { onOpen?(target: 
 /** Archiving asks first: it is reversible, but the conversation leaves the lists. */
 function ArchiveConversationDialog({ session, onClose }: { session: Session; onClose(): void }) {
   const { api, refresh } = useRunner();
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [busy, setBusy] = useState(false), [error, setError] = useState('');
-  useEffect(() => { dialog.current?.showModal(); }, []);
-  const archive = async () => {
-    setBusy(true); setError('');
-    try { await api.archiveConversation({ sessionId: session.id, archived: true }); refresh(); showMenuNotice(`Archived “${conversationName(session, 'conversation')}” · it is in History`); onClose(); }
-    catch (failure) { setError(String(failure)); setBusy(false); }
-  };
-  return <DraggableDialog ref={dialog} className="delete-conversation-dialog archive-conversation-dialog" aria-label="Archive conversation" onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
-    <DialogHeader><h2>Archive conversation?</h2><button disabled={busy} aria-label="Cancel archiving" onClick={onClose}>×</button></DialogHeader>
-    <p className="deletion-subject">{conversationName(session)}</p>
-    <p>It leaves Workspaces and Agents. Nothing is deleted: History keeps it, and Unarchive brings it back.</p>
-    {session.busy && !session.closed && <p className="deletion-note">Its agent keeps working on this turn. If it needs you, it comes back to the list.</p>}
-    {error && <p role="alert">{error}</p>}
-    <footer><button disabled={busy} onClick={onClose}>Cancel</button><button className="primary" autoFocus disabled={busy} onClick={() => void archive()}>{busy ? 'Archiving…' : 'Archive'}</button></footer>
-  </DraggableDialog>;
+  return <ConfirmDialog title="Archive conversation?" label="Archive conversation" closeLabel="Cancel archiving" subject={conversationName(session)}
+    kept={session.busy && !session.closed ? 'Its agent keeps working on this turn. If it needs you, it comes back to the list.' : undefined}
+    tone="primary" confirm="Archive" working="Archiving…" onClose={onClose}
+    onConfirm={async () => { await api.archiveConversation({ sessionId: session.id, archived: true }); refresh(); showMenuNotice(`Archived “${conversationName(session, 'conversation')}” · it is in History`); onClose(); }}>
+    It leaves Workspaces and Agents. Nothing is deleted: History keeps it, and Unarchive brings it back.
+  </ConfirmDialog>;
 }
 
 /**

@@ -43,15 +43,6 @@
 /* Docked beside the work, a row is text over actions: names stay readable. */
 @container (max-width:600px){.process-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;row-gap:6px}.process-dot{margin-top:5px}.process-actions{grid-column:2;flex-wrap:wrap}.process-where,.process-facts{white-space:normal}}
 
-.process-stop-dialog{width:min(440px,calc(100vw - 32px));padding:22px;border-color:var(--line-strong);font-family:var(--font-ui);font-size:calc(13px * var(--text-scale))}
-.process-stop-dialog>[data-dialog-drag-handle]{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-.process-stop-dialog h2{margin:0;font-size:calc(17px * var(--text-scale));line-height:calc(23px * var(--text-scale));font-weight:600;letter-spacing:-.2px;overflow-wrap:anywhere}
-.process-stop-dialog>[data-dialog-drag-handle]>button{width:28px;height:28px;padding:0;border:0;background:transparent;color:var(--text-muted);font-size:calc(20px * var(--text-scale))}
-.process-stop-dialog p{margin:0 0 10px;line-height:1.55;color:var(--text-secondary)}
-.process-stop-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
-.process-stop-dialog footer button{padding:8px 12px;font-size:calc(12px * var(--text-scale));line-height:calc(18px * var(--text-scale));border-radius:6px}
-.process-stop-dialog footer .danger{background:var(--danger-solid);border:1px solid var(--danger-solid-hover);color:var(--on-danger-solid)}
-.process-stop-dialog footer .danger:hover:not(:disabled){background:var(--danger-solid-hover)}
 
 /* Settings → Runner: process hosting. */
 .runner-hosting{display:grid;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}

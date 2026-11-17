@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { BrowserSettings, BrowserWorkspaceSites } from '@lazybox/protocol';
 import { normalizeSite, sizeText } from './browser-model';
-import { DraggableDialog, DialogHeader } from './DraggableDialog';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from './Icons';
 import { useRunner } from './RunnerContext';
 import { SettingsGroup, SettingsHeader, SettingsRow, settingsError } from './settings-parts';
@@ -123,22 +123,11 @@ export function BrowserSettingsPanel() {
 
 function ClearDataDialog({ workspace, onClose, onCleared }: { workspace: BrowserWorkspaceSites; onClose(): void; onCleared(settings: BrowserSettings): void }) {
   const { api } = useRunner();
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  useEffect(() => { dialog.current?.showModal(); }, []);
   const name = workspace.name || 'this workspace';
-  const clear = async () => {
-    setBusy(true); setError('');
-    try { onCleared(await api.clearBrowserData({ collectionId: workspace.collectionId })); }
-    catch (e) { setError(settingsError(e)); setBusy(false); }
-  };
-  return <DraggableDialog ref={dialog} className="browser-clear-dialog" aria-label={`Clear browser data of ${name}`} onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
-    <DialogHeader><h2>Clear browser data?</h2><button disabled={busy} aria-label="Cancel" onClick={onClose}>×</button></DialogHeader>
-    <p className="deletion-subject">{name}</p>
-    <p>Deletes this workspace’s agent browser profile{workspace.hasData ? ` (${sizeText(Number(workspace.dataBytes))})` : ''}: its sign-ins, cookies, site storage and cache, and the sites always allowed here.</p>
-    <p className="deletion-note">Open agent browsers of this workspace close. Agents sign in again only if you take over and do it.</p>
-    {error && <p role="alert">{error}</p>}
-    <footer><button autoFocus disabled={busy} onClick={onClose}>Cancel</button><button className="danger" disabled={busy} onClick={() => void clear()}>{busy ? 'Clearing…' : 'Clear browser data'}</button></footer>
-  </DraggableDialog>;
+  return <ConfirmDialog title="Clear browser data?" label={`Clear browser data of ${name}`} subject={name}
+    kept="Open agent browsers of this workspace close. Agents sign in again only if you take over and do it."
+    confirm="Clear browser data" working="Clearing…" onClose={onClose}
+    onConfirm={async () => { try { onCleared(await api.clearBrowserData({ collectionId: workspace.collectionId })); } catch (e) { throw new Error(settingsError(e)); } }}>
+    Deletes this workspace’s agent browser profile{workspace.hasData ? ` (${sizeText(Number(workspace.dataBytes))})` : ''}: its sign-ins, cookies, site storage and cache, and the sites always allowed here.
+  </ConfirmDialog>;
 }
