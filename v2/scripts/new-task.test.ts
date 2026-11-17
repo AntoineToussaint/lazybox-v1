@@ -7,6 +7,10 @@ test('a task is named from its first message, at a word, capitalized', () => {
   assert.equal(nameFromPrompt('make the cache faster'), 'Make the cache faster');
   assert.equal(nameFromPrompt('  \n\n  add a response cache.\nThen benchmark it'), 'Add a response cache');
   assert.equal(nameFromPrompt('Refactor'), 'Refactor');
+  // The first sentence only: a name (and its branch) never runs into the next one.
+  assert.equal(nameFromPrompt('Load-test the cache. Run 200 requests against /products and put p95 in the PR.'), 'Load-test the cache');
+  assert.equal(taskBranch(taskName({ prompt: 'Load-test the cache. Run 200 requests.', labels: [] })), 'feature/load-test-the-cache');
+  assert.equal(nameFromPrompt('Bump undici to 7.6 now'), 'Bump undici to 7.6 now', 'a dot inside a word is no sentence end');
   assert.equal(nameFromPrompt(''), '');
   assert.equal(nameFromPrompt('   \n  '), '');
   // A single long word is cut to the limit rather than dropped.

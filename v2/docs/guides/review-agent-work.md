@@ -1,11 +1,12 @@
 # Review an agent's work
 
-When an agent says it is done, Lazybox gives you four tools to check: the
-**Changes** page, **review comments** it can act on, **checkpoints** to undo a
-turn, and the **PR loop** to land it.
+When an agent says it is done, Lazybox gives you five tools to check: the
+**Changes** page, **review comments** it can act on, **another agent's
+review**, **checkpoints** to undo a turn, and the **PR loop** to land it.
 
 - [Read the changes](#read-the-changes)
 - [Comment, and send the comments to the agent](#comment-and-send-the-comments-to-the-agent)
+- [Let another agent review it](#let-another-agent-review-it)
 - [Undo a turn: checkpoints](#undo-a-turn-checkpoints)
 - [Commit, push, open and merge a pull request](#commit-push-open-and-merge-a-pull-request)
 
@@ -51,6 +52,33 @@ kept by the Runner, so every window sees them and they survive restarts.
 
 > Not yet: publishing comments to GitHub as a PR review, replies inside a
 > thread, comments from the Editor.
+
+## Let another agent review it
+
+**Review with Codex** in the Changes header (or **Review with Claude**: by
+default the other agent than the one that did the work) starts a second
+agent on what the page compares, **read-only**. It is a conversation of its
+own in the workspace, briefed with the goal, the plan, the diff and the test
+runs; you can talk to it like any other.
+
+![Changes with Codex's findings: the Review tray lists them to triage, each with its severity, and a finding's card sits on its lines in the diff](../images/agent-review.webp)
+
+- **Its findings land in the Review tray**, *To triage*, each with its
+  severity (blocker, major, minor, nit), a title and the lines it is about —
+  and as a card on those lines in the diff. Filter by severity or author.
+- **Triage:** **Accept** makes a finding a pending comment; **Dismiss** asks
+  why and keeps the reason; **Ask Codex** opens the reviewer's conversation
+  with a follow-up about that finding.
+- **Send** them with your own comments, as above: the author receives each
+  finding exactly as filed. Nothing is sent for you.
+- The author's conversation shows the review while it runs, then what it
+  found, with **Open review**.
+
+Other ways in: a turn's ⋯ menu (**Review this turn with Codex**), the pull
+request card (**Review the PR with Codex**), ⌘K, and `/review` in the message
+box. **Settings → Agents & workspaces → Review by another agent** picks the
+default reviewer, whether findings go back to the author between rounds, and
+can review every turn that changes files.
 
 ## Undo a turn: checkpoints
 

@@ -7,11 +7,11 @@ An agent saying "done" is a claim. A **mission** turns a goal into **tasks**,
 gives each task to a conversation, and records what actually happened — so you
 can tell *claimed* from *verified* at a glance, across many agents.
 
-![The Missions board: Ready, Working, Needs you, Done, with trust badges and evidence](../images/missions.webp)
+![The missions board as a page: the orchestrator and its budget above the columns Ready, Working, Needs you and Done; each card with its trust, its evidence, who started it and where two agents overlap](../images/missions.webp)
 
 ## Create a mission
 
-1. Open the **Missions** panel: Page actions (⋯) → Show panel → Missions, or
+1. Open the **Missions** panel: the **Panels** menu in the header → Missions, or
    find *Missions* in the command palette (`⌘K`).
 2. Create a mission with a title and a brief, then add its tasks. Tasks can
    depend on each other.

@@ -207,6 +207,8 @@ try {
     await shotPage.getByRole('tab', { name: 'Command output', exact: true }).click();
     await expect(shotPage.locator('.command-panel select')).toHaveValue(quiet.id);
     const shown = shotPage.getByTestId('console-output');
+    // Native controls in the dock (checkboxes, scrollbars) follow the theme: no dark checkboxes in a light window.
+    assert.equal(await shotPage.locator('.dockview-theme-lazybox').first().evaluate(node => getComputedStyle(node).colorScheme), scheme);
     await expect(shown).toContainText('Running in 15.2s');
     await shotPage.locator('.command-panel').screenshot({ path: `.cache/console-log-${scheme}-docked.png` });
     await shotPage.getByRole('button', { name: 'Maximize Command output' }).click();

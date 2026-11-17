@@ -54,7 +54,7 @@ exact version; any change asks again. Agents cannot approve scripts.
   every action with its state and port; a running one shows a live dot, how long
   it has run, and **Stop**. While setup runs, the button says so — click it for
   the log.
-- **Actions** (from Run's menu, or Page actions ⋯ → Show panel) lists each
+- **Actions** (from Run's menu, or the **Panels** menu in the header) lists each
   repository's setup and actions: state, port, address, the last output line,
   **Start / Restart / Stop**, **Log**, and **Preview**.
 - **Preview** shows what an action serves inside the page, with an address bar,
@@ -97,6 +97,27 @@ https.
   links swaps them, and picks the search engine.
 - An empty Web panel lists the workspace's running previews, one click each.
 - **⋯ → Move to a new window** gives the page a window of its own.
+
+## Read output as a log
+
+The **Command output** console reads what a run prints — one service or
+several (Codefly, docker compose, pnpm and turbo workspaces) — as a log:
+
+![The Command output console: a time gutter, each service in its own colour with a chip to filter it, INFO, WARN and ERROR badges, and the ready lines highlighted](../images/console-log.webp)
+
+- **Columns:** the time, the service in its own colour, then the message;
+  a stack frame stays under the line it belongs to.
+- **Levels** the program wrote (`WARN`, `ERROR`, `npm ERR!`, `--- FAIL`…) are
+  badges, and an error row is tinted. **Milestones** (*Running on :8080*,
+  *ready in*, Vite's *Local:*) are highlighted.
+- **Chips**, one per service with its line count: click one to hide or show
+  its lines; its target (or ⌥-click) shows only it.
+- **Links:** an address or a local port opens in the Web panel (⌘-click: your
+  browser); `file.ts:31` opens in the editor.
+- **Hide noise** shows each kind of warning once and folds progress lines
+  that only count up; it is remembered for that command. The same line
+  repeated folds to one row with ×N.
+- Nothing is lost: **Copy** and the full-output file are the output as written.
 
 ## Send your terminal's output to Lazybox
 

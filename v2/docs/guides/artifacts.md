@@ -16,7 +16,7 @@ the workspace: compare versions, export it, and hand it back to an agent.
 
 ## Read and compare
 
-Open the panel with `]] a` (or Page actions ⋯ → Show panel → Artifacts). The
+Open the panel with `]] a` (or the **Panels** menu in the header → Artifacts). The
 list shows each artifact's kind, latest version, who made it and when. On the
 page:
 

@@ -99,6 +99,10 @@ try {
  await page.getByLabel('Terminal panel actions',{exact:true}).focus();
  await page.keyboard.press('Enter');
  await expect(page.getByRole('button',{name:/^Split right/})).toBeFocused();
+ // Each item lays its icon beside its label, apart (the shell's generic menu rule does not win).
+ const itemLayout=await page.getByRole('button',{name:/^Split right/}).evaluate(node=>{const icon=node.querySelector('svg').getBoundingClientRect(),label=node.querySelector('span').getBoundingClientRect();return {display:getComputedStyle(node).display,gap:label.left-icon.right,offset:Math.abs((icon.top+icon.bottom)/2-(label.top+label.bottom)/2)};});
+ assert.equal(itemLayout.display,'flex','a group menu item is a row');
+ assert.ok(itemLayout.gap>=6&&itemLayout.offset<=2,`icon and label side by side, apart and centred (${JSON.stringify(itemLayout)})`);
  await page.getByRole('button',{name:'Dock left',exact:true}).focus();
  await page.keyboard.press('Enter');
  await expect.poll(async()=>{const a=await arrangement();return a.t.x+a.t.width<=a.c.x+8;},{message:'terminal docked left of the chat'}).toBe(true);

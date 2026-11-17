@@ -42,7 +42,7 @@
 .review-runs li.is-focused{border-color:var(--accent-line)}
 .review-run-mark{display:inline-flex;width:16px;justify-content:center;color:var(--accent)}
 .review-runs li.is-failed .review-run-mark,.review-runs li.is-done .review-run-mark{color:var(--text-muted)}
-.review-tray .review-run-summary{flex:1;min-width:0;justify-content:flex-start;text-align:left;border:0;background:transparent;padding:2px 4px;color:var(--text);overflow-wrap:anywhere}
+.review-tray .review-run-summary{flex:1;min-width:0;white-space:normal;justify-content:flex-start;text-align:left;border:0;background:transparent;padding:2px 4px;color:var(--text);overflow-wrap:anywhere}
 .review-tray .review-runs .review-icon{border:0;background:transparent;padding:3px;color:var(--text-muted)}
 
 .review-card{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:calc(13px * var(--text-scale))}

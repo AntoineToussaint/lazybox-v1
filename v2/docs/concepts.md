@@ -30,7 +30,7 @@ turn, pending questions, queued messages and output intact.
   Runner, where **Restart Runner** restarts it without stopping any agent.
 - Settings → Agents & workspaces holds the defaults every new agent gets: its
   permission, workspace naming, and the shared context every agent is given.
-- **Processes** (Page actions ⋯ → Show panel → Processes) lists everything it
+- **Processes** (the **Panels** menu in the header → Processes) lists everything it
   hosts — agents, commands, terminals — with CPU, memory, uptime, and Stop.
 
 ![Processes: every agent, command and terminal the Runner hosts](images/processes.webp)
@@ -66,7 +66,7 @@ settings.
   you first, always on screen. `⌘J` jumps to the next one. Pins are kept by
   the Runner, so your phone shows them too.
 
-  ![The inbox: approvals and questions first, then failures and finished work](images/inbox.webp)
+  ![The inbox is the Agents list under Workspaces: pinned first, then what needs you (an approval, a question), then failures; the approval is answered in its conversation](images/inbox.webp)
 - Each turn is **checkpointed**: you can see what a turn changed and revert it.
 
 See [Work in the chat](guides/chat.md).

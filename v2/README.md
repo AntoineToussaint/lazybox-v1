@@ -11,7 +11,10 @@ restarts.
 > `lazybox` formula on Homebrew is V1, the terminal PR inbox
 > ([its docs](https://lazybox.ai/docs/)).
 
-![Lazybox V2: workspaces on the left, a conversation with the agent's work folded into readable lines, its plan, and the artifact it published](docs/images/hero.webp)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/hero-light.webp">
+  <img src="docs/images/hero.webp" alt="Lazybox V2: Workspaces above the Agents list on the left, a conversation with the agent's work folded into readable lines, its plan, and the artifact it published">
+</picture>
 
 ## What you get
 
@@ -28,15 +31,21 @@ are live cards you can open or stop. [Work in the chat →](docs/guides/chat.md)
 <img src="docs/images/chat-decisions.webp" width="49%" alt="An agent's question as option cards"> <img src="docs/images/subagents.webp" width="49%" alt="Sub-agent cards with their live step, time and tokens">
 
 **Verify before you trust.** Review every change in a split diff, leave inline
-comments the agent receives as one message, undo any agent turn from its
-checkpoint, then commit, push, open the pull request, watch its checks and
-merge — without leaving the app. [Review an agent's work →](docs/guides/review-agent-work.md)
+comments the agent receives as one message, have another agent review it
+read-only (Codex checks Claude's work, and the other way round), undo any agent
+turn from its checkpoint, then commit, push, open the pull request, watch its
+checks and merge — without leaving the app. [Review an agent's work →](docs/guides/review-agent-work.md)
 
-<img src="docs/images/changes-review.webp" width="49%" alt="Changes with a split diff, review comments and the Review tray"> <img src="docs/images/pr-loop.webp" width="49%" alt="The pull request card with its checks, failing first">
+<img src="docs/images/agent-review.webp" width="49%" alt="Codex's findings on Claude's change: the Review tray to triage them, a finding's card on its lines"> <img src="docs/images/pr-loop.webp" width="49%" alt="The pull request card with its checks, failing first">
 
-**Missions with evidence** *(preview)*. Split a goal into tasks across
-conversations; Lazybox records the runs, commits and checks behind each one, so
-*claimed* and *verified* never look the same. [Missions →](docs/guides/missions.md)
+**Missions with evidence, and agents that run agents** *(preview)*. Split a
+goal into tasks across conversations; Lazybox records the runs, commits and
+checks behind each one, so *claimed* and *verified* never look the same. Or let
+one conversation run the mission: it proposes a plan you approve, starts an
+agent per task within a budget and the limits you set, and its agents' approvals
+still come to you. [Missions →](docs/guides/missions.md) · [Let an agent run agents →](docs/guides/orchestrator.md)
+
+<img src="docs/images/orchestrator.webp" width="49%" alt="An orchestrator's conversation and its agents nested under it in the Agents list"> <img src="docs/images/missions.webp" width="49%" alt="The missions board: the orchestrator above the columns, each card with its trust and evidence">
 
 **Run your app per workspace.** A committed `.lazybox/workspace.yaml` gives every
 workspace its setup, its dev server on its own ports, and a Preview beside the
@@ -48,7 +57,7 @@ what it clicks, an action log. New sites, downloads and sign-ins ask you
 first, even in full access; take it over, give it back or stop it at any
 time. [Agent browser →](docs/guides/agent-browser.md)
 
-<img src="docs/images/workspace-runtime.webp" width="49%" alt="The Actions panel with a dev server running on the workspace's ports"> <img src="docs/images/missions.webp" width="49%" alt="The missions board with trust badges and evidence">
+<img src="docs/images/workspace-runtime.webp" width="49%" alt="The Actions panel with a dev server running on the workspace's ports"> <img src="docs/images/console-log.webp" width="49%" alt="The console reading three services' output as a log: times, sources with chips, levels and milestones">
 
 **Agents outlive everything.** Close the window, restart the Runner, install a
 new build: agents and the commands they started keep running, and Lazybox picks

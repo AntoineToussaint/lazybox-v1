@@ -6,6 +6,8 @@ messages them, waits for them and stops them. You keep every decision that
 matters: their approvals and questions come to you, and only you accept
 their work.
 
+![An orchestrator: its conversation lists each agent it started and what they said; the Orchestrator 2/3 badge in its header; in the Agents list, its agents nested under it, and the one that waits for an approval asks you](../images/orchestrator.webp)
+
 ## Give a conversation the right
 
 In the conversation, type `/orchestrate` (or ⌘K → **Let this conversation run
@@ -36,6 +38,8 @@ The plan waits for you in its conversation (**Review plan…** on the line
 *Proposed a plan*), at the top of the Agents list under **Plans to approve**
 (the Inbox button counts it and focuses its Review), and on the Missions
 board.
+
+![The plan sheet: three tasks in the order they can start, each with its role, permission, workspace, paths and estimate; a path two tasks share is flagged; the budget cap and how many agents run at once](../images/orchestrator-plan.webp)
 
 The sheet lists the tasks in the order they can start (tasks at the same
 step run side by side). A path two tasks would both change is flagged: they
@@ -72,6 +76,8 @@ moves between them):
 - **Messages**: what the orchestrator and each agent said to each other,
   one thread per pair.
 - **Leases**: the paths agents leased, and where their changes met.
+
+![The missions board's Timeline: one lane per actor (you, the orchestrator, each agent, Lazybox), every event of the mission oldest first, and *after #15* on the gate it reacts to](../images/missions-timeline.webp)
 
 ## Overlaps and leases
 

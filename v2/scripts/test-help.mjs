@@ -120,6 +120,10 @@ try {
   // Read the docs: the documentation home.
   await empty.getByRole('button', {name: /Read the docs/}).click();
   await expect(docs.locator('.docs-page h1')).toHaveText('Lazybox V2 documentation');
+  // Screenshots in the window's theme: this window is light, so each picture's light twin shows.
+  await docs.locator('.docs-page').getByRole('link', {name: 'Getting started', exact: true}).first().click();
+  await expect(docs.locator('.docs-page h1')).toHaveText(/Getting started/);
+  await expect(docs.locator('.docs-page img').first()).toHaveAttribute('src', /welcome-light\.webp/);
   await docs.getByRole('button', {name: 'Close documentation'}).click();
   // Add a subscription: Settings → Subscriptions.
   await codexNeed.getByRole('button', {name: 'Add a ChatGPT subscription…'}).click();

@@ -1,6 +1,6 @@
 import type { Collection, InfoResponse } from '@lazybox/protocol';
 import { agentTitle, isAcp } from './providers';
-import { conversationName, mergeConversations } from './conversation-model';
+import { conversationOption, mergeConversations } from './conversation-model';
 import { Icon } from './Icons';
 import type { ViewTarget } from './workspace-model';
 import { RunnerBadge, useRunnerIdentity } from './RunnerDirectory';
@@ -46,7 +46,7 @@ export function WorkspaceSwitcher({ selection, workspaceID, collections, info, l
       <select value={selection.sessionId} onChange={event => { const session = info?.sessions.find(value => value.id === event.target.value); onSelect({ collectionId: session ? session.collectionId : selection.collectionId, sessionId: event.target.value, commandId: '' }); }}>
       <option value="">Choose a conversation</option>
       {selection.sessionId && !info?.sessions.some(value => value.id === selection.sessionId) && <option value={selection.sessionId}>Unavailable session</option>}
-      {conversations.map(value => <option key={value.id} value={value.id}>{conversationName(value)} · {providerName(value.profileId)} · {profileLabel(value.profileId) || value.id.slice(0, 6)}</option>)}
+      {conversations.map(value => <option key={value.id} value={value.id}>{conversationOption(value, conversations, providerName, profileLabel)}</option>)}
     </select></label>
   </div>;
 }

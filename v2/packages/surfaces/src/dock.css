@@ -1,6 +1,6 @@
 /* The page's dock (DockLayout): dockview with the workspace's own quiet chrome. */
 .dockview-theme-lazybox {
-  color-scheme: dark;
+  /* The theme's scheme, from :root: native controls (checkboxes, scrollbars) follow light and dark. */
   --dv-paneview-active-outline-color: var(--accent-solid-hover);
   --dv-tabs-and-actions-container-font-size: calc(11px * var(--text-scale));
   --dv-tabs-and-actions-container-height: 32px;
@@ -74,7 +74,8 @@
 .dock-group-actions details>summary{display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border-radius:5px;color:var(--text-muted);opacity:.6;transition:opacity .12s}
 .dv-groupview:hover .dock-group-actions .icon-button,.dv-groupview:hover .dock-group-actions details>summary,.dock-group-actions details[open]>summary,.dock-group-actions :focus-visible,.dv-active-group .dock-group-actions .icon-button,.dv-active-group .dock-group-actions details>summary{opacity:1}
 .dock-group-actions .icon-button:hover,.dock-group-actions details>summary:hover{background:var(--surface-selected);color:var(--text)}
-.dock-group-menu .action-popover>button{display:flex;align-items:center;gap:9px}
+/* The shell's generic menu rule (.workspace-shell .workspace-actions>div>button, display:block) must not win: icon beside label. */
+.dock-group-menu .action-popover>button,.workspace-shell .dock-group-menu .action-popover>button{display:flex;align-items:center;gap:9px}
 .dock-group-menu .action-popover>button>span{flex:1}
 .dock-group-menu .action-popover>button>svg{flex:none;color:var(--text-subtle)}
 .dock-group-menu .action-popover>button>kbd{font:calc(10px * var(--code-scale)) var(--font-mono);color:var(--text-faint)}

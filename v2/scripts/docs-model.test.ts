@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { headingSlug, orderPages, plain, resolveDocImage, resolveDocLink, searchDocs, sectionOf, titleOf, type DocPage } from '../packages/surfaces/src/docs-model';
+import { headingSlug, orderPages, plain, resolveDocImage, resolveDocLink, searchDocs, sectionOf, themedDocImage, titleOf, type DocPage } from '../packages/surfaces/src/docs-model';
 
 const known = (paths: string[]) => (path: string) => paths.includes(path);
 
@@ -68,4 +68,12 @@ test('the bundled docs have no broken internal links', () => {
     }
   }
   assert.deepEqual(broken, []);
+});
+
+test('a screenshot shows in the window’s theme: its light twin in the light theme, when there is one', () => {
+  const has = known(['images/hero.webp', 'images/hero-light.webp', 'images/welcome.webp']);
+  assert.equal(themedDocImage('images/hero.webp', 'light', has), 'images/hero-light.webp');
+  assert.equal(themedDocImage('images/hero.webp', 'dark', has), 'images/hero.webp');
+  assert.equal(themedDocImage('images/welcome.webp', 'light', has), 'images/welcome.webp', 'no twin: the picture as referenced');
+  assert.equal(themedDocImage('images/hero-light.webp', 'light', has), 'images/hero-light.webp', 'a light picture referenced as such stays');
 });

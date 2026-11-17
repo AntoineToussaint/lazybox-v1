@@ -141,7 +141,7 @@ start it again if not.
 
 1. `lazybox debug <conversation>` — is it waiting for you (a question or an
    approval), queued, or silent while a turn runs?
-2. Open **Processes** (Page actions ⋯ → Show panel) to see its CPU, memory and
+2. Open **Processes** (the **Panels** menu in the header) to see its CPU, memory and
    uptime.
 3. **Interrupt** the turn from the live bar (or `lazybox stop <conversation>`).
    A sub-agent can be stopped alone from its card.

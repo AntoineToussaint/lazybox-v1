@@ -77,13 +77,16 @@ try{
  // 2. Codex files two findings (`lazybox review add`): they arrive to triage,
  // with their severity and author.
  const run=fixture.reviewOf('alpha').runs[0];
- const blocker=fixture.fileFinding(run.id,{path:'src/handler.go',startLine:3,endLine:4,snippet:['func Handle() error {','\tlog.Print("handle")'],severity:'blocker',title:'The error is logged, not returned',body:'Return it so callers can retry.'});
+ const blocker=fixture.fileFinding(run.id,{path:'src/handler.go',startLine:3,endLine:4,snippet:['func Handle() error {','\tlog.Print("handle")'],severity:'blocker',title:'The error is logged, not returned',body:'Return it so callers can retry. Logged here, the failure never reaches the request handler, which answers 200 with an empty body instead.'});
  const minor=fixture.fileFinding(run.id,{path:'src/handler.go',startLine:4,snippet:['\tlog.Print("handle")'],severity:'minor',title:'Use the structured logger',body:'log.Print loses the request id.'});
  await expect(tray.getByRole('button',{name:/^To triage/})).toContainText('2',{timeout:15000});
  await expect(tray.getByRole('button',{name:/^To triage/})).toHaveAttribute('aria-pressed','true');
  const blockerRow=tray.locator('.review-tray-list').getByRole('listitem').filter({hasText:'The error is logged, not returned'});
  await expect(blockerRow).toContainText('Blocker');await expect(blockerRow).toContainText('from Codex');
  await expect(tray.locator('.review-tray-list').getByRole('listitem').filter({hasText:'Use the structured logger'})).toContainText('Minor');
+ // A finding's text and the review's summary wrap in the narrow tray: nothing is cut off.
+ const clipped=await tray.locator('.review-tray-body, .review-run-summary').evaluateAll(nodes=>nodes.filter(node=>node.scrollWidth>node.clientWidth+1).map(node=>node.textContent));
+ assert.deepEqual(clipped,[],'no tray text runs past its box');
  // Filters: by severity, by author.
  await tray.getByRole('combobox',{name:'Severity'}).selectOption('blocker');
  await expect(tray.locator('.review-tray-list').getByRole('listitem')).toHaveCount(1);

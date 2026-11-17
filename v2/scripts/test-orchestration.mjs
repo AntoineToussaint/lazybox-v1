@@ -108,6 +108,9 @@ async function run(scheme) {
   index.status = 'waiting_approval'; index.busy = false;
   const asking = agents.locator('li[data-state="needs-input"]').filter({ hasText: 'Index the corpus' });
   await expect(asking.locator('.agent-lineage')).toHaveText('started by Search lead · Ship search', { timeout: 15_000 });
+  // Too long for the row, it ends in "…" rather than being cut mid-letter (text-overflow needs a block, not a flex row).
+  const lineageBox = await asking.locator('.agent-lineage').evaluate(node => { const style = getComputedStyle(node); return { display: style.display, overflow: style.textOverflow }; });
+  assert.deepEqual(lineageBox, { display: 'block', overflow: 'ellipsis' });
   await page.screenshot({ path: `${shots}orchestration-agents-${scheme}.png` });
   index.pending = []; index.status = 'running'; index.busy = true;
 

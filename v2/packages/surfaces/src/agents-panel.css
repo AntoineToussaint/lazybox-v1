@@ -90,7 +90,9 @@
    under it; an agent away from its orchestrator says who started it. */
 .agents-group li[data-depth="1"]{margin-left:14px;border-left:1px solid var(--line-subtle);padding-left:4px}
 .agent-title .agent-orchestrator{flex:none;display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:0 5px;border:1px solid var(--accent-line);border-radius:7px;background:var(--accent-bg);color:var(--accent-strong);font-size:calc(9.5px * var(--text-scale));line-height:calc(14px * var(--text-scale));font-variant-numeric:tabular-nums}
-.agent-main .agent-lineage{display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:calc(10px * var(--text-scale));line-height:calc(14px * var(--text-scale));color:var(--text-faint)}
+/* A block, not a flex row: text-overflow only cuts a block's own text with "…". */
+.agent-main .agent-lineage{display:block;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:calc(10px * var(--text-scale));line-height:calc(14px * var(--text-scale));color:var(--text-faint)}
+.agent-main .agent-lineage>svg{display:inline-block;vertical-align:-1px;margin-right:4px}
 .inbox-lineage{display:block;font-size:calc(11px * var(--text-scale));color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* What missions need from the person, at the top of the Agents list: plans to

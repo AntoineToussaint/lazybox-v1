@@ -21,6 +21,17 @@ export function conversationTitle(session?:Session):string{
 export function conversationName(session?:Session,fallback='New conversation'):string{
  return conversationTitle(session)||fallback;
 }
+/**
+ * A conversation in a list of a workspace's conversations: "Title · Claude",
+ * with its subscription's name when it has one ("· Work Claude"). Two that
+ * would read the same are told apart by the start of their ids, and only then:
+ * an id is not something to read.
+ */
+export function conversationOption(session:Session,all:readonly Session[],provider:(profileId:string)=>string,label:(profileId:string)=>string|undefined):string{
+ const words=(value:Session)=>[conversationName(value),provider(value.profileId),label(value.profileId)].filter(Boolean).join(' · ');
+ const text=words(session);
+ return all.some(other=>other.id!==session.id&&words(other)===text)?`${text} · ${session.id.slice(0,6)}`:text;
+}
 // Words that only open a request ("I want to", "can you"); the Runner's titles.Fallback drops the same.
 const FILLER=/^(?:(?:hi|hey|hello|ok|okay|so|alright|please|pls)\b[\s,.!:;-]*|(?:i|we)\s+(?:want|wanna|need|have)\s+(?:you\s+)?to\b\s*|(?:i|we)\s*(?:'d|’d|\s+would)\s+like\s+(?:you\s+)?to\b\s*|(?:i|we)\s*(?:'m|’m|'re|’re|\s+am|\s+are)\s+(?:going|trying)\s+to\b\s*|(?:can|could|would|will)\s+(?:you|we)\s+(?:please\s+)?|let['’]?s\b\s*|help\s+me\s+(?:to\s+)?|i\s+think\s+(?:we\s+should\s+)?|we\s+should\s+)/i;
 const DANGLING=new Set('a an the to of and or but for with in on at is are be we i it that this so as by from into about if then my our your'.split(' '));

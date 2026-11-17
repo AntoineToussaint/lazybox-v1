@@ -162,5 +162,17 @@ make -C v2 check-release   # the release gate catalog
 explains their scope. The user docs are checked by `npm run test:client`:
 every relative link and anchor must resolve, and the
 [keyboard shortcut page](../reference/keyboard-shortcuts.md) must match the
-action registry (`npm run docs:shortcuts` regenerates it). Screenshots are
-regenerated from the fake Runner with `npm run docs:screenshots`.
+action registry (`npm run docs:shortcuts` regenerates it).
+
+**Screenshots** are taken, never drawn: `npm run docs:screenshots` drives the
+real web client against the fake Runner, on a fixed clock with the same
+story every time, and writes every image in `docs/images/` in the dark and the
+light theme (`hero.webp`, `hero-light.webp`; some also `-narrow`). What each
+image shows is one entry in `scripts/docs-shots.mjs`; `npm run
+docs:screenshots hero inbox` retakes some, `-- --variants=light,narrow` some
+variants, `-- --out=<dir>` writes elsewhere (an audit's folder). Pages reference
+the dark image; Help → Documentation shows its light twin in the light theme,
+and the README uses `<picture>` for the same. `npm run test:client` checks that
+every image a page references exists and is one the script takes, that every
+file in `docs/images/` is, and that every shot is used. A new screen in a
+guide is a new shot: add it, run the script, look at both themes.

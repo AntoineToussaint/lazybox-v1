@@ -16,7 +16,7 @@ From the panel's own header — no edit mode needed:
 | Dock it to an edge | **⋯ → Dock left / right / top / bottom**, or **drag the header** onto one of the four edge zones (`Esc` cancels). |
 | Fold it | Click its **title**: it collapses to its header (or a narrow tab beside another panel). Click again to unfold. |
 | Resize it | Drag the divider between panels. |
-| Close it | **×**. Bring it back from **Page actions (⋯) → Show panel**. |
+| Close it | **×**. Bring it back from the **Panels** menu in the header. |
 
 The **+** right after a group's tabs (or `⌘T` for the active group) starts a
 conversation in that group, or opens any panel there as its front tab; a panel
@@ -27,6 +27,12 @@ moved left opens on the left next time, in every workspace. The workspace list
 and the conversation are what the page is for, so they stay; everything else
 docks around them. On a phone, panels show one at a time from the panel
 switcher.
+
+In a small window every panel keeps a width it can be read at: the header's
+buttons keep only their icons, Workspaces and Agents stay on screen, and a
+panel that would be crushed becomes a tab beside another instead.
+
+![The same workspace in a 1024 × 680 window: icon-only header buttons, Workspaces above Agents, the conversation and the plan side by side](../images/hero-narrow.webp)
 
 ## From the keyboard
 

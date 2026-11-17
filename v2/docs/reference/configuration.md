@@ -258,6 +258,8 @@ in any editor, keep them in a dotfiles repository, hand them to an agent.
   toast, then a banner in Settings (and in Settings → Actions & hooks → *Config
   files*). A binding or entry with an error is left out, the rest applies; a
   save that is not YAML at all keeps the last version that loaded.
+
+  ![Settings → Shortcuts: keys.yaml, where it is, when it loaded, and its problem by line — no action "palete.open", did you mean "palette.open"](../images/settings-files.webp)
 - **Schemas.** Each file starts with a `# yaml-language-server: $schema=`
   line, and Lazybox writes `keys.schema.json`, `settings.schema.json` and
   `layout.schema.json` beside them (built from the app's own action registry,

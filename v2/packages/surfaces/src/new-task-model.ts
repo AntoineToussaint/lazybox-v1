@@ -51,8 +51,10 @@ const TRAILING = new Set(['a', 'an', 'the', 'to', 'of', 'for', 'and', 'or', 'in'
  * redirect loop"). Empty when the message says nothing.
  */
 export function nameFromPrompt(prompt: string, limit = 48): string {
-  const line = prompt.trim().split('\n').map(part => part.trim()).find(Boolean) || '';
-  if (!line) return '';
+  const first = prompt.trim().split('\n').map(part => part.trim()).find(Boolean) || '';
+  if (!first) return '';
+  // The first sentence: "Load-test the cache. Run 200 requests…" is named "Load-test the cache".
+  const line = first.split(/(?<=[.!?])\s+(?=\S)/)[0];
   const words = line.replace(/\s+/g, ' ').split(' ');
   let name = '';
   for (const word of words) {

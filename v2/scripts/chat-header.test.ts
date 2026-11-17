@@ -3,7 +3,7 @@ import { SessionSchema } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fitHeader, HEADER_GAP, HEADER_ORDER, HEADER_PRIORITY, MORE_WIDTH, reserve, STAT_WIDTH, type HeaderItem } from '../packages/surfaces/src/header-layout.ts';
-import { conversationName, cutAtWord, modelName, titleFromMessage } from '../packages/surfaces/src/conversation-model.ts';
+import { conversationName, conversationOption, cutAtWord, modelName, titleFromMessage } from '../packages/surfaces/src/conversation-model.ts';
 
 // The header from the report: every item present, with realistic widths.
 const everything: HeaderItem[] = [
@@ -71,6 +71,17 @@ test('a conversation is called by one name everywhere', () => {
   assert.equal(conversationName(session('Conversation title design')), 'Conversation title design');
   assert.equal(conversationName(session('strongly-tight-collie', '/w/strongly-tight-collie')), 'New conversation', 'a folder name is not a title');
   assert.equal(conversationName(undefined, 'Conversation'), 'Conversation');
+});
+
+test('the conversation list names a conversation in words, and an id only to tell two alike apart', () => {
+  const session = (id: string, title: string, profileId = 'claude-default') => create(SessionSchema, { id, title, profileId, workingDirectory: '/w/x' });
+  const provider = (profileId: string) => profileId.startsWith('codex') ? 'Codex' : 'Claude';
+  const label = (profileId: string) => profileId === 'claude-work' ? 'Work Claude' : undefined;
+  const cache = session('alpha-session', 'Add a response cache'), notes = session('beta-session', 'Release notes', 'codex-default'), work = session('work-1', 'Add a response cache', 'claude-work');
+  assert.equal(conversationOption(cache, [cache, notes, work], provider, label), 'Add a response cache · Claude', 'no id fragment after a subscription with no name');
+  assert.equal(conversationOption(work, [cache, notes, work], provider, label), 'Add a response cache · Claude · Work Claude');
+  const twin = session('3f9a1c77', 'Add a response cache');
+  assert.equal(conversationOption(twin, [cache, twin], provider, label), 'Add a response cache · Claude · 3f9a1c', 'two that read the same are told apart');
 });
 
 test('a title made from the first message is cut at a word, without the words that only open a request', () => {

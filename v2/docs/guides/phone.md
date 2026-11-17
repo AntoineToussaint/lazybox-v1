@@ -30,7 +30,7 @@
 
 ## Use it
 
-<img src="../images/phone-inbox.webp" width="300" alt="The phone inbox: conversations grouped by what they need">
+![The phone: its Inbox, every conversation grouped by what it needs, with Allow and Answer right on the rows; and a conversation waiting for an approval, with Allow once and Deny](../images/phone-inbox.webp)
 
 The phone opens on an **inbox** of every conversation across workspaces,
 grouped by what it needs: *needs input*, *failed*, *ready for review*,

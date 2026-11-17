@@ -85,6 +85,8 @@ started**. After an update, a quiet card in the corner lists **What's new**.
 
 ## The fastest start: New task (`⌘N`)
 
+![New task: the first message, a repository, the branch it suggests, the agent and its mode, in one sheet](images/new-task.webp)
+
 `⌘N` (File → New Task…, or **New task** where the window is empty) opens one
 sheet: type what the agent should do, pick the repositories (recent ones
 first; type to search), check the branch it suggests from your message (Edit
@@ -124,7 +126,7 @@ Lazybox asks you to **review its scripts** before running its setup — see
 
 ## Your first agent
 
-![A workspace: the sidebar of workspaces, a conversation with the agent's work folded into one line each, its plan, a turn marker, and the plan it published as an artifact](images/hero.webp)
+![A workspace: Workspaces above the Agents list on the left, a conversation with the agent's work folded into one line each, its plan, a turn marker, and the plan it published as an artifact](images/hero.webp)
 
 1. Press `⌘⇧N` or `]] c` (or the **+** beside the workspace name).
 2. Choose the **agent** (Claude or Codex), the **account**, and the

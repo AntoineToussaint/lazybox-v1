@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 import { DraggableDialog, DialogHeader } from './DraggableDialog';
 import { Icon } from './Icons';
 import { RichContent, type RichDocument } from './RichContent';
-import { resolveDocImage, resolveDocLink, searchDocs, type DocPage, type DocTarget } from './docs-model';
+import { resolveDocImage, resolveDocLink, searchDocs, themedDocImage, type DocPage, type DocTarget } from './docs-model';
 import { loadDocImages, loadDocs } from './docs-content';
+import { getAppearance, subscribeAppearance } from './appearance/apply';
 import './docs.css';
 
 /**
@@ -23,6 +24,8 @@ export function DocsViewer({ initial = 'README.md', onClose }: { /** The page to
   const [history, setHistory] = useState<DocTarget[]>([]);
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
+  // Screenshots in the window's theme: the light twin of each picture in the light theme.
+  const scheme = useSyncExternalStore(subscribeAppearance, () => getAppearance().theme.scheme);
   useEffect(() => { const node = dialog.current; if (node && !node.open) node.showModal(); }, []);
   useEffect(() => {
     void loadDocs().then(setPages, e => setError(`The documentation could not be loaded: ${String(e)}`));
@@ -45,8 +48,8 @@ export function DocsViewer({ initial = 'README.md', onClose }: { /** The page to
       // A page for people working on Lazybox, not part of what the app ships.
       else setNotice(`That link leads to ${href.split('#')[0]}, which is not part of the documentation in the app.`);
     },
-    image: src => { const path = resolveDocImage(page.path, src); return path ? images.get(path) : undefined; },
-  }, [page, pages, images, target]);
+    image: src => { const path = resolveDocImage(page.path, src); return path ? images.get(themedDocImage(path, scheme, other => images.has(other))) : undefined; },
+  }, [page, pages, images, target, scheme]);
   const hits = useMemo(() => pages && query.trim() ? searchDocs(pages, query) : undefined, [pages, query]);
   const sections = useMemo(() => {
     const groups = new Map<string, DocPage[]>();

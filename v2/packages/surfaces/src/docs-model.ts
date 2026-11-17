@@ -70,7 +70,19 @@ export function resolveDocImage(from: string, src: string) {
   return parts.join('/');
 }
 
-export type SearchHit = { page: DocPage; snippet: string; score: number };
+/**
+ * The picture to show for a docs image in this theme. The docs reference the
+ * dark screenshot ("images/hero.webp"); in the light theme its light twin
+ * ("images/hero-light.webp", written beside it by docs:screenshots) is shown
+ * when there is one, so a light window does not read dark pictures.
+ */
+export function themedDocImage(path: string, scheme: 'dark' | 'light', exists: (path: string) => boolean): string {
+  if (scheme !== 'light') return path;
+  const light = path.replace(/(\.[a-z0-9]+)$/i, '-light$1');
+  return light !== path && !/-light\.[a-z0-9]+$/i.test(path) && exists(light) ? light : path;
+}
+
+export type SearchHit ={ page: DocPage; snippet: string; score: number };
 /**
  * Pages that contain every word of the query, title matches first, each with
  * the line it matched on. Case-insensitive; Markdown syntax is ignored.

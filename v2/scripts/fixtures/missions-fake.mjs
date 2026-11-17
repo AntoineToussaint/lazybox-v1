@@ -137,6 +137,8 @@ export function createMissionFake({ sessions, collections, events }) {
       if (!t.gate) return refuse(`nothing on “${t.title}” is waiting for a decision`);
       Object.assign(t, { gate: '', accepted: !!body.accept, rejected: !!body.reject, decisionNote: decision.note || '', updated: ms() });
       append(m, body.accept ? 'gate.passed' : 'gate.rejected', 'task:' + t.id, { task: t.id, note: decision.note });
+      // An accepted task's agent no longer counts against its orchestrator's "at once".
+      refreshLineage(m);
     } else if (body.grant) {
       const session = sessions.find(s => s.id === body.grant.sessionId); if (!session) return { error: { code: 'not_found', message: 'conversation not found' } };
       if (m.grants.some(g => g.live && g.conversationId === conversationOf(session.id))) return refuse('that conversation already orchestrates this mission');

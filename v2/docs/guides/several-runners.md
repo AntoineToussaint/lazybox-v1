@@ -23,6 +23,8 @@ all side by side, and the page shows one of them at a time.
 
 ## What you see
 
+![Workspaces with one section per Runner: Dev, which the page shows, in full; Working, one line per workspace with what waits there; the release Runner not running. In Agents, both Runners' conversations together, each with its Runner's badge](../images/several-runners.webp)
+
 - **Workspaces** has one section per Runner. Its header gives the name, the
   channel, the version, whether it is connected, and how many conversations
   wait for you there. The Runner the page shows lists its workspaces in full
