@@ -80,6 +80,19 @@ Live model tests are opt-in. The earlier `make test-real` attempt failed for Cla
 
 The deterministic engine suite runs equivalent capability cases for both adapter shapes. The real SDK and installed app-server gateway fixtures exercise their actual supported integration boundaries. Fake-provider tests are labelled as such; they do not establish real subscription availability.
 
+### Real Claude and Codex before the first preview (2026-11-17)
+
+`make test-real` at `34d9f94fd`, on the person's Mac with their own accounts:
+
+- **Claude Code 2.1.326**:
+  - `TestReal/claude` passed: multi-turn, an image, three real managed-tool approvals, one command seen by the agent and two readers, and native resume.
+  - `TestRealAgentOutlivesRunnerRestart/claude` passed: a reply cut by a Runner detach finished in the same process after adoption, and the next turn remembered it.
+  - `TestRealClaudeReadsAcrossCollectionRepositories` passed.
+- **Codex 0.169.0**: `TestReal/codex`, `TestRealCodexNativeControl` (a native question answered and cancelled, interruption, queued continuation, command approval) and `TestRealAgentOutlivesRunnerRestart/codex` passed.
+  - They ran with `CODEX_HOME` pointed at a Lazybox-managed, signed-in Codex account.
+  - The person's own `codex` CLI was not signed in, and the first run failed `auth_required` for that reason only.
+- **Not run:** `TestRealACPAgent` (no `LAZYBOX_V2_REAL_ACP`) and `TestRealDogfoodContinuity` (needs an explicit managed profile).
+
 ## Remaining acceptance evidence and limits
 
 - Basic live Anthropic inference and account authorization passed through AgentWindow. Live image interpretation, tool approvals, and interruption/resume remain unverified; the deterministic gateway verifies those protocol mechanics separately.
