@@ -52,7 +52,7 @@ try{
  // ── A message sent mid-turn waits in the queue; the Runner journals it when it accepts it.
  await composer.fill('QUEUED_DELIVERED: only two teams and two users in every solution.');await composer.press('Enter');
  await expect(strip).toBeVisible({timeout:5000});
- accepted('QUEUED_DELIVERED: only two teams and two users in every solution.',messages().at(-1).body.operationId);
+ // (The fixture journals it on acceptance, as the Runner does.)
  pushAll(latest.slice(queuedAt+1,interruptAt));
  // ── Send now: the turn is interrupted, and the queued message is delivered next.
  await strip.getByRole('listitem').getByRole('button',{name:'Send now'}).click();
@@ -62,7 +62,7 @@ try{
  // ── Another message waits behind the delivered one.
  await composer.fill('QUEUED_BEHIND: ok so continue');await composer.press('Enter');
  await expect.poll(()=>claude.queuedMessages.length).toBe(1);
- accepted('QUEUED_BEHIND: ok so continue',messages().at(-1).body.operationId);
+ // (Journaled on acceptance by the fixture.)
  // ── The delivered message's turn: its receipt, then the agent working.
  pushAll(latest.slice(behindAt+1));
  // A turn's commands are one line until opened; the last line is the turn in progress.
