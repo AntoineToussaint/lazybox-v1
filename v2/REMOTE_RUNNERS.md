@@ -964,6 +964,72 @@ real laptop sleeping.
 | 13 | First cloud provider (P2) | AWS, GCP, Hetzner, Fly, DigitalOcean | **The one you already use.** If none, Hetzner Cloud for a personal always-on box: cheapest, with a simple CLI. AWS for teams. Your account and costs in any case. |
 | 14 | Hub-provisioned first owner | Always confirm on an existing device; trust the Hub for VMs it created | **Trust the Hub only for VMs it created**, said in setup. Never for BYO machines. |
 
+## 12. Addendum: the Hub link (2026-11-17)
+
+**Status: design only on the Lazybox side.** A first Hub exists outside this
+repository, as C17 requires, in its own local repository `lazybox-hub`
+(unpublished). It is a Codefly workspace that composes the SaaS starter and
+adds a `hub` module. Its `HUB.md` holds the design, and its `lazybox.hub.v1`
+protos are the contract. Built and tested there:
+
+- enrolment tokens;
+- Runner enrolment with proof of possession;
+- signed heartbeats and derived presence;
+- the person's Runner listing;
+- device introductions that only the Runner's signed report can mark admitted.
+
+It stores public keys only.
+
+**How it fits §3.** The Hub is one more `Directory` and `Enroller`, later a
+relay `Route`:
+
+- `ListRunners` feeds a `Directory`. Entries merge by `runnerId`, and the Hub's
+  copy of the link key is shown as **unverified** (§2.5).
+- `IntroduceDevice` carries a new client's public keys to the Runner, which
+  admits them only after an owner confirms them on the Runner or on a trusted
+  device, as rule 3 of MOBILE_CLOUD_HUB requires.
+
+**Runner changes needed** (none built):
+
+1. **A Hub identity key.**
+   - `<state>/hub-identity.key`: Ed25519, 0600, made at the first enrolment.
+   - It is separate from the link key, which is X25519 and cannot sign.
+   - Every Runner call to the Hub is a statement signed with it: a serialized
+     `RunnerStatement`, signed over `"lazybox-hub-statement-v1\0"` and the
+     bytes.
+   - The statement carries an `issued_at` the Hub requires to be fresh and
+     increasing.
+2. **`lazybox hub enrol <token> [--hub <url>]`.**
+   - The person creates the one-time token in the Hub after signing in.
+   - The Runner signs an `Enrollment` with both public keys, `runnerId`, name,
+     machine, platform and version, and calls `RunnerService/Enroll`.
+   - It stores `{hub, runner_id, interval}` in `<state>/hub.json` (0600).
+   - `lazybox hub status` and `lazybox hub leave` complete the set.
+3. **The heartbeat.**
+   - While enrolled, the Runner calls `RunnerService/Heartbeat` every 30 s
+     (the Hub's `heartbeat_interval_seconds`), with jitter and backoff.
+   - It reports its version and routes: the tailnet origin when serving, the
+     relay when on.
+   - The Hub shows *asleep since* after 90 s without one.
+   - A `PermissionDenied` answer means the person removed the Runner. The
+     Runner stops and says so in Settings.
+   - The connection is outbound HTTPS only. No listener is opened, and the
+     listening rule (§8) is unchanged.
+4. **The `hub` entry in `RunnerLink`.**
+   - The link agent adds the Hub as a directory when the desktop is signed in.
+   - It calls the Hub's person face through the host's gateway, with the
+     person's own session; the Runner's credentials are never used.
+5. **Introductions.**
+   - When a heartbeat answers `pending_introductions > 0`, the Runner calls
+     `PendingIntroductions`.
+   - It shows each one in Settings → Devices and on trusted devices, with the
+     device fingerprint and the grants asked for.
+   - After an owner confirms, it writes `devices.json` (or `owners.json`) with
+     the grants the owner chose. Only then does it sign `RecordAdmission`.
+
+Paused by the user's priority on 2026-11-17: remote access and the iPhone
+first, the Hub after.
+
 ## Sources
 
 Retrieved 2026-11-17. Where vendor docs and third parties differ, the text
