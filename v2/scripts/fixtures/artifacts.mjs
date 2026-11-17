@@ -1,6 +1,7 @@
 // Artifacts for the fake Runner (runner-ui.mjs): the RPCs of ARTIFACTS.md with
 // the Runner's rules — append-only versions, an unchanged put is no version,
-// a stale expected version is refused, tracking a file twice is one artifact —
+// a stale expected version is refused, tracking a file twice is one artifact,
+// a retired artifact leaves the default list and is restorable —
 // and `fileChanged`, which stands in for the Runner's file watcher.
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -30,11 +31,12 @@ export function artifactFixture({ workspaceFiles, mutations }) {
     return entry;
   };
   const find = (collectionId, id) => { const entry = artifacts.get(id); return entry && entry.meta.collectionId === collectionId ? entry : undefined; };
+  const retire = (entry, by, supersededBy = '', reason = '') => { entry.meta.retired = { atUnixMillis: String(now()), by, supersededBy, reason }; };
   const firstHeading = text => /^\s{0,3}#\s+(.+)$/m.exec(text)?.[1].trim();
 
   const handle = (method, body, json, error) => {
     switch (method) {
-      case 'ListArtifacts': return json({ artifacts: [...artifacts.values()].filter(e => e.meta.collectionId === body.collectionId).sort((a, b) => Number(b.meta.updatedAtUnixMillis) - Number(a.meta.updatedAtUnixMillis)).map(summary) });
+      case 'ListArtifacts': return json({ artifacts: [...artifacts.values()].filter(e => e.meta.collectionId === body.collectionId && (body.includeRetired || !e.meta.retired)).sort((a, b) => Number(b.meta.updatedAtUnixMillis) - Number(a.meta.updatedAtUnixMillis)).map(summary) });
       case 'GetArtifact': {
         const entry = find(body.collectionId, body.artifactId);
         if (!entry) return error('not_found', 'artifact not found');
@@ -79,6 +81,17 @@ export function artifactFixture({ workspaceFiles, mutations }) {
         entry.meta.updatedAtUnixMillis = String(now());
         return json(wire(entry));
       }
+      case 'RetireArtifact': {
+        mutations.push({ method, body });
+        const entry = find(body.collectionId, body.artifactId);
+        if (!entry) return error('not_found', 'artifact not found');
+        if (body.restore) delete entry.meta.retired;
+        else {
+          if (body.supersededBy && !find(body.collectionId, body.supersededBy)) return error('invalid_argument', 'the superseding artifact is not in this workspace');
+          retire(entry, { kind: 'person' }, body.supersededBy || '', body.reason || '');
+        }
+        return json(wire(entry));
+      }
       case 'DeleteArtifact': mutations.push({ method, body }); artifacts.delete(find(body.collectionId, body.artifactId)?.meta.id); return json({});
       case 'SaveArtifactToRepository': {
         mutations.push({ method, body });
@@ -101,11 +114,15 @@ export function artifactFixture({ workspaceFiles, mutations }) {
     workspaceFiles.set(key, { ...(workspaceFiles.get(key) || { path, binary: false, truncated: false }), text, version: randomUUID() });
     for (const entry of artifacts.values()) if (entry.meta.collectionId === collectionId && entry.meta.trackedPath === path && entry.versions.at(-1).content !== text) append(entry, text, { kind: 'file' }, { kind: 'file', path });
   };
-  /** An agent's `lazybox artifact put`. */
-  const agentPut = ({ collectionId, sessionId, conversationId = '', title, kind, content, artifactId }) => {
+  /** An agent's `lazybox artifact put`; with `supersedes`, the artifacts it retires as replaced by this one. */
+  const agentPut = ({ collectionId, sessionId, conversationId = '', title, kind, content, artifactId, supersedes = [] }) => {
     const source = { kind: 'agent', sessionId, conversationId }, author = { kind: 'agent', sessionId };
-    if (artifactId) { const entry = find(collectionId, artifactId); append(entry, content, author, source); return wire(entry); }
-    return wire(create({ collectionId, title, kind, content, author, source }));
+    const entry = artifactId ? find(collectionId, artifactId) : create({ collectionId, title, kind, content, author, source });
+    if (artifactId) append(entry, content, author, source);
+    for (const id of supersedes) retire(find(collectionId, id), author, entry.meta.id);
+    return wire(entry);
   };
-  return { artifacts, handle, fileChanged, agentPut };
+  /** An agent's `lazybox artifact retire`. */
+  const agentRetire = ({ collectionId, sessionId, artifactId, supersededBy = '', reason = '' }) => { const entry = find(collectionId, artifactId); retire(entry, { kind: 'agent', sessionId }, supersededBy, reason); return wire(entry); };
+  return { artifacts, handle, fileChanged, agentPut, agentRetire };
 }

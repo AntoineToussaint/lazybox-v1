@@ -2,11 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Artifact, ArtifactVersion, Collection } from '@lazybox/protocol';
 import { ActionMenu } from './ActionMenu';
 import { CreateIssueDialog, DeleteArtifactDialog, DiffStats, DiffView, SaveToRepositoryDialog } from './ArtifactDialogs';
-import { artifactsChanged, errorText } from './artifact-client';
+import { artifactsChanged, errorText, restoreArtifacts, retireArtifact } from './artifact-client';
 import { ARTIFACT_KINDS, agentReference, ago, asKind, kindIcon, kindLabel, lineDiff, slug, versionOrigin } from './artifact-model';
 import { extractToc, readingMinutes, tocOutline, withoutRepeatedTitle } from './artifact-reader';
 import { DocumentBody, RenderedDiff, TableOfContents, useScrollSpy } from './ArtifactReader';
-import { revealMessage } from './artifact-events';
+import { openArtifact, revealMessage } from './artifact-events';
+import { OTHER_ARTIFACTS_POLL_MS, retiredStamp, useArtifacts } from './useArtifacts';
 import { composeInConversation } from './compose';
 import { Icon } from './Icons';
 import { useRunner } from './RunnerContext';
@@ -84,7 +85,7 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   const printNow = useRef<() => void>(() => {});
 
   // The latest version, again whenever the list says the artifact changed.
-  const stamp = summary ? `${summary.updatedAtUnixMillis}:${summary.title}:${summary.kind}:${summary.trackedPath}:${summary.trackingProblem}` : '';
+  const stamp = summary ? `${summary.updatedAtUnixMillis}:${summary.title}:${summary.kind}:${summary.trackedPath}:${summary.trackingProblem}:${retiredStamp(summary)}` : '';
   const [poll, setPoll] = useState(0);
   // How many times the latest version came back: a version asked for from outside waits for a fresh one.
   const [loads, setLoads] = useState(0);
@@ -99,6 +100,12 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   }, [api, collectionId, artifactId, stamp, poll]);
   // Without a list (its own window), the page watches for new versions itself.
   useEffect(() => { if (summary) return; const timer = setInterval(() => { if (document.visibilityState === 'visible') setPoll(value => value + 1); }, 4000); return () => clearInterval(timer); }, [!!summary]);
+
+  // A retired page names what superseded it: the workspace's list (shared, retired included) has its title.
+  const supersededBy = artifact?.retired?.supersededBy || '';
+  const siblings = useArtifacts(supersededBy ? collectionId : '', OTHER_ARTIFACTS_POLL_MS);
+  const successor = supersededBy ? [...siblings.artifacts, ...siblings.retired].find(a => a.id === supersededBy) : undefined;
+  const moreMenu = useRef<HTMLDetailsElement>(null);
 
   const versions = artifact?.versions || [];
   const latestNumber = versions.at(-1)?.number || 0;
@@ -177,6 +184,26 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
     try { setArtifact(await api.updateArtifact({ collectionId, artifactId, ...change }, { timeoutMs: 10000 })); artifactsChanged(collectionId); say(said); }
     catch (e) { setError(errorText(e)); }
   };
+  // Retiring is reversible and keeps every version: no confirmation, and Restore is on the banner it leaves.
+  const retire = async () => {
+    try { setArtifact(await retireArtifact(api, collectionId, artifactId)); say('Retired. It keeps every version; Restore brings it back.'); }
+    catch (e) { setError(errorText(e)); }
+  };
+  const restore = async () => {
+    try {
+      await restoreArtifacts(api, collectionId, [artifactId]);
+      setArtifact(current => current && { ...current, retired: undefined } as Artifact); setPoll(value => value + 1);
+      say('Restored. It is back in the list.');
+      // The banner that held the focus is gone: the page's actions keep it.
+      requestAnimationFrame(() => moreMenu.current?.querySelector('summary')?.focus());
+    } catch (e) { setError(errorText(e)); }
+  };
+  const showSuccessor = () => {
+    if (!supersededBy) return;
+    if (openArtifact({ collectionId, artifactId: supersededBy })) return;
+    if (host.openArtifact) void host.openArtifact({ collectionId, artifactId: supersededBy }).catch(e => setError(errorText(e)));
+  };
+  const retiredBy = artifact.retired?.by?.kind === 'agent' ? 'an agent' : 'you';
   const copy = async (text: string, said: string) => { try { await navigator.clipboard.writeText(text); say(said); } catch (e) { setError(`Copy failed: ${errorText(e)}`); } };
   const download = () => {
     const url = URL.createObjectURL(new Blob([latestContent], { type: 'text/markdown;charset=utf-8' }));
@@ -250,17 +277,31 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
           <button type="button" disabled={!collection?.members.length} onClick={() => setDialog('issue')}><Icon name="external"/><span>Create GitHub issue…</span></button>
         </ActionMenu>
         {!standalone && host.openArtifact && <button type="button" className="artifact-tool artifact-open-window" aria-label="Open in its own window" title="Open in its own window" onClick={() => void host.openArtifact!({ collectionId, artifactId }).catch(e => setError(errorText(e)))}><Icon name="external" size={14}/></button>}
-        <ActionMenu label="Artifact actions" className="artifact-more-menu">
+        <ActionMenu ref={moreMenu} label="Artifact actions" className="artifact-more-menu">
           <button type="button" onClick={() => { setView('document'); setRenaming(true); }}><Icon name="pencil"/><span>Rename</span></button>
           {!standalone && host.openArtifact && <button type="button" className="artifact-menu-window" onClick={() => void host.openArtifact!({ collectionId, artifactId }).catch(e => setError(errorText(e)))}><Icon name="external"/><span>Open in its own window</span></button>}
           <button type="button" disabled={!message || !onShowSession} title={!onShowSession && message ? 'Open it from the workspace window' : undefined} onClick={openMessage}><Icon name="chat"/><span>Open source message</span></button>
           <button type="button" disabled={!filePath || !workbench} onClick={openFile}><Icon name="file"/><span>Open source file</span></button>
           {artifact.trackedPath && <button type="button" onClick={() => void update({ stopTracking: true }, `Stopped following ${artifact.trackedPath}. Its versions are kept.`)}><Icon name="close"/><span>Stop syncing with file</span></button>}
+          {artifact.retired
+            ? <button type="button" onClick={() => void restore()}><Icon name="history"/><span>Restore</span></button>
+            : <button type="button" onClick={() => void retire()}><Icon name="archive"/><span>Retire</span></button>}
           <button type="button" className="danger" onClick={() => setDialog('delete')}><Icon name="cross"/><span>Delete…</span></button>
         </ActionMenu>
       </div>
     </header>
     {error && <p className="artifact-error" role="alert">{error}<button type="button" className="link-button" onClick={() => setError('')}>Dismiss</button></p>}
+    {artifact.retired && <div className="artifact-retired-banner" role="note" aria-label="Retired">
+      <Icon name="archive" size={14}/>
+      <span className="artifact-retired-text">
+        <strong>Retired</strong>
+        {supersededBy && <>: superseded by {successor
+          ? <button type="button" className="link-button artifact-successor" title={`Open “${successor.title}”`} onClick={showSuccessor}>{successor.title}</button>
+          : <span>{siblings.loaded ? 'an artifact since deleted' : '…'}</span>}</>}
+        <small title={fullDate(artifact.retired.atUnixMillis)}>by {retiredBy} {ago(artifact.retired.atUnixMillis)}{artifact.retired.reason ? ` · ${artifact.retired.reason}` : ''} · kept with every version</small>
+      </span>
+      <button type="button" className="artifact-restore" onClick={() => void restore()}><Icon name="history" size={12}/>Restore</button>
+    </div>}
     <div className="artifact-page-body">
       <main className="artifact-main">
         <div ref={scroller} className="artifact-scroll">

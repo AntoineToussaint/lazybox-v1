@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema } from '@lazybox/protocol';
 import { emptyTranscript, foldTranscript } from '../packages/surfaces/src/transcript-model.ts';
-import { applyToolPayload, describeGroup, describeTool, groupTools, kindOf, latestPlanId, lineChange, publishedArtifacts, shortPath, type ToolEntry } from '../packages/surfaces/src/tool-lines.ts';
+import { applyToolPayload, artifactOutcomes, describeGroup, describeTool, groupTools, kindOf, latestPlanId, lineChange, publishedArtifacts, retiredArtifacts, shortPath, type ToolEntry } from '../packages/surfaces/src/tool-lines.ts';
 import { answerNote, approvalOf, questionsOf, requestNote, risksOf } from '../packages/surfaces/src/request-model.ts';
 
 const ROOT = '/Users/me/ws/alpha';
@@ -31,6 +31,27 @@ test('an agent\'s `lazybox artifact put` is recognized from what the CLI printed
   assert.deepEqual(publishedArtifacts(ran('Bash', { command: 'grep Published /tmp/log' }, said('Old', 'OLD1', 1, 'plan'))), []);
   assert.deepEqual(publishedArtifacts(ran('Bash', { command: 'lazybox artifact put PLAN.md --title P' })), []);
   assert.deepEqual(publishedArtifacts(ran('Read', { file_path: '/tmp/out.txt' }, said('Old', 'OLD1', 1, 'plan'))), []);
+});
+
+test('an agent\'s merge (`put --supersedes`) and `retire` are recognized from what the CLI printed', () => {
+  const said = (title: string, id: string, version: number) => `Published “${title}” as artifact ${id}, version ${version} (plan). The user sees it in Lazybox → Artifacts. Publish a new version with --id ${id}.\n`;
+  const retiredLine = (title: string, id: string, by?: [string, string]) => `Retired “${title}” (artifact ${id})${by ? `, superseded by “${by[0]}” (artifact ${by[1]})` : ''}.`;
+  const restorable = 'Retired artifacts keep every version; the person can restore them in Lazybox → Artifacts.\n';
+  // Three overlapping artifacts merged into a new status page: one merge, nothing else.
+  const merge = ran('Bash', { command: 'lazybox artifact put STATUS.md --title Status --supersedes A1,B2,C3' }, said('Status', 'S9', 1) + [retiredLine('Milestone plan', 'A1', ['Status', 'S9']), retiredLine('What\'s left', 'B2', ['Status', 'S9']), retiredLine('Limitations', 'C3', ['Status', 'S9'])].join('\n') + '\n' + restorable);
+  assert.deepEqual(retiredArtifacts(merge).map(r => `${r.id}>${r.supersededBy?.id}`), ['A1>S9', 'B2>S9', 'C3>S9']);
+  const outcome = artifactOutcomes(merge);
+  assert.deepEqual([outcome.published, outcome.retired, outcome.merges.map(m => m.text)], [[], [], ['Merged 3 artifacts into “Status”']]);
+  // Merged into one of them (a new version of it): it counts too.
+  const into = artifactOutcomes(ran('Bash', { command: 'lazybox artifact put - --id A1 --supersedes B2,C3' }, said('Milestone plan', 'A1', 4) + retiredLine('What\'s left', 'B2', ['Milestone plan', 'A1']) + '\n' + retiredLine('Limitations', 'C3', ['Milestone plan', 'A1']) + '\n' + restorable));
+  assert.deepEqual(into.merges.map(m => [m.text, m.retired.length]), [['Merged 3 artifacts into “Milestone plan”', 2]]);
+  // One replaced by a new one.
+  assert.deepEqual(artifactOutcomes(ran('Bash', { command: 'lazybox artifact put n.md --title New --supersedes O1' }, said('New', 'N1', 1) + retiredLine('Old', 'O1', ['New', 'N1']) + '\n')).merges.map(m => m.text), ['Replaced “Old” with “New”']);
+  // `retire` alone, through the full path of the CLI.
+  const alone = artifactOutcomes(ran('Bash', { command: '"$LAZYBOX_V2_CLI" artifact retire C3 --superseded-by S9' }, retiredLine('Limitations', 'C3', ['Status', 'S9']) + ' ' + restorable));
+  assert.deepEqual([alone.published, alone.merges, alone.retired], [[], [], [{ id: 'C3', title: 'Limitations', supersededBy: { id: 'S9', title: 'Status' } }]]);
+  // A line quoted by another command is not a retirement.
+  assert.deepEqual(retiredArtifacts(ran('Bash', { command: 'cat /tmp/log' }, retiredLine('Old', 'O1') + '\n')), []);
 });
 
 test('a call reads as a person says it: verb, target, short facts', () => {

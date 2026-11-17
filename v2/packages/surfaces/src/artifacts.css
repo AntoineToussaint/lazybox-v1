@@ -316,3 +316,19 @@
 .artifacts-group-name{display:flex;align-items:center;gap:6px;padding:4px 10px 2px;font-size:calc(10.5px * var(--text-scale));font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint)}
 .artifacts-group-name small{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-disabled)}
 .artifacts-empty button{margin-top:4px}
+/* Retired artifacts (ARTIFACTS.md, "Retiring and merging"): quieter rows under "Show retired", a banner on the page, a card in the chat. */
+.artifact-row.is-retired .artifact-row-text strong{color:var(--text-muted);font-weight:520}
+.artifact-row.is-retired .artifact-kind-icon{opacity:.6}
+.artifacts-retired{margin-top:8px}
+.artifacts-retired-toggle{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;min-height:0;height:26px;margin:6px 10px 10px;padding:0 8px;border:0;border-radius:6px;background:none;font-size:calc(12px * var(--text-scale));color:var(--text-muted);text-decoration:none;cursor:pointer}
+.artifacts-retired-toggle:hover{color:var(--text);background:var(--surface-hover)}
+.artifact-retired-banner{display:flex;align-items:center;gap:10px;margin:10px 16px 0;padding:8px 12px;border-radius:10px;background:var(--surface-sunken);border:1px solid var(--line-subtle);font-size:calc(13px * var(--text-scale));color:var(--text-secondary)}
+.artifact-retired-banner>svg{flex:none;color:var(--text-muted)}
+.artifact-retired-text{flex:1;min-width:0;line-height:1.5}
+.artifact-retired-text small{display:block;font-size:calc(11px * var(--text-scale));color:var(--text-muted);overflow-wrap:anywhere}
+.artifact-retired-banner .artifact-successor{display:inline;min-height:0;height:auto;margin:0;padding:0;border:0;background:none;font:inherit;font-weight:600;color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.artifact-retired-banner .artifact-successor:hover{color:var(--accent-strong)}
+.artifact-restore{display:inline-flex;align-items:center;gap:5px;flex:none;min-height:0;height:26px;padding:0 10px;border-radius:6px;font-size:calc(12px * var(--text-scale))}
+.artifact-card.is-retired .artifact-card-actions button{display:inline-flex;align-items:center;gap:5px}
+.artifact-card.is-restored{opacity:.75}
+.artifact-card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}

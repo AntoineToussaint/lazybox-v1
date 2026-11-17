@@ -71,7 +71,7 @@ try{
  await page.screenshot({path:'.cache/find-artifacts-card.png'});
  // Open: the page in the workspace's Artifacts panel.
  await card.getByRole('button',{name:'Open'}).click();
- const article=page.getByRole('article',{name:'Rollout plan'});
+ const article=page.getByRole('article',{name:'Rollout plan',exact:true});
  await expect(article.locator('.artifact-document')).toContainText('Ship in three phases.');
 
  // An update: its card offers the changes, and opens on them.
@@ -177,6 +177,107 @@ try{
  await artifactFilter.fill('Note 2');
  await expect(panel.getByRole('option')).toHaveCount(1);
  await artifactFilter.fill('');
+
+ // Consolidating (ARTIFACTS.md, "Retiring and merging"): the agent merges three overlapping artifacts into one
+ // with `put --supersedes`. The conversation says so with Undo; the panel hides the retired ones behind
+ // "Show retired (N)"; a retired page says what superseded it, with Restore. All of it from the keyboard.
+ await panel.locator('.artifacts-list').evaluate(node=>{node.style.removeProperty('width');node.style.removeProperty('flex');});
+ // Back to the conversation's workspace, by ⌘K.
+ await composer.focus();
+ await page.keyboard.press('Meta+k');await expect(palette).toBeVisible();
+ await search.fill('*Rollout plan');await expect(listed.first()).toContainText('Rollout plan');await page.keyboard.press('Enter');
+ await expect(page.getByRole('combobox',{name:'Workspace',exact:true})).toHaveValue('alpha');
+ const rollout=page.getByRole('article',{name:'Rollout plan',exact:true});
+ await expect(rollout).toBeVisible();
+ // A narrow panel shows the page instead of the list.
+ if(await rollout.getByRole('button',{name:'Back to artifacts'}).isVisible())await rollout.getByRole('button',{name:'Back to artifacts'}).click();
+ await panel.getByRole('radiogroup',{name:'Show artifacts of'}).getByRole('radio',{name:'This workspace'}).click();
+ const agent={collectionId:'alpha',sessionId:session.id,conversationId:'conversation-alpha'};
+ const overlapping=['Milestone plan','What\'s left','Limitations and what\'s next'].map(title=>fixture.artifacts.agentPut({...agent,title,kind:'plan',content:`# ${title}\n\nOverlapping.\n`}));
+ await expect(panel.getByRole('option',{name:/Limitations and what's next/})).toBeVisible({timeout:20000});
+ const status=fixture.artifacts.agentPut({...agent,title:'Project status',kind:'plan',content:'# Project status\n\nEverything in one place.\n',supersedes:overlapping.map(a=>a.id)});
+ const retiredSaid=overlapping.map(a=>`Retired “${a.title}” (artifact ${a.id}), superseded by “Project status” (artifact ${status.id}).`).join('\n');
+ channel.push({type:'operation_accepted',text:'Merge the overlapping documents'});
+ bash(`lazybox artifact put STATUS.md --title "Project status" --kind plan --supersedes ${overlapping.map(a=>a.id).join(',')}`,said('Project status',status.id,1,'plan')+retiredSaid+'\nRetired artifacts keep every version; the person can restore them in Lazybox → Artifacts.\n');
+ const merged=messages.getByRole('group',{name:'Merged 3 artifacts into “Project status”'});
+ await expect(merged).toBeVisible();
+ await expect(merged).toContainText('Retired “Milestone plan”, “What\'s left”, “Limitations and what\'s next” · kept with their versions');
+ // The merge is its own card: no second card for the artifact it published.
+ await expect(messages.getByRole('group',{name:'Artifact “Project status”, v1'})).toHaveCount(0);
+ const undo=merged.getByRole('button',{name:'Undo: restore 3 artifacts'});
+ await expect(undo).toBeVisible({timeout:20000});
+ await page.screenshot({path:'.cache/find-artifacts-merged-card.png'});
+
+ // The panel: only the live ones, and "Show retired (3)", reached and pressed from the keyboard.
+ const workspaceRows=panel.getByRole('listbox',{name:'Artifacts'});
+ await expect(workspaceRows.getByRole('option',{name:/Project status/})).toBeVisible({timeout:20000});
+ await expect(workspaceRows.getByRole('option',{name:/Milestone plan/})).toHaveCount(0);
+ const toggle=panel.getByRole('button',{name:'Show retired (3)'});
+ await expect(toggle).toHaveAttribute('aria-pressed','false');
+ await toggle.focus();await page.keyboard.press('Enter');
+ await expect(panel.getByRole('button',{name:'Hide retired (3)'})).toHaveAttribute('aria-pressed','true');
+ const retiredGroup=workspaceRows.getByRole('group',{name:'Retired'});
+ await expect(retiredGroup.getByRole('option')).toHaveCount(3);
+ await expect(retiredGroup.getByRole('option',{name:/Milestone plan/})).toContainText('Retired · superseded by “Project status”');
+ for(const scheme of ['dark','light']){await page.emulateMedia({colorScheme:scheme});await page.waitForTimeout(150);await page.locator('.artifacts-panel').screenshot({path:`.cache/find-artifacts-retired-list-${scheme}.png`});}
+ await page.emulateMedia({colorScheme:null});
+ // ↑/↓ run from the live rows into the retired ones; Enter opens one, with its banner.
+ const liveRows=workspaceRows.getByRole('option').filter({hasNot:page.locator('.artifact-row-retired')});
+ await liveRows.last().focus();
+ await page.keyboard.press('ArrowDown');
+ await expect(retiredGroup.getByRole('option').first()).toBeFocused();
+ const firstRetired=(await retiredGroup.getByRole('option').first().locator('strong').textContent()).trim();
+ await page.keyboard.press('Enter');
+ const retiredPage=page.getByRole('article',{name:firstRetired,exact:true});
+ const banner=retiredPage.getByRole('note',{name:'Retired'});
+ await expect(banner).toContainText('Retired: superseded by Project status');
+ await expect(banner).toContainText('by an agent');
+ await expect(retiredPage.locator('.artifact-document')).toContainText('Overlapping.');
+ for(const scheme of ['dark','light']){await page.emulateMedia({colorScheme:scheme});await page.waitForTimeout(150);await retiredPage.screenshot({path:`.cache/find-artifacts-retired-banner-${scheme}.png`});}
+ await page.emulateMedia({colorScheme:null});
+ // The successor's name opens it.
+ await banner.getByRole('button',{name:'Project status'}).focus();await page.keyboard.press('Enter');
+ await expect(page.getByRole('article',{name:'Project status',exact:true}).locator('.artifact-document')).toContainText('Everything in one place.');
+ // Back on the retired page, Restore (from the keyboard) brings it back to the list; the toggle counts the rest.
+ // A narrow panel shows one page at a time: Back returns to the list.
+ const toList=async()=>{const back=panel.locator('.artifact-back:visible');if(await back.count())await back.first().click();};
+ await toList();
+ await retiredGroup.getByRole('option',{name:firstRetired}).click();
+ await banner.getByRole('button',{name:'Restore'}).focus();await page.keyboard.press('Enter');
+ await expect(banner).toHaveCount(0);
+ await expect(retiredPage.locator('.artifact-status')).toHaveText('Restored. It is back in the list.');
+ await expect(retiredPage.locator('.artifact-more-menu > summary')).toBeFocused();
+ await toList();
+ await expect(panel.getByRole('button',{name:'Hide retired (2)'})).toBeVisible({timeout:20000});
+ const restores=()=>fixture.mutations.filter(m=>m.method==='RetireArtifact'&&m.body.restore).map(m=>m.body.artifactId);
+ assert.equal(restores().length,1);
+
+ // The card's Undo restores the rest, and then says they are back.
+ await merged.getByRole('button',{name:'Undo: restore 2 artifacts'}).focus();await page.keyboard.press('Enter');
+ await expect(merged.locator('small[role=status]')).toContainText('Undone: “Milestone plan”, “What\'s left”, “Limitations and what\'s next” are back in the list',{timeout:20000});
+ await expect(merged.getByRole('button',{name:/^Undo/})).toHaveCount(0);
+ assert.deepEqual(new Set(restores()),new Set(overlapping.map(a=>a.id)));
+ await expect(panel.getByRole('button',{name:/retired \(/})).toHaveCount(0,{timeout:20000});
+ await page.screenshot({path:'.cache/find-artifacts-merged-undone.png'});
+
+ // `lazybox artifact retire` alone: its own card, with Undo.
+ fixture.artifacts.agentRetire({...agent,artifactId:overlapping[2].id,supersededBy:status.id});
+ bash(`lazybox artifact retire ${overlapping[2].id} --superseded-by ${status.id}`,`Retired “Limitations and what's next” (artifact ${overlapping[2].id}), superseded by “Project status” (artifact ${status.id}). Retired artifacts keep every version; the person can restore them in Lazybox → Artifacts.\n`);
+ const retiredCard=messages.getByRole('group',{name:'Retired “Limitations and what\'s next”'});
+ await expect(retiredCard).toContainText('Superseded by “Project status” · kept with its versions');
+ await expect(retiredCard.getByRole('button',{name:'Undo: restore “Limitations and what\'s next”'})).toBeVisible({timeout:20000});
+
+ // The person retires and restores from the page's ⋯ menu.
+ await toList();
+ await workspaceRows.getByRole('option',{name:/^Project status/}).click();
+ const statusPage=page.getByRole('article',{name:'Project status',exact:true});
+ const more=statusPage.locator('.artifact-more-menu > summary');
+ await more.click();
+ await page.getByRole('group',{name:'Artifact actions menu'}).getByRole('button',{name:'Retire',exact:true}).click();
+ await expect(statusPage.getByRole('note',{name:'Retired'})).toContainText('by you');
+ await more.click();
+ await page.getByRole('group',{name:'Artifact actions menu'}).getByRole('button',{name:'Restore',exact:true}).click();
+ await expect(statusPage.getByRole('note',{name:'Retired'})).toHaveCount(0);
  assert.deepEqual(errors,[]);
- console.log('PASS: an agent\'s artifact put shows a card that opens the page (and an update its changes); the header chip counts this conversation\'s artifacts and opens the panel on them; ⌘K (and its * prefix) finds an artifact of another workspace and opens it there; All workspaces groups by workspace; with none, no card or chip and a one-sentence empty state. Fixture only.');
+ console.log('PASS: an agent\'s artifact put shows a card that opens the page (and an update its changes); a merge (put --supersedes) shows "Merged 3 artifacts into …" with Undo, the panel hides retired artifacts behind "Show retired (N)", a retired page says what superseded it with Restore, retire alone has its card, and the person retires and restores from ⋯, all from the keyboard; the header chip counts this conversation\'s artifacts and opens the panel on them; ⌘K (and its * prefix) finds an artifact of another workspace and opens it there; All workspaces groups by workspace; with none, no card or chip and a one-sentence empty state. Fixture only.');
 }finally{await browser?.close();await server.close();await fixture.close();}

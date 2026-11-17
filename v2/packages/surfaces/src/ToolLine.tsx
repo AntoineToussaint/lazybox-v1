@@ -4,8 +4,8 @@ import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import { Icon } from './Icons';
 import { CodeBlock } from './RichContent';
-import { briefItems, commandText, describeGroup, describeTool, describeToolBrief, groupTools, keptInQuiet, kindOf, publishedArtifacts, shortPath, stepsOf, summarizeRun, summarizeTurn, unfolded, type ActivityCategory, type ActivityDetail, type BriefItem, type ToolEntry, type ToolItem, type ToolKind } from './tool-lines';
-import { ArtifactCard } from './ArtifactCard';
+import { artifactOutcomes, briefItems, commandText, describeGroup, describeTool, describeToolBrief, groupTools, keptInQuiet, kindOf, shortPath, stepsOf, summarizeRun, summarizeTurn, unfolded, type ActivityCategory, type ActivityDetail, type BriefItem, type ToolEntry, type ToolItem, type ToolKind } from './tool-lines';
+import { ArtifactCard, RetiredArtifactsCard } from './ArtifactCard';
 import { useMessageScope } from './MessageArtifactActions';
 import { titleWhenTruncated } from './truncated-title';
 import './tool-lines.css';
@@ -58,13 +58,23 @@ export const ToolLines = memo(function ToolLines({ entries, turn }: { entries: r
   </>;
 });
 
-/** What the agent published with `lazybox artifact put`, as cards under the calls, at every activity detail. */
+/**
+ * What the agent did with `lazybox artifact put` and `retire`, as cards under
+ * the calls, at every activity detail: what it published, what it merged
+ * (with Undo), and what it retired (with Undo).
+ */
 function PublishedCards({ entries }: { entries: readonly ToolEntry[] }) {
   const scope = useMessageScope();
-  const published = useMemo(() => entries.flatMap(entry => publishedArtifacts(entry)), [entries]);
-  if (!published.length || !scope?.collectionId) return null;
+  const outcomes = useMemo(() => entries.map(entry => artifactOutcomes(entry)), [entries]);
+  if (!scope?.collectionId || !outcomes.some(o => o.published.length || o.merges.length || o.retired.length)) return null;
+  const collectionId = scope.collectionId;
   return <div className="artifact-cards">
-    {published.map(p => <ArtifactCard key={`${p.id}@${p.version}`} collectionId={scope.collectionId} artifactId={p.id} title={p.title} kind={p.kind} version={p.version} how={p.version > 1 ? 'updated by the agent' : 'published by the agent'}/>)}
+    {outcomes.flatMap((o, i) => [
+      ...o.merges.map(m => <RetiredArtifactsCard key={`${i}:merge:${m.into.id}@${m.into.version}`} collectionId={collectionId} retired={m.retired} text={m.text} into={m.into}/>),
+      ...o.published.map(p => <ArtifactCard key={`${i}:${p.id}@${p.version}`} collectionId={collectionId} artifactId={p.id} title={p.title} kind={p.kind} version={p.version} how={p.version > 1 ? 'updated by the agent' : 'published by the agent'}/>),
+      ...(o.retired.length ? [<RetiredArtifactsCard key={`${i}:retired:${o.retired.map(r => r.id).join(',')}`} collectionId={collectionId} retired={o.retired}
+        text={o.retired.length === 1 ? `Retired “${o.retired[0].title}”` : `Retired ${o.retired.length} artifacts`}/>] : []),
+    ])}
   </div>;
 }
 

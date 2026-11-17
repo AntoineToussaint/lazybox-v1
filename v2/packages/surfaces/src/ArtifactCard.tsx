@@ -2,7 +2,10 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArtifactHostContext } from './ArtifactPage';
 import { artifactChip, asKind, kindIcon, kindLabel } from './artifact-model';
 import { openArtifact } from './artifact-events';
+import { errorText, restoreArtifacts } from './artifact-client';
 import { Icon } from './Icons';
+import { useRunner } from './RunnerContext';
+import type { PublishedArtifact, RetiredArtifact } from './tool-lines';
 import { OTHER_ARTIFACTS_POLL_MS, useArtifacts } from './useArtifacts';
 import './artifacts.css';
 
@@ -45,6 +48,72 @@ export function ArtifactCard({ collectionId, artifactId, title, kind, version, h
       <button type="button" className="artifact-card-open" onClick={() => open(false)}>Open</button>
     </span>
     {note && <small className="artifact-card-note" role="status">{note}</small>}
+  </div>;
+}
+
+const quoted = (list: readonly { title: string }[]) => list.map(r => `“${r.title}”`).join(', ');
+
+/**
+ * What an agent retired, where it happened: a merge ("Merged 3 artifacts into
+ * “Status”", from `put --supersedes`) or a retirement (`lazybox artifact
+ * retire`). Undo restores every one still retired; once restored, the card
+ * says so. Open shows the artifact merged into, or the one retired.
+ */
+export function RetiredArtifactsCard({ collectionId, retired, text, into }: {
+  collectionId: string;
+  retired: readonly RetiredArtifact[];
+  /** "Merged 3 artifacts into “Status”", "Retired “Limitations”". */
+  text: string;
+  /** The artifact the others were merged into. */
+  into?: PublishedArtifact;
+}) {
+  const { api } = useRunner();
+  const host = useContext(ArtifactHostContext);
+  const { artifacts, retired: retiredNow, loaded, reload } = useArtifacts(collectionId, OTHER_ARTIFACTS_POLL_MS);
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [undone, setUndone] = useState<string>();
+  const card = useRef<HTMLDivElement>(null);
+  const ids = retired.map(r => r.id);
+  const still = retiredNow.filter(a => ids.includes(a.id));
+  // Retired again after an Undo (a new retirement time) offers Undo again.
+  const stamp = still.map(a => `${a.id}:${a.retired?.atUnixMillis}`).join(',');
+  const canUndo = still.length > 0 && stamp !== undone;
+  // The list may predate the agent's call (its output arrives first): a merge's list is current once it has the
+  // artifact merged into; a retirement's, once it showed one retired. Until then the card says what the agent did.
+  const [seen, setSeen] = useState(false);
+  useEffect(() => { if (still.length) setSeen(true); }, [still.length]);
+  useEffect(() => { reload(); }, [reload]);
+  const current = into ? [...artifacts, ...retiredNow].some(a => a.id === into.id) : seen;
+  const restored = !canUndo && (undone !== undefined || (loaded && current && ids.every(id => artifacts.some(a => a.id === id))));
+  const undo = async () => {
+    setBusy(true); setError('');
+    try { await restoreArtifacts(api, collectionId, still.map(a => a.id)); setUndone(stamp); card.current?.focus(); }
+    catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  const target = into ? { id: into.id, version: into.version } : retired.length === 1 ? { id: retired[0].id } : undefined;
+  const open = () => {
+    if (!target) return;
+    if (openArtifact({ collectionId, artifactId: target.id, ...(target.version ? { version: target.version } : {}) })) return;
+    if (host.openArtifact) void host.openArtifact({ collectionId, artifactId: target.id }).catch(() => setError('Open it from the Artifacts panel of its workspace.'));
+    else setError('Open it from the Artifacts panel of its workspace.');
+  };
+  const single = retired.length === 1 ? retired[0] : undefined;
+  const detail = restored ? `Undone: ${quoted(retired)} ${retired.length === 1 ? 'is' : 'are'} back in the list`
+    : into ? `Retired ${quoted(retired)} · kept with ${retired.length === 1 ? 'its' : 'their'} versions`
+    : single?.supersededBy ? `Superseded by “${single.supersededBy.title}” · kept with its versions`
+    : `Kept with ${retired.length === 1 ? 'its' : 'their'} versions`;
+  return <div ref={card} tabIndex={-1} className={`artifact-card is-retired${restored ? ' is-restored' : ''}`} role="group" aria-label={text} data-retired-ids={ids.join(',')}>
+    <span className="artifact-kind-icon kind-other" aria-hidden="true"><Icon name={into ? 'merge' : 'archive'} size={15}/></span>
+    <span className="artifact-card-text">
+      <strong title={text}>{text}</strong>
+      <small title={detail} role="status">{detail}</small>
+    </span>
+    <span className="artifact-card-actions">
+      {canUndo && <button type="button" disabled={busy} aria-label={`Undo: restore ${still.length === 1 ? `“${still[0].title}”` : `${still.length} artifacts`}`} onClick={() => void undo()}><Icon name="history" size={12}/>{busy ? 'Restoring…' : 'Undo'}</button>}
+      {target && <button type="button" className="artifact-card-open" onClick={open}>Open</button>}
+    </span>
+    {error && <small className="artifact-card-note" role="alert">{error}</small>}
   </div>;
 }
 

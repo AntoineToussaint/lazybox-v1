@@ -10,7 +10,8 @@ export const ARTIFACT_POLL_MS = 4000;
 /** How often the artifacts of workspaces not on screen are reread (the palette, "All workspaces"). */
 export const OTHER_ARTIFACTS_POLL_MS = 15000;
 
-type Snapshot = { artifacts: Artifact[]; loaded: boolean; error: string };
+/** `artifacts` are the live ones, newest first; `retired` the retired ones, kept apart so no view lists them by mistake. */
+type Snapshot = { artifacts: Artifact[]; retired: Artifact[]; loaded: boolean; error: string };
 type Entry = {
   snapshot: Snapshot;
   /** Each subscriber's poll interval: the list is reread at the shortest. */
@@ -23,9 +24,11 @@ type Entry = {
   load(): void;
 };
 
-const EMPTY: Snapshot = { artifacts: [], loaded: true, error: '' };
+const EMPTY: Snapshot = { artifacts: [], retired: [], loaded: true, error: '' };
 /** What makes a list worth rendering again: a new reply that says the same keeps the old array. */
-const signature = (list: readonly Artifact[]) => list.map(a => `${a.id}:${a.updatedAtUnixMillis}:${a.versions.length}:${a.title}:${a.kind}:${a.trackedPath}:${a.trackingProblem}`).join('|');
+const signature = (list: readonly Artifact[]) => list.map(a => `${a.id}:${a.updatedAtUnixMillis}:${a.versions.length}:${a.title}:${a.kind}:${a.trackedPath}:${a.trackingProblem}:${retiredStamp(a)}`).join('|');
+/** What changes when an artifact is retired, re-pointed or restored. */
+export const retiredStamp = (a: Artifact) => a.retired ? `${a.retired.atUnixMillis}>${a.retired.supersededBy}` : '';
 
 /**
  * One list per workspace per Runner client, shared by everything that shows
@@ -49,18 +52,19 @@ function entryFor(api: RunnerClient, collectionId: string): Entry {
   let entry = byWorkspace.get(collectionId);
   if (entry) return entry;
   const created: Entry = {
-    snapshot: { artifacts: [], loaded: false, error: '' }, subscribers: new Map(), every: 0, busy: false, again: false,
+    snapshot: { artifacts: [], retired: [], loaded: false, error: '' }, subscribers: new Map(), every: 0, busy: false, again: false,
     load() {
       if (!created.subscribers.size || document.visibilityState === 'hidden') return;
       if (created.busy) { created.again = true; return; }
       created.busy = true;
       const control = created.control = new AbortController();
       const publish = (next: Snapshot) => { created.snapshot = next; for (const s of created.subscribers.values()) s.notify(); };
-      api.listArtifacts({ collectionId }, { signal: control.signal, timeoutMs: 10000 }).then(result => {
+      // Retired ones too, in the same call: the panel offers them ("Show retired"), and a page names what superseded it.
+      api.listArtifacts({ collectionId, includeRetired: true }, { signal: control.signal, timeoutMs: 10000 }).then(result => {
         if (control.signal.aborted) return;
         const previous = created.snapshot;
-        const same = previous.loaded && !previous.error && signature(previous.artifacts) === signature(result.artifacts);
-        if (!same) publish({ artifacts: result.artifacts, loaded: true, error: '' });
+        const same = previous.loaded && !previous.error && signature([...previous.artifacts, ...previous.retired]) === signature(result.artifacts);
+        if (!same) publish({ artifacts: result.artifacts.filter(a => !a.retired), retired: result.artifacts.filter(a => a.retired), loaded: true, error: '' });
       }, error => { if (!control.signal.aborted) publish({ ...created.snapshot, loaded: true, error: errorText(error) }); })
         .finally(() => { created.busy = false; if (created.again && !control.signal.aborted) { created.again = false; created.load(); } });
     },
@@ -94,7 +98,7 @@ function subscribe(api: RunnerClient, collectionId: string, interval: number, no
 }
 
 /**
- * A workspace's artifacts (no content), kept current while mounted: reread
+ * A workspace's artifacts (no content), and apart its retired ones, kept current while mounted: reread
  * every few seconds while the window is visible, and at once after a write
  * from this window.
  */

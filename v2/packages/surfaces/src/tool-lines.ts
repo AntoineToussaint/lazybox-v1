@@ -269,6 +269,45 @@ export function publishedArtifacts(entry: Pick<ToolEntry, 'name' | 'input' | 'ou
   return found;
 }
 
+/** An artifact an agent retired (`lazybox artifact retire`, or `put --supersedes`), as the CLI reported it. */
+export type RetiredArtifact = { id: string; title: string; supersededBy?: { id: string; title: string } };
+// `lazybox artifact retire` and `put --supersedes` print this line for each artifact they retire (cmd/lazybox/artifact.go, retiredLine).
+const RETIRED = /Retired “([^”\n]*)” \(artifact ([A-Za-z0-9_-]+)\)(?:, superseded by “([^”\n]*)” \(artifact ([A-Za-z0-9_-]+)\))?\./g;
+const ARTIFACT_RETIRE = /\blazybox\s+artifact\s+(retire|put)\b/;
+/**
+ * The artifacts a call retired: a shell command that ran `lazybox artifact
+ * retire` or `put` (with --supersedes) and whose output says what it retired.
+ */
+export function retiredArtifacts(entry: Pick<ToolEntry, 'name' | 'input' | 'output'>): RetiredArtifact[] {
+  if (!entry.output || KINDS[entry.name] !== 'command') return [];
+  if (!ARTIFACT_RETIRE.test(plainLazybox(commandText(entry)))) return [];
+  const found: RetiredArtifact[] = [];
+  for (const [, title, id, byTitle, byId] of entry.output.matchAll(RETIRED)) {
+    if (!found.some(r => r.id === id)) found.push({ id, title, ...(byId ? { supersededBy: { id: byId, title: byTitle } } : {}) });
+  }
+  return found;
+}
+
+/**
+ * What a call did to artifacts, as the conversation shows it: what it
+ * published, the merges (a put that superseded others: "Merged 3 artifacts
+ * into “Status”"), and what it retired otherwise.
+ */
+export type ArtifactMerge = { into: PublishedArtifact; retired: RetiredArtifact[]; text: string };
+export function artifactOutcomes(entry: Pick<ToolEntry, 'name' | 'input' | 'output'>): { published: PublishedArtifact[]; merges: ArtifactMerge[]; retired: RetiredArtifact[] } {
+  const published = publishedArtifacts(entry), retired = retiredArtifacts(entry);
+  const merges: ArtifactMerge[] = [];
+  for (const into of published) {
+    const replaced = retired.filter(r => r.supersededBy?.id === into.id);
+    if (!replaced.length) continue;
+    // An update of an existing artifact merged it too.
+    const count = replaced.length + (into.version > 1 ? 1 : 0);
+    merges.push({ into, retired: replaced, text: count > 1 ? `Merged ${count} artifacts into “${into.title}”` : `Replaced “${replaced[0].title}” with “${into.title}”` });
+  }
+  const merged = new Set(merges.flatMap(m => m.retired.map(r => r.id)));
+  return { published: published.filter(p => !merges.some(m => m.into.id === p.id)), merges, retired: retired.filter(r => !merged.has(r.id)) };
+}
+
 export type ToolTitle = {
   /** The verb, in the tense of the call's state: "Read", "Running". */
   verb: string;
