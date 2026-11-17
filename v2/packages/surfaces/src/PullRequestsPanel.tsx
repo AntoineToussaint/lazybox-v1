@@ -57,7 +57,14 @@ export function PullRequestsPanel({ collections, onShowSession }: Pick<ModulePro
     setConfirming(undefined);
     const result = await actions.run(pull, action);
     setNotes(previous => ({ ...previous, [pull.key]: result }));
-    requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-pull="${CSS.escape(pull.key)}"] .pr-row`)?.focus());
+    // Back to its row only if focus went nowhere when the confirmation closed: a person who moved on
+    // while the action ran (another row, another panel) keeps their place. Taking it back made m or
+    // Enter on the next row act on this one.
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && !active.closest(`[data-pull="${CSS.escape(pull.key)}"]`)) return;
+      root.current?.querySelector<HTMLElement>(`[data-pull="${CSS.escape(pull.key)}"] .pr-row`)?.focus();
+    });
   };
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.metaKey || event.ctrlKey || event.altKey || (event.target as HTMLElement).matches('input,textarea,select')) return;

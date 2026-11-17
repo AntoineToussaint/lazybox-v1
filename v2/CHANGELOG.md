@@ -82,6 +82,7 @@ leave out.
 - **A Pull requests panel** Needs you, Waiting on others, Merged this week. Send the failing checks or the review comments to the agent in one click, always after your confirmation.
 - **Start from an issue** Paste an issue's link into New task, or pick from your issues: the workspace is named after it, and you can read exactly what the agent gets.
 - **Light on GitHub** Open pull requests are checked about every minute while Lazybox has your focus; an unchanged one costs nothing against GitHub's rate limit.
+- **Keys act on the row you are on** A pull request action that finishes after you moved to another row leaves you there, so m or Enter on that row never acts on the previous one.
 
 ### Artifacts
 

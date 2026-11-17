@@ -56,6 +56,7 @@ export const releaseNotes: readonly Release[] = [
       { group: 'Pull requests and issues', title: 'A Pull requests panel', body: 'Needs you, Waiting on others, Merged this week. Send the failing checks or the review comments to the agent in one click, always after your confirmation.' },
       { group: 'Pull requests and issues', title: 'Start from an issue', body: 'Paste an issue\'s link into New task, or pick from your issues: the workspace is named after it, and you can read exactly what the agent gets.' },
       { group: 'Pull requests and issues', title: 'Light on GitHub', body: 'Open pull requests are checked about every minute while Lazybox has your focus; an unchanged one costs nothing against GitHub\'s rate limit.' },
+      { group: 'Pull requests and issues', title: 'Keys act on the row you are on', body: 'A pull request action that finishes after you moved to another row leaves you there, so m or Enter on that row never acts on the previous one.' },
       { group: 'Artifacts', title: 'Versioned artifacts', body: 'Track a plan or a report from a message, a file or an agent; each update is a version you can compare with the last.' },
       { group: 'Artifacts', title: 'Found from anywhere', body: 'A card in the conversation, a count in the chat header, ⌘K across every workspace, and All workspaces in the Artifacts panel.' },
       { group: 'Artifacts', title: 'Track the file an agent names', body: 'Right-click a Markdown file named in a message and choose Track as artifact: it stays in sync with the file.' },

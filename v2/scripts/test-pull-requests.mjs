@@ -111,13 +111,21 @@ try {
   await page.keyboard.press('Escape');
   await expect(confirm).toHaveCount(0);
   await expect(panel.locator('.pr-row').first()).toBeFocused();
+  // The send takes a moment; moving to another row meanwhile keeps you there when it ends
+  // (its end used to take focus back to #812, so m or Enter acted on the wrong pull request).
+  await page.route('**/SendPullRequestFailures', async route => { await new Promise(resolve => setTimeout(resolve, 800)); await route.continue(); });
   await page.keyboard.press('s');
   await page.keyboard.press('Enter');
+  const ready = panel.locator('.pr-item', {hasText: 'acme/web#90'}).locator('.pr-row');
+  await ready.focus();
   await expect.poll(() => sent('SendPullRequestFailures').length).toBe(1);
   assert.deepEqual(sent('SendPullRequestFailures')[0].body.ref, {provider: 'github', key: 'acme/api#812'});
   await expect(panel.locator('.pr-item').first().locator('.pr-note')).toContainText('Sent 2 failing checks of #812 to the agent');
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(ready, 'the end of the send leaves focus where the person moved it').toBeFocused();
+  await page.unroute('**/SendPullRequestFailures');
   // m on the ready one merges after its confirmation, with the head the person saw.
-  await panel.locator('.pr-item', {hasText: 'acme/web#90'}).locator('.pr-row').focus();
+  await ready.focus();
   await page.keyboard.press('m');
   await expect(panel.getByRole('group', {name: 'Confirm merge'})).toContainText('Merge #90 into main?');
   await page.keyboard.press('Enter');
