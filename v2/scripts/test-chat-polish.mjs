@@ -14,6 +14,14 @@ Object.assign(f.sessions[0],{title:'Fix the flaky login test',provider:'claude',
 Object.assign(f.sessions[1],{title:'beta',provider:'claude',status:'starting',agents:[{id:'root',status:'starting'}]});
 const alpha=f.openEvents('alpha-session');alpha.push({type:'operation_accepted',text:'The login test is flaky, can you find out why?'});alpha.push({type:'message_delta',text:'Let me look at the test and the CI logs.'});alpha.push({type:'activity',status:'tool',name:'Bash'});
 const beta=f.openEvents('beta-session');beta.push({type:'runner_reattached'});beta.push({type:'runner_reattached'});
+// Two conversations, each waiting for an approval, to show side by side.
+f.collections.push({id:'delta',name:'approvals',workId:'delta',root:'/fixture/collections/delta',state:'ready',members:[member(2,'delta','feature/approvals')]});
+const approvalOf=(id,command)=>({type:'approval',requestId:id,text:'Bash',providerDataJson:Buffer.from(JSON.stringify({tool:'Bash',toolUseId:`use-${id}`,input:{command,description:'Run the checks'}})).toString('base64')});
+for(const [id,title,command] of [['delta-left','Left approval','npm test'],['delta-right','Right approval','npm run lint']]){
+ const request=approvalOf(`${id}-request`,command);
+ f.sessions.push({...structuredClone(f.sessions[1]),id,workId:id,collectionId:'delta',title,provider:'claude',busy:true,status:'waiting_approval',pending:[request],agents:[{id:'root',status:'waiting_approval'}]});
+ const ch=f.openEvents(id);ch.push({type:'operation_accepted',text:`Run ${command}`});ch.push(request);
+}
 const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 try{
  await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
@@ -86,6 +94,27 @@ try{
  await releaseFrames();
  await message.press('Backspace');await expect(message,'a selection made after a recall is kept').toHaveValue('');
 
+ // Sending keeps the keyboard in the message box: WebKit blurred it while it was disabled for the send.
+ await message.fill('Look at the retry loop too.');await message.press('Enter');
+ await expect(message).toHaveValue('');await expect(message).toBeFocused();
+ // Text another panel adds while a send is in flight (Quote in reply) waits for it: the send no longer erases it.
+ f.sessions[0].applyDelayMs=1500;
+ await message.fill('And the timeout.');await message.press('Enter');
+ await expect(message).toHaveAttribute('aria-disabled','true');await expect(message).toBeFocused();
+ await chat.getByText('Let me look at the test and the CI logs.').click({button:'right'});
+ await page.getByRole('menuitem',{name:'Quote in reply'}).click();
+ await expect(message).toHaveValue(/^> Let me look at the test and the CI logs\./,{timeout:8000});
+ await expect(message).not.toHaveAttribute('aria-disabled','true');
+ f.sessions[0].applyDelayMs=0;
+ await message.fill('');
+ // A failure says what happened in words, never the raw Connect error.
+ f.sessions[0].turnOver=true;
+ await chat.locator('.live-bar-stop').click();
+ await expect(chat.getByRole('alert').filter({hasText:'The agent is not working on anything: there is nothing to stop.'})).toBeVisible();
+ await expect(chat.getByRole('alert').filter({hasText:/ConnectError|failed_precondition|no active turn/})).toHaveCount(0);
+ await chat.getByRole('alert').getByRole('button',{name:'Dismiss'}).click();
+ f.sessions[0].turnOver=false;
+
  // Snippets: the last used comes first; Frequent counts uses.
  await chat.getByRole('button',{name:'Snippets',exact:true}).click();let picker=page.getByRole('dialog',{name:'Snippets',exact:true});
  // Enter sends the selected snippet; the list loads from the Runner, so wait for it.
@@ -134,6 +163,13 @@ try{
  await expect(betaChat.locator('.runner-divider, .runner-mark')).toHaveCount(0);
  await expect(betaChat.getByRole('textbox',{name:'Message',exact:true})).toBeFocused();
  await page.screenshot({path:'.cache/chat-polish-ready.png'});
+ // Its stream drops and comes back: nothing arrives on an idle conversation's stream, but the Runner's
+ // heartbeat does, and it reads live again instead of "reconnecting" for good.
+ const reconnecting=betaChat.getByText('Connection interrupted · reconnecting…');
+ beta.cut();
+ await expect(reconnecting).toBeVisible();
+ await expect(reconnecting).toHaveCount(0,{timeout:6000});
+ await expect(betaHeader.locator('.chat-status')).toHaveText('Ready');
 
  // Naming a workspace names its branch.
  await page.getByRole('button',{name:'New workspace',exact:true}).click();
@@ -148,6 +184,24 @@ try{
  await create.getByRole('button',{name:'Create workspace',exact:true}).click();
  await expect.poll(()=>f.mutations.findLast(m=>m.method==='PrepareWorkspace')?.body.branch).toBe('fix/login');
  assert.equal(f.mutations.findLast(m=>m.method==='PrepareWorkspace').body.name,'Login fix');
+
+ // Two chats side by side, each waiting for an approval: a key on the page itself answers the chat in front only.
+ await page.goto(`${base}/?view=workspace&collection=delta&session=delta-left#token=${f.token}`);
+ const card=command=>page.locator('.embedded-chat .request').filter({hasText:command});
+ await expect(card('npm test')).toBeVisible();
+ await page.locator('.page-layout .panel-collections .conversation-link').filter({hasText:'Right approval'}).click({button:'right'});
+ await page.getByRole('menu').getByRole('menuitem',{name:/^Open beside/}).click();
+ await expect(card('npm run lint')).toBeVisible();
+ // The chat opened first listens first: the key used to answer its approval whichever chat was in front.
+ const rightChat=page.locator('.embedded-chat').filter({has:page.locator('.request').filter({hasText:'npm run lint'})});
+ await rightChat.locator('.chat-heading').click({position:{x:4,y:4}});
+ await page.evaluate(()=>document.activeElement instanceof HTMLElement&&document.activeElement.blur());
+ assert.equal(await page.evaluate(()=>document.activeElement===document.body),true,'the key goes to the page itself');
+ await page.keyboard.press('y');
+ const approvals=()=>f.mutations.filter(m=>m.method==='Apply'&&m.body.approval).map(m=>m.body.approval.requestId);
+ await expect.poll(approvals).toEqual(['delta-right-request']);
+ await page.waitForTimeout(300);
+ assert.deepEqual(approvals(),['delta-right-request'],'the other chat\'s approval is not answered');
  assert.deepEqual(errors,[]);
- console.log('PASS compact header, live status (header, row, inbox; reduced motion), inline rename, prompt recall, snippet usage, equal workspace cards, Name it, workspace home, Ready fresh session, name→branch creation. Fixture only.');
+ console.log('PASS compact header, live status (header, row, inbox; reduced motion), inline rename, prompt recall, snippet usage, equal workspace cards, Name it, workspace home, Ready fresh session, name→branch creation; the box keeps its focus after a send and text quoted while sending; a failure in words; an idle stream that reconnects reads live; a page key answers the approval of the chat in front only. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}

@@ -117,11 +117,14 @@ runs and `Esc` closes it and leaves your text. It works in Vim insert mode too.
   command block), `/stop`, `/detail quiet|smart|verbose`, `/rename <title>` and
   `/help`. A command that takes a choice lists it (models, modes) with the
   current one marked; one that cannot run now says why. They are in the command
-  palette (`⌘K`) as well.
+  palette (`⌘K`) as well, where they leave your draft alone; there `/review`
+  is *Open the review tray*.
 - **The agent's own** commands — Claude's built-ins and your project's or your
   own `.claude/commands` — with their descriptions and argument hints. Choosing
   one completes `/name ` for its arguments; `Enter` sends it as the prompt and
-  the agent runs it. (Codex's app-server does not list custom prompts.)
+  the agent runs it. (Codex's app-server does not list custom prompts.) Where
+  Lazybox's command of the same name does nothing for the agent — `/compact`
+  for an ACP agent — the agent's own is listed instead.
 - **Snippets** by name: choosing one inserts it; those the last one sent chains
   to (`next:`) come first.
 
@@ -154,7 +157,9 @@ workspace. Then:
 | **Always allow …** | `a` | Allows this kind of call for this conversation or this workspace, at a scope the provider supports. |
 | **Deny** | `n` | Optionally tell the agent what to do instead; it receives your reason. |
 
-Keys work while the chat has focus, never while you are typing.
+Keys work while the chat has focus, never while you are typing. With two
+conversations side by side, a key pressed on the page answers the one you
+last clicked or typed in, never both.
 
 ## Follow what it does
 
@@ -269,8 +274,11 @@ list everything that ran. Each kind is counted apart (*2 sub-agents · 17
 commands · 0 running · 1 failed*), newest first, sub-agents as a tree under
 who started them; older finished items fold behind **Show 12 earlier**, but
 anything running or failed always shows. **Clear finished** hides what ended
-from that list for this conversation (*Cleared 12 · Undo*); the conversation
-keeps it, and running work always shows. A background command (Claude's
+from that list for this conversation (*Cleared 12 · Undo*), also after you
+reopen or resume it; the conversation keeps it, and running work always
+shows. A failure you looked at stays dismissed the same way. A conversation
+keeps its latest 256 sub-agents and commands: past that, the oldest finished
+ones leave, and the list says so. A background command (Claude's
 `run_in_background`) is not a sub-agent: it reads as what the agent said it
 does (*Generate the protobuf code*), whole, with what runs beneath it, and
 opens a panel with its script and the output the agent last read.

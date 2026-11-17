@@ -74,6 +74,7 @@ export async function startRunnerFixture() {
   // `cut()` ends the open streams the way a restarting Runner does (Unavailable):
   // the conversation goes on in the next Runner. An event's `receipt` is the
   // record's, as the Runner sends a receipt.
+  const frozenSessions=new Map();
   const openEvents=id=>{const channel={events:[],clients:new Set(),done:false,push({receipt,...event},capturedAt){const record={cursor:String(this.events.length+1),event,...(receipt?{receipt}:{}),...(capturedAt?{capturedAt}:{})};this.events.push(record);for(const res of this.clients)res.write(frame({...record,retained:record.cursor}));},complete(){this.done=true;for(const res of this.clients)res.end(frame({},2));this.clients.clear();},cut(){for(const res of this.clients)res.end(frame({error:{code:'unavailable',message:'the Runner is restarting; reconnect'}},2));this.clients.clear();}};eventStreams.set(id,channel);return channel;};
   const collections = ['alpha', 'beta'].map((id, index) => ({ id, name: index ? 'Beta release' : 'Alpha feature', workId: id, root: `/fixture/collections/${id}`, state: 'ready', ownerExecutionId: `${id}-session`, members: ['api', 'web'].map((name, i) => ({ spec: { name, repositoryId: i ? 'frontend' : 'backend', baseRef: 'main', branch: `lazybox/${id}/${name}` }, path: `/fixture/collections/${id}/${name}`, baseCommit: (index ? 'b' : 'a').repeat(40), ready: true })) }));
   const sessions = collections.map(collection => ({ id: `${collection.id}-session`, collectionId: collection.id, workId: collection.id, profileId: 'claude-default', gatewayId: 'direct', workingDirectory: collection.root, capabilities: { files: true, images: true, resume: true, livePermission: true }, permission: 'ask', instructionsPending: collection.id === 'alpha', pending: [] }));
@@ -677,7 +678,8 @@ actions:
         if(!session){session={...previous,id:previous.id+'-continued',previousExecutionId:previous.id,conversationId:previous.conversationId||previous.id,closed:false,historical:false,status:'ready'};sessions.push(session);}
         previous.successorExecutionId=session.id;mutations.push({method,body});return json({session});
       }
-      case 'GetSession': { const session = sessions.find(value => value.id === body.sessionId); return session ? json({ session }) : error('not_found', 'Fixture session not found'); }
+      // `frozenSessions`: a poll that lags the stream, answering with the session as it was when frozen.
+      case 'GetSession': { const session = sessions.find(value => value.id === body.sessionId); if (session && frozenSessions.has(session.id)) return json({ session: frozenSessions.get(session.id) }); return session ? json({ session }) : error('not_found', 'Fixture session not found'); }
       case 'ListCommands': { const workspace = sessions.find(value => value.id === body.sessionId)?.collectionId; return json({ commands: commands.filter(value => value.sessionId === body.sessionId || (!value.sessionId && value.collectionId && value.collectionId === workspace)).map(listedCommand) }); }
       case 'ClaimCommandShare': { const command = commands.find(value => value.id === body.commandId); if (!command) return error('not_found', 'Command missing'); const claimed = !!command.shareWith && command.done && !claimedShares.has(command.id); if (claimed) claimedShares.add(command.id); return json({ claimed, status: wireCommand(command) }); }
       case 'PreviewWorkspaceDeletion': return json({activeSessionIds:sessions.filter(s=>s.collectionId===body.collectionId&&!s.closed).map(s=>s.id),dirtyRepositories:['api'],filesOutsideRepositories:false});
@@ -956,6 +958,10 @@ actions:
         // Like the Runner: at a subscription limit a message is accepted and
         // waits in the queue (journaled once), delivered after the switch.
         const session=sessions.find(s=>s.id===body.sessionId);
+        // `applyDelayMs`: a message the Runner takes a while to confirm (a send in flight).
+        if(session?.applyDelayMs&&body.message)await new Promise(resolve=>setTimeout(resolve,session.applyDelayMs));
+        // `turnOver`: the turn ended in the Runner before the client's view of it, as the engine says it.
+        if(session?.turnOver&&body.interrupt)return error('failed_precondition','no active turn');
         // Like the Runner: a stop names a sub-agent it knows running, by the provider's id; else nothing is running.
         // `notRunning`: the Runner's own state moved on after the snapshot the client shows.
         if(session&&body.stopAgent){const agent=(session.agents||[]).find(a=>a.id===body.stopAgent.agentId);if(!agent||!agent.nativeId||agent.notRunning||!['running','starting','waiting_input','waiting_approval'].includes(agent.status))return error('failed_precondition','sub-agent is not running');}
@@ -1118,7 +1124,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set telemetry(fn) { telemetry = fn; }, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { freezeSession: id => frozenSessions.set(id, structuredClone(sessions.find(value => value.id === id))), thawSession: id => frozenSessions.delete(id), items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set telemetry(fn) { telemetry = fn; }, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, acp, tracked,
     /** A conversation's open journal, without replacing it (openEvents starts a new one). */
     eventsOf: id => eventStreams.get(id),

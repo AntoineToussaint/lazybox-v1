@@ -234,8 +234,19 @@ try {
   await chat.keyboard.press('Enter');
   await expect(conversation).toHaveValue('beta-session');
   await expect(workspace).toHaveValue('beta');
+  // A chat command run from the palette leaves the message box's draft as it was (it used to empty it, saved copy and all).
+  const chatComposer = chat.locator('[data-agent-composer]');
+  await chatComposer.fill('a draft to keep');
+  await chat.keyboard.press(`${mod}+k`);
+  await chatPalette.getByRole('combobox').fill('Show context and token cost');
+  await expect(chatPalette.getByRole('option').first()).toContainText('Show context and token cost');
+  await chat.keyboard.press('Enter');
+  await expect(chatPalette).toBeHidden();
+  await expect(chatComposer).toHaveValue('a draft to keep');
+  await chat.reload();
+  await expect(chatComposer).toHaveValue('a draft to keep');
 
   assert.deepEqual(f.mutations, [], 'the palette and keys never start, stop or answer an agent');
   assert.deepEqual(errors, []);
-  console.log('PASS command palette: ⌘K/⌘⇧P, prefixes, recent, settings and panels; shortcuts overlay with Customize; ⌘1…9; ⌘]/⌘[; ⌘J across workspaces; toast and sound when focused, banner when not; detached palette drives the main window.');
+  console.log('PASS command palette: ⌘K/⌘⇧P, prefixes, recent, settings and panels; shortcuts overlay with Customize; ⌘1…9; ⌘]/⌘[; ⌘J across workspaces; toast and sound when focused, banner when not; detached palette drives the main window; a chat command run from it keeps the draft.');
 } finally { await browser?.close(); await server.close(); await f.close(); }

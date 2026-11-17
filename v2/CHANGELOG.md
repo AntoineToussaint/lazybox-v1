@@ -14,6 +14,20 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.30] - 2026-11-17 · A steadier conversation
+
+- **⌘K keeps your draft** A conversation command run from the command palette (Compact the context, Show context and token cost…) no longer empties the message box or its saved draft. ⌘K Open the review tray opens the tray; it no longer starts a review.
+- **One review at a time** The header's Review and /review start reviews through the same launcher, so a quick double start no longer runs two reviews of the same work.
+- **What you add while sending stays** Quote in reply, Ask to fix and other text added to the message box while a message is being sent wait for the send and are kept. The message box also keeps the keyboard after each send.
+- **Keys go where you look** With two conversations side by side, y, a or n on the page answers the approval of the one you last clicked or typed in, never the other. The Enter that confirms Japanese, Chinese or Korean input no longer sends the message.
+- **No false "reconnecting"** A conversation where nothing is happening reads as connected, also after its connection drops and comes back, instead of Connecting or Connection interrupted · reconnecting… for good.
+- **Queued messages in one place** A message queued behind a busy turn shows above the message box at once and, once the agent gets it, only in the conversation: it no longer vanishes for a moment, then shows twice. Stopping the current step… gives Send now back after 20 seconds when the step will not stop, and screen readers no longer repeat the queue line every second.
+- **Faster long conversations** Typing in a long conversation no longer rescans all of it on every key, and command blocks no longer redraw on every status check.
+- **Every sub-agent shows** Past 256 sub-agents and background commands, the oldest finished ones make room for new ones, and Background work says so. A failure you dismissed and work you cleared stay that way after you reopen, resume or restart the conversation.
+- **An ACP agent's own commands** An agent's own /compact, or any command Lazybox's version cannot run for that agent, is in the / menu and runs.
+- **Errors in words** A failure says what happened, such as The agent is not working on anything: there is nothing to stop., instead of raw ConnectError text; the session menu says Reconnecting… rather than the connection's error.
+- **Smaller fixes** Jump to prompt never lands on a message Lazybox wrote; the title offers no first message while the conversation's start is still loading; Moved to the background shows even when the turn ends right after; closing a tab you were dictating into turns the microphone off.
+
 ## [2026-11-17.29] - 2026-11-17 · Artifacts beside a chat in its own window, and a steadier shell
 
 - **Artifacts open where you are** In a chat you moved to its own window, an artifact's Open or Compare, and the header's 1 artifact, show it beside the chat in that same window. Drag its edge to resize it; × or Esc closes it; Open in main window shows it in the workspace.

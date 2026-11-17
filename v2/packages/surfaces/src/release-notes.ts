@@ -9,6 +9,24 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.30',
+    date: '2026-11-17',
+    title: 'A steadier conversation',
+    items: [
+      { title: '⌘K keeps your draft', body: 'A conversation command run from the command palette (Compact the context, Show context and token cost…) no longer empties the message box or its saved draft. ⌘K Open the review tray opens the tray; it no longer starts a review.' },
+      { title: 'One review at a time', body: 'The header\'s Review and /review start reviews through the same launcher, so a quick double start no longer runs two reviews of the same work.' },
+      { title: 'What you add while sending stays', body: 'Quote in reply, Ask to fix and other text added to the message box while a message is being sent wait for the send and are kept. The message box also keeps the keyboard after each send.' },
+      { title: 'Keys go where you look', body: 'With two conversations side by side, y, a or n on the page answers the approval of the one you last clicked or typed in, never the other. The Enter that confirms Japanese, Chinese or Korean input no longer sends the message.' },
+      { title: 'No false "reconnecting"', body: 'A conversation where nothing is happening reads as connected, also after its connection drops and comes back, instead of Connecting or Connection interrupted · reconnecting… for good.' },
+      { title: 'Queued messages in one place', body: 'A message queued behind a busy turn shows above the message box at once and, once the agent gets it, only in the conversation: it no longer vanishes for a moment, then shows twice. Stopping the current step… gives Send now back after 20 seconds when the step will not stop, and screen readers no longer repeat the queue line every second.' },
+      { title: 'Faster long conversations', body: 'Typing in a long conversation no longer rescans all of it on every key, and command blocks no longer redraw on every status check.' },
+      { title: 'Every sub-agent shows', body: 'Past 256 sub-agents and background commands, the oldest finished ones make room for new ones, and Background work says so. A failure you dismissed and work you cleared stay that way after you reopen, resume or restart the conversation.' },
+      { title: 'An ACP agent\'s own commands', body: 'An agent\'s own /compact, or any command Lazybox\'s version cannot run for that agent, is in the / menu and runs.' },
+      { title: 'Errors in words', body: 'A failure says what happened, such as The agent is not working on anything: there is nothing to stop., instead of raw ConnectError text; the session menu says Reconnecting… rather than the connection\'s error.' },
+      { title: 'Smaller fixes', body: 'Jump to prompt never lands on a message Lazybox wrote; the title offers no first message while the conversation\'s start is still loading; Moved to the background shows even when the turn ends right after; closing a tab you were dictating into turns the microphone off.' },
+    ],
+  },
+  {
     id: '2026-11-17.29',
     date: '2026-11-17',
     title: 'Artifacts beside a chat in its own window, and a steadier shell',

@@ -53,10 +53,10 @@ try {
  // A fresh window gets an independent reader, even if the main window cached Beta.
  const gap=fixture.openEvents('beta-session');gap.push({type:'message_delta',text:'gap'});gap.events[0].cursor='2';
  const gapPage=await browser.newPage();await gapPage.goto(url.replace('collection=alpha','collection=beta').replace('session=alpha-session','session=beta-session'));
- await expect(gapPage.getByRole('alert').filter({hasText:'Replay gap'})).toBeVisible();
+ await expect(gapPage.getByRole('alert').filter({hasText:'history is missing'})).toBeVisible();await expect(gapPage.getByRole('alert').filter({hasText:'Replay gap'})).toHaveCount(0);
  await expect(gapPage.locator('.messages:visible')).not.toContainText('READY TO WORK');
  gap.events[0].cursor='1';await gapPage.getByRole('button',{name:'Retry conversation'}).click();
- await expect(gapPage.locator('.messages:visible')).toContainText('gap');await expect(gapPage.getByRole('alert').filter({hasText:'Replay gap'})).toHaveCount(0);await gapPage.close();
+ await expect(gapPage.locator('.messages:visible')).toContainText('gap');await expect(gapPage.getByRole('alert').filter({hasText:'history is missing'})).toHaveCount(0);await gapPage.close();
  channel.push({type:'operation_accepted',text:'Show a file'});
  channel.push({type:'message_delta',text:'Open [the file](api/README.md#L2) or `api/README.md:2`.'});
  await page.locator('.workspace-row').filter({hasText:'Alpha renamed'}).locator('button').first().click();

@@ -51,9 +51,13 @@ try{
  await expect(strip).toHaveCount(0);
  // While the agent works, the message box says what ↵ and Send now's key do.
  await expect(hint).toHaveText(`↵ queues · ${nowKey} sends now`);
+ // The session poll lags the stream (frozen here): the strip shows the message from the stream, at once.
+ f.freezeSession(claude.id);
  await composer.fill('Use port 4000 instead, 3000 is taken.');await composer.press('Enter');
  await expect(strip).toBeVisible({timeout:5000});
  await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^Queued — Claude is busy \(Running a command · 5m \d\ds\)$/);
+ // The ticking time is not announced: a screen reader would repeat the line every second.
+ await expect(strip.locator('.queued-head [role=status] [aria-hidden=true]')).toHaveText(/^ · 5m \d\ds$/);
  const item=strip.getByRole('listitem');
  await expect(item.locator('q')).toHaveText('Use port 4000 instead, 3000 is taken.');
  // Queued is one place: the strip. The running turn shows no "You" bubble for it.
@@ -65,6 +69,9 @@ try{
  await page.screenshot({path:'.cache/queued-claude.png'});
 
  // ── Send now is one click; its tooltip names the step it stops, and the key that sends the oldest queued message.
+ // The poll still lists it after it is delivered (frozen again, with it queued): it is shown once, in the conversation.
+ f.thawSession(claude.id);f.freezeSession(claude.id);
+ assert.equal(f.sessions[0].queuedMessages.length,1);
  const sendNow=item.getByRole('button',{name:'Send now'});
  await expect(sendNow).toHaveAttribute('title',`Stop npm run dev and send this as the next turn (${nowKey})`);
  await page.screenshot({path:'.cache/queued-send-now.png'});
@@ -72,6 +79,8 @@ try{
  await expect.poll(deliveries).toEqual([{operationId:f.mutations.find(m=>m.method==='Apply'&&m.body.message)?.body.operationId,how:'now'}]);
  assert.equal(claude.interrupted,1,'the Runner interrupts the turn');
  await expect(strip).toHaveCount(0,{timeout:5000});
+ await expect(youSaid(chat,'Use port 4000 instead')).toHaveCount(1);
+ f.thawSession(claude.id);
  // Claude reports the stop as an "error during execution": the conversation
  // says it in one quiet line, then the message is the next turn. No error
  // card, no fault, and never the provider's raw diagnostic.
@@ -176,5 +185,5 @@ try{
  await expect(composer).toHaveValue('');
  assert.equal(deliveries().length,delivered,'no Send now');assert.equal(codex.interrupted,undefined,'nothing interrupted');
  assert.deepEqual(errors,[]);
- console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with; it is in the strip only, never also a bubble in the running turn; Send now delivers it in one click (interrupt, then next), said once after the stop, also after a reload, and its tooltip names the step it stops; Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width. Fixture only.');
+ console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with, from the stream at once even while the session poll lags, and its ticking time is not announced; once delivered it is never also in a stale poll\'s strip; it is in the strip only, never also a bubble in the running turn; Send now delivers it in one click (interrupt, then next), said once after the stop, also after a reload, and its tooltip names the step it stops; Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}

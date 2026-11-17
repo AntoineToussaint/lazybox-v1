@@ -148,6 +148,16 @@ try{
  await page.keyboard.press('Enter');
  await expect(models).toBeVisible();await expect(message).toHaveValue('/model ');
  await page.keyboard.press('Escape');await expect(message).toHaveValue('half a draft');
+ // A command without a choice runs from ⌘K and leaves the draft, and its saved copy, as they were.
+ const sentBefore=applies().length;
+ await page.keyboard.press(`${mod}+k`);
+ await palette.getByRole('combobox',{name:'Search commands'}).fill('Compact the context');
+ await expect(palette.getByRole('option').first()).toContainText('Compact the context');
+ await page.keyboard.press('Enter');
+ await expect.poll(()=>applies().slice(sentBefore).at(-1)?.body.message?.text).toBe('/compact');
+ await expect(message).toHaveValue('half a draft');
+ await go(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
+ await expect(message).toHaveValue('half a draft','the saved draft survived');
 
  // The ⋯ menu has the same models; the header's model name opens the picker.
  await chat.locator('summary[aria-label="Session actions"]').click();
@@ -165,6 +175,14 @@ try{
  await chat.getByRole('button',{name:/switch model/}).click();
  await expect(models).toBeVisible();await expect(message).toHaveValue('/model ');
  await page.keyboard.press('Escape');await expect(message).toHaveValue('','a borrowed box is given back empty');
+
+ // ⌘K "Open the review tray" opens the tray; it starts no review.
+ await page.keyboard.press(`${mod}+k`);
+ await palette.getByRole('combobox',{name:'Search commands'}).fill('Open the review tray');
+ await expect(palette.getByRole('option').first()).toContainText('Open the review tray');
+ await page.keyboard.press('Enter');
+ await expect(page.getByRole('complementary',{name:'Review'})).toBeVisible();
+ assert.equal(f.mutations.filter(m=>m.method==='StartReview').length,0,'no review started');
 
  // An agent started by an older Lazybox lists no models and cannot switch live: the
  // Runner's list stands in, the current model asks nothing, another asks once to restart.
@@ -219,5 +237,5 @@ try{
  await expect.poll(()=>applies().at(-1)?.body.permission?.mode).toBe('read-only');
 
  assert.deepEqual(errors,[]);
- console.log('PASS: / opens the grouped command menu (Lazybox · Claude · Snippets) with icons, names, hints and descriptions; it filters and ranks as you type, Esc closes it; /permissions and /model run for real (for Claude and Codex: the provider\'s models, the Runner\'s list where the agent lists none, the current one marked and a no-op, a live switch, one clear restart card where needed) and leave one line in the conversation; the agent\'s commands complete for arguments and go as the prompt; a snippet is inserted; an unknown /word asks first; a path is a message; /detail and /help act; ⌘K lists the commands and gives a borrowed draft back; the ⋯ menu offers the models and the header\'s model name opens the picker; Vim insert mode works. Fixture only.');
+ console.log('PASS: / opens the grouped command menu (Lazybox · Claude · Snippets) with icons, names, hints and descriptions; it filters and ranks as you type, Esc closes it; /permissions and /model run for real (for Claude and Codex: the provider\'s models, the Runner\'s list where the agent lists none, the current one marked and a no-op, a live switch, one clear restart card where needed) and leave one line in the conversation; the agent\'s commands complete for arguments and go as the prompt; a snippet is inserted; an unknown /word asks first; a path is a message; /detail and /help act; ⌘K lists the commands and gives a borrowed draft back, a command run from it keeps the draft (and its saved copy), and its Open the review tray opens the tray without starting a review; the ⋯ menu offers the models and the header\'s model name opens the picker; Vim insert mode works. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close?.();}
