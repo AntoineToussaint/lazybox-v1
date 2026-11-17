@@ -78,6 +78,10 @@ func TestAgentsGetTheCLIFirstOnPathAndTheCommandBriefing(t *testing.T) {
 		if briefed != (strings.Contains(open.Context, "--id ID`, never as a second artifact") && strings.Contains(open.Context, "Never put these documents in an external document tool or connector (Claude Docs")) {
 			t.Fatal("the briefing does not keep design docs in Lazybox artifacts, one artifact per document")
 		}
+		// Overlapping artifacts are merged and the old ones retired, never left as pointer stubs.
+		if briefed != (strings.Contains(open.Context, "Keep one artifact per topic") && strings.Contains(open.Context, "--supersedes ID,ID`, which retires the old ones; don't leave pointer stubs")) {
+			t.Fatal("the briefing does not tell agents to merge overlapping artifacts with --supersedes")
+		}
 		if briefed != (strings.Contains(open.Context, "lazybox workspace repos") && strings.Contains(open.Context, `lazybox workspace request-repo <name|owner/repo|path> --reason "why you need it"`)) {
 			t.Fatal("the briefing does not tell agents how to ask for a repository instead of reaching outside the workspace")
 		}

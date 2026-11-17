@@ -193,6 +193,7 @@ const (
 	RunnerService_TrackArtifactFile_FullMethodName            = "/lazybox.bench.v1.RunnerService/TrackArtifactFile"
 	RunnerService_UpdateArtifact_FullMethodName               = "/lazybox.bench.v1.RunnerService/UpdateArtifact"
 	RunnerService_DeleteArtifact_FullMethodName               = "/lazybox.bench.v1.RunnerService/DeleteArtifact"
+	RunnerService_RetireArtifact_FullMethodName               = "/lazybox.bench.v1.RunnerService/RetireArtifact"
 	RunnerService_SaveArtifactToRepository_FullMethodName     = "/lazybox.bench.v1.RunnerService/SaveArtifactToRepository"
 	RunnerService_CreateArtifactIssue_FullMethodName          = "/lazybox.bench.v1.RunnerService/CreateArtifactIssue"
 	RunnerService_GetUserActions_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetUserActions"
@@ -581,7 +582,8 @@ type RunnerServiceClient interface {
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
-	// (`lazybox artifact`); everything else here is the owner's.
+	// (`lazybox artifact`), and retire the ones an agent published there;
+	// everything else here is the owner's.
 	ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error)
 	GetArtifact(ctx context.Context, in *GetArtifactRequest, opts ...grpc.CallOption) (*Artifact, error)
 	// Creates an artifact, or appends a version to one. The author is who called
@@ -594,6 +596,12 @@ type RunnerServiceClient interface {
 	// Owner only. Rename, change kind, or stop following the tracked file.
 	UpdateArtifact(ctx context.Context, in *UpdateArtifactRequest, opts ...grpc.CallOption) (*Artifact, error)
 	DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error)
+	// Retires an artifact, or restores a retired one. Retiring is reversible:
+	// the artifact and every version are kept, it leaves the default list, and
+	// it may name the artifact that supersedes it. The owner retires or restores
+	// any; an agent credential may only retire, in its own execution's
+	// workspace, an artifact every version of which an agent published.
+	RetireArtifact(ctx context.Context, in *RetireArtifactRequest, opts ...grpc.CallOption) (*Artifact, error)
 	// Owner only. Writes the artifact's latest version into a workspace
 	// repository; never stages or commits.
 	SaveArtifactToRepository(ctx context.Context, in *SaveArtifactToRepositoryRequest, opts ...grpc.CallOption) (*SaveArtifactToRepositoryResponse, error)
@@ -2483,6 +2491,16 @@ func (c *runnerServiceClient) DeleteArtifact(ctx context.Context, in *DeleteArti
 	return out, nil
 }
 
+func (c *runnerServiceClient) RetireArtifact(ctx context.Context, in *RetireArtifactRequest, opts ...grpc.CallOption) (*Artifact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Artifact)
+	err := c.cc.Invoke(ctx, RunnerService_RetireArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) SaveArtifactToRepository(ctx context.Context, in *SaveArtifactToRepositoryRequest, opts ...grpc.CallOption) (*SaveArtifactToRepositoryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SaveArtifactToRepositoryResponse)
@@ -3184,7 +3202,8 @@ type RunnerServiceServer interface {
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
-	// (`lazybox artifact`); everything else here is the owner's.
+	// (`lazybox artifact`), and retire the ones an agent published there;
+	// everything else here is the owner's.
 	ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error)
 	GetArtifact(context.Context, *GetArtifactRequest) (*Artifact, error)
 	// Creates an artifact, or appends a version to one. The author is who called
@@ -3197,6 +3216,12 @@ type RunnerServiceServer interface {
 	// Owner only. Rename, change kind, or stop following the tracked file.
 	UpdateArtifact(context.Context, *UpdateArtifactRequest) (*Artifact, error)
 	DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error)
+	// Retires an artifact, or restores a retired one. Retiring is reversible:
+	// the artifact and every version are kept, it leaves the default list, and
+	// it may name the artifact that supersedes it. The owner retires or restores
+	// any; an agent credential may only retire, in its own execution's
+	// workspace, an artifact every version of which an agent published.
+	RetireArtifact(context.Context, *RetireArtifactRequest) (*Artifact, error)
 	// Owner only. Writes the artifact's latest version into a workspace
 	// repository; never stages or commits.
 	SaveArtifactToRepository(context.Context, *SaveArtifactToRepositoryRequest) (*SaveArtifactToRepositoryResponse, error)
@@ -3838,6 +3863,9 @@ func (UnimplementedRunnerServiceServer) UpdateArtifact(context.Context, *UpdateA
 }
 func (UnimplementedRunnerServiceServer) DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteArtifact not implemented")
+}
+func (UnimplementedRunnerServiceServer) RetireArtifact(context.Context, *RetireArtifactRequest) (*Artifact, error) {
+	return nil, status.Error(codes.Unimplemented, "method RetireArtifact not implemented")
 }
 func (UnimplementedRunnerServiceServer) SaveArtifactToRepository(context.Context, *SaveArtifactToRepositoryRequest) (*SaveArtifactToRepositoryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveArtifactToRepository not implemented")
@@ -7045,6 +7073,24 @@ func _RunnerService_DeleteArtifact_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_RetireArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetireArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RetireArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RetireArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RetireArtifact(ctx, req.(*RetireArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_SaveArtifactToRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SaveArtifactToRepositoryRequest)
 	if err := dec(in); err != nil {
@@ -8307,6 +8353,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteArtifact",
 			Handler:    _RunnerService_DeleteArtifact_Handler,
+		},
+		{
+			MethodName: "RetireArtifact",
+			Handler:    _RunnerService_RetireArtifact_Handler,
 		},
 		{
 			MethodName: "SaveArtifactToRepository",

@@ -353,7 +353,8 @@ service RunnerService {
   // Artifacts: versioned documents (plans, reports, specs, notes) of one
   // workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
   // read and put artifacts of its own execution's workspace only
-  // (`lazybox artifact`); everything else here is the owner's.
+  // (`lazybox artifact`), and retire the ones an agent published there;
+  // everything else here is the owner's.
   rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
   rpc GetArtifact(GetArtifactRequest) returns (Artifact);
   // Creates an artifact, or appends a version to one. The author is who called
@@ -366,6 +367,12 @@ service RunnerService {
   // Owner only. Rename, change kind, or stop following the tracked file.
   rpc UpdateArtifact(UpdateArtifactRequest) returns (Artifact);
   rpc DeleteArtifact(DeleteArtifactRequest) returns (DeleteArtifactResponse);
+  // Retires an artifact, or restores a retired one. Retiring is reversible:
+  // the artifact and every version are kept, it leaves the default list, and
+  // it may name the artifact that supersedes it. The owner retires or restores
+  // any; an agent credential may only retire, in its own execution's
+  // workspace, an artifact every version of which an agent published.
+  rpc RetireArtifact(RetireArtifactRequest) returns (Artifact);
   // Owner only. Writes the artifact's latest version into a workspace
   // repository; never stages or commits.
   rpc SaveArtifactToRepository(SaveArtifactToRepositoryRequest) returns (SaveArtifactToRepositoryResponse);
@@ -3316,8 +3323,24 @@ message Artifact {
   // not text); empty while it is followed.
   string tracking_problem = 14;
   repeated ArtifactLink links = 15;
+  // Set while the artifact is retired (RetireArtifact): hidden from the
+  // default list, kept with every version, restorable.
+  ArtifactRetirement retired = 16;
 }
-message ListArtifactsRequest { string collection_id = 1; }
+// Why and when an artifact was retired.
+message ArtifactRetirement {
+  int64 at_unix_millis = 1;
+  // "person" or "agent" (with its execution).
+  ArtifactAuthor by = 2;
+  // The artifact of the same workspace that replaces it, if any.
+  string superseded_by = 3;
+  string reason = 4;
+}
+message ListArtifactsRequest {
+  string collection_id = 1;
+  // Also list retired artifacts; by default they are left out.
+  bool include_retired = 2;
+}
 message ListArtifactsResponse { repeated Artifact artifacts = 1; }
 message GetArtifactRequest {
   string collection_id = 1;
@@ -3341,6 +3364,10 @@ message PutArtifactRequest {
   // skips the check.
   uint32 expected_version = 7;
   repeated ArtifactLink links = 8;
+  // Artifacts of the same workspace this one replaces: once it is saved, each
+  // is retired as superseded by it (RetireArtifact's rules apply to each, and
+  // all are checked before anything is written).
+  repeated string supersedes = 9;
 }
 message TrackArtifactFileRequest {
   string collection_id = 1;
@@ -3361,6 +3388,16 @@ message UpdateArtifactRequest {
 }
 message DeleteArtifactRequest { string collection_id = 1; string artifact_id = 2; }
 message DeleteArtifactResponse {}
+message RetireArtifactRequest {
+  string collection_id = 1;
+  string artifact_id = 2;
+  // Retire it as replaced by this artifact of the same workspace; empty names none.
+  string superseded_by = 3;
+  // One line on why, shown with it.
+  string reason = 4;
+  // Restore a retired artifact instead (owner only).
+  bool restore = 5;
+}
 message SaveArtifactToRepositoryRequest {
   string collection_id = 1;
   string artifact_id = 2;

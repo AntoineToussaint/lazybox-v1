@@ -90,6 +90,36 @@ type Artifact struct {
 	TrackedPath          string    `json:"trackedPath,omitempty"`
 	TrackingProblem      string    `json:"trackingProblem,omitempty"`
 	Links                []Link    `json:"links,omitempty"`
+	// Retired is set while the artifact is retired: kept with every version,
+	// left out of the default list, restorable.
+	Retired *Retirement `json:"retired,omitempty"`
+}
+
+// Retirement records who retired an artifact, when, and what replaces it.
+type Retirement struct {
+	At int64  `json:"at"`
+	By Author `json:"by"`
+	// SupersededBy is the artifact of the same workspace that replaces it.
+	SupersededBy string `json:"supersededBy,omitempty"`
+	Reason       string `json:"reason,omitempty"`
+}
+
+// MaxReason bounds the one line a retirement may carry.
+const MaxReason = 500
+
+// AgentPublished reports whether an agent wrote every version and no file is
+// followed: the only artifacts an agent may retire. One the person tracked,
+// edited or took from a message is theirs.
+func (a Artifact) AgentPublished() bool {
+	if a.TrackedPath != "" || len(a.Versions) == 0 {
+		return false
+	}
+	for _, v := range a.Versions {
+		if v.Author.Kind != "agent" {
+			return false
+		}
+	}
+	return true
 }
 
 // Latest is the newest version's number.
@@ -562,9 +592,65 @@ func (s *Store) DeleteWorkspace(ws string) error {
 	return nil
 }
 
+// Retire archives an artifact: it keeps every version and leaves the default
+// list. supersededBy, when not empty, must be another artifact of the same
+// workspace. Retiring an artifact already retired records the new retirement.
+func (s *Store) Retire(ws, id string, by Author, supersededBy, reason string) (Artifact, error) {
+	reason = strings.TrimSpace(reason)
+	if utf8.RuneCountInString(reason) > MaxReason || !utf8.ValidString(reason) || strings.IndexFunc(reason, unicode.IsControl) >= 0 {
+		return Artifact{}, fmt.Errorf("%w: a reason is one line of at most %d characters", ErrInvalid, MaxReason)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, err := s.find(ws, id)
+	if err != nil {
+		return Artifact{}, err
+	}
+	if supersededBy != "" {
+		if supersededBy == id {
+			return Artifact{}, fmt.Errorf("%w: an artifact cannot supersede itself", ErrInvalid)
+		}
+		if _, err = s.find(ws, supersededBy); err != nil {
+			return Artifact{}, fmt.Errorf("%w: the superseding artifact %q is not in this workspace", ErrInvalid, supersededBy)
+		}
+	}
+	next := clone(a)
+	next.Retired = &Retirement{At: s.now().UnixMilli(), By: by, SupersededBy: supersededBy, Reason: reason}
+	if err = s.save(&next); err != nil {
+		return Artifact{}, err
+	}
+	*a = next
+	return clone(a), nil
+}
+
+// Restore brings a retired artifact back to the list. Restoring one that is
+// not retired changes nothing.
+func (s *Store) Restore(ws, id string) (Artifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, err := s.find(ws, id)
+	if err != nil {
+		return Artifact{}, err
+	}
+	if a.Retired == nil {
+		return clone(a), nil
+	}
+	next := clone(a)
+	next.Retired = nil
+	if err = s.save(&next); err != nil {
+		return Artifact{}, err
+	}
+	*a = next
+	return clone(a), nil
+}
+
 func clone(a *Artifact) Artifact {
 	out := *a
 	out.Versions = append([]Version(nil), a.Versions...)
 	out.Links = append([]Link(nil), a.Links...)
+	if a.Retired != nil {
+		retired := *a.Retired
+		out.Retired = &retired
+	}
 	return out
 }

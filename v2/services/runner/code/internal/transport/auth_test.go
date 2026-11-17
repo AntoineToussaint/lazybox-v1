@@ -205,7 +205,8 @@ func TestAgentCredentialIsDeniedEveryRPCOffTheAllowlist(t *testing.T) {
 	}
 	// Console publishing and following for its own execution, listing and
 	// stopping its own commands (background_runs_test.go), its own
-	// workspace's artifacts (each rule tested in artifacts_test.go), and
+	// workspace's artifacts, and retiring the ones agents published there
+	// (each rule tested in artifacts_test.go), and
 	// asking for a repository in its own workspace (repository_requests_test.go),
 	// and a reviewer filing, listing and settling its own review's findings, and the two agents
 	// of a review asking each other (review_runs_test.go, review_loop_test.go),
@@ -214,7 +215,7 @@ func TestAgentCredentialIsDeniedEveryRPCOffTheAllowlist(t *testing.T) {
 	// linking and listing its own workspace's pull requests (items_test.go),
 	// and asking the person to start a conversation and waiting for its own
 	// request's answer (conversation_starts_test.go).
-	if len(allowed) != 31 || !allowed[pb.RunnerService_RequestConversationStart_FullMethodName] || !allowed[pb.RunnerService_WaitConversationStart_FullMethodName] || !allowed[pb.RunnerService_ListLinks_FullMethodName] || !allowed[pb.RunnerService_LinkItem_FullMethodName] || !allowed[pb.RunnerService_ClaimLease_FullMethodName] || !allowed[pb.RunnerService_ReleaseLease_FullMethodName] || !allowed[pb.RunnerService_ListLeases_FullMethodName] || !allowed[pb.RunnerService_ProposePlan_FullMethodName] || !allowed[pb.RunnerService_SpawnAgent_FullMethodName] || !allowed[pb.RunnerService_ListAgentLineage_FullMethodName] || !allowed[pb.RunnerService_SendAgentMessage_FullMethodName] ||
+	if len(allowed) != 32 || !allowed[pb.RunnerService_RetireArtifact_FullMethodName] || !allowed[pb.RunnerService_RequestConversationStart_FullMethodName] || !allowed[pb.RunnerService_WaitConversationStart_FullMethodName] || !allowed[pb.RunnerService_ListLinks_FullMethodName] || !allowed[pb.RunnerService_LinkItem_FullMethodName] || !allowed[pb.RunnerService_ClaimLease_FullMethodName] || !allowed[pb.RunnerService_ReleaseLease_FullMethodName] || !allowed[pb.RunnerService_ListLeases_FullMethodName] || !allowed[pb.RunnerService_ProposePlan_FullMethodName] || !allowed[pb.RunnerService_SpawnAgent_FullMethodName] || !allowed[pb.RunnerService_ListAgentLineage_FullMethodName] || !allowed[pb.RunnerService_SendAgentMessage_FullMethodName] ||
 		!allowed[pb.RunnerService_WaitAgents_FullMethodName] || !allowed[pb.RunnerService_StopChildAgent_FullMethodName] || !allowed[pb.RunnerService_ReportAgentTask_FullMethodName] || !allowed[pb.RunnerService_SetReviewFindingState_FullMethodName] || !allowed[pb.RunnerService_AskAgent_FullMethodName] || !allowed[pb.RunnerService_WaitAgentAsk_FullMethodName] || !allowed[pb.RunnerService_AddReviewFinding_FullMethodName] || !allowed[pb.RunnerService_ListReviewFindings_FullMethodName] || !allowed[pb.RunnerService_RegisterPipe_FullMethodName] || !allowed[pb.RunnerService_Publish_FullMethodName] || !allowed[pb.RunnerService_FinishPipe_FullMethodName] ||
 		!allowed[pb.RunnerService_FollowPipe_FullMethodName] || !allowed[pb.RunnerService_CancelCommand_FullMethodName] || !allowed[pb.RunnerService_ListCommands_FullMethodName] ||
 		!allowed[pb.RunnerService_ListArtifacts_FullMethodName] || !allowed[pb.RunnerService_GetArtifact_FullMethodName] || !allowed[pb.RunnerService_PutArtifact_FullMethodName] ||

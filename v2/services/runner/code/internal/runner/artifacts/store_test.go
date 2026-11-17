@@ -264,3 +264,99 @@ func TestWatchStopsWithContext(t *testing.T) {
 		t.Fatal("watcher kept running")
 	}
 }
+
+func TestRetireKeepsEveryVersionAndRestores(t *testing.T) {
+	root := t.TempDir()
+	s, c := open(t, root)
+	agent := Author{Kind: "agent", SessionID: "exec"}
+	old, err := s.Put("alpha", Put{Title: "What's left", Kind: "plan", Content: "# Left\n- a", Author: agent, Source: Source{Kind: "agent", SessionID: "exec"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Put("alpha", Put{ID: old.ID, Content: "# Left\n- a\n- b", Author: agent, Source: Source{Kind: "agent", SessionID: "exec"}}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := s.Put("alpha", Put{Title: "Status", Kind: "plan", Content: "# Status", Author: agent, Source: Source{Kind: "agent", SessionID: "exec"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !old.AgentPublished() || !status.AgentPublished() {
+		t.Fatal("agent-written artifacts read as not agent-published")
+	}
+
+	c.t = c.t.Add(time.Minute)
+	retired, err := s.Retire("alpha", old.ID, agent, status.ID, " merged into the status page ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Retirement{At: c.t.UnixMilli(), By: agent, SupersededBy: status.ID, Reason: "merged into the status page"}
+	if retired.Retired == nil || *retired.Retired != want || retired.Latest() != 2 {
+		t.Fatalf("%+v", retired.Retired)
+	}
+	// The store still lists it (the transport filters); every version is readable.
+	if list, _ := s.List("alpha"); len(list) != 2 {
+		t.Fatal(list)
+	}
+	if v1, err := s.Get("alpha", old.ID, 1); err != nil || v1.Content != "# Left\n- a" || v1.Retired == nil {
+		t.Fatal(v1, err)
+	}
+	// It survives a reopen.
+	reopened, _ := open(t, root)
+	if doc, err := reopened.Get("alpha", old.ID, 0); err != nil || doc.Retired == nil || *doc.Retired != want {
+		t.Fatal(doc, err)
+	}
+
+	for name, check := range map[string]func() error{
+		"supersedes itself":  func() error { _, err := s.Retire("alpha", old.ID, agent, old.ID, ""); return err },
+		"superseded by none": func() error { _, err := s.Retire("alpha", old.ID, agent, "missing", ""); return err },
+		"two-line reason":    func() error { _, err := s.Retire("alpha", old.ID, agent, "", "a\nb"); return err },
+		"over-long reason": func() error {
+			_, err := s.Retire("alpha", old.ID, agent, "", strings.Repeat("x", MaxReason+1))
+			return err
+		},
+	} {
+		if err := check(); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if _, err = s.Retire("beta", old.ID, agent, "", ""); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal("retired across workspaces", err)
+	}
+
+	restored, err := s.Restore("alpha", old.ID)
+	if err != nil || restored.Retired != nil || restored.Latest() != 2 {
+		t.Fatal(restored, err)
+	}
+	if same, err := s.Restore("alpha", old.ID); err != nil || same.Retired != nil {
+		t.Fatal("restoring a live artifact", same, err)
+	}
+	reopened, _ = open(t, root)
+	if got, err := reopened.Get("alpha", old.ID, 0); err != nil || got.Retired != nil {
+		t.Fatal("restore did not persist", got, err)
+	}
+}
+
+func TestAgentPublishedExcludesThePersonsAndTrackedFiles(t *testing.T) {
+	s, _ := open(t, t.TempDir())
+	agent := Author{Kind: "agent", SessionID: "exec"}
+	mine, err := s.Put("alpha", Put{Title: "Mine", Content: "x", Author: person, Source: Source{Kind: "edit"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited, err := s.Put("alpha", Put{Title: "Edited", Content: "x", Author: agent, Source: Source{Kind: "agent"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edited, err = s.Put("alpha", Put{ID: edited.ID, Content: "y", Author: person, Source: Source{Kind: "edit"}}); err != nil {
+		t.Fatal(err)
+	}
+	tracked, err := s.Track("alpha", "api/PLAN.md", "", "plan", "# Plan", agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range []Artifact{mine.Artifact, edited.Artifact, tracked.Artifact} {
+		if a.AgentPublished() {
+			t.Errorf("%q reads as agent-published", a.Title)
+		}
+	}
+}

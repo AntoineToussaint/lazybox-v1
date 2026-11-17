@@ -444,7 +444,7 @@ func (b *Bench) reviewGoal(source *Execution) string {
 	return ""
 }
 
-// reviewPlan is the workspace's latest plan artifact, titled.
+// reviewPlan is the workspace's latest plan artifact that is not retired, titled.
 func (b *Bench) reviewPlan(workspace string) string {
 	if b.Artifacts == nil {
 		return ""
@@ -456,7 +456,7 @@ func (b *Bench) reviewPlan(workspace string) string {
 	var latest string
 	var at int64
 	for _, a := range list {
-		if a.Kind == "plan" && a.UpdatedAt >= at {
+		if a.Kind == "plan" && a.Retired == nil && a.UpdatedAt >= at {
 			latest, at = a.ID, a.UpdatedAt
 		}
 	}

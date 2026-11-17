@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"slices"
 	"strings"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/gitpublish"
@@ -17,7 +18,9 @@ import (
 
 // Artifacts: each workspace's versioned documents (v2/ARTIFACTS.md). An agent
 // credential reaches List, Get and Put for its own workspace only (auth.go);
-// its versions are always attributed to it, whatever the request claims.
+// its versions are always attributed to it, whatever the request claims. It
+// may also retire, never restore or delete, an artifact of that workspace that
+// an agent published (retirableBy).
 
 func (s *Service) artifactStore() (*artifacts.Store, error) {
 	if s.Bench.Artifacts == nil {
@@ -52,6 +55,9 @@ func wireArtifact(a artifacts.Artifact) *pb.Artifact {
 	for _, l := range a.Links {
 		out.Links = append(out.Links, &pb.ArtifactLink{Kind: l.Kind, Id: l.ID, Role: l.Role})
 	}
+	if r := a.Retired; r != nil {
+		out.Retired = &pb.ArtifactRetirement{AtUnixMillis: r.At, By: &pb.ArtifactAuthor{Kind: r.By.Kind, SessionId: r.By.SessionID}, SupersededBy: r.SupersededBy, Reason: r.Reason}
+	}
 	return out
 }
 
@@ -76,6 +82,9 @@ func (s *Service) ListArtifacts(_ context.Context, r *pb.ListArtifactsRequest) (
 	}
 	out := &pb.ListArtifactsResponse{}
 	for _, a := range list {
+		if a.Retired != nil && !r.IncludeRetired {
+			continue
+		}
 		out.Artifacts = append(out.Artifacts, wireArtifact(a))
 	}
 	return out, nil
@@ -136,7 +145,82 @@ func (s *Service) PutArtifact(ctx context.Context, r *pb.PutArtifactRequest) (*p
 	if err = s.liveWorkspace(r.CollectionId); err != nil {
 		return nil, err
 	}
+	// Every artifact it supersedes is checked before anything is written, so
+	// a refused merge publishes nothing.
+	supersedes := make([]string, 0, len(r.Supersedes))
+	for _, id := range r.Supersedes {
+		id = strings.TrimSpace(id)
+		if id == "" || slices.Contains(supersedes, id) {
+			continue
+		}
+		if id == r.ArtifactId {
+			return nil, grpcError(codes.InvalidArgument, errors.New("an artifact cannot supersede itself"))
+		}
+		if err = retirableBy(ctx, store, r.CollectionId, id); err != nil {
+			return nil, err
+		}
+		supersedes = append(supersedes, id)
+	}
 	doc, err := store.Put(r.CollectionId, put)
+	if err != nil {
+		return nil, artifactError(err)
+	}
+	for _, id := range supersedes {
+		if _, err = store.Retire(r.CollectionId, id, put.Author, doc.ID, ""); err != nil {
+			return nil, artifactError(fmt.Errorf("published %q, but could not retire %s: %w", doc.Title, id, err))
+		}
+	}
+	if len(supersedes) > 0 {
+		if doc, err = store.Get(r.CollectionId, doc.ID, 0); err != nil {
+			return nil, artifactError(err)
+		}
+	}
+	return wireDocument(doc), nil
+}
+
+// retirableBy refuses an agent an artifact it may not retire: one the person
+// made, edited, took from a message or follows from a file. The owner may
+// retire any artifact of the workspace.
+func retirableBy(ctx context.Context, store *artifacts.Store, workspace, id string) error {
+	doc, err := store.Get(workspace, id, 0)
+	if err != nil {
+		return artifactError(err)
+	}
+	if callerSession(ctx) != "" && !doc.AgentPublished() {
+		return grpcError(codes.PermissionDenied, fmt.Errorf("“%s” (artifact %s) is the person's: an agent may retire only artifacts agents published; ask the person to retire it", doc.Title, id))
+	}
+	return nil
+}
+
+// RetireArtifact archives an artifact (kept with every version, out of the
+// default list) or restores one. Nothing here deletes.
+func (s *Service) RetireArtifact(ctx context.Context, r *pb.RetireArtifactRequest) (*pb.Artifact, error) {
+	store, err := s.artifactStore()
+	if err != nil {
+		return nil, err
+	}
+	session := callerSession(ctx)
+	if r.Restore {
+		if session != "" {
+			// auth.go already refuses this; kept here so the rule holds where it is applied.
+			return nil, grpcError(codes.PermissionDenied, errors.New("only the person restores an artifact"))
+		}
+		if _, err = store.Restore(r.CollectionId, r.ArtifactId); err != nil {
+			return nil, artifactError(err)
+		}
+	} else {
+		if err = retirableBy(ctx, store, r.CollectionId, r.ArtifactId); err != nil {
+			return nil, err
+		}
+		by := artifacts.Author{Kind: "person"}
+		if session != "" {
+			by = artifacts.Author{Kind: "agent", SessionID: session}
+		}
+		if _, err = store.Retire(r.CollectionId, r.ArtifactId, by, strings.TrimSpace(r.SupersededBy), r.Reason); err != nil {
+			return nil, artifactError(err)
+		}
+	}
+	doc, err := store.Get(r.CollectionId, r.ArtifactId, 0)
 	if err != nil {
 		return nil, artifactError(err)
 	}

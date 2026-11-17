@@ -41,7 +41,7 @@ type AgentCredentials interface {
 // agentRPCs is everything an agent credential may call: what `lazybox run`
 // and `lazybox log` need to publish one console, only for its own execution;
 // what `lazybox artifact` needs to list, read and publish the artifacts of
-// its own execution's workspace; what `lazybox workspace` needs to list
+// its own execution's workspace, and retire the ones agents published there; what `lazybox workspace` needs to list
 // that workspace's repositories and ask the person to add one (never to add
 // it); and what `lazybox review` needs for a reviewer to file and list its
 // own review's findings (the Runner derives the review, its workspace and the
@@ -87,6 +87,12 @@ var agentRPCs = map[string]func(agents AgentCredentials, who principal, req any)
 	pb.RunnerService_PutArtifact_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.PutArtifactRequest)
 		return ok && inOwnWorkspace(agents, who.session, r.CollectionId)
+	},
+	// Retiring, never restoring: the Runner admits only an artifact an agent
+	// published (artifacts.go, retirableBy), and the person can restore it.
+	pb.RunnerService_RetireArtifact_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
+		r, ok := req.(*pb.RetireArtifactRequest)
+		return ok && !r.Restore && inOwnWorkspace(agents, who.session, r.CollectionId)
 	},
 	pb.RunnerService_ListWorkspaceRepositories_FullMethodName: func(agents AgentCredentials, who principal, req any) bool {
 		r, ok := req.(*pb.ListWorkspaceRepositoriesRequest)

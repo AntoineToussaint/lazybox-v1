@@ -545,6 +545,9 @@ const (
 	// RunnerServiceDeleteArtifactProcedure is the fully-qualified name of the RunnerService's
 	// DeleteArtifact RPC.
 	RunnerServiceDeleteArtifactProcedure = "/lazybox.bench.v1.RunnerService/DeleteArtifact"
+	// RunnerServiceRetireArtifactProcedure is the fully-qualified name of the RunnerService's
+	// RetireArtifact RPC.
+	RunnerServiceRetireArtifactProcedure = "/lazybox.bench.v1.RunnerService/RetireArtifact"
 	// RunnerServiceSaveArtifactToRepositoryProcedure is the fully-qualified name of the RunnerService's
 	// SaveArtifactToRepository RPC.
 	RunnerServiceSaveArtifactToRepositoryProcedure = "/lazybox.bench.v1.RunnerService/SaveArtifactToRepository"
@@ -996,7 +999,8 @@ type RunnerServiceClient interface {
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
-	// (`lazybox artifact`); everything else here is the owner's.
+	// (`lazybox artifact`), and retire the ones an agent published there;
+	// everything else here is the owner's.
 	ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error)
 	GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error)
 	// Creates an artifact, or appends a version to one. The author is who called
@@ -1009,6 +1013,12 @@ type RunnerServiceClient interface {
 	// Owner only. Rename, change kind, or stop following the tracked file.
 	UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error)
 	DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error)
+	// Retires an artifact, or restores a retired one. Retiring is reversible:
+	// the artifact and every version are kept, it leaves the default list, and
+	// it may name the artifact that supersedes it. The owner retires or restores
+	// any; an agent credential may only retire, in its own execution's
+	// workspace, an artifact every version of which an agent published.
+	RetireArtifact(context.Context, *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error)
 	// Owner only. Writes the artifact's latest version into a workspace
 	// repository; never stages or commits.
 	SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error)
@@ -2173,6 +2183,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("DeleteArtifact")),
 			connect.WithClientOptions(opts...),
 		),
+		retireArtifact: connect.NewClient[gen.RetireArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceRetireArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RetireArtifact")),
+			connect.WithClientOptions(opts...),
+		),
 		saveArtifactToRepository: connect.NewClient[gen.SaveArtifactToRepositoryRequest, gen.SaveArtifactToRepositoryResponse](
 			httpClient,
 			baseURL+RunnerServiceSaveArtifactToRepositoryProcedure,
@@ -2549,6 +2565,7 @@ type runnerServiceClient struct {
 	trackArtifactFile            *connect.Client[gen.TrackArtifactFileRequest, gen.Artifact]
 	updateArtifact               *connect.Client[gen.UpdateArtifactRequest, gen.Artifact]
 	deleteArtifact               *connect.Client[gen.DeleteArtifactRequest, gen.DeleteArtifactResponse]
+	retireArtifact               *connect.Client[gen.RetireArtifactRequest, gen.Artifact]
 	saveArtifactToRepository     *connect.Client[gen.SaveArtifactToRepositoryRequest, gen.SaveArtifactToRepositoryResponse]
 	createArtifactIssue          *connect.Client[gen.CreateArtifactIssueRequest, gen.CreateArtifactIssueResponse]
 	getUserActions               *connect.Client[gen.GetUserActionsRequest, gen.UserActions]
@@ -3449,6 +3466,11 @@ func (c *runnerServiceClient) DeleteArtifact(ctx context.Context, req *connect.R
 	return c.deleteArtifact.CallUnary(ctx, req)
 }
 
+// RetireArtifact calls lazybox.bench.v1.RunnerService.RetireArtifact.
+func (c *runnerServiceClient) RetireArtifact(ctx context.Context, req *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.retireArtifact.CallUnary(ctx, req)
+}
+
 // SaveArtifactToRepository calls lazybox.bench.v1.RunnerService.SaveArtifactToRepository.
 func (c *runnerServiceClient) SaveArtifactToRepository(ctx context.Context, req *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error) {
 	return c.saveArtifactToRepository.CallUnary(ctx, req)
@@ -3965,7 +3987,8 @@ type RunnerServiceHandler interface {
 	// Artifacts: versioned documents (plans, reports, specs, notes) of one
 	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
 	// read and put artifacts of its own execution's workspace only
-	// (`lazybox artifact`); everything else here is the owner's.
+	// (`lazybox artifact`), and retire the ones an agent published there;
+	// everything else here is the owner's.
 	ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error)
 	GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error)
 	// Creates an artifact, or appends a version to one. The author is who called
@@ -3978,6 +4001,12 @@ type RunnerServiceHandler interface {
 	// Owner only. Rename, change kind, or stop following the tracked file.
 	UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error)
 	DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error)
+	// Retires an artifact, or restores a retired one. Retiring is reversible:
+	// the artifact and every version are kept, it leaves the default list, and
+	// it may name the artifact that supersedes it. The owner retires or restores
+	// any; an agent credential may only retire, in its own execution's
+	// workspace, an artifact every version of which an agent published.
+	RetireArtifact(context.Context, *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error)
 	// Owner only. Writes the artifact's latest version into a workspace
 	// repository; never stages or commits.
 	SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error)
@@ -5138,6 +5167,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("DeleteArtifact")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceRetireArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceRetireArtifactProcedure,
+		svc.RetireArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("RetireArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceSaveArtifactToRepositoryHandler := connect.NewUnaryHandler(
 		RunnerServiceSaveArtifactToRepositoryProcedure,
 		svc.SaveArtifactToRepository,
@@ -5684,6 +5719,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceUpdateArtifactHandler.ServeHTTP(w, r)
 		case RunnerServiceDeleteArtifactProcedure:
 			runnerServiceDeleteArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceRetireArtifactProcedure:
+			runnerServiceRetireArtifactHandler.ServeHTTP(w, r)
 		case RunnerServiceSaveArtifactToRepositoryProcedure:
 			runnerServiceSaveArtifactToRepositoryHandler.ServeHTTP(w, r)
 		case RunnerServiceCreateArtifactIssueProcedure:
@@ -6449,6 +6486,10 @@ func (UnimplementedRunnerServiceHandler) UpdateArtifact(context.Context, *connec
 
 func (UnimplementedRunnerServiceHandler) DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeleteArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RetireArtifact(context.Context, *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RetireArtifact is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error) {

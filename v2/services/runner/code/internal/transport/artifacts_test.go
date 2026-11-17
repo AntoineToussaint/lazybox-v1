@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -197,6 +198,124 @@ func TestArtifactOwnerFlows(t *testing.T) {
 	code("put into a deleted workspace", err, codes.NotFound)
 	_, err = f.client.PutArtifact(owner, &pb.PutArtifactRequest{CollectionId: "unknown", Title: "T", Content: "x"})
 	code("put into an unknown workspace", err, codes.NotFound)
+}
+
+// Retiring is how an agent consolidates: it archives, never deletes, only an
+// artifact agents published in its own workspace, and only the person
+// restores. A put that supersedes others retires them, or writes nothing.
+func TestAgentRetiresAndSupersedesOnlyAgentPublishedArtifacts(t *testing.T) {
+	f := newTerminalFixture(t)
+	ctx := timeout(t)
+	agent := bearer(ctx, f.agentToken)
+	owner := bearer(ctx, ownerToken)
+	ws := f.mine.Id
+	code := func(name string, err error, want codes.Code) {
+		t.Helper()
+		if status.Code(err) != want {
+			t.Fatalf("%s: got %v, want %s", name, err, want)
+		}
+	}
+	put := func(who context.Context, title string) *pb.Artifact {
+		t.Helper()
+		a, err := f.client.PutArtifact(who, &pb.PutArtifactRequest{CollectionId: ws, Title: title, Kind: "plan", Content: "# " + title})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	listed := func(includeRetired bool) []string {
+		t.Helper()
+		list, err := f.client.ListArtifacts(agent, &pb.ListArtifactsRequest{CollectionId: ws, IncludeRetired: includeRetired})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var titles []string
+		for _, a := range list.Artifacts {
+			titles = append(titles, a.Title)
+		}
+		slices.Sort(titles)
+		return titles
+	}
+	milestones, left, limits := put(agent, "Milestone plan"), put(agent, "What's left"), put(agent, "Limitations")
+	persons := put(owner, "My notes")
+
+	// Retire one alone: archived with who and why, out of the default list, every version kept.
+	retired, err := f.client.RetireArtifact(agent, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: limits.Id, Reason: "folded into the plan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := retired.Retired; r == nil || r.By.Kind != "agent" || r.By.SessionId != f.conversation.ID || r.Reason != "folded into the plan" || r.SupersededBy != "" || retired.Content != "# Limitations" {
+		t.Fatalf("%+v", retired)
+	}
+	if got := listed(false); !slices.Equal(got, []string{"Milestone plan", "My notes", "What's left"}) {
+		t.Fatal("default list shows a retired artifact:", got)
+	}
+	if got := listed(true); len(got) != 4 {
+		t.Fatal("include_retired:", got)
+	}
+	if got, err := f.client.GetArtifact(agent, &pb.GetArtifactRequest{CollectionId: ws, ArtifactId: limits.Id}); err != nil || got.Retired == nil {
+		t.Fatal("a retired artifact stays readable", got, err)
+	}
+
+	// Never the person's, nor another workspace's, nor a restore.
+	_, err = f.client.RetireArtifact(agent, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: persons.Id})
+	code("retire the person's artifact", err, codes.PermissionDenied)
+	edited := put(agent, "Edited plan")
+	if _, err = f.client.PutArtifact(owner, &pb.PutArtifactRequest{CollectionId: ws, ArtifactId: edited.Id, Content: "# Edited by the person"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.client.RetireArtifact(agent, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: edited.Id})
+	code("retire an artifact the person edited", err, codes.PermissionDenied)
+	theirs, err := f.client.PutArtifact(owner, &pb.PutArtifactRequest{CollectionId: f.theirs.Id, Title: "Release notes", Content: "notes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.client.RetireArtifact(agent, &pb.RetireArtifactRequest{CollectionId: f.theirs.Id, ArtifactId: theirs.Id})
+	code("retire another workspace's artifact", err, codes.PermissionDenied)
+	_, err = f.client.RetireArtifact(agent, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: theirs.Id})
+	code("retire another workspace's artifact by id", err, codes.NotFound)
+	_, err = f.client.RetireArtifact(agent, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: limits.Id, Restore: true})
+	code("agent restores", err, codes.PermissionDenied)
+	_, err = f.client.RetireArtifact(agent, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: milestones.Id, SupersededBy: theirs.Id})
+	code("superseded by another workspace's artifact", err, codes.InvalidArgument)
+
+	// A merge: one put publishes the status page and retires the rest, pointing to it.
+	_, err = f.client.PutArtifact(agent, &pb.PutArtifactRequest{CollectionId: ws, Title: "Status", Content: "# Status", Supersedes: []string{milestones.Id, persons.Id}})
+	code("supersede the person's artifact", err, codes.PermissionDenied)
+	_, err = f.client.PutArtifact(agent, &pb.PutArtifactRequest{CollectionId: ws, ArtifactId: left.Id, Content: "# Status", Supersedes: []string{left.Id}})
+	code("supersede itself", err, codes.InvalidArgument)
+	if got := listed(true); slices.Contains(got, "Status") || len(got) != 5 {
+		t.Fatal("a refused merge published:", got)
+	}
+	statusPage, err := f.client.PutArtifact(agent, &pb.PutArtifactRequest{CollectionId: ws, Title: "Status", Kind: "plan", Content: "# Status\nAll of it", Supersedes: []string{milestones.Id, left.Id, limits.Id, milestones.Id}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{milestones.Id, left.Id, limits.Id} {
+		a, err := f.client.GetArtifact(owner, &pb.GetArtifactRequest{CollectionId: ws, ArtifactId: id})
+		if err != nil || a.Retired == nil || a.Retired.SupersededBy != statusPage.Id || a.Retired.By.Kind != "agent" {
+			t.Fatalf("%s not superseded: %+v %v", id, a.GetRetired(), err)
+		}
+	}
+	if got := listed(false); !slices.Equal(got, []string{"Edited plan", "My notes", "Status"}) {
+		t.Fatal(got)
+	}
+
+	// The person restores (the merge card's Undo), and may retire their own.
+	for _, id := range []string{milestones.Id, left.Id, limits.Id} {
+		if a, err := f.client.RetireArtifact(owner, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: id, Restore: true}); err != nil || a.Retired != nil {
+			t.Fatal(a, err)
+		}
+	}
+	if got := listed(false); len(got) != 6 {
+		t.Fatal("restored artifacts are listed again:", got)
+	}
+	if a, err := f.client.RetireArtifact(owner, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: persons.Id, SupersededBy: statusPage.Id}); err != nil || a.Retired.By.Kind != "person" || a.Retired.SupersededBy != statusPage.Id {
+		t.Fatal(a, err)
+	}
+	terminal := bearer(ctx, f.terminalToken)
+	_, err = f.client.RetireArtifact(terminal, &pb.RetireArtifactRequest{CollectionId: ws, ArtifactId: statusPage.Id})
+	code("terminal retires", err, codes.PermissionDenied)
 }
 
 var _ github.Issues = (*github.Client)(nil)
