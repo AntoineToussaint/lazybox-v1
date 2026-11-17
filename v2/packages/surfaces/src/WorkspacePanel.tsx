@@ -1,5 +1,6 @@
 import type { ViewStateStore } from '@lazybox/platform';
 import { Icon } from './Icons';
+import { SplitStoreContext } from './Resizer';
 import type { ModuleProps, PanelModule, PanelTitle } from './PanelRegistry';
 import type { Panel, ViewTarget } from './workspace-model';
 
@@ -41,10 +42,11 @@ export function WorkspacePanel({ panel, definition, target, store, module, actio
       {panel.detached
         ? <DetachedMessage canDetach={canDetach} pending={pending} onOpen={() => actions.detach(panel)} onDock={() => actions.dock(panel)}/>
         : definition
-          ? <definition.Component {...module} target={target} viewState={store} panelId={panel.id} onPanelTitle={title => actions.title(panel, title)}
+          // The dividers inside the panel keep their sizes in its store.
+          ? <SplitStoreContext.Provider value={store}><definition.Component {...module} target={target} viewState={store} panelId={panel.id} onPanelTitle={title => actions.title(panel, title)}
             onTarget={panel.kind === 'collections' ? next => next.sessionId ? actions.showSession(next) : onTarget(next) : onTarget}
             onOpenChat={panel.kind === 'chat' && canDetach && target.sessionId ? () => actions.detach(panel) : undefined}
-            onClosePanel={panel.kind === 'terminal' || panel.kind === 'web' ? () => actions.close(panel) : undefined}/>
+            onClosePanel={panel.kind === 'terminal' || panel.kind === 'web' ? () => actions.close(panel) : undefined}/></SplitStoreContext.Provider>
           : <p className="module-empty">The “{panel.kind}” module is unavailable. Its configuration has been retained.</p>}
     </div>
   </section>;

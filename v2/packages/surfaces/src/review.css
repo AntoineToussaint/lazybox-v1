@@ -92,7 +92,8 @@
 
 .changes-review-toggle{display:inline-flex;align-items:center;gap:6px}
 .changes-review-toggle span{min-width:18px;padding:0 5px;border-radius:999px;background:var(--accent-solid);color:var(--on-accent-solid);font-size:calc(11px * var(--text-scale));line-height:calc(16px * var(--text-scale));text-align:center}
-.changes-columns.with-review{grid-template-columns:minmax(200px,22%) minmax(0,1fr) minmax(250px,300px)}
+/* The files and the review tray keep the widths dragged to (Resizer.tsx), else these. */
+.changes-columns.with-review{grid-template-columns:var(--split-changes-files,minmax(200px,22%)) minmax(0,1fr) var(--split-changes-review,minmax(250px,300px))}
 /* Narrow Changes panels (a chat docked beside it, a small window): the diff
    keeps the whole height of the right column, so no comment thread in it is
    ever covered, and the left column shows the files or the review tray, one
@@ -100,12 +101,14 @@
 .changes-panel{container:changes-panel/inline-size}
 .changes-panes{display:none}
 @container changes-panel (max-width:1100px){
-  .changes-columns.with-review{grid-template-columns:minmax(224px,34%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);row-gap:8px}
+  .changes-columns.with-review{grid-template-columns:var(--split-changes-files,minmax(224px,34%)) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);row-gap:8px}
   .changes-columns.with-review>.changes-panes{display:flex;grid-column:1;grid-row:1}
   .changes-columns.with-review>nav,.changes-columns.with-review>.review-tray{grid-column:1;grid-row:2}
   .changes-columns.with-review>.diff-view{grid-column:2;grid-row:1/-1}
   /* Hidden, not removed: each keeps its scroll position for the way back. */
   .changes-columns[data-pane=review]>nav,.changes-columns[data-pane=files]>.review-tray{visibility:hidden}
+  /* The column folded to its rail: the tabs and the tray fold with the files. */
+  .changes-columns.with-review:has(>.resizer[data-collapsed]:not([data-off]))>:is(.changes-panes,.review-tray){visibility:hidden}
   .changes-columns.with-review>.review-tray{border-left:0;padding:0 4px 0 0}
   /* The tab already says Review: the header is the summary and the close button. */
   .changes-columns.with-review .review-tray-top>header{padding-top:0!important}

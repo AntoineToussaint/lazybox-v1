@@ -3,6 +3,8 @@ import type { TurnChanges, TurnFile, WorkspaceDiff } from '@lazybox/protocol';
 import { CodeBlock } from './RichContent';
 import { useRunner } from './RunnerContext';
 import { plural } from './turn-checkpoints';
+import { Resizer } from './Resizer';
+import { SPLITS } from './resizable-model';
 import './turn-checkpoints.css';
 
 type Selection = { member: string; file: TurnFile };
@@ -70,6 +72,7 @@ export function TurnChangesView({ sessionId, turn, prompt = '' }: { sessionId: s
         </button>)}
         {repo.truncated && <p role="status">File list limited. Some changes are not shown.</p>}
       </section>)}</nav>
+      <Resizer split={SPLITS.changesFiles} label="file list"/>
       <div className="diff-view">{selection ? <>
         <header><strong>{selection.member}/{selection.file.path}</strong></header>
         <div className="diff-comparison">Before turn {turn} → {changes?.inProgress ? 'now' : 'after it'}</div>

@@ -21,6 +21,8 @@ import { contentKey, type DiffMode } from './diff-layout';
 import { useReviewLauncher, useReviewTrayRequests, type ReviewLauncher, type ReviewScope } from './review-client';
 import { reviewMenuItems, ReviewWithButton } from './ReviewLauncher';
 import { diffKeyTarget, fileKey, moveToHunk, useDiffMode, useNarrow, useViewedFiles } from './useDiffPreferences';
+import { Resizer } from './Resizer';
+import { SPLITS } from './resizable-model';
 
 type Selection = { member: string; path: string; committed: boolean };
 
@@ -230,6 +232,7 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
       <nav aria-label="Changed files" id={`${columnId}-files`}>
         {repos.map(repo => <RepositoryFiles key={repo.member} workspaceId={workspaceId} repo={repo} compare={compare} selection={selection} conversation={conversation} launcher={launcher} onChoose={choose} onChanged={refresh} onSendToAgent={sendToAgent} isViewed={viewed.isViewed} onViewed={markViewed} menu={rowItems}/>)}
       </nav>
+      <Resizer split={SPLITS.changesFiles} label="file list"/>
       <div className="diff-view" ref={setDiffPane} onContextMenu={selection ? contextMenu('diff', () => fileItems(selection.member, selection.path), { member: selection.member, path: selection.path }) : undefined}>
         {selection
           ? <>
@@ -250,6 +253,7 @@ export function ChangesPanel({ workspaceId, viewState, sessionId = '', onShowSes
           </>
           : <div className="diff-empty"><h3>{loading ? 'Reading changes…' : 'No changes yet'}</h3><p>Nothing has been committed or edited in this workspace since it started.</p></div>}
       </div>
+      {trayOpen && <Resizer split={SPLITS.changesReview} label="review tray"/>}
       {trayOpen && <ReviewTray id={`${columnId}-review`} workspaceId={workspaceId} review={review} conversation={conversation} focusReview={focusReview} onJump={jump} onSend={(text, to) => sendToAgent(text, to)} onClose={() => showTray(false)}/>}
     </div></>}
     {fileLinks.element}

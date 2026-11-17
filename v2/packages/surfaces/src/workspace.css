@@ -189,7 +189,7 @@
 .changes-panel { height:100%; display:flex; flex-direction:column; padding:1rem; min-height:0; }
 .changes-panel header { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.5rem 0; }
 .changes-panel small { display:block; color:var(--muted,var(--text-muted)); font-size:.75rem; margin-top:.25rem; }
-.changes-columns { display:grid; grid-template-columns:minmax(220px,28%) minmax(0,1fr); flex:1; min-height:0; gap:1rem; }
+.changes-columns { display:grid; grid-template-columns:var(--split-changes-files,minmax(220px,28%)) minmax(0,1fr); flex:1; min-height:0; gap:1rem; }
 .changes-columns nav,.diff-view { overflow:auto; min-height:0; }
 .changes-columns h3 { padding:.5rem; font-size:.9rem; }
 .changes-columns nav button { width:100%; text-align:left; display:flex; gap:.6rem; padding:.5rem; border-radius:5px; }
