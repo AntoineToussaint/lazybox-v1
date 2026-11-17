@@ -101,6 +101,9 @@ func (s *Service) SetPushSettings(ctx context.Context, r *pb.SetPushSettingsRequ
 	if errors.Is(err, devices.ErrUnknownDevice) {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
+	if errors.Is(err, devices.ErrPushChanges) {
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -110,7 +113,9 @@ func (s *Service) SetPushSettings(ctx context.Context, r *pb.SetPushSettingsRequ
 }
 
 // SendTestPush sends a test notification: the owner to any paired phone, a
-// phone to itself only.
+// phone to itself only, within the phone's notification budget. No other
+// credential (a hook's, say, which otherwise reaches what a phone reaches)
+// may send one.
 func (s *Service) SendTestPush(ctx context.Context, r *pb.SendTestPushRequest) (*pb.SendTestPushResponse, error) {
 	m, err := s.devices()
 	if err != nil {
@@ -118,6 +123,9 @@ func (s *Service) SendTestPush(ctx context.Context, r *pb.SendTestPushRequest) (
 	}
 	if s.Push == nil {
 		return nil, errNoPush
+	}
+	if who, ok := ctx.Value(principalKey{}).(principal); ok && !who.owner {
+		return nil, status.Error(codes.PermissionDenied, "only the owner or the phone itself sends a test notification")
 	}
 	target := r.DeviceId
 	if caller := callerDevice(ctx); caller != nil {
@@ -138,6 +146,8 @@ func (s *Service) SendTestPush(ctx context.Context, r *pb.SendTestPushRequest) (
 			message = "This phone's notification subscription ended; turn notifications on again on the phone."
 		case errors.Is(err, devices.ErrUnknownDevice):
 			return nil, status.Error(codes.NotFound, err.Error())
+		case errors.Is(err, devices.ErrPushBudget):
+			return nil, status.Error(codes.ResourceExhausted, err.Error())
 		case errors.Is(err, devices.ErrPushOff):
 			message = "Notifications are off on this phone; turn them on there first."
 		}

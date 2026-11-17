@@ -39,8 +39,15 @@ func authenticateHook(agents AgentCredentials, token string) (principal, bool) {
 }
 
 // hookExcluded are device RPCs a hook does not get: Info carries account and
-// sign-in details a phone receives only redacted.
-var hookExcluded = map[string]bool{pb.RunnerService_Info_FullMethodName: true}
+// sign-in details a phone receives only redacted; push settings and test
+// pushes are a phone's own, and a hook is no phone (a hook could otherwise
+// send any phone test notifications as the owner does).
+var hookExcluded = map[string]bool{
+	pb.RunnerService_Info_FullMethodName:            true,
+	pb.RunnerService_GetPushSettings_FullMethodName: true,
+	pb.RunnerService_SetPushSettings_FullMethodName: true,
+	pb.RunnerService_SendTestPush_FullMethodName:    true,
+}
 
 // hookWindowRPCs: with respond, a hook may ask the open window to run an
 // action of the app (`lazybox do`) and wait for its own requests' answers.

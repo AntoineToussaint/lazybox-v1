@@ -191,6 +191,9 @@ type Manager struct {
 	// streams: per device, the cancel funcs of every context bound to one
 	// of its credentials (Bind), ended by Revoke.
 	streams map[string]map[*binding]struct{}
+	// pushChanges: per device, when it last changed its notifications
+	// (SetPush, pushChangesPerMinute).
+	pushChanges map[string][]time.Time
 }
 
 // binding is one context bound to a device credential.
@@ -203,7 +206,7 @@ func Open(state string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Manager{path: filepath.Join(state, "devices.json"), key: key, Now: time.Now, devices: map[string]*Device{}, persisted: map[string]time.Time{}, offers: map[string]*offer{}, challenges: map[string]challenge{}, streams: map[string]map[*binding]struct{}{}}
+	m := &Manager{path: filepath.Join(state, "devices.json"), key: key, Now: time.Now, devices: map[string]*Device{}, persisted: map[string]time.Time{}, offers: map[string]*offer{}, challenges: map[string]challenge{}, streams: map[string]map[*binding]struct{}{}, pushChanges: map[string][]time.Time{}}
 	data, err := os.ReadFile(m.path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return m, nil
@@ -725,6 +728,7 @@ func (m *Manager) Revoke(id string) error {
 		b.cancel(ErrCredentialEnded)
 	}
 	delete(m.streams, id)
+	delete(m.pushChanges, id)
 	return nil
 }
 

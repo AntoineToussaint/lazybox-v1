@@ -204,7 +204,7 @@ func TestHookCredentialReachesOnlyItsGrantsWhileItRuns(t *testing.T) {
 	// RPC and Info, and any RPC added later.
 	allowed := map[string]bool{}
 	for method, rule := range deviceRPCs {
-		if rule.grant == "read" && method != pb.RunnerService_Info_FullMethodName {
+		if rule.grant == "read" && !hookExcluded[method] {
 			allowed[method] = true
 		}
 	}

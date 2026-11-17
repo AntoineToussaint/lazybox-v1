@@ -539,6 +539,11 @@ func (n *Notifier) Test(ctx context.Context, deviceID string) error {
 	if push.Subscription == nil {
 		return ErrNotSubscribed
 	}
+	// A test is a notification like any other: it spends the phone's
+	// per-minute budget, so it cannot be used to flood the phone.
+	if !n.allow(d.ID, n.now()) {
+		return devices.ErrPushBudget
+	}
 	body, err := Payload{Title: "Notifications work", Kind: devices.KindTest, URL: "/?view=remote", Tag: "test"}.marshal()
 	if err != nil {
 		return err

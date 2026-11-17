@@ -3,6 +3,7 @@ package devices
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +40,17 @@ type PushPreferences struct {
 
 // ErrPushOff: the phone has not turned notifications on.
 var ErrPushOff = errors.New("notifications are off on this phone; turn them on there first")
+
+// ErrPushBudget: the phone already had as many notifications as it gets in
+// a minute (the notifier's per-device budget), test pushes included.
+var ErrPushBudget = errors.New("this phone was sent as many notifications as it gets in a minute; try again shortly")
+
+// ErrPushChanges: the phone changed its notifications too often; each change
+// rewrites the paired devices file.
+var ErrPushChanges = errors.New("too many notification changes from this phone; try again in a minute")
+
+// pushChangesPerMinute bounds SetPush per device.
+const pushChangesPerMinute = 30
 
 // DefaultPushPreferences are the desktop's defaults: needs input and failures,
 // not finished turns.
@@ -194,6 +206,13 @@ func (m *Manager) SetPush(id string, change PushChange) (Push, error) {
 	if d == nil {
 		return Push{}, ErrUnknownDevice
 	}
+	now := m.Now()
+	recent := slices.DeleteFunc(m.pushChanges[id], func(at time.Time) bool { return now.Sub(at) >= time.Minute })
+	if len(recent) >= pushChangesPerMinute {
+		m.pushChanges[id] = recent
+		return Push{}, ErrPushChanges
+	}
+	m.pushChanges[id] = append(recent, now)
 	previous := d.Push
 	next := d.PushSettings()
 	if change.Subscription != nil {

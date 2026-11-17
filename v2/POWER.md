@@ -151,7 +151,9 @@ never given, and an inherited one is stripped. With `grants`, the run gets its
 own `LAZYBOX_V2_ENDPOINT` with a credential that:
 
 - reaches exactly what a [paired phone](REMOTE.md#what-a-device-may-call)
-  with the same grants reaches, less `Info` — `read`: list and read
+  with the same grants reaches, less `Info` and a phone's own push settings
+  and test notifications (`GetPushSettings`, `SetPushSettings`,
+  `SendTestPush`: a hook is no phone) — `read`: list and read
   conversations, workspaces, changes, commands; `respond`: send, steer,
   answer, approve or decline, interrupt (never a permission change), and
   `lazybox do` of the actions marked safe; `start`:
