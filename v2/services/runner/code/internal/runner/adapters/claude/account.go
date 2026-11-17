@@ -64,7 +64,11 @@ func OpenAccount(ctx context.Context, binary string, env []string, home string) 
 	return &AccountClient{ctx: life, cancel: cancel, binary: binary, home: home, scratch: scratch, env: filtered}, nil
 }
 
-func (a *AccountClient) Login(ctx context.Context) (accounts.Login, error) {
+// Login starts Claude's browser sign-in; Claude has no device-code sign-in.
+func (a *AccountClient) Login(ctx context.Context, method string) (accounts.Login, error) {
+	if method != "" && method != accounts.BrowserSignIn {
+		return accounts.Login{}, errors.New("Claude signs in only in the browser")
+	}
 	a.mu.Lock()
 	if a.command != nil || a.ctx.Err() != nil {
 		a.mu.Unlock()

@@ -141,9 +141,31 @@ coding sessions. Refresh state is per subscription: one pending refresh disables
 only its own button. Other accounts remain independently refreshable; errors
 and previous observations remain scoped to the account requested.
 
-Codex uses public app-server device sign-in RPCs and a correlated completion.
-The provider page opens in the system browser only when requested. Successful
-sign-in commits the profile into the live registry; cancellation does not.
+Codex signs in through public app-server RPCs in the profile's own
+`CODEX_HOME` with the file credential store, in one of two ways
+(`AddSubscriptionRequest.sign_in_method`, echoed on `SubscriptionEnrollment`):
+
+- **Browser** (the default): `account/login/start {"type":"chatgpt"}` returns
+  `{loginId, authUrl}` and no code. The client opens `authUrl` through the
+  host's sign-in opener; ChatGPT redirects to Codex's own loopback listener
+  (`127.0.0.1:1455`, or Codex's fallback port when that one is held), and
+  Codex writes the credentials into the profile. It therefore works only from
+  a browser on the Runner's computer. Cancel sends `account/login/cancel
+  {loginId}` before the app-server is closed, freeing the port.
+- **Device** (`"device"`): `account/login/start {"type":"chatgptDeviceCode"}`
+  returns a verification URL and a one-time code to enter on any device.
+
+Both complete with the same `account/login/completed` notification, matched by
+`loginId`; other notifications (such as `remoteControl/status/changed`, which
+can precede a response) are skipped. Verified against codex-cli 0.169.0
+(`TestRealCodexBrowserSignInStartsAndCancels` starts and cancels a browser
+sign-in in a scratch `CODEX_HOME`). The client starts with the browser when
+its page is served from loopback or the desktop app's origin (the owner's
+windows, on the Runner's computer) and with a code otherwise; either way the
+person can switch, which cancels the waiting sign-in and starts the other for
+the same account. Claude has only the browser and refuses `"device"`.
+Successful sign-in commits the profile into the live registry and closes the
+dialog; cancellation registers nothing.
 Refresh uses `account/read` and `account/rateLimits/read` without starting a
 thread or model turn. Separate native quota buckets remain separate.
 
@@ -164,8 +186,18 @@ Live queries on two isolated saved accounts returned weekly quota successfully.
 The earlier `/usage` slash-command probe reported session costs, but did not
 establish that the SDK lacked an independent quota method.
 
-Codex device sign-in requires the ChatGPT Security setting to be enabled. A
-provider rejection naming that setting becomes an actionable enrollment error.
+Codex device sign-in requires the ChatGPT Security setting that allows device
+codes; in a Business or Enterprise workspace only an admin can enable it. A
+provider rejection naming that setting fails the enrollment with
+`error_code: "device_sign_in_disabled"` and one line saying so; the client
+offers **Sign in with the browser instead**. When Codex cannot bind its
+callback port, the browser enrollment fails with
+`error_code: "sign_in_in_progress"`, and the client offers a code instead.
+Before that, Codex itself sends `GET /cancel` to whatever holds 1455 (meant
+to stop a `codex login` waiting there) and then falls back to 1457; it
+fails ("failed to start login server: Port 127.0.0.1:1457 is already in
+use") only when both are held. Both behaviours were observed with codex-cli
+0.169.0 and a scratch `CODEX_HOME`.
 **Copy code** copies the exact one-time code through the native desktop clipboard
 and confirms success; codes remain absent from persisted view state.
 

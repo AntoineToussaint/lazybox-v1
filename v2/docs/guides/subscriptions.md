@@ -10,10 +10,26 @@ and when one hits its limit, the conversation can continue on another.
 - **Local CLI sign-in** — the account your `claude` or `codex` command already
   uses. It works with no setup.
 - **Named subscriptions** — Settings → Subscriptions → **Add subscription**:
-  choose Claude or Codex, name it ("Work Claude"), and sign in in your browser
-  (Codex shows a one-time code to copy). Each is stored separately from your
-  CLI login and from each other, and is kept for next time. Sign-in needs the
-  browser on the same machine as the Runner.
+  choose Claude or Codex, name it ("Work Claude"), and choose **Continue in
+  your browser**. The provider's sign-in page opens; finish there and Lazybox
+  continues by itself (**Open again** if you closed the page, **Cancel** to
+  stop). Each account is stored separately from your CLI login and from each
+  other, and is kept for next time. Browser sign-in needs the browser on the
+  same computer as the Runner.
+
+### Signing in to Codex with a code
+
+For Codex, **Use a code instead (for another device)** shows a one-time code
+to enter at ChatGPT on any device, such as your phone. Some ChatGPT accounts
+do not allow codes: Lazybox then says that device-code sign-in is off for the
+account (in a Business or Enterprise workspace, an admin turns it on) and
+offers **Sign in with the browser instead**, which always works.
+
+Codex listens on your Mac for the browser to say you are signed in, so only
+one Codex browser sign-in can wait at a time: starting one ends a `codex
+login` still waiting in a terminal. If Codex cannot listen because other
+sign-ins hold its ports, Lazybox says another Codex sign-in is in progress:
+finish or close it and try again, or use a code instead.
 
 Each card shows the plan, the usage windows the provider reports (for example
 the five-hour and weekly windows) and when they reset. **Refresh** asks the

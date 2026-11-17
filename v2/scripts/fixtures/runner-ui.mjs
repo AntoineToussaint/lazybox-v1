@@ -124,6 +124,8 @@ export async function startRunnerFixture() {
     return { provider, title: provider === 'claude' ? 'Claude Code' : 'Codex', state, installed: program.installed, path: program.installed ? program.path : '', version: program.installed ? program.version : '', source: program.installed ? program.source : '', error: program.installed ? program.error : `${provider === 'claude' ? 'Claude Code' : 'Codex'} is not installed on the Runner's computer.`, installCommand: program.installed ? '' : provider === 'claude' ? 'curl -fsSL https://claude.ai/install.sh | bash' : 'npm install -g @openai/codex', subscriptions };
   }).concat(acp.providers()) });
   const completeEnrollment = id => { const flow = enrollments.get(id); if (!flow) throw new Error('Unknown fixture enrollment'); if (flow.state === 'added') return; flow.state = 'added'; flow.signInUrl = ''; flow.userCode = ''; profiles.push({ id: flow.profileId, provider: flow.provider, label: flow.label, managed:true, isolation: 'environment', availability: flow.provider === 'codex' ? { state: 'available', plan: 'pro', observedAtUnixMillis: String(Date.now()), windows: [{ name: 'codex:primary', durationMinutes: '300', usedPercent: 73, resetAt: String(Math.floor(Date.now()/1000)+3600) }] } : { state: 'unknown' } }); };
+  // The provider refused the sign-in: errorCode is what the client offers a way out of.
+  const failEnrollment = (id, error, errorCode = '') => { const flow = enrollments.get(id); if (!flow) throw new Error('Unknown fixture enrollment'); Object.assign(flow, { state: 'failed', error, errorCode, signInUrl: '', userCode: '' }); };
 
   // Terminals echo what is typed and answer each line, like a minimal shell.
   const terminals=new Map();
@@ -574,7 +576,8 @@ actions:
       case 'AddSubscription': {
         mutations.push({ method, body });
         const id = `enrollment-${body.requestKey}`;
-        if (!enrollments.has(id)) { enrollments.set(id, { id, state: 'awaiting_login', profileId: `saved-${enrollments.size}`, provider: body.provider, label: body.label, signInUrl: body.provider === 'claude' ? 'https://claude.com/cai/oauth/authorize?state=fixture' : 'https://auth.openai.com/codex/device', userCode: body.provider === 'claude' ? '' : 'AUTH-FIXTURE-CODE' }); }
+        // Codex signs in with the browser unless a device code is asked for (signInMethod "device").
+        if (!enrollments.has(id)) { const device = body.provider === 'codex' && body.signInMethod === 'device'; enrollments.set(id, { id, state: 'awaiting_login', profileId: `saved-${enrollments.size}`, provider: body.provider, label: body.label, signInMethod: device ? 'device' : 'browser', signInUrl: body.provider === 'claude' ? 'https://claude.com/cai/oauth/authorize?state=fixture' : device ? 'https://auth.openai.com/codex/device' : 'https://auth.openai.com/oauth/authorize?state=fixture', userCode: device ? 'AUTH-FIXTURE-CODE' : '' }); }
         return json(enrollments.get(id));
       }
       case 'GetSubscriptionEnrollment': { const id=body.enrollmentId || `enrollment-${body.requestKey}`; return enrollments.has(id) ? json(enrollments.get(id)) : json({id, state:'expired',error:'Fixture enrollment no longer tracked'}); }
@@ -1007,7 +1010,7 @@ actions:
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
   return { versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
-    availability, acp, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, github, completeGitHub, library, ship, shipState,
+    availability, acp, get url() { return url; }, get token() { return token; }, get runnerSettings() { return runnerSettings; }, endpoint, calls, mutations, pins, collections, sessions, profiles, enrollments, completeEnrollment, failEnrollment, github, completeGitHub, library, ship, shipState,
     /** A Codefly hot reload: the process is replaced on the same port with a new bearer; its streams end. */
     async hotReload() { token = randomUUID(); runner.instanceId = randomUUID(); server.closeAllConnections(); await publish(); },
     /** A launcher restart: the old port stops answering and the new Runner serves elsewhere, with a new bearer. */

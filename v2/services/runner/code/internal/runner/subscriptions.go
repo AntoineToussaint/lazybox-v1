@@ -20,22 +20,66 @@ import (
 )
 
 type NativeAccount interface {
-	Login(context.Context) (accounts.Login, error)
+	// Login starts a sign-in by method (accounts.BrowserSignIn, DeviceSignIn).
+	Login(context.Context, string) (accounts.Login, error)
 	WaitLogin(context.Context, string) error
 	Usage(context.Context) (*agent.AccountObservation, error)
 	Close() error
 }
+
+// LoginCanceller is a native account that can stop a sign-in it waits on
+// before its process closes (Codex releases its loopback callback port).
+type LoginCanceller interface {
+	CancelLogin(context.Context, string) error
+}
+
+// Failures a client offers a way out of (SubscriptionEnrollment.error_code).
+const (
+	// ErrorDeviceSignInDisabled: the account refuses device codes; the browser works.
+	ErrorDeviceSignInDisabled = "device_sign_in_disabled"
+	// ErrorSignInInProgress: another sign-in holds the provider's local callback.
+	ErrorSignInInProgress = "sign_in_in_progress"
+)
+
 type Enrollment struct {
-	ID          string
-	State       string
-	ProfileID   string
-	Provider    string
-	Label       string
+	ID        string
+	State     string
+	ProfileID string
+	Provider  string
+	Label     string
+	// Method is accounts.BrowserSignIn or DeviceSignIn; empty for an imported token.
+	Method      string
 	URL         string
 	UserCode    string
 	Error       string
+	ErrorCode   string
 	fingerprint [32]byte
 	cancel      context.CancelFunc
+}
+
+// signInMethod resolves the requested method for provider: the browser by
+// default, a device code only where the provider has one (Codex).
+func signInMethod(provider, method string) (string, error) {
+	switch {
+	case method == "" || method == accounts.BrowserSignIn:
+		return accounts.BrowserSignIn, nil
+	case method == accounts.DeviceSignIn && provider == "codex":
+		return accounts.DeviceSignIn, nil
+	case method == accounts.DeviceSignIn:
+		return "", errors.New("Claude signs in only in the browser")
+	}
+	return "", errors.New("sign-in method must be browser or device")
+}
+
+// loginFailure is the person's sentence and the client's code for a failed sign-in.
+func loginFailure(err error, fallback string) (string, string) {
+	switch {
+	case errors.Is(err, codex.ErrDeviceAuthDisabled):
+		return err.Error(), ErrorDeviceSignInDisabled
+	case errors.Is(err, codex.ErrSignInInProgress):
+		return err.Error(), ErrorSignInInProgress
+	}
+	return fallback, ""
 }
 
 func (b *Bench) accountClient(ctx context.Context, p accounts.Profile) (NativeAccount, error) {
@@ -54,7 +98,7 @@ func (b *Bench) accountClient(ctx context.Context, p accounts.Profile) (NativeAc
 
 // AddSubscription starts an idempotent one-time enrollment. Credentials and
 // OAuth links never enter execution journals or saved client layout state.
-func (b *Bench) AddSubscription(key, provider, label, token string) (Enrollment, error) {
+func (b *Bench) AddSubscription(key, provider, label, token, method string) (Enrollment, error) {
 	if err := b.ReloadProfiles(); err != nil {
 		return Enrollment{}, err
 	}
@@ -65,8 +109,15 @@ func (b *Bench) AddSubscription(key, provider, label, token string) (Enrollment,
 	if (provider == "codex" && token != "") || len(token) > 16384 {
 		return Enrollment{}, errors.New("Only Claude supports optional token import; use native sign-in otherwise")
 	}
+	method, err := signInMethod(provider, method)
+	if err != nil {
+		return Enrollment{}, err
+	}
+	if token != "" {
+		method = ""
+	}
 	id := subscriptionID(provider, key)
-	fingerprint := sha256.Sum256([]byte(provider + "\x00" + label + "\x00" + token))
+	fingerprint := sha256.Sum256([]byte(provider + "\x00" + label + "\x00" + token + "\x00" + method))
 	b.mu.Lock()
 	if b.closed {
 		b.mu.Unlock()
@@ -94,7 +145,7 @@ func (b *Bench) AddSubscription(key, provider, label, token string) (Enrollment,
 		}
 	}
 	ctx, cancel := context.WithTimeout(b.ctx, 10*time.Minute)
-	flow := &Enrollment{ID: id, State: "starting", ProfileID: id, Provider: provider, Label: label, fingerprint: fingerprint, cancel: cancel}
+	flow := &Enrollment{ID: id, State: "starting", ProfileID: id, Provider: provider, Label: label, Method: method, fingerprint: fingerprint, cancel: cancel}
 	b.enrollments[id] = flow
 	b.starts.Add(1)
 	copy := *flow
@@ -154,13 +205,16 @@ func (b *Bench) enrollSubscription(ctx context.Context, flow *Enrollment, token 
 			exitUnconfirmed = true
 		}
 	}()
-	login, err := client.Login(ctx)
+	fail := func(err error, fallback string) {
+		message, code := loginFailure(err, fallback)
+		finish("failed", message)
+		b.mu.Lock()
+		flow.ErrorCode = code
+		b.mu.Unlock()
+	}
+	login, err := client.Login(ctx, flow.Method)
 	if err != nil {
-		if errors.Is(err, codex.ErrDeviceAuthDisabled) {
-			finish("failed", codex.ErrDeviceAuthDisabled.Error())
-		} else {
-			finish("failed", "The provider could not start sign-in. Your existing accounts were not changed.")
-		}
+		fail(err, "The provider could not start sign-in. Your existing accounts were not changed.")
 		return
 	}
 	b.mu.Lock()
@@ -170,11 +224,16 @@ func (b *Bench) enrollSubscription(ctx context.Context, flow *Enrollment, token 
 	b.mu.Unlock()
 	if err = client.WaitLogin(ctx, login.ID); err != nil {
 		if ctx.Err() != nil {
+			// Stop the provider's sign-in itself (Codex frees its callback
+			// port) before its process is closed.
+			if canceller, ok := client.(LoginCanceller); ok {
+				stop, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+				_ = canceller.CancelLogin(stop, login.ID)
+				cancel()
+			}
 			finish("cancelled", "")
-		} else if errors.Is(err, codex.ErrDeviceAuthDisabled) {
-			finish("failed", codex.ErrDeviceAuthDisabled.Error())
 		} else {
-			finish("failed", "Provider sign-in did not complete.")
+			fail(err, "Provider sign-in did not complete.")
 		}
 		return
 	}

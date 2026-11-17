@@ -515,6 +515,11 @@ message AddSubscriptionRequest {
   string label = 3;
   // Secret input: never retained in ordinary metadata or logs.
   string subscription_token = 4;
+  // How the person signs in: "browser" (the provider's page in a browser on
+  // the Runner's computer, which calls back to the provider CLI there) or
+  // "device" (a one-time code entered on any device; Codex only). Empty is
+  // the Runner's default, the browser.
+  string sign_in_method = 5;
 }
 message SubscriptionEnrollmentRequest {
   string enrollment_id = 1;
@@ -531,6 +536,14 @@ message SubscriptionEnrollment {
   string sign_in_url = 6;
   string user_code = 7;
   string error = 8;
+  // "browser" or "device" (AddSubscriptionRequest.sign_in_method); empty for
+  // an imported token. A browser sign-in has a sign_in_url and no user_code.
+  string sign_in_method = 9;
+  // Why a sign-in failed, so the client can offer the way out:
+  // "device_sign_in_disabled" (the account refuses device codes; the browser
+  // works) or "sign_in_in_progress" (another sign-in holds the provider's
+  // local callback). Empty otherwise.
+  string error_code = 10;
 }
 message UsageWindow {
   string name = 1;

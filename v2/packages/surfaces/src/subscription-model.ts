@@ -227,3 +227,18 @@ export function limitStatus(session: Session | undefined, now = Date.now()): str
   const back = backAt(session.account?.resetAt, now);
   return back ? `Limit reached · ${back}` : 'Limit reached';
 }
+
+/** How a person signs in to a new subscription (AddSubscriptionRequest.sign_in_method). */
+export type SignInMethod = 'browser' | 'device';
+
+/**
+ * The sign-in a new Codex subscription starts with. The browser sign-in calls
+ * back to Codex on the Runner's computer (127.0.0.1), so it works only from a
+ * window on that computer. An owner window reaches its Runner on loopback, so
+ * a page served from loopback or from the desktop app's own origin is there;
+ * any other page (another device) gets a one-time code instead.
+ */
+export function signInDefault(hostname: string): SignInMethod {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  return host === 'localhost' || host.endsWith('.localhost') || host === '::1' || /^127(\.\d{1,3}){3}$/.test(host) ? 'browser' : 'device';
+}

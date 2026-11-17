@@ -1769,8 +1769,13 @@ type AddSubscriptionRequest struct {
 	Label      string                 `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
 	// Secret input: never retained in ordinary metadata or logs.
 	SubscriptionToken string `protobuf:"bytes,4,opt,name=subscription_token,json=subscriptionToken,proto3" json:"subscription_token,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// How the person signs in: "browser" (the provider's page in a browser on
+	// the Runner's computer, which calls back to the provider CLI there) or
+	// "device" (a one-time code entered on any device; Codex only). Empty is
+	// the Runner's default, the browser.
+	SignInMethod  string `protobuf:"bytes,5,opt,name=sign_in_method,json=signInMethod,proto3" json:"sign_in_method,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AddSubscriptionRequest) Reset() {
@@ -1827,6 +1832,13 @@ func (x *AddSubscriptionRequest) GetLabel() string {
 func (x *AddSubscriptionRequest) GetSubscriptionToken() string {
 	if x != nil {
 		return x.SubscriptionToken
+	}
+	return ""
+}
+
+func (x *AddSubscriptionRequest) GetSignInMethod() string {
+	if x != nil {
+		return x.SignInMethod
 	}
 	return ""
 }
@@ -1936,15 +1948,23 @@ func (x *RefreshSubscriptionRequest) GetProfileId() string {
 }
 
 type SubscriptionEnrollment struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	State         string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
-	ProfileId     string                 `protobuf:"bytes,3,opt,name=profile_id,json=profileId,proto3" json:"profile_id,omitempty"`
-	Provider      string                 `protobuf:"bytes,4,opt,name=provider,proto3" json:"provider,omitempty"`
-	Label         string                 `protobuf:"bytes,5,opt,name=label,proto3" json:"label,omitempty"`
-	SignInUrl     string                 `protobuf:"bytes,6,opt,name=sign_in_url,json=signInUrl,proto3" json:"sign_in_url,omitempty"`
-	UserCode      string                 `protobuf:"bytes,7,opt,name=user_code,json=userCode,proto3" json:"user_code,omitempty"`
-	Error         string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	State     string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	ProfileId string                 `protobuf:"bytes,3,opt,name=profile_id,json=profileId,proto3" json:"profile_id,omitempty"`
+	Provider  string                 `protobuf:"bytes,4,opt,name=provider,proto3" json:"provider,omitempty"`
+	Label     string                 `protobuf:"bytes,5,opt,name=label,proto3" json:"label,omitempty"`
+	SignInUrl string                 `protobuf:"bytes,6,opt,name=sign_in_url,json=signInUrl,proto3" json:"sign_in_url,omitempty"`
+	UserCode  string                 `protobuf:"bytes,7,opt,name=user_code,json=userCode,proto3" json:"user_code,omitempty"`
+	Error     string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`
+	// "browser" or "device" (AddSubscriptionRequest.sign_in_method); empty for
+	// an imported token. A browser sign-in has a sign_in_url and no user_code.
+	SignInMethod string `protobuf:"bytes,9,opt,name=sign_in_method,json=signInMethod,proto3" json:"sign_in_method,omitempty"`
+	// Why a sign-in failed, so the client can offer the way out:
+	// "device_sign_in_disabled" (the account refuses device codes; the browser
+	// works) or "sign_in_in_progress" (another sign-in holds the provider's
+	// local callback). Empty otherwise.
+	ErrorCode     string `protobuf:"bytes,10,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2031,6 +2051,20 @@ func (x *SubscriptionEnrollment) GetUserCode() string {
 func (x *SubscriptionEnrollment) GetError() string {
 	if x != nil {
 		return x.Error
+	}
+	return ""
+}
+
+func (x *SubscriptionEnrollment) GetSignInMethod() string {
+	if x != nil {
+		return x.SignInMethod
+	}
+	return ""
+}
+
+func (x *SubscriptionEnrollment) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
 	}
 	return ""
 }
@@ -31249,13 +31283,14 @@ const file_api_proto_rawDesc = "" +
 	"\x0fTelemetryReport\x124\n" +
 	"\x06groups\x18\x01 \x03(\v2\x1c.lazybox.bench.v1.UsageGroupR\x06groups\x12=\n" +
 	"\bcontexts\x18\x02 \x03(\v2!.lazybox.bench.v1.ContextSnapshotR\bcontexts\x125\n" +
-	"\x06recent\x18\x03 \x03(\v2\x1d.lazybox.bench.v1.UsageRecordR\x06recent\"\x9a\x01\n" +
+	"\x06recent\x18\x03 \x03(\v2\x1d.lazybox.bench.v1.UsageRecordR\x06recent\"\xc0\x01\n" +
 	"\x16AddSubscriptionRequest\x12\x1f\n" +
 	"\vrequest_key\x18\x01 \x01(\tR\n" +
 	"requestKey\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05label\x18\x03 \x01(\tR\x05label\x12-\n" +
-	"\x12subscription_token\x18\x04 \x01(\tR\x11subscriptionToken\"\x81\x01\n" +
+	"\x12subscription_token\x18\x04 \x01(\tR\x11subscriptionToken\x12$\n" +
+	"\x0esign_in_method\x18\x05 \x01(\tR\fsignInMethod\"\x81\x01\n" +
 	"\x1dSubscriptionEnrollmentRequest\x12#\n" +
 	"\renrollment_id\x18\x01 \x01(\tR\fenrollmentId\x12\x1f\n" +
 	"\vrequest_key\x18\x02 \x01(\tR\n" +
@@ -31263,7 +31298,7 @@ const file_api_proto_rawDesc = "" +
 	"\bprovider\x18\x03 \x01(\tR\bprovider\";\n" +
 	"\x1aRefreshSubscriptionRequest\x12\x1d\n" +
 	"\n" +
-	"profile_id\x18\x01 \x01(\tR\tprofileId\"\xe2\x01\n" +
+	"profile_id\x18\x01 \x01(\tR\tprofileId\"\xa7\x02\n" +
 	"\x16SubscriptionEnrollment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12\x1d\n" +
@@ -31273,7 +31308,11 @@ const file_api_proto_rawDesc = "" +
 	"\x05label\x18\x05 \x01(\tR\x05label\x12\x1e\n" +
 	"\vsign_in_url\x18\x06 \x01(\tR\tsignInUrl\x12\x1b\n" +
 	"\tuser_code\x18\a \x01(\tR\buserCode\x12\x14\n" +
-	"\x05error\x18\b \x01(\tR\x05error\"\x8a\x01\n" +
+	"\x05error\x18\b \x01(\tR\x05error\x12$\n" +
+	"\x0esign_in_method\x18\t \x01(\tR\fsignInMethod\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\n" +
+	" \x01(\tR\terrorCode\"\x8a\x01\n" +
 	"\vUsageWindow\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fused_percent\x18\x02 \x01(\x01R\vusedPercent\x12\x19\n" +

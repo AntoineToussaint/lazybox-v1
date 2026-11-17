@@ -28,7 +28,19 @@ type Profile struct {
 	NativeLogin bool `json:"nativeLogin,omitempty"`
 }
 
+// Login is a provider sign-in waiting for the person. A browser sign-in has
+// a URL to open and no Code; a device sign-in has a verification URL and the
+// one-time Code to enter there.
 type Login struct{ ID, URL, Code string }
+
+// How a person signs in to a provider account.
+const (
+	// BrowserSignIn opens the provider's page in a browser on the Runner's
+	// computer; the provider's CLI receives the callback on loopback.
+	BrowserSignIn = "browser"
+	// DeviceSignIn shows a one-time code to enter on any device.
+	DeviceSignIn = "device"
+)
 
 type Options struct {
 	Instructions     string   `json:"instructions,omitempty"`

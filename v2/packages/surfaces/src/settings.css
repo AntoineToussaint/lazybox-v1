@@ -164,6 +164,7 @@ p.settings-empty[role=status]{border-style:solid;border-color:transparent;text-a
 .enrollment-check{font-size:calc(30px * var(--text-scale));color:var(--ok-soft)}
 .enrollment-state h3{margin:0;font-size:calc(17px * var(--text-scale))}
 .cancel-sign-in{align-self:center}
+.subscription-dialog .sign-in-other{align-self:center}
 .device-code-control{display:flex;flex-wrap:wrap;align-items:center;gap:10px}.device-code-control .device-code{flex:1;min-width:0;width:100%;box-sizing:border-box}.device-code-control button{flex:none}.copy-status{width:100%;font-size:calc(11px * var(--text-scale));color:var(--ok-soft)}.copy-status:empty{display:none}
 
 /* Switch rows (Notifications, Vim editing): the whole row toggles. */

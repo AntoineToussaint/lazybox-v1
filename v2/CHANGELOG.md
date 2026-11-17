@@ -14,6 +14,12 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.9] - 2026-11-17 · Add a Codex account in your browser
+
+- **Codex signs in in your browser** Settings → Subscriptions → Add subscription → Codex now shows Continue in your browser: ChatGPT's sign-in page opens, and Lazybox continues by itself when you are done, with Open again and Cancel while it waits. No code to copy, and it works for accounts that do not allow device codes, such as most Business and Enterprise workspaces.
+- **A code when you need one** Use a code instead (for another device) still gives you a one-time code to enter on another device. When an account refuses codes, Lazybox says why in one line and offers Sign in with the browser instead.
+- **Another sign-in in the way** If another Codex sign-in is open on your Mac, Lazybox says so plainly and offers a code instead.
+
 ## [2026-11-17.8] - 2026-11-17 · Track the file an agent names
 
 - **Track a linked file** Right-click a Markdown file an agent names in a message, such as `docs/PLAN.md`, and choose Track as artifact: the file is tracked, as from Files, and the artifact stays in sync with it. Other files show the item disabled, Markdown only; a file outside the workspace says why.

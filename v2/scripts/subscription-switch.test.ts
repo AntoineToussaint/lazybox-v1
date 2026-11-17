@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { JournalEventSchema, ProfileSchema, SessionSchema, type Profile, type Session } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { backAt, backWhen, bestChoice, comeback, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, subscriptionChoices, subscriptionName, switchedLine, switchNote, untilText } from '../packages/surfaces/src/subscription-model.ts';
+import { backAt, backWhen, bestChoice, comeback, failureSentence, faultSentence, limitHeadline, limitStatus, resetTime, sessionLimit, signInDefault, subscriptionChoices, subscriptionName, switchedLine, switchNote, untilText } from '../packages/surfaces/src/subscription-model.ts';
 import { foldTranscript, emptyTranscript } from '../packages/surfaces/src/transcript-model.ts';
 import { liveStatus } from '../packages/surfaces/src/live-status.ts';
 import { deriveAttention } from '../packages/surfaces/src/attention.ts';
@@ -117,4 +117,11 @@ test('an automatic switch is one quiet line; the limit itself adds nothing to th
   assert.equal(switchedLine(switchNote('obin-2', 'retry_same_profile', { from: 'obin-2' }), names, noon), 'Continued on Obin Subscription 2');
   // A journal written before switches carried their origin still reads.
   assert.equal(switchedLine(switchNote('obin-1', 'checkpoint_handoff', {}), names, noon), 'Switched to Obin Subscription 1');
+});
+
+test('a new Codex subscription signs in with the browser only from the Runner\'s computer', () => {
+  // The desktop app (tauri://localhost, http://tauri.localhost) and a page on loopback are on the Runner's computer.
+  for (const host of ['localhost', 'tauri.localhost', '127.0.0.1', '127.0.0.2', '[::1]', '::1']) assert.equal(signInDefault(host), 'browser', host);
+  // Any other page is another device: Codex's callback to 127.0.0.1 cannot reach it, so it gets a code.
+  for (const host of ['mac.tailnet.ts.net', '192.168.1.20', 'localhost.example.com', '127.0.0.1.example.com', '']) assert.equal(signInDefault(host), 'device', host);
 });

@@ -9,6 +9,16 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.9',
+    date: '2026-11-17',
+    title: 'Add a Codex account in your browser',
+    items: [
+      { title: 'Codex signs in in your browser', body: 'Settings → Subscriptions → Add subscription → Codex now shows Continue in your browser: ChatGPT\'s sign-in page opens, and Lazybox continues by itself when you are done, with Open again and Cancel while it waits. No code to copy, and it works for accounts that do not allow device codes, such as most Business and Enterprise workspaces.' },
+      { title: 'A code when you need one', body: 'Use a code instead (for another device) still gives you a one-time code to enter on another device. When an account refuses codes, Lazybox says why in one line and offers Sign in with the browser instead.' },
+      { title: 'Another sign-in in the way', body: 'If another Codex sign-in is open on your Mac, Lazybox says so plainly and offers a code instead.' },
+    ],
+  },
+  {
     id: '2026-11-17.8',
     date: '2026-11-17',
     title: 'Track the file an agent names',

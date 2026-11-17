@@ -47,7 +47,7 @@ else:raise Exception('unexpected CLI command')
 				t.Fatal(err)
 			}
 			defer client.Close()
-			login, err := client.Login(ctx)
+			login, err := client.Login(ctx, accounts.BrowserSignIn)
 			if err != nil || !strings.HasPrefix(login.URL, "https://claude.com/") || login.Code != "" {
 				t.Fatal("missing browser callback URL", err)
 			}
@@ -88,7 +88,7 @@ func TestInstalledClaudeBrowserHandoffWithoutAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	login, err := client.Login(ctx)
+	login, err := client.Login(ctx, accounts.BrowserSignIn)
 	if err != nil {
 		t.Fatal(err)
 	}

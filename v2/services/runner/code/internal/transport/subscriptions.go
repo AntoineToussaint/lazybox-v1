@@ -14,10 +14,10 @@ func (s *Service) wireProfile(p accounts.Profile) *pb.Profile {
 	return &pb.Profile{Id: p.ID, Provider: p.Provider, Label: p.Label, Managed: p.Managed, Isolation: p.Isolation, Availability: wireAccount(&observation)}
 }
 func wireEnrollment(flow runner.Enrollment) *pb.SubscriptionEnrollment {
-	return &pb.SubscriptionEnrollment{Id: flow.ID, State: flow.State, ProfileId: flow.ProfileID, Provider: flow.Provider, Label: flow.Label, SignInUrl: flow.URL, UserCode: flow.UserCode, Error: flow.Error}
+	return &pb.SubscriptionEnrollment{Id: flow.ID, State: flow.State, ProfileId: flow.ProfileID, Provider: flow.Provider, Label: flow.Label, SignInUrl: flow.URL, UserCode: flow.UserCode, Error: flow.Error, SignInMethod: flow.Method, ErrorCode: flow.ErrorCode}
 }
 func (s *Service) AddSubscription(ctx context.Context, p *pb.AddSubscriptionRequest) (*pb.SubscriptionEnrollment, error) {
-	flow, err := s.Bench.AddSubscription(p.RequestKey, p.Provider, p.Label, p.SubscriptionToken)
+	flow, err := s.Bench.AddSubscription(p.RequestKey, p.Provider, p.Label, p.SubscriptionToken, p.SignInMethod)
 	p.SubscriptionToken = ""
 	if err != nil {
 		return nil, rpcError(err)
