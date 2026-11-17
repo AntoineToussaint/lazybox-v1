@@ -27,7 +27,9 @@ function KindPicker({ value, onChange, disabled }: { value: ArtifactKind; onChan
         event.preventDefault();
         const next = ARTIFACT_KINDS[(ARTIFACT_KINDS.indexOf(value) + step + ARTIFACT_KINDS.length) % ARTIFACT_KINDS.length];
         onChange(next);
-        requestAnimationFrame(() => (event.currentTarget.parentElement?.querySelector(`[aria-checked="true"]`) as HTMLElement | null)?.focus());
+        // React clears currentTarget once the handler returns: keep the group for the next frame.
+        const group = event.currentTarget.parentElement;
+        requestAnimationFrame(() => group?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
       }} tabIndex={value === kind ? 0 : -1}><Icon name={kindIcon[kind]} size={14}/><span>{kindLabel[kind]}</span></button>)}
   </div>;
 }

@@ -113,9 +113,9 @@
 .missions-panel .mission-next button{padding:1px 8px;font:calc(10px * var(--code-scale))/calc(16px * var(--code-scale)) var(--font-mono,ui-monospace,monospace);border-radius:9px}
 .mission-menu{position:relative;flex:none}
 .missions-panel .mission-menu>.icon-button{width:22px;height:22px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:0;color:var(--text-muted)}
-.mission-menu-list{position:absolute;right:0;top:24px;z-index:5;display:grid;min-width:220px;padding:4px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-hover);box-shadow:0 12px 32px color-mix(in srgb,var(--shadow) calc(53% * var(--shadow-strength)),transparent)}
+.mission-menu-list{position:absolute;right:0;top:24px;z-index:5;display:grid;min-width:220px;padding:4px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-selected);box-shadow:0 12px 32px color-mix(in srgb,var(--shadow) calc(53% * var(--shadow-strength)),transparent)}
 .missions-panel .mission-menu-list button{text-align:left;padding:6px 8px;font-size:calc(12px * var(--text-scale));background:transparent;border:0}
-.missions-panel .mission-menu-list button:hover{background:var(--surface-selected)}
+.missions-panel .mission-menu-list button:hover{background:var(--surface-strong)}
 .mission-menu-list .danger{color:var(--danger-strong)}
 
 .mission-history{margin-top:16px;font-size:calc(11px * var(--text-scale));color:var(--text-subtle)}

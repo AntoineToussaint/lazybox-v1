@@ -79,6 +79,9 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   useEffect(() => () => clearTimeout(statusTimer.current), []);
   const scroller = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
+  // Print asked for from the Changes view: the document is shown first, and printed once it is.
+  const [printPending, setPrintPending] = useState(false);
+  const printNow = useRef<() => void>(() => {});
 
   // The latest version, again whenever the list says the artifact changed.
   const stamp = summary ? `${summary.updatedAtUnixMillis}:${summary.title}:${summary.kind}:${summary.trackedPath}:${summary.trackingProblem}` : '';
@@ -154,6 +157,14 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
     return () => window.removeEventListener('keydown', listener);
   });
 
+  useEffect(() => {
+    if (!printPending || view !== 'document' || reading === undefined) return;
+    setPrintPending(false);
+    // After the document's first paint, so the sheet copies what is on screen.
+    const frame = requestAnimationFrame(() => printNow.current());
+    return () => cancelAnimationFrame(frame);
+  }, [printPending, view, reading]);
+
   if (missing) return <div className="artifact-page is-empty"><p className="module-empty">This artifact was deleted.</p>{onBack && <button onClick={onBack}>Back to artifacts</button>}</div>;
   if (!artifact) return <div className="artifact-page is-empty">{error ? <p className="artifact-error" role="alert">{error}<button onClick={() => setPoll(value => value + 1)}>Retry</button></p> : <p className="module-empty" role="status">Opening artifact…</p>}</div>;
 
@@ -172,7 +183,10 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
   };
   const shownAt = version?.createdAtUnixMillis || artifact.updatedAtUnixMillis;
   const print = () => {
-    if (view !== 'document') { setView('document'); requestAnimationFrame(() => requestAnimationFrame(print)); return; }
+    if (view !== 'document') { setView('document'); setPrintPending(true); return; }
+    printNow.current();
+  };
+  printNow.current = () => {
     const sheet = { title: artifact.title, eyebrow: kindLabel[kind], meta: [`Version ${shown}${shown !== latestNumber ? ` of ${latestNumber}` : ''}`, new Date(Number(shownAt)).toLocaleDateString(undefined, { dateStyle: 'long' }), capital(versionOrigin(version)), collection?.name || ''].filter(Boolean) };
     // A diagram still drawing would print as a placeholder: wait for it, briefly.
     const started = Date.now();
@@ -296,7 +310,9 @@ export function ArtifactPage({ collectionId, artifactId, summary, collection, on
           if (!step) return;
           event.preventDefault();
           const next = versions.find(v => v.number === shown + step);
-          if (next) { pick(next.number); requestAnimationFrame(() => (event.currentTarget.querySelector('[aria-selected="true"]') as HTMLElement | null)?.focus()); }
+          // React clears currentTarget once the handler returns: keep the list for the next frame.
+          const list = event.currentTarget;
+          if (next) { pick(next.number); requestAnimationFrame(() => list.querySelector<HTMLElement>('[aria-selected="true"]')?.focus()); }
         }}>
           {[...versions].reverse().map(v => <li key={v.number} role="option" aria-selected={v.number === shown} tabIndex={v.number === shown ? 0 : -1}
             onClick={() => { pick(v.number); setView('document'); if (!wide) setHistoryOpen(false); }}

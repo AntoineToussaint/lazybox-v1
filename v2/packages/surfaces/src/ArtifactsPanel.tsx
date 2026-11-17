@@ -104,11 +104,14 @@ export function ArtifactsPanel({ workspaceId, collections, viewState, target, on
     const index = rows.indexOf(document.activeElement as HTMLElement);
     rows[Math.max(0, Math.min(rows.length - 1, index + step))].focus();
   };
+  const isActive = (artifact: Artifact) => artifact.collectionId === workspaceId ? !other && artifact.id === selected : elsewhere?.collectionId === artifact.collectionId && elsewhere.id === artifact.id;
+  // One row is in the Tab order: the open one when it is listed, else the first (a filter, or the scope, can hide the open one).
+  const activeListed = (all ? groups.flatMap(group => group.items.map(item => item.artifact)) : here).some(isActive);
   const row = (artifact: Artifact, first: boolean) => {
     const kind = asKind(artifact.kind), mine = artifact.collectionId === workspaceId;
-    const active = mine ? !other && artifact.id === selected : elsewhere?.collectionId === artifact.collectionId && elsewhere.id === artifact.id;
+    const active = isActive(artifact);
     const unread = mine && !active && updatedSinceSeen(artifact, seen[artifact.id]);
-    return <li key={artifact.collectionId + '/' + artifact.id} role="option" aria-selected={active} data-artifact-id={artifact.id} {...peekProps({ kind: 'artifact', workspaceId: artifact.collectionId, artifactId: artifact.id, title: artifact.title })} tabIndex={active || (!current && first) ? 0 : -1}
+    return <li key={artifact.collectionId + '/' + artifact.id} role="option" aria-selected={active} data-artifact-id={artifact.id} {...peekProps({ kind: 'artifact', workspaceId: artifact.collectionId, artifactId: artifact.id, title: artifact.title })} tabIndex={active || (!activeListed && first) ? 0 : -1}
       className={`artifact-row${unread ? ' is-unread' : ''}`} onClick={() => choose(artifact.collectionId, artifact.id)}
       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(artifact.collectionId, artifact.id); } if (mine && (event.key === 'Delete' || event.key === 'Backspace')) { event.preventDefault(); setDeleting(artifact); } if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); rowMenu(artifact, { x: r.left + 24, y: r.bottom - 4 }, event.currentTarget); } }}
       onContextMenu={event => { if (event.shiftKey) return; event.preventDefault(); rowMenu(artifact, menuPoint(event), event.currentTarget); }}>
@@ -131,7 +134,7 @@ export function ArtifactsPanel({ workspaceId, collections, viewState, target, on
     <section className="artifacts-list" aria-label="Artifacts">
       <header className="artifacts-list-header">
         <strong>{heading}</strong>
-        {total > 4 && <label className="artifacts-search"><Icon name="search" size={13}/><input type="search" placeholder="Filter" aria-label="Filter artifacts" value={query} onChange={event => setQuery(event.target.value)}/></label>}
+        {(total > 4 || query) && <label className="artifacts-search"><Icon name="search" size={13}/><input type="search" placeholder="Filter" aria-label="Filter artifacts" value={query} onChange={event => setQuery(event.target.value)}/></label>}
         {several && <div className="artifacts-scope" role="radiogroup" aria-label="Show artifacts of" onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = scope === 'all' ? 'workspace' : 'all'; setScope(next); (event.currentTarget.querySelector(`[data-scope="${next}"]`) as HTMLElement | null)?.focus(); } }}>
           {(['workspace', 'all'] as const).map(value => <button key={value} type="button" role="radio" data-scope={value} aria-checked={scope === value} tabIndex={scope === value ? 0 : -1} onClick={() => setScope(value)}>{value === 'all' ? 'All workspaces' : 'This workspace'}</button>)}
         </div>}
