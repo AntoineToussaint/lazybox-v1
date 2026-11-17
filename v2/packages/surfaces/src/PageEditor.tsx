@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { allPanels, clonePage, defaultLayout, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { Icon } from './Icons';
+import { PAGE_LIMIT, allPanels, clonePage, defaultLayout, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 
 /**
  * Customizing a workspace's pages: a page's name, duplicating or removing it,
@@ -19,18 +20,25 @@ export function PageConfig({ page, layout, hasDetached, pending, commit, changeP
   const remove = () => commit({ ...layout, selectedPage: layout.pages.find(value => value.id !== page.id)!.id, pages: layout.pages.filter(value => value.id !== page.id) });
   return <div className="page-config">
     <PageName key={page.id} name={page.name} onSave={name => changePage({ ...page, name })}/>
-    <button disabled={layout.pages.length >= 8} onClick={duplicate}>Duplicate page</button>
+    <button disabled={layout.pages.length >= PAGE_LIMIT} title={layout.pages.length >= PAGE_LIMIT ? `A workspace has at most ${PAGE_LIMIT} pages` : undefined} onClick={duplicate}>Duplicate page</button>
     <button disabled={layout.pages.length <= 1 || allPanels(page).some(panel => panel.detached)} onClick={remove}>Remove page</button>
     <button disabled={hasDetached || pending} onClick={() => commit(defaultLayout(page.selection), true)}>Reset pages</button>
     <button className="primary" onClick={onDone}>Done</button>
   </div>;
 }
 
+/** A page's name, trimmed; one of spaces only is not a name. */
 function PageName({ name, onSave }: { name: string; onSave(name: string): void }) {
-  const [draft, setDraft] = useState(name);
-  return <form onSubmit={event => { event.preventDefault(); onSave(draft); }}>
-    <label>Page name<input required maxLength={64} value={draft} onChange={event => setDraft(event.target.value)}/></label>
+  const [draft, setDraft] = useState(name), [problem, setProblem] = useState('');
+  return <form noValidate onSubmit={event => {
+    event.preventDefault();
+    const trimmed = draft.trim();
+    if (!trimmed) { setProblem('Give the page a name.'); return; }
+    setProblem(''); setDraft(trimmed); onSave(trimmed);
+  }}>
+    <label>Page name<input maxLength={64} value={draft} aria-invalid={!!problem || undefined} aria-describedby={problem ? 'page-name-problem' : undefined} onChange={event => { setDraft(event.target.value); setProblem(''); }}/></label>
     <button>Rename page</button>
+    {problem && <span id="page-name-problem" className="page-name-problem" role="alert">{problem}</span>}
   </form>;
 }
 
@@ -39,7 +47,7 @@ export function LayoutConfiguration({ json, disabled, onChange, onImport, onClos
   return <section className="layout-json">
     <div className="inspector-heading">
       <strong>Page configuration</strong>
-      <button className="icon-button" aria-label="Close layout configuration" onClick={onClose}>×</button>
+      <button className="icon-button" aria-label="Close layout configuration" title="Close" onClick={onClose}><Icon name="close" size={14}/></button>
     </div>
     <label className="sr-only" htmlFor="page-config-json">Page configuration</label>
     <textarea id="page-config-json" value={json} onChange={event => onChange(event.target.value)} spellCheck={false}/>

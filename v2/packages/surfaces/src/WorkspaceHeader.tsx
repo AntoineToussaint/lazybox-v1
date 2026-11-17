@@ -67,8 +67,8 @@ export function WorkspaceHeader({ app, pages, selectedPage, settings, pending, f
     <button className="mobile-navigation-button icon-button" aria-label="Open workspace navigator" aria-expanded={navigatorOpen} onClick={onOpenNavigator}><Icon name="sidebar"/></button>
     <div className="workspace-brand"><span className="brand-mark">l<span>↗</span></span><strong>lazybox</strong></div>
     <nav aria-label="Pages">
-      {pages.map(value => <button key={value.id} disabled={pending} className={!settings && value.id === selectedPage ? 'selected' : ''} onClick={() => onSelectPage(value.id)}>{value.name}</button>)}
-      {!fixedWorkspace && <button className={settings ? 'selected' : ''} onClick={onOpenSettings}>Settings</button>}
+      {pages.map(value => <button key={value.id} disabled={pending} className={!settings && value.id === selectedPage ? 'selected' : ''} aria-current={!settings && value.id === selectedPage ? 'page' : undefined} onClick={() => onSelectPage(value.id)}>{value.name}</button>)}
+      {!fixedWorkspace && <button className={settings ? 'selected' : ''} aria-current={settings ? 'page' : undefined} onClick={onOpenSettings}>Settings</button>}
     </nav>
     <div className="workspace-header-actions">
       <AttentionCenter collections={collections} selection={selection} viewState={viewState} onOpen={onOpenAttention}/>

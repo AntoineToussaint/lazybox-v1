@@ -166,7 +166,18 @@
 @container command-panel (max-width:600px){.command-panel [data-fold="600"]{display:none!important}}
 @container command-panel (max-width:560px){.console-newer-title,.console-newer-show{display:none}.command-panel .console-tools{gap:4px;padding-left:10px}.command-panel .console-tools>.command-picker{min-width:56px}.command-panel .console-tools input:not([type=checkbox]){min-width:56px}}
 .page-config{display:flex;align-items:end;gap:10px;padding:12px 16px;border-bottom:1px solid var(--accent-line);background:var(--surface-hover);flex-shrink:0;flex-wrap:wrap}
-.page-config form{display:flex;align-items:end;gap:7px}.page-config input{max-width:150px}.page-config label{font-size:calc(10px * var(--text-scale))}.page-config button{font-size:calc(10px * var(--text-scale));padding:7px 9px}
+.page-config form{display:flex;align-items:end;gap:7px;flex-wrap:wrap}.page-config input{max-width:180px;padding:6px 9px;font-size:calc(12px * var(--text-scale))}.page-config label{font-size:calc(11px * var(--text-scale))}.page-config button{font-size:calc(12px * var(--text-scale));line-height:calc(16px * var(--text-scale));padding:6px 10px}
+.page-config .page-name-problem{flex-basis:100%;color:var(--danger-strong);font-size:calc(11px * var(--text-scale))}
+/* An error the person can read and put away; a dropped connection keeps its own banner with Retry. */
+.workspace-shell>.workspace-error{display:flex;align-items:flex-start;gap:12px}
+.workspace-shell>.workspace-error>span{flex:1;min-width:0}
+.workspace-shell>.workspace-error>.icon-button{float:none;flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0;padding:0;border:0;background:transparent;color:var(--danger-strong)}
+.workspace-shell>.workspace-error>.icon-button:hover{background:var(--danger-bg-strong)}
+/* Saved pages that could not be read: the layout is held until the person resets or imports one. */
+.layout-locked{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-strong);font-size:calc(12px * var(--text-scale));line-height:1.5;flex-shrink:0}
+.layout-locked>svg{flex:none}
+.layout-locked>span{flex:1;min-width:0}
+.layout-locked>button{flex:none;padding:5px 10px;font-size:calc(12px * var(--text-scale))}
 .panel-config{display:flex;gap:5px;flex-wrap:wrap;width:100%;padding:6px 0}.panel-config button{font-size:calc(9px * var(--text-scale));padding:4px 6px}
 .layout-json{position:absolute;z-index:30;right:14px;top:58px;width:min(440px,calc(100% - 28px));padding:16px;border:1px solid var(--line-bold);border-radius:10px;background:var(--surface-hover);box-shadow:0 15px 45px color-mix(in srgb,var(--shadow) calc(40% * var(--shadow-strength)),transparent)}
 .inspector-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:calc(12px * var(--text-scale))}.layout-json textarea{height:270px;width:100%;font-family:monospace;font-size:calc(10px * var(--code-scale));resize:vertical;line-height:1.6;background:var(--surface)}
@@ -362,3 +373,4 @@
 .detached-message-actions button{display:inline-flex;align-items:center;gap:6px}
 .detached-message-actions .primary{background:var(--accent-solid);border-color:var(--accent-solid);color:var(--on-accent-solid)}
 .detached-message-actions .primary:hover:not(:disabled){background:var(--accent-solid-hover)}
+.workspace-owner-uncertain{display:inline-flex;align-items:center;align-self:center;flex:none;color:var(--warn)}

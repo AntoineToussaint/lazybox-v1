@@ -85,6 +85,8 @@ type Props = {
   onSidebarWidth(width: number): void;
   /** The person rearranged the dock: drag, drop, resize, tab switch, float, pop out. */
   onArrange(next: Arranged): void;
+  /** The page's saved layout is held (it could not be read): it is drawn as it is, and nothing is reported back. */
+  locked?: boolean;
   onClose(panel: Panel): void;
   /** A minimized group's tab was clicked. */
   onRestore(groupID: string): void;
@@ -272,7 +274,7 @@ export const DockLayout = forwardRef<DockHandle, Props>(function DockLayout(prop
   /** Panels that would be crushed below their minimum width become tabs instead (reported, then drawn). */
   const fits = () => {
     const page = latest.current.page, fitted = fitWidth(page.layout, size.current.width, latest.current.sidebarWidth);
-    if (fitted === page.layout) return true;
+    if (fitted === page.layout || latest.current.locked) return true;
     latest.current.onArrange({ layout: fitted, floating: page.floating, popouts: page.popouts });
     return false;
   };

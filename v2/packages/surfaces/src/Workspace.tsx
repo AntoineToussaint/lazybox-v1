@@ -68,6 +68,8 @@ import { useConversationRequests, useReviewHost } from './review-client';
 import { useWorkspaceReview } from './useWorkspaceReview';
 import { reviewTabBadge } from './review-model';
 import { useMissionsPageHost } from './navigate-requests';
+import { PAGE_LIMIT } from './workspace-model';
+import { Icon } from './Icons';
 
 export { builtinPanels, type ModuleProps, type PanelModule } from './PanelRegistry';
 
@@ -148,6 +150,9 @@ const groupById = (page: WorkspacePage, id: string) => pageGroups(page).find(gro
  * never loses a person's layout. A layout that cannot be read throws: the
  * caller keeps it untouched and says so.
  */
+/** A page of its own asked for while the workspace has every page it may: say which to free. */
+const pageFull = (name: string) => `A workspace has at most ${PAGE_LIMIT} pages. Remove one (⋯ → Customize pages) to open ${name} on a page of its own.`;
+
 function loadPages(viewState: ViewStateStore | undefined, key: string, fallback: ViewTarget, agents?: SidebarAgents, previews = true): WorkspaceLayout {
   const saved = viewState?.getItem(key);
   if (!saved) return defaultLayout(fallback, agents);
@@ -250,7 +255,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       if (fixedWorkspaceId) { if (target.collectionId) void host?.openWorkspace?.(target.collectionId); return; }
       try {
         if (!locked) viewState?.setItem(workspaceKey(workspaceID), JSON.stringify(current.current));
-        let next = loadPages(viewState, workspaceKey(target.collectionId), target, agentsChoice.current, previews);
+        // Saved pages that cannot be read do not lock the person out of the workspace: as at
+        // startup, it opens on the default layout, locked, and the saved text stays as it was.
+        let unreadable = '', next: WorkspaceLayout;
+        try { next = loadPages(viewState, workspaceKey(target.collectionId), target, agentsChoice.current, previews); }
+        catch (error) { next = defaultLayout(target, agentsChoice.current); unreadable = `Saved pages could not be restored: ${String(error)}. Their data has been retained.`; }
         // The conversation asked for shows as a single click shows it: its tab, else the preview tab.
         // A page the person left without a chat stays as it is, with the conversation selected.
         const shows = (page: WorkspacePage) => shownPanels(page).some(isChatTab) ? openConversation(page, target, { mode: openModeFor('preview', tabsOn) }, () => crypto.randomUUID()).page : { ...page, selection: target };
@@ -261,7 +270,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         if (workspaceID) next = adoptGeometry(next, current.current);
         next = repairLayout(next, agentsChoice.current, previews);
         viewState?.setItem(`${viewState.key}:active-workspace`, target.collectionId);
-        setWorkspaceID(target.collectionId); current.current = next; setLayout(next); setLocked(false); setEditing(false); setConfiguring(false); setError('');
+        setWorkspaceID(target.collectionId); current.current = next; setLayout(next); setLocked(!!unreadable); setEditing(false); setConfiguring(false); setError(unreadable);
       } catch (error) { setError(`Could not open workspace layout: ${String(error)}`); }
       return;
     }
@@ -318,6 +327,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const showChanges = () => {
     const existing = current.current.pages.find(value => shownPanels(value).some(panel => panel.kind === 'changes'));
     if (existing) { commit({ ...current.current, selectedPage: existing.id }); setSettings(false); return; }
+    if (current.current.pages.length >= PAGE_LIMIT) { setError(pageFull('Changes')); return; }
     const id = crypto.randomUUID(), panel: Panel = { id: crypto.randomUUID(), kind: 'changes', binding: { mode: 'follow' }, detached: false };
     const review: WorkspacePage = { id, name: 'Changes', selection: { ...page.selection, collectionId: workspaceID }, layout: { type: 'group', id: `g-${panel.id}`, panels: [panel], active: panel.id }, floating: [], popouts: [], detached: [] };
     if (commit({ ...current.current, selectedPage: id, pages: [...current.current.pages, review] })) setSettings(false);
@@ -326,6 +336,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const showMissionsPage = () => {
     const existing = current.current.pages.find(value => shownPanels(value).some(panel => panel.kind === 'missions'));
     if (existing) { commit({ ...current.current, selectedPage: existing.id }); setSettings(false); return; }
+    if (current.current.pages.length >= PAGE_LIMIT) { setError(pageFull('Missions')); return; }
     const id = crypto.randomUUID(), panel: Panel = { id: crypto.randomUUID(), kind: 'missions', binding: { mode: 'follow' }, detached: false };
     const board: WorkspacePage = { id, name: 'Missions', selection: { ...page.selection, collectionId: workspaceID }, layout: { type: 'group', id: `g-${panel.id}`, panels: [panel], active: panel.id }, floating: [], popouts: [], detached: [] };
     if (commit({ ...current.current, selectedPage: id, pages: [...current.current.pages, board] })) setSettings(false);
@@ -968,16 +979,24 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       onQuickStart={() => setQuickStart(true)} onClose={() => { setNewSession(false); conversationGroup.current = ''; }} onStarted={showNewSession}/>
     <RestartNotice/>
     {/* A restart the person asked for explains the dropped connection; RestartNotice says so instead. */}
-    {(error || (connectionError && restart.phase !== 'restarting')) && <div className="error" role="alert">
-      {connectionError && restart.phase !== 'restarting'
-        ? <><strong>Runner disconnected.</strong> Reconnecting automatically… <details><summary>Connection details</summary>{connectionError}</details></>
-        : error}
-      <button onClick={() => { if (host?.reconnect) void host.reconnect().catch(e => setError(String(e))); else refresh(); }}>Retry now</button>
-    </div>}
+    {/* Retry reconnects the Runner, so it is offered for a dropped connection only; any other error is dismissed with ×. */}
+    {(error || (connectionError && restart.phase !== 'restarting')) && (connectionError && restart.phase !== 'restarting'
+      ? <div className="error" role="alert">
+        <strong>Runner disconnected.</strong> Reconnecting automatically… <details><summary>Connection details</summary>{connectionError}</details>
+        <button onClick={() => { if (host?.reconnect) void host.reconnect().catch(e => setError(String(e))); else refresh(); }}>Retry now</button>
+      </div>
+      : <div className="error workspace-error" role="alert">
+        <span>{error}</span>
+        <button type="button" className="icon-button" aria-label="Dismiss" title="Dismiss" onClick={() => setError('')}><Icon name="close" size={14}/></button>
+      </div>)}
     {settings
       ? <SettingsPage app={host?.app} zoom={host?.zoom} tab={settingsTab} onTab={setSettingsTab} onShowProcesses={() => showModule('processes')} chooseRepositoryFolder={host?.chooseRepositoryFolder} viewState={viewState} openSignIn={host?.openSignIn} copySignInCode={host?.copySignInCode}/>
       : <>
-        {locked && <button onClick={() => commit(defaultLayout({ ...initialTarget, collectionId: workspaceID }), true)}>Reset retained layout</button>}
+        {locked && <div className="layout-locked" role="status">
+          <Icon name="lock" size={14}/>
+          <span>This workspace's saved pages could not be read. They are kept as they were, and the layout cannot change until you reset it or import one.</span>
+          <button type="button" onClick={() => commit(defaultLayout({ ...initialTarget, collectionId: workspaceID }), true)}>Reset retained layout</button>
+        </div>}
         {configuring && <LayoutConfiguration json={json} disabled={hasDetached || !!pending} onChange={setJSON} onClose={() => setConfiguring(false)}
           onImport={() => { try { if (commit(repairLayout(parseLayout(json), undefined, previews), true)) setConfiguring(false); } catch (error) { setError(String(error)); } }}/>}
         <WorkspaceSwitcher selection={page.selection} workspaceID={workspaceID} collections={collections} info={info} locked={!!pending || !!fixedWorkspaceId} conversationShown={kindsShown.get('chat') === 'shown' && !!page.selection.sessionId}
@@ -991,7 +1010,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
             : <DockLayout ref={dock} page={page} hostFor={panelHosts.hostFor} titleOf={titleOf} badgeOf={badgeOf} iconOf={iconOf} imageOf={panel => liveTitles[panel.id]?.icon} canClose={groupCommands.canClose}
               sidebarWidth={sidebarWidth} onSidebarWidth={saveSidebarWidth} popoutUrl={POPOUT_URL}
               closeLabel={(panel, title) => layout.pages.length > 1 && shownPanels(page).length === 1 && !page.detached.length && shownPanels(page)[0].id === panel.id ? `Close ${title} page` : `Close ${title} panel`}
-              onArrange={next => { const live = livePage(); changePage(followFrontTab(live, { ...live, ...next })); }}
+              locked={locked} onArrange={next => { if (locked) return; const live = livePage(); changePage(followFrontTab(live, { ...live, ...next })); }}
               statusOf={panel => tabs.statusOf(panel, page.selection)}
               onTabDoubleClick={panel => { const live = livePage(); if (!shownPanels(live).some(value => value.id === panel.id && value.preview)) return false; changePage(keepTab(live, panel.id)); return true; }}
               onClose={closePanel}

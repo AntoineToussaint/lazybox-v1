@@ -191,7 +191,9 @@ export function WorkspaceRow({
             )}
           </span>
           {workspace.ownershipUncertain && (
-            <span title="Owner uncertain">!</span>
+            <span className="workspace-owner-uncertain" role="img" aria-label="Owner uncertain" title="Owner uncertain: a previous Runner left agents or commands here that it cannot confirm have stopped. New conversations and deleting wait until it is reconciled.">
+              <Icon name="alert" size={12} />
+            </span>
           )}
         </button>
       )}
