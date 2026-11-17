@@ -220,7 +220,7 @@ export function ReviewTray({ id, workspaceId, review, conversation, focusReview 
         <Icon name="send" size={14}/>{chosen.length ? `Send ${plural(chosen.length, 'comment')} to the agent` : 'Send review to the agent'}
       </button>
       <small className="review-muted">{!to ? 'No conversation in this workspace yet. Start one to send it comments.' : `Goes to the message box of “${conversationName(to, 'the conversation')}” as one message, findings exactly as filed. You review it and send it; nothing is sent for you.`}</small>
+      <label className="review-auto check-row"><input type="checkbox" checked={review.autoResolve} onChange={event => { const enabled = event.target.checked; void review.setAutoResolve(enabled).catch(e => setError(errorText(e))); }}/><span>Resolve sent comments when a commit changes their lines</span></label>
     </footer>
-    <label className="review-auto"><input type="checkbox" checked={review.autoResolve} onChange={event => { const enabled = event.target.checked; void review.setAutoResolve(enabled).catch(e => setError(errorText(e))); }}/>Resolve sent comments when a commit changes their lines</label>
   </aside>;
 }

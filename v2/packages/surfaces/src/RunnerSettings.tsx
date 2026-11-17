@@ -108,7 +108,7 @@ export function AgentSettings() {
         <input id="setting-review-rounds" type="number" min={1} max={10} value={review.maxRounds || 3} disabled={review.loop === 'off'} onChange={e => changeReview({ maxRounds: Math.max(1, Math.min(10, Number(e.target.value) || 3)) })}/>
       </SettingsRow>
       <SettingsRow label="Review every turn that changes files" htmlFor="setting-review-auto" description="When an agent’s turn ends with changes, the default reviewer reviews that turn on its own. Off by default: each review is a conversation and costs tokens.">
-        <input id="setting-review-auto" type="checkbox" checked={review.autoStart} onChange={e => changeReview({ autoStart: e.target.checked })}/>
+        <span className="settings-switch"><input id="setting-review-auto" type="checkbox" role="switch" checked={review.autoStart} onChange={e => changeReview({ autoStart: e.target.checked })}/></span>
       </SettingsRow>
       <SettingsRow stacked label="Review brief" htmlFor="setting-review-template" description={<>What the reviewer is told. {'{{goal}}'}, {'{{plan}}'}, {'{{scope}}'}, {'{{diff}}'}, {'{{files}}'}, {'{{evidence}}'}, {'{{author}}'}, {'{{reviewer}}'}, {'{{conversation}}'} and {'{{focus}}'} (what you asked it to look at, with {'/review <focus>'}) are filled in; {'{{report}}'} is how findings reach Lazybox and is added at the end if you leave it out.</>}>
         <textarea id="setting-review-template" rows={10} maxLength={32768} spellCheck={false} value={review.template || review.defaultTemplate} onChange={e => changeReview({ template: e.target.value })}/>

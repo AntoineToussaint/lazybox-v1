@@ -87,8 +87,8 @@
 .review-target{display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--text-subtle)}
 .review-target select{flex:1;min-width:0;padding:4px 6px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-raised);color:var(--text);font-size:calc(12px * var(--text-scale))}
 .review-tray .review-send{justify-content:center;padding:7px 10px}
-.review-auto{display:flex;flex-direction:row;cursor:pointer;margin:-4px 0 0;padding:0 0 4px;align-items:flex-start;gap:6px;color:var(--text-subtle);font-size:calc(11px * var(--text-scale));line-height:1.45}
-.review-auto input{width:auto;margin:1px 0 0}
+.review-tray .review-auto{gap:6px;color:var(--text-subtle);font-size:calc(11px * var(--text-scale))}
+.review-tray .review-auto>input{margin:1px 0 0}
 
 .changes-review-toggle{display:inline-flex;align-items:center;gap:6px}
 .changes-review-toggle span{min-width:18px;padding:0 5px;border-radius:999px;background:var(--accent-solid);color:var(--on-accent-solid);font-size:calc(11px * var(--text-scale));line-height:calc(16px * var(--text-scale));text-align:center}

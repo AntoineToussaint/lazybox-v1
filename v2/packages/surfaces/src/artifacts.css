@@ -49,7 +49,8 @@
 .artifact-kind-picker button{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font-size:calc(12px * var(--text-scale));border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--text-tertiary)}
 .artifact-kind-picker button[aria-checked=true]{background:var(--accent-bg);border-color:var(--accent-solid);color:var(--text)}
 .artifact-kind-picker button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.artifact-check{display:flex;align-items:flex-start;gap:9px;font-size:calc(12px * var(--text-scale));color:var(--text-soft);cursor:pointer}
+.artifact-check{display:flex;flex-direction:row;align-items:flex-start;gap:9px;font-size:calc(12px * var(--text-scale));color:var(--text-soft);cursor:pointer}
+.artifact-check>span{flex:1;min-width:0;line-height:1.45}
 .artifact-check input{margin:2px 0;accent-color:var(--accent)}
 .artifact-check small{display:block;margin-top:2px;font-size:calc(11px * var(--text-scale));color:var(--text-muted)}
 .artifact-source-choice{display:flex;flex-direction:column;gap:10px;min-width:0;margin:0;padding:0;border:0}

@@ -100,7 +100,7 @@ export function BrowserSettingsPanel() {
         </SettingsRow>
         <label className="settings-row">
           <span className="settings-row-text"><span className="settings-row-label">Show the agent browser beside the chat when an agent starts browsing</span><small>Once per browsing. The chat’s “is browsing” chip opens it any time.</small></span>
-          <span className="settings-row-control"><input type="checkbox" checked={settings.showPanel} onChange={event => { const showPanel = event.target.checked; void save(() => ({ showPanel })); }}/></span>
+          <span className="settings-row-control settings-switch"><input type="checkbox" role="switch" checked={settings.showPanel} onChange={event => { const showPanel = event.target.checked; void save(() => ({ showPanel })); }}/></span>
         </label>
       </SettingsGroup>
       <SettingsGroup title="Workspaces" description="Each workspace has its own browser profile: the sign-ins, cookies and storage its agents’ pages keep.">

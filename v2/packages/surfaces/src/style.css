@@ -10,7 +10,13 @@ button:hover{background:var(--surface-strong)}
 button:disabled{opacity:.4;cursor:default}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
 input,select,textarea{border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-sunken);color:var(--text);padding:10px;width:100%;min-width:0}
+/* A checkbox or radio keeps its own size: the full-width field rule above is for text. */
+input:where([type=checkbox],[type=radio]){width:auto;padding:0;flex:none;accent-color:var(--accent)}
 label{display:flex;flex-direction:column;gap:7px;font-size:calc(12px * var(--text-scale));color:var(--text-tertiary)}
+/* A checkbox (or radio) beside its words, the words wrapping under themselves; an optional <small> explains. */
+label.check-row{flex-direction:row;align-items:flex-start;gap:8px;color:var(--text-soft);cursor:pointer;line-height:1.45}
+label.check-row>input{margin:2px 0 0}
+label.check-row small{display:block;margin-top:2px}
 h1,h2,h3,p{margin:0}
 h2{font-size:calc(17px * var(--text-scale));font-weight:600;letter-spacing:-.4px}
 h3{font-size:calc(15px * var(--text-scale))}

@@ -149,7 +149,8 @@
 .runtime-repository>summary small{font-size:calc(10px * var(--text-scale));color:var(--text-tertiary);padding:0 6px;border-radius:9px;background:var(--surface-selected)}
 .runtime-repository[open]>summary{margin-bottom:10px}
 .runtime-repository textarea{width:100%;box-sizing:border-box;font-size:calc(12px * var(--text-scale))}
-.runtime-settings .runtime-check{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:calc(12px * var(--text-scale))}
+.runtime-settings .runtime-check{display:flex;flex-direction:row;align-items:flex-start;gap:8px;font-size:calc(12px * var(--text-scale));line-height:1.45;color:var(--text-soft);cursor:pointer}
+.runtime-settings .runtime-check>input{margin:2px 0 0}
 .runtime-repository>summary{min-height:28px}
 /* A script of several lines: its first line and a count, opening to the whole script as written. */
 .runtime-script{min-width:0}
