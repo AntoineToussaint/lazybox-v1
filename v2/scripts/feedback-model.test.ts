@@ -1,18 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { feedbackReport, issueTitle, issueUrl, ISSUE_URL_LIMIT, redact, tailLines, type FeedbackInput } from '../packages/surfaces/src/feedback-model.ts';
+// Fake credentials for the redaction tests, assembled so no source line looks like a real one (export-repo secret scan).
+const FAKE_AWS_KEY = 'AKIA' + 'IOSFODNN7EXAMPLE';
+const FAKE_GITHUB_TOKEN = ['ghp', '0123456789abcdefghijABCDEFGHIJ012345'].join('_');
+const FAKE_SLACK_TOKEN = ['xoxb', '123456789012-abcdefghijkl'].join('-');
 
 const HOME = '/Users/ada';
 
 test('credentials never survive redaction', () => {
   const cases: [string, string][] = [
     ['Authorization: Bearer abcdefghijklmnop123', 'abcdefghijklmnop123'],
-    ['using ghp_0123456789abcdefghijABCDEFGHIJ012345', 'ghp_0123456789abcdefghij'],
+    [`using ${FAKE_GITHUB_TOKEN}`, 'ghp_0123456789abcdefghij'],
     ['token github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz', 'github_pat_11ABCDEFG'],
     ['ANTHROPIC_API_KEY=sk-ant-api03-abcdefghijklmnopqrstuvwxyz', 'sk-ant-api03'],
     ['openai sk-proj-abcdefghijklmnopqrstuvwx', 'sk-proj-abcdef'],
-    ['slack xoxb-123456789012-abcdefghijkl', 'xoxb-1234'],
-    ['aws AKIAIOSFODNN7EXAMPLE', 'AKIAIOSFODNN7EXAMPLE'],
+    [`slack ${FAKE_SLACK_TOKEN}`, 'xoxb-1234'],
+    [`aws ${FAKE_AWS_KEY}`, FAKE_AWS_KEY],
     ['jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N', 'dozjgNryP4J3jVmNHl0w5N'],
     ['{"token":"d3adb33f-runner-bearer"}', 'd3adb33f-runner-bearer'],
     ['LAZYBOX_TOKEN=s3cr3tvalue', 's3cr3tvalue'],
@@ -89,7 +93,7 @@ test('the GitHub issue is pre-filled, never posted, and fits in a link', () => {
   assert.equal(issueTitle('  Blank diff\nmore detail'), 'Feedback: Blank diff');
   assert.equal(issueTitle(''), 'Feedback: Lazybox');
   // The title is redacted like the body: it is part of what is shared.
-  assert.equal(issueTitle(`Crash with ghp_0123456789abcdefghijABCDEFGHIJ012345 in ${HOME}/x`, HOME), 'Feedback: Crash with [redacted] in ~/x');
+  assert.equal(issueTitle(`Crash with ${FAKE_GITHUB_TOKEN} in ${HOME}/x`, HOME), 'Feedback: Crash with [redacted] in ~/x');
   assert.ok(issueTitle('x'.repeat(200)).length <= 'Feedback: '.length + 72);
   const report = feedbackReport(base);
   const url = new URL(issueUrl(report, base.what, { savedAt: '~/Downloads/Lazybox feedback 2026-12-02 09.00.00', home: HOME }));

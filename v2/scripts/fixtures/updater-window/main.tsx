@@ -10,6 +10,8 @@ import { createRoot } from 'react-dom/client';
 import { Workspace } from '@lazybox/surfaces';
 import type { AppHost, UpdateErrorKind, WorkspaceHost } from '@lazybox/platform';
 import { isNewer } from '../../../packages/surfaces/src/update-model';
+// Fake credentials for the redaction tests, assembled so no source line looks like a real one (export-repo secret scan).
+const FAKE_GITHUB_TOKEN = ['ghp', '0123456789abcdefghijABCDEFGHIJ012345'].join('_');
 
 const params = new URLSearchParams(location.search);
 const version = params.get('version') || '0.1.0';
@@ -55,7 +57,7 @@ const app: AppHost = {
       '2026/12/02 09:00:01 runner: serving on 127.0.0.1:43210',
       '2026/12/02 09:00:02 runner: state /Users/tester/Library/Application Support/Lazybox/state',
       '2026/12/02 09:00:03 gateway: upstream Authorization: Bearer sk-ant-api03-SECRETSECRETSECRETSECRET',
-      '2026/12/02 09:00:04 github: token ghp_0123456789abcdefghijABCDEFGHIJ012345 refreshed for tester@example.com',
+      `2026/12/02 09:00:04 github: token ${FAKE_GITHUB_TOKEN} refreshed for tester@example.com`,
       '2026/12/02 09:00:05 agent: turn ended input_tokens=1200',
     ].join('\n') },
   }),

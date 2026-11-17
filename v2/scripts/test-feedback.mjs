@@ -13,6 +13,8 @@ import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { startRunnerFixture } from './fixtures/runner-ui.mjs';
 import { testViteCache } from './fixtures/vite-cache.mjs';
+// Fake credentials for the redaction tests, assembled so no source line looks like a real one (export-repo secret scan).
+const FAKE_GITHUB_TOKEN = ['ghp', '0123456789abcdefghijABCDEFGHIJ012345'].join('_');
 
 const fixture = await startRunnerFixture();
 fixture.versionInfo.version = '0.2.0';
@@ -71,7 +73,7 @@ try {
     assert.equal(saved.length, 0);
     assert.deepEqual(await page.evaluate(() => window.fixtureOpened), []);
 
-    await what.fill('The diff went blank after ⌘J. Token in my clipboard was ghp_0123456789abcdefghijABCDEFGHIJ012345.');
+    await what.fill(`The diff went blank after ⌘J. Token in my clipboard was ${FAKE_GITHUB_TOKEN}.`);
     await expect(preview).toContainText('The diff went blank after ⌘J. Token in my clipboard was [redacted].');
     // The conversation, only when ticked: its title (home as ~), agent and state, never its messages.
     await dialog.getByRole('checkbox', { name: /The open conversation/ }).check();
