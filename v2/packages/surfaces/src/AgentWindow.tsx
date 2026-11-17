@@ -15,12 +15,12 @@ import { useTranscript } from './useTranscript';
 import { useLiveStatus } from './LiveIndicator';
 import { savePrompt } from './prompt-history';
 import { saveSnippetUse } from './snippet-usage';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { type CommandStatus, type Session } from '@lazybox/protocol';
 import type { SurfaceTarget, ViewStateStore } from '@lazybox/platform';
 import { readDraft, writeDraft } from './view-state';
 import { RunnerProvider, useRunner, type RunnerConnection } from './RunnerContext';
-import { AttentionScope, useMarkViewed } from './useAttention';
+import { AttentionScope, PanelShownContext, useMarkViewed } from './useAttention';
 import { useComposeRequests } from './compose';
 import { queuedMessages } from './transcript-model';
 export type { RunnerConnection } from './RunnerContext';
@@ -150,7 +150,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
 
   const assistant = purpose !== 'coding';
   const [sessionID, setSessionID] = useState(initialSessionId);
-  const transcript = useTranscript(api, sessionID, !!info);
+  // A conversation in a tab behind another holds no stream: it catches up from
+  // its cursor when brought to the front. A browser allows six connections to
+  // the Runner, and a workspace's tabs, each streaming, took them all: every
+  // other read of the window (its review, its sessions) then waited forever.
+  const shown = useContext(PanelShownContext);
+  const transcript = useTranscript(api, sessionID, !!info && shown);
   const [session, setSession] = useState<Session | undefined>(transcript.reader.session);
   useMarkViewed(session, mode === 'agent');
   const workspace = useSessionWorkspace(api, session?.collectionId || collectionId, !!info, revision);

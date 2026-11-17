@@ -415,6 +415,13 @@ Closing a tab (×, a middle-click, ⌘W) never ends its conversation; the
 neighbour comes forward and ⇧⌘T (`layout.reopen-tab`) reopens the last tab
 closed on the page where it was. A full page (16 panels) opens nothing and
 offers to close its oldest preview tab. Tabs are saved with the page.
+A tab behind another (or in a minimized group) does not follow its
+conversation (`PanelShownContext`; `AgentWindow` and the live bar): its
+reader keeps what it showed and catches up from its cursor when the tab comes
+forward. A browser allows six connections to the Runner, and a workspace's
+tabs each holding a `WatchEvents` stream took all six, so every other read of
+the window (its review, its sessions) waited behind them. The tab's status
+dot comes from the Runner's session index, not the stream, so it stays live.
 
 #### How it is built, and why dockview
 

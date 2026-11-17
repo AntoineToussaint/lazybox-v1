@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { agentTitle } from './providers';
 import { follow, type RunnerClient } from '@lazybox/client-core';
 import type { CommandStatus, JournalEvent, Session } from '@lazybox/protocol';
@@ -10,6 +10,7 @@ import { isManagedCommandTool, mayNeverEnd, offersBackground, outputLines, rootS
 import { LiveActivity } from './SessionNotices';
 import { SubagentTray, useBackgroundRunning } from './SubagentTray';
 import './live-bar.css';
+import { PanelShownContext } from './useAttention';
 import { contextMenu, copyText } from './ContextMenu';
 import { stripAnsi } from './ansi';
 import { LogTail, type LogActions } from './LogView';
@@ -86,7 +87,9 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   const step = useMemo(() => rootBusy ? rootStep(activity) : undefined, [rootBusy, activity]);
   const commands = useSessionCommands(api, sessionID, rootBusy);
   const managed = rootBusy ? runningCommand(commands, sessionID) : undefined;
-  const tail = useCommandTail(api, managed?.id || '');
+  // Behind another tab, the command's output is not followed (AgentWindow, the transcript's stream).
+  const shown = useContext(PanelShownContext);
+  const tail = useCommandTail(api, shown ? managed?.id || '' : '');
   const [expanded, setExpanded] = useState(false);
   const [hidden, setHidden] = useState(() => outputHidden(viewState));
   // The command whose whole output is open in the console: its tail here would only repeat it, and take room

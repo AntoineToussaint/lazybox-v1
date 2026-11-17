@@ -48,7 +48,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  const mod=process.platform==='darwin'?'Meta':'Control';
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${author.id}#token=${fixture.token}`);
- await expect(page.locator('.messages')).toContainText('REPLY_ONE');
+ await expect(page.locator('.messages:visible')).toContainText('REPLY_ONE');
  await page.getByRole('button',{name:'Review changes',exact:true}).click();
  const changes=page.getByRole('region',{name:'Workspace changes'});
  await expect(changes.getByRole('grid',{name:'File diff'})).toContainText('log.Print("handle")');
@@ -128,7 +128,7 @@ try{
 
  // 6. The reviewer ends its turn: the author's conversation shows the outcome.
  fixture.finishReview(run.id);
- const card=page.locator('.messages').getByRole('group',{name:'Codex review'});
+ const card=page.locator('.messages:visible').getByRole('group',{name:'Codex review'});
  await expect(card).toContainText('Codex reviewed changes · 1 blocker',{timeout:15000});
  await page.screenshot({path:'.cache/agent-review-card.png'});
  await card.getByRole('button',{name:'Open review'}).click();
@@ -136,7 +136,7 @@ try{
 
  // 7. A review of a review is never offered: from the reviewer's conversation
  // the work under review is still the author's.
- await page.locator('.messages').getByRole('group',{name:'Codex review'}).getByRole('button',{name:'Open conversation'}).click();
+ await page.locator('.messages:visible').getByRole('group',{name:'Codex review'}).getByRole('button',{name:'Open conversation'}).click();
  await expect(chat.locator('.system-event[data-kind=review_brief] .system-event-text')).toHaveText("Asked Codex to review Claude's work");
  // A narrow Changes panel shows the files or the tray in its left column: the files come to the front.
  await changes.getByRole('tab',{name:/^Files/}).click();
@@ -159,17 +159,20 @@ try{
  // A fresh window on the author's conversation.
  await page.close();page=await browser.newPage({viewport:{width:1500,height:1000}});page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${author.id}#token=${fixture.token}`);
- const marker=page.locator('.messages').getByRole('group',{name:'Turn 1 checkpoint'});
+ const marker=page.locator('.messages:visible').getByRole('group',{name:'Turn 1 checkpoint'});
  await marker.getByLabel('Turn 1 actions',{exact:true}).click();
  await marker.getByRole('button',{name:'Review this turn with Codex'}).click();
  await expect.poll(()=>starts().length).toBe(4);
  assert.deepEqual((({scope,turn,provider=''})=>({scope,turn,provider}))(starts()[3]),{scope:'turn',turn:1,provider:''});
- // The reviewer opens as a tab beside the work; its brief says what it reviews.
- await page.locator('[data-panel-tab]').filter({hasText:'Review · Codex'}).last().click();
- await expect(page.locator('section.panel-chat .system-event[data-kind=review_brief] .system-event-detail').filter({hasText:'Turn 1'})).toHaveCount(1);
+ // The reviewer opens as a tab beside the work (the newest review, next to its author); its brief says what it reviews.
+ // A tab behind another does not follow its conversation, so the brief is read from the tab in front.
+ await page.locator('[data-panel-tab]').filter({hasText:'Harden the handler'}).locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," dv-tab ")][1]/following-sibling::*[1]').click();
+ await expect(page.locator('section.panel-chat:visible .system-event[data-kind=review_brief] .system-event-detail')).toHaveText('Turn 1');
 
  // 9a. A review whose loop ends with majors still open is not "clean": it says what is left,
  // and hands those findings to the author in one click (into its message box; you send them).
+ // It ends while the author's tab is behind the reviewer's. Tabs behind hold no stream, so the
+ // browser's six connections to the Runner stay free for the review's reads and the card updates.
  const turnRun=fixture.reviewOf('alpha').runs.at(-1);
  fixture.fileFinding(turnRun.id,{path:'src/handler.go',startLine:3,snippet:['func Handle() error {'],severity:'major',title:'Wrap the error',body:'Say which request failed.'});
  fixture.fileFinding(turnRun.id,{path:'src/handler.go',startLine:4,snippet:['\tlog.Print("handle")'],severity:'major',title:'Drop the log line',body:'It duplicates the error.'});
@@ -210,9 +213,11 @@ try{
  await expect.poll(()=>starts().length).toBe(6);
  assert.deepEqual((({scope,member})=>({scope,member}))(starts()[5]),{scope:'pr',member:'api'});
  assert.ok(fixture.sessions.some(s=>s.title==='Review · PR #7 · Codex'));
- // Its conversation is a tab beside the work, on the page that shows the work: three reviews, three tabs.
+ // Its conversation is a tab beside the work, on the page that shows the work. A workspace's
+ // conversations are its tabs when the page loads, so every review has one tab, and never two.
  await page.getByRole('navigation',{name:'Pages'}).getByRole('button',{name:'Work'}).click();
- await expect(page.locator('[data-panel-tab]').filter({hasText:/^Review · /})).toHaveCount(3);
+ await expect(page.locator('[data-panel-tab]').filter({hasText:/^Review · /})).toHaveCount(starts().length);
+ await expect(page.locator('[data-panel-tab]').filter({hasText:'Harden the handler'}).locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," dv-tab ")][1]/following-sibling::*[1]')).toContainText('Review · Codex');
 
  // 11. Settings: the default reviewer, automatic reviews, the brief, and its reset.
  await page.keyboard.press(`${mod}+,`);
