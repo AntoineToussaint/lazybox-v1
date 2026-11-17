@@ -175,3 +175,47 @@ test('a replay is held until it reaches the retained history, reporting progress
  assert.equal(state.replay,undefined);assert.equal(state.loading,false);assert.equal(state.messages.at(-1)!.text,'LIVE');
  assert.equal(seen.filter(s=>s.messages>0)[0].messages,19,'the first published conversation is the whole history');
 });
+
+import {Code,ConnectError} from '@connectrpc/connect';
+import {deliveredQueuedTurn} from './fixtures/long-conversation.mjs';
+/** Journal events as WatchEvents sends them: a receipt in its own field, retained up to `retained`. */
+const wireJournal=(events:any[],from:number,retained:number)=>events.map(({receipt,...e},i)=>create(JournalEventSchema,{cursor:BigInt(from+i),retained:BigInt(Math.max(retained,from+i)),capturedAt:'2026-11-17T09:40:00Z',...(receipt?{receipt}:{}),event:{...e,providerDataJson:e.providerDataJson?Buffer.from(e.providerDataJson,'base64'):new Uint8Array()}}));
+// A real conversation's view stopped at a Runner restart: the restarting
+// Runner ended the stream like the end of a finished conversation, and the
+// reader stopped following. Every later turn, including the one a delivered
+// queued message started, was missing while the agent kept working. A stream
+// a restart cuts ends Unavailable: the reader reconnects from its cursor and
+// shows everything up to the latest, the turn in progress included.
+test('a reader cut by a Runner restart reconnects from its cursor and shows the turn in progress',async()=>{
+ const history=longConversation({turns:80,toolOutputBytes:200});
+ const {events:latest}=deliveredQueuedTurn();
+ assert.ok(history.length>3000,`a long history (${history.length} events)`);
+ const replay=wireJournal(history,1,history.length),after=wireJournal(latest,history.length+1,history.length+latest.length);
+ const asked:bigint[]=[];
+ const api={async *watchEvents({after:from}:{after:bigint},{signal}:{signal:AbortSignal}){
+  asked.push(from);
+  if(asked.length===1){yield* replay;await new Promise(resolve=>setTimeout(resolve,50));throw new ConnectError('the Runner is restarting',Code.Unavailable);}
+  yield* after.filter(record=>record.cursor>from);
+  await new Promise(resolve=>signal.addEventListener('abort',resolve,{once:true}));
+ }} as unknown as RunnerClient;
+ const reader=new ConversationReader(api,'restarted');const stop=reader.subscribe(()=>{});
+ await new Promise(resolve=>setTimeout(resolve,1500));
+ const state=reader.getSnapshot();stop();
+ assert.deepEqual(asked,[0n,BigInt(history.length)],'the reader reconnects after the last record it had');
+ assert.equal(state.cursor,BigInt(history.length+latest.length));assert.equal(state.status,'Live');assert.equal(state.error,'');
+ const texts=state.messages.map(m=>m.text);
+ for(const text of ['Make the fixture global: two roles, admin and user.','QUEUED_DELIVERED: only two teams and two users in every solution.','QUEUED_BEHIND: ok so continue'])assert.ok(texts.includes(text),`shows "${text}"`);
+ // The delivered message's turn is the last thing shown, still working.
+ const last=state.messages.at(-1)!;assert.equal(last.type,'tools');
+ assert.deepEqual(last.tools!.map(t=>t.status),['completed','completed','completed']);
+ assert.ok(JSON.stringify(last.tools).includes('lazybox artifact put plan.md'));
+ assert.ok(state.messages.findIndex(m=>m.text.startsWith('QUEUED_BEHIND'))<state.messages.length-1);
+});
+// A finished conversation's stream ends cleanly; that, and only that, stops the reader.
+test('a reader stops following a conversation whose stream ended',async()=>{
+ let opened=0;
+ const api={async *watchEvents(){opened++;yield* wireJournal([{type:'operation_accepted',text:'done'},{type:'session_closed'}],1,2);}} as unknown as RunnerClient;
+ const reader=new ConversationReader(api,'finished');const stop=reader.subscribe(()=>{});
+ await new Promise(resolve=>setTimeout(resolve,1200));stop();
+ assert.equal(reader.getSnapshot().status,'Complete');assert.equal(opened,1);
+});

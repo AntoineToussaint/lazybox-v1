@@ -110,6 +110,11 @@ notices in the conversation.
 - `Bench.Detach` (used on shutdown when `LAZYBOX_V2_KEEP_AGENTS=1`) records each
   execution's snapshot and attachment, then leaves its host running; running
   managed commands stay too. `Bench.Close` and ending a session still stop them.
+- A Runner shutting down closes every journal under its readers, but a live
+  conversation goes on in the next Runner. So a `WatchEvents` stream it cuts
+  ends `Unavailable`, and the app reconnects from its cursor; only a
+  conversation that is over (closed, or read-only history) ends its stream
+  cleanly, which tells a reader to stop following.
 - Cancelling a hosted process's context stops it, exactly as for a local pipe.
   Only an explicit `Detach`, or the Runner dying outright, leaves it running.
 - Opening the command registry re-attaches every unfinished command with a host.

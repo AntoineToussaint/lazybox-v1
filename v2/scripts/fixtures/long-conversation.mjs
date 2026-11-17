@@ -65,3 +65,49 @@ export function longConversation({ turns = 200, deltaSize = 12, toolOutputBytes 
   }
   return events;
 }
+
+const tool = (id, command, output) => [
+  { type: 'activity', status: 'tool', name: 'Bash' },
+  { type: 'tool_activity', providerDataJson: b64({ type: 'tool_call', id, name: 'Bash', status: 'running', input: { command, description: command } }) },
+  { type: 'tool_activity', providerDataJson: b64({ type: 'tool_call', id, status: 'completed', output }) },
+  { type: 'activity', status: 'working' },
+  { type: 'activity', status: 'requesting' },
+];
+
+/**
+ * What a busy Claude conversation journals after a Runner restart (no turn
+ * IDs), shaped after a real one whose view stopped at the restart: the next
+ * Runner's `runner_reattached`, a message that starts a turn, a message sent
+ * mid-turn (queued, journaled when accepted), Send now (an interrupt, then the
+ * queued message is delivered: its receipt), another message queued behind it,
+ * and the delivered message's turn, still working. `receipt` events carry their
+ * receipt for the wire.
+ */
+export function deliveredQueuedTurn() {
+  const accepted = (operationId, text) => ({ type: 'operation_accepted', operationId, text, providerDataJson: b64({ files: [] }) });
+  const receipt = (operationId, delivery) => ({ type: 'receipt', receipt: { operationId, delivery } });
+  const events = [
+    { type: 'runner_reattached', status: 'native_process_adopted' },
+    accepted('op-roles', 'Make the fixture global: two roles, admin and user.'),
+    receipt('op-roles', 'submitted'),
+    { type: 'session_ready', providerDataJson: b64({ model: 'claude-fixture-model' }) },
+    { type: 'turn_started' },
+    { type: 'activity', status: 'thinking' },
+    { type: 'activity', status: 'responding' },
+    { type: 'message_delta', text: 'You want one admin team and one user team. ROLES_ANSWER' },
+    ...tool('toolu_roles', 'grep -rn TeamFor libraries/', 'teams.go:18: func ConventionalTeamName'),
+    accepted('op-teams', 'QUEUED_DELIVERED: only two teams and two users in every solution.'),
+    ...tool('toolu_fixture', 'sed -n 1,90p module/fixtures/dev-admin.yaml', '# dev-admin fixture'),
+    accepted('op-teams:now', ''), // Send now: the interrupt it applies (no text)
+    receipt('op-teams:now', 'acknowledged'),
+    { type: 'turn_ended', status: 'interrupted' },
+    accepted('op-continue', 'QUEUED_BEHIND: ok so continue'),
+    receipt('op-teams', 'submitted'),
+    { type: 'session_ready', providerDataJson: b64({ model: 'claude-fixture-model' }) },
+    { type: 'turn_started' },
+    { type: 'activity', status: 'thinking' },
+    ...tool('toolu_plan', 'lazybox artifact put plan.md', 'Published “Authority fixture: two teams, two people” LATEST_TOOL_OUTPUT'),
+    ...tool('toolu_baseline', 'go test ./libraries/authority-core/...', 'ok  authority-core  LATEST_TURN_STILL_WORKING'),
+  ];
+  return { events, operations: { delivered: 'op-teams', queued: 'op-continue' } };
+}

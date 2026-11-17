@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -469,6 +470,13 @@ func (s *Service) WatchEvents(r *pb.WatchEventsRequest, stream grpc.ServerStream
 			} else {
 				retained = e.Retained()
 			}
+		}
+		// A Runner going away closes every journal under its readers. Its live
+		// conversations go on in the next Runner, so that end (or a read the
+		// shutdown broke) says "reconnect", never "the conversation is over":
+		// a reader told the history ended stops following it for good.
+		if err != nil && ctx.Err() == nil && s.Bench.Stopping() {
+			return grpcError(codes.Unavailable, fmt.Errorf("the Runner is restarting; reconnect after cursor %d", cursor))
 		}
 		if err == io.EOF {
 			return nil

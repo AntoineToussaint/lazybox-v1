@@ -1065,6 +1065,15 @@ func (b *Bench) Close() error { return b.shutdown(false) }
 // agent that cannot outlive the Runner is stopped as before.
 func (b *Bench) Detach() error { return b.shutdown(true) }
 
+// Stopping reports whether this Runner is shutting down. Its journals close
+// under their readers then, but a live conversation goes on in the next
+// Runner: the end of a reader's stream is not the end of the conversation.
+func (b *Bench) Stopping() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.closed
+}
+
 func (b *Bench) shutdown(detach bool) error {
 	b.closeOnce.Do(func() {
 		b.mu.Lock()
