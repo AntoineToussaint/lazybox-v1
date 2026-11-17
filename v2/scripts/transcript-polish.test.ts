@@ -163,6 +163,12 @@ test('a Codex outside the versions Lazybox is tested with says so in one plain l
   assert.deepEqual(t.messages.map(m => [m.type, m.notice, m.text]), [['notice', 'provider', said]]);
 });
 
+test('an "always allow" the agent reports is kept by the Runner, not drawn in the conversation', () => {
+  cursor = 0n;
+  const t = fold(emptyTranscript(), record(0, { type: 'permission_grant', providerDataJson: new TextEncoder().encode(JSON.stringify({ id: 'g1', label: '`npm test`', tool: 'Bash', exact: 'npm test' })) }));
+  assert.deepEqual(t.messages, []);
+});
+
 // ── Background work.
 const agent = (id: string, kind: 'agent' | 'command', status: SubagentStatus, extra: Partial<Subagent> = {}): Subagent => ({
   id, runnerId: id, parentId: 'root', depth: 0, nativeId: '', anchor: '', name: id, type: '', prompt: '', toolUseId: '', status, error: '', phase: '', phaseTool: '',
