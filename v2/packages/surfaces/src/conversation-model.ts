@@ -104,6 +104,11 @@ export function modelName(id: string): string {
   if (gpt) return `GPT-${gpt[1]}${gpt[2].split('-').filter(Boolean).map(word => ' ' + word[0].toUpperCase() + word.slice(1)).join('')}`;
   return raw;
 }
+/** "Claude · Opus 5.5", or the agent alone before a model is known: the chat header and the message box say the same. */
+export function agentModelText(agentName: string, modelLabel: string): string {
+  const model = modelName(modelLabel);
+  return model ? `${agentName} · ${model}` : agentName;
+}
 export function sessionModelLabel(session?:Session,reportedModel=''):string {
  if(reportedModel)return reportedModel;
  if(session?.model)return session.modelReported?session.model:`${session.model} (requested)`;

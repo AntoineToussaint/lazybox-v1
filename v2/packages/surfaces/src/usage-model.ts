@@ -98,3 +98,18 @@ export function unpricedHelp(reasons: readonly string[]): string {
   if (reasons.some(r => /cumulative/i.test(r))) return 'The provider reports a running total for the session, not each request, so no one model’s price applies.';
   return '';
 }
+
+/**
+ * How full a context window is, for its colour: normal, a warning from 60%,
+ * danger from 85%. The chat header's meter and the message box's say the same.
+ */
+export type ContextLevel = 'normal' | 'warn' | 'danger';
+export const CONTEXT_WARN_PERCENT = 60, CONTEXT_DANGER_PERCENT = 85;
+export function contextLevel(percent: number): ContextLevel {
+  return percent >= CONTEXT_DANGER_PERCENT ? 'danger' : percent >= CONTEXT_WARN_PERCENT ? 'warn' : 'normal';
+}
+
+/** "40.4%", "<0.1%", "—": a context percentage as the header and the message box print it. */
+export function percentLabel(n?: number): string {
+  return n === undefined ? '—' : `${n > 0 && n < 0.1 ? '<0.1' : n.toFixed(1).replace(/\.0$/, '')}%`;
+}

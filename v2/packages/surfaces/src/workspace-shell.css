@@ -82,6 +82,9 @@
   .workspace-shell .embedded-chat .composer{margin:0 10px max(10px,env(safe-area-inset-bottom));padding:10px;border-radius:10px}
   .workspace-shell .embedded-chat .composer textarea{font-size:calc(16px * var(--text-scale));min-height:42px;resize:none;max-height:25dvh}
   .workspace-shell .embedded-chat .keyboard-hint{display:none}
+  /* Attach is an icon like the mic and snippets beside it: the row keeps room for the context and Send. */
+  .workspace-shell .embedded-chat .composer .attachment-label{display:none}
+  .workspace-shell .embedded-chat .composer .attachment{justify-content:center;min-width:28px}
   .workspace-shell .embedded-chat .chat-heading{padding:8px 8px 8px 14px;gap:10px}
   .workspace-shell .embedded-chat .chat-heading .agent-avatar{display:none}
   .workspace-shell .new-session-dialog{padding:20px;max-height:calc(100dvh - 24px)}

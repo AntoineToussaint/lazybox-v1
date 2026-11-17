@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 import { createPortal } from 'react-dom';
 import type { InfoResponse, JournalEvent, Session } from '@lazybox/protocol';
 import { sessionStatus } from './agent-status';
-import { modelName, type branchSummary } from './conversation-model';
+import { agentModelText, type branchSummary } from './conversation-model';
 import { fitHeader, HEADER_ORDER, isStat, MORE_WIDTH, reserve, STAT_WIDTH, type HeaderItem, type HeaderItemId, type HeaderPlan } from './header-layout';
 import { Icon } from './Icons';
 import { LiveIndicator } from './LiveIndicator';
@@ -91,8 +91,7 @@ export function ChatHeader({ agentName, session, sessionID, title, status, statu
 }) {
   const header = useRef<HTMLElement>(null), line = useRef<HTMLDivElement>(null), details = useRef<HTMLDivElement>(null), more = useRef<HTMLButtonElement>(null);
   const detailsId = useId();
-  const model = modelName(modelLabel);
-  const modelText = model ? `${agentName} · ${model}` : agentName;
+  const modelText = agentModelText(agentName, modelLabel);
   const showBranch = !!realTitle && !!branch;
   // Which number chips have something to show: an empty one takes no room.
   // 'running': live work, which keeps its place on the line before the other numbers.

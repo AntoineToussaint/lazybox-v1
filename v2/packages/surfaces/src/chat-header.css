@@ -80,8 +80,6 @@
 .chat-heading .context-mini-bar{width:24px}
 .chat-heading .context-trigger-cost{margin:0;padding:0 0 0 6px;border-left:1px solid var(--line-strong)}
 .chat-heading-stats .tool-activity-noun,.chat-heading-stats .background-work-noun,.chat-heading-stats .prompt-jump-noun{display:none}
-.context-mini-bar[data-level=medium] i{background:var(--warn)}
-.context-mini-bar[data-level=high] i{background:var(--danger)}
 .chat-heading .chat-details-button{width:24px;height:22px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--text-subtle)}
 .chat-heading .chat-details-button:hover,.chat-heading .chat-details-button:focus-visible{background:var(--surface-active);color:var(--text)}
 

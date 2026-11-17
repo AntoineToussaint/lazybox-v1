@@ -52,6 +52,7 @@ import { SubagentPanel } from './SubagentPanel';
 import { MessageArea } from './MessageArea';
 import { SubscriptionControls } from './SubscriptionSwitch';
 import { Composer } from './Composer';
+import { ComposerInfo } from './ComposerInfo';
 import { ConsoleWindow, EventLog, SessionCommands } from './SessionCommands';
 import { faultSentence, sessionLimit, subscriptionName, turnFault } from './subscription-model';
 import { useConversationActivity } from './activity-detail';
@@ -540,6 +541,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}
             permissionPrompt={<>{restartTo && <PermissionRestartPrompt mode={restartTo} busy={!!session?.busy} onRestart={() => void restartWithPermission(restartTo)} onCancel={() => setRestartTo('')}/>}{slash.prompt}</>}
             slash={slash}
+            info={embedded && session && !firstMessage ? <ComposerInfo agentName={agentName} modelLabel={modelLabel} modelRequested={!!session.model && !session.modelReported && !transcript.reportedModel} sessionID={sessionID} onPickModel={session.closed ? undefined : slash.models.pick}/> : undefined}
             onSubmit={send}
             onChange={text => { recall.reset(); setMessage(text); setUncertainSend(''); sendAttempt.current = null; persistDraft(text, files, missingFiles); }}
             onDictate={setMessage}

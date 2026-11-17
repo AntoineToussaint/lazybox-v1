@@ -16,7 +16,7 @@ import type { FileReference } from './view-state';
  * (with Vim editing and prompt recall), and the send, attach, snippet and
  * interrupt controls. The draft itself is owned by the chat.
  */
-export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onDictate, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, interruptInBar = false, onError, slash }: {
+export function Composer({ textarea, fileInput, agentName, embedded, session, sessionID, viewState, keymap, limited, message, files, missingFiles, uncertainSend, handedOver, sending, canCompose, canAttach, canSend, permissionPrompt, onSubmit, onChange, onDictate, onRecallKey, onRemoveFile, onRemoveMissingFile, onDropMissingFiles, onDismissHandover, onOpenSnippets, onSelectFiles, onInterrupt, interruptInBar = false, onError, slash, info }: {
   textarea: RefObject<HTMLTextAreaElement | null>;
   fileInput: RefObject<HTMLInputElement | null>;
   agentName: string;
@@ -60,6 +60,8 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
   onError(message: string): void;
   /** Slash commands: the menu above the box, and its keys before any other. */
   slash?: { onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, vimMode?: VimMode): boolean; above: ReactNode; textareaProps: Record<string, unknown> };
+  /** The agent, model and context, first on the controls' row (ComposerInfo.tsx). */
+  info?: ReactNode;
 }) {
   const vimEditing = useVimPreferences(viewState).composer;
   const reservedKeys = useMemo(() => leaderKeys(keymap), [keymap]);
@@ -113,11 +115,12 @@ export function Composer({ textarea, fileInput, agentName, embedded, session, se
     <DictationOverlay textarea={textarea} text={message} range={dictation.live}/>
     {permissionPrompt}
     <div className="row">
+      {info}
       {vim.mode && <span className="vim-mode-chip" data-mode={vim.mode} role="status" aria-label={`Vim ${vim.mode} mode`} title="Vim editing: Esc for normal mode, i to type, Enter in normal mode sends. Turn it off in Settings → Shortcuts.">{vim.status}</span>}
       {session?.instructionsPending && !session.closed && <span className="composer-chip" role="status" title="The shared Lazybox instructions changed since this conversation started. The update is sent with your next message.">Instructions updated</span>}
       {dictation.supported && <button type="button" className="icon-button composer-mic" aria-label={dictation.active ? 'Stop dictation' : 'Dictate'} aria-pressed={dictation.active} title={dictation.active ? 'Stop dictation and keep the text' : dictateHint} disabled={!canCompose || sending} onClick={dictation.toggle}><Icon name="mic"/></button>}
       <button type="button" className="icon-button" aria-label="Snippets" title={`Snippets · ${keymap['snippets.open']}`} disabled={!canCompose || sending} onClick={onOpenSnippets}><Icon name="snippets"/></button>
-      <button type="button" className="attachment" aria-label={embedded ? 'Attach files' : undefined} disabled={!canAttach} onClick={() => fileInput.current?.click()}>{embedded ? <><Icon name="attach"/> Attach</> : '+ Attach files'}</button>
+      <button type="button" className="attachment" aria-label={embedded ? 'Attach files' : undefined} disabled={!canAttach} onClick={() => fileInput.current?.click()}>{embedded ? <><Icon name="attach"/> <span className="attachment-label">Attach</span></> : '+ Attach files'}</button>
       <input ref={fileInput} hidden aria-label="Attach files" type="file" multiple onChange={e => { onSelectFiles(e.target.files); e.target.value = ''; }}/>
       <small className="composer-hint keyboard-hint">{vim.mode === 'insert' ? `${busyHint || `${sendKey} to send`} · Esc for normal mode` : vim.mode ? vim.hint : busyHint || `${sendKey} to send · Shift+Enter for a new line`}</small>
       {!interruptInBar && (!embedded || session?.busy) && <button type="button" onClick={onInterrupt} disabled={!session?.busy || session.closed}>Interrupt</button>}

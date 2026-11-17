@@ -5,6 +5,9 @@
 .context-trigger-cost{margin-left:7px;padding-left:14px;border-left:1px solid var(--line-bold);font-variant-numeric:tabular-nums}
 .context-mini-bar{display:block;width:45px;height:4px;background:var(--surface-strong);border-radius:4px;overflow:hidden}
 .context-mini-bar i{display:block;min-width:0;height:100%;background:var(--accent)}
+/* The same colours wherever a context meter shows (contextLevel in usage-model.ts). */
+.context-mini-bar[data-level=warn] i{background:var(--warn)}
+.context-mini-bar[data-level=danger] i{background:var(--danger)}
 .context-popover{position:fixed;inset:auto;margin:0;width:380px;max-width:calc(100vw - 24px);max-height:min(70dvh,610px);overflow:auto;overscroll-behavior:contain;padding:18px 20px 4px;background:var(--surface-raised);color:var(--text-soft);border:1px solid var(--line-bold);border-radius:12px;box-shadow:0 16px 60px color-mix(in srgb,var(--shadow) calc(53% * var(--shadow-strength)),transparent);font:calc(13px * var(--text-scale)) -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 .context-popover::backdrop{background:transparent}
 .context-popover>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:19px}

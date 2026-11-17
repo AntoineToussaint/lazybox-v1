@@ -3,7 +3,8 @@ import { SessionSchema } from '@lazybox/protocol';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fitHeader, HEADER_GAP, HEADER_ORDER, HEADER_PRIORITY, MORE_WIDTH, reserve, STAT_WIDTH, type HeaderItem } from '../packages/surfaces/src/header-layout.ts';
-import { conversationName, conversationOption, cutAtWord, modelName, titleFromMessage } from '../packages/surfaces/src/conversation-model.ts';
+import { agentModelText, conversationName, conversationOption, cutAtWord, modelName, titleFromMessage } from '../packages/surfaces/src/conversation-model.ts';
+import { contextLevel, percentLabel } from '../packages/surfaces/src/usage-model.ts';
 
 // The header from the report: every item present, with realistic widths.
 const everything: HeaderItem[] = [
@@ -122,4 +123,16 @@ test('the artifacts chip is one of the numbers: it folds whole, after the usage 
   const tight = fitHeader(items, 520);
   assert.ok(tight.inline.includes('model') && tight.folded.includes('artifacts'), tight.inline.join());
   assert.ok(lineWidth(items, tight.inline, true) <= 520, 'what stays fits');
+});
+
+test('the header and the message box say the agent and model the same way', () => {
+  assert.equal(agentModelText('Claude', 'claude-opus-5-5'), 'Claude · Opus 5.5');
+  assert.equal(agentModelText('Claude', 'claude-opus-5-5 (requested)'), 'Claude · Opus 5.5');
+  assert.equal(agentModelText('Codex', 'gpt-5'), 'Codex · GPT-5');
+  assert.equal(agentModelText('Codex', ''), 'Codex', 'the agent alone before a model is known');
+});
+
+test('a context meter warns from 60% and is danger from 85%', () => {
+  assert.deepEqual([0, 40.4, 59.9, 60, 84.9, 85, 100].map(contextLevel), ['normal', 'normal', 'normal', 'warn', 'warn', 'danger', 'danger']);
+  assert.deepEqual([undefined, 0.05, 40.4, 70].map(percentLabel), ['—', '<0.1%', '40.4%', '70%']);
 });
