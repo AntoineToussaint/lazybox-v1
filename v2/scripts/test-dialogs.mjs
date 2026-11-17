@@ -112,6 +112,8 @@ try {
     await expect(deletion.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
     assert.equal(await deletion.evaluate(node => getComputedStyle(node.querySelector('h2')).fontSize), '15px', `${colorScheme}: the confirmation title is the shared size`);
     const confirmButton = deletion.locator('footer button.danger');
+    // Wait until the dialog has checked for running work: a live conversation then asks for the stop box.
+    await expect(deletion.getByText('Checking running resources…')).toHaveCount(0);
     const box = deletion.getByRole('checkbox');
     if (await box.count()) {
       await expect(confirmButton).toBeDisabled();
