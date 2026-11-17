@@ -36,6 +36,9 @@ type Record struct {
 	// Instructions is the last shared-instructions update delivered to this
 	// conversation after it started; Context holds what it started with.
 	Instructions string `json:",omitempty"`
+	// BrowserTools: the agent was started with the agent browser's tools.
+	// Nil in a record from before Lazybox kept it.
+	BrowserTools *bool `json:",omitempty"`
 	// PinnedAt and ArchivedAt are the conversation's marks in Unix
 	// milliseconds, 0 when unset. Like DisplayTitle they are projected from
 	// the conversation on read, never stored in an attempt.

@@ -101,6 +101,10 @@ func TestBrowserRPCsAreTheOwnersAndAnAgentDrivesOnlyItsOwnConversation(t *testin
 	denied("SaveBrowserSettings", err)
 	_, err = f.client.ClearBrowserData(agent, &pb.ClearBrowserDataRequest{CollectionId: mine.CollectionID})
 	denied("ClearBrowserData", err)
+	_, err = f.client.InstallBrowser(agent, &pb.InfoRequest{})
+	denied("InstallBrowser", err)
+	_, err = f.client.GiveBrowser(agent, &pb.GiveBrowserRequest{SessionId: mine.ID})
+	denied("GiveBrowser", err)
 	if watch, err := f.client.WatchBrowser(agent, &pb.WatchBrowserRequest{SessionId: mine.ID}); err == nil {
 		_, err = watch.Recv()
 		denied("WatchBrowser", err)
@@ -164,5 +168,53 @@ func TestBrowserSettingsRoundTripAndValidate(t *testing.T) {
 	}
 	if _, err = f.client.ClearBrowserData(ctx, &pb.ClearBrowserDataRequest{CollectionId: "../x"}); err == nil {
 		t.Fatal("unsafe workspace accepted")
+	}
+}
+
+func TestBrowserAvailabilityAndAccessReachTheApp(t *testing.T) {
+	f := newAuthorityFixture(t)
+	withBrowser(t, f)
+	ctx := bearer(timeout(t), ownerToken)
+	mine, _, _ := f.open(t)
+	got, err := f.client.GetSession(ctx, &pb.SessionRequest{SessionId: mine.ID})
+	if err != nil || got.Session.BrowserAccess != "has" {
+		t.Fatalf("a conversation opened with the browser says so: %q %v", got.GetSession().GetBrowserAccess(), err)
+	}
+	if again, err := f.client.GiveBrowser(ctx, &pb.GiveBrowserRequest{SessionId: mine.ID}); err != nil || again.Session.Id != mine.ID {
+		t.Fatalf("an agent that has the browser is not restarted: %v", err)
+	}
+	s, err := f.client.GetBrowserSettings(ctx, &pb.InfoRequest{})
+	if err != nil || s.Availability != "ready" || s.Installable || s.Problem != "" {
+		t.Fatalf("availability %v %v", s, err)
+	}
+	if _, err = f.client.InstallBrowser(ctx, &pb.InfoRequest{}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("nothing to install: %v", err)
+	}
+	// Off for one workspace, from Settings → Browser, kept and shown.
+	s.Workspaces = append(s.Workspaces, &pb.BrowserWorkspaceSites{CollectionId: "ws-x", Off: true})
+	saved, err := f.client.SaveBrowserSettings(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	off := false
+	for _, w := range saved.Workspaces {
+		off = off || (w.CollectionId == "ws-x" && w.Off)
+	}
+	if !off || !f.bench.Browser.WorkspaceOff("ws-x") {
+		t.Fatalf("off for the workspace not kept: %v", saved.Workspaces)
+	}
+	// Off everywhere: the conversation says so, and Give the browser says where to turn it on.
+	saved.DefaultPermission = "off"
+	if _, err = f.client.SaveBrowserSettings(ctx, saved); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = f.client.GetSession(ctx, &pb.SessionRequest{SessionId: mine.ID}); got.Session.BrowserAccess != "off" {
+		t.Fatalf("off: %q", got.Session.BrowserAccess)
+	}
+	if _, err = f.client.GiveBrowser(ctx, &pb.GiveBrowserRequest{SessionId: mine.ID}); status.Code(err) != codes.FailedPrecondition || !strings.Contains(err.Error(), "Settings → Browser") {
+		t.Fatalf("give while off: %v", err)
+	}
+	if s, err = f.client.GetBrowserSettings(ctx, &pb.InfoRequest{}); err != nil || s.Availability != "off" || s.Problem == "" {
+		t.Fatalf("off availability %v %v", s, err)
 	}
 }

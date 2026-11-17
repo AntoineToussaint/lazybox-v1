@@ -24,6 +24,9 @@ type Settings struct {
 	ShowPanel bool `json:"showPanel"`
 	// WorkspaceSites are the sites always allowed per workspace.
 	WorkspaceSites map[string][]string `json:"workspaceSites,omitempty"`
+	// OffWorkspaces are the workspaces whose agents get no browser, whatever
+	// DefaultPermission says (Settings → Browser, per workspace).
+	OffWorkspaces []string `json:"offWorkspaces,omitempty"`
 }
 
 // ErrConflict refuses a save made against an older revision.
@@ -70,6 +73,20 @@ func (s *Settings) validate() error {
 			continue
 		}
 		s.WorkspaceSites[workspace] = list
+	}
+	off := []string{}
+	for _, workspace := range s.OffWorkspaces {
+		if !safeName(workspace) {
+			return fmt.Errorf("invalid workspace %q", workspace)
+		}
+		if !slices.Contains(off, workspace) {
+			off = append(off, workspace)
+		}
+	}
+	sort.Strings(off)
+	s.OffWorkspaces = off
+	if len(off) == 0 {
+		s.OffWorkspaces = nil
 	}
 	return nil
 }
@@ -151,6 +168,7 @@ func clone(s Settings) Settings {
 		sites[k] = slices.Clone(v)
 	}
 	s.WorkspaceSites = sites
+	s.OffWorkspaces = slices.Clone(s.OffWorkspaces)
 	return s
 }
 

@@ -84,6 +84,7 @@ const (
 	RunnerService_ResumeSession_FullMethodName                = "/lazybox.bench.v1.RunnerService/ResumeSession"
 	RunnerService_RestartWithPermission_FullMethodName        = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
 	RunnerService_RestartWithModel_FullMethodName             = "/lazybox.bench.v1.RunnerService/RestartWithModel"
+	RunnerService_GiveBrowser_FullMethodName                  = "/lazybox.bench.v1.RunnerService/GiveBrowser"
 	RunnerService_SwitchSubscription_FullMethodName           = "/lazybox.bench.v1.RunnerService/SwitchSubscription"
 	RunnerService_SetSessionRotation_FullMethodName           = "/lazybox.bench.v1.RunnerService/SetSessionRotation"
 	RunnerService_GetSession_FullMethodName                   = "/lazybox.bench.v1.RunnerService/GetSession"
@@ -221,6 +222,7 @@ const (
 	RunnerService_GetBrowserSettings_FullMethodName           = "/lazybox.bench.v1.RunnerService/GetBrowserSettings"
 	RunnerService_SaveBrowserSettings_FullMethodName          = "/lazybox.bench.v1.RunnerService/SaveBrowserSettings"
 	RunnerService_ClearBrowserData_FullMethodName             = "/lazybox.bench.v1.RunnerService/ClearBrowserData"
+	RunnerService_InstallBrowser_FullMethodName               = "/lazybox.bench.v1.RunnerService/InstallBrowser"
 )
 
 // RunnerServiceClient is the client API for RunnerService service.
@@ -326,6 +328,12 @@ type RunnerServiceClient interface {
 	// model, for an agent whose running worker cannot switch model live: it is
 	// ended between turns and the same provider conversation resumes.
 	RestartWithModel(ctx context.Context, in *RestartWithModelRequest, opts ...grpc.CallOption) (*SessionResponse, error)
+	// Owner only. "Give Claude the browser" (BROWSER.md): turns the agent
+	// browser back on for the conversation's workspace if the person turned it
+	// off there, and, for an agent started without the browser tools, ends it
+	// between turns and resumes the same provider conversation in a new agent
+	// that has them. Returns the session the conversation continues in.
+	GiveBrowser(ctx context.Context, in *GiveBrowserRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -680,6 +688,11 @@ type RunnerServiceClient interface {
 	// Closes a workspace's agent browsers and deletes its browser profile
 	// (cookies, storage, cache) and its always-allowed sites.
 	ClearBrowserData(ctx context.Context, in *ClearBrowserDataRequest, opts ...grpc.CallOption) (*BrowserSettings, error)
+	// Installs the Chromium the agent browser runs, in a developer build whose
+	// Chromium is missing (BrowserSettings.installable), as a command whose
+	// output Settings → Browser shows. One at a time: a second call returns the
+	// install already running.
+	InstallBrowser(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*CommandStatus, error)
 }
 
 type runnerServiceClient struct {
@@ -1333,6 +1346,16 @@ func (c *runnerServiceClient) RestartWithModel(ctx context.Context, in *RestartW
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionResponse)
 	err := c.cc.Invoke(ctx, RunnerService_RestartWithModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GiveBrowser(ctx context.Context, in *GiveBrowserRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionResponse)
+	err := c.cc.Invoke(ctx, RunnerService_GiveBrowser_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2754,6 +2777,16 @@ func (c *runnerServiceClient) ClearBrowserData(ctx context.Context, in *ClearBro
 	return out, nil
 }
 
+func (c *runnerServiceClient) InstallBrowser(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*CommandStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CommandStatus)
+	err := c.cc.Invoke(ctx, RunnerService_InstallBrowser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility.
@@ -2857,6 +2890,12 @@ type RunnerServiceServer interface {
 	// model, for an agent whose running worker cannot switch model live: it is
 	// ended between turns and the same provider conversation resumes.
 	RestartWithModel(context.Context, *RestartWithModelRequest) (*SessionResponse, error)
+	// Owner only. "Give Claude the browser" (BROWSER.md): turns the agent
+	// browser back on for the conversation's workspace if the person turned it
+	// off there, and, for an agent started without the browser tools, ends it
+	// between turns and resumes the same provider conversation in a new agent
+	// that has them. Returns the session the conversation continues in.
+	GiveBrowser(context.Context, *GiveBrowserRequest) (*SessionResponse, error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -3211,6 +3250,11 @@ type RunnerServiceServer interface {
 	// Closes a workspace's agent browsers and deletes its browser profile
 	// (cookies, storage, cache) and its always-allowed sites.
 	ClearBrowserData(context.Context, *ClearBrowserDataRequest) (*BrowserSettings, error)
+	// Installs the Chromium the agent browser runs, in a developer build whose
+	// Chromium is missing (BrowserSettings.installable), as a command whose
+	// output Settings → Browser shows. One at a time: a second call returns the
+	// install already running.
+	InstallBrowser(context.Context, *InfoRequest) (*CommandStatus, error)
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -3412,6 +3456,9 @@ func (UnimplementedRunnerServiceServer) RestartWithPermission(context.Context, *
 }
 func (UnimplementedRunnerServiceServer) RestartWithModel(context.Context, *RestartWithModelRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RestartWithModel not implemented")
+}
+func (UnimplementedRunnerServiceServer) GiveBrowser(context.Context, *GiveBrowserRequest) (*SessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GiveBrowser not implemented")
 }
 func (UnimplementedRunnerServiceServer) SwitchSubscription(context.Context, *SwitchSubscriptionRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SwitchSubscription not implemented")
@@ -3823,6 +3870,9 @@ func (UnimplementedRunnerServiceServer) SaveBrowserSettings(context.Context, *Br
 }
 func (UnimplementedRunnerServiceServer) ClearBrowserData(context.Context, *ClearBrowserDataRequest) (*BrowserSettings, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearBrowserData not implemented")
+}
+func (UnimplementedRunnerServiceServer) InstallBrowser(context.Context, *InfoRequest) (*CommandStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method InstallBrowser not implemented")
 }
 func (UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 func (UnimplementedRunnerServiceServer) testEmbeddedByValue()                       {}
@@ -4986,6 +5036,24 @@ func _RunnerService_RestartWithModel_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).RestartWithModel(ctx, req.(*RestartWithModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GiveBrowser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GiveBrowserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GiveBrowser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GiveBrowser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GiveBrowser(ctx, req.(*GiveBrowserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7421,6 +7489,24 @@ func _RunnerService_ClearBrowserData_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_InstallBrowser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).InstallBrowser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_InstallBrowser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).InstallBrowser(ctx, req.(*InfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerService_ServiceDesc is the grpc.ServiceDesc for RunnerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -7679,6 +7765,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RestartWithModel",
 			Handler:    _RunnerService_RestartWithModel_Handler,
+		},
+		{
+			MethodName: "GiveBrowser",
+			Handler:    _RunnerService_GiveBrowser_Handler,
 		},
 		{
 			MethodName: "SwitchSubscription",
@@ -8207,6 +8297,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearBrowserData",
 			Handler:    _RunnerService_ClearBrowserData_Handler,
+		},
+		{
+			MethodName: "InstallBrowser",
+			Handler:    _RunnerService_InstallBrowser_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

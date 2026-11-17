@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,9 +70,10 @@ func (m *Manager) Tool(ctx context.Context, c Caller, name string, raw json.RawM
 	}
 	m.mu.Lock()
 	off := m.settings.current.DefaultPermission == PermissionOff
+	workspaceOff := c.Workspace != "" && slices.Contains(m.settings.current.OffWorkspaces, c.Workspace)
 	b := m.browserLocked(c)
 	stopped := b.stopped
-	if !off && !stopped {
+	if !off && !workspaceOff && !stopped {
 		// From the agent's first call the person sees its browser, even
 		// while the first site still waits for them.
 		b.used = true
@@ -80,6 +82,8 @@ func (m *Manager) Tool(ctx context.Context, c Caller, name string, raw json.RawM
 	switch {
 	case off:
 		return "", errors.New("the person turned the agent browser off in Settings → Browser")
+	case workspaceOff:
+		return "", fmt.Errorf("the person turned the agent browser off for this workspace. If you need it, ask them to choose “Give %s the browser” in this conversation's menu, or to turn it on in Settings → Browser", agentName(c.Agent))
 	case stopped:
 		return "", errStopped
 	case acting[action] && c.Permission == "read-only":
@@ -93,6 +97,11 @@ func (m *Manager) Tool(ctx context.Context, c Caller, name string, raw json.RawM
 	}
 	text, image, err := m.run(ctx, b, action, a)
 	if err != nil {
+		if strings.Contains(err.Error(), "is not installed") {
+			// The person installs it with one click; an agent running an
+			// install in its workspace would only fail or install it elsewhere.
+			return "", errors.New("Chromium for the agent browser is not installed on this computer. Do not install it yourself: tell the person they can install it with Install Chromium in Settings → Browser, then use the browser again (no restart needed)")
+		}
 		return "", err
 	}
 	m.mu.Lock()
@@ -111,6 +120,14 @@ func (m *Manager) Tool(ctx context.Context, c Caller, name string, raw json.RawM
 	}
 	out, err := json.Marshal(agent.BrowserResult{Text: text, Image: image})
 	return string(out), err
+}
+
+// agentName is who browses, for a sentence: "Claude", else "the agent".
+func agentName(name string) string {
+	if name == "" {
+		return "the agent"
+	}
+	return name
 }
 
 // awaitAgent returns once the agent holds the browser: at once, or when the

@@ -171,6 +171,8 @@ type Execution struct {
 	Saved                     sessionstore.Record
 	Archived                  bool
 	RecoveryRequired          bool
+	// browserTools: its agent was started with the browser tools (BROWSER.md).
+	browserTools bool
 }
 type Bench struct {
 	RepositoryCatalog *repositorycatalog.Cache
@@ -741,6 +743,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		if shared.briefing != "" {
 			contextText += "\n" + shared.briefing
 		}
+		if browser := b.browserBriefing(selected.Provider, purpose, collectionID, b.browserFor(selected.Provider, purpose, collectionID)); browser != "" {
+			contextText += "\n" + browser
+		}
 		if options.Workflow == "" {
 			options.Workflow = b.Config.Defaults.Workflow
 		}
@@ -817,6 +822,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		return nil, err
 	}
 	e := &Execution{ID: id, WorkID: workID, Previous: previous, Cwd: cwd, CollectionID: collectionID, Purpose: purpose, Profile: selected, Options: options, Env: env, spool: spool}
+	e.browserTools = b.browserOffered(e)
 	conversationID := id
 	if parent != nil {
 		conversationID = parent.ConversationID
@@ -827,6 +833,8 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		// A successor continues the conversation, including updates it already received.
 		record.Instructions = parent.Instructions
 	}
+	offered := e.browserTools
+	record.BrowserTools = &offered
 	record.ProfileBindings = map[string]string{}
 	for _, p := range b.Profiles() {
 		record.ProfileBindings[p.ID] = profileBinding(p)

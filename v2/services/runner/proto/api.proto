@@ -103,6 +103,12 @@ service RunnerService {
   // model, for an agent whose running worker cannot switch model live: it is
   // ended between turns and the same provider conversation resumes.
   rpc RestartWithModel(RestartWithModelRequest) returns (SessionResponse);
+  // Owner only. "Give Claude the browser" (BROWSER.md): turns the agent
+  // browser back on for the conversation's workspace if the person turned it
+  // off there, and, for an agent started without the browser tools, ends it
+  // between turns and resumes the same provider conversation in a new agent
+  // that has them. Returns the session the conversation continues in.
+  rpc GiveBrowser(GiveBrowserRequest) returns (SessionResponse);
   // Owner only. Moves a live conversation to another signed-in subscription of
   // its provider and continues the same conversation: the same execution,
   // workspace, commands and queued messages, with a portable checkpoint for the
@@ -457,6 +463,11 @@ service RunnerService {
   // Closes a workspace's agent browsers and deletes its browser profile
   // (cookies, storage, cache) and its always-allowed sites.
   rpc ClearBrowserData(ClearBrowserDataRequest) returns (BrowserSettings);
+  // Installs the Chromium the agent browser runs, in a developer build whose
+  // Chromium is missing (BrowserSettings.installable), as a command whose
+  // output Settings → Browser shows. One at a time: a second call returns the
+  // install already running.
+  rpc InstallBrowser(InfoRequest) returns (CommandStatus);
 }
 
 message InfoRequest {}
@@ -1146,6 +1157,9 @@ message RestartWithPermissionRequest {
   // ask, read-only or yolo.
   string mode = 2;
 }
+message GiveBrowserRequest {
+  string session_id = 1;
+}
 message RestartWithModelRequest {
   string session_id = 1;
   // The provider's model identifier (an alias such as "opus" or a full id).
@@ -1266,6 +1280,11 @@ message Session {
   // takes one back. Choices saved to the workspace's own settings are not
   // listed: they are the agent's.
   repeated PermissionGrant permission_grants = 40;
+  // Whether its agent has the agent browser (BROWSER.md): "has"; "can_give"
+  // (it started without it, or the browser is off for its workspace: Give
+  // the browser fixes that); "off" (off in Settings → Browser); empty where
+  // the browser does not apply (no service, assistants, ACP agents, ended).
+  string browser_access = 41;
 }
 // PermissionGrant is one "always allow" of a conversation.
 message PermissionGrant {
@@ -3817,6 +3836,8 @@ message BrowserWorkspaceSites {
   // The workspace has a browser profile on disk (cookies, storage, cache).
   bool has_data = 4;
   int64 data_bytes = 5;
+  // Agents of this workspace get no browser (Settings → Browser, per workspace).
+  bool off = 6;
 }
 message BrowserSettings {
   uint64 revision = 1;
@@ -3831,6 +3852,13 @@ message BrowserSettings {
   repeated BrowserWorkspaceSites workspaces = 6;
   // Why agents cannot browse on this Runner, if they cannot.
   string problem = 7;
+  // ready | not_installed (Chromium is missing) | off | unavailable (no
+  // browser service on this Runner).
+  string availability = 8;
+  // Chromium is missing and InstallBrowser can install it (a developer build).
+  bool installable = 9;
+  // The latest InstallBrowser command, while it runs and after: its output.
+  string install_command_id = 10;
 }
 message ClearBrowserDataRequest {
   string collection_id = 1;

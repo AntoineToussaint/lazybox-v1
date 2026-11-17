@@ -13,7 +13,11 @@ import (
 // sharedInstructions are the Runner-wide sections every new coding session
 // starts with: the editable Settings → Agents text, its provider-specific
 // part, and the built-in command briefing.
-type sharedInstructions struct{ settings, provider, briefing string }
+type sharedInstructions struct {
+	settings, provider, briefing string
+	// browser is the conversation's own browser section (browser_briefing.go).
+	browser string
+}
 
 func (b *Bench) sharedInstructions(provider, purpose string) sharedInstructions {
 	prefs := b.Preferences.Snapshot()
@@ -32,7 +36,7 @@ func (b *Bench) sharedInstructions(provider, purpose string) sharedInstructions 
 
 func (s sharedInstructions) text() string {
 	parts := []string{}
-	for _, part := range []string{s.settings, s.provider, s.briefing} {
+	for _, part := range []string{s.settings, s.provider, s.briefing, s.browser} {
 		if part = strings.TrimSpace(part); part != "" {
 			parts = append(parts, part)
 		}
@@ -55,11 +59,12 @@ func (b *Bench) InstructionsUpdate(e *Execution) string {
 		return ""
 	}
 	shared := b.sharedInstructions(e.Profile.Provider, e.Purpose)
+	shared.browser = b.browserBriefing(e.Profile.Provider, e.Purpose, e.CollectionID, e.browserTools)
 	update := instructionsPreamble + shared.text()
 	if shared.text() == "" || e.Saved.Instructions == update {
 		return ""
 	}
-	for _, part := range []string{shared.settings, shared.provider, shared.briefing} {
+	for _, part := range []string{shared.settings, shared.provider, shared.briefing, shared.browser} {
 		if part = strings.TrimSpace(part); part != "" && !strings.Contains(e.Saved.Context, part) {
 			return update
 		}

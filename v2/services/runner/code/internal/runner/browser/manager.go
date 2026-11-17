@@ -94,6 +94,8 @@ type Manager struct {
 	saved    map[string]savedConv
 	proc     *jsonl.Process
 	readers  sync.WaitGroup
+	// install is the latest Chromium install command (InstallID).
+	install string
 }
 
 // conv is one conversation's browser.

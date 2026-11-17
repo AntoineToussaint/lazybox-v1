@@ -384,7 +384,11 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if err := m.admitLocked(); err != nil {
 		return nil, err
 	}
-	if (spec.SessionID == "") == (spec.CollectionID == "") || len(spec.Title) > 256 {
+	if spec.Kind == KindRunner {
+		if spec.SessionID != "" || spec.CollectionID != "" || len(spec.Argv) == 0 || spec.TerminalID != "" || spec.ShareWith != "" || len(spec.Title) > 256 {
+			return nil, errors.New("a Runner command is a program of no session or workspace, with a bounded title")
+		}
+	} else if (spec.SessionID == "") == (spec.CollectionID == "") || len(spec.Title) > 256 {
 		return nil, errors.New("a session or a workspace (not both) and a bounded title required")
 	}
 	if spec.SessionID != "" && (spec.TerminalID != "" || spec.ShareWith != "") {
@@ -395,7 +399,7 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if spec.CollectionID != "" && spec.Kind != KindHook && (len(spec.Argv) > 0) != (spec.Kind != "") {
 		return nil, errors.New("a workspace run is a pipe, a workspace command has a kind")
 	}
-	if spec.Kind != "" && (spec.Kind != "setup" && spec.Kind != "archive" && spec.Kind != "action" && spec.Kind != KindHook || spec.TerminalID != "" || spec.ShareWith != "") {
+	if spec.Kind != "" && (spec.Kind != "setup" && spec.Kind != "archive" && spec.Kind != "action" && spec.Kind != KindHook && spec.Kind != KindRunner || spec.TerminalID != "" || spec.ShareWith != "") {
 		return nil, errors.New("invalid workspace command")
 	}
 	if spec.StopGraceMs < 0 || spec.StopGraceMs > 60_000 {

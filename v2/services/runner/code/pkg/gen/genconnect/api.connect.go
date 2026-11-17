@@ -223,6 +223,9 @@ const (
 	// RunnerServiceRestartWithModelProcedure is the fully-qualified name of the RunnerService's
 	// RestartWithModel RPC.
 	RunnerServiceRestartWithModelProcedure = "/lazybox.bench.v1.RunnerService/RestartWithModel"
+	// RunnerServiceGiveBrowserProcedure is the fully-qualified name of the RunnerService's GiveBrowser
+	// RPC.
+	RunnerServiceGiveBrowserProcedure = "/lazybox.bench.v1.RunnerService/GiveBrowser"
 	// RunnerServiceSwitchSubscriptionProcedure is the fully-qualified name of the RunnerService's
 	// SwitchSubscription RPC.
 	RunnerServiceSwitchSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/SwitchSubscription"
@@ -628,6 +631,9 @@ const (
 	// RunnerServiceClearBrowserDataProcedure is the fully-qualified name of the RunnerService's
 	// ClearBrowserData RPC.
 	RunnerServiceClearBrowserDataProcedure = "/lazybox.bench.v1.RunnerService/ClearBrowserData"
+	// RunnerServiceInstallBrowserProcedure is the fully-qualified name of the RunnerService's
+	// InstallBrowser RPC.
+	RunnerServiceInstallBrowserProcedure = "/lazybox.bench.v1.RunnerService/InstallBrowser"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -731,6 +737,12 @@ type RunnerServiceClient interface {
 	// model, for an agent whose running worker cannot switch model live: it is
 	// ended between turns and the same provider conversation resumes.
 	RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. "Give Claude the browser" (BROWSER.md): turns the agent
+	// browser back on for the conversation's workspace if the person turned it
+	// off there, and, for an agent started without the browser tools, ends it
+	// between turns and resumes the same provider conversation in a new agent
+	// that has them. Returns the session the conversation continues in.
+	GiveBrowser(context.Context, *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -1085,6 +1097,11 @@ type RunnerServiceClient interface {
 	// Closes a workspace's agent browsers and deletes its browser profile
 	// (cookies, storage, cache) and its always-allowed sites.
 	ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error)
+	// Installs the Chromium the agent browser runs, in a developer build whose
+	// Chromium is missing (BrowserSettings.installable), as a command whose
+	// output Settings → Browser shows. One at a time: a second call returns the
+	// install already running.
+	InstallBrowser(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -1480,6 +1497,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRestartWithModelProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RestartWithModel")),
+			connect.WithClientOptions(opts...),
+		),
+		giveBrowser: connect.NewClient[gen.GiveBrowserRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceGiveBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GiveBrowser")),
 			connect.WithClientOptions(opts...),
 		),
 		switchSubscription: connect.NewClient[gen.SwitchSubscriptionRequest, gen.SessionResponse](
@@ -2304,6 +2327,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ClearBrowserData")),
 			connect.WithClientOptions(opts...),
 		),
+		installBrowser: connect.NewClient[gen.InfoRequest, gen.CommandStatus](
+			httpClient,
+			baseURL+RunnerServiceInstallBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("InstallBrowser")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -2373,6 +2402,7 @@ type runnerServiceClient struct {
 	resumeSession                *connect.Client[gen.ResumeSessionRequest, gen.SessionResponse]
 	restartWithPermission        *connect.Client[gen.RestartWithPermissionRequest, gen.SessionResponse]
 	restartWithModel             *connect.Client[gen.RestartWithModelRequest, gen.SessionResponse]
+	giveBrowser                  *connect.Client[gen.GiveBrowserRequest, gen.SessionResponse]
 	switchSubscription           *connect.Client[gen.SwitchSubscriptionRequest, gen.SessionResponse]
 	setSessionRotation           *connect.Client[gen.SetSessionRotationRequest, gen.SessionResponse]
 	getSession                   *connect.Client[gen.SessionRequest, gen.SessionResponse]
@@ -2510,6 +2540,7 @@ type runnerServiceClient struct {
 	getBrowserSettings           *connect.Client[gen.InfoRequest, gen.BrowserSettings]
 	saveBrowserSettings          *connect.Client[gen.BrowserSettings, gen.BrowserSettings]
 	clearBrowserData             *connect.Client[gen.ClearBrowserDataRequest, gen.BrowserSettings]
+	installBrowser               *connect.Client[gen.InfoRequest, gen.CommandStatus]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -2830,6 +2861,11 @@ func (c *runnerServiceClient) RestartWithPermission(ctx context.Context, req *co
 // RestartWithModel calls lazybox.bench.v1.RunnerService.RestartWithModel.
 func (c *runnerServiceClient) RestartWithModel(ctx context.Context, req *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.restartWithModel.CallUnary(ctx, req)
+}
+
+// GiveBrowser calls lazybox.bench.v1.RunnerService.GiveBrowser.
+func (c *runnerServiceClient) GiveBrowser(ctx context.Context, req *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.giveBrowser.CallUnary(ctx, req)
 }
 
 // SwitchSubscription calls lazybox.bench.v1.RunnerService.SwitchSubscription.
@@ -3517,6 +3553,11 @@ func (c *runnerServiceClient) ClearBrowserData(ctx context.Context, req *connect
 	return c.clearBrowserData.CallUnary(ctx, req)
 }
 
+// InstallBrowser calls lazybox.bench.v1.RunnerService.InstallBrowser.
+func (c *runnerServiceClient) InstallBrowser(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return c.installBrowser.CallUnary(ctx, req)
+}
+
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
 type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
@@ -3618,6 +3659,12 @@ type RunnerServiceHandler interface {
 	// model, for an agent whose running worker cannot switch model live: it is
 	// ended between turns and the same provider conversation resumes.
 	RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. "Give Claude the browser" (BROWSER.md): turns the agent
+	// browser back on for the conversation's workspace if the person turned it
+	// off there, and, for an agent started without the browser tools, ends it
+	// between turns and resumes the same provider conversation in a new agent
+	// that has them. Returns the session the conversation continues in.
+	GiveBrowser(context.Context, *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error)
 	// Owner only. Moves a live conversation to another signed-in subscription of
 	// its provider and continues the same conversation: the same execution,
 	// workspace, commands and queued messages, with a portable checkpoint for the
@@ -3972,6 +4019,11 @@ type RunnerServiceHandler interface {
 	// Closes a workspace's agent browsers and deletes its browser profile
 	// (cookies, storage, cache) and its always-allowed sites.
 	ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error)
+	// Installs the Chromium the agent browser runs, in a developer build whose
+	// Chromium is missing (BrowserSettings.installable), as a command whose
+	// output Settings → Browser shows. One at a time: a second call returns the
+	// install already running.
+	InstallBrowser(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -4363,6 +4415,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRestartWithModelProcedure,
 		svc.RestartWithModel,
 		connect.WithSchema(runnerServiceMethods.ByName("RestartWithModel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGiveBrowserHandler := connect.NewUnaryHandler(
+		RunnerServiceGiveBrowserProcedure,
+		svc.GiveBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("GiveBrowser")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceSwitchSubscriptionHandler := connect.NewUnaryHandler(
@@ -5187,6 +5245,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ClearBrowserData")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceInstallBrowserHandler := connect.NewUnaryHandler(
+		RunnerServiceInstallBrowserProcedure,
+		svc.InstallBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("InstallBrowser")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunnerServiceListSnippetsProcedure:
@@ -5317,6 +5381,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceRestartWithPermissionHandler.ServeHTTP(w, r)
 		case RunnerServiceRestartWithModelProcedure:
 			runnerServiceRestartWithModelHandler.ServeHTTP(w, r)
+		case RunnerServiceGiveBrowserProcedure:
+			runnerServiceGiveBrowserHandler.ServeHTTP(w, r)
 		case RunnerServiceSwitchSubscriptionProcedure:
 			runnerServiceSwitchSubscriptionHandler.ServeHTTP(w, r)
 		case RunnerServiceSetSessionRotationProcedure:
@@ -5591,6 +5657,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSaveBrowserSettingsHandler.ServeHTTP(w, r)
 		case RunnerServiceClearBrowserDataProcedure:
 			runnerServiceClearBrowserDataHandler.ServeHTTP(w, r)
+		case RunnerServiceInstallBrowserProcedure:
+			runnerServiceInstallBrowserHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -5854,6 +5922,10 @@ func (UnimplementedRunnerServiceHandler) RestartWithPermission(context.Context, 
 
 func (UnimplementedRunnerServiceHandler) RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartWithModel is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GiveBrowser(context.Context, *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GiveBrowser is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error) {
@@ -6402,4 +6474,8 @@ func (UnimplementedRunnerServiceHandler) SaveBrowserSettings(context.Context, *c
 
 func (UnimplementedRunnerServiceHandler) ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ClearBrowserData is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) InstallBrowser(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.InstallBrowser is not implemented"))
 }

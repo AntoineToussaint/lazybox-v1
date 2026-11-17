@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
@@ -52,6 +53,7 @@ func (s *Service) browserView(e *runner.Execution, view *pb.Session) {
 	if s.Bench.Browser == nil {
 		return
 	}
+	view.BrowserAccess = s.Bench.BrowserAccess(e)
 	caller := s.Bench.BrowserCaller(e)
 	if state, ok := s.Bench.Browser.State(caller.Conversation); ok {
 		view.Browser = wireBrowserState(state)
@@ -179,13 +181,14 @@ func (s *Service) GetBrowserSettings(context.Context, *pb.InfoRequest) (*pb.Brow
 // always-allowed sites and the size of its browser profile.
 func (s *Service) browserSettings(v browser.Settings) *pb.BrowserSettings {
 	w := &pb.BrowserSettings{Revision: v.Revision, DefaultPermission: v.DefaultPermission, AllowedSites: v.AllowedSites, Downloads: v.Downloads, ShowPanel: v.ShowPanel}
-	if !s.Bench.Browser.Available() {
-		w.Problem = "The agent browser is a developer-build feature for now: the installed app does not include it, so agents cannot browse. In a developer build, run make -C v2 browser once, then start Lazybox with make -C v2 dev or make -C v2 working. The Web panel is not affected."
-	}
+	// Why agents cannot browse, and the fix: install Chromium, turn it on.
+	a := s.Bench.Browser.Availability()
+	w.Availability, w.Problem, w.Installable = a.State, a.Problem, len(a.Install) > 0
+	w.InstallCommandId = s.Bench.Browser.InstallID()
 	names := map[string]string{}
 	if s.Bench.Collections != nil {
 		for _, c := range s.Bench.Collections.List() {
-			if c.State != "deleted" {
+			if c.State != "deleted" && c.State != "deleting" {
 				names[c.ID] = c.Name
 			}
 		}
@@ -198,12 +201,19 @@ func (s *Service) browserSettings(v browser.Settings) *pb.BrowserSettings {
 		}
 		seen[id] = true
 		size, has := data[id]
-		w.Workspaces = append(w.Workspaces, &pb.BrowserWorkspaceSites{CollectionId: id, Name: names[id], Sites: v.WorkspaceSites[id], HasData: has, DataBytes: size})
+		w.Workspaces = append(w.Workspaces, &pb.BrowserWorkspaceSites{CollectionId: id, Name: names[id], Sites: v.WorkspaceSites[id], HasData: has, DataBytes: size, Off: slices.Contains(v.OffWorkspaces, id)})
+	}
+	// Every workspace, so each can be turned off; then what is kept of others.
+	for id := range names {
+		add(id)
 	}
 	for id := range v.WorkspaceSites {
 		add(id)
 	}
 	for id := range data {
+		add(id)
+	}
+	for _, id := range v.OffWorkspaces {
 		add(id)
 	}
 	sort.Slice(w.Workspaces, func(i, j int) bool {
@@ -223,6 +233,9 @@ func (s *Service) SaveBrowserSettings(_ context.Context, r *pb.BrowserSettings) 
 	next := browser.Settings{Revision: r.Revision, DefaultPermission: r.DefaultPermission, AllowedSites: r.AllowedSites, Downloads: r.Downloads, ShowPanel: r.ShowPanel, WorkspaceSites: map[string][]string{}}
 	for _, ws := range r.Workspaces {
 		next.WorkspaceSites[ws.CollectionId] = ws.Sites
+		if ws.Off {
+			next.OffWorkspaces = append(next.OffWorkspaces, ws.CollectionId)
+		}
 	}
 	saved, err := s.Bench.Browser.SaveSettings(next)
 	if err != nil {
@@ -243,4 +256,35 @@ func (s *Service) ClearBrowserData(ctx context.Context, r *pb.ClearBrowserDataRe
 		return nil, browserError(err)
 	}
 	return s.browserSettings(saved), nil
+}
+
+// InstallBrowser installs the agent browser's Chromium (Settings → Browser).
+func (s *Service) InstallBrowser(context.Context, *pb.InfoRequest) (*pb.CommandStatus, error) {
+	if s.Bench.Browser == nil {
+		return nil, grpcError(codes.Unavailable, browser.ErrUnavailable)
+	}
+	status, err := s.Bench.InstallBrowser()
+	if err != nil {
+		if errors.Is(err, browser.ErrUnavailable) {
+			return nil, browserError(err)
+		}
+		return nil, grpcError(codes.FailedPrecondition, err)
+	}
+	return wireStatus(status), nil
+}
+
+// GiveBrowser is "Give Claude the browser" in a conversation's menu.
+func (s *Service) GiveBrowser(ctx context.Context, r *pb.GiveBrowserRequest) (*pb.SessionResponse, error) {
+	e, err := s.Bench.Get(r.SessionId)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	next, err := s.Bench.GiveBrowser(ctx, e)
+	if err != nil {
+		if errors.Is(err, browser.ErrUnavailable) {
+			return nil, browserError(err)
+		}
+		return nil, grpcError(codes.FailedPrecondition, err)
+	}
+	return s.sessionResponse(ctx, next)
 }

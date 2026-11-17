@@ -62,7 +62,7 @@ func (b *Bench) sessionAdapter(e *Execution, selected accounts.Profile, options 
 func (b *Bench) sessionOpen(e *Execution, contextText, resume string) agent.Open {
 	open := agent.Open{ID: e.ID, Cwd: e.Cwd, Purpose: e.Purpose, Isolated: e.Profile.Isolation == "environment", Context: contextText, Model: e.Options.Model, Permission: e.Options.Permission, Workflow: e.Options.Workflow, ClaudeAIConnectors: b.Preferences.Snapshot().ClaudeAIConnectors, Gateway: e.Options.Gateway, Profile: e.Profile.ID, Env: e.Env, Resume: resume, Host: &agent.Hosting{Root: b.Config.HostRoot, Backend: b.hosting}}
 	open.Tools = b.executionTools(e, e.Env)
-	open.Browser = b.browserOffered(e)
+	open.Browser = e.browserTools
 	return open
 }
 
@@ -239,6 +239,16 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 		return err
 	}
 	e := &Execution{ID: r.ID, WorkID: r.WorkID, Previous: r.Previous, Cwd: r.Cwd, CollectionID: r.CollectionID, Purpose: r.Purpose, Profile: selected, Options: options, Env: env, spool: spool, Saved: r}
+	// The re-attached agent keeps the tools it was started with: one started
+	// before the browser was there has none until the person gives it them.
+	e.browserTools = b.browserToolsOf(r, b.browserOffered(e))
+	if r.BrowserTools == nil {
+		// Read from its tool list once; kept from now on.
+		has := e.browserTools
+		if err := b.History.Amend(b.ctx, r.ID, func(saved *sessionstore.Record) { saved.BrowserTools = &has }); err == nil {
+			e.Saved.BrowserTools = &has
+		}
+	}
 	adapter := b.sessionAdapter(e, selected, options, r.ConversationID)
 	open := b.sessionOpen(e, r.Context, "")
 	open.ProviderSettings = r.ProviderSettings
