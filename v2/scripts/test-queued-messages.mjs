@@ -45,18 +45,11 @@ try{
  await expect(strip.locator('.queued-note')).toHaveText('Claude can’t take a message in the middle of a turn: Send now stops its current step first, then sends yours.');
  await page.screenshot({path:'.cache/queued-claude.png'});
 
- // ── Send now first says what it stops; Escape keeps waiting.
- await item.getByRole('button',{name:'Send now'}).click();
- const confirm=item.getByRole('group',{name:'Send now'});
- await expect(confirm).toContainText('Send now interrupts Claude’s turn: the running step npm run dev will be stopped, then your message is sent.');
- await expect(confirm.getByRole('button',{name:'Stop and send'})).toBeFocused();
+ // ── Send now is one click; its tooltip names the step it stops.
+ const sendNow=item.getByRole('button',{name:'Send now'});
+ await expect(sendNow).toHaveAttribute('title','Stop npm run dev and send this as the next turn');
  await page.screenshot({path:'.cache/queued-send-now.png'});
- await page.keyboard.press('Escape');
- await expect(confirm).toHaveCount(0);
- assert.deepEqual(deliveries(),[],'Escape sends nothing');
- // Confirmed, the turn is interrupted and this message goes next.
- await item.getByRole('button',{name:'Send now'}).click();
- await confirm.getByRole('button',{name:'Stop and send'}).click();
+ await sendNow.click();
  await expect.poll(deliveries).toEqual([{operationId:f.mutations.find(m=>m.method==='Apply'&&m.body.message)?.body.operationId,how:'now'}]);
  assert.equal(claude.interrupted,1,'the Runner interrupts the turn');
  await expect(strip).toHaveCount(0,{timeout:5000});
@@ -93,5 +86,5 @@ try{
  assert.equal(codex.interrupted,undefined,'steering does not interrupt the turn');
  await expect(strip).toHaveCount(0,{timeout:5000});
  assert.deepEqual(errors,[]);
- console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with; Send now names the step it stops, Escape keeps waiting, confirming delivers it now (interrupt, then next); Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width. Fixture only.');
+ console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with; Send now delivers it in one click (interrupt, then next) and its tooltip names the step it stops; Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}

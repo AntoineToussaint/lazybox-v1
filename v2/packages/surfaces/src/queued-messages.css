@@ -19,15 +19,7 @@
 .queued-actions{flex:none;display:inline-flex;align-items:center;gap:4px}
 .queued-messages .queued-actions button{border-color:var(--line-strong,var(--line));background:var(--surface);color:var(--text-soft,var(--text))}
 .queued-messages .queued-actions button:hover{background:var(--surface-selected)}
-.queued-messages .queued-actions button.is-armed{border-color:var(--danger-line-subtle,var(--danger));color:var(--danger-soft,var(--danger))}
 .queued-working{color:var(--accent);font-size:calc(11px * var(--text-scale))}
-.queued-confirm{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:6px 8px;border-radius:7px;background:var(--warn-bg);border:1px solid var(--warn-line-subtle,var(--warn-line,var(--line)))}
-.queued-confirm>p{flex:1 1 260px;display:flex;align-items:flex-start;gap:6px;margin:0;color:var(--text-soft,var(--text));line-height:1.45}
-.queued-confirm>p>svg{flex:none;margin-top:2px}
-.queued-confirm code{font-family:var(--font-mono,ui-monospace,monospace);font-size:calc(11px * var(--code-scale,1));background:var(--surface-selected);padding:0 4px;border-radius:4px}
-.queued-confirm-actions{display:inline-flex;gap:6px;margin-left:auto}
-.queued-messages .queued-confirm-actions .danger{border-color:var(--danger-line-subtle,var(--danger));background:var(--danger-bg);color:var(--danger-strong,var(--danger))}
-.queued-confirm kbd{font-family:inherit;font-size:.85em;opacity:.7}
 .queued-more,.queued-note{margin:0;color:var(--text-muted);font-size:calc(11px * var(--text-scale));line-height:1.45}
 .queued-error{margin:0;color:var(--danger);font-size:calc(11px * var(--text-scale))}
 @media (max-width:720px){
