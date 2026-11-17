@@ -24,7 +24,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 # clone the script makes has a tracking upstream to push to.
 make_tap() {
 	local bare="$1" seed="$WORK/seed-$$-${RANDOM}"
-	git init -q --bare "$bare"
+	git init -q --bare --initial-branch=main "$bare"
 	git clone -q "$bare" "$seed" 2>/dev/null
 	git -C "$seed" config user.email t@t.com
 	git -C "$seed" config user.name t
