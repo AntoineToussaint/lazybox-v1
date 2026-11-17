@@ -7,7 +7,7 @@ This log separates direction confirmed in the design discussion from implementat
 **2026-11-09 — C19 (user direction):** make development from the phone the target,
 with intentionally different phone, iPad and laptop/multi-display experiences.
 Remote continuity and mobile UX enter the first release. This supersedes the
-November 3 mobile deferral; C17's external Obin Hub ownership remains in force.
+November 3 mobile deferral; C17's external Hub ownership remains in force.
 [Device experience](DEVICE_EXPERIENCE.md) proposes the interaction and integration
 contract. The [audit](audits/2026-11-09/README.md) records current evidence; it does
 not approve a Hub API, backend framework replacement or the staged workflow.
@@ -34,7 +34,7 @@ not approve a Hub API, backend framework replacement or the staged workflow.
 
 ## Current scope corrections — 2026-11-03
 
-- **C17 (user direction):** build the shared Hub in Obin platform V2, not here.
+- **C17 (user direction):** build the shared Hub in a separate platform, not here.
   Local workflow experiments must not quietly become a competing Hub or claim
   distributed ownership. This supersedes older repository-placement assumptions.
 - **C18 (user direction):** the workspace is the primary UI unit, with multiple
@@ -52,7 +52,7 @@ not approve a Hub API, backend framework replacement or the staged workflow.
 
 The isolated workflow board experiment is not a disposition of D03, D07 or D08.
 It proves useful wiring and interactions, not fenced execution or verified
-integration. No framework replacement or Obin Hub API was selected by this review.
+integration. No framework replacement or external Hub API was selected by this review.
 
 ## Remote control — 2026-11-16
 

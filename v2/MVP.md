@@ -3,8 +3,8 @@
 **Scope update, 2026-11-09:** the first release supports development from a phone,
 an available remote Runner and continuity across iPad/desktop. The immediate
 gate is the [device acceptance journey](DEVICE_EXPERIENCE.md#acceptance-journey);
-[Roadmap](ROADMAP.md) defines delivery order. The Hub belongs in Obin platform
-V2: integration is required, implementation here is excluded. The two-human,
+[Roadmap](ROADMAP.md) defines delivery order. The Hub belongs in a separate
+platform: integration is required, implementation here is excluded. The two-human,
 multi-Runner scenarios below remain the broader collaborative target. They do
 not defer mobile or all need to pass before the one-human phone journey ships.
 

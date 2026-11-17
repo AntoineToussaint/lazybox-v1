@@ -23,7 +23,7 @@ comments and tests refer to them. This page only indexes them.
 
 Lazybox V2 is a development environment across phone, iPad, laptop and several
 displays. The target is completing real work from any device while execution
-continues on an available Runner. The **Hub** (owned by Obin platform V2)
+continues on an available Runner. The **Hub** (owned by a separate platform)
 coordinates durable work; **Runners** execute it; **clients** provide different
 experiences over the same state.
 
@@ -90,7 +90,7 @@ configuration are resolved explicitly and stay isolated during development.
 | [Product](../../PRODUCT.md) | The problem, working situations, participants, and product principles. |
 | [MVP](../../MVP.md) | The first complete product slice, explicit scope, acceptance scenarios, and release gates. |
 | [Roadmap](../../ROADMAP.md) | Dependencies, work packages, milestones, and expansion beyond the MVP. |
-| [Implementation packages](../../IMPLEMENTATION_ROADMAP.md) | Full phone-to-desktop delivery plan, Hub agent ownership, Codefly/Obin reuse and implementation status. |
+| [Implementation packages](../../IMPLEMENTATION_ROADMAP.md) | Full phone-to-desktop delivery plan, Hub agent ownership, Codefly/Hub platform reuse and implementation status. |
 | [Decisions](../../DECISIONS.md) | Confirmed direction, proposed implementation defaults, and unresolved choices. |
 | [Device experience](../../DEVICE_EXPERIENCE.md) | Phone/iPad/desktop flows, portable state and proposed Hub boundary. |
 | [Software factory](../../SOFTWARE_FACTORY.md) | The end state for orchestrated work: contract, holdouts, verifier, merge queue. |

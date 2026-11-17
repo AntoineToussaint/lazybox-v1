@@ -508,7 +508,7 @@ Rebuilt and restarted only isolated Dev after confirming no sessions. Native
 inspection verified the retained saved folder and refresh prompt after migration.
 Explicit refresh returned 22 repositories with distinct Git identities, down
 from 25 checkout rows, with no truncation or skipped folders. Four linked
-core-solutions worktrees now produce one bare-source entry. Its independent clone
+worktrees of one repository now produce one bare-source entry. Its independent clone
 remains a separate entry with its own path. Verified the rendered native picker;
 no real repository registration or agent session was started during this check.
 
@@ -536,8 +536,8 @@ restart persistence, RPC identity propagation and path-free picker rows.
 Restarted only isolated Dev after confirming no sessions, then refreshed its
 saved development folder through the native picker. The live catalog contains
 19 unique identities: 18 GitHub projects and one local fallback, down from 22
-location-based entries. Native inspection shows one obin-ai/core-solutions row;
-filtering obin-ai shows organization repositories without filesystem paths.
+location-based entries. Native inspection shows one row for that repository;
+filtering by its organization shows organization repositories without filesystem paths.
 No real repository was registered or agent session started during this check.
 GitHub renames, Enterprise hosts and custom SSH aliases are not resolved by the
 offline origin normalizer; live remote cloning was not exercised in this change.
@@ -561,8 +561,8 @@ and verifies stable provider homes, no per-channel credential copies and no
 private storage or tokens in RPC output. Launcher tests cover idempotent store
 selection, no credential movement and rejection of conflicting private stores.
 
-Selected the existing managed subscription store containing Gmail and Obin
-Subscription for both channels. Restarted only idle Dev; the original Runner
+Selected the existing managed subscription store containing a personal and a work
+subscription for both channels. Restarted only idle Dev; the original Runner
 remained running. Native Settings displayed both accounts, and each live usage
 refresh returned Available. Restarted Dev a second time and verified both
 accounts and retained quota reports still appeared without login. No model
@@ -590,7 +590,7 @@ mutations. The initial height test caught a shared CSS limit overriding the
 session dialog's existing 85vh bound; restoring that bound passed.
 
 Rebuilt/restarted idle Dev. In the actual native app, opened Add subscription
-and dragged its header downward; both Gmail and Obin Subscription names became
+and dragged its header downward; both subscription names became
 readable behind it. Shared account cards and quota reports remained present.
 Left this movable dialog open without starting enrollment. Native dragging was
 verified on subscription enrollment; the other two dialogs share the tested
@@ -610,7 +610,7 @@ Passed full V2 `make check`, focused Go race tests, worker tests and Settings UI
 tests. Coverage includes provider mapping, missing identity, independent account
 state, preservation/reload, wire propagation and the card email line. Rebuilt
 idle Dev, refreshed both real managed Claude accounts, and verified both
-provider-reported emails beneath Gmail and Obin Subscription in native Settings.
+provider-reported emails beneath both subscription labels in native Settings.
 No login or model prompt was needed. Real Codex email was not exercised; its
 account/read fixture verifies extraction without starting a thread.
 

@@ -19,7 +19,7 @@ underneath it.
 Constraints it respects: **D14** (task, assignment, attempt, evidence and
 integration are separate records; one writer per mutable checkout), **D15**
 (role policies and evidence-backed completion before automatic routing or
-workflow plugins), **C17** (the shared Hub lives in Obin; local missions must
+workflow plugins), **C17** (the shared Hub lives in a separate platform; local missions must
 not become a competing Hub, so the event envelope is designed to be exported
 to it).
 
@@ -619,7 +619,7 @@ unless asked.
 | 3 | **Integration.** Merge queue in `merge_after` order on the PR loop, post-merge checks, bisect, CI failure → fix task. | Parallel work lands without semantic breakage | M |
 | 4 | **Transition agent and process editor.** Status reports, stall detection, pipeline and role-card UI, Ask Lazybox edits, replay. | Configurable by people who will not write YAML | M |
 | 5 | **Factory.** Holdout store, container isolation, level 5, scheduled triggers. | Only after 1–4 show measured verified-done rates | L |
-| — | **Hub export.** The event envelope is the contract offered to the Obin Hub (C17); missions stay local until the Hub accepts them. | Collaboration without a second Hub | — |
+| — | **Hub export.** The event envelope is the contract offered to the external Hub (C17); missions stay local until the Hub accepts them. | Collaboration without a second Hub | — |
 
 Slice 1 is the smallest valuable one: it needs no coordinator agent and
 already answers "what is going on, who claimed what, and what actually ran".
@@ -970,4 +970,4 @@ in the Runner; missions local, the event envelope offered to the Hub).
 7. **Prompt history scope.** Per person across devices in the Runner
    (recommended) or per device as snippets are today.
 8. **Hub boundary.** Confirm that missions stay local and the event envelope
-   is what Lazybox offers the Obin Hub (C17).
+   is what Lazybox offers the external Hub (C17).

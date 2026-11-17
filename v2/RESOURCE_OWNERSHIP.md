@@ -144,7 +144,7 @@ subagents. Restart is required to adopt changed Runner configuration.
 - Per-attempt quotas, resource accounting and Linux runtime qualification.
 
 Codefly remains the native service supervisor. Hub agent/assignment state remains
-owned by Obin. This helper implements a child-lifetime capability, not a second
+owned by the external Hub. This helper implements a child-lifetime capability, not a second
 daemon, reconnect service or orchestration state machine.
 
 ## Verification

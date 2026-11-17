@@ -25,7 +25,7 @@ assignments, model policies, budgets, decisions and recovery intent. A Runner
 owns concrete execution attempts, provider processes, working copies, resource
 admission and cleanup. Clients own presentation and local interaction state.
 
-The Hub is an **Obin platform V2 solution** composed through supported module and
+The Hub is a **solution on a separate platform**, composed through supported module and
 host contracts. No second Hub database, scheduler, approval authority or agent
 registry is to be implemented inside Lazybox.
 
@@ -33,9 +33,9 @@ registry is to be implemented inside Lazybox.
 | --- | --- | --- |
 | Services, generated transport, endpoint resolution, health, dev reload | Codefly go-grpc service agent and SDK | Keep application logic in the existing hooks. Generate contracts through Codefly. Resolve ports; do not add another HTTP server or watcher. |
 | Long-lived local service supervision | Codefly `service` / native OS supervisor | Materialize the selected Runner release as public configuration. Attach clients independently. Per-attempt cleanup is a separate obligation. |
-| Agent/conversation domain | Obin Robin, composed by Hub | Qualify external Claude/Codex execution as a supported backend. Native provider history stays provider-specific; do not run a second model loop inside it. |
-| Durable execution, progress, typed input/approval, cancellation, recovery | Obin Runtime `TaskService` | Use published clients and installed operation contracts. Map assignment/attempt results and native questions into these semantics. Do not copy its state machine into Runner SQLite. |
-| Identity, permission checks, delegated authority, notifications | Obin host contracts, including SaaS starter composition | Distinct human, Hub, Runner and attempt principals. Call modules through the host gateway. Do not infer that a bearer owner can approve everything. |
+| Agent/conversation domain | The platform's conversation module, composed by Hub | Qualify external Claude/Codex execution as a supported backend. Native provider history stays provider-specific; do not run a second model loop inside it. |
+| Durable execution, progress, typed input/approval, cancellation, recovery | The platform's runtime task service | Use published clients and installed operation contracts. Map assignment/attempt results and native questions into these semantics. Do not copy its state machine into Runner SQLite. |
+| Identity, permission checks, delegated authority, notifications | Platform host contracts, including SaaS starter composition | Distinct human, Hub, Runner and attempt principals. Call modules through the host gateway. Do not infer that a bearer owner can approve everything. |
 | Work objectives, repository references, result revisions, integration policy | Hub solution using platform storage/reference contracts | Domain composition; existing issue/PR references belong to the same work identity. Durable provider effects have receipts. |
 | Native execution and workspace resources | Lazybox Runner | Reuse agent adapters, workspace management and account stores. Add scoped admission, fencing, process ownership and immutable evidence. |
 | Model traffic and accounting | Existing model gateway, tracing and Runner provider observations | Qualify which requests are actually captured. Dedupe observations and identify estimates/unknown spend. Do not claim subscription charges equal token cost. |
@@ -50,14 +50,15 @@ Inspected evidence (capabilities still require integration tests):
   succeeded against an unused label. The new adapter fingerprints its executable.
 - Lazybox uses Codefly go-grpc service agent `0.1.70`, SDK Go `0.4.0`, and the
   core version pinned in `go.mod`. Generated transport already exists.
-- Runtime checkout `dedd4b10bdab44abcf7b578b20ddf63281d28344`:
-  published `clients/go`, `modules/runtime/services/tasks/proto`, implementation
-  and qualification directories. The API includes `StartTask`/`RecoverTask`,
+- The platform's runtime module, at an inspected checkout: a published Go
+  client, a task service API, implementation and qualification directories.
+  The API includes `StartTask`/`RecoverTask`,
   `WatchTask`, revision/action-digest-bound `RespondToInteraction`, cancellation,
   command recovery, operation attempts and effect receipts.
-- Handbook `modules/runtime.md` and `modules/robin.md` establish ownership.
-  Robin's chat proto establishes conversation APIs, **not proof of an external
-  native-agent backend**. Older handbook contract statements are not evidence
+- The platform's module documentation establishes runtime and conversation
+  ownership. The conversation module's chat API establishes conversation APIs,
+  **not proof of an external native-agent backend**. Older documented contract
+  statements are not evidence
   that every behavior has shipped. P00 qualifies the exact versions we consume.
 
 ## Delivery packages
@@ -68,12 +69,12 @@ gate. Packages are reviewable changes; their IDs are not filed tracker records.
 
 | Package | Owner | Depends on | Deliverable and exit gate | Status |
 | --- | --- | --- | --- | --- |
-| P00 Platform qualification | Obin/Codefly owners + Lazybox integration | — | Pin distributions, qualify Runtime interactions/recovery and Robin external execution; publish capability/contract matrix and executable integration fixture. Missing capability is fixed in its owning repo. | Planned; local inspection recorded above |
+| P00 Platform qualification | Hub platform/Codefly owners + Lazybox integration | — | Pin distributions, qualify runtime interactions/recovery and conversation-module external execution; publish capability/contract matrix and executable integration fixture. Missing capability is fixed in its owning repo. | Planned; local inspection recorded above |
 | P01 Independent Runner service | Lazybox tooling → Codefly service | Existing frozen releases | Install/start/stop/status/uninstall selected Working Runner; attach desktop without lifecycle ownership. Exact release/config checks; no credential copying. Verify actual supervisor and disconnect behavior before admission. | macOS native lifecycle and independent HTTP readers qualified in isolation; actual native client lifecycle remains |
 | P02 Reproducible release and shared gate catalog | Lazybox tooling + Codefly build/package | P01 | One required-test catalog drives CI/staging. Include continuity, scroll, navigation, sidebar and all new mobile/authority/recovery tests. Package Linux headless Runner; pin toolchain and artifact digests. Promotion cannot omit a gate or silently restart work. | The earlier 25-gate frozen candidate passed; responsive-shell coverage now makes 26 required gates, with all 24 UI gates passing on the polish increment. Per-change CI now runs the catalog in parallel jobs ([`v2.yml`](../.github/workflows/v2.yml), see [CI](RELEASE_GATES.md#ci)). Linux packaging (the Runner does not yet compile for Linux) and toolchain pinning remain |
 | P03 Resource ownership and crash recovery | Runner + Codefly lifecycle owner | P01, P02 | Register every process/container/PTY/port/worktree by attempt; hard admission caps; cancel and reap. SIGKILL parent, escaped child, reboot, container exit and failed cleanup have deterministic outcomes and no cross-attempt kill. | Shared process-group guard and configurable admission implemented; durable inventory, escaped children, containers/PTYs and reboot remain |
-| P04 Remote identity and scoped authority | Obin host + Runner | P00 | Enroll/revoke Runner; human UI and agent tool permissions separate on every transport. Public RPC cannot impersonate a human by setting a request field. No local owner token in agent context or phone. Audit F1 becomes a passing regression. | Planned |
-| P05 Hub agents and execution bridge | Hub/Robin/Runtime + Runner adapter | P00, P03, P04 | Durable agent role and assignment map to a fenced Runner attempt and native conversation. Idempotent dispatch/recovery; ordered progress; explicit uncertainty. Hub restart loses no assignment; duplicate delivery starts one attempt. | Planned |
+| P04 Remote identity and scoped authority | Platform host + Runner | P00 | Enroll/revoke Runner; human UI and agent tool permissions separate on every transport. Public RPC cannot impersonate a human by setting a request field. No local owner token in agent context or phone. Audit F1 becomes a passing regression. | Planned |
+| P05 Hub agents and execution bridge | Hub/conversation/runtime modules + Runner adapter | P00, P03, P04 | Durable agent role and assignment map to a fenced Runner attempt and native conversation. Idempotent dispatch/recovery; ordered progress; explicit uncertainty. Hub restart loses no assignment; duplicate delivery starts one attempt. | Planned |
 | P06 Results and dependency correctness | Hub + Runner Git/evidence | P05 | Immutable per-repository base/result SHAs, artifacts and test receipts. Dependency dispatch verifies accepted source vector, not `done`. Audit's reset-HEAD probe passes. Snapshot review stays stable while working copies change. | Planned |
 | P07 Durable questions and attention | Hub Runtime/host + shared client | P04, P05 | Typed questions/approvals with revisions, expiry, action digest and delivery receipt. Two devices race safely; offline draft is distinct from accepted answer. Native request gone: decision survives, delivery state remains explicit. | Planned |
 | P08 Phone development vertical slice | Expo phone + shared client + Hub | P05, P06, P07 | Inbox → Work → conversation/tasks/changes → question → revision → integration on a real iPhone, remote Runner, laptop closed. Persist drafts and reading position. Complete an actual two-repository change. | Planned |
@@ -158,9 +159,9 @@ documented in [resource ownership](RESOURCE_OWNERSHIP.md).
 1. A durable Hub agent identity has a versioned role/policy; a model is a selected
    execution property, not the identity. Record provider, requested and resolved
    model, effort, account reference, permissions and cost limits on each attempt.
-2. Work owns the objective, decisions, assignments and result revisions. Runtime
-   owns durable execution/interaction mechanics. Robin owns agent/conversation
-   mechanics. Runner local history is a recoverable execution projection, not
+2. Work owns the objective, decisions, assignments and result revisions. The
+   runtime module owns durable execution/interaction mechanics. The
+   conversation module owns agent/conversation mechanics. Runner local history is a recoverable execution projection, not
    the cross-device source of truth for work.
 3. Hub dispatches through scoped authority and an idempotency identity. Runner
    durably admits an attempt before spawning it. A recovery query resolves a lost
@@ -225,7 +226,7 @@ cases. Every UX change has an explicit task to improve, not a decorative panel.
 
 Use four layers: pure contract/state tests; real transport with isolated local
 resources; redacted provider recording/replay and browser/device fixtures; live
-Obin + remote Runner + native provider + real-device qualification. Faults are
+Hub platform + remote Runner + native provider + real-device qualification. Faults are
 injected at admission, spawn, acknowledgement, question answer, artifact upload,
 cancel and integration boundaries. Assertions cover both visible state and
 absence of duplicate effects/leaked resources.

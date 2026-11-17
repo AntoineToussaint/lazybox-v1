@@ -114,4 +114,4 @@ See [the resource contract](../../RESOURCE_OWNERSHIP.md) for exact guarantees an
 configuration. Detached groups, containers, PTYs, other helper subprocesses,
 durable ownership reconciliation, reboot, Linux runtime and live-provider trees
 remain unqualified. P03 is not complete; automatic native restart/login remains
-disabled. The Obin Hub and phone workflow are not implemented by this increment.
+disabled. The Hub and phone workflow are not implemented by this increment.

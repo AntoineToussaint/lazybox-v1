@@ -41,7 +41,7 @@ preview, request revisions and approve integration. Continue on iPad or desktop
 windows without reconstructing context. An available remote Runner executes;
 devices present different experiences over the same work. Start with one writer
 and an independent reviewer; parallel writers follow measured evidence. The Hub
-belongs in Obin platform V2. Its contract and remote integration are required,
+belongs in a separate platform. Its contract and remote integration are required,
 while its implementation stays outside this repository. See
 [Device experience](DEVICE_EXPERIENCE.md) and [delivery order](ROADMAP.md).
 

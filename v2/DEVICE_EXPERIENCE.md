@@ -2,7 +2,7 @@
 
 Status: proposed experience and integration contract, 2026-11-09, based on the
 user's clarified goal. The phone development journey is required; details below
-are implementation proposals to validate. This document does not claim an Obin
+are implementation proposals to validate. This document does not claim an external
 Hub API or mobile app already exists. See the [audit](audits/2026-11-09/README.md).
 
 ## The outcome
@@ -25,7 +25,7 @@ desktop IDE squeezed into a phone would also miss the goal.
 | Workspace | The working context: repositories and related conversations/assignments. | A filesystem path or window. |
 | Runner workspace instance | Concrete checkouts and services on a specific Runner. | A portable canonical work record. |
 | Assignment | Scoped responsibility and authority given to an agent role. | One process or one turn. |
-| Agent | Durable identity and versioned role/model/budget policy owned by the Hub, composed with Robin and Runtime. | A PID or a selected model name. |
+| Agent | Durable identity and versioned role/model/budget policy owned by the Hub, composed with the platform's conversation and runtime modules. | A PID or a selected model name. |
 | Attempt | A particular provider/model/account process executing an assignment. | The durable lifetime of the work. |
 | Result | Versioned source vector and verifiable artifacts submitted for review. | An agent's claim that it finished. |
 | Attention item | A durable question, approval, failure or review needing a person. | A transient toast or OS notification. |
@@ -36,7 +36,7 @@ globally portable identity. Existing tracker references attach to the same work;
 avoid creating a second authoritative task beside a Hub record.
 
 The [implementation plan](IMPLEMENTATION_ROADMAP.md) maps these concepts onto
-existing Codefly and Obin owners. The Hub owns agent orchestration; Runner owns
+existing Codefly and Hub platform owners. The Hub owns agent orchestration; Runner owns
 the resulting attempts. A client can disappear without ending either identity.
 
 ## Phone: a focused development flow
@@ -114,7 +114,7 @@ flowchart LR
     Phone[Phone routes] --> Core[Shared client models and commands]
     Tablet[iPad adaptive views] --> Core
     Desktop[Desktop windows and panels] --> Core
-    Core --> Hub[Obin Hub: work, people, decisions, receipts, attention]
+    Core --> Hub[Hub: work, people, decisions, receipts, attention]
     Runner[Runner: checkouts, agents, commands, resource ownership] <-->|Authenticated control and observations| Hub
     Runner --> Artifacts[Authorized source, tests, preview and output]
     Core --> Artifacts
@@ -128,7 +128,7 @@ provider credentials.
 
 **Hub owns:** canonical work/decisions/assignments, actor authorization, command
 receipts, attention delivery state, device continuity, external integration
-intent/outcome and artifact references. Its implementation belongs in Obin.
+intent/outcome and artifact references. Its implementation belongs in the Hub platform.
 
 **Runner owns:** local execution acceptance/journal, attempt process/resource
 ownership, checkout admission, command/output capture, source/test artifacts,
@@ -171,7 +171,7 @@ and a test implementation. Before shipping shared mode, define its mapping to
 Hub records and migrate deliberately. Do not synchronize two independently
 authoritative boards by periodically overwriting snapshots.
 
-## Minimum Hub–Runner–client contract to settle with Obin
+## Minimum Hub–Runner–client contract to settle with the Hub platform
 
 These are required semantics, not invented endpoint names:
 
@@ -192,7 +192,7 @@ A local Runner's first phone enrollment (QR pairing, device key, scoped and
 revocable grants over Tailscale) is described in [Remote](REMOTE.md).
 An outward Runner control connection is a candidate for NAT-friendly deployment,
 not a substitute for identity, encrypted transport and authorization. Decide the
-actual route with Obin and test it on the supported topology.
+actual route with the Hub platform owners and test it on the supported topology.
 
 ## Offline and background behavior
 

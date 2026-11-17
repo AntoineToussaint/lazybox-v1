@@ -63,7 +63,7 @@ No polling fallback or disabled test was shipped in this change.
 
 No live native service install/start/stop/uninstall, provider inference, client
 window lifecycle against an installed service, Linux packaging, reboot recovery,
-SIGKILL resource cleanup, Obin Hub integration, remote enrollment or real-phone
+SIGKILL resource cleanup, Hub integration, remote enrollment or real-phone
 flow. No current user session was intentionally restarted or killed. Automatic
 restart/login start remain disabled pending resource-ownership qualification.
 The broader audit's authority and dependency defects remain open.

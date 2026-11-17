@@ -4,7 +4,7 @@
 current phone/iPad/desktop direction and proposed portable contract. The
 [audit](audits/2026-11-09/README.md) records actual implementation and blockers.
 The topology below is a target architecture, not a claim
-about the local implementation. The shared Hub is owned by Obin platform V2.
+about the local implementation. The shared Hub is owned by a separate platform.
 The current delivery sequence and required changes are recorded in the
 [implementation plan](IMPLEMENTATION_ROADMAP.md) and [roadmap](ROADMAP.md).
 The November 3 critical review is historical context.
@@ -35,13 +35,13 @@ One Hub is authoritative for a collaboration space in the MVP. Several projects 
 | Component | Owns | Receives from other components |
 | --- | --- | --- |
 | Desktop | Personal view model, independent windows, layout, navigation, drafts, annotations in progress, local presentation and interaction. | Shared state and changes from the Hub; authorized preview and execution streams. |
-| Hub (Obin solution) | Durable agent identities/roles, model and budget policy, shared work, dependencies, assignments, decisions, accepted execution facts, durable history, artifact metadata, dispatch/recovery and integration policy; composed with host identity, Robin and Runtime. | Authenticated human and scoped agent commands; Runner observations, results, capacity, and availability. |
+| Hub (external platform) | Durable agent identities/roles, model and budget policy, shared work, dependencies, assignments, decisions, accepted execution facts, durable history, artifact metadata, dispatch/recovery and integration policy; composed with the platform's host identity, conversation and runtime modules. | Authenticated human and scoped agent commands; Runner observations, results, capacity, and availability. |
 | Runner | Repository preparation, worktrees, processes, agent adapters, local execution journal, resource reservations, development services, logs, and artifact production. | Authorized assignments with stable execution identities, inputs, scoped capabilities, and cancellation requests. |
 
 The Hub owns intent; the Runner owns observed execution facts. The Desktop presents both and supports rich local interaction without acquiring authority over shared truth.
 
-Reuse Obin Runtime for durable work/interaction/recovery mechanics and Robin for
-agent/conversation mechanics; qualify native Claude/Codex execution integration
+Reuse the platform's runtime module for durable work/interaction/recovery
+mechanics and its conversation module for agent/conversation mechanics; qualify native Claude/Codex execution integration
 before assuming those seams exist. Codefly owns service generation, endpoint
 resolution and native service supervision. Runner attempt ownership and cleanup
 remain explicit requirements; restarting its service is not agent recovery.
@@ -274,7 +274,7 @@ flowchart LR
   W --> R[Runner execution services]
   R --> C[Claude SDK or Codex app-server]
   R --> F[Working copies, commands and evidence]
-  H[Obin platform V2 Hub] -. canonical shared work and assignment authority .-> W
+  H[External Hub] -. canonical shared work and assignment authority .-> W
 ```
 
 Implement a narrow Go module with commands and projections, rather than more
@@ -285,7 +285,7 @@ behind interfaces. Reconcile durable launch intent with typed execution identity
 An unknown start/merge outcome is a state to reconcile, not an invitation to retry.
 
 The local module owns a personal workspace execution plan. It is not a second
-canonical tracker or a distributed Hub. Obin's Hub will own cross-workspace work,
+canonical tracker or a distributed Hub. The external Hub will own cross-workspace work,
 identity, deduplication, shared decisions and assignment authority. Each shared
 record needs one authoritative owner; do not build bidirectional status copying
 between two independent sources of truth. The exact Hub API remains unverified.
@@ -362,7 +362,7 @@ do not let two schedulers unknowingly own the same task.
 - [Temporal's activity contract](https://docs.temporal.io/activity-definition)
   separates recorded workflow progress from retried external operations.
   It does not eliminate the need for destination-side idempotency and reconciliation.
-  Evaluate Temporal in the independently owned Obin Hub if its existing stack
+  Evaluate Temporal in the independently owned Hub if its existing stack
   needs durable distributed orchestration; do not introduce a cluster merely to
   persist a local board.
 - [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
