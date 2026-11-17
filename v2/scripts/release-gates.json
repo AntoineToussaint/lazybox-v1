@@ -48,6 +48,7 @@
     { "id": "processes", "scope": "ui", "script": "test:processes" },
     { "id": "transcript-performance", "scope": "ui", "script": "test:transcript-performance" },
     { "id": "mermaid-viewer", "scope": "ui", "script": "test:mermaid-viewer" },
+    { "id": "mermaid-robust", "scope": "ui", "script": "test:mermaid-robust" },
     { "id": "artifacts", "scope": "ui", "script": "test:artifacts" },
     { "id": "artifact-reader", "scope": "ui", "script": "test:artifact-reader" },
     { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" },

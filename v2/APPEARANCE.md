@@ -103,7 +103,7 @@ and its sizes follow `--text-scale`.
 | `appearance/preferences.ts` | The stored preferences and what they amount to. |
 | `appearance/user-themes.ts` | Validation of a theme file the Runner read, and the starting template. |
 | `appearance/apply.ts` | Applies one `<style>` with every token, `data-scheme`, `data-density`, `data-motion` on `<html>`; a store Monaco, xterm and Mermaid follow. |
-| `appearance/integrations.ts` | Monaco, terminal and Mermaid themes from the tokens. |
+| `appearance/integrations.ts` | Monaco, terminal and Mermaid themes from the tokens. Mermaid gets hex only (its parser refuses oklch(), color-mix(), var()); a colour it cannot read falls back to the built-in theme's value for that variable. |
 | `AppearanceSettings.tsx` | Settings → Appearance, and the Chat text group shown in Settings → Chat (`ChatTextSettings`). |
 
 The ANSI renderer uses `--ansi-0` … `--ansi-15` for the 16 named colours

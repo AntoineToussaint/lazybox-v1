@@ -9,6 +9,16 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.12',
+    date: '2026-11-17',
+    title: 'Diagrams that render, or say why',
+    items: [
+      { title: 'A diagram says why it did not render', body: 'Instead of "Diagram preview unavailable", a Mermaid diagram that cannot be drawn names the reason above its source: the line Mermaid could not read, a diagram type it does not know, a diagram too large to preview, a theme colour diagrams cannot use, or a renderer that could not load.' },
+      { title: 'Diagrams recover on their own', body: 'A diagram that failed for a passing reason (its panel folded or hidden, the window not shown, the renderer not loaded yet) renders again once shown, a few times at most; Try again does it on demand. A diagram with a syntax error is not retried until its text changes.' },
+      { title: 'Several diagrams at once', body: 'Diagrams streamed together render one after another and no longer disturb each other, and a theme colour Mermaid cannot read, such as oklch() or color-mix(), falls back to the built-in theme\'s colour instead of failing the diagram.' },
+    ],
+  },
+  {
     id: '2026-11-17.11',
     date: '2026-11-17',
     title: 'Dictation that keeps up with your pauses',

@@ -3,9 +3,11 @@
  * (xterm), the editor (Monaco) and diagrams (Mermaid). Each is derived from
  * the window's tokens, so they change with the theme like everything else.
  */
-import { mix } from './color';
+import { mix, parseColor, parseOklabColor, toHex } from './color';
 import { SYSTEM_CODE_FONT } from './preferences';
+import { BUILTIN_BY_ID, resolveTheme } from './themes';
 import type { AppearanceState } from './apply';
+import type { Scheme } from './tokens';
 
 export function terminalTheme({ theme: { tokens: t } }: AppearanceState) {
   return {
@@ -60,22 +62,49 @@ export function monacoTheme({ theme }: AppearanceState) {
   };
 }
 
-/** Mermaid's base theme, coloured from the tokens. */
-export function mermaidTheme({ theme, typography }: AppearanceState) {
-  const t = theme.tokens;
+/** Which token colours each of Mermaid's theme variables. */
+const MERMAID_COLOURS = {
+  background: 'code-bg',
+  primaryColor: 'accent-bg-strong', primaryTextColor: 'text', primaryBorderColor: 'accent-line',
+  secondaryColor: 'info-bg-strong', secondaryTextColor: 'text', secondaryBorderColor: 'info-line',
+  tertiaryColor: 'surface-raised', tertiaryTextColor: 'text', tertiaryBorderColor: 'line-strong',
+  lineColor: 'text-muted', textColor: 'text', mainBkg: 'accent-bg-strong', nodeBorder: 'accent-line',
+  clusterBkg: 'surface-raised', clusterBorder: 'line-strong', titleColor: 'text-strong', edgeLabelBackground: 'surface-raised',
+  noteBkgColor: 'warn-bg', noteTextColor: 'warn-strong', noteBorderColor: 'warn-line',
+  actorBkg: 'accent-bg-strong', actorBorder: 'accent-line', actorTextColor: 'text', signalColor: 'text-secondary', signalTextColor: 'text',
+  errorBkgColor: 'danger-bg', errorTextColor: 'danger-strong',
+} as const;
+
+/**
+ * A colour Mermaid can read, or undefined. Mermaid's colour parser (khroma)
+ * reads hex, rgb() and hsl() only and throws on anything else — oklch(),
+ * color-mix(), var(), a name — which fails the whole diagram, not one fill.
+ */
+export function mermaidColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const rgba = parseColor(value) ?? parseOklabColor(value);
+  return rgba && toHex(rgba);
+}
+
+const builtIn: Partial<Record<Scheme, Record<string, string>>> = {};
+/** The built-in theme of the scheme: where a colour Mermaid cannot read is taken from. */
+function builtInTokens(scheme: Scheme): Record<string, string> {
+  return builtIn[scheme] ??= resolveTheme(BUILTIN_BY_ID.get(scheme)!).tokens;
+}
+
+/**
+ * Mermaid's base theme, coloured from the tokens. Every colour is handed over
+ * as hex; one Mermaid could not read falls back to the built-in theme's value
+ * for that variable, so a theme never costs the diagram.
+ */
+export function mermaidTheme({ theme, typography }: AppearanceState): Record<string, string | boolean> {
+  const t = theme.tokens, safe = builtInTokens(theme.scheme);
+  const colours = Object.fromEntries(Object.entries(MERMAID_COLOURS).map(([name, token]) => [name, mermaidColor(t[token]) ?? safe[token]]));
   return {
     darkMode: theme.scheme === 'dark',
-    background: t['code-bg'],
     // The diagram is drawn as an image: it gets a font name itself, not a CSS
     // variable. Mermaid's own default unless the person chose an interface font.
     ...(typography.uiFont ? { fontFamily: typography.uiFont } : {}),
-    primaryColor: t['accent-bg-strong'], primaryTextColor: t.text, primaryBorderColor: t['accent-line'],
-    secondaryColor: t['info-bg-strong'], secondaryTextColor: t.text, secondaryBorderColor: t['info-line'],
-    tertiaryColor: t['surface-raised'], tertiaryTextColor: t.text, tertiaryBorderColor: t['line-strong'],
-    lineColor: t['text-muted'], textColor: t.text, mainBkg: t['accent-bg-strong'], nodeBorder: t['accent-line'],
-    clusterBkg: t['surface-raised'], clusterBorder: t['line-strong'], titleColor: t['text-strong'], edgeLabelBackground: t['surface-raised'],
-    noteBkgColor: t['warn-bg'], noteTextColor: t['warn-strong'], noteBorderColor: t['warn-line'],
-    actorBkg: t['accent-bg-strong'], actorBorder: t['accent-line'], actorTextColor: t.text, signalColor: t['text-secondary'], signalTextColor: t.text,
-    errorBkgColor: t['danger-bg'], errorTextColor: t['danger-strong'],
+    ...colours,
   };
 }

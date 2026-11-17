@@ -722,8 +722,15 @@ inline/fenced code, JSON highlighting/copy and Mermaid diagrams. Approval cards
 show the tool description and command first, with structured request metadata in
 an expandable JSON view. Diffs use the same code presentation. Raw HTML remains
 inert and message images do not fetch external URLs. Mermaid loads only when a
-diagram is present, renders in strict mode into an SVG image, and falls back to
-copyable source on invalid/incomplete input. Console logs retain exact raw text.
+diagram is present, renders in strict mode into an SVG image (a `data:` URL, which
+the desktop CSP's `img-src 'self' data:` allows), and falls back to copyable source
+on invalid/incomplete input with the reason in words (`diagram-errors.ts`): the line
+Mermaid could not read, an unknown type, a limit, a theme colour, a renderer that
+did not load. Renders are serialized through one queue (Mermaid's configuration is
+window-wide) into an off-screen, laid-out box, so a diagram in a folded or hidden
+panel still measures its text; a failure that is not the text's own is retried when
+the diagram is shown, a few times at most, and the full error goes to the console
+once. Console logs retain exact raw text.
 
 The chat header is one row: the conversation title (click to rename in place;
 while it has none, the workspace branch leads, never the folder's generated

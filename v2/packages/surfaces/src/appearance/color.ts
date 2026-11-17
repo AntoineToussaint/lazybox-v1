@@ -54,6 +54,32 @@ const clampRgba = (c: Rgba): Rgba => ({ r: clamp01(c.r), g: clamp01(c.g), b: cla
 
 export function isColor(text: string): boolean { return parseColor(text) !== undefined; }
 
+const OKLAB_FUNCTIONAL = /^(oklch|oklab)\(\s*([^)]*)\)$/i;
+/**
+ * CSS oklch() and oklab() as sRGB, out-of-gamut colours brought inside it.
+ * Deliberately not part of parseColor: theme files keep their own syntaxes.
+ * This is for consumers that must turn whatever they are handed into a
+ * colour they can draw with (Mermaid, which reads hex and rgb() only).
+ */
+export function parseOklabColor(input: string): Rgba | undefined {
+  const fn = OKLAB_FUNCTIONAL.exec(input.trim().toLowerCase());
+  if (!fn) return undefined;
+  const parts = fn[2].split(/\s*\/\s*|\s+/).filter(Boolean);
+  if (parts.length < 3 || parts.length > 4) return undefined;
+  // A percentage is of `full`: 100% lightness is 1, 100% chroma or a/b is 0.4.
+  const num = (text: string, full: number) => text === 'none' ? 0 : /^-?(\d+\.?\d*|\.\d+)%?$/.test(text) ? (text.endsWith('%') ? Number(text.slice(0, -1)) / 100 * full : Number(text)) : undefined;
+  const l = num(parts[0], 1), alpha = parts[3] === undefined ? 1 : unit(parts[3], 1);
+  if (l === undefined || alpha === undefined) return undefined;
+  if (fn[1] === 'oklch') {
+    const c = num(parts[1], 0.4), h = parts[2] === 'none' ? 0 : Number(parts[2].replace(/deg$/, ''));
+    if (c === undefined || !Number.isFinite(h)) return undefined;
+    return fromOklch({ l: clamp01(l), c: Math.max(0, c), h: ((h % 360) + 360) % 360, a: alpha });
+  }
+  const a = num(parts[1], 0.4), b = num(parts[2], 0.4);
+  if (a === undefined || b === undefined) return undefined;
+  return fromOklab(clamp01(l), a, b, alpha);
+}
+
 /** Lower-case #rrggbb, or #rrggbbaa when not opaque. */
 export function toHex(c: Rgba): string {
   const h = (v: number) => Math.round(clamp01(v) * 255).toString(16).padStart(2, '0');

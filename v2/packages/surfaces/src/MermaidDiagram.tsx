@@ -1,19 +1,12 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import { Icon } from './Icons';
-import { sizedSvg, type Rendered, type Size } from './diagram-svg';
+import type { Rendered, Size } from './diagram-svg';
+import { diagramFailure, type DiagramFailure } from './diagram-errors';
+import { renderMermaid } from './mermaid-render';
 import './mermaid-diagram.css';
 import { getAppearance } from './appearance/apply';
 import { mermaidTheme } from './appearance/integrations';
 import { useAppearance } from './appearance/useAppearance';
-
-let mermaidReady: Promise<typeof import('mermaid')['default']> | undefined;
-/** Mermaid, configured for the window's current theme (re-applied before each render). */
-function diagrams() {
-  return (mermaidReady ??= import('mermaid').then(({ default: mermaid }) => mermaid)).then(mermaid => {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', secure: ['securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'suppressErrorRendering', 'htmlLabels', 'flowchart'], theme: 'base', themeVariables: mermaidTheme(getAppearance()), htmlLabels: false, flowchart: { htmlLabels: false }, maxTextSize: 50000, maxEdges: 500, suppressErrorRendering: true });
-    return mermaid;
-  });
-}
 
 /** Mounted once near the viewport: off-screen diagrams in a long conversation cost nothing. */
 function useNearViewport(ref: RefObject<HTMLElement | null>) {
@@ -208,46 +201,88 @@ function DiagramViewer({ rendered, actions }: { rendered: Rendered; actions: Rea
   </>;
 }
 
+/** The figure has a box, is not hidden (a folded group) and its window is showing. */
+function showing(node: HTMLElement | null): boolean {
+  return !!node && node.isConnected && node.getBoundingClientRect().width > 0 && (node.checkVisibility?.({ visibilityProperty: true }) ?? true) && document.visibilityState !== 'hidden';
+}
+
+/** Calls `onShown` each time the node goes from hidden or zero-width to shown, or its window becomes visible. */
+function useWhenShown(ref: RefObject<HTMLElement | null>, active: boolean, onShown: () => void) {
+  useEffect(() => {
+    const node = ref.current;
+    if (!active || !node) return;
+    let was = showing(node);
+    const check = () => { const now = showing(node); if (now && !was) onShown(); was = now; };
+    const resize = new ResizeObserver(check);
+    resize.observe(node);
+    // Unfolding a group may not resize the figure's own box: watch it come into view too.
+    const view = typeof IntersectionObserver === 'undefined' ? undefined : new IntersectionObserver(check);
+    view?.observe(node);
+    document.addEventListener('visibilitychange', check);
+    return () => { resize.disconnect(); view?.disconnect(); document.removeEventListener('visibilitychange', check); };
+  }, [ref, active, onShown]);
+}
+
+/** Renders of one text in one theme, at most, when the failures were the moment's and not the text's. */
+const MAX_ATTEMPTS = 4;
+type Failed = { text: string; key: string; failure: DiagramFailure; attempts: number; error: unknown };
+
 /**
  * A Mermaid block in agent prose: rendered when it nears the screen, then
  * zoomable. `eager` renders it at once: a document has few diagrams, and a
- * printed one must not be a placeholder.
+ * printed one must not be a placeholder. A failure says why; one that is not
+ * the text's fault (hidden, renderer not loaded) is tried again when shown.
  */
 export function MermaidDiagram({ text, sourceView, eager = false }: { text: string; sourceView(text: string): ReactNode; eager?: boolean }) {
   const figure = useRef<HTMLElement>(null);
   const near = useNearViewport(figure) || eager;
-  const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
-  const [result, setResult] = useState<Rendered | { text: string; error: string }>();
+  const [result, setResult] = useState<Rendered | Failed>();
   const [source, setSource] = useState(false);
+  const [retry, setRetry] = useState(0);
   // A new theme redraws the diagram in its colours.
   const look = useAppearance(), lookKey = `${look.theme.id}|${look.theme.tokens.accent}|${look.theme.tokens.surface}|${look.theme.tokens.text}|${look.typography.uiFont}`;
+  const key = `${lookKey}\u0000${text}`;
   useEffect(() => {
     if (!near) return;
     let cancelled = false;
     // Debounce partial fenced blocks while the answer is streaming.
-    const timer = setTimeout(() => { void (async () => {
-      try {
-        if (text.length > 50000) throw Error('Diagram is too large to preview.');
-        const mermaid = await diagrams();
+    const timer = setTimeout(() => {
+      renderMermaid(text, mermaidTheme(getAppearance())).then(rendered => { if (!cancelled) setResult(rendered); }, error => {
         if (cancelled) return;
-        const { svg } = await mermaid.render(`diagram-${id}`, text);
-        const sized = sizedSvg(svg);
-        if (!sized) throw Error('Diagram has no size.');
-        if (!cancelled) setResult({ ...sized, text });
-      } catch { if (!cancelled) setResult({ text, error: 'Diagram preview unavailable. Check the Mermaid source.' }); }
-    })(); }, 180);
+        const failure = diagramFailure(error, text, { hidden: !showing(figure.current) });
+        setResult(previous => ({ text, key, failure, error, attempts: previous && 'failure' in previous && previous.key === key ? previous.attempts + 1 : 1 }));
+      });
+    }, 180);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [text, id, near, lookKey]);
+  }, [text, key, near, retry]);
   const current = result?.text === text ? result : undefined;
+  const failed = current && 'failure' in current ? current : undefined;
+  // Again when shown, or after a pause if it already is; never for a text or theme Mermaid refused.
+  const again = useCallback(() => setRetry(n => n + 1), []);
+  const retrying = !!failed && failed.failure.retry && failed.attempts < MAX_ATTEMPTS;
+  useWhenShown(figure, retrying, again);
+  useEffect(() => {
+    if (!retrying || !failed || !showing(figure.current)) return;
+    const timer = setTimeout(again, 1000 * failed.attempts);
+    return () => clearTimeout(timer);
+  }, [retrying, failed, again]);
+  // The whole error, once per text that stays put: not for every partial block of a streaming answer.
+  const logged = useRef('');
+  useEffect(() => {
+    if (!failed || logged.current === failed.key) return;
+    const timer = setTimeout(() => { logged.current = failed.key; console.error(`Mermaid diagram not rendered (${failed.failure.kind}): ${failed.failure.message}`, failed.error); }, 1000);
+    return () => clearTimeout(timer);
+  }, [failed]);
   const sourceToggle = <button type="button" className="diagram-tool text" aria-pressed={source} title={source ? 'Show the diagram' : 'Show the Mermaid source'} onClick={() => setSource(!source)}>{source ? 'Diagram' : 'Source'}</button>;
   const copySource = <CopyButton text={text} label="Copy Mermaid source">Copy</CopyButton>;
+  const tryAgain = failed?.failure.retry && !retrying && <button type="button" className="diagram-tool text" title="Render the diagram again" onClick={() => { setResult(undefined); again(); }}>Try again</button>;
   return <figure ref={figure} className="mermaid-block">
     {current && 'svg' in current && !source
       ? <DiagramViewer rendered={current} actions={<>{sourceToggle}{copySource}</>}/>
       : <>
-        <header><span>Mermaid diagram</span><div className="diagram-toolbar">{current && 'svg' in current && sourceToggle}{copySource}</div></header>
-        {current && 'error' in current && <p role="status">{current.error}</p>}
-        {source || (current && 'error' in current) ? sourceView(text) : <p role="status" className="diagram-pending" style={{ minHeight: 120 }}>Rendering diagram…</p>}
+        <header><span>Mermaid diagram</span><div className="diagram-toolbar">{current && 'svg' in current && sourceToggle}{tryAgain}{copySource}</div></header>
+        {failed && <p role="status" className="diagram-error">{failed.failure.message}</p>}
+        {source || failed ? sourceView(text) : <p role="status" className="diagram-pending" style={{ minHeight: 120 }}>Rendering diagram…</p>}
       </>}
   </figure>;
 }
