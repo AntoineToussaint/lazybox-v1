@@ -282,7 +282,7 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
       <button type="button" aria-label="Close new task" title={busy ? 'Keeps starting in the background' : 'Close · your message is kept'} onClick={() => busy ? moveToBackground() : onClose()}>×</button>
     </DialogHeader>
     <form onSubmit={submit} aria-busy={busy || undefined}>
-      <textarea ref={prompt} className="new-task-prompt" aria-label="First message" rows={4} maxLength={100_000} disabled={busy} placeholder={itemRef ? `Anything to add about ${itemRef.key}? (optional)` : 'What should the agent do? Paste an issue link to start from it.'}
+      <textarea ref={prompt} className="new-task-prompt" aria-label="First message" rows={itemRef ? 2 : 4} data-item={itemRef ? '' : undefined} maxLength={100_000} disabled={busy} placeholder={itemRef ? `Anything to add about ${itemRef.key}? (optional)` : 'What should the agent do? Paste an issue link to start from it.'}
         value={draft.prompt} onChange={event => { change({ prompt: event.target.value }); setProblem(undefined); }} onKeyDown={promptKeys} onPaste={pasted}/>
 
       <div className="new-task-item">
@@ -377,7 +377,7 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
             {TASK_MODES.map(mode => <option key={mode.id} value={mode.id}>{mode.id === 'default' ? defaultModeLabel(info, settings?.permission) : mode.label}</option>)}
           </select>
         </div>
-        {safe.guarded && <p className="new-task-hint" data-testid="new-task-item-mode">From an issue, the Runner default (YOLO) becomes Ask: the issue’s text is not yours. Choose YOLO here to give the agent full access.</p>}
+        {safe.guarded && <p className="new-task-hint" data-testid="new-task-item-mode">From an issue the agent asks first, not YOLO: its text is not yours. Choose YOLO to change that.</p>}
       </div>
 
       {(problem || error) && <p className="new-task-problem" role="alert">{problem?.message || error}</p>}

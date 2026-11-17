@@ -27,10 +27,25 @@
 .item-source-preview-bar small{color:var(--text-muted);font-size:calc(11px * var(--text-scale))}
 .item-source-comments{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px!important;color:var(--text-soft)}
 .item-source-comments input{width:auto;margin:0}
-.item-source-text{max-height:min(220px,30dvh);margin:0;overflow:auto;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface-sunken);font:calc(11.5px * var(--code-scale))/1.5 var(--font-mono);color:var(--text-soft);white-space:pre-wrap;overflow-wrap:anywhere}
+.item-source-text{max-height:max(64px,min(200px,calc(100dvh - 600px)));margin:0;overflow:auto;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface-sunken);font:calc(11.5px * var(--code-scale))/1.5 var(--font-mono);color:var(--text-soft);white-space:pre-wrap;overflow-wrap:anywhere}
 .item-source-text:focus-visible{outline:2px solid var(--focus);outline-offset:0}
 
 .new-task-item{position:relative;display:flex;flex-direction:column;min-width:0}
+/* A short window: the preview gives up its height first, so the sheet's own
+   fields and its footer stay inside it (the sheet never grows past the window). */
+.new-task-sheet.draggable-dialog[open]:has(.item-source){max-height:calc(100dvh - 16px)}
+.new-task-sheet form{flex:1 1 auto}
+.new-task-sheet form>*{flex-shrink:0}
+.new-task-sheet form>.new-task-item{flex-shrink:1;min-height:0}
+.new-task-sheet form>.new-task-item:has(.item-source-preview){min-height:calc(116px * var(--text-scale))}
+.new-task-item .item-source-preview{overflow:hidden}
+.new-task-item>.item-source{flex:1 1 auto;min-height:0}
+.new-task-item .item-source-preview{flex:1 1 auto;min-height:0}
+.new-task-item .item-source-text{flex:1 1 auto;min-height:48px}
+/* With an issue the message is optional: the box gives the issue its room. */
+.new-task-sheet .new-task-prompt[data-item]{min-height:calc(56px * var(--text-scale))}
+/* The conversation shows what was sent at its own height. */
+.item-quoted .item-source-text{max-height:min(420px,50dvh)}
 .new-task-from{display:flex;align-items:center;gap:10px;min-height:22px;margin-top:-4px}
 .new-task-sheet .new-task-from .link-button{margin-left:0;display:inline-flex;align-items:center;gap:6px;color:var(--text-subtle)}
 .new-task-sheet .new-task-from .link-button:hover{color:var(--accent)}

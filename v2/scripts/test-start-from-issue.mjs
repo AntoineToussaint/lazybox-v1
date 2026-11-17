@@ -62,7 +62,7 @@ try {
   await expect(sheet.getByTestId('new-task-branch')).toHaveText('812-fix-refund-rounding');
   await expect(sheet.locator('.new-task-name')).toHaveText('Fix refund rounding');
   // Item text is not the person's: the Runner's YOLO default becomes Ask.
-  await expect(sheet.getByTestId('new-task-item-mode')).toContainText('becomes Ask');
+  await expect(sheet.getByTestId('new-task-item-mode')).toContainText('the agent asks first');
 
   // What the agent gets, exactly; the comments can be left out.
   await source.getByRole('button', { name: 'What the agent gets' }).click();
@@ -214,6 +214,11 @@ try {
   await page.setViewportSize({ width: 1024, height: 680 });
   const box = await sheet.boundingBox();
   assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 1024 && box.y + box.height <= 680, `the sheet fits at 1024×680: ${JSON.stringify(box)}`);
+  // Its contents too, with the preview and the notice open: the Start button stays on screen.
+  await expect(notice).toBeVisible();
+  const startButton = await sheet.locator('footer button.primary').boundingBox();
+  assert.ok(startButton && startButton.y + startButton.height <= Math.min(680, box.y + box.height), `Start is inside the sheet, on screen, at 1024×680: ${JSON.stringify({ startButton, box })}`);
+  await page.screenshot({ path: '.cache/start-from-issue-1024-light.png' });
   await page.keyboard.press('Escape');
 
   assert.deepEqual(errors, [], 'no page errors');
