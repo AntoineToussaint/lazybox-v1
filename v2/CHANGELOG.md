@@ -47,6 +47,10 @@ leave out.
 - **Steadier panels and dialogs** A workspace whose saved pages cannot be read still opens, on the default layout, with a notice. Menus close on a click outside or Esc without closing what is under them, dialogs give the focus back, and red buttons read right in light mode.
 - **Keys go where you look** With two conversations side by side, y, a or n answers the one you last used; ⌘\ and ⌥⌘←/→ belong to the editor only while you type in it. In the Inbox, a click outside keeps the note you are writing, and j and k stop on tasks and plans waiting for you.
 - **New work starts from today's main** Adding a repository to a workspace (New task, Add repository, Start from an issue, lazybox new) first fetches its default branch from origin and starts the workspace's branch there, never from a stale copy or another branch; your checkout is not touched. Offline, it starts from the last main Lazybox knows and says so. A branch you chose to continue starts where you said.
+- **New task in the header** The header's main button is New task ⌘N: repositories, an agent and what to do, in one sheet. The chat icon beside it starts a conversation in the workspace you are in (⇧⌘N), and the welcome's second step is Start a task.
+- **Tabs behind stay out of the way** A conversation in a tab behind another no longer holds a live connection; it catches up the moment you bring it forward. In a browser window with many tabs, a review's card and the window's other reads no longer wait behind them.
+- **Tidier agent rows** A conversation whose sub-agents are listed under it no longer repeats their count on its own line, and a sub-agent panel says Ended without a report once.
+- **A clearer Missions board** The mission picker is a menu with each mission's progress, a working task leads with Open conversation, and the process reads One agent per task.
 
 ### Chat and Send now
 
@@ -63,6 +67,7 @@ leave out.
 - **Keyboard all the way** ⌘K commands keep your draft, the model under the message box opens /model from the keyboard, a restart asks in a card Enter confirms, and the Enter that confirms Japanese, Chinese or Korean input no longer sends.
 - **A steadier conversation** No false Reconnecting when nothing is happening; text added while a message sends is kept; past 256 sub-agents the oldest finished ones make room; dismissed failures stay dismissed; typing in a long conversation no longer rescans it.
 - **Compactions shown, errors in words** Codex's context compaction is one quiet line, as Claude's is, and a failure says what happened instead of raw connection errors.
+- **Fewer debug details** The ⋯ menu names the subscription only when Lazybox knows it and a gateway only when it is not the direct one; New conversation shows Gateway only when the Runner has another; a question card shows the raw request only when Lazybox could not read the question.
 
 ### Review
 
@@ -96,6 +101,7 @@ leave out.
 - **Your conversations on your phone** Pair a phone by QR code over Tailscale to follow and answer your conversations, and follow a command's output live.
 - **Notifications** Your phone tells you when an agent asks a question, waits for approval or fails, even with Lazybox closed. Choose the kinds and quiet hours.
 - **Answer from the Inbox** Allow, deny or answer a question from its row, with a few seconds to undo; swipe for more.
+- **Pairing offers what the phone can do** Pairing no longer offers Start conversations, which the phone has no screen for yet; a phone already paired with it keeps it.
 
 ### Extensions
 
