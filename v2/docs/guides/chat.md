@@ -18,9 +18,13 @@ it did.
   works is **queued** and delivered when the turn ends. Queued messages wait
   above the message box (*Queued — Claude is busy (Running a command · 5m)*),
   each with **Send now**, which stops the agent's current step and sends yours
-  next (it asks first and names the step; `Esc` keeps waiting), and, for
+  next in one click (its tooltip names the step it stops), and, for
   Codex, **Steer**, which hands it to the running turn without stopping it.
-  Claude cannot take a message mid-turn, and the strip says so.
+  Claude cannot take a message mid-turn, and the strip says so. After Send
+  now the conversation shows one quiet line, *Stopped to send your message*,
+  and your message goes as soon as the step stops, the other queued messages
+  in order after it. A message never waits while the agent is idle, even
+  after Lazybox restarted.
 - **Dictate** instead of typing: hold `Right ⌥` (or `⌥Space`) and speak, or click the
   microphone in the message box — see [Voice](voice.md).
 - **Attach** files with the paperclip, by dropping them on the chat, or by

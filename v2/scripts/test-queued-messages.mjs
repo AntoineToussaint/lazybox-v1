@@ -13,7 +13,7 @@ const b64=value=>Buffer.from(JSON.stringify(value)).toString('base64');
 const now=Date.now();
 const busy=(session,provider)=>Object.assign(session,{provider,busy:true,status:'running',queued:0,queuedMessages:[],agents:[{id:'root',status:'running',phase:'tool',tool:'Bash',phaseSinceUnixMillis:String(now-300000),turnStartedAtUnixMillis:String(now-310000)}]});
 const [claude,codex]=f.sessions;
-busy(claude,'claude');
+busy(claude,'claude');claude.sentNowReply='Switching to port 4000.';
 busy(codex,'codex');Object.assign(codex,{profileId:'codex-default',capabilities:{...codex.capabilities,steer:true}});
 for(const session of [claude,codex]){
  const ch=f.openEvents(session.id),at=offset=>new Date(now+offset).toISOString();
@@ -53,6 +53,19 @@ try{
  await expect.poll(deliveries).toEqual([{operationId:f.mutations.find(m=>m.method==='Apply'&&m.body.message)?.body.operationId,how:'now'}]);
  assert.equal(claude.interrupted,1,'the Runner interrupts the turn');
  await expect(strip).toHaveCount(0,{timeout:5000});
+ // Claude reports the stop as an "error during execution": the conversation
+ // says it in one quiet line, then the message is the next turn. No error
+ // card, no fault, and never the provider's raw diagnostic.
+ await expect(chat.locator('.stopped-line')).toHaveText('Stopped to send your message');
+ await expect(chat.getByText('Switching to port 4000.')).toBeVisible();
+ await expect(chat.locator('article.message.failure')).toHaveCount(0);
+ await expect(chat.getByText(/error from the provider/i)).toHaveCount(0);
+ await expect(chat.getByText(/ede_diagnostic/)).toHaveCount(0);
+ await expect(chat.getByRole('alert')).toHaveCount(0);
+ const order=await chat.locator('[data-message-id]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim()));
+ const queuedAt=order.findIndex(t=>t.includes('Use port 4000 instead, 3000 is taken.')),stoppedAt=order.indexOf('Stopped to send your message'),repliedAt=order.findIndex(t=>t.includes('Switching to port 4000.'));
+ assert.ok(queuedAt>=0&&queuedAt<stoppedAt&&stoppedAt<repliedAt,`the message, the stop, then its turn: ${JSON.stringify(order)}`);
+ await page.screenshot({path:'.cache/queued-sent-now.png'});
 
  // ── Several queued messages: two shown, the rest counted, and the strip can be put away.
  for(const text of ['First follow-up','Second follow-up','Third follow-up']){await composer.fill(text);await composer.press('Enter');await expect.poll(()=>claude.queuedMessages.length).toBeGreaterThan(0);}

@@ -49,6 +49,8 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
   if (m.type === 'tools') return m.tools ? <ToolLines entries={m.tools} turn={turn}/> : null;
   if (m.type === 'answered' && m.answered) return <AnsweredLine note={m.answered}/>;
   if (m.type === 'command') return <div className="command-line" role="note" data-message-id={m.id}><Icon name="check" size={12}/><span>{m.text}</span></div>;
+  // A turn Send now stopped: one quiet line, not an error.
+  if (m.type === 'stopped') return <div className="command-line stopped-line" role="note" data-message-id={m.id}><Icon name="stop" size={12}/><span>{m.text}</span></div>;
   if (m.origin) return <SystemEvent message={m} agentName={agentName} onOpenFile={onOpenFile} onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}/>;
   if (m.type === 'notice') return <RunnerNoticeLine message={m}/>;
   if (m.type === 'operation_accepted' && m.command) return <div className="command-line command-sent" role="note" data-message-id={m.id} title="You ran this command" onContextMenu={menu && contextMenu<MessageMenuDetail>('message', menu, { message: m, role: messageRole(m), sessionId }, 'Message actions')}><Icon name="chevronRight" size={12}/><code>{m.text.trim()}</code></div>;
@@ -62,6 +64,8 @@ const MessageRow = memo(function MessageRow({ message: m, agentName, onOpenFile,
     {/* Only an agent's own words offer to run their commands. */}
     {m.type === 'message_delta' ? <RunMessageContext.Provider value={m.id}><RichContent text={m.text} onOpenFile={onOpenFile}/><InlineRuns messageId={m.id}/></RunMessageContext.Provider> : <PersonText text={m.text} quoted={m.type === 'operation_accepted'} onOpenFile={onOpenFile}/>}
     {m.files?.length ? <SentAttachments files={m.files}/> : null}
+    {/* What the provider said, for whoever reports it: never the line itself. */}
+    {m.type === 'failure' && m.detail ? <details className="failure-detail"><summary>Details</summary><pre>{m.detail}</pre></details> : null}
     <MessageArtifactActions message={m}/>
   </article>;
 });

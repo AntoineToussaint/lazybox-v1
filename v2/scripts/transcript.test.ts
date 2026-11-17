@@ -219,3 +219,33 @@ test('a reader stops following a conversation whose stream ended',async()=>{
  await new Promise(resolve=>setTimeout(resolve,1200));stop();
  assert.equal(reader.getSnapshot().status,'Complete');assert.equal(opened,1);
 });
+
+// Send now stops Claude's turn; Claude reports that stop as an "error during
+// execution" ("[ede_diagnostic] …"). The conversation says it in one quiet
+// line, never as an error and never in the provider's words; a real failure
+// with that text is a plain sentence with the raw text kept as its detail.
+test('a turn Send now stopped is one quiet line; a raw provider diagnostic is never shown',()=>{
+ const ede='[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use';
+ let state=emptyTranscript();
+ const add=(event:Record<string,unknown>)=>{state=appendTranscript(state,create(JournalEventSchema,{cursor:state.cursor+1n,event:{turnId:'turn',...event}}));};
+ add({type:'operation_accepted',operationId:'build',text:'Run the build'});
+ add({type:'turn_started'});
+ add({type:'tool_activity',providerDataJson:new TextEncoder().encode(JSON.stringify({type:'tool_call',id:'toolu_dev',name:'Bash',status:'running',input:{command:'npm run dev'}}))});
+ add({type:'operation_accepted',operationId:'urgent',text:'Use port 4000 instead'});
+ add({type:'operation_accepted',operationId:'urgent:now',text:''});
+ add({type:'failure',status:'provider_error',text:ede,account:{state:'unknown',reason:'error_during_execution'}});
+ add({type:'turn_ended',status:'interrupted'});
+ assert.deepEqual(state.messages.map(m=>[m.type,m.text]),[['operation_accepted','Run the build'],['tools',''],['operation_accepted','Use port 4000 instead'],['stopped','Stopped to send your message']]);
+ assert.equal(state.messages[1].tools![0].status,'unknown','the step it stopped is no longer shown running');
+ assert.equal(state.sendingNow,false);
+ // The next turn's failure, with no stop asked for, is a failure: in plain words.
+ add({type:'turn_started'});
+ add({type:'failure',status:'provider_error',text:ede});
+ const failure=state.messages.at(-1)!;
+ assert.equal(failure.type,'failure');assert.equal(failure.text,'Claude stopped unexpectedly.');assert.equal(failure.detail,ede);
+ assert.ok(state.messages.every(m=>!m.text.includes('ede_diagnostic')),'no raw diagnostic is a line of the conversation');
+ // A limit during a Send now is still a limit, never taken for the stop.
+ add({type:'operation_accepted',operationId:'other:now',text:''});
+ add({type:'failure',status:'exhausted',account:{state:'exhausted'}});
+ assert.equal(state.sendingNow,true);
+});

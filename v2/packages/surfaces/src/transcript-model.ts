@@ -1,6 +1,6 @@
 import type { JournalEvent } from '@lazybox/protocol';
 import { providerData } from '@lazybox/client-core';
-import { failureSentence, isLimitState, switchNote, type SwitchNote } from './subscription-model';
+import { failureSentence, isLimitState, isProviderDiagnostic, switchNote, type SwitchNote } from './subscription-model';
 import { emptySubagents, SubagentFold, subagentRelevant, type Subagents } from './subagent-model';
 import { applyToolPayload, hiddenTool, THINKING, type ToolEntry } from './tool-lines';
 import { answerNote, requestNote, type AnswerNote, type RequestNote } from './request-model';
@@ -21,7 +21,9 @@ export type TranscriptMessage = { id: string; type: string; text: string; turnId
   /** A `reattached` marker: when the last of its restarts was. */
   at?: number;
   /** `lineage`: an agent-tree line (started, messaged, stopped, granted) and what it points at. */
-  lineage?: LineageNote };
+  lineage?: LineageNote;
+  /** A `failure`: what the provider said, when the line says it in plain words instead. */
+  detail?: string };
 /** One line about an agent tree, as the Runner recorded it (runner/orchestrator.go). */
 export type LineageNote = { kind: string; conversation: string; session: string; mission: string; direction: string; plan: string };
 /** An agent review of this conversation's work (the Runner's review_started /
@@ -35,7 +37,9 @@ function reviewNote(data: Record<string, unknown>, finished: boolean): ReviewNot
   return { review: text('review'), workspace: text('workspace'), reviewerSession: text('reviewerSession'), reviewerLabel: text('reviewerLabel') || 'Reviewer', scopeLabel: text('scopeLabel'), blockers: count('blockers'), majors: count('majors'), minors: count('minors'), nits: count('nits'), finished };
 }
 /** `requests`: what each question or approval asked, to say how it was answered. */
-export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote>; /** The agent's slash commands and models (`command_catalog`). */ catalog: CommandCatalog };
+export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote>; /** The agent's slash commands and models (`command_catalog`). */ catalog: CommandCatalog;
+  /** Send now stopped the turn in progress, which has not ended yet. */
+  sendingNow?: boolean };
 export const emptyTranscript = (): Transcript => ({ messages: [], recent: [], activity: [], activityTruncated: false, cursor: 0n, appendToLast: false, reportedModel:'', subagents: emptySubagents(), requests: {}, catalog: emptyCatalog() });
 
 /** Fold one record into durable message-shaped state; diagnostic events are bounded separately. */
@@ -127,7 +131,20 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       next.appendToLast = false;
       continue;
     }
-    if (event.type === 'turn_ended' || event.type === 'session_closed') settleTools(messages ?? state.messages, replaceAt, owned);
+    if (event.type === 'turn_ended' || event.type === 'session_closed') settleTools(messages ?? state.messages, replaceAt, owned, !!next.sendingNow);
+    // Send now stops the turn in progress (the Runner's interrupt
+    // "<message>:now"), and the queued message is the next turn. The stop is
+    // one quiet line, never an error: a journal from before the Runner knew
+    // (or a worker that still reports it) has Claude's "error during
+    // execution" failure here, which only reports the stop.
+    if (event.type === 'operation_accepted' && !event.text && event.operationId.endsWith(':now')) { next.sendingNow = true; next.appendToLast = false; continue; }
+    if (next.sendingNow && event.type === 'failure' && stopReport(event.status, event.account?.state)) { next.appendToLast = false; continue; }
+    if (next.sendingNow && (event.type === 'turn_ended' || event.type === 'session_closed')) {
+      next.sendingNow = false;
+      if (event.type === 'turn_ended') add({ id: record.cursor.toString(), type: 'stopped', text: 'Stopped to send your message', turnId: event.turnId });
+      next.appendToLast = false;
+      continue;
+    }
     // A review of this conversation's work: one card, where the review started.
     if (event.type === 'review_started' || event.type === 'review_finished') {
       const note = reviewNote(providerData(event.providerDataJson), event.type === 'review_finished');
@@ -197,7 +214,8 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
       } else add({ id: record.cursor.toString(), type: event.type, text: event.text, turnId: event.turnId });
       next.appendToLast = true;
     } else if ((event.type === 'operation_accepted' || event.type === 'failure') && (event.text || files?.length)) {
-      add({ id: record.cursor.toString(), type: event.type, text: event.type === 'failure' ? failureSentence(event.status, event.text) : event.text, turnId: event.turnId, files, ...(event.type === 'operation_accepted' && event.operationId ? { operationId: event.operationId } : {}), ...(event.type === 'operation_accepted' && ranCommand(event.text, next.catalog) ? { command: true } : {}) });
+      const sentence = event.type === 'failure' ? failureSentence(event.status, event.text) : event.text;
+      add({ id: record.cursor.toString(), type: event.type, text: sentence, turnId: event.turnId, files, ...(event.type === 'failure' && event.text.trim() && sentence !== event.text.trim() ? { detail: event.text.trim() } : {}), ...(event.type === 'operation_accepted' && event.operationId ? { operationId: event.operationId } : {}), ...(event.type === 'operation_accepted' && ranCommand(event.text, next.catalog) ? { command: true } : {}) });
       next.appendToLast = false;
     } else if (BOUNDARY_TYPES.has(event.type) || (event.type === 'activity' && event.status === 'tool')) {
       next.appendToLast = false;
@@ -263,11 +281,15 @@ function endThinking(current: TranscriptMessage[], replaceAt: (index: number, me
   const tools = [...last.tools!.slice(0, -1), done];
   if (owned.has(last)) last.tools = tools; else replaceAt(current.length - 1, { ...last, tools });
 }
-/** At a turn's end a call still running never reported its result. */
-function settleTools(messages: TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, owned: Set<TranscriptMessage>) {
+/**
+ * At a turn's end a call still running never reported its result. `pastQueued`:
+ * the turn had messages queued during it (Send now stopped it for one), so a
+ * message is not where the turn began.
+ */
+function settleTools(messages: TranscriptMessage[], replaceAt: (index: number, message: TranscriptMessage) => void, owned: Set<TranscriptMessage>, pastQueued = false) {
   for (let i = messages.length - 1; i >= Math.max(0, messages.length - TOOL_LOOKBACK); i--) {
     const message = messages[i];
-    if (message.type === 'operation_accepted') break;
+    if (message.type === 'operation_accepted') { if (pastQueued) continue; break; }
     if (!message.tools?.some(t => t.status === 'running')) continue;
     const tools = message.tools.map(t => t.status === 'running' ? { ...t, status: 'unknown' as const } : t);
     if (owned.has(message)) message.tools = tools; else replaceAt(i, { ...message, tools });
@@ -279,6 +301,14 @@ export function ranCommand(text: string, catalog: CommandCatalog | undefined): b
   if (!input || !COMMAND_NAME.test(input.name) || input.args.includes('\n')) return false;
   const name = input.name.toLowerCase();
   return name === 'compact' || !!catalog?.commands.some(c => c.name.toLowerCase() === name || c.aliases?.some(a => a.toLowerCase() === name));
+}
+/**
+ * A failure that only reports a stop Lazybox asked for: a generic provider
+ * error, never a limit or a sign-in problem. Mirrors stopReport in the
+ * Runner's engine.
+ */
+function stopReport(status = '', account = ''): boolean {
+  return ['', 'unknown', 'provider_error', 'error_during_execution'].includes(status) && ['', 'unknown', 'available'].includes(account);
 }
 const ACTIVITY_TYPES = new Set(['tool_catalog', 'tool_activity', 'turn_ended', 'failure', 'session_closed']);
 const BOUNDARY_TYPES = new Set(['turn_started', 'turn_ended', 'session_closed', 'approval', 'question', 'request_resolved']);

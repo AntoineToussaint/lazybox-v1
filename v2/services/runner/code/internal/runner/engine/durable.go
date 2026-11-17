@@ -206,6 +206,9 @@ func Adopt(ctx context.Context, adapter agent.Adapter, open agent.Open, spool *j
 		e.ops[id] = accepted{receipt: r, adopted: true}
 	}
 	e.replayed, e.replayedAfter = scan.partial, scan.cursor
+	// A stop the previous Runner asked for is still the stop that ends the
+	// turn in progress: its report is not a provider error here either.
+	e.interrupting = scan.interrupting != "" && e.state.Busy
 	ok := e.appendLocked(agent.Event{Type: "runner_reattached", Status: "native_process_adopted", Cursor: scan.cursor})
 	e.mu.Unlock()
 	if !ok {
@@ -233,6 +236,9 @@ type journalScan struct {
 	// said is the conversation in the order the agent saw it: each user
 	// message where it was delivered, and the root agent's reply text.
 	said []utterance
+	// interrupting is the interrupt operation accepted since the main agent's
+	// last turn ended, if the provider did not refuse it.
+	interrupting string
 	// awaiting indexes the user messages in said whose delivery is not
 	// recorded yet: they stay where they were accepted until their receipt.
 	awaiting map[string]int
@@ -297,12 +303,20 @@ func scanJournal(ctx context.Context, spool *journal.Journal) (journalScan, erro
 		switch v.Type {
 		case "profile_changed":
 			s.cursor = 0
+			s.interrupting = ""
 			partial = map[uint64]map[string]int{}
+		case "turn_ended":
+			if v.AgentID == "" || v.AgentID == "root" {
+				s.interrupting = ""
+			}
 		case "operation_accepted":
 			if _, seen := s.kinds[v.OperationID]; !seen {
 				s.order = append(s.order, v.OperationID)
 			}
 			s.kinds[v.OperationID] = v.Kind
+			if v.Kind == agent.Interrupt {
+				s.interrupting = v.OperationID
+			}
 			if (v.Kind == agent.Answer || v.Kind == agent.Approve) && v.RequestID != "" {
 				s.responded[v.RequestID] = agent.Operation{Kind: v.Kind, RequestID: v.RequestID, Decision: v.Decision, Always: v.Always, Reason: v.Reason, Answers: v.Answers}
 			}
@@ -322,6 +336,9 @@ func scanJournal(ctx context.Context, spool *journal.Journal) (journalScan, erro
 			if r.ID != "" {
 				s.receipts[r.ID] = r
 				s.delivered(r)
+				if r.ID == s.interrupting && (r.Delivery == "failed" || r.Error != "") {
+					s.interrupting = ""
+				}
 			}
 		case "request_resolved":
 			delete(s.responded, v.RequestID)

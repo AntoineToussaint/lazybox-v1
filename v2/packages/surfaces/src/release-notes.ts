@@ -9,6 +9,15 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.13',
+    date: '2026-11-17',
+    title: 'Send now sends',
+    items: [
+      { title: 'Send now is one click, and it sends', body: 'A queued message\'s Send now stops the agent\'s current step and sends your message right away, the other queued messages in order after it, even after Lazybox restarted. The conversation shows one quiet line, Stopped to send your message, never an error from the provider.' },
+      { title: 'A message never waits for nothing', body: 'When a turn ends, queued messages go out; none stays in the queue while the agent is idle.' },
+    ],
+  },
+  {
     id: '2026-11-17.12',
     date: '2026-11-17',
     title: 'Diagrams that render, or say why',

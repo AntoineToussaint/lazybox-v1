@@ -14,6 +14,11 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.13] - 2026-11-17 · Send now sends
+
+- **Send now is one click, and it sends** A queued message's Send now stops the agent's current step and sends your message right away, the other queued messages in order after it, even after Lazybox restarted. The conversation shows one quiet line, Stopped to send your message, never an error from the provider.
+- **A message never waits for nothing** When a turn ends, queued messages go out; none stays in the queue while the agent is idle.
+
 ## [2026-11-17.12] - 2026-11-17 · Diagrams that render, or say why
 
 - **A diagram says why it did not render** Instead of "Diagram preview unavailable", a Mermaid diagram that cannot be drawn names the reason above its source: the line Mermaid could not read, a diagram type it does not know, a diagram too large to preview, a theme colour diagrams cannot use, or a renderer that could not load.

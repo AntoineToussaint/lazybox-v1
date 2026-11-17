@@ -13,3 +13,7 @@
 .command-line span{min-width:0;overflow-wrap:anywhere}
 .command-line code{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:calc(11.5px * var(--text-scale))/1.5 var(--font-mono,ui-monospace,monospace);color:var(--text-soft)}
 .command-sent{justify-content:flex-end}
+/* A failure's own words from the provider, folded under the plain sentence. */
+.failure-detail{margin-top:6px;color:var(--text-muted);font-size:calc(11.5px * var(--text-scale))}
+.failure-detail summary{cursor:pointer;width:fit-content}
+.failure-detail pre{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font:calc(11px * var(--text-scale))/1.5 var(--font-mono,ui-monospace,monospace);color:var(--text-soft)}

@@ -895,12 +895,28 @@ actions:
           if(how==='steer'&&!session.capabilities?.steer)return error('unimplemented','operation unsupported by adapter');
           if(!session.busy)return error('failed_precondition','no active turn');
           queue.splice(index,1);session.queued=Math.max(0,(session.queued||1)-1);
-          if(how==='now')session.interrupted=(session.interrupted||0)+1;
+          if(how==='now'){
+            session.interrupted=(session.interrupted||0)+1;
+            // The journal of a Claude turn stopped for it, as a Claude worker
+            // that still reports the stop writes it: the interrupt, Claude's
+            // "error during execution" failure, the turn ended interrupted.
+            // Then the message is the next turn (session.sentNowReply answers it).
+            const ch=eventStreams.get(session.id);
+            if(ch&&session.provider==='claude'){
+              ch.push({type:'operation_accepted',operationId:`${operationId}:now`,text:''});
+              ch.push({type:'failure',status:'provider_error',text:'[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use',account:{state:'unknown',reason:'error_during_execution'}});
+              ch.push({type:'turn_ended',status:'interrupted',providerDataJson:Buffer.from(JSON.stringify({subtype:'error_during_execution'})).toString('base64')});
+              ch.push({type:'turn_started'});
+              if(session.sentNowReply)ch.push({type:'message_delta',text:session.sentNowReply});
+            }
+          }
           return json({operationId:body.operationId,delivery:'accepted'});
         }
         // A message sent during a turn waits in the queue, which a test opts into with session.queuedMessages.
+        // Like the Runner, it is in the conversation from when it was accepted.
         if(session&&body.message&&session.busy&&Array.isArray(session.queuedMessages)){
           session.queuedMessages.push({operationId:body.operationId,text:String(body.message.text||'').slice(0,280),queuedAtUnixMillis:String(Date.now())});session.queued=session.queuedMessages.length;
+          eventStreams.get(session.id)?.push({type:'operation_accepted',operationId:body.operationId,text:String(body.message.text||'')});
           return json({operationId:body.operationId,delivery:'accepted'});
         }
         if(session&&['exhausted','throttled','auth_required','billing_error'].includes(session.fault)&&body.message){

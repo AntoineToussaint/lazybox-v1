@@ -188,9 +188,17 @@ const codeSentences: Record<string, string> = {
   native_exit_unconfirmed: 'Lazybox could not confirm that the agent process stopped.',
 };
 
-/** A failure the agent reported, as a sentence. Provider prose is kept; bare codes are translated. */
+/**
+ * Claude's own report that a turn ended in the middle of its work
+ * ("[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"):
+ * a diagnostic for Anthropic, never words for a person.
+ */
+export const isProviderDiagnostic = (text = '') => /^\s*\[ede_diagnostic\]/i.test(text);
+
+/** A failure the agent reported, as a sentence. Provider prose is kept; bare codes and diagnostics are translated. */
 export function failureSentence(status = '', text = ''): string {
   const body = text.trim();
+  if (isProviderDiagnostic(body)) return 'Claude stopped unexpectedly.';
   if (body && !looksLikeCode(body)) return body;
   return codeSentences[body] || codeSentences[status] || 'The agent stopped after an error from the provider.';
 }

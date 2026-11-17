@@ -96,6 +96,10 @@ type Engine struct {
 	turnOp string
 	// queuedAt is when each queued message was accepted.
 	queuedAt map[string]time.Time
+	// interrupting: Lazybox asked the provider to stop the turn in progress
+	// (Stop, Send now). How that turn ends is the interrupt, not a provider
+	// error (see stopReport). Cleared when the main agent's turn ends.
+	interrupting bool
 }
 
 // TurnHooks observe the main agent's turns, for code checkpoints.
@@ -403,6 +407,10 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	if op.Kind == agent.Answer || op.Kind == agent.Approve {
 		e.responses[op.RequestID] = true
 	}
+	// Set before the provider is asked: the turn can end before its receipt.
+	if op.Kind == agent.Interrupt {
+		e.interrupting = true
+	}
 	e.mu.Unlock()
 	r, err := e.provider.Apply(e.ctx, op)
 	r.ID = op.ID
@@ -414,6 +422,10 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	e.ops[op.ID] = accepted{fingerprint: fingerprint, receipt: r}
 	if errors.Is(err, agent.ErrUnsupported) {
 		delete(e.responses, op.RequestID)
+	}
+	if op.Kind == agent.Interrupt && err != nil {
+		// Not stopped: the turn goes on, and an error in it is an error.
+		e.interrupting = false
 	}
 	e.appendLocked(map[string]any{"type": "receipt", "receipt": r})
 	// A local submission is not request resolution: only the adapter's
@@ -455,7 +467,9 @@ func (e *Engine) DeliverQueued(ctx context.Context, id, how string) (agent.Recei
 		e.mu.Unlock()
 		return agent.Receipt{}, ErrNotQueued
 	}
-	if e.state.Closed || e.state.Fault != "" {
+	// A provider error that ended a turn does not hold the queue: the
+	// message continues the conversation, as a new one would.
+	if e.state.Closed || (e.state.Fault != "" && !agent.TurnFault(e.state.Fault)) {
 		e.mu.Unlock()
 		return agent.Receipt{}, errors.New("session is closed or faulted")
 	}
@@ -522,7 +536,17 @@ func (e *Engine) dispatch() {
 	e.opMu.Lock()
 	defer e.opMu.Unlock()
 	e.mu.Lock()
-	if e.state.Busy || e.state.Closed || e.state.Fault != "" || len(e.queue) == 0 {
+	if e.state.Busy || e.state.Closed || len(e.queue) == 0 {
+		e.mu.Unlock()
+		return
+	}
+	// A provider error ended the last turn: a queued message continues the
+	// conversation and clears it, as a message sent now would (Apply). A
+	// message never waits in the queue while the agent is idle.
+	if agent.TurnFault(e.state.Fault) && e.queue[0].Kind == agent.Message {
+		e.state.Fault = ""
+	}
+	if e.state.Fault != "" {
 		e.mu.Unlock()
 		return
 	}
@@ -636,6 +660,10 @@ func (e *Engine) receive() {
 				break
 			}
 			e.state.Busy = false
+			if e.interrupting && (ev.Status == "failed" || ev.Status == "") {
+				ev.Status = "interrupted"
+			}
+			e.interrupting = false
 			for id, pending := range e.state.Pending {
 				if pending.AgentID == "" || pending.AgentID == "root" {
 					e.appendLocked(agent.Event{Type: "request_resolved", RequestID: id, Status: "turn_ended"})
@@ -661,6 +689,10 @@ func (e *Engine) receive() {
 			}
 			delete(e.state.Pending, ev.RequestID)
 		case "profile_changed":
+			// A new native session: no stop is pending in it.
+			if rootEvent {
+				e.interrupting = false
+			}
 			// A checkpoint or a retry delivered now is a turn: queued messages
 			// wait for it. Otherwise the next queued message carries it.
 			if rootEvent && ev.Status != "checkpoint_next_message" {
@@ -669,6 +701,16 @@ func (e *Engine) receive() {
 		case "failure":
 			if !rootEvent {
 				break
+			}
+			if e.interrupting && stopReport(ev) {
+				// The provider's report of the stop Lazybox asked for (Claude:
+				// "[ede_diagnostic] … stop_reason=tool_use"): the turn was
+				// interrupted, nothing failed. It is not recorded, faults
+				// nothing and observes no account; the turn_ended says how the
+				// turn ended.
+				e.mu.Unlock()
+				e.commit(ev)
+				continue
 			}
 			if e.state.Fault == "" || (ev.Status != "unknown" && ev.Status != "provider_error" && ev.Status != "") {
 				e.state.Fault = ev.Status
@@ -808,6 +850,29 @@ func (e *Engine) Title(ctx context.Context, description string) (string, error) 
 
 // HostID is the session host running the provider's native process, or "".
 func (e *Engine) HostID() string { return agent.HostOf(e.provider) }
+
+// stopReport reports whether a main-agent failure is how a provider says a
+// turn ended because it was asked to stop: a generic provider error, never an
+// account limit or a sign-in problem, which still count. Claude ends an
+// interrupted turn with an "error during execution" result. The Claude worker
+// drops that report itself, but a worker outlives Runner upgrades (one
+// started before it learned to still sends it), so the Runner, which knows it
+// asked for the stop, decides here.
+func stopReport(ev agent.Event) bool {
+	switch ev.Status {
+	case "", "unknown", "provider_error", "error_during_execution":
+	default:
+		return false
+	}
+	if ev.Account != nil {
+		switch ev.Account.State {
+		case "", "unknown", "available":
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 // stoppedStatus reports whether an agent has finished and cannot be stopped.
 func stoppedStatus(status agent.Status) bool {
