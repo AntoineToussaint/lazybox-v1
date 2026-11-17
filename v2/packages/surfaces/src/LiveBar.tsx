@@ -14,7 +14,7 @@ import { PanelShownContext } from './useAttention';
 import { contextMenu, copyText } from './ContextMenu';
 import { stripAnsi } from './ansi';
 import { LogTail, type LogActions } from './LogView';
-import { openInBrowser, openInViewer } from './web-links';
+import { openInBrowser, openInViewer, openPreview } from './web-links';
 import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import { readPreference, writePreference } from './view-state';
@@ -159,6 +159,7 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
   const menu = contextMenu('live-bar', () => [
     canMove && { label: 'Move to background', icon: 'collapse', disabled: moving === managed!.id && 'Moving…', run: () => moveToBackground() },
     { label: managed ? 'Stop command' : 'Interrupt', icon: 'stop', danger: true, disabled: !!managed && stopping === managed.id && 'Stopping…', run: () => stop() },
+    managed && managed.ports.length > 0 && { label: `Preview :${managed.ports[0]}`, icon: 'globe', run: () => openPreview(managed.ports[0]) },
     managed && onOpenCommand && { label: 'Open in console', icon: 'output', run: () => openInConsole(managed.id) },
     managed && !tailHidden && { label: expanded ? 'Less output' : 'More output', icon: expanded ? 'collapse' : 'expand', run: () => setExpanded(value => !value) },
     managed && { label: tailHidden ? 'Show output' : 'Hide output', icon: tailHidden ? 'eye' : 'close', run: () => showOutput(tailHidden) },
@@ -177,6 +178,8 @@ export function LiveBar({ api, session, sessionID, live, disconnected, activity,
       <span className="live-bar-actions">
         {managed && tailHidden && <button type="button" className="live-bar-button" aria-expanded={false} onClick={() => showOutput(true)} title={inConsole === managed.id && !hidden ? 'The output is open in the console. Show its latest lines here too' : 'Show the command’s latest output here'}><Icon name="eye" size={12}/><span>Show output</span></button>}
         {managed && !tailHidden && <button type="button" className="live-bar-button" aria-expanded={expanded} aria-controls={outputId} onClick={() => setExpanded(value => !value)}><Icon name={expanded ? 'collapse' : 'expand'} size={12}/><span>{expanded ? 'Less output' : 'More output'}</span></button>}
+        {managed && managed.ports.length > 0 && <button type="button" className="live-bar-button live-bar-preview" title={`Open http://localhost:${managed.ports[0]} in the Web panel (or your browser)`}
+          onClick={() => void openPreview(managed.ports[0]).catch(e => setError(`Could not open port ${managed.ports[0]}: ${humanError(e)}`))}><Icon name="globe" size={12}/><span>Preview :{managed.ports[0]}</span></button>}
         {managed && onOpenCommand && <button type="button" className="live-bar-button" onClick={() => openInConsole(managed.id)} title="The whole output, with search, in the command console"><Icon name="output" size={12}/><span>Open in console</span></button>}
         {canMove && <button type="button" className="live-bar-button live-bar-move" disabled={moving === managed!.id} aria-label="Move to background"
           title={`This command keeps running${managed!.ports.length ? ` (listening on port ${managed!.ports[0]})` : ''}. Move it to the background: ${agentLabel(session)} gets its report now and continues, and the command keeps running, its output in the console.`}

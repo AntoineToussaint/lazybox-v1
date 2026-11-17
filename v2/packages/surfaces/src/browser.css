@@ -110,3 +110,12 @@ button.browsing-badge:hover{filter:brightness(1.08)}
 .browser-workspace>header strong{color:var(--text);font-size:calc(13px * var(--text-scale))}
 .browser-workspace>header small{flex:1;min-width:120px;font-size:calc(11.5px * var(--text-scale));color:var(--text-faint)}
 .browser-workspace>header button{font-size:calc(12px * var(--text-scale))}
+/* Settings → Browser: why agents cannot browse, and the fix. */
+.browser-availability{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid var(--warn-line);border-radius:8px;background:var(--warn-bg);color:var(--text);font-size:calc(12.5px * var(--text-scale));line-height:1.45}
+.browser-availability>svg{flex:none;color:var(--warn)}
+.browser-availability>span{flex:1 1 260px;min-width:0}
+.browser-availability button{flex:none;display:inline-flex;align-items:center;gap:6px}
+.browser-install-output{margin:0 0 12px}
+.browser-install-output .console{margin:0}
+.browser-install-output .output{max-height:220px}
+.browser-workspace-switch{display:inline-flex;align-items:center;gap:6px;font-size:calc(12px * var(--text-scale));color:var(--text-secondary)}

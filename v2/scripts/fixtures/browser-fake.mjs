@@ -9,8 +9,17 @@ const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64');
 export function createBrowserFake({ frame, sessions, mutations }) {
   const browsers = new Map();
   let seq = 0;
-  const settings = { revision: '1', defaultPermission: 'ask', allowedSites: ['docs.python.org'], downloads: 'ask', showPanel: true, problem: '',
-    workspaces: [{ collectionId: 'alpha', name: 'Alpha feature', sites: ['github.com'], hasData: true, dataBytes: String(3_600_000) }, { collectionId: 'beta', name: 'Beta release', sites: [], hasData: false, dataBytes: '0' }] };
+  const settings = { revision: '1', defaultPermission: 'ask', allowedSites: ['docs.python.org'], downloads: 'ask', showPanel: true, problem: '', availability: 'ready', installable: false, installCommandId: '',
+    workspaces: [{ collectionId: 'alpha', name: 'Alpha feature', sites: ['github.com'], hasData: true, dataBytes: String(3_600_000), off: false }, { collectionId: 'beta', name: 'Beta release', sites: [], hasData: false, dataBytes: '0', off: false }] };
+  // Whether Chromium is installed (Settings → Browser's "Install Chromium"); the test flips it.
+  let chromium = true;
+  const available = () => {
+    const off = settings.defaultPermission === 'off';
+    Object.assign(settings, off ? { availability: 'off', problem: 'The agent browser is off: agents get no browser.', installable: false }
+      : !chromium ? { availability: 'not_installed', problem: 'Chromium for the agent browser isn’t installed.', installable: true }
+      : { availability: 'ready', problem: '', installable: false });
+    return settings;
+  };
   const session = id => sessions.find(s => s.id === id);
   const entry = id => {
     if (!browsers.has(id)) {
@@ -24,6 +33,12 @@ export function createBrowserFake({ frame, sessions, mutations }) {
   const mirror = (id, b) => { const s = session(id); if (!s) return; if (b.state.status === 'closed') delete s.browser; else s.browser = { ...b.state }; };
   const fake = {
     settings, browsers,
+    /** Set by the fake Runner: a managed command whose output a test writes (runner-ui.mjs streamCommand). */
+    streamCommand: undefined,
+    /** The Chromium install the UI started, to write its output and finish it. */
+    install: undefined,
+    /** Chromium is (not) installed: Settings → Browser offers the install. */
+    setChromium(installed) { chromium = installed; available(); },
     /** Every control, input and decision the UI sent, in order. */
     controls: [], inputs: [], decisions: [],
     state(id) { return entry(id).state; },
@@ -98,12 +113,39 @@ export function createBrowserFake({ frame, sessions, mutations }) {
           const state = fake.setState(owner.id, { waiting: owner.pending.some(p => p.type === 'browser_request') });
           return { value: state };
         }
-        case 'GetBrowserSettings': return { value: settings };
+        case 'GetBrowserSettings': return { value: available() };
+        case 'InstallBrowser': {
+          mutations.push({ method, body });
+          if (fake.install && !fake.install.done) return { value: fake.install };
+          if (chromium) return { error: { code: 'failed_precondition', message: 'Chromium for the agent browser is already installed' } };
+          fake.install = fake.streamCommand('', 'Install Chromium for the agent browser', ['node', 'playwright-core/cli.js', 'install', '--only-shell', '--no-remove', 'chromium']);
+          fake.install.origin = 'runner';
+          settings.installCommandId = fake.install.id;
+          const { output, live, write, finish, ...status } = fake.install;
+          return { value: status };
+        }
+        // Waits for the install to end, as the Runner's WaitCommand does (other commands are the fake Runner's).
+        case 'WaitCommand': {
+          const command = fake.install;
+          if (!command || command.id !== body.commandId) return undefined;
+          const answer = () => { const { output, live, write, finish, ...status } = command; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(status)); };
+          const poll = setInterval(() => { if (command.done || res.destroyed) { clearInterval(poll); if (!res.destroyed) answer(); } }, 50);
+          return true;
+        }
+        // "Give Claude the browser": the agent restarts with it, as the Runner's GiveBrowser does.
+        case 'GiveBrowser': {
+          mutations.push({ method, body });
+          const s = session(body.sessionId);
+          if (!s) return { error: { code: 'not_found', message: 'No such session' } };
+          if (s.browserAccess !== 'can_give') return { error: { code: 'failed_precondition', message: 'Nothing to give' } };
+          s.browserAccess = 'has';
+          return { value: { session: s } };
+        }
         case 'SaveBrowserSettings': {
           mutations.push({ method, body });
           if (body.revision !== settings.revision) return { error: { code: 'aborted', message: 'Browser settings changed' } };
-          Object.assign(settings, { defaultPermission: body.defaultPermission, allowedSites: body.allowedSites || [], downloads: body.downloads, showPanel: !!body.showPanel, workspaces: (body.workspaces || []).map(w => ({ ...settings.workspaces.find(o => o.collectionId === w.collectionId), sites: w.sites || [] })), revision: String(Number(settings.revision) + 1) });
-          return { value: settings };
+          Object.assign(settings, { defaultPermission: body.defaultPermission, allowedSites: body.allowedSites || [], downloads: body.downloads, showPanel: !!body.showPanel, workspaces: (body.workspaces || []).map(w => ({ ...settings.workspaces.find(o => o.collectionId === w.collectionId), sites: w.sites || [], off: !!w.off })), revision: String(Number(settings.revision) + 1) });
+          return { value: available() };
         }
         case 'ClearBrowserData': {
           mutations.push({ method, body });

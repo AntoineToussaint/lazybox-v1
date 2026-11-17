@@ -147,6 +147,7 @@ Act on the conversation you last clicked or focused.
 | Switch model… | — | — |
 | Change permissions… | — | — |
 | Switch subscription… | — | — |
+| Give the agent the browser | — | — |
 | Let this conversation run agents… | — | — |
 | Compact the context | — | — |
 | Start over in a new conversation | — | — |

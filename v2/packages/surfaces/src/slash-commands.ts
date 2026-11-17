@@ -263,6 +263,8 @@ export type SlashContext = {
   subscriptions: number;
   /** Who can review this conversation's work, the default first (review-model.ts reviewerChoices). */
   reviewers?: readonly { key: string; label: string }[];
+  /** Whether the agent has the agent browser (Session.browserAccess): has, can_give, off, or "" where it does not apply. */
+  browser?: string;
 };
 
 const unless = (...reasons: (string | false | undefined)[]) => reasons.find(Boolean) || undefined;
@@ -277,6 +279,9 @@ export function lazyboxCommands(ctx: SlashContext): SlashCommand[] {
     { key: 'lazybox:model', name: 'model', group: 'lazybox', icon: 'sparkle', argumentHint: '<name>', description: ctx.liveModel ? `Switch ${agentName}'s model` : `Switch ${agentName}'s model${restart(false)}`, choices: models, freeArgument: true, disabled: unless(notLive), keywords: 'opus sonnet haiku gpt' },
     { key: 'lazybox:permissions', name: 'permissions', group: 'lazybox', icon: 'shield', argumentHint: 'ask|read-only|yolo', aliases: ['permission', 'yolo'], description: 'Ask, Read only or YOLO', choices: permissions, disabled: unless(notLive, !ctx.coding && 'Assistants are read-only') },
     { key: 'lazybox:subscription', name: 'subscription', group: 'lazybox', icon: 'card', description: 'Switch subscription…', aliases: ['account'], disabled: unless(notLive), keywords: 'account login profile limit' },
+    { key: 'lazybox:browser', name: 'browser', group: 'lazybox', icon: 'globe', description: `Give ${agentName} the browser${ctx.browser === 'can_give' ? ' (restarts the agent; the conversation continues)' : ''}`,
+      disabled: unless(notLive, ctx.browser === 'has' && `${agentName} has the browser`, ctx.browser === 'off' && 'The agent browser is off in Settings → Browser', !ctx.browser && 'The agent browser is not available in this conversation'),
+      unsupported: !ctx.browser, keywords: 'chromium web page preview playwright' },
     { key: 'lazybox:compact', name: 'compact', group: 'lazybox', icon: 'collapse', description: 'Compact the context: summarize the conversation so far', disabled: unless(notLive, ctx.busy && 'Wait for the turn to finish', !ctx.compact && (ctx.provider === 'codex' ? 'Codex compacts its context on its own' : isAcp(ctx.provider) ? `${agentName} has no /compact; see its own commands` : 'Not available until the agent reports its commands')), unsupported: !ctx.compact, keywords: 'summarize context shrink tokens' },
     { key: 'lazybox:clear', name: 'clear', group: 'lazybox', icon: 'plus', description: 'New conversation in this workspace (this one is kept)', aliases: ['new'], disabled: unless(!ctx.workspace && 'Only in a workspace'), keywords: 'reset fresh start' },
     { key: 'lazybox:cost', name: 'cost', group: 'lazybox', icon: 'activity', description: 'Token cost of this conversation', aliases: ['usage'], keywords: 'tokens price money spend' },

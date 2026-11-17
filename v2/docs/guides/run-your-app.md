@@ -67,6 +67,24 @@ exact version; any change asks again. Agents cannot approve scripts.
   workspace's dev server rather than start their own), under the conversation's
   permission. They cannot approve scripts or stop actions.
 
+### A server an agent starts: Preview :port
+
+No action defined? When an agent (or you) starts a dev server with
+`lazybox run`, Lazybox sees the port it listens on: the live bar above the
+message box and the command's console show **Preview :5173**, which opens
+the page in a Web panel (your browser when the window has none). The agent's
+own browser may open that port too, so it can check the app it runs. For a
+one-click **Run** and a Preview that survive the conversation, define the
+action once in `.lazybox/workspace.yaml` (above):
+
+```yaml
+actions:
+  web:
+    run: npm run dev -- --port $LAZYBOX_PORT
+    url: http://localhost:$LAZYBOX_PORT
+    default: true
+```
+
 > **Preview** (the feature) only reaches apps on the machine running the
 > window. With a Runner on another machine, open the address there or forward
 > the port.

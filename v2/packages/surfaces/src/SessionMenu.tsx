@@ -13,6 +13,7 @@ import { conversationHandoffItems, useHandoffMenus } from './handoff';
 import { useRunner } from './RunnerContext';
 import { streamLabel } from './human-error';
 import { Icon } from './Icons';
+import { agentTitle } from './providers';
 
 /** The model picker: the same choices and switch as `/model` (useSlashCommands.tsx). */
 export type ModelChoices = { choices: SlashChoice[]; live: boolean; disabled?: string; choose(value: string): void; /** Any model id: `/model ` in the message box. */ pick(): void };
@@ -33,6 +34,8 @@ type SessionActions = {
   /** For an agent that cannot change permissions live: ask to restart it in this mode. */
   onRestartWithPermission(mode: string): void;
   onSwitchSubscription(): void;
+  /** Give the agent the browser: it restarts with it, the conversation kept (BROWSER.md). */
+  onGiveBrowser?(): void;
   onNewSession(): void;
   onClose(): void;
   onDelete(): void;
@@ -48,7 +51,7 @@ const permissionBlocked = (session: Session, mode: string) => mode === 'yolo' &&
 const takesPermissions = (session?: Session): session is Session => !!session && !session.closed && !['help', 'planning', 'summary'].includes(session.purpose);
 
 /** What can be done to a conversation: the chat's ⋯ menu and its header's context menu, one list. */
-export function sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, activity, models, sessionID }: SessionActions): MenuItem[] {
+export function sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onGiveBrowser, onNewSession, onClose, onDelete, activity, models, sessionID }: SessionActions): MenuItem[] {
   return [
     activity && { label: 'Activity detail', icon: 'activity', submenu: [
       ...ACTIVITY_DETAILS.map(detail => ({ label: ACTIVITY_LABELS[detail].label + (detail === activity.fallback ? ' (default)' : ''), checked: activity.detail === detail, run: () => activity.choose(detail) })),
@@ -62,6 +65,7 @@ export function sessionMenuItems({ session, allowStart, onChangePermission, onRe
       'separator', { label: 'Other model…', run: models.pick },
     ] },
     session && !session.closed && { label: 'Switch subscription…', run: onSwitchSubscription },
+    session && !session.closed && onGiveBrowser && session.browserAccess === 'can_give' && { label: `Give ${agentTitle(session.provider, [], 'the agent')} the browser`, icon: 'globe', run: onGiveBrowser },
     session?.closed ? allowStart && { label: 'New session', run: onNewSession } : { label: 'End session', disabled: !session, run: onClose },
     'separator',
     session && sessionID && { label: 'Rename…', icon: 'pencil', run: () => { if (!requestRename(sessionID)) showMenuNotice('Open the conversation to rename it'); } },
@@ -78,7 +82,7 @@ export function withHandoff(items: MenuItem[], handoff: MenuItem[]): MenuItem[] 
 }
 
 /** The ⋯ menu of a chat: what it runs on, its permissions and subscription, and ending or deleting it. */
-export function SessionMenu({ session, sessionID, accountName, stream, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, activity, models, extra = [] }: {
+export function SessionMenu({ session, sessionID, accountName, stream, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onGiveBrowser, onNewSession, onClose, onDelete, activity, models, extra = [] }: {
   session?: Session;
   /** Actions of the header that fold here in a slim panel (Review), listed first. */
   extra?: MenuItem[];
@@ -90,6 +94,7 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
   /** For an agent that cannot change permissions live: ask to restart it in this mode. */
   onRestartWithPermission(mode: string): void;
   onSwitchSubscription(): void;
+  onGiveBrowser?(): void;
   onNewSession(): void;
   onClose(): void;
   onDelete(): void;
@@ -125,7 +130,7 @@ export function SessionMenu({ session, sessionID, accountName, stream, allowStar
     {activity && <ActivityDetailChoice activity={activity}/>}
     {session && !session.closed && session.permissionGrants.length > 0 && <AlwaysAllowed session={session}/>}
     {session?.closed && !allowStart && <span>Saved conversation</span>}
-    <ActionMenuItems items={[...extra, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onNewSession, onClose, onDelete, sessionID }).filter(item => !item || item === 'separator' || !item.submenu), handoff)]}/>
+    <ActionMenuItems items={[...extra, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart, onChangePermission, onRestartWithPermission, onSwitchSubscription, onGiveBrowser, onNewSession, onClose, onDelete, sessionID }).filter(item => !item || item === 'separator' || !item.submenu), handoff)]}/>
   </ActionMenu>;
 }
 

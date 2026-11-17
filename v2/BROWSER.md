@@ -46,12 +46,28 @@ without handing an agent the person's browser, cookies or network.
     form holding a filled password field — **Allow this sign-in** / **Deny…**.
 - **Browse freely in this conversation** (panel menu): no site asks for the
   rest of the conversation. Hard blocks still hold.
-- **Settings → Browser**: default permission (*Ask before each new site*,
-  recommended; *Allow any site*; *Off* — agents get no browser), sites any
-  agent may open without asking (`example.com`, `*.example.com`), downloads
-  (*Ask* / *Block*), the panel preference, and per workspace its always-allowed
+- **Settings → Browser**: when agents cannot browse, why and the fix in one
+  click — *Chromium isn't installed* with **Install Chromium** (a developer
+  build: the install runs as a Runner command whose output shows there; once
+  it is in, agents' browsers open without a restart), *The agent browser is
+  off* with **Turn on**, or why this Runner has no browser at all. Then the
+  default permission (*Ask before each new site*, recommended; *Allow any
+  site*; *Off* — agents get no browser), sites any agent may open without
+  asking (`example.com`, `*.example.com`), downloads (*Ask* / *Block*), the
+  panel preference, and per workspace (every workspace is listed) a
+  **Browser** switch (off: its agents get no browser), its always-allowed
   sites (removable) and **Clear browser data…** (sign-ins, cookies, storage,
   cache; closes that workspace's agent browsers).
+- **Give Claude the browser** (the conversation's ⋯ menu and header menu,
+  `/browser`, ⌘K) when its agent has no browser: it started before the
+  service was there, or while the browser was off for its workspace. It turns
+  the browser back on for that workspace and, for an agent started without
+  the tools, restarts it between turns, the provider conversation resumed
+  (as a model change that cannot apply live does). `Session.browser_access`
+  says which: `has`, `can_give`, `off`, or empty where it does not apply.
+- **Preview :port** in the live bar and a command's console, for a server a
+  `lazybox run` listens on: its page in a Web panel, no workspace action
+  needed.
 
 Everything an agent does in the browser is in the transcript as tool calls
 (*Opened docs.example*, *Clicked “Sign in”*, *Took a screenshot* with the
@@ -90,9 +106,30 @@ rule for `mcp__lazybox_browser`; Codex: no approval title): the browser asks
 the person per site, download and sign-in itself, and a prompt per click on
 top would teach them to click through. In a **read-only** or Plan
 conversation the agent may open, read, scroll and screenshot pages, never
-click, type, select or press keys. The browser is offered only to coding
-agents, and only when the Runner has the service and Settings → Browser is not
-*Off*; switching it off later refuses the tools of agents already running.
+click, type, select or press keys.
+
+**Who gets it.** Every new Claude or Codex coding conversation, whenever the
+Runner has the service, unless Settings → Browser is *Off* or the browser is
+off for the conversation's workspace (ACP agents bring their own tools;
+assistants get none). A missing Chromium does not withhold the tools:
+installing it makes them work without restarting anyone, and until then the
+agent is told to ask the person to install it from Settings rather than
+install it itself. Switching the browser off later refuses the tools of agents
+already running. The tools are fixed when the agent starts (the Claude
+worker's MCP servers and permission rule are options of its query; Codex's
+dynamic tools are given at `thread/start`), and an agent outlives Runner
+restarts (session hosts), so one started before the service was available
+keeps having none: the Runner records what each agent was started with
+(`Record.BrowserTools`; for an older record, the last tool list the agent
+reported), and offers **Give Claude the browser** for it.
+
+**The briefing** has a browser section of its own, per conversation
+(`browser_briefing.go`): *You have a browser* — the `browser_*` tools, use
+them rather than a headless browser of your own, the person watches in the
+Agent browser panel — or why it has none (it started before the browser was
+available, or the browser is off for the workspace or everywhere) and how the
+person gives it one. When that changes, the agent hears it with its next
+message, like any change of the shared instructions.
 
 ## The engine, and why
 
@@ -176,7 +213,9 @@ is refused after 10 minutes; at most 8 wait per conversation.
 **What a page may never reach**, whoever drives it and whatever the person
 answered: anything but http(s)/ws(s) (and data:/blob: inside a page) — so no
 `file:`, no `chrome:`; this computer (loopback) except the ports of the
-workspace's running previews (the workspace runtime's actions); the Runner's
+workspace's running previews (the workspace runtime's actions) and of the
+servers its running commands listen on (a `lazybox run` of its agents, or a
+run from its terminals); the Runner's
 own address and the other host:port pairs it lists; private, link-local,
 CGNAT (Tailscale) and unique-local addresses, including names that resolve to
 them. The service enforces this in a loopback proxy every connection goes
@@ -222,6 +261,18 @@ watches and a slow watcher gets the latest frame, never a backlog.
   (`scripts/runner-command.mjs`, `make run`, `make test`); `make build-worker`
   builds it with the Claude worker. Unset, agents get no browser and Settings →
   Browser says why.
+- Availability (`internal/runner/browser/availability.go`): the service's
+  `playwright-core` (found beside it, as Node resolves it) pins a headless
+  shell revision; it is installed when Playwright's cache
+  (`PLAYWRIGHT_BROWSERS_PATH`, else the platform cache) holds
+  `chromium_headless_shell-<revision>/INSTALLATION_COMPLETE`. Without a
+  `playwright-core` beside the service the Runner does not guess.
+  `InstallBrowser` runs `node <playwright-core>/cli.js install --only-shell
+  --no-remove chromium` (what `make browser` runs, without its `npm ci`) as a
+  `runner` command, with the service's environment.
+- Proto: `GiveBrowser`, `InstallBrowser`; `Session.browser_access`;
+  `BrowserSettings.availability`, `installable`, `install_command_id`;
+  `BrowserWorkspaceSites.off`.
 
 ## Tests
 
@@ -243,6 +294,18 @@ watches and a slow watcher gets the latest frame, never a backlog.
 - Adapters: Codex offers the tools without approval and returns screenshots
   as images; the Claude worker exposes and routes all thirteen tools, returns
   screenshots as images and allows them without a prompt.
+- Availability and access (`availability_test.go`,
+  `internal/runner/browser_access_test.go`, `transport/browser_test.go`):
+  ready, Chromium missing (with its install command), off, no service; off
+  for one workspace; a new conversation gets the tools and the briefing says
+  so; Give the browser restarts an agent started without it (not mid-turn) and
+  the restarted agent hears it has it; a re-attached agent keeps what it
+  reported; Install Chromium runs as a Runner command; the RPCs are the
+  owner's.
+- UI (`npm run test:agent-browser`) also: *Give Claude the browser* in the ⋯
+  menu; **Preview :5173** in the live bar opening the Web panel, and in the
+  console; Settings → Browser with Chromium missing (Install Chromium, its
+  output), off (Turn on) and one workspace off.
 - UI (`npm run test:agent-browser`, fake Runner): badge, auto-show, live
   frames, action log, cursor and highlight, request cards and their keys,
   Take over input and Give back, Stop and Let Claude browse again, Settings →
@@ -259,6 +322,11 @@ watches and a slow watcher gets the latest frame, never a backlog.
   `DecideBrowserRequest` (minus *Always in this workspace*) and Stop to the
   device grants is the next step.
 - The browser does not outlive the Runner (above).
+- Giving a running agent the browser restarts it. The Claude SDK could add
+  an MCP server live (`setMcpServers`), but the browser's permission rule is
+  an option of the query too, Codex has no live equivalent, and the agents
+  that lack the tools are exactly those whose worker predates them; a
+  restart between turns, conversation kept, covers all of them.
 - The installed release (`lazybox-runner serve`) does not ship the service or
   its Chromium yet, so its agents get no browser unless `--browser-worker`
   (or `LAZYBOX_V2_BROWSER_WORKER`) names a built service; Dev and Working run

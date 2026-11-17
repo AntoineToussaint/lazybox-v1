@@ -169,6 +169,8 @@ small{color:var(--text-muted);font-size:calc(11px * var(--text-scale));overflow-
 .console-state{display:flex;align-items:center;gap:8px}
 .console-stop{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--danger-line);border-radius:12px;background:var(--danger-bg);color:var(--danger-strong);font-size:calc(11px * var(--text-scale))}
 .console-stop:hover{background:var(--danger-bg-strong)}
+.console-preview{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--accent-line);border-radius:12px;background:var(--accent-bg);color:var(--accent-strong);font-size:calc(11px * var(--text-scale));white-space:nowrap}
+.console-preview:hover{border-color:var(--accent)}
 .pill.run-running{color:var(--accent);border-color:var(--accent-line)}.pill.run-ok{color:var(--ok);border-color:var(--ok-line)}.pill.run-failed{color:var(--danger);border-color:var(--danger-line)}.pill.run-stopped{color:var(--warn-soft);border-color:var(--warn-line)}
 .console{position:relative}
 .console-jump{position:absolute;right:18px;bottom:44px;z-index:2;padding:4px 10px;border:1px solid var(--line-bold);border-radius:12px;background:color-mix(in srgb,var(--surface-hover) 93%,transparent);color:var(--text-soft);font-size:calc(11px * var(--text-scale));box-shadow:0 6px 18px color-mix(in srgb,var(--shadow) calc(40% * var(--shadow-strength)),transparent)}

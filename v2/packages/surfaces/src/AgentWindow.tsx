@@ -314,6 +314,16 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
   /** The conversation continues in a new agent (a restart in another mode or model). */
   // The message box has the keyboard again once the new agent can take a message (confirm-card.ts).
   const adopt = (next: Session) => { focusComposerOf(next.id); continueConversation(api, sessionID, next); setSessionID(next.id); onSessionChange?.(next.id); refresh(); };
+  // "Give Claude the browser" (BROWSER.md): an agent started without the browser
+  // restarts with it and the conversation continues; one off for its workspace gets it back.
+  const giveBrowser = async () => {
+    try {
+      const result = await api.giveBrowser({ sessionId: sessionID });
+      if (!result.session) throw new Error('Runner did not return the conversation');
+      if (result.session.id !== sessionID) adopt(result.session); else setSession(result.session);
+      showMenuNotice(`${agentName} has the browser`);
+    } catch (e) { setError(humanError(e)); }
+  };
   const setPermission = (mode: string) => { if (session?.capabilities?.livePermission) void changePermission(mode); else setRestartTo(mode); };
   const changePermission = async (mode: string) => {
     try {
@@ -487,7 +497,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
           savePrompt(viewState, text, session?.conversationId || sessionID); jumpToLatest(); refreshSession(); return true;
         } catch (e) { setError(humanError(e)); return false; }
       },
-      interrupt: () => void interrupt(), setPermission, switchSubscription: () => setSwitchingSubscription(true), adopt,
+      interrupt: () => void interrupt(), setPermission, switchSubscription: () => setSwitchingSubscription(true), adopt, giveBrowser: () => void giveBrowser(),
       clear: async () => {
         if (!session) return;
         const opened = await api.openSession({ profileId: session.profileId, collectionId: session.collectionId, cwd: session.collectionId ? '' : session.workingDirectory,
@@ -536,12 +546,12 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
               modelRequested={!!session?.model && !session.modelReported && !transcript.reportedModel}
               review={!assistant && <ReviewChatButton review={chatReview} keys={keymap['review.start']}/>}
               onContextMenu={contextMenu('session', () => [...chatReview.menuItems, onOpenChat && { label: 'Open in its own window', icon: 'external', run: onOpenChat }, 'separator', ...withHandoff(sessionMenuItems({ session, allowStart,
-                onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true),
+                onChangePermission: mode => void changePermission(mode), onRestartWithPermission: setRestartTo, onSwitchSubscription: () => setSwitchingSubscription(true), onGiveBrowser: () => void giveBrowser(),
                 onNewSession: newSession, onClose: () => void close(), onDelete: () => setDeleting(true), activity, models: slash.models, sessionID }), conversationHandoffItems(api, session, info))], { sessionId: sessionID })}
               onPickModel={session && !session.closed ? slash.models.pick : undefined}
               menu={<SessionMenu session={session} sessionID={sessionID} accountName={shownAccount} stream={stream} allowStart={allowStart}
                 onChangePermission={mode => void changePermission(mode)} onRestartWithPermission={setRestartTo}
-                onSwitchSubscription={() => setSwitchingSubscription(true)}
+                onSwitchSubscription={() => setSwitchingSubscription(true)} onGiveBrowser={() => void giveBrowser()}
                 onNewSession={newSession} onClose={() => void close()} onDelete={() => setDeleting(true)} activity={activity} models={slash.models} extra={chatReview.menuItems}/>}/>
             : <SessionHeader agentName={agentName} session={session} sessionID={sessionID} title={title} status={status} modelLabel={modelLabel} inspection={inspection}
               accountName={shownAccount} lifecycle={lifecycle}/>}

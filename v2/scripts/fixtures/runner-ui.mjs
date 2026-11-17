@@ -100,6 +100,7 @@ export async function startRunnerFixture() {
     command.finish = (exitCode = 0) => { Object.assign(command, { done: true, exitCode }); send({ cursor: String(command.live.events.length + 1), offset: command.offset, status: wireCommand(command) }); for (const res of command.live.clients) res.end(frame({}, 2)); command.live.clients.clear(); };
     commands.push(command); return command;
   };
+  browser.streamCommand = streamCommand;
   const listedCommand = command => { const value = wireCommand(command); return value.report ? { ...value, report: { ...value.report, agentView: undefined } } : value; };
   const requests = new Map();
   const library = [{ id: 'backend', path: '/fixture/backend' }, { id: 'frontend', path: '/fixture/frontend' }];

@@ -10,7 +10,7 @@ import { hashText, logRows, LogModel } from './log-lines';
 import { LogList, SourceFilter, type LogActions, type LogLayout } from './LogView';
 import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
-import { openInBrowser, openInViewer } from './web-links';
+import { openInBrowser, openInViewer, openPreview } from './web-links';
 import { Icon } from './Icons';
 import { contextMenu, copyText, showMenuNotice } from './ContextMenu';
 import { ActionMenu } from './ActionMenu';
@@ -122,7 +122,7 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     : metadata.exitCode === undefined ? (report && !report.piped ? (report.exitCode === 0 ? { tone: 'ok', text: 'Finished' } : { tone: 'failed', text: `Failed · exit ${report.exitCode}` }) : { tone: 'idle', text: 'Ended' })
     : metadata.exitCode === 0 ? { tone: 'ok', text: 'Finished' } : { tone: 'failed', text: `Failed · exit ${metadata.exitCode}` };
   const fromTerminal = !!metadata && isWorkspaceRun(metadata) && !isRuntimeRun(metadata);
-  const runtimeEyebrow = metadata && isRuntimeRun(metadata) ? ({ action: 'Workspace action', setup: 'Setup script', archive: 'Archive script' } as Record<string, string>)[metadata.origin] : '';
+  const runtimeEyebrow = metadata && isRuntimeRun(metadata) ? ({ action: 'Workspace action', setup: 'Setup script', archive: 'Archive script' } as Record<string, string>)[metadata.origin] : metadata?.origin === 'runner' ? 'Lazybox' : '';
   const [handed, setHanded] = useState<{ ok: boolean; text: string }>();
   useEffect(() => setHanded(undefined), [command]);
   const view = report?.agentView || '';
@@ -142,6 +142,7 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
   const empty = !text ? 'Waiting for output…' : !rows.length ? (hidden.size && [...counts.keys()].every(owner => hidden.has(owner)) ? 'Every source is hidden. Show one above.' : search ? `No line contains “${search.trim()}”.` : '') : '';
   const menu = contextMenu('command', () => [
     running && !readOnly && { label: 'Stop', icon: 'stop', danger: true, run: () => api.cancelCommand({ commandId: command }).then(() => showMenuNotice('Stopping…')) },
+    running && metadata.ports.length > 0 && { label: `Preview :${metadata.ports[0]}`, icon: 'globe', run: () => openPreview(metadata.ports[0]) },
     !readOnly && metadata?.done && !fromTerminal && metadata.sessionId && metadata.argv.length > 0 && { label: 'Run again', icon: 'play', run: () => api.startCommand({ sessionId: metadata.sessionId, title: metadata.title, argv: metadata.argv, cwd: metadata.cwd }).then(() => showMenuNotice(`Started “${metadata.title}” again`)) },
     'separator',
     { label: 'Copy output', icon: 'copy', disabled: !text && 'No output yet', run: () => copyText(stripAnsi(text), 'Copied output') },
@@ -152,7 +153,10 @@ export function Console({ api, command, onOpenViewer, viewState, onError, onSend
     fromTerminal && onSendToAgent && { label: 'Send to agent', icon: 'send', disabled: !metadata?.done ? 'Available when the output ends' : !view && 'This run has no compact view', run: sendToAgent },
   ], { commandId: command });
   const size = formatBytes(offset);
-  const state = <span className="console-state">{running && !readOnly && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="stop" size={11}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status" title={`${size} of output so far`}>{outcome.text}</span></span>;
+  // A server the command runs: its page, without defining a workspace action.
+  const port = running ? metadata.ports[0] : undefined;
+  const preview = port ? <button type="button" className="console-preview" title={`Open http://localhost:${port} in the Web panel (or your browser)`} onClick={() => void openPreview(port).catch(error => onError?.(`Could not open port ${port}: ${String(error)}`))}><Icon name="globe" size={11}/>Preview :{port}</button> : null;
+  const state = <span className="console-state">{preview}{running && !readOnly && <button className="console-stop" title="Stop this command (its process group gets SIGTERM, then SIGKILL)" onClick={() => void api.cancelCommand({ commandId: command }).catch(error => onError?.(`Could not stop the command: ${String(error)}`))}><Icon name="stop" size={11}/>Stop</button>}<span className={`pill run-${outcome.tone}`} role="status" title={`${size} of output so far`}>{outcome.text}</span></span>;
   return <section className={`console${toolbar ? ' console-docked' : ''}`} onContextMenu={menu}>{!toolbar && <div className="panel-title"><div><span className="eyebrow">{runtimeEyebrow || (fromTerminal ? 'From your terminal' : 'Shared console')}</span><h2>{metadata?.title || 'Command output'}</h2></div>{state}</div>}
     {/* Shown in every console, including the workspace's (which hides the title): what an agent gets, and the hand-over. */}
     {(report || (fromTerminal && onSendToAgent)) && <div className="command-meta">{fromTerminal && <span className="command-origin">From your terminal</span>}

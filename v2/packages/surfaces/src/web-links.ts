@@ -38,6 +38,15 @@ export function openInViewer(url: string, newPanel = false): boolean {
   return false;
 }
 export const canOpenInViewer = () => viewers.length > 0;
+/**
+ * A server a command started, previewed: its local page in this window's Web
+ * panel, else the person's browser. No workspace action needed (the "Preview
+ * :<port>" buttons of the live bar and the command console).
+ */
+export async function openPreview(port: number) {
+  const url = `http://localhost:${port}/`;
+  if (!openInViewer(url)) await openInBrowser(url);
+}
 
 /** A workspace page offers its Web panel to links while it is mounted. */
 export function useWebViewer(viewer: Viewer) {

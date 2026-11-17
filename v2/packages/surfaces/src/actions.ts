@@ -165,6 +165,7 @@ const tail = [
   { id: 'chat.model', title: 'Switch model…', group: 'Conversation', icon: 'sparkle', keys: '', scope: 'global', keywords: '/model opus sonnet haiku gpt agent' },
   { id: 'chat.permissions', title: 'Change permissions…', group: 'Conversation', icon: 'shield', keys: '', scope: 'global', keywords: '/permissions ask read only yolo approve' },
   { id: 'chat.subscription', title: 'Switch subscription…', group: 'Conversation', icon: 'card', keys: '', scope: 'global', keywords: '/subscription account login limit' },
+  { id: 'chat.browser', title: 'Give the agent the browser', group: 'Conversation', icon: 'globe', keys: '', scope: 'global', keywords: '/browser agent browser chromium web page preview playwright' },
   { id: 'chat.orchestrate', title: 'Let this conversation run agents…', group: 'Conversation', icon: 'subagent', keys: '', scope: 'global', keywords: '/orchestrate orchestrator spawn agents mission grant team' },
   { id: 'chat.compact', title: 'Compact the context', group: 'Conversation', icon: 'collapse', keys: '', scope: 'global', keywords: '/compact summarize tokens shrink' },
   { id: 'chat.clear', title: 'Start over in a new conversation', group: 'Conversation', icon: 'plus', keys: '', scope: 'global', keywords: '/clear reset fresh new keep' },

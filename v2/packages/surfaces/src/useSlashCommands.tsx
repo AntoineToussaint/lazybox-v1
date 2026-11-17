@@ -33,6 +33,8 @@ export type SlashActions = {
   /** Live where the agent can, else the restart prompt. */
   setPermission(mode: string): void;
   switchSubscription(): void;
+  /** Give the agent the browser (BROWSER.md): it restarts with it when it has none. */
+  giveBrowser(): void;
   /** A conversation that continues in a new agent (a restart with another model). */
   adopt(next: Session): void;
   /** A new conversation in the same workspace; this one is kept. */
@@ -73,7 +75,7 @@ type Options = {
 
 /** The palette's names for Lazybox's commands (actions.ts). */
 const ACTIONS: Partial<Record<string, ActionId>> = {
-  model: 'chat.model', permissions: 'chat.permissions', subscription: 'chat.subscription', compact: 'chat.compact', clear: 'chat.clear',
+  model: 'chat.model', permissions: 'chat.permissions', subscription: 'chat.subscription', browser: 'chat.browser', compact: 'chat.compact', clear: 'chat.clear',
   context: 'chat.usage', review: 'chat.review', artifact: 'chat.artifact', stop: 'chat.stop', rename: 'chat.rename', orchestrate: 'chat.orchestrate',
 };
 const PERMISSION_WORDS: Record<string, string> = { ask: 'ask', approve: 'ask', default: 'ask', 'read-only': 'read-only', readonly: 'read-only', 'read only': 'read-only', read: 'read-only', plan: 'read-only', yolo: 'yolo', bypass: 'yolo' };
@@ -122,6 +124,7 @@ export function useSlashCommands(o: Options) {
     model: o.model, liveModel: !!session?.capabilities?.liveModel, resumable: !!session?.capabilities?.resume, models: catalog.models, providerModels,
     agentMessage: !!lastAgentMessage, shellBlock: o.shellBlock, compact: provider === 'claude', detail: o.detail, subscriptions: o.subscriptions,
     reviewers: workspaceId && !reviewLauncher.unavailable ? reviewLauncher.choices : [],
+    browser: session?.browserAccess || '',
   };
   const lazybox = lazyboxCommands(context);
   const modelsRef = useRef(models); modelsRef.current = models;
@@ -235,6 +238,7 @@ export function useSlashCommands(o: Options) {
         actions.setPermission(mode); break;
       }
       case 'subscription': actions.switchSubscription(); break;
+      case 'browser': actions.giveBrowser(); break;
       case 'compact': void actions.sendText(args ? `/compact ${args}` : '/compact'); break;
       case 'clear': void actions.clear().catch(e => onError(humanError(e))); break;
       case 'cost': case 'context':

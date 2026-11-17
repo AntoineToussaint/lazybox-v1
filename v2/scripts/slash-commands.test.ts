@@ -103,6 +103,15 @@ test('argument hints, and what cannot run now says why',()=>{
  assert.equal(lazyboxCommands(ctx()).find(c=>c.name==='stop')!.disabled,'Claude is not working');
  assert.equal(lazyboxCommands(ctx({busy:false,provider:'codex',compact:false})).find(c=>c.name==='compact')!.disabled,'Codex compacts its context on its own');});
 
+test('/browser gives the agent the browser when it has none, and says why it cannot otherwise',()=>{
+ const browser=(over:Partial<SlashContext>)=>lazyboxCommands(ctx(over)).find(c=>c.name==='browser')!;
+ assert.equal(browser({browser:'can_give'}).disabled,undefined);
+ assert.equal(browser({browser:'can_give'}).description,'Give Claude the browser (restarts the agent; the conversation continues)');
+ assert.equal(browser({browser:'has'}).disabled,'Claude has the browser');
+ assert.equal(browser({browser:'off'}).disabled,'The agent browser is off in Settings → Browser');
+ assert.equal(browser({browser:''}).disabled,'The agent browser is not available in this conversation');
+ assert.equal(browser({browser:'can_give',live:false}).disabled,'The conversation is not running');});
+
 test('send as text: commands run, the agent\'s go through, an unknown /word asks first, anything else is a message',()=>{
  assert.deepEqual(decideSend('hello',all()),{kind:'text'});
  assert.deepEqual(decideSend('/usr/local/bin is missing',all()),{kind:'text'},'a path is a message');

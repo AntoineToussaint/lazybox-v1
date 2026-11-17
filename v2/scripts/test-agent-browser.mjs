@@ -4,8 +4,11 @@
 // refused, failed) with the cursor and highlight where the agent acts; the
 // site, download and deny-with-a-reason cards and their keys; Take over (your
 // clicks and keys reach the page in page pixels, your own address bar) and
-// Give back; Stop and "Let Claude browse again"; Settings → Browser; a phone
-// width. Frames are real JPEGs of little fixture pages. Chromium.
+// Give back; Stop and "Let Claude browse again"; "Give Claude the browser" for
+// an agent that started without it; Preview :<port> for a server the agent
+// runs; Settings → Browser, with Chromium missing (Install Chromium and its
+// output), off (Turn on) and off for one workspace; a phone width. Frames are
+// real JPEGs of little fixture pages. Chromium.
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium, expect } from '@playwright/test';
@@ -230,6 +233,40 @@ try {
   await expect.poll(() => fake.controls.at(-1)?.action).toBe('resume');
   await expect(again).toHaveCount(0);
 
+  // ── Give Claude the browser: its agent started before the browser was there (the ⋯ menu).
+  const sessionMenu = chat.getByLabel('Session actions', { exact: true });
+  const give = page.getByRole('button', { name: 'Give Claude the browser' });
+  await sessionMenu.click();
+  await expect(page.getByRole('button', { name: 'Switch subscription…' })).toBeVisible();
+  await expect(give).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  Object.assign(session, { browserAccess: 'can_give' });
+  // The chat reads the conversation again on its own.
+  await expect.poll(async () => { await sessionMenu.click(); const shown = await give.count(); if (!shown) await page.keyboard.press('Escape'); return shown; }, { timeout: 10000 }).toBe(1);
+  await give.click();
+  await expect.poll(() => fixture.mutations.filter(m => m.method === 'GiveBrowser').map(m => m.body.sessionId)).toEqual([id]);
+  await sessionMenu.click();
+  await expect(page.getByRole('button', { name: 'Switch subscription…' })).toBeVisible();
+  await expect(give).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // ── Preview: a server the agent runs with `lazybox run` opens in the Web panel, no workspace action needed.
+  const dev = fixture.streamCommand(id, 'npm run dev', ['npm', 'run', 'dev']);
+  dev.ports = [5173];
+  dev.write('  VITE v5.4.0  ready in 1203 ms\n  ➜  Local:   http://localhost:5173/\n');
+  const liveBar = chat.locator('section.live-bar');
+  const preview = liveBar.getByRole('button', { name: 'Preview :5173' });
+  await expect(preview).toBeVisible();
+  await preview.click();
+  const web = page.getByRole('region', { name: 'Web page' }).first();
+  await expect(web.getByRole('textbox', { name: 'Address', exact: true })).toHaveValue('http://localhost:5173/');
+  // The command's console offers it too.
+  await liveBar.getByRole('button', { name: 'Open in console' }).click();
+  await expect(page.locator('.console-preview').first()).toHaveText('Preview :5173');
+  await page.screenshot({ path: '.cache/agent-browser-preview.png' });
+  dev.finish(0);
+  await expect(preview).toHaveCount(0);
+
   // ── Settings → Browser.
   await page.getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: 'Settings' }).click();
   await page.getByRole('tab', { name: 'Browser' }).click();
@@ -266,6 +303,31 @@ try {
   fake.settings.revision = '99';
   await settings.getByRole('radio', { name: /Ask before each new site/ }).check();
   await expect(settings.getByRole('alert')).toContainText('changed in another window');
+  // Off for one workspace: its agents get no browser; saved like any change.
+  fake.setChromium(false);
+  await settings.getByRole('switch', { name: 'Agents in Beta release get the browser' }).uncheck();
+  await expect.poll(() => saves().at(-1)?.workspaces?.find(w => w.collectionId === 'beta')?.off).toBe(true);
+  assert.ok(!saves().at(-1).workspaces.find(w => w.collectionId === 'alpha').off, 'only that workspace');
+  // Chromium missing: why, and one click installs it, its output shown here.
+  const missing = settings.locator('.browser-availability[data-state=not_installed]');
+  await expect(missing).toContainText('Chromium isn’t installed');
+  await missing.getByRole('button', { name: 'Install Chromium' }).click();
+  await expect.poll(() => fixture.mutations.filter(m => m.method === 'InstallBrowser').length).toBe(1);
+  await expect(missing.getByRole('button', { name: 'Installing…' })).toBeDisabled();
+  fake.install.write('Downloading Chrome Headless Shell 156.0.8078.4 …\n');
+  await expect(settings.getByLabel('Chromium install output').getByTestId('console-output')).toContainText('Downloading Chrome Headless Shell');
+  await page.screenshot({ path: '.cache/agent-browser-install.png' });
+  fake.setChromium(true);
+  fake.install.finish(0);
+  await expect(missing).toHaveCount(0);
+  await expect(settings.locator('.browser-settings-status')).toContainText('Chromium installed');
+  // Off everywhere: said, with Turn on.
+  await settings.getByRole('radio', { name: /^Off/ }).check();
+  const off = settings.locator('.browser-availability[data-state=off]');
+  await expect(off).toContainText('The agent browser is off');
+  await off.getByRole('button', { name: 'Turn on' }).click();
+  await expect.poll(() => saves().at(-1)?.defaultPermission).toBe('ask');
+  await expect(off).toHaveCount(0);
   await page.getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: 'Work' }).click();
 
   // ── A phone's width: one panel at a time, nothing wider than the screen.
@@ -278,7 +340,7 @@ try {
   await page.screenshot({ path: '.cache/agent-browser-narrow.png' });
 
   assert.deepEqual(errors, []);
-  console.log('agent browser: chip, panel, frames, steps, cards, take over, stop and settings verified');
+  console.log('agent browser: chip, panel, frames, steps, cards, take over, stop, give the browser, preview and settings (install, off, per workspace) verified');
 } finally {
   await browser?.close();
   await server.close();
