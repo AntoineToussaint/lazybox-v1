@@ -213,12 +213,22 @@ export function turnFault(fault = ''): boolean {
   return !['provider delivery failed', 'event capture failed', 'provider stream ended', 'invalid or excessive pending provider requests', 'native_exit_unconfirmed', 'provider startup failed'].some(prefix => fault.startsWith(prefix));
 }
 
+/**
+ * A fault that says only that the Runner lost its stream from the agent (or
+ * could not record it), not that the provider or the agent failed: Resume
+ * re-attaches the live agent in place, and the Runner settles it on its own
+ * when it re-adopts the agent. Mirrors agent.TransportFault in the Runner.
+ */
+export function transportFault(fault = ''): boolean {
+  return fault.startsWith('provider stream ended') || fault.startsWith('event capture failed');
+}
+
 /** Why a conversation needs attention, for a fault that is not a subscription limit. */
 export function faultSentence(fault: string): string {
   if (!fault) return '';
   if (fault === 'provider delivery failed; reconcile before continuing') return 'A message could not be delivered to the agent. Check the conversation before sending again.';
   if (fault.startsWith('provider stream ended')) return 'The connection to the agent ended unexpectedly.';
-  if (fault.startsWith('event capture failed')) return 'Lazybox could not record this conversation, so the agent was stopped.';
+  if (fault.startsWith('event capture failed')) return 'Lazybox could not record this conversation. Its agent keeps running: Resume reconnects to it.';
   if (fault === 'provider_failure' || fault === 'provider_error' || fault === 'sdk_error') return 'The agent stopped after an error from the provider.';
   if (looksLikeCode(fault)) return codeSentences[fault] || `The agent stopped (${fault.replaceAll('_', ' ')}).`;
   return fault;

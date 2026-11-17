@@ -6,7 +6,7 @@ import { JournalEventSchema, UsageGroupSchema, type JournalEvent } from '@lazybo
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyTranscript, foldTranscript, type Transcript } from '../packages/surfaces/src/transcript-model.ts';
-import { isSystemEvent, legacyOrigin, messageOrigin, restartTitle, systemEventView } from '../packages/surfaces/src/system-events.ts';
+import { connectionLine, isSystemEvent, legacyOrigin, messageOrigin, restartTitle, systemEventView } from '../packages/surfaces/src/system-events.ts';
 import { backgroundCommands, newestFirstTree, recentWork, runningSummary, workCounts, workSummary, workTotals, type Subagent, type SubagentStatus } from '../packages/surfaces/src/subagent-model.ts';
 import { dollars, unpricedHelp, unpricedLine, usageBreakdown } from '../packages/surfaces/src/usage-model.ts';
 
@@ -119,6 +119,41 @@ test('an agent lost to a reboot is a notice with the Runner\'s own sentence, not
   const said = 'Lazybox restarted and this agent was no longer running: the Mac restarted. The conversation is saved: send a message to resume the agent\'s session.';
   const t = fold(emptyTranscript(), record(0, { type: 'agent_lost', status: 'host_gone_after_restart', text: said }));
   assert.deepEqual(t.messages.map(m => [m.type, m.notice, m.text]), [['notice', 'agent-lost', said]]);
+});
+
+test('a lost connection the Runner got back is one line of history: lost at, reconnected at', () => {
+  cursor = 0n;
+  // The Dev journal: the Runner's own write failed, its supervisor ended, and
+  // the next Runner re-adopted the agent, whose turn then finished.
+  let t = fold(emptyTranscript(),
+    record(0, { type: 'operation_accepted', text: 'measure the disk', operationId: 'p1' }),
+    record(1, { type: 'turn_started' }),
+    record(2, { type: 'process_exit', status: 'unknown', text: 'database or disk is full (13)' }),
+    record(3, { type: 'process_exit', status: 'unknown', text: 'provider supervisor ended' }),
+  );
+  const lost = t.messages.filter(m => m.notice === 'connection-lost');
+  assert.equal(lost.length, 1, 'the cause and the supervisor\'s end are one loss');
+  assert.equal(lost[0].text, 'database or disk is full (13)', 'the cause is kept, for the line\'s hover');
+  assert.equal(lost[0].reconnected, undefined);
+  assert.match(connectionLine(lost[0].text, lost[0].at), /^Lazybox lost the connection to the agent at \d/);
+  t = fold(t,
+    record(2_600_000, { type: 'runner_reattached', status: 'native_process_adopted' }),
+    record(2_600_001, { type: 'message_delta', text: 'The disk is still full.', turnId: 't' }),
+    record(2_600_002, { type: 'turn_ended', status: 'completed' }),
+  );
+  const line = t.messages.find(m => m.notice === 'connection-lost')!;
+  assert.deepEqual(line.reconnected, { at: T0 + 2_600_000 });
+  assert.equal(t.messages.filter(m => m.type === 'reattached').length, 0, 'the reconnection is said on the loss\'s line, not as a restart mark');
+  assert.match(connectionLine(line.text, line.at, line.reconnected?.at, true), /^Lazybox lost the connection to the agent at \d\d?.\d\d.* · reconnected at \d/);
+  // An agent that really exited is said as such.
+  assert.match(connectionLine('native process exited (code 1)', T0), /^The agent process stopped at /);
+});
+
+test('a Runner that could not save says so once, as its own notice', () => {
+  cursor = 0n;
+  const said = 'Lazybox couldn\'t save this conversation\'s usage — the disk is full. The agent keeps running and Lazybox keeps trying; free some space.';
+  const t = fold(emptyTranscript(), record(0, { type: 'storage_error', status: 'disk_full', text: said }));
+  assert.deepEqual(t.messages.map(m => [m.type, m.notice, m.text]), [['notice', 'storage', said]]);
 });
 
 // ── Background work.

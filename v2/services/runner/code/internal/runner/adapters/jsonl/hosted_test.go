@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -150,6 +151,28 @@ func TestCancelledContextStillStopsAHostedAgent(t *testing.T) {
 	_, pid := startHosted(t, runner, root)
 	stopRunner()
 	awaitStopped(t, pid)
+}
+
+// A host that vanished (killed, its machine asleep too long) took its agent
+// with it: closing the agent asks the host to stop it, finds it gone, and
+// confirms the exit instead of leaving the conversation forever unconfirmed.
+func TestClosingAnAgentWhoseHostVanishedConfirmsItsExit(t *testing.T) {
+	root := hostRoot(t)
+	p, pid := startHosted(t, context.Background(), root)
+	record, err := sessionhost.ReadRecord(filepath.Join(root, p.HostID()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = syscall.Kill(record.PID, syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = p.Receive(timeout(t)); err == nil {
+		t.Fatal("a vanished host kept delivering")
+	}
+	awaitStopped(t, pid)
+	if err = p.Close(); err != nil {
+		t.Fatalf("closing an agent whose host is gone stayed unconfirmed: %v", err)
+	}
 }
 
 func awaitStopped(t *testing.T, pid int) {

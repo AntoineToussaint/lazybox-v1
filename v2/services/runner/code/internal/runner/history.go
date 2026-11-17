@@ -119,8 +119,16 @@ func (b *Bench) Resume(ctx context.Context, id string, processesStopped bool) (*
 		return nil, errors.New("previous process ownership is unconfirmed; stop/reconcile its agent and commands before resuming")
 	}
 	state := e.Engine.Snapshot()
-	if !e.Archived && (!state.Closed || state.Fault == "native_exit_unconfirmed") {
+	if live, ok := e.Engine.(*engine.Engine); ok && !e.Archived && !state.Closed && agent.TransportFault(state.Fault) {
+		return b.reconnect(ctx, e, live, processesStopped)
+	}
+	if !e.Archived && !state.Closed {
 		return nil, errors.New("end the existing session before resuming; an active session can be reattached")
+	}
+	// Its agent's exit could not be confirmed: the person confirms it (they
+	// stopped it, or it is gone), as for a conversation that needs recovery.
+	if !e.Archived && state.Fault == "native_exit_unconfirmed" && !processesStopped {
+		return nil, errors.New("the previous agent's exit is unconfirmed; stop it, then resume confirming it is stopped")
 	}
 	for _, c := range b.Commands.List(id) {
 		if !c.Done {

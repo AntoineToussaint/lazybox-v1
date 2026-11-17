@@ -94,7 +94,7 @@ export function systemEventView(origin: MessageOrigin, agentName = 'the agent'):
 }
 
 /** A Runner restart that left something uncertain, in one quiet line. */
-export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'agent-lost' | 'reverted' | 'cli' | 'pull-request';
+export type RunnerNotice = 'delivery-unknown' | 'outcome-unknown' | 'agent-lost' | 'reverted' | 'cli' | 'pull-request' | 'connection-lost' | 'storage';
 export const NOTICE_ICONS: Record<RunnerNotice, { icon: string; tone: SystemTone }> = {
   'delivery-unknown': { icon: 'alert', tone: 'warn' },
   'outcome-unknown': { icon: 'alert', tone: 'warn' },
@@ -102,7 +102,23 @@ export const NOTICE_ICONS: Record<RunnerNotice, { icon: string; tone: SystemTone
   reverted: { icon: 'back', tone: 'neutral' },
   cli: { icon: 'terminal', tone: 'neutral' },
   'pull-request': { icon: 'pullRequest', tone: 'muted' },
+  'connection-lost': { icon: 'alert', tone: 'warn' },
+  storage: { icon: 'alert', tone: 'warn' },
 };
+
+const clock = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * The line a lost stream leaves in the conversation (the Runner's
+ * `process_exit`), completed by the re-attachment that followed it:
+ * "Lazybox lost the connection at 11:39 · reconnected at 12:23". `cause` is
+ * what the Runner recorded; an agent that really exited says so instead.
+ */
+export function connectionLine(cause: string, at?: number, reconnectedAt?: number, reconnected = reconnectedAt !== undefined): string {
+  const when = (t?: number) => t !== undefined && Number.isFinite(t) ? ` at ${clock(t)}` : '';
+  const lost = cause.startsWith('native process exited') ? 'The agent process stopped' : 'Lazybox lost the connection to the agent';
+  return `${lost}${when(at)}${reconnected ? ` · reconnected${when(reconnectedAt)}` : ''}`;
+}
 
 /** "Restarted 13 times · last at 14:02": what the restart marker says on hover. */
 export function restartTitle(count: number, at?: number): string {

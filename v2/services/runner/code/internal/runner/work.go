@@ -114,8 +114,15 @@ func liveness(e *Execution) work.Liveness {
 	s := e.Engine.Snapshot()
 	l := work.Liveness{Session: e.ID, Title: firstOf(e.Saved.DisplayTitle, s.Title, e.Saved.Title)}
 	switch {
-	case s.Closed || s.Status == agent.Stopped || s.Status == agent.Failed:
+	case s.Closed || s.Status == agent.Stopped || (s.Status == agent.Failed && !agent.LimitFault(s.Fault) && !agent.TurnFault(s.Fault)):
 		l.State, l.Detail = work.LiveClosed, s.Fault
+	// A subscription limit waits for a switch or its reset; a provider error
+	// that ended a turn waits for the next message. Neither ended the
+	// conversation.
+	case s.Status == agent.Failed && agent.LimitFault(s.Fault):
+		l.State, l.Detail = work.LiveWaiting, s.Fault
+	case s.Status == agent.Failed:
+		l.State, l.Detail = work.LiveIdle, s.Fault
 	case len(s.Pending) > 0 || s.Status == agent.WaitingInput || s.Status == agent.WaitingApproval:
 		l.State = work.LiveWaiting
 		for _, p := range s.Pending {

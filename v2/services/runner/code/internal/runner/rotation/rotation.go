@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"strings"
 	"sync"
@@ -55,6 +56,9 @@ type session struct {
 	state     durable
 	stateNow  agent.Session
 	detaching bool
+	// observeFailing: saving the account state failed and was reported;
+	// only run reads or writes it.
+	observeFailing bool
 }
 
 // durable is this layer's re-attachment state; Native is the current native
@@ -327,9 +331,17 @@ func (s *session) run() {
 			s.mu.Lock()
 			id := s.profile.ID
 			s.mu.Unlock()
-			if err = s.adapter.State.Observe(id, *ev.Account); err != nil {
-				s.emit(agent.Event{Type: "failure", Status: "account_state_write_failed"})
-				return
+			// Saving what the provider said about the subscription is the
+			// Runner's bookkeeping: a write that fails (a full disk) is
+			// reported once and never stops reading the agent.
+			if err = s.adapter.State.Observe(id, *ev.Account); err != nil && !s.observeFailing {
+				log.Printf("subscription %s: account state not saved: %v", id, err)
+				s.observeFailing = true
+				if !s.emit(agent.StorageError("the subscription status", err)) {
+					return
+				}
+			} else if err == nil {
+				s.observeFailing = false
 			}
 		}
 		s.mu.Lock()

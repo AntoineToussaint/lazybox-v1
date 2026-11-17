@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -141,6 +142,11 @@ func (b *Bench) loadAttachment(id string) (engine.Attachment, error) {
 // state with an explicit resume.
 func (b *Bench) Adopt(ctx context.Context) error {
 	var errs []error
+	type unadopted struct {
+		record sessionstore.Record
+		err    error
+	}
+	var failed []unadopted
 	for offset := 0; ; offset += 100 {
 		records, err := b.History.List(ctx, 100, offset)
 		if err != nil {
@@ -162,6 +168,8 @@ func (b *Bench) Adopt(ctx context.Context) error {
 				// left to re-attach; the conversation resumes natively.
 				if sessionhost.Gone(err) && !b.agentAnswers(ctx, r.ID) {
 					err = b.agentLost(ctx, r)
+				} else if err != nil {
+					failed = append(failed, unadopted{r, err})
 				}
 				if err != nil {
 					errs = append(errs, fmt.Errorf("execution %s not re-attached: %w", r.ID, err))
@@ -172,7 +180,15 @@ func (b *Bench) Adopt(ctx context.Context) error {
 			break
 		}
 	}
-	return errors.Join(append(errs, b.stopOrphanHosts(ctx))...)
+	errs = append(errs, b.stopOrphanHosts(ctx))
+	// The sweep stopped the agents nothing re-attached: their conversations
+	// end as interrupted and resumable, not left open forever.
+	for _, f := range failed {
+		if err := b.endUnadopted(ctx, f.record, f.err); err != nil {
+			errs = append(errs, fmt.Errorf("execution %s not ended after its agent was stopped: %w", f.record.ID, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (b *Bench) adopt(r sessionstore.Record) error {
@@ -245,6 +261,61 @@ func (b *Bench) adopt(r sessionstore.Record) error {
 		}
 	}
 	return nil
+}
+
+// reconnect is Resume for a live conversation whose only fault is that this
+// Runner lost its stream from the agent (agent.TransportFault): the agent may
+// well still run in its session host. It never starts a second agent. If
+// this engine reads the agent again, the fault is simply cleared. Otherwise
+// the conversation is re-attached in place exactly as a Runner restart would
+// (Detach, then adopt): a live agent goes on where it was, one that exited
+// reports its exit again, and one whose host is gone is lost as after a
+// reboot (agentLost) and resumes natively.
+func (b *Bench) reconnect(ctx context.Context, e *Execution, live *engine.Engine, processesStopped bool) (*Execution, error) {
+	if live.SettleTransportFault() {
+		return e, nil
+	}
+	if err := live.Detach(); err != nil {
+		return nil, fmt.Errorf("could not reconnect to the agent: %w", err)
+	}
+	record, err := b.History.Get(ctx, e.ID)
+	if err == nil {
+		err = b.adopt(record)
+	}
+	b.mu.Lock()
+	next := b.items[e.ID]
+	if next == e {
+		// Not re-attached: from here it is a conversation whose adoption
+		// failed at startup, restored from what is saved.
+		delete(b.items, e.ID)
+		next = nil
+	}
+	delete(b.archives, e.ID)
+	b.mu.Unlock()
+	if next != nil {
+		if err != nil {
+			// Re-attached; only the workspace's ownership is unconfirmed.
+			log.Printf("reconnect %s: %v", e.ID, err)
+		}
+		return next, nil
+	}
+	if record.ID == "" {
+		return nil, fmt.Errorf("could not reconnect to the agent: %w", err)
+	}
+	if sessionhost.Gone(err) && !b.agentAnswers(ctx, e.ID) {
+		err = b.agentLost(ctx, record)
+	} else if stopErr := b.stopHostsOf(ctx, e.ID); stopErr != nil {
+		// Its agent runs, and no Runner supervises it: say so; the next
+		// Runner's sweep stops it.
+		return nil, fmt.Errorf("could not reconnect to the agent (%v), nor stop it: %w", err, stopErr)
+	} else {
+		err = b.endUnadopted(ctx, record, err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Ended as interrupted: it continues as any saved conversation does.
+	return b.Resume(ctx, e.ID, processesStopped)
 }
 
 // AgentLostEvent is the conversation's notice that its agent did not survive
@@ -331,9 +402,20 @@ func (b *Bench) saveCarried(id string, queue []agent.Operation) error {
 // written once, and the attachment goes last, so a later Runner either
 // finishes the job or skips a conversation already ended.
 func (b *Bench) agentLost(ctx context.Context, r sessionstore.Record) error {
+	return b.endLost(ctx, r, "")
+}
+
+// endLost is agentLost, its notice led by why the agent is gone when it is not
+// the usual reason (a restart that found it gone).
+func (b *Bench) endLost(ctx context.Context, r sessionstore.Record, why string) error {
 	record, err := b.loadAttachment(r.ID)
-	if err != nil {
+	if err != nil && (why == "" || errors.Is(err, os.ErrNotExist)) {
 		return err
+	}
+	if err != nil {
+		// An attachment this Runner cannot read is why it could not adopt;
+		// the conversation still ends, with no queued message to carry.
+		record = engine.Attachment{}
 	}
 	if err = b.saveCarried(r.ID, record.Queue); err != nil {
 		return err
@@ -353,7 +435,7 @@ func (b *Bench) agentLost(ctx context.Context, r sessionstore.Record) error {
 	}
 	snapshot := r.Snapshot
 	if !noted {
-		_, err = spool.Append(agent.Event{Type: AgentLostEvent, Status: "host_gone_after_restart", Text: lostNotice(snapshot, len(record.Queue))})
+		_, err = spool.Append(agent.Event{Type: AgentLostEvent, Status: lostStatus(why), Text: lostNotice(snapshot, len(record.Queue), why)})
 	}
 	if disposeErr := spool.Dispose(); err == nil {
 		err = disposeErr
@@ -380,11 +462,60 @@ func (b *Bench) agentLost(ctx context.Context, r sessionstore.Record) error {
 	return nil
 }
 
+// lostStatus is the agent_lost status for why (endLost).
+func lostStatus(why string) string {
+	if why != "" {
+		return "not_reattached_after_restart"
+	}
+	return "host_gone_after_restart"
+}
+
+// unadoptedNotice leads the notice of a conversation whose agent this Runner
+// could not re-attach (err) and stopped: it must not go on unsupervised.
+func unadoptedNotice(err error) string {
+	return fmt.Sprintf("Lazybox restarted but could not re-attach to this agent (%v), so it stopped it: an agent no one supervises must not keep working in a workspace.", err)
+}
+
+// endUnadopted ends a conversation whose live agent this Runner could not
+// re-attach (for a reason other than its host being gone), once its host is
+// stopped, as agentLost ends one whose host is gone: interrupted, resumable,
+// never left open as "recovery required". A host that still answers is left
+// alone, and so is the conversation.
+func (b *Bench) endUnadopted(ctx context.Context, r sessionstore.Record, cause error) error {
+	if b.agentAnswers(ctx, r.ID) {
+		return nil
+	}
+	return b.endLost(ctx, r, unadoptedNotice(cause))
+}
+
+// stopHostsOf stops every agent host started for execution id.
+func (b *Bench) stopHostsOf(ctx context.Context, id string) error {
+	ids, err := b.hosting.Hosts(b.Config.HostRoot)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, host := range ids {
+		record, err := sessionhost.ReadRecord(filepath.Join(b.Config.HostRoot, host))
+		if err != nil || record.Owner != id {
+			continue
+		}
+		if err = b.hosting.Stop(ctx, b.Config.HostRoot, host); err != nil && !sessionhost.Gone(err) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // lostNotice says what happened to the agent, what was lost with it, and
 // what to do: the conversation shows it where the person will look.
-func lostNotice(s engine.Snapshot, queued int) string {
+func lostNotice(s engine.Snapshot, queued int, why string) string {
 	var text strings.Builder
-	text.WriteString("Lazybox restarted and this agent was no longer running: the Mac restarted, or the agent stopped while Lazybox was not running. ")
+	if why != "" {
+		text.WriteString(why + " ")
+	} else {
+		text.WriteString("Lazybox restarted and this agent was no longer running: the Mac restarted, or the agent stopped while Lazybox was not running. ")
+	}
 	switch {
 	case len(s.Pending) > 0:
 		text.WriteString("The turn in progress stopped while it waited for you; its request is no longer open. ")

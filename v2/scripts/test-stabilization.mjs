@@ -74,6 +74,36 @@ try {
  const restored=await browser.newPage();await restored.goto(url.replace('alpha-session','saved-session'));
  await expect(restored.locator('.messages')).toContainText('saved-session-continued');
  assert.equal(fixture.mutations.filter(m=>m.method==='ResumeSession').length,1);await restored.close();
+ // A conversation the Runner failed when it lost its stream from a live agent (Dev: its own write hit a full disk)
+ // recovers once the Runner re-adopts the agent: the banner goes, the composer sends, and the loss stays as one line of history.
+ const alpha=fixture.sessions.find(s=>s.id==='alpha-session');const lostAt=Date.parse('2026-11-17T11:39:51Z');
+ channel.push({type:'process_exit',status:'unknown',text:'database or disk is full (13)'},new Date(lostAt).toISOString());
+ channel.push({type:'process_exit',status:'unknown',text:'provider supervisor ended'},new Date(lostAt+4).toISOString());
+ Object.assign(alpha,{fault:'provider stream ended: provider supervisor ended',status:'failed'});
+ await page.locator('.workspace-row').filter({hasText:'Alpha renamed'}).locator('button').first().click();
+ await page.getByRole('navigation',{name:'Workspace conversations'}).getByRole('button',{name:/Conversation alpha-session/}).click();
+ const banner=page.getByRole('alert').filter({hasText:'The connection to the agent ended unexpectedly.'});
+ await expect(banner).toBeVisible();await expect(banner.getByRole('button',{name:'Resume',exact:true})).toBeVisible();
+ const lost=page.locator('.system-event.notice[data-kind="connection-lost"]');
+ await expect(lost).toHaveCount(1);await expect(lost).toContainText('Lazybox lost the connection to the agent at');await expect(lost).not.toContainText('reconnected');
+ const composerBox=page.getByRole('textbox',{name:'Message',exact:true});
+ await composerBox.fill('Are you still there?');await expect(page.getByRole('button',{name:'Send message',exact:true})).toBeDisabled();
+ const applied=()=>fixture.mutations.filter(m=>m.method==='Apply'&&m.body.sessionId==='alpha-session').length,appliedBefore=applied();
+ // The next Runner re-adopts the live agent: the Runner settles the fault, and the agent's buffered turn finishes.
+ Object.assign(alpha,{fault:'',status:'ready'});
+ channel.push({type:'runner_reattached',status:'native_process_adopted'},new Date(lostAt+2_600_000).toISOString());
+ channel.push({type:'message_delta',text:'RECOVERED_REPLY'});channel.push({type:'turn_ended',status:'completed'});
+ await expect(banner).toHaveCount(0);await expect(page.locator('.messages')).toContainText('RECOVERED_REPLY');
+ await expect(lost).toContainText('reconnected at');await expect(lost).toHaveAttribute('data-tone','muted');
+ await expect(page.locator('.runner-mark')).toHaveCount(0);
+ await expect(composerBox).toBeEnabled();await composerBox.fill('Carry on');await page.getByRole('button',{name:'Send message',exact:true}).click();
+ await expect.poll(applied).toBe(appliedBefore+1);
+ // Resume on a conversation that only lost its stream reconnects it in place: no second conversation.
+ Object.assign(alpha,{fault:'provider stream ended: session host connection lost',status:'failed'});
+ await expect(banner).toBeVisible();await banner.getByRole('button',{name:'Resume',exact:true}).click();
+ await expect(banner).toHaveCount(0);
+ assert.deepEqual(fixture.mutations.filter(m=>m.method==='ResumeSession').at(-1).body,{sessionId:'alpha-session'});
+ assert.equal(fixture.sessions.some(s=>s.id==='alpha-session-continued'),false,'Resume started a second conversation');
  await page.screenshot({path:'/tmp/lazybox-stabilization.png'});
- console.log('PASS: rename identity and placement, retained long transcript, earlier messages, reading position, deleted workspace history, visible replay failure/retry, file preview, send-to-resume and successor restoration. Fixture only.');
+ console.log('PASS: rename identity and placement, retained long transcript, earlier messages, reading position, deleted workspace history, visible replay failure/retry, file preview, send-to-resume and successor restoration, a conversation failed by a lost stream recovering on re-adoption and Resume reconnecting in place. Fixture only.');
 } finally {await browser?.close();await server.close();await fixture.close();}

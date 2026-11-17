@@ -100,6 +100,16 @@ type Engine struct {
 	// (Stop, Send now). How that turn ends is the interrupt, not a provider
 	// error (see stopReport). Cleared when the main agent's turn ends.
 	interrupting bool
+	// storageErr is why the Runner cannot save this conversation right now
+	// (a full disk), nil when it can; storageJournal says the journal itself
+	// refuses writes, so the notice waits until it takes one (storage.go).
+	storageErr     error
+	storageJournal bool
+	// persistRetrying: a goroutine retries saving the snapshot.
+	persistRetrying bool
+	// refuseWrites stands in for a disk that refuses the journal's writes,
+	// for tests only; nil in the Runner.
+	refuseWrites func() error
 }
 
 // TurnHooks observe the main agent's turns, for code checkpoints.
@@ -292,8 +302,13 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	if err := ctx.Err(); err != nil {
 		return agent.Receipt{}, err
 	}
-	e.opMu.Lock()
-	defer e.opMu.Unlock()
+	// A stop never waits behind a delivery in progress (a message waits for
+	// its turn's code checkpoint under opMu): it is what the person reaches
+	// for when that takes too long. Its acceptance is serialized by e.mu.
+	if op.Kind != agent.Interrupt {
+		e.opMu.Lock()
+		defer e.opMu.Unlock()
+	}
 	op.Origin = op.Origin.Bounded()
 	// The attached instruction update is decided by the Runner, not the client,
 	// so a client retrying the same operation is recognized without it.
@@ -314,7 +329,7 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	// subscription or after the reset.
 	// After a provider error ends a turn, the next message continues the
 	// conversation (and clears the error); nothing else may run before it.
-	if e.state.Closed || (e.state.Fault != "" && !(op.Kind == agent.Message && (agent.LimitFault(e.state.Fault) || agent.TurnFault(e.state.Fault)))) {
+	if e.state.Closed || (e.state.Fault != "" && !(unblockedByProviderFault(op.Kind) && (agent.LimitFault(e.state.Fault) || agent.TurnFault(e.state.Fault)))) {
 		e.mu.Unlock()
 		return agent.Receipt{}, errors.New("session is closed or faulted")
 	}
@@ -391,8 +406,12 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 	if op.Kind == agent.Answer || op.Kind == agent.Approve {
 		record["data"] = map[string]any{"files": op.Files, "response": map[string]any{"kind": op.Kind, "decision": op.Decision, "always": op.Always, "reason": op.Reason, "answers": op.Answers}}
 	}
-	if !e.appendLocked(record) {
+	if ok, retry := e.recordLocked(record); !ok {
 		e.mu.Unlock()
+		if retry {
+			// Nothing was accepted: the person sends it again once there is room.
+			return r, fmt.Errorf("not sent: %s", agent.StorageError("this message", e.storageCause()).Text)
+		}
 		return r, errors.New("journal unavailable")
 	}
 	e.ops[op.ID] = accepted{fingerprint: fingerprint, receipt: r}
@@ -418,7 +437,7 @@ func (e *Engine) Apply(ctx context.Context, op agent.Operation) (agent.Receipt, 
 		e.interrupting = true
 	}
 	e.mu.Unlock()
-	r, err := e.provider.Apply(e.ctx, op)
+	r, err := e.control(op)
 	r.ID = op.ID
 	if err != nil {
 		r.Delivery = "failed"
@@ -497,7 +516,7 @@ func (e *Engine) DeliverQueued(ctx context.Context, id, how string) (agent.Recei
 		e.opMu.Lock()
 		steer := op
 		steer.Kind = agent.Steer
-		r, err := e.provider.Apply(e.ctx, steer)
+		r, err := e.control(steer)
 		e.opMu.Unlock()
 		r.ID = op.ID
 		e.mu.Lock()
@@ -534,10 +553,25 @@ func (e *Engine) DeliverQueued(ctx context.Context, id, how string) (agent.Recei
 	}
 	// The interrupt ends the turn; the dispatch that follows takes this message.
 	r, err := e.Apply(ctx, agent.Operation{ID: op.ID[:min(len(op.ID), 120)] + ":now", Kind: agent.Interrupt})
-	if err != nil {
+	if err != nil && e.stillQueued(op.ID) {
 		return r, err
 	}
+	// Stopped, or the turn ended meanwhile and the message left the queue
+	// for its own turn (the stop then found nothing to stop): either way it
+	// is delivered next, which is what was asked.
 	return agent.Receipt{ID: op.ID, Delivery: "accepted"}, nil
+}
+
+// stillQueued reports whether the message id waits in the queue.
+func (e *Engine) stillQueued(id string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, op := range e.queue {
+		if op.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Engine) dispatch() {
@@ -598,22 +632,48 @@ func (e *Engine) dispatch() {
 }
 
 func (e *Engine) appendLocked(value any) bool {
+	ok, _ := e.recordLocked(value)
+	return ok
+}
+
+// recordLocked journals value, then saves the snapshot. A write the disk
+// refuses (it is full) is the Runner's own failure, never the agent's: it is
+// reported, the agent keeps running, and retry says the journal will take the
+// record later (storage.go). A journal that can take nothing more (its budget
+// spent, or closed under a write) faults the conversation and stops the
+// Runner reading the agent, but never stops the agent.
+func (e *Engine) recordLocked(value any) (ok, retry bool) {
 	if e.detaching {
 		// The journal belongs to the next Runner now. Never fault or stop the
 		// provider for a write that arrives after detaching.
-		return false
+		return false, false
 	}
-	_, err := e.journal.Append(value)
-	if err == nil {
-		err = e.persistLocked()
-	}
-	if err != nil {
+	if err := e.writeLocked(value); err != nil {
+		if retryableWrite(err) {
+			e.storageFailedLocked(err, true)
+			return false, true
+		}
+		if e.state.Closed {
+			// A late receipt after Close closed the journal: nothing to fault.
+			return false, false
+		}
+		// The Runner can record nothing more of this conversation: it stops
+		// reading the agent (the receive loop ends on this), but never stops
+		// the agent, which did nothing wrong. Its output waits in its session
+		// host; Resume, or the next Runner, re-attaches it and settles the
+		// fault (agent.TransportFault). Ending the conversation still stops it.
 		e.state.Fault = fmt.Sprintf("event capture failed: %v", err)
-		e.cancel()
-		go e.provider.Close()
-		return false
+		return false, false
 	}
-	return true
+	// The journal holds the event; the snapshot is derived from it and is
+	// saved again with the next event, or by the retry.
+	if err := e.persistLocked(); err != nil {
+		e.storageFailedLocked(err, false)
+		e.retryPersistLocked()
+	} else {
+		e.storageSavedLocked()
+	}
+	return true, false
 }
 
 // endReplayLocked forgets what the previous Runner recorded of a line once
@@ -652,6 +712,11 @@ func (e *Engine) receive() {
 		rootEvent := ev.AgentID == "" || ev.AgentID == "root"
 		if ev.SessionID != "" && rootEvent {
 			e.state.Reference = ev.SessionID
+		}
+		// The agent speaks after the Runner lost its stream: it is evidently
+		// alive, and that fault is settled. Its exit or failure is not that.
+		if ev.Type != "process_exit" && ev.Type != "failure" && ev.Type != agent.StorageErrorEvent {
+			e.settleTransportFaultLocked()
 		}
 		switch ev.Type {
 		case "profile_switching":
@@ -729,7 +794,7 @@ func (e *Engine) receive() {
 		}
 		e.recordMessage(ev)
 		e.observe(ev)
-		ok := e.appendLocked(ev)
+		ok, retry := e.recordLocked(ev)
 		var after func(string, time.Time)
 		turn := ""
 		if ev.Type == "turn_ended" && rootEvent {
@@ -740,7 +805,7 @@ func (e *Engine) receive() {
 			tool = e.hooks.Tool
 		}
 		e.mu.Unlock()
-		if !ok {
+		if !ok && !(retry && e.recordAgain(ev)) {
 			return
 		}
 		e.commit(ev)

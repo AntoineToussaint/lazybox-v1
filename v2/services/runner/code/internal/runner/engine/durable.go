@@ -205,13 +205,38 @@ func Adopt(ctx context.Context, adapter agent.Adapter, open agent.Open, spool *j
 		// Fingerprints are not journaled; a retried ID returns its first receipt.
 		e.ops[id] = accepted{receipt: r, adopted: true}
 	}
+	// The previous Runner stopped while delivering a message that never
+	// started a turn (it waited for its code checkpoint): the conversation
+	// was saved busy, and no turn_ended would ever come. It is not busy; the
+	// message's outcome is unknown (its receipt above says so), and what is
+	// queued goes next. A turn it did start reports turn_started from the host.
+	if e.state.Busy {
+		for _, id := range scan.order {
+			if scan.startedNothing(id, queued) {
+				e.state.Busy = false
+				if root, ok := e.state.Agents["root"]; ok && (root.Status == agent.Starting || root.Status == agent.Running) {
+					root.Status, root.Phase, root.Tool = agent.Ready, "", ""
+					e.state.Agents["root"] = root
+				}
+				break
+			}
+		}
+	}
 	e.replayed, e.replayedAfter = scan.partial, scan.cursor
 	// A stop the previous Runner asked for is still the stop that ends the
 	// turn in progress: its report is not a provider error here either.
 	e.interrupting = scan.interrupting != "" && e.state.Busy
-	ok := e.appendLocked(agent.Event{Type: "runner_reattached", Status: "native_process_adopted", Cursor: scan.cursor})
+	// The previous Runner lost its stream from the agent, or could not record
+	// it (a full disk once ended it so): this is the agent's live process
+	// again, so that fault is settled and what the agent reports from here
+	// says how it is. An agent that really exited reports its exit again from
+	// its host and fails again; provider faults (limits, sign-in) stay.
+	e.settleTransportFaultLocked()
+	ok, retry := e.recordLocked(agent.Event{Type: "runner_reattached", Status: "native_process_adopted", Cursor: scan.cursor})
 	e.mu.Unlock()
-	if !ok {
+	// A disk that refuses the notice does not cost the agent its Runner: the
+	// first event it records waits for room (recordAgain).
+	if !ok && !retry {
 		cancel()
 		_ = s.(agent.Detacher).Detach()
 		return nil, errors.New("journal unavailable during adoption")
@@ -242,6 +267,26 @@ type journalScan struct {
 	// awaiting indexes the user messages in said whose delivery is not
 	// recorded yet: they stay where they were accepted until their receipt.
 	awaiting map[string]int
+	// acceptedAt is where each operation was accepted, and lastStarted and
+	// lastEnded where the main agent's last turn started and ended, as
+	// record positions counted from 1 (0: never).
+	acceptedAt             map[string]int
+	lastStarted, lastEnded int
+}
+
+// startedNothing reports whether message id was taken from the queue for
+// delivery but never started a turn: no receipt says it reached the agent
+// and no turn started since it was accepted, or since the last turn ended.
+// A Runner that stopped while a message waited for its turn's code
+// checkpoint leaves exactly that, with the conversation saved as busy.
+func (s *journalScan) startedNothing(id string, queued map[string]bool) bool {
+	if s.kinds[id] != agent.Message || queued[id] {
+		return false
+	}
+	if _, ok := s.receipts[id]; ok {
+		return false
+	}
+	return s.lastStarted < max(s.acceptedAt[id], s.lastEnded)
 }
 
 type utterance struct {
@@ -277,7 +322,7 @@ func (s *journalScan) delivered(r agent.Receipt) {
 // counts events from the current native attempt: a profile rotation starts a new
 // host whose cursors restart.
 func scanJournal(ctx context.Context, spool *journal.Journal) (journalScan, error) {
-	s := journalScan{kinds: map[string]agent.Kind{}, receipts: map[string]agent.Receipt{}, responded: map[string]agent.Operation{}, awaiting: map[string]int{}}
+	s := journalScan{kinds: map[string]agent.Kind{}, receipts: map[string]agent.Receipt{}, responded: map[string]agent.Operation{}, awaiting: map[string]int{}, acceptedAt: map[string]int{}}
 	partial := map[uint64]map[string]int{}
 	for i, n := uint64(0), spool.Count(); i < n; i++ {
 		r, err := spool.Next(ctx, i)
@@ -300,16 +345,26 @@ func scanJournal(ctx context.Context, spool *journal.Journal) (journalScan, erro
 		if json.Unmarshal(r.Value, &v) != nil {
 			continue
 		}
+		root := v.AgentID == "" || v.AgentID == "root"
 		switch v.Type {
 		case "profile_changed":
 			s.cursor = 0
 			s.interrupting = ""
 			partial = map[uint64]map[string]int{}
+			s.lastStarted = int(i) + 1
+		case "turn_started":
+			if root {
+				s.lastStarted = int(i) + 1
+			}
 		case "turn_ended":
-			if v.AgentID == "" || v.AgentID == "root" {
+			if root {
 				s.interrupting = ""
+				s.lastEnded = int(i) + 1
 			}
 		case "operation_accepted":
+			if _, seen := s.acceptedAt[v.OperationID]; !seen {
+				s.acceptedAt[v.OperationID] = int(i) + 1
+			}
 			if _, seen := s.kinds[v.OperationID]; !seen {
 				s.order = append(s.order, v.OperationID)
 			}

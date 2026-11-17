@@ -667,6 +667,8 @@ actions:
       case 'DeleteConversation': {const session=sessions.find(s=>s.id===body.sessionId);if(session&&!session.closed&&!body.stopSessions)return error('failed_precondition','Agent running');if(session)sessions.splice(sessions.indexOf(session),1);mutations.push({method,body});return json({});}
       case 'ResumeSession': {
         const previous=sessions.find(s=>s.id===body.sessionId);if(!previous)return error('not_found','Missing conversation');
+        // Like the Runner (Bench.reconnect): a live conversation that only lost its stream re-attaches its agent in place.
+        if(!previous.closed&&/^(provider stream ended|event capture failed)/.test(previous.fault||'')){Object.assign(previous,{fault:'',status:previous.busy?'running':'ready'});mutations.push({method,body});return json({session:previous});}
         let session=sessions.find(s=>s.previousExecutionId===previous.id);
         if(!session){session={...previous,id:previous.id+'-continued',previousExecutionId:previous.id,conversationId:previous.conversationId||previous.id,closed:false,historical:false,status:'ready'};sessions.push(session);}
         previous.successorExecutionId=session.id;mutations.push({method,body});return json({session});

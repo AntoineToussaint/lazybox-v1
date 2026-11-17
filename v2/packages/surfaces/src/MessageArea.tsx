@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
 import type { Session } from '@lazybox/protocol';
 import type { OpenModifiers } from './file-links';
@@ -11,7 +11,7 @@ import { PromptNavigator } from './PromptNavigator';
 import { RequestCard } from './session-parts';
 import { ToolLineContext } from './ToolLine';
 import { latestPlanId, type ActivityDetail } from './tool-lines';
-import { faultSentence } from './subscription-model';
+import { faultSentence, transportFault } from './subscription-model';
 import type { useChatScroll } from './useChatScroll';
 import type { useTranscript } from './useTranscript';
 
@@ -63,7 +63,7 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
           {transcript.loading && !conversation.length && <ConversationLoading replay={transcript.replay}/>}
           {!transcript.loading && !transcript.error && !spoken && <EmptyConversation agentName={agentName}/>}
           <MessageScopeProvider scope={artifactScope}><ToolLineContext.Provider value={toolScope}><MessageList messages={spoken ? conversation : []} visible={scroll.visibleMessages} agentName={agentName} onOpenFile={onOpenFile} onShowEarlier={scroll.showEarlier} nameFor={nameFor} checkpoints={checkpoints} sessionId={sessionID} onReveal={scroll.revealMessage} detail={detail} loadingEarlier={transcript.partial}/></ToolLineContext.Provider></MessageScopeProvider>
-          {session?.fault && !limited && <div className="error" role="alert">{faultSentence(session.fault)}</div>}
+          {session?.fault && !limited && <FaultBanner api={api} session={session} sessionID={sessionID} onError={onError}/>}
           <PendingRequests api={api} session={session} sessionID={sessionID} agentName={agentName} onError={onError}/>
           {subscription}
         </div>
@@ -72,6 +72,27 @@ export function MessageArea({ api, session, sessionID, transcript, scroll, spoke
     {fileTracking.element}
     {!scroll.followingLatest && conversation.length > 0 && <button className="jump-to-latest" onClick={scroll.jumpToLatest}>Jump to latest</button>}
   </>;
+}
+
+/**
+ * Why the conversation cannot go on. It follows the Runner's fault, so it is
+ * gone as soon as the Runner settles it (a re-adopted agent, Resume). A lost
+ * stream offers Resume: the Runner re-attaches the live agent in place and
+ * never starts a second one.
+ */
+function FaultBanner({ api, session, sessionID, onError }: { api: RunnerClient; session: Session; sessionID: string; onError(message: string): void }) {
+  const [resuming, setResuming] = useState(false);
+  const resume = async () => {
+    if (resuming) return;
+    setResuming(true); onError('');
+    try { await api.resumeSession({ sessionId: sessionID }); }
+    catch (error) { onError(`Could not resume the conversation: ${error instanceof Error ? error.message : String(error)}`); }
+    finally { setResuming(false); }
+  };
+  return <div className="error" role="alert">
+    {faultSentence(session.fault)}
+    {transportFault(session.fault) && !session.closed && <button disabled={resuming} onClick={() => void resume()}>{resuming ? 'Resuming…' : 'Resume'}</button>}
+  </div>;
 }
 
 function EmptyConversation({ agentName }: { agentName: string }) {

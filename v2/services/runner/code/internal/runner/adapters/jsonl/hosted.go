@@ -284,6 +284,19 @@ func (p *Process) terminateHosted() error {
 		p.commitMu.Unlock()
 		if exitSeen {
 			p.release()
+			return p.exitErr
+		}
+		if errors.Is(p.exitErr, processguard.ErrCleanupUnconfirmed) {
+			// The connection to the host was lost, not the agent's exit seen:
+			// ask the host to stop it. A host that is gone took its agent's
+			// group with it, which confirms the exit; one that answers is
+			// stopped now. Either way a close can succeed.
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			defer cancel()
+			if err := p.hostBackend.Stop(ctx, p.hostRoot, p.host.ID()); err != nil && !sessionhost.Gone(err) {
+				return fmt.Errorf("native exit remains unconfirmed: %w", err)
+			}
+			return nil
 		}
 		return p.exitErr
 	default:

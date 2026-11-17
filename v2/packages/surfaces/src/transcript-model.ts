@@ -19,8 +19,10 @@ export type TranscriptMessage = { id: string; type: string; text: string; turnId
   origin?: MessageOrigin;
   /** A `notice`: what a Runner restart (or a revert) left to know. */
   notice?: RunnerNotice;
-  /** A `reattached` marker: when the last of its restarts was. */
+  /** A `reattached` marker: when the last of its restarts was. A `connection-lost` notice: when the stream was lost. */
   at?: number;
+  /** A `connection-lost` notice the Runner's re-attachment completed: when it reconnected. */
+  reconnected?: { at?: number };
   /** `lineage`: an agent-tree line (started, messaged, stopped, granted) and what it points at. */
   lineage?: LineageNote;
   /** A `failure`: what the provider said, when the line says it in plain words instead. */
@@ -161,8 +163,20 @@ export function foldTranscript(state: Transcript, records: readonly JournalEvent
     // A restart that interrupted nothing is not news: one quiet marker, which
     // every later restart joins until the person says something, so hot
     // reloads never stack up in the conversation.
+    // The Runner lost its stream from the agent (its own failure, or the
+    // agent's exit): one quiet line, kept as history. The cause and the
+    // supervisor's end that follows it are the same loss.
+    if (event.type === 'process_exit') {
+      const current = messages ?? state.messages, at = Date.parse(record.capturedAt);
+      if (openLoss(current) < 0) add({ id: record.cursor.toString(), type: 'notice', notice: 'connection-lost', text: event.text, turnId: event.turnId, ...(Number.isFinite(at) ? { at } : {}) });
+      next.appendToLast = false;
+      continue;
+    }
     if (event.type === 'runner_reattached' && !record.receipt) {
       const current = messages ?? state.messages, at = Date.parse(record.capturedAt), when = Number.isFinite(at) ? { at } : {};
+      // The re-attachment completes the line the loss left: "· reconnected at 12:23".
+      const lost = openLoss(current);
+      if (lost >= 0) { replaceAt(lost, { ...current[lost], reconnected: when }); continue; }
       const index = restartMarker(current);
       if (index >= 0) replaceAt(index, { ...current[index], count: (current[index].count || 1) + 1, ...when });
       else add({ id: record.cursor.toString(), type: 'reattached', text: '', turnId: event.turnId, count: 1, ...when });
@@ -408,9 +422,21 @@ function noticeOf(record: JournalEvent): { notice: RunnerNotice; text: string } 
   // The agent did not survive while no Runner ran (a reboot): the Runner's own sentence says what was lost and what to do.
   if (event?.type === 'agent_lost')
     return { notice: 'agent-lost', text: event.text || 'Lazybox restarted after this agent stopped. Send a message to resume its session.' };
+  // The Runner could not save (a full disk): its own failure, said once; the agent kept running.
+  if (event?.type === 'storage_error' && event.text) return { notice: 'storage', text: event.text };
   if (event?.type === 'request_resolved' && event.status === 'outcome_unknown_after_restart')
     return { notice: 'outcome-unknown', text: 'The Runner restarted while a command the agent started was in flight. Its outcome is unknown, so it was not run again; the agent was told to check before retrying.' };
   return undefined;
+}
+
+/** The lost-connection line no re-attachment completed yet, since the person last said something. */
+function openLoss(messages: readonly TranscriptMessage[]): number {
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - 400); i--) {
+    const message = messages[i];
+    if (message.type === 'notice' && message.notice === 'connection-lost') return message.reconnected ? -1 : i;
+    if (message.type === 'operation_accepted' && !message.origin) return -1;
+  }
+  return -1;
 }
 
 /** The restart marker still open: one since the person last said something. */

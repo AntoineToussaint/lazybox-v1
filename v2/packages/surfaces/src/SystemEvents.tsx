@@ -12,7 +12,7 @@ import { copyText } from './ContextMenu';
 import type { FileLink } from './file-reference';
 import type { OpenModifiers } from './file-links';
 import type { TranscriptMessage } from './transcript-model';
-import { NOTICE_ICONS, restartTitle, systemEventView, type RunnerNotice } from './system-events';
+import { connectionLine, NOTICE_ICONS, restartTitle, systemEventView, type RunnerNotice } from './system-events';
 import { OpenSender } from './AgentMessages';
 import './system-events.css';
 
@@ -60,13 +60,17 @@ const NOTICE_LINES: Record<RunnerNotice, string> = {
   reverted: '',
   cli: '',
   'pull-request': '',
+  'connection-lost': '',
+  storage: '',
 };
 
 /** What a Runner restart (or a revert) left to know: one line, its whole sentence on hover. */
 export function RunnerNoticeLine({ message: m }: { message: TranscriptMessage }) {
-  const kind = m.notice || 'delivery-unknown', { icon, tone } = NOTICE_ICONS[kind];
-  const line = NOTICE_LINES[kind] || m.text;
-  return <div className="system-event notice" data-kind={kind} data-tone={tone} data-message-id={m.id} role="note" title={m.text}>
+  const kind = m.notice || 'delivery-unknown', { icon } = NOTICE_ICONS[kind];
+  // A lost connection the Runner got back is history, not an alarm.
+  const tone = kind === 'connection-lost' && m.reconnected ? 'muted' : NOTICE_ICONS[kind].tone;
+  const line = kind === 'connection-lost' ? connectionLine(m.text, m.at, m.reconnected?.at, !!m.reconnected) : NOTICE_LINES[kind] || m.text;
+  return <div className="system-event notice" data-kind={kind} data-tone={tone} data-message-id={m.id} role="note" title={kind === 'connection-lost' && m.text ? `${line}\n${m.text}` : m.text}>
     <div className="system-event-line">
       <span className="system-event-static">
         <span className="system-event-icon" aria-hidden="true"><Icon name={icon} size={12}/></span>

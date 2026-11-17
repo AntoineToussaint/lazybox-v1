@@ -133,6 +133,35 @@ notices in the conversation.
   (`sessionhost.Held`), never the host's own report: a host counts a crashed
   or detached predecessor as attached until it has read that connection's
   close, which can take longer than a Runner restart.
+  An execution it could not re-attach for another reason than its host being
+  gone (an attachment it cannot read, a profile no longer configured) is
+  stopped by that sweep and then ended like a lost agent (below): interrupted,
+  resumable, with an `agent_lost` notice saying why. It is never left open.
+- A fault that says only that the Runner lost its stream from the agent
+  (`agent.TransportFault`: "provider stream ended", "event capture failed") is
+  settled by re-attaching: `engine.Adopt` clears it, and so does any event the
+  agent sends after it. The agent is evidently alive; what it reports says how
+  it is. An agent that really exited reports its exit again from its host and
+  fails again; one whose host is gone cannot be re-attached at all. Provider
+  faults (limits, sign-in, billing, a turn's error) are never cleared this way.
+- Resume on a live conversation with such a fault re-attaches it in place, as
+  a restart would (`Bench.reconnect`: Detach, then adopt): no second agent is
+  started. If the host is gone, or cannot be adopted (it is stopped), the
+  conversation ends as interrupted and resumes natively.
+- The Runner's own writes (the journal, the saved snapshot, metering, account
+  state) can fail while the agent is fine: a full disk. That never ends the
+  supervision of a live agent. The failure is said once in the conversation
+  (`storage_error`) and in the log, and retried: a journal write with the same
+  event, while nothing more is read from the agent or acknowledged to its host
+  (the host keeps the output; the agent blocks once that buffer is full); a
+  snapshot with the next event, or by a retry. A message sent meanwhile is
+  refused, saying the disk is full. A journal that takes nothing more stops
+  the Runner reading the agent, never the agent: Resume or the next Runner
+  re-attaches it.
+- Closing an agent whose host connection was lost asks the host to stop it;
+  a host that is gone took its agent's group with it, which confirms the exit.
+  A conversation whose agent's exit stays unconfirmed resumes once the person
+  confirms the agent is stopped (`processesStopped`).
 - A newer client attaching to a host supersedes the old one and tells it so; the
   superseded Runner stands down and never stops a program it no longer owns.
 - A host whose program exited while no Runner was attached keeps the remaining

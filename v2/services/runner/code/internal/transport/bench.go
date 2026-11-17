@@ -117,7 +117,9 @@ func wireSession(e *runner.Execution) *pb.Session {
 		w.Title = e.Saved.Title
 	}
 	w.Historical = e.Archived
-	w.RecoveryRequired = e.RecoveryRequired
+	// A conversation whose agent's exit could not be confirmed resumes once
+	// the person confirms it is stopped, as one that needs recovery does.
+	w.RecoveryRequired = e.RecoveryRequired || (s.Closed && s.Fault == "native_exit_unconfirmed")
 	w.ResumeBlocked = e.Saved.ResumeBlocked
 	w.CreatedAtUnixMillis = e.Saved.CreatedAt.UnixMilli()
 	for _, a := range engine.SortedActivities(s.Agents) {

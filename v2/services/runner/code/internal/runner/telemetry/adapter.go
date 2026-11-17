@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"log"
 	"strings"
+
+	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 )
 
 // Adapter goes inside rotation: every native Open receives an immutable scope.
@@ -22,6 +24,11 @@ type session struct {
 	scope            Scope
 	release          func()
 	metered, resumed bool
+	// failing: a metering write failed and was reported; the next notice
+	// waits for a write that succeeds. notice is the report, delivered as the
+	// next event. Receive is called by one goroutine, so neither is locked.
+	failing bool
+	notice  *agent.Event
 }
 
 // durable keeps the metering attempt identity, so usage after a Runner restart
@@ -116,17 +123,45 @@ func (s *session) SessionSettings() json.RawMessage {
 	}
 	return nil
 }
+
+// Receive passes the agent's events on, metering usage and context as they
+// go. Metering is the Runner's own bookkeeping: a write that fails (a full
+// disk: SQLite's "database or disk is full") is reported once, as a notice in
+// the conversation and in the log, and never ends the stream. Ending it here
+// is what once made the supervisor stop reading a live agent and the
+// conversation fail ("provider supervisor ended").
 func (s *session) Receive(ctx context.Context) (agent.Event, error) {
+	if s.notice != nil {
+		notice := *s.notice
+		s.notice = nil
+		return notice, nil
+	}
 	ev, err := s.Session.Receive(ctx)
 	if err != nil {
 		return ev, err
 	}
+	wrote, err := s.record(ctx, ev)
+	switch {
+	case err != nil && ctx.Err() == nil && !s.failing:
+		log.Printf("metering %s/%s: usage not saved: %v", s.scope.Conversation, s.scope.Execution, err)
+		s.failing = true
+		notice := agent.StorageError("this conversation's usage", err)
+		s.notice = &notice
+	case err == nil && wrote:
+		s.failing = false
+	}
+	return ev, nil
+}
+
+// record meters what ev says about usage or context, reporting whether it
+// wrote anything.
+func (s *session) record(ctx context.Context, ev agent.Event) (bool, error) {
 	if ev.Type != "usage" && ev.Type != "context" {
-		return ev, nil
+		return false, nil
 	}
 	var body map[string]any
 	if json.Unmarshal(ev.Data, &body) != nil {
-		return ev, nil
+		return false, nil
 	}
 	actor := ev.AgentID
 	if actor == "" {
@@ -134,26 +169,26 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	}
 	if ev.Type == "context" {
 		var c ContextSnapshot
-		if json.Unmarshal(ev.Data, &c) == nil {
-			c.Scope = s.scope
-			c.Agent = actor
-			if c.Source == "" {
-				c.Source = "sdk"
-			}
-			err = s.adapter.Store.PutContext(ctx, c)
+		if json.Unmarshal(ev.Data, &c) != nil {
+			return false, nil
 		}
-		return ev, err
+		c.Scope = s.scope
+		c.Agent = actor
+		if c.Source == "" {
+			c.Source = "sdk"
+		}
+		return true, s.adapter.Store.PutContext(ctx, c)
 	}
 	if strings.HasPrefix(s.scope.Provider, "acp:") {
-		return ev, s.reportedUsage(ctx, actor, body)
+		return true, s.reportedUsage(ctx, actor, body)
 	}
 	if s.scope.Provider == "codex" {
 		usage := object(body["tokenUsage"])
 		last := object(usage["last"])
 		total := object(usage["total"])
 		c := ContextSnapshot{Scope: s.scope, Agent: actor, Source: "sdk", Used: count(last["totalTokens"]), Capacity: count(usage["modelContextWindow"])}
-		if err = s.adapter.Store.PutContext(ctx, c); err != nil {
-			return ev, err
+		if err := s.adapter.Store.PutContext(ctx, c); err != nil {
+			return true, err
 		}
 		if !s.metered && len(total) > 0 {
 			input, cached := count(total["inputTokens"]), count(total["cachedInputTokens"])
@@ -162,24 +197,24 @@ func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 			}
 			if input != nil && *input >= *cached {
 				r := Record{Scope: s.scope, Agent: actor, Parent: ev.ParentAgentID, Source: "sdk", ResponseID: str(body["threadId"]), Status: "complete", Tokens: Tokens{Input: number(*input - *cached), Output: count(total["outputTokens"]), CacheRead: cached, CacheWrite5m: number(0), CacheWrite1h: number(0)}}
-				err = s.adapter.Store.PutCumulative(ctx, r, s.resumed)
+				return true, s.adapter.Store.PutCumulative(ctx, r, s.resumed)
 			}
 		}
-		return ev, err
+		return true, nil
 	}
-	if !s.metered && str(body["requestId"]) != "" {
-		parser := NewParser("claude", "application/json")
-		raw, _ := json.Marshal(map[string]any{"id": body["requestId"], "model": body["model"], "usage": body["usage"]})
-		parser.Push(raw)
-		r := parser.Finish(true)
-		r.Scope = s.scope
-		r.Source = "sdk"
-		r.Agent = actor
-		r.Parent = ev.ParentAgentID
-		r.ID = "sdk-message:" + s.scope.Conversation + "/" + s.scope.Profile + "/" + r.ResponseID
-		err = s.adapter.Store.Put(ctx, s.adapter.Prices.Price(r))
+	if s.metered || str(body["requestId"]) == "" {
+		return false, nil
 	}
-	return ev, err
+	parser := NewParser("claude", "application/json")
+	raw, _ := json.Marshal(map[string]any{"id": body["requestId"], "model": body["model"], "usage": body["usage"]})
+	parser.Push(raw)
+	r := parser.Finish(true)
+	r.Scope = s.scope
+	r.Source = "sdk"
+	r.Agent = actor
+	r.Parent = ev.ParentAgentID
+	r.ID = "sdk-message:" + s.scope.Conversation + "/" + s.scope.Profile + "/" + r.ResponseID
+	return true, s.adapter.Store.Put(ctx, s.adapter.Prices.Price(r))
 }
 
 // HostID forwards the native session's host (agent.Hosted).
