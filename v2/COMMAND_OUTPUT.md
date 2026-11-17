@@ -122,6 +122,13 @@ up to 8 MiB it could not send meanwhile, and saying what it dropped beyond
 that), and a run nothing hears from for 90 seconds is ended as *stopped
 reporting*.
 
+**Bounds.** One conversation, or one terminal, has at most 16 consoles open
+at once (`lazybox run`, `lazybox log`, a terminal's run); a 17th is refused
+until one finishes. An unfollowed console (`lazybox log`, a terminal's run)
+that receives nothing is ended: after 15 minutes if it never received
+anything, after 6 hours of silence otherwise. The producer's output still
+reaches its terminal; only the console stops.
+
 **Inside an agent**, `lazybox ls` lists the agent's own commands (running
 first, a background server with its URL, then the last five that ended) and
 `lazybox stop ID` stops one; the agent's credential lists and stops its own

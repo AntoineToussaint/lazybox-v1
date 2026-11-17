@@ -137,6 +137,10 @@ type Command struct {
 	backgroundRequested bool
 	wake                chan struct{}
 	lastSeen            time.Time
+	// lastPublished is when a pipe last received output (or was
+	// registered): an unfollowed pipe that stays silent is ended
+	// (pipeIdle).
+	lastPublished time.Time
 }
 
 type Manager struct {
@@ -159,6 +163,16 @@ type Manager struct {
 // followSilence is how long a followed pipe may go without hearing from its
 // `lazybox run` (which asks at least every 25 seconds) before it is ended.
 var followSilence = 90 * time.Second
+
+// pipeIdle is how long an unfollowed pipe (`lazybox log`, a terminal's run)
+// may receive nothing before it is ended: abandoned registrations do not
+// hold live slots for ever. One that never received anything goes sooner
+// than a quiet log that did.
+var pipeIdle = struct{ Never, After time.Duration }{Never: 15 * time.Minute, After: 6 * time.Hour}
+
+// MaxOpenPipes bounds the pipes one execution, or one terminal, has open at
+// once: each holds a live slot of the registry and a capture file.
+const MaxOpenPipes = 16
 
 // beforeSpawn is a test seam: it runs just before a hosted command spawns.
 var beforeSpawn = func() {}
@@ -294,17 +308,29 @@ func (m *Manager) watchFollowers() {
 		case <-tick.C:
 		}
 		m.mu.Lock()
-		var silent []*Command
+		var silent, idle []*Command
 		for _, c := range m.items {
 			c.mu.Lock()
 			if c.status.Following && !c.status.Done && !c.detaching && time.Since(c.lastSeen) > followSilence {
 				silent = append(silent, c)
+			}
+			if c.status.Mode == "pipe" && !c.status.Following && !c.status.Done && !c.detaching && !c.lastPublished.IsZero() {
+				limit := pipeIdle.After
+				if c.status.Offset == 0 {
+					limit = pipeIdle.Never
+				}
+				if time.Since(c.lastPublished) > limit {
+					idle = append(idle, c)
+				}
 			}
 			c.mu.Unlock()
 		}
 		m.mu.Unlock()
 		for _, c := range silent {
 			c.complete(nil, "", errors.New("its lazybox run stopped reporting: the command may still be running outside Lazybox"), nil)
+		}
+		for _, c := range idle {
+			c.complete(nil, "", errors.New("nothing was published to it for a long time, so Lazybox closed it; publish again with a new lazybox log"), nil)
 		}
 	}
 }
@@ -324,6 +350,30 @@ func (m *Manager) admitLocked() error {
 	}
 	if m.closed || active >= m.maxLive {
 		return errors.New("command registry closed or capacity exhausted")
+	}
+	return nil
+}
+
+// admitPipeLocked refuses a pipe past MaxOpenPipes open for its execution
+// or its terminal.
+func (m *Manager) admitPipeLocked(spec Spec) error {
+	if len(spec.Argv) > 0 || (spec.SessionID == "" && spec.TerminalID == "") {
+		return nil
+	}
+	open := 0
+	for _, c := range m.items {
+		c.mu.Lock()
+		s := c.status
+		c.mu.Unlock()
+		if s.Mode != "pipe" || s.Done {
+			continue
+		}
+		if (spec.SessionID != "" && s.Spec.SessionID == spec.SessionID) || (spec.TerminalID != "" && s.Spec.TerminalID == spec.TerminalID) {
+			open++
+		}
+	}
+	if open >= MaxOpenPipes {
+		return fmt.Errorf("%d consoles are already open here; let one finish (or stop it) before starting another", MaxOpenPipes)
 	}
 	return nil
 }
@@ -351,6 +401,9 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	if spec.StopGraceMs < 0 || spec.StopGraceMs > 60_000 {
 		return nil, errors.New("stop grace must be within a minute")
 	}
+	if err := m.admitPipeLocked(spec); err != nil {
+		return nil, err
+	}
 	id := ID()
 	spool, err := journal.Open(filepath.Join(m.dir, id+".jsonl"), m.limit)
 	if err != nil {
@@ -359,6 +412,8 @@ func (m *Manager) register(spec Spec, host *sessionhost.Client) (*Command, error
 	c := &Command{spool: spool, finished: make(chan struct{}), status: Status{ID: id, Spec: spec, Mode: "pipe", StartedAt: time.Now().UnixMilli()}, hostRoot: m.hostRoot, hostBackend: m.backend, wake: make(chan struct{})}
 	if len(spec.Argv) > 0 {
 		c.status.Mode = "managed"
+	} else {
+		c.lastPublished = time.Now()
 	}
 	if host != nil {
 		c.hostID = host.ID()
@@ -460,6 +515,9 @@ func (c *Command) write(channel string, data []byte, expected *uint64) error {
 		return err
 	}
 	c.status.Offset += uint64(len(data))
+	if c.status.Mode == "pipe" {
+		c.lastPublished = time.Now()
+	}
 	return nil
 }
 
