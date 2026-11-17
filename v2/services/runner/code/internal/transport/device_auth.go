@@ -81,7 +81,14 @@ var deviceRPCs = map[string]deviceRule{
 		o := r.Options
 		return o == nil || (o.Permission == "" && o.GatewayId == "" && o.Instructions == "")
 	}},
-	pb.RunnerService_ResumeSession_FullMethodName: {grant: devices.GrantStart},
+	// Continuing an ended conversation, never with processes_stopped: that is
+	// the owner's statement, after an unclean shutdown, that the previous
+	// agent and its commands are gone — which a phone (or a hook) cannot
+	// know, and which would start a second agent beside one still running.
+	pb.RunnerService_ResumeSession_FullMethodName: {grant: devices.GrantStart, allow: func(req any) bool {
+		r, ok := req.(*pb.ResumeSessionRequest)
+		return ok && !r.ProcessesStopped
+	}},
 	// A phone's own push notifications (push.go): reading what needs the person
 	// includes being told, so a read-only phone may subscribe. Each RPC acts on
 	// the calling device only; the service refuses another device's id.

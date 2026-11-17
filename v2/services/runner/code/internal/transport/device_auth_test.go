@@ -218,6 +218,13 @@ func TestDeviceGrantsAreEnforcedPerRPC(t *testing.T) {
 	}
 	_, err = f.client.ResumeSession(bearer(ctx, responder), &pb.ResumeSessionRequest{SessionId: e.ID})
 	expectCode(t, "device without start resumed a session", err, codes.PermissionDenied)
+	// Saying the previous processes are stopped is the owner's alone.
+	_, err = f.client.ResumeSession(bearer(ctx, starter), &pb.ResumeSessionRequest{SessionId: e.ID, ProcessesStopped: true})
+	expectCode(t, "device resumed with processes_stopped", err, codes.PermissionDenied)
+	_, err = f.client.ResumeSession(bearer(ctx, starter), &pb.ResumeSessionRequest{SessionId: e.ID})
+	if status.Code(err) == codes.PermissionDenied || status.Code(err) == codes.Unauthenticated {
+		t.Fatal("start grant refused a plain resume", err)
+	}
 }
 
 func TestDeviceCanApproveButAgentStillCannot(t *testing.T) {
