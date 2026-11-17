@@ -241,7 +241,8 @@
 .workspace-actions:hover>summary,.workspace-actions:focus-within>summary{opacity:1}
 .workspace-actions>.action-popover{position:fixed;inset:auto;margin:0;width:208px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);box-sizing:border-box;overflow:auto;padding:5px;background:var(--surface-hover);color:var(--text);border:1px solid var(--line-strong);border-radius:8px;box-shadow:0 12px 32px color-mix(in srgb,var(--shadow) calc(40% * var(--shadow-strength)),transparent)}
 .action-popover::backdrop{background:transparent}
-.workspace-shell .workspace-actions>div>button{display:block;width:100%;text-align:left;padding:8px 10px;font-size:calc(12px * var(--text-scale));line-height:calc(16px * var(--text-scale));font-weight:400;border:0;border-radius:4px;white-space:nowrap;margin:0;background:transparent}
+.workspace-shell .workspace-actions>div>button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:8px 10px;font-size:calc(12px * var(--text-scale));line-height:calc(16px * var(--text-scale));font-weight:400;border:0;border-radius:4px;white-space:nowrap;margin:0;background:transparent}
+.workspace-shell .workspace-actions>div>button>svg{flex:none;color:var(--text-muted,var(--text-subtle))}
 .workspace-shell .workspace-actions>div>button:hover{background:var(--surface-strong)}
 .workspace-shell .workspace-actions>div>button.danger{color:var(--danger-soft)}
 .workspace-shell .history-shortcut{display:flex;align-items:center;gap:9px;width:100%;min-height:36px;margin:12px 0 0;padding:8px 10px;font-size:calc(12px * var(--text-scale));font-weight:400;text-align:left;color:var(--text-muted);border-radius:6px}
