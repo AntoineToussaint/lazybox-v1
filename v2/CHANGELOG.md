@@ -14,6 +14,15 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.31] - 2026-11-17 · Steer Claude, and "always allow" that sticks
+
+- **Steer Claude mid-turn** A message queued while Claude works now has Steer, as Codex's does: Claude reads it after the step it is on, without stopping, as when you type into Claude Code during a turn. ⌘↵ still stops and sends.
+- **Always allow is remembered** What you always allow in a Claude conversation is no longer forgotten when its agent restarts or you resume the conversation later. The session menu (⋯) lists it under Always allowed; × removes one, and Claude asks again.
+- **Codex can be given more access** When Codex asks for the network or a folder outside its sandbox, the card names exactly what, and Allow grants just that, for this turn or, with Always allow, the conversation.
+- **Codex compactions are shown** When Codex compacts its context, the conversation shows one quiet line, Context compacted automatically from 156k tokens, as it does for Claude.
+- **An untested Codex says so** A Codex version Lazybox is not tested with shows one line at the start of the conversation, instead of features failing silently. Lazybox is tested with Codex 0.164 to 0.169.
+- **ACP agents are a preview** Gemini CLI, Goose and the other ACP agents are marked Preview in New conversation and Settings. Settings → Agents also says when an installed agent's help does not mention the flag Lazybox starts it with, and how to update it.
+
 ## [2026-11-17.30] - 2026-11-17 · A steadier conversation
 
 - **⌘K keeps your draft** A conversation command run from the command palette (Compact the context, Show context and token cost…) no longer empties the message box or its saved draft. ⌘K Open the review tray opens the tray; it no longer starts a review.

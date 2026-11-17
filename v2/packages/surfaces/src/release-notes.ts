@@ -9,6 +9,19 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.31',
+    date: '2026-11-17',
+    title: 'Steer Claude, and "always allow" that sticks',
+    items: [
+      { title: 'Steer Claude mid-turn', body: 'A message queued while Claude works now has Steer, as Codex\'s does: Claude reads it after the step it is on, without stopping, as when you type into Claude Code during a turn. ⌘↵ still stops and sends.' },
+      { title: 'Always allow is remembered', body: 'What you always allow in a Claude conversation is no longer forgotten when its agent restarts or you resume the conversation later. The session menu (⋯) lists it under Always allowed; × removes one, and Claude asks again.' },
+      { title: 'Codex can be given more access', body: 'When Codex asks for the network or a folder outside its sandbox, the card names exactly what, and Allow grants just that, for this turn or, with Always allow, the conversation.' },
+      { title: 'Codex compactions are shown', body: 'When Codex compacts its context, the conversation shows one quiet line, Context compacted automatically from 156k tokens, as it does for Claude.' },
+      { title: 'An untested Codex says so', body: 'A Codex version Lazybox is not tested with shows one line at the start of the conversation, instead of features failing silently. Lazybox is tested with Codex 0.164 to 0.169.' },
+      { title: 'ACP agents are a preview', body: 'Gemini CLI, Goose and the other ACP agents are marked Preview in New conversation and Settings. Settings → Agents also says when an installed agent\'s help does not mention the flag Lazybox starts it with, and how to update it.' },
+    ],
+  },
+  {
     id: '2026-11-17.30',
     date: '2026-11-17',
     title: 'A steadier conversation',
