@@ -140,6 +140,7 @@
 .inbox-missions .inbox-group h3{color:var(--attention-input,var(--warn))}
 .inbox-task{display:grid;gap:5px;padding:9px 10px;border-radius:8px}
 .inbox-task:hover,.inbox-task:focus-within{background:var(--surface-active)}
+.inbox-task:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .inbox-task-head{display:flex;align-items:center;gap:8px;min-width:0}
 .inbox-task-head strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(13px * var(--text-scale));font-weight:500;color:var(--text-soft)}
 .inbox-task-meta{font-size:calc(11px * var(--text-scale));color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

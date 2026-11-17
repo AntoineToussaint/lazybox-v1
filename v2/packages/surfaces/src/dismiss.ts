@@ -19,6 +19,17 @@ import { useEffect, useRef, type RefObject } from 'react';
 
 /** Pointer events a popover already used to close itself: a modal under it does not close on the same press. */
 const consumed = new WeakSet<Event>();
+/** Presses that closed a context menu: they close nothing else, as a native menu's dismissal does not. */
+const menuPresses = new WeakSet<Event>();
+
+/**
+ * A context menu (ContextMenu.tsx) closed on this press outside it: the
+ * dialog or popover under the menu stays open.
+ */
+export function claimPress(event: Event) { consumed.add(event); menuPresses.add(event); }
+
+/** A Lazybox context menu is on screen: Escape and a press outside are its own until it closes. */
+const contextMenuShown = () => !!document.querySelector('.context-menu-layer');
 
 /** Open popovers and pickers, innermost last: Escape closes only the last. */
 const stack: symbol[] = [];
@@ -35,7 +46,7 @@ export function onBackdrop(dialog: HTMLDialogElement, event: MouseEvent): boolea
 }
 
 /** A light-dismiss popover open over the page: a press that closes it closes nothing else. */
-const nativePopoverOpen = () => { try { return !!document.querySelector('[popover="auto"]:popover-open, [popover=""]:popover-open'); } catch { return false; } };
+const nativePopoverOpen = () => { try { return !!document.querySelector('[popover="auto"]:popover-open, [popover=""]:popover-open, .context-menu-layer:popover-open'); } catch { return false; } };
 
 /**
  * Asks a modal dialog to close the way Escape does: a cancelable `cancel`
@@ -75,15 +86,30 @@ export function bindBackdropDismiss(dialog: HTMLDialogElement, dismiss: (event: 
  * For a modal `<dialog>` of its own (not `DraggableDialog`, which does this
  * already): a click on the backdrop asks it to close, as Escape does.
  * `isBackdrop` widens the backdrop, for a full-screen dialog whose empty
- * area is its own.
+ * area is its own. `holding` names what would be lost (a note being typed):
+ * while it returns an element, a click outside nudges that element instead
+ * of closing.
  */
-export function useBackdropDismiss(dialog: RefObject<HTMLDialogElement | null>, isBackdrop?: (event: MouseEvent) => boolean) {
-  const latest = useRef(isBackdrop); latest.current = isBackdrop;
+export function useBackdropDismiss(dialog: RefObject<HTMLDialogElement | null>, isBackdrop?: (event: MouseEvent) => boolean, holding?: () => HTMLElement | null | undefined) {
+  const latest = useRef({ isBackdrop, holding }); latest.current = { isBackdrop, holding };
   useEffect(() => {
     const node = dialog.current;
     if (!node) return;
-    return bindBackdropDismiss(node, () => requestDialogClose(node), event => latest.current ? latest.current(event) : onBackdrop(node, event));
+    return bindBackdropDismiss(node, () => {
+      const held = latest.current.holding?.();
+      if (held) { nudge(held); return; }
+      requestDialogClose(node);
+    }, event => latest.current.isBackdrop ? latest.current.isBackdrop(event) : onBackdrop(node, event));
   }, [dialog]);
+}
+
+/** The first field in `root` with text the person typed (not a search): what a stray click must not throw away. */
+export function typedField(root: Element | null | undefined): HTMLElement | null {
+  if (!root) return null;
+  for (const field of root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('textarea, input:not([type=checkbox]):not([type=radio])')) {
+    if (isEditField(field) && !field.disabled && field.value.trim()) return field;
+  }
+  return null;
 }
 
 /**
@@ -149,7 +175,7 @@ export function useDismiss(open: boolean, onDismiss: (how: 'outside' | 'escape')
       return !!layer && !(panel && layer.contains(panel));
     };
     const press = (event: PointerEvent) => {
-      if (contains(event.target) || elsewhere(event.target)) return;
+      if (menuPresses.has(event) || contains(event.target) || elsewhere(event.target)) return;
       consumed.add(event);
       pressedOutside = true;
       latest.current.onDismiss('outside');
@@ -160,7 +186,8 @@ export function useDismiss(open: boolean, onDismiss: (how: 'outside' | 'escape')
     };
     // Capture: the innermost popover takes Escape before whatever holds the focus inside it.
     const key = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || latest.current.options.escape === false || stack.at(-1) !== id || elsewhere(event.target)) return;
+      // A context menu over the popover takes Escape first (its own handler closes it).
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || latest.current.options.escape === false || stack.at(-1) !== id || elsewhere(event.target) || contextMenuShown()) return;
       event.preventDefault(); event.stopPropagation();
       latest.current.onDismiss('escape');
     };

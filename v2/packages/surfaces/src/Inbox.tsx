@@ -1,5 +1,5 @@
 import { peekProps } from './peek-model';
-import { useBackdropDismiss } from './dismiss';
+import { typedField, useBackdropDismiss } from './dismiss';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Collection } from '@lazybox/protocol';
 import type { ViewStateStore } from '@lazybox/platform';
@@ -28,6 +28,9 @@ export function AttentionIcon({ state, size = 16 }: { state: AttentionState; siz
   return <span className={`attention-icon attention-${state}`} aria-hidden="true"><Icon name={stateIcon[state]} size={size}/></span>;
 }
 const doneLimit = 8;
+/** What j/k and the arrows move between: conversations, pull requests, and the mission tasks and plans that wait for you. */
+export const INBOX_ROWS = '.inbox-row, [data-inbox-row]';
+const ROWS = INBOX_ROWS;
 /** A working row says what the agent is doing, and for how long: "Running · Bash · 12s". */
 export function LiveText({ session }: { session: Inbox['rows'][number]['session'] }) {
   const status = useLiveStatus(session);
@@ -65,7 +68,8 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
   const { info } = useRunner();
   const directory = useRunnerDirectory();
   const dialog = useRef<HTMLDialogElement>(null);
-  useBackdropDismiss(dialog);
+  // A note being typed ("Ask for changes") is not thrown away by a stray click: its box shakes instead.
+  useBackdropDismiss(dialog, undefined, () => typedField(dialog.current)?.closest<HTMLElement>('.inbox-task-actions'));
   const actions = useConversationActions({ onOpen });
   const others = useRunnerActionHosts(() => useConversationActions({ onOpen }), value => value.dialogs);
   const actionsFor = (row: RunnerRow) => row.runner === inbox.here ? actions : others.get(row.runner);
@@ -76,15 +80,15 @@ function InboxDialog({ inbox, collections, selection, onClose, onOpen }: { inbox
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     dialog.current?.showModal();
-    (dialog.current?.querySelector<HTMLElement>('.inbox-row') || dialog.current?.querySelector<HTMLElement>('[data-close-inbox]'))?.focus();
+    (dialog.current?.querySelector<HTMLElement>(ROWS) || dialog.current?.querySelector<HTMLElement>('[data-close-inbox]'))?.focus();
   }, []);
   useEffect(() => { setNow(Date.now()); }, [inbox.rows]);
   const workspace = (row: Attention) => (!row.runner || row.runner === inbox.here ? collections : directory?.runners.find(value => value.id === row.runner)?.collections || []).find(value => value.id === row.session.collectionId)?.name || (row.session.collectionId ? 'Unavailable workspace' : 'No workspace');
   const unseen = inbox.rows.filter(row => row.unread && row.state !== 'needs-input');
   const markSeen = (rows: Attention[]) => inbox.mark(rows.map(row => ({ key: row.key, at: seenMark(row) })));
-  const rows = () => [...dialog.current?.querySelectorAll<HTMLButtonElement>('.inbox-row') || []];
+  const rows = () => [...dialog.current?.querySelectorAll<HTMLElement>(ROWS) || []];
   const move = (step: number) => {
-    const list = rows(), index = list.indexOf(document.activeElement as HTMLButtonElement);
+    const list = rows(), index = list.indexOf(document.activeElement as HTMLElement);
     list[Math.max(0, Math.min(list.length - 1, index < 0 ? 0 : index + step))]?.focus();
   };
   const keyDown = (event: KeyboardEvent<HTMLDialogElement>) => {

@@ -84,6 +84,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { createPortal } from 'react-dom';
 import { Icon } from './Icons';
 import { shortcut as keys } from './workbench';
+import { claimPress } from './dismiss';
 import { disabledReason, firstEnabled, joinSections, lastEnabled, normalizeMenu, placeMenu, placeSubmenu, rightReleaseChooses, stepFocus, typeahead, dedupeLabels, type MenuEntry, type MenuItem } from './context-menu-model';
 import './context-menu.css';
 
@@ -405,8 +406,9 @@ function installListeners() {
   const pointerDown = (event: PointerEvent) => {
     menuPress = false;
     if (event.button === 2 && event.pointerType === 'mouse') selectionAtPress = document.getSelection()?.toString() || '';
-    // Outside a menu, a press closes it; the press goes on to what it hit.
-    if (state.menu && !(event.target instanceof Element && event.target.closest('.context-menu'))) closeContextMenu(false);
+    // Outside a menu, a press closes it and goes on to what it hit, but closes
+    // nothing else: a dialog or popover under the menu stays open.
+    if (state.menu && !(event.target instanceof Element && event.target.closest('.context-menu'))) { claimPress(event); closeContextMenu(false); }
     press.down(event);
   };
   // Scrolling the page closes a menu; content that scrolls by itself (a
