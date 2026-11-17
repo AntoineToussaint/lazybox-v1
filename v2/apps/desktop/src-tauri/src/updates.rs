@@ -67,6 +67,9 @@ pub struct ReleaseNotes {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ReleaseItem {
+    /// The heading a big release groups this change under (`### Group`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    group: Option<String>,
     title: String,
     body: String,
 }
@@ -352,7 +355,7 @@ mod tests {
             "version": "0.2.0",
             "notes": "Second",
             "lazybox": { "releases": [
-                { "id": "0.2.0", "date": "2026-12-01", "title": "Second", "items": [{ "title": "New", "body": "It works." }] },
+                { "id": "0.2.0", "date": "2026-12-01", "title": "Second", "items": [{ "title": "New", "body": "It works." }, { "group": "Chat", "title": "Grouped", "body": "Under a heading." }] },
                 { "id": "0.1.0", "date": "2026-11-17", "title": "First", "items": [] }
             ] }
         });
@@ -360,6 +363,8 @@ mod tests {
         assert_eq!(releases.len(), 2);
         assert_eq!(releases[0].id, "0.2.0");
         assert_eq!(releases[0].items[0].body, "It works.");
+        assert_eq!(releases[0].items[0].group, None);
+        assert_eq!(releases[0].items[1].group.as_deref(), Some("Chat"));
         assert!(releases_of(&serde_json::json!({ "version": "0.2.0" })).is_empty());
         // Unreadable notes never stop the update from being offered.
         assert!(releases_of(&serde_json::json!({ "lazybox": { "releases": "nope" } })).is_empty());

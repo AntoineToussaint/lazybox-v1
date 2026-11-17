@@ -9,8 +9,20 @@ import type { Keymap } from './keyboard';
 export const WELCOME_PREFERENCE = 'onboarding.welcome';
 export const WHATS_NEW_PREFERENCE = 'onboarding.whats-new';
 
-export type ReleaseNote = { title: string; body: string };
+/** One change. A big release groups its changes (`### Group` in CHANGELOG.md). */
+export type ReleaseNote = { title: string; body: string; group?: string };
 export type Release = { id: string; date: string; title: string; items: ReleaseNote[] };
+
+/** A release's items as runs of one group each, in order ('' for ungrouped items). */
+export function releaseGroups(items: readonly ReleaseNote[]): { group: string; items: ReleaseNote[] }[] {
+  const runs: { group: string; items: ReleaseNote[] }[] = [];
+  for (const item of items) {
+    const group = item.group || '';
+    if (runs.at(-1)?.group !== group) runs.push({ group, items: [] });
+    runs.at(-1)!.items.push(item);
+  }
+  return runs;
+}
 
 /**
  * The welcome is for a fresh install only: nothing set up yet. A person who

@@ -11,7 +11,7 @@ import { shortcut } from './workbench';
 import { useRunner } from './RunnerContext';
 import { useConversationIndex } from './useConversationIndex';
 import type { SettingsTab } from './SettingsPage';
-import { essentialKeys, welcomeDecision, whatsNewDecision, WELCOME_PREFERENCE, WHATS_NEW_PREFERENCE, type Release } from './onboarding-model';
+import { essentialKeys, releaseGroups, welcomeDecision, whatsNewDecision, WELCOME_PREFERENCE, WHATS_NEW_PREFERENCE, type Release, type ReleaseNote } from './onboarding-model';
 import { releaseNotes } from './release-notes';
 import { providerLine } from './help-availability';
 import { useProviderAvailability } from './useProviderAvailability';
@@ -224,10 +224,17 @@ function WhatsNew({ releases, focus, updated, failed, onDismiss, onUpdates }: { 
   </aside>;
 }
 
-/** One release's notes: its title and date, then each change. Also the install dialog's preview. */
+/**
+ * One release's notes: its title and date, then each change, under its group's
+ * heading when the release groups them (a big release, such as the first).
+ * Also the install dialog's preview.
+ */
 export function ReleaseSection({ release }: { release: Release }) {
+  const items = (list: readonly ReleaseNote[]) => <ul>{list.map((item, index) => <li key={index}><strong>{item.title}</strong><span>{item.body}</span></li>)}</ul>;
   return <section className="whats-new-release" aria-label={release.title}>
     <h3>{release.title}<small>{release.date}</small></h3>
-    <ul>{release.items.map(item => <li key={item.title}><strong>{item.title}</strong><span>{item.body}</span></li>)}</ul>
+    {releaseGroups(release.items).map(({ group, items: list }, index) => group
+      ? <section key={index} className="whats-new-group" aria-label={group}><h4>{group}</h4>{items(list)}</section>
+      : <div key={index}>{items(list)}</div>)}
   </section>;
 }

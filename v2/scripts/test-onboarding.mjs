@@ -103,14 +103,18 @@ try{
   await expect(page.getByRole('complementary',{name:"What's new"})).toHaveCount(0);
   assert.equal(await stored(page,whatsNewKey),releaseNotes[0].id);
 
-  // (c) After an update: the last release seen is older than the newest.
-  const older=releaseNotes.at(-1).id;
+  // (c) After an update: the last release seen is older than the newest, or
+  // one this build no longer lists (Dev and Working saw dated sections that a
+  // release folded into its own): either way the newest shows.
+  const older=releaseNotes.length>1?releaseNotes.at(-1).id:'2026-11-17.27';
   await page.evaluate(([key,value])=>localStorage.setItem(key,value),[whatsNewKey,older]);
   await page.reload();
   const card=page.getByRole('complementary',{name:"What's new"});
   await expect(card).toBeVisible();
   await expect(card).toContainText(releaseNotes[0].title);
   for(const item of releaseNotes[0].items)await expect(card).toContainText(item.title);
+  // A big release shows its groups as headings.
+  for(const group of new Set(releaseNotes[0].items.map(item=>item.group).filter(Boolean)))await expect(card.getByRole('heading',{name:group,exact:true})).toBeVisible();
   const between=releaseNotes.length-2;
   if(between>0)await expect(card.locator('summary')).toHaveText(`${between} more since you last looked`);
   // It does not take focus from work.
@@ -127,7 +131,7 @@ try{
   // Help shows every release, focused; Escape dismisses it.
   await help(page,"What's new");
   await expect(card).toBeVisible();await expect(card).toBeFocused();
-  await expect(card.locator('summary')).toHaveText('Earlier releases');
+  if(releaseNotes.length>1)await expect(card.locator('summary')).toHaveText('Earlier releases');
   await page.keyboard.press('Escape');
   await expect(card).toHaveCount(0);
   assert.deepEqual(errors,[]);

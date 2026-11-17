@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { essentialKeys, keyParts, welcomeDecision, whatsNewDecision, type Release } from '../packages/surfaces/src/onboarding-model.ts';
+import { essentialKeys, keyParts, releaseGroups, welcomeDecision, whatsNewDecision, type Release } from '../packages/surfaces/src/onboarding-model.ts';
 import { keyboardPreset } from '../packages/surfaces/src/keyboard.ts';
 import { releaseNotes } from '../packages/surfaces/src/release-notes.ts';
 
@@ -45,6 +45,16 @@ test('the bundled release notes are well formed, newest first, with unique ids',
   }
   const dates = releaseNotes.map(r => r.date);
   assert.deepEqual(dates, [...dates].sort().reverse());
+});
+
+test('a big release shows its items under their groups, in order', () => {
+  assert.deepEqual(releaseGroups([{ title: 'a', body: '' }]), [{ group: '', items: [{ title: 'a', body: '' }] }]);
+  const items = [{ group: 'Chat', title: 'a', body: '' }, { group: 'Chat', title: 'b', body: '' }, { group: 'Review', title: 'c', body: '' }];
+  assert.deepEqual(releaseGroups(items).map(g => [g.group, g.items.map(i => i.title)]), [['Chat', ['a', 'b']], ['Review', ['c']]]);
+  // Every item of a grouped release is in a group, so no heading is ever missing.
+  for (const release of releaseNotes) {
+    if (release.items.some(i => i.group)) assert.ok(release.items.every(i => i.group), release.id);
+  }
 });
 
 test('the five keys come from the person’s own keymap', () => {

@@ -13,13 +13,14 @@ export const changelogPath = resolve(root, 'CHANGELOG.md');
 export const releaseNotesPath = resolve(root, 'packages/surfaces/src/release-notes.ts');
 
 const heading = /^## \[([A-Za-z0-9][A-Za-z0-9.+-]*)\] - (\d{4}-\d{2}-\d{2}) · (.+)$/;
+const groupHeading = /^### (.+)$/;
 const item = /^- \*\*(.+?)\*\* (.+)$/;
 export const versionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 /** The releases in a changelog, newest first, in the app's Release shape. */
 export function parseChangelog(text) {
   const releases = [];
-  let current, last;
+  let current, last, group;
   const lines = text.split('\n');
   lines.forEach((line, index) => {
     const where = `CHANGELOG.md:${index + 1}`;
@@ -29,14 +30,22 @@ export function parseChangelog(text) {
       if (releases.some(r => r.id === m[1])) throw new Error(`${where}: release ${m[1]} appears twice`);
       current = { id: m[1], date: m[2], title: m[3].trim(), items: [] };
       releases.push(current);
-      last = undefined;
+      last = group = undefined;
       return;
     }
     if (!current) return; // the header
+    if (line.startsWith('### ')) {
+      // A group of items inside a big section ("Workspaces and tabs"): the
+      // items under it carry its name until the next group.
+      group = groupHeading.exec(line)[1].trim();
+      if (current.items.some(i => i.group === group)) throw new Error(`${where}: group "${group}" appears twice in ${current.id}`);
+      last = undefined;
+      return;
+    }
     if (line.startsWith('- ')) {
       const m = item.exec(line);
       if (!m) throw new Error(`${where}: an item is "- **What** body", got: ${line}`);
-      last = { title: m[1].trim(), body: m[2].trim() };
+      last = { title: m[1].trim(), body: m[2].trim(), ...(group ? { group } : {}) };
       current.items.push(last);
     } else if (line.startsWith('  ') && last && line.trim()) {
       last.body += ' ' + line.trim();
@@ -44,7 +53,10 @@ export function parseChangelog(text) {
       throw new Error(`${where}: only items belong in a section, got: ${line}`);
     }
   });
-  for (const r of releases) if (!r.items.length) throw new Error(`CHANGELOG.md: release ${r.id} has no items`);
+  for (const r of releases) {
+    if (!r.items.length) throw new Error(`CHANGELOG.md: release ${r.id} has no items`);
+    if (r.items.some(i => i.group) && !r.items.every(i => i.group)) throw new Error(`CHANGELOG.md: in ${r.id}, items before the first ### group belong in a group too`);
+  }
   return releases;
 }
 
@@ -58,7 +70,7 @@ export function renderReleaseNotes(releases) {
     `    date: ${quote(r.date)},`,
     `    title: ${quote(r.title)},`,
     '    items: [',
-    ...r.items.map(i => `      { title: ${quote(i.title)}, body: ${quote(i.body)} },`),
+    ...r.items.map(i => `      { ${i.group ? `group: ${quote(i.group)}, ` : ''}title: ${quote(i.title)}, body: ${quote(i.body)} },`),
     '    ],',
     '  },',
   ].join('\n')).join('\n');
@@ -95,19 +107,34 @@ export function releaseBody(releases, version, { unsigned = false } = {}) {
     out.push('> **Unsigned build.** This release is not signed with an Apple Developer ID or notarized. macOS will refuse to open it at first: Control-click Lazybox in Applications, choose **Open**, then **Open** again (or run `xattr -dr com.apple.quarantine /Applications/Lazybox.app`). See [INSTALL.md](https://github.com/AntoineToussaint/lazybox/blob/main/v2/INSTALL.md#unsigned-builds).', '');
   }
   included.forEach((r, i) => {
-    out.push(`${i === 0 ? '##' : '###'} ${r.title}`, '');
-    for (const it of r.items) out.push(`- **${it.title}.** ${it.body}`);
-    out.push('');
+    const level = i === 0 ? '##' : '###';
+    out.push(`${level} ${r.title}`, '');
+    for (const [group, items] of groupsOf(r.items)) {
+      if (group) out.push(`${level}# ${group}`, '');
+      for (const it of items) out.push(`- **${it.title}.** ${it.body}`);
+      out.push('');
+    }
   });
   out.push('Install: download the disk image below and drag Lazybox to Applications, or `brew install --cask AntoineToussaint/lazybox/lazybox-v2`. Already installed? Lazybox offers the update and installs it only when you choose to (Settings → Updates). Full instructions: [INSTALL.md](https://github.com/AntoineToussaint/lazybox/blob/main/v2/INSTALL.md).');
   return out.join('\n') + '\n';
+}
+
+/** A section's items in order, as [group, items] runs ('' when ungrouped). */
+export function groupsOf(items) {
+  const runs = [];
+  for (const it of items) {
+    const group = it.group || '';
+    if (runs.at(-1)?.[0] !== group) runs.push([group, []]);
+    runs.at(-1)[1].push(it);
+  }
+  return runs;
 }
 
 /** The plain-text notes the in-app updater shows (latest.json "notes"). */
 export function updaterNotes(releases, version) {
   const r = releases.find(r => r.id === version);
   if (!r) return '';
-  return [r.title, ...r.items.map(i => `• ${i.title}: ${i.body}`)].join('\n');
+  return [r.title, ...groupsOf(r.items).flatMap(([group, items]) => [...(group ? [group] : []), ...items.map(i => `• ${i.title}: ${i.body}`)])].join('\n');
 }
 
 /**
@@ -118,7 +145,7 @@ export function updaterNotes(releases, version) {
 export function updaterReleases(releases, version, limit = 25) {
   const start = releases.findIndex(r => r.id === version);
   if (start < 0) return [];
-  return releases.slice(start, start + limit).map(({ id, date, title, items }) => ({ id, date, title, items: items.map(({ title, body }) => ({ title, body })) }));
+  return releases.slice(start, start + limit).map(({ id, date, title, items }) => ({ id, date, title, items: items.map(({ group, title, body }) => ({ ...(group ? { group } : {}), title, body })) }));
 }
 
 export async function readChangelog() {

@@ -52,6 +52,8 @@
 .whats-new-release li{display:flex;flex-direction:column;gap:1px;line-height:1.5}
 .whats-new-release li strong{font-weight:550;color:var(--text,var(--text))}
 .whats-new-release li span{color:var(--text-muted,var(--text-tertiary))}
+.whats-new-group+.whats-new-group{margin-top:12px}
+.whats-new-group h4{margin:0 0 5px;font-size:calc(10.5px * var(--text-scale));font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted,var(--text-subtle))}
 .whats-new-older{border-top:1px solid var(--border,var(--line-subtle));padding-top:8px}
 .whats-new-older>summary{cursor:pointer;color:var(--text-muted,var(--text-subtle));font-size:calc(11px * var(--text-scale));margin-bottom:6px}
 .whats-new-older .whats-new-release{margin-top:8px}

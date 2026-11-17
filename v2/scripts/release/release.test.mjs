@@ -104,3 +104,30 @@ test('a release body collects the dated notes since the previous version', () =>
   assert.throws(() => parseChangelog('## [x] - 2026-01-01 · T\n\nnot an item'), /only items/);
   assert.throws(() => parseChangelog('## 0.1.0\n'), /heading/);
 });
+
+test('a big section groups its items, and the notes show the groups as headings', () => {
+  const releases = parseChangelog([
+    '# Changelog', '',
+    '## [0.2.0-pre.1] - 2026-12-01 · Big', '',
+    '### Chat', '', '- **Send now** It sends.', '- **Boxes** Attachments.', '',
+    '### Review', '', '- **Review** From the chat.', '',
+    '## [2026-11-20.1] - 2026-11-20 · Between', '', '- **Plain** No groups.',
+  ].join('\n'));
+  assert.deepEqual(releases[0].items.map(i => i.group), ['Chat', 'Chat', 'Review']);
+  assert.equal(releases[1].items[0].group, undefined);
+  const body = releaseBody(releases, '0.2.0-pre.1');
+  assert.match(body, /## Big\n\n### Chat\n\n- \*\*Send now\.\*\* It sends\.\n- \*\*Boxes\.\*\* Attachments\.\n\n### Review\n/);
+  assert.match(body, /\n### Between\n\n- \*\*Plain\.\*\* No groups\.\n/);
+  assert.equal(updaterNotes(releases, '0.2.0-pre.1'), 'Big\nChat\n• Send now: It sends.\n• Boxes: Attachments.\nReview\n• Review: From the chat.');
+  assert.deepEqual(updaterReleases(releases, '0.2.0-pre.1')[0].items[2], { group: 'Review', title: 'Review', body: 'From the chat.' });
+  assert.match(renderReleaseNotes(releases), /\{ group: 'Chat', title: 'Send now', body: 'It sends\.' \}/);
+  assert.throws(() => parseChangelog('## [x] - 2026-01-01 · T\n\n- **A** a\n\n### G\n\n- **B** b'), /belong in a group/);
+  assert.throws(() => parseChangelog('## [x] - 2026-01-01 · T\n\n### G\n\n- **A** a\n\n### G\n\n- **B** b'), /appears twice/);
+});
+
+test('the release notes of the current version are the whole of its section', async () => {
+  const releases = parseChangelog(await readFile(changelogPath, 'utf8'));
+  const [newest] = releases;
+  const body = releaseBody(releases, newest.id);
+  for (const item of newest.items) assert.ok(body.includes(`**${item.title}.** ${item.body}`), `${item.title} is missing from the notes`);
+});
