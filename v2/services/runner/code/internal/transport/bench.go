@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -873,16 +874,35 @@ func (s *Service) ListHistory(ctx context.Context, r *pb.ListHistoryRequest) (*p
 	response := &pb.ListHistoryResponse{HasMore: len(records) == limit}
 	for _, record := range records {
 		e, err := s.Bench.Get(record.ID)
-		if err != nil {
-			return nil, rpcError(err)
+		var view *pb.Session
+		if err == nil {
+			view, err = s.sessionView(ctx, e)
 		}
-		view, err := s.sessionView(ctx, e)
+		if ctx.Err() != nil {
+			return nil, rpcError(ctx.Err())
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			continue // deleted since the page was read
+		}
 		if err != nil {
-			return nil, err
+			// One conversation that cannot be read does not hide the rest of
+			// the page: it is listed with what the store holds and why.
+			log.Printf("history: conversation %s unreadable: %v", record.ID, err)
+			view = unreadableSession(record, err)
 		}
 		response.Sessions = append(response.Sessions, view)
 	}
 	return response, nil
+}
+
+// unreadableSession lists a conversation the Runner could not open from its
+// stored record alone, with the reason as its fault.
+func unreadableSession(r sessionstore.Record, err error) *pb.Session {
+	title := r.DisplayTitle
+	if title == "" {
+		title = r.Title
+	}
+	return &pb.Session{Id: r.ID, ConversationId: r.ConversationID, ProfileId: r.ProfileID, Provider: r.Provider, PreviousExecutionId: r.Previous, WorkId: r.WorkID, CollectionId: r.CollectionID, WorkingDirectory: r.Cwd, Purpose: r.Purpose, Title: title, Historical: true, Closed: true, Status: string(agent.Unknown), Fault: "conversation unreadable: " + err.Error(), CreatedAtUnixMillis: r.CreatedAt.UnixMilli(), PinnedAtUnixMillis: r.PinnedAt, ArchivedAtUnixMillis: r.ArchivedAt}
 }
 func (s *Service) RestartWithPermission(ctx context.Context, r *pb.RestartWithPermissionRequest) (*pb.SessionResponse, error) {
 	e, err := s.Bench.Get(r.SessionId)
