@@ -92,7 +92,8 @@ try {
   const hold = async (key = 'Space', shift = false) => { await page.keyboard.down('Alt'); if (shift) await page.keyboard.down('Shift'); await page.keyboard.down(key); };
   const release = async (key = 'Space', shift = false) => { await page.waitForTimeout(450); await page.keyboard.up(key); if (shift) await page.keyboard.up('Shift'); await page.keyboard.up('Alt'); };
   const listening = () => expect.poll(() => page.evaluate(() => !!window.__speech.active)).toBe(true);
-  await expect(message).toBeEnabled();
+  // A first load from a cold dev server can outlast expect's 5 s: these waits have the page's timeout.
+  await expect(message).toBeEnabled({ timeout: 15000 });
 
   // The mic is in the composer row; its tooltip names the key.
   const mic = page.getByRole('button', { name: 'Dictate', exact: true });
@@ -446,7 +447,7 @@ try {
   await plain.addInitScript(fakeSpeech, { recognition: false });
   const other = await plain.newPage();
   await other.goto(`${origin}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
-  await expect(other.getByRole('textbox', { name: 'Message', exact: true })).toBeEnabled();
+  await expect(other.getByRole('textbox', { name: 'Message', exact: true })).toBeEnabled({ timeout: 15000 });
   await expect(other.getByRole('button', { name: 'Dictate', exact: true })).toHaveCount(0);
   await other.getByRole('button', { name: 'Settings', exact: true }).click();
   await other.getByRole('tab', { name: 'Voice' }).click();
