@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { nativeOptions } from './options.js';
-import { droppedOnInterrupt } from './interrupt.js';
+import { TurnInterrupts, interruptTurn } from './interrupt.js';
+import { exitAfter, readStream } from './stream.js';
 import { readQuota } from './usage.js';
 import { NativeStatus } from './status.js';
 import { CommandCatalog } from './catalog.js';
@@ -18,7 +19,8 @@ import { messageContent } from './content.js';
 type Request = { id?: string; method?: string; params?: any; result?: any; error?: any };
 let session: Query | undefined;
 let reference = '';
-let interrupted = false;
+// The turn the person interrupted, and only that one.
+const interrupts = new TurnInterrupts();
 // Current Lazybox permission mode; 'yolo' approves tool requests here, which
 // works even when the SDK refuses to switch a running session to bypass mode.
 let permission = '';
@@ -102,34 +104,31 @@ async function open(options: any) {
 }
 
 async function receive(q: Query) {
-  try {
-    const status = new NativeStatus();
-    let readingContext=false;
-    for await (const message of q) {
-      for (const normalized of status.normalize(message)) {
-        // A turn the person interrupted ends with Claude's "error during
-        // execution" diagnostic ("[ede_diagnostic] … stop_reason=tool_use").
-        // That is the interrupt, not a provider error: it must not fault the
-        // conversation. Account limits still count.
-        if (interrupted && droppedOnInterrupt(normalized)) continue;
-        // A model change that waited for this turn applies before the next one is sent.
-        if (normalized.type === 'turn_ended') { if (interrupted) normalized.status = 'interrupted'; interrupted = false; void models.turnEnded(); }
-        event(normalized);
-      }
-      reference = status.reference || reference;
-      if (message.type === 'system' && !('parent_tool_use_id' in message && message.parent_tool_use_id)) {
-        if (message.subtype === 'init') sayCatalog(catalog.fromInitMessage(message));
-        else if (message.subtype === 'commands_changed') sayCatalog(catalog.fromChanged(message.commands));
-      }
-      if(message.type==='result'&&!readingContext&&typeof q.getContextUsage==='function'){
-        readingContext=true;
-        void q.getContextUsage({detail:'summary'}).then(report=>event({type:'context',agentId:'root',sessionId:reference,data:contextSnapshot(report)})).catch(()=>{/* Older CLIs retain their last observed totals. */}).finally(()=>{readingContext=false;});
-      }
+  const status = new NativeStatus();
+  let readingContext=false;
+  const end = await readStream(q, message => {
+    for (const normalized of status.normalize(message)) {
+      // A turn the person interrupted ends with Claude's "error during
+      // execution" diagnostic ("[ede_diagnostic] … stop_reason=tool_use").
+      // That is the interrupt, not a provider error: it must not fault the
+      // conversation. Account limits still count. Only the interrupted turn.
+      if (!interrupts.pass(normalized)) continue;
+      // A model change that waited for this turn applies before the next one is sent.
+      if (normalized.type === 'turn_ended') void models.turnEnded();
+      event(normalized);
     }
-    event({ type: 'failure', status: 'provider_process_exit', text: 'SDK stream ended' });
-  } catch (error) {
-    event({ type: 'failure', status: 'sdk_error', text: String(error) });
-  }
+    reference = status.reference || reference;
+    if (message.type === 'system' && !('parent_tool_use_id' in message && message.parent_tool_use_id)) {
+      if (message.subtype === 'init') sayCatalog(catalog.fromInitMessage(message));
+      else if (message.subtype === 'commands_changed') sayCatalog(catalog.fromChanged(message.commands));
+    }
+    if(message.type==='result'&&!readingContext&&typeof q.getContextUsage==='function'){
+      readingContext=true;
+      void q.getContextUsage({detail:'summary'}).then(report=>event({type:'context',agentId:'root',sessionId:reference,data:contextSnapshot(report)})).catch(()=>{/* Older CLIs retain their last observed totals. */}).finally(()=>{readingContext=false;});
+    }
+  });
+  // Nothing will read another message: say why, and exit (see exitAfter).
+  exitAfter(end, (line, written) => { process.stdout.write(line, () => written()); }, code => process.exit(code));
 }
 
 async function handle(request: Request) {
@@ -148,6 +147,7 @@ async function handle(request: Request) {
         const content = messageContent(p);
         messages.push({ type: 'user', uuid: randomUUID(), session_id: reference, message: { role: 'user', content }, parent_tool_use_id: null });
         models.turnStarted();
+        interrupts.delivered();
         inputWake?.(); inputWake = undefined;
         reply(request.id, { delivery: 'submitted' }); break;
       }
@@ -175,7 +175,7 @@ async function handle(request: Request) {
         // Beside the conversation: names it, never touches its turn.
         reply(request.id, { title: await generateTitle(session, p?.description) }); break;
       }
-      case 'interrupt': interrupted = true; await session.interrupt(); reply(request.id, { delivery: 'acknowledged' }); break;
+      case 'interrupt': { const running = session; await interruptTurn(interrupts, () => running.interrupt()); reply(request.id, { delivery: 'acknowledged' }); break; }
       case 'answer': case 'approve': {
         const pending = requests.get(p.requestId);
         if (!pending || (request.method === 'answer') !== (pending.kind === 'question')) throw new Error('unknown, resolved or mismatched request');
