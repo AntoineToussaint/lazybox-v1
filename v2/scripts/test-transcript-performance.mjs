@@ -77,10 +77,10 @@ try{
   // The page answers input once interactive: typing reaches the composer promptly.
   const composer=page.getByRole('textbox',{name:'Message',exact:true});
   const started=Date.now();await composer.pressSequentially('ok');await expect(composer).toHaveValue('ok');measured.typing=Date.now()-started;
-  await expect(page.locator('.messages')).toContainText(marker);
+  await expect(page.locator('.messages:visible')).toContainText(marker);
   if(long){
   // Latest first: only the tail is mounted; earlier history waits for the reader.
-  const mounted=await page.locator('.messages .message').count();
+  const mounted=await page.locator('.messages:visible .message').count();
   assert.ok(mounted>0&&mounted<=40,`a long conversation opens with its latest messages only (${mounted} mounted)`);
   await expect(page.getByRole('button',{name:'Show earlier messages'})).toBeVisible();
   }

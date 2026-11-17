@@ -65,7 +65,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.route('**/GetTelemetry',route=>route.fulfill({json:usage}));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
- const chat=page.locator('.embedded-chat').first(),messages=chat.locator('.messages');
+ const chat=page.locator('.embedded-chat:visible').first(),messages=chat.locator('.messages:visible');
  await expect(messages).toContainText('Thanks, ship it.');
 
  // ── Lazybox's messages are events: an icon and one line, never a "You" card.

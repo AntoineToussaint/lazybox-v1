@@ -31,7 +31,7 @@ try{
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
  await mkdir('.cache',{recursive:true});
  const chat=page.locator('.agent-window').first();
- const messages=chat.locator('.messages');
+ const messages=chat.locator('.messages:visible');
  const composer=chat.getByRole('textbox',{name:'Message',exact:true});
  const applies=()=>fixture.mutations.filter(m=>m.method==='Apply'&&m.body.message);
  const starts=()=>fixture.mutations.filter(m=>m.method==='StartCommand');

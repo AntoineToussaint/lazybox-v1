@@ -76,7 +76,7 @@ try{
  session.pending=[ask('repo-tools','tool','The lint rules live there.',[candidate('acme/tools-legacy','registered',70)])];
  await expect(card.getByRole('heading')).toHaveText('Claude asks to add acme/tools-legacy to this workspace');
  await expect(card.getByRole('button',{name:'Add acme/tools-legacy'})).toBeFocused();
- await page.locator('.messages').first().click({position:{x:5,y:5}});
+ await page.locator('.messages:visible').first().click({position:{x:5,y:5}});
  await page.keyboard.press('c');
  const dialog=page.getByRole('dialog',{name:'Add repository to workspace'});
  await expect(dialog).toBeVisible();
@@ -98,7 +98,7 @@ try{
  session.pending=[ask('repo-fork','/Users/me/src/parser-fork','A fork has the fix already.',[{identity:'',name:'parser-fork',source:'folder',localPath:'/Users/me/src/parser-fork',score:100}])];
  await expect(card.getByRole('heading')).toHaveText('Claude asks to add parser-fork to this workspace');
  await expect(card.locator('.repository-facts')).toContainText('Local folder, not in your repositories yet');
- await page.locator('.messages').first().click({position:{x:5,y:5}});
+ await page.locator('.messages:visible').first().click({position:{x:5,y:5}});
  await page.keyboard.press('n');
  const reason=card.getByRole('textbox',{name:/Why not\?/});await expect(reason).toBeFocused();
  await reason.fill('Use the upstream parser; the fork is abandoned');

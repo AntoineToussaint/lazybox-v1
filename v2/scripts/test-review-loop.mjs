@@ -45,7 +45,7 @@ try{
  const page=await browser.newPage({viewport:{width:1500,height:1000}});page.setDefaultTimeout(10000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${author.id}#token=${fixture.token}`);
- await expect(page.locator('.messages')).toContainText('REPLY_ONE');
+ await expect(page.locator('.messages:visible')).toContainText('REPLY_ONE');
  await page.getByRole('button',{name:'Review changes',exact:true}).click();
  const changes=page.getByRole('region',{name:'Workspace changes'});
  const tray=changes.getByRole('complementary',{name:'Review'});
@@ -109,7 +109,7 @@ try{
  await expect(stuckRow).toContainText('Stuck: the same blocker is still open after two fixes · needs you',{timeout:15000});
  await expect(stuckRow).toHaveClass(/needs-you/);
  // The author's conversation says so too, with the way to the review.
- await page.locator('.messages').first().waitFor();
+ await page.locator('.messages:visible').first().waitFor();
  await chat.getByRole('textbox',{name:'Message',exact:true}).fill('');
  await expect(page.locator('section.panel-chat:visible .review-alert')).toContainText('Review needs you. The blocker “Errors are swallowed”',{timeout:15000});
  await page.screenshot({path:'.cache/review-loop-stuck.png'});

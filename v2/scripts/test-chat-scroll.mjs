@@ -23,7 +23,7 @@ async function run(name,engine){
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.route('**/GetSession',async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.continue();});
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
-  const pane=page.locator('.messages');const gap=()=>pane.evaluate(node=>node.scrollHeight-node.clientHeight-node.scrollTop);
+  const pane=page.locator('.messages:visible');const gap=()=>pane.evaluate(node=>node.scrollHeight-node.clientHeight-node.scrollTop);
   const top=()=>pane.evaluate(node=>node.scrollTop);
   const latest=page.getByRole('button',{name:'Jump to latest'});
   await expect(pane).toContainText('Answer 29');await expect(page.locator('.conversation-title')).toBeVisible();

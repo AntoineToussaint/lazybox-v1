@@ -43,7 +43,7 @@ try{
  const url=`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`;
  await page.goto(url);
  await mkdir('.cache',{recursive:true});
- const messages=page.locator('.messages').first();
+ const messages=page.locator('.messages:visible').first();
  const runs=messages.locator('.tool-lines');
 
  // ── Smart, the default: the long run is one line; the failure and the edit stay.

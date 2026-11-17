@@ -37,13 +37,13 @@ try{
  // Printing is counted, not shown: the system dialog would block the page.
  await page.addInitScript(()=>{window.__prints=0;window.print=()=>{window.__prints++;setTimeout(()=>dispatchEvent(new Event('afterprint')));};});
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${fixture.token}`);
- const message=page.locator('.messages article.message.message_delta').filter({hasText:'Datasource migration plan'}).first();
+ const message=page.locator('.messages:visible article.message.message_delta').filter({hasText:'Datasource migration plan'}).first();
  await expect(message).toBeVisible();
 
  // The hover action is quiet until the message is hovered; prompts have none.
  const hover=message.getByRole('button',{name:'Track as artifact…'});
  await message.hover();await expect(hover).toBeVisible();
- await expect(page.locator('.messages article.message.operation_accepted').getByRole('button',{name:'Track as artifact…'})).toHaveCount(0);
+ await expect(page.locator('.messages:visible article.message.operation_accepted').getByRole('button',{name:'Track as artifact…'})).toHaveCount(0);
 
  // Right-click → Track as artifact…: title from the first heading, kind suggested.
  await message.click({button:'right'});
@@ -71,7 +71,7 @@ try{
  // A later message of the same conversation offers an update, shown as a diff first.
  channel.push({type:'operation_accepted',text:'Refine it'});
  channel.push({type:'message_delta',text:plan2,turnId:'t2'});
- const newer=page.locator('.messages article.message.message_delta').filter({hasText:'Phase four'});
+ const newer=page.locator('.messages:visible article.message.message_delta').filter({hasText:'Phase four'});
  await expect(newer).toBeVisible();
  await newer.click({button:'right'});
  await page.getByRole('menuitem',{name:'Update “Datasource migration plan” from this message…'}).click();
@@ -199,7 +199,7 @@ try{
  fixture.artifacts.fileChanged('alpha','docs/PLAN.md','# Rollout plan\n\nShip it in three phases.\n');
  channel.push({type:'operation_accepted',text:'Write the rollout plan to a file'});
  channel.push({type:'message_delta',text:'Wrote `docs/PLAN.md`; the old draft in `src/main.go` and `/elsewhere/missing/NOTES.md` stays.',turnId:'t3'});
- const wrote=page.locator('.messages article.message.message_delta').filter({hasText:'Wrote docs/PLAN.md'});
+ const wrote=page.locator('.messages:visible article.message.message_delta').filter({hasText:'Wrote docs/PLAN.md'});
  const planLink=wrote.getByRole('button',{name:'docs/PLAN.md'});
  await planLink.click({button:'right'});
  const linkMenu=page.getByRole('menu');

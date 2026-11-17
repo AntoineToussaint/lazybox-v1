@@ -118,7 +118,7 @@ try {
 
   // ── A new site asks, even in full access: Allow for this conversation (c).
   // (A card takes focus only from the chat, never from what the person just used.)
-  await chat.locator('.messages').first().click({ position: { x: 5, y: 5 } });
+  await chat.locator('.messages:visible').first().click({ position: { x: 5, y: 5 } });
   const card = chat.locator('.request.browser-request-card');
   fake.request(id, { id: 'site-1', kind: 'site', url: 'https://news.example.org/releases/2.4', origin: 'https://news.example.org', reason: 'The release notes for 2.4 are published there.', permission: 'yolo' });
   await expect(card.getByRole('heading')).toHaveText('Claude wants to open news.example.org');

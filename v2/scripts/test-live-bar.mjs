@@ -30,7 +30,7 @@ try{
  await server.listen();await mkdir('.cache',{recursive:true});browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${f.token}`);
- const chat=page.locator('.embedded-chat').first(),bar=chat.getByRole('region',{name:'What the agent is doing'});
+ const chat=page.locator('.embedded-chat:visible').first(),bar=chat.getByRole('region',{name:'What the agent is doing'});
 
  // The step, with the actual command, where it runs, and for how long.
  await expect(bar.locator('.live-activity')).toHaveText(/^Running a command · \d+m \d+s$/);
@@ -81,7 +81,7 @@ try{
  // The console has the whole output: the bar stops repeating it, so the shorter chat keeps its messages.
  await expect(bar.locator('.live-bar-output')).toHaveCount(0);
  await expect(bar.getByRole('button',{name:'Show output'})).toBeVisible();
- {const box=await bar.boundingBox(),pane=await chat.locator('.messages').boundingBox();assert.ok(pane.y+pane.height<=box.y+1,'a short chat keeps the bar clear of the messages');}
+ {const box=await bar.boundingBox(),pane=await chat.locator('.messages:visible').boundingBox();assert.ok(pane.y+pane.height<=box.y+1,'a short chat keeps the bar clear of the messages');}
 
  // Stop says what it stops: the command, not the turn.
  await bar.getByRole('button',{name:'Stop command'}).click();

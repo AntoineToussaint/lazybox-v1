@@ -15,9 +15,9 @@ try{
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace#token=${fixture.token}`);
  await page.getByRole('combobox',{name:'Workspace',exact:true}).selectOption('alpha');await page.getByRole('combobox',{name:'Session',exact:true}).selectOption('alpha-session');
  const trigger=page.getByRole('button',{name:'Context and token cost'});await expect(trigger).toContainText('8%');
- const messagesBefore=await page.locator('.messages').boundingBox();await trigger.click();
+ const messagesBefore=await page.locator('.messages:visible').boundingBox();await trigger.click();
  const panel=page.locator('.context-popover');await expect(panel).toBeVisible();
- assert.deepEqual(await page.locator('.messages').boundingBox(),messagesBefore,'context should not displace conversation');
+ assert.deepEqual(await page.locator('.messages:visible').boundingBox(),messagesBefore,'context should not displace conversation');
  await expect(panel).toContainText('80K');await expect(panel).toContainText('1M');
  await expect(panel.locator('.context-deferred')).toContainText('Outside context');await expect(panel.getByRole('meter')).toHaveAttribute('aria-valuenow','80000');
  await expect(panel.locator('.context-meter>span').first()).toHaveAttribute('style',/width: 2.45%;/);

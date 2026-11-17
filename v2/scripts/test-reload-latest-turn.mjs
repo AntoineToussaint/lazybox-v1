@@ -43,7 +43,7 @@ try{
  await server.listen();await mkdir('.cache',{recursive:true});browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1400,height:900}});page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=${claude.collectionId}&session=${claude.id}#token=${f.token}`);
- const chat=page.locator('.embedded-chat').first(),pane=chat.locator('.messages'),composer=chat.getByRole('textbox',{name:'Message',exact:true});
+ const chat=page.locator('.embedded-chat:visible').first(),pane=chat.locator('.messages:visible'),composer=chat.getByRole('textbox',{name:'Message',exact:true});
  const strip=chat.getByRole('region',{name:'Queued messages'});
  await expect(pane).toContainText('ANSWER_END_59',{timeout:30000});
 

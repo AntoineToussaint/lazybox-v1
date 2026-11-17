@@ -33,7 +33,7 @@ try{
  browser=await webkit.launch();const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${f.token}`);
- const chat=page.locator('.messages');
+ const chat=page.locator('.messages:visible');
  await expect(chat).toContainText('REPLY_THREE');
  const marker=n=>chat.getByRole('group',{name:`Turn ${n} checkpoint`});
  // A marker is one quiet divider: its actions are in its ⋯ menu.

@@ -77,7 +77,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  const base=`http://127.0.0.1:${server.httpServer.address().port}`;
  await page.goto(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
- const chat=page.locator('.embedded-chat').first(),messages=chat.locator('.messages');
+ const chat=page.locator('.embedded-chat:visible').first(),messages=chat.locator('.messages:visible');
  const card=id=>messages.locator(`.subagent-card[data-agent-id="${id}"]`);
 
  // Cards sit where they started, in order, with their type, task and state.
@@ -362,7 +362,7 @@ try{
  await expect(skillLine).toHaveAttribute('data-state','stopped');
  await expect(skillLine.locator('.tool-line-stopped')).toHaveText('Stopped');
  await expect(skillLine.locator('.tool-line-problem')).toHaveCount(0);
- await expect(chat.locator('.messages')).not.toContainText("doesn't want to proceed");
+ await expect(chat.locator('.messages:visible')).not.toContainText("doesn't want to proceed");
  await skillLine.locator(':scope > .tool-line-row').click();
  await expect(skillLine.locator('.tool-details')).toContainText("doesn't want to proceed");
  // A background command outlives the turn: still live, its clock still running.
@@ -412,7 +412,7 @@ try{
  // Opening a conversation that spawned 80 sub-agents (~10k events) stays fast; only the tail is mounted.
  await page.setViewportSize({width:1440,height:960});
  {const started=Date.now();await page.goto(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
-  const fan=page.locator('.embedded-chat').first().locator('.messages');
+  const fan=page.locator('.embedded-chat:visible').first().locator('.messages:visible');
   await expect(fan.locator('.subagent-card[data-agent-id="claude-tool:fan79"] .subagent-outcome')).toContainText('FAN_END_79',{timeout:20000});
   const elapsed=Date.now()-started;assert.ok(elapsed<6000,`80 sub-agents opened in ${elapsed} ms`);
   const mounted=await fan.locator('.subagent-anchor').count();assert.ok(mounted>0&&mounted<=40,`only the latest cards are mounted (${mounted})`);

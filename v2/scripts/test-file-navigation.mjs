@@ -113,7 +113,7 @@ try{
  await expect(editorPanel.locator('.editor-group')).toHaveCount(1);
 
  // Go to file: Cmd/Ctrl+P, fuzzy, recent files with no query, name:line.
- await page.locator('[data-agent-composer]').first().focus();
+ await page.locator('[data-agent-composer]:visible').first().focus();
  await page.keyboard.press('ControlOrMeta+p');
  const finder=page.getByRole('dialog',{name:'Go to file'});await expect(finder).toBeVisible();
  await expect(finder).toContainText('Recently opened');

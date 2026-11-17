@@ -95,7 +95,7 @@ try{
  await expect(page.locator('.request-answered[data-kind=always]')).toHaveText('Always allowed commands starting with npm run in this workspace');
  // y: Allow once, from the chat (focus in the transcript, not a field).
  await expect(page.locator('.request.approval-card')).toContainText('ls -la');
- await page.locator('.messages').first().click({position:{x:5,y:5}});await page.keyboard.press('y');
+ await page.locator('.messages:visible').first().click({position:{x:5,y:5}});await page.keyboard.press('y');
  await expect.poll(()=>applied('approval').at(-1)).toEqual({requestId:'once-me',decision:'DECISION_ACCEPT'});
  session.pending=[];session.status='running';channel.push({type:'request_resolved',requestId:'once-me'});
  await expect(page.locator('.request')).toHaveCount(0);

@@ -48,7 +48,7 @@ try{
  const page=await context.newPage();page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${f.token}`);
- const chat=page.locator('.embedded-chat').first(),bar=chat.getByRole('region',{name:'What the agent is doing'});
+ const chat=page.locator('.embedded-chat:visible').first(),bar=chat.getByRole('region',{name:'What the agent is doing'});
  const menu=page.locator('.context-menu[data-depth="0"]'),item=name=>menu.getByRole('menuitem',{name,exact:true});
  const labels=()=>menu.locator('.context-menu-label').allTextContents();
  const copied=()=>page.evaluate(()=>window.__copied.at(-1));

@@ -24,7 +24,7 @@ try{
  const page=await browser.newPage({viewport:{width:1300,height:850}});page.setDefaultTimeout(30000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${fixture.token}`);
- const pane=page.locator('.messages');
+ const pane=page.locator('.messages:visible');
  await expect(pane).toContainText(`ANSWER_END_${turns-1}`,{timeout:60000});
  // The prompt is shown at the top of the conversation view.
  const atTop=async question=>expect.poll(()=>page.evaluate(q=>{
@@ -38,7 +38,7 @@ try{
  assert.equal(await pane.locator('.message.operation_accepted').filter({hasText:'Question 3:'}).count(),0,'early prompts start unmounted');
  // The chip is one of the chat header's tools: it covers no part of the transcript, and says what it counts.
  {const chip=page.getByRole('button',{name:'Your prompts',exact:true});await expect(page.locator('.chat-heading').getByRole('button',{name:'Your prompts',exact:true})).toHaveText(/^\d+ prompts$/);
-  const c=await chip.boundingBox(),m=await page.locator('.messages').first().boundingBox();if(c.y+c.height>m.y+1&&c.y<m.y+m.height)throw new Error('the prompts chip overlaps the transcript');}
+  const c=await chip.boundingBox(),m=await page.locator('.messages:visible').first().boundingBox();if(c.y+c.height>m.y+1&&c.y<m.y+m.height)throw new Error('the prompts chip overlaps the transcript');}
  await page.getByRole('button',{name:'Your prompts',exact:true}).click();
  const list=page.getByRole('dialog',{name:'Jump to a prompt'});
  await expect(list.getByRole('searchbox',{name:'Find a prompt'})).toBeFocused();

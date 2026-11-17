@@ -61,7 +61,7 @@ try{
   // The pre-bundled Mermaid module answers as Vite did once its cache was deleted under the running dev app.
   await page.route(/\/deps\/mermaid\.js/,route=>{if(!blocked.on)return route.continue();blocked.hits++;return route.fulfill({status:504,body:''});});
   await page.goto(`${origin}/?view=workspace&collection=alpha&session=${session.id}#token=${fixture.token}`);
-  await expect(page.locator('.messages')).toBeVisible();
+  await expect(page.locator('.messages:visible')).toBeVisible();
   return {page,log,blocked,close:()=>context.close()};
  };
  const block=(page,marker)=>page.locator('.message').filter({hasText:marker}).locator('.mermaid-block');
@@ -71,7 +71,7 @@ try{
  // 1. The agent's sequence diagram renders, under the app's CSP.
  const main=await open();const {page}=main;
  say('seq','Flow:\n\n```mermaid\n'+sequence+'\n```\n\nMARK_SEQUENCE');
- await expect(page.locator('.messages')).toContainText('MARK_SEQUENCE');
+ await expect(page.locator('.messages:visible')).toContainText('MARK_SEQUENCE');
  const seq=block(page,'MARK_SEQUENCE');await rendered(seq);
  const size=await seq.locator('img').evaluate(img=>({width:img.naturalWidth,height:img.naturalHeight}));
  assert.ok(size.width>400&&size.height>300,`the sequence diagram has a real size (${size.width}×${size.height})`);
@@ -81,14 +81,14 @@ try{
  assert.equal(await page.locator('.mermaid-measure').evaluate(node=>node.childElementCount),0,'the measuring box is emptied after each render');
 
  // 2. Pushed into a group that is folded (the app's own minimized state), then unfolded.
- const content=page.locator('.messages').locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," dock-panel-content ")][1]');
+ const content=page.locator('.messages:visible').locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," dock-panel-content ")][1]');
  assert.equal(await content.count(),1,'the conversation sits in a dock panel');
  // What DockLayout does to a minimized group's always-rendered panel content.
  await content.evaluate(node=>node.classList.add('dock-content-hidden'));
  say('folded','```mermaid\n'+flows[0]+'\n```\n\nMARK_FOLDED');
  await settle(1500);
  await content.evaluate(node=>node.classList.remove('dock-content-hidden'));
- await expect(page.locator('.messages')).toContainText('MARK_FOLDED');await rendered(block(page,'MARK_FOLDED'));
+ await expect(page.locator('.messages:visible')).toContainText('MARK_FOLDED');await rendered(block(page,'MARK_FOLDED'));
  // …and into one that is not displayed at all (a background tab, a window not yet laid out).
  await content.evaluate(node=>{node.style.display='none';});
  say('hidden','```mermaid\n'+flows[1]+'\n```\n\nMARK_HIDDEN');
@@ -100,7 +100,7 @@ try{
  const three='Three:\n\n'+flows.map((flow,i)=>'```mermaid\n'+flow+'\n```\n\nPart '+(i+1)+'\n\n').join('')+'MARK_THREE';
  channel.push({type:'operation_accepted',text:'three'});
  for(let i=0;i<three.length;i+=17){channel.push({type:'message_delta',text:three.slice(i,i+17),turnId:'three'});await settle(15);}
- await expect(page.locator('.messages')).toContainText('MARK_THREE');
+ await expect(page.locator('.messages:visible')).toContainText('MARK_THREE');
  const streamed=block(page,'MARK_THREE');await expect(streamed).toHaveCount(3);await rendered(streamed);
 
  // 4. A real syntax error: the reason, the source, and the whole error in the console once.
@@ -136,14 +136,14 @@ try{
  // The same colours as a person's overrides, through Settings' stored preferences.
  const themed=await open({preferences:{mode:'dark',darkTheme:'dark',lightTheme:'light',typography:{},minContrast:4.5,motion:'system',accent:'oklch(0.7 0.15 150)',tokens:{'accent-bg-strong':'oklch(0.42 0.09 290)','warn-bg':'color-mix(in srgb, red 20%, black)'}}});
  say('themed','```mermaid\n'+sequence+'\n```\n\nMARK_THEMED');
- await expect(themed.page.locator('.messages')).toContainText('MARK_THEMED');await rendered(block(themed.page,'MARK_THEMED'));
+ await expect(themed.page.locator('.messages:visible')).toContainText('MARK_THEMED');await rendered(block(themed.page,'MARK_THEMED'));
  assert.deepEqual(themed.log.errors,[]);
  await themed.close();
 
  // 6. The renderer fails to load: the reason shows, and it renders once it can load again.
  const offline=await open({blockRenderer:true});
  say('offline','```mermaid\n'+sequence+'\n```\n\nMARK_OFFLINE');
- await expect(offline.page.locator('.messages')).toContainText('MARK_OFFLINE');
+ await expect(offline.page.locator('.messages:visible')).toContainText('MARK_OFFLINE');
  const waiting=block(offline.page,'MARK_OFFLINE');
  await expect(waiting.getByRole('status')).toHaveText('The diagram renderer could not be loaded. Restart Lazybox if this persists.');
  await expect(waiting.locator('pre')).toContainText('participant F as Front door');

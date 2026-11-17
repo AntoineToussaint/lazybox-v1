@@ -59,9 +59,9 @@ try{
  const group=page.locator('.dv-groupview').filter({has:tabs().filter({hasText:'Harden the handler'})});
  await expect(group.locator('[data-panel-tab]')).toHaveText([/Harden the handler/,/Review · Codex/]);
  await expect(activeTab().filter({hasText:'Harden the handler'})).toHaveCount(1);
- await expect(chat().locator('.messages')).toContainText('REPLY_ONE');
+ await expect(chat().locator('.messages:visible')).toContainText('REPLY_ONE');
  // Progress inline: the review's card in the conversation, a live badge on its tab, and the button says so.
- await expect(chat().locator('.messages').getByRole('group',{name:'Codex review'})).toContainText('Codex is reviewing changes');
+ await expect(chat().locator('.messages:visible').getByRole('group',{name:'Codex review'})).toContainText('Codex is reviewing changes');
  await expect(reviewTabs().first().locator('.dock-tab-badge')).toHaveAttribute('data-tone','busy');
  await expect(review.getByRole('button',{name:'Reviewing'})).toBeVisible();
  await page.screenshot({path:'.cache/review-from-chat-tab.png'});
@@ -101,7 +101,7 @@ try{
  // The focus reaches the brief and the review's card.
  const focused=fixture.reviewOf('alpha').runs.at(-1);
  assert.equal(focused.focus,'the error path of Handle');
- await expect(chat().locator('.messages .review-card').last().locator('.review-card-note')).toHaveText('Focus: the error path of Handle');
+ await expect(chat().locator('.messages:visible .review-card').last().locator('.review-card-note')).toHaveText('Focus: the error path of Handle');
 
  // 5. ⌘K "Review this workspace's changes".
  await page.keyboard.press(`${mod}+k`);
@@ -137,7 +137,7 @@ try{
  const fallback=fixture.reviewOf('alpha').runs.at(-1);
  assert.equal(fallback.reviewerProvider,'claude');
  assert.notEqual(fallback.reviewerSessionId,author.id,'a fresh conversation reviews');
- await expect(chat().locator('.messages .review-card').last().locator('.review-card-note')).toHaveText('Codex is not available, so a fresh Claude conversation reviews.');
+ await expect(chat().locator('.messages:visible .review-card').last().locator('.review-card-note')).toHaveText('Codex is not available, so a fresh Claude conversation reviews.');
  await expect(tabs().filter({hasText:'Review · Claude'}).first()).toBeVisible();
  await page.screenshot({path:'.cache/review-from-chat-fallback.png'});
  fixture.availability.codex.installed=true;

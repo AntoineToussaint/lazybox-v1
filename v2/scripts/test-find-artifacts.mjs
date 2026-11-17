@@ -38,7 +38,7 @@ try{
  const page=await context.newPage();page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${fixture.token}`);
- const messages=page.locator('.messages');
+ const messages=page.locator('.messages:visible');
  await expect(messages.getByText('Nothing yet; I will write one.')).toBeVisible();
 
  // Nothing to find: no card, no chip, and the panel says in one sentence how artifacts appear.
@@ -46,7 +46,7 @@ try{
  await expect(messages.locator('.artifact-card')).toHaveCount(0);
  await expect(chip).toHaveCount(0);
  const palette=page.getByRole('dialog',{name:'Command palette'}),search=palette.getByRole('combobox',{name:'Search commands'});
- const composer=page.locator('[data-agent-composer]');
+ const composer=page.locator('[data-agent-composer]:visible');
  await expect(composer).toBeEnabled();await composer.focus();
  await page.keyboard.press('Meta+k');await expect(palette).toBeVisible();
  await search.fill('*');

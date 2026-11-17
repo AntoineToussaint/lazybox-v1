@@ -36,7 +36,7 @@ try {
   await expect(chat.locator('.chat-status')).toContainText('Running');
   // A sub-agent is a card of its own, named as the Runner names it; its prose stays inside it.
   await expect(chat.locator('.subagent-card[data-agent-id="child-review"] .subagent-name')).toHaveText('Review');
-  await expect(chat.locator('.messages .message').filter({ hasText: 'CHILD_PRIVATE_TRANSCRIPT' })).toHaveCount(0);
+  await expect(chat.locator('.messages:visible .message').filter({ hasText: 'CHILD_PRIVATE_TRANSCRIPT' })).toHaveCount(0);
   const initialBounds = await chat.boundingBox();
   assert.ok(initialBounds.height > 800, 'Collapsed output must give the remaining workspace height to chat');
   await mkdir('.cache', { recursive: true }); await page.screenshot({ path: '.cache/workspace-refined-default.png', fullPage: true });

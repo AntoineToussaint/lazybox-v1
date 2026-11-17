@@ -35,7 +35,7 @@ try{
 
  // ── An ACP conversation: what the real adapter journaled, read as Lazybox lines.
  await page.goto(`${base}/?view=workspace&collection=${collection.id}&session=${session.id}#token=${fixture.token}`);
- const messages=page.locator('.messages').first();
+ const messages=page.locator('.messages:visible').first();
  await expect(messages).toContainText('Done: read the README, wrote notes.txt and ran the check.');
  await expect(messages.locator('.tool-line').filter({hasText:'Read'}).filter({hasText:'README.md'}).first()).toBeVisible();
  await expect(messages.locator('.tool-line').filter({hasText:'notes.txt'}).first()).toContainText('Wrote');

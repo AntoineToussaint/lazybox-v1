@@ -41,7 +41,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  const open=async session=>page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=${session.collectionId}&session=${session.id}#token=${f.token}`);
  await open(claude);
- const chat=page.locator('.embedded-chat').first(),composer=chat.getByRole('textbox',{name:'Message',exact:true});
+ const chat=page.locator('.embedded-chat:visible').first(),composer=chat.getByRole('textbox',{name:'Message',exact:true});
  const strip=chat.getByRole('region',{name:'Queued messages'});
  // Send now's key, as the app shows it and as it is pressed.
  const mac=await page.evaluate(()=>/Mac|iPhone|iPad/.test(navigator.platform)),nowKey=mac?'⌘↵':'Ctrl+↵',sendNowKey='ControlOrMeta+Enter';

@@ -30,10 +30,10 @@ try{
  await page.goto(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
 
  // One header: title, who and how, and the tools; no second or third bar.
- const chat=page.locator('.embedded-chat').first(),header=chat.locator('.chat-heading');
+ const chat=page.locator('.embedded-chat:visible').first(),header=chat.locator('.chat-heading');
  await expect(header.locator('.conversation-title')).toContainText('Fix the flaky login test');
- // The model by name (/model's names), its id in the tooltip.
- await expect(header).toContainText('Fable 5.1');
+ // The model by the name people say; its id stays in the tooltip.
+ await expect(header.locator('.chat-model')).toHaveText(/Claude · Fable 5\.1/);await expect(header.locator('.chat-model')).toHaveAttribute('title',/claude-fable-5-1/);
  await expect(header.locator('.chat-status')).toContainText('Running a command');
  await expect(chat.locator('.agent-inspection-bar')).toHaveCount(0);
  // No usage reported yet: no Context meter, not an empty grey bar (R12).
@@ -156,7 +156,7 @@ try{
 
  // A fresh conversation is Ready (not "Starting"), leads with its branch, and keeps quiet about restarts.
  await page.goto(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
- const betaChat=page.locator('.embedded-chat').first(),betaHeader=betaChat.locator('.chat-heading');
+ const betaChat=page.locator('.embedded-chat:visible').first(),betaHeader=betaChat.locator('.chat-heading');
  await expect(betaHeader.locator('.chat-status')).toHaveText('Ready');
  await expect(betaHeader.locator('.chat-branch')).toContainText('lazybox/beta/api');
  await expect(betaHeader.locator('.conversation-title-text'),'the folder name is not a title').toHaveCount(0);await expect(betaHeader.getByRole('button',{name:'Rename conversation'})).toContainText('Name it');

@@ -71,7 +71,7 @@ try{
  assert.ok(tailMs<=replayMs*ratio,`the last turn took ${tailMs} ms to show, ${(tailMs/replayMs).toFixed(2)}x the full replay's ${replayMs} ms (budget ${ratio}x): opening fell back to the replay`);
 
  const {page,errors}=await open('alpha',alpha.id);
- const chat=page.locator('.embedded-chat').first(),pane=chat.locator('.messages');
+ const chat=page.locator('.embedded-chat:visible').first(),pane=chat.locator('.messages:visible');
  await expect(chat.getByRole('button',{name:/Show earlier messages/})).toBeVisible({timeout:30000});
 
  // ── Switching to another conversation and back: instant, from what the window holds.
@@ -103,7 +103,7 @@ try{
  const restart=await browser.newPage({viewport:{width:1400,height:900}});restart.setDefaultTimeout(20000);
  const restartErrors=[];restart.on('pageerror',e=>restartErrors.push(String(e)));
  await restart.goto(url('alpha',alpha.id));
- const view=restart.locator('.embedded-chat').first().locator('.messages');
+ const view=restart.locator('.embedded-chat:visible').first().locator('.messages:visible');
  await expect(view).toContainText(last,{timeout:30000});
  await expect(view.getByRole('status').filter({hasText:'Loading earlier messages'})).toBeVisible();
  f.runner.down=true;fast.cut();

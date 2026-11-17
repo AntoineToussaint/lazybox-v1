@@ -30,7 +30,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.addInitScript(()=>{window.__copies=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__copies.push(text);}}});});
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=${session.id}#token=${fixture.token}`);
- await expect(page.locator('.messages')).toContainText('DIAGRAM_END');
+ await expect(page.locator('.messages:visible')).toContainText('DIAGRAM_END');
  const figure=page.locator('.mermaid-block').filter({hasText:'Mermaid diagram'}).last();
  const viewer=figure.getByRole('group',{name:'Mermaid diagram viewer'});
  const image=viewer.getByRole('img',{name:'Mermaid diagram'});
@@ -77,7 +77,7 @@ try{
  await page.keyboard.press('0');
 
  // Ctrl/⌘ + wheel zooms about the pointer; a plain wheel keeps scrolling the conversation.
- const pane=page.locator('.messages');
+ const pane=page.locator('.messages:visible');
  await pane.evaluate(node=>{node.scrollTop=node.scrollHeight;});
  const before=await pane.evaluate(node=>node.scrollTop);
  await page.mouse.move(view.x+view.width/2,view.y+view.height/2);

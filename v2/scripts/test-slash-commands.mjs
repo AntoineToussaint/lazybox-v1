@@ -27,7 +27,7 @@ try{
  const go=async url=>{navigating=true;await page.goto(url);await page.waitForLoadState('load');navigating=false;};
  const base=`http://127.0.0.1:${server.httpServer.address().port}`;
  await page.goto(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
- const chat=page.locator('.embedded-chat').first();
+ const chat=page.locator('.embedded-chat:visible').first();
  const message=chat.getByRole('textbox',{name:'Message',exact:true});
  const menu=chat.getByRole('listbox',{name:'Commands'});
  await expect(message).toBeEnabled();
@@ -207,7 +207,7 @@ try{
  // An agent started by an older Lazybox lists no models and cannot switch live: the
  // Runner's list stands in, the current model asks nothing, another asks once to restart.
  await go(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
- const betaChat=page.locator('.embedded-chat').first(),betaMessage=betaChat.getByRole('textbox',{name:'Message',exact:true});
+ const betaChat=page.locator('.embedded-chat:visible').first(),betaMessage=betaChat.getByRole('textbox',{name:'Message',exact:true});
  await expect(betaMessage).toBeEnabled();
  // From here to the restart, the keyboard alone: no click anywhere.
  await betaMessage.focus();
@@ -252,7 +252,7 @@ try{
  // Codex: its app-server's models (merged with the Runner's), the current one marked; a live switch.
  await go(`${base}/?view=workspace&collection=beta&session=codex-session#token=${f.token}`);
  await page.getByText('Codex refactor',{exact:true}).first().click();
- const codexChat=page.locator('.embedded-chat').filter({hasText:'Codex refactor'}).first(),codexMessage=codexChat.getByRole('textbox',{name:'Message',exact:true});
+ const codexChat=page.locator('.embedded-chat:visible').filter({hasText:'Codex refactor'}).first(),codexMessage=codexChat.getByRole('textbox',{name:'Message',exact:true});
  await expect(codexMessage).toBeEnabled();
  await codexMessage.click();await page.keyboard.type('/model ');
  const codexModels=codexChat.getByRole('listbox',{name:'/model choices'});

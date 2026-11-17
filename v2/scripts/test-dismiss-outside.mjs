@@ -68,7 +68,7 @@ try{
  await chip.click();await expect(prompts).toBeVisible();
  await clickTranscript();
  await expect(prompts).toHaveCount(0);
- await expect(chat.locator('.messages')).toBeFocused();
+ await expect(chat.locator('.messages:visible')).toBeFocused();
  await composer.click();
  await chip.click();await expect(prompts).toBeVisible();
  await page.locator('.workspace-brand').click();

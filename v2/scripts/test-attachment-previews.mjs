@@ -379,7 +379,7 @@ try {
     await expect(chat.getByRole('button', { name: /^Open late\.png/ })).toBeEnabled();
     await page.waitForTimeout(300);
     assert.equal(reads(oldPath), 0, 'an image out of view is not read');
-    const pane = chat.locator('.messages');
+    const pane = chat.locator('.messages:visible');
     for (let i = 0; i < 20 && !(await chat.getByRole('button', { name: /^Open early\.png/ }).count()); i++) {
       await pane.evaluate(node => { node.scrollTop = 0; });
       const earlier = chat.getByRole('button', { name: /^Show earlier messages/ });

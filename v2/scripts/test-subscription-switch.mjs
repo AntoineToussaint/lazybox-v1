@@ -40,13 +40,13 @@ try{
 
  // 1. Automatic: one quiet line says where the conversation went and when the old one resets.
  await page.goto(`${base}/?view=workspace&collection=alpha&session=alpha-session#token=${f.token}`);
- let chat=page.locator('.embedded-chat').first();
+ let chat=page.locator('.embedded-chat:visible').first();
  const line=chat.locator('.subscription-switched');
  await expect(line).toHaveCount(1);
  await expect(line).toHaveText(new RegExp(`^Switched to Work subscription 1 · Work subscription 2 is back ${backLabel.source}$`));
  await expect(chat).toContainText('Picking up where I stopped');
  await expect(chat.locator('.limit-card')).toHaveCount(0);
- await expect(chat.locator('.messages .error')).toHaveCount(0);
+ await expect(chat.locator('.messages:visible .error')).toHaveCount(0);
  await raw(chat);
  await page.screenshot({path:'.cache/subscription-auto-switch.png'});
 
@@ -74,13 +74,13 @@ try{
 
  // 2. No automatic switching: ONE card, in words, with the best other subscription first.
  await page.goto(`${base}/?view=workspace&collection=beta&session=beta-session#token=${f.token}`);
- chat=page.locator('.embedded-chat').first();
+ chat=page.locator('.embedded-chat:visible').first();
  const card=chat.locator('.limit-card');
  await expect(card).toHaveCount(1);
  await expect(card.getByRole('heading')).toHaveText(new RegExp(`^Work subscription 2 reached its limit · back ${backLabel.source} \\(in .+\\)$`));
  await expect(chat.locator('.chat-heading .chat-status')).toContainText(new RegExp(`Limit reached · back ${backLabel.source}`));
  await expect(chat.locator('.chat-heading .chat-status')).not.toContainText('Needs attention');
- await expect(chat.locator('.messages .error')).toHaveCount(0);
+ await expect(chat.locator('.messages:visible .error')).toHaveCount(0);
  await raw(chat);
  await expect(card.getByRole('radio')).toHaveCount(3);
  await expect(card.getByRole('radio',{name:/Work subscription 1/})).toBeChecked();
@@ -118,7 +118,7 @@ try{
  // 3. Wait for reset: a quiet line, then the same request continues on its own, once.
  f.sessions.find(s=>s.id==='gamma-session').account.resetAt=String(Math.floor(Date.now()/1000)+6);
  await page.goto(`${base}/?view=workspace&collection=gamma&session=gamma-session#token=${f.token}`);
- chat=page.locator('.embedded-chat').first();
+ chat=page.locator('.embedded-chat:visible').first();
  await chat.locator('.limit-card').getByRole('button',{name:'Wait for reset'}).click();
  await expect(chat.locator('.limit-card.is-waiting')).toContainText(/Waiting for Work subscription 2: back .*at .* \(in .+\)\. The conversation continues on its own then\./);
  await expect(chat.locator('.limit-card.is-waiting').getByRole('button',{name:'Continue with Work subscription 1'})).toBeVisible();

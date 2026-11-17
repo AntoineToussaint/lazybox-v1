@@ -22,7 +22,7 @@ try{
  const save=page.getByRole('button',{name:'Save name',exact:true});assert.ok((await save.boundingBox()).height<40,'Save must not wrap');await save.click();await expect(page.locator('.workspace-link strong').filter({hasText:'Renamed'})).toBeVisible();
  await expect(message).toHaveValue('Retain this draft');assert.equal(fixture.calls.filter(call=>call.method==='WatchEvents'&&call.body.sessionId==='alpha-session').length,watches,'rename must not restart the reader');
  await page.locator('.workspace-row').filter({hasText:'Beta release'}).locator('button').first().click();await page.locator('.workspace-row').filter({hasText:'Renamed'}).locator('button').first().click();
- await expect(page.locator('.messages')).toContainText('Open');await expect(message).toHaveValue('Retain this draft');
+ await expect(page.locator('.messages:visible')).toContainText('Open');await expect(message).toHaveValue('Retain this draft');
  await expect.poll(()=>fixture.calls.filter(call=>call.method==='WatchEvents'&&call.body.sessionId==='alpha-session').at(-1)?.body.after).toBe('1');
  await page.screenshot({path:'/tmp/lazybox-navigation-verified.png'});await page.getByRole('button',{name:'README',exact:true}).click({modifiers:['Alt']});const dialog=page.getByRole('dialog',{name:'File preview',exact:true});
  await expect(dialog).toContainText('A retained file.');assert.ok((await dialog.boundingBox()).height>700);
