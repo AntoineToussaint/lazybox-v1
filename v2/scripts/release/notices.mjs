@@ -47,10 +47,11 @@ function run(command, args, options = {}) {
 const readText = path => readFileSync(path, 'utf8').replace(/\r\n/g, '\n').trim();
 
 /** npm packages of every shipped workspace, each once (name@version), with where it ships. */
-export function npmComponents(base = root) {
+export function npmComponents(base = root, { omit = () => false } = {}) {
   const byKey = new Map();
   for (const [workspace, where] of Object.entries(NPM_WORKSPACES)) {
     for (const p of productionPackages(base, workspace)) {
+      if (omit(p.name)) continue;
       const key = `${p.name}@${p.version}`;
       const files = licenseFiles(p.dir);
       const entry = byKey.get(key) || { kind: 'npm', name: p.name, version: p.version, license: p.license || guessLicense(files), files, in: [] };
@@ -169,8 +170,8 @@ export function renderNotices({ version, components, node }) {
 }
 
 /** Collects every component and writes the notices; returns what needs attention. */
-export function writeNotices({ out, version, nodeLicense, nodeVersion = '' }) {
-  const components = [...npmComponents(), ...goComponents(), ...rustComponents()];
+export function writeNotices({ out, version, nodeLicense, nodeVersion = '', omit }) {
+  const components = [...npmComponents(root, { omit }), ...goComponents(), ...rustComponents()];
   const node = nodeLicense ? { kind: 'node', name: 'Node.js', version: nodeVersion, license: 'MIT and others (see its LICENSE)', files: [nodeLicense] } : undefined;
   writeFileSync(out, renderNotices({ version, components, node }));
   return {

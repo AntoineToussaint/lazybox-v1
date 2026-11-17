@@ -1,8 +1,8 @@
 // Builds an installable Lazybox release for macOS (RELEASING.md):
 //
 //   make -C v2 release VERSION=0.1.0            # what CI runs on a v2-v0.1.0 tag
-//   node scripts/release/build.mjs --version 0.1.0 [--gates] [--skip-smoke] [--publishable]
-//   node scripts/release/build.mjs --from-source [--version 0.1.0] [--skip-smoke]
+//   node scripts/release/build.mjs --version 0.1.0 [--gates] [--skip-smoke] [--publishable] [--without-claude-code]
+//   node scripts/release/build.mjs --from-source [--version 0.1.0] [--skip-smoke] [--without-claude-code]
 //
 // Output, in dist/<version>/ beside the Makefile:
 //   Lazybox_<version>_aarch64.dmg               the disk image (drag to Applications)
@@ -35,7 +35,7 @@ import { cp, mkdir, readFile, rm, writeFile, readdir, stat, chmod, rename, acces
 import { resolve, dirname, join, relative, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readChangelog, releaseBody, updaterNotes, updaterReleases, versionPattern, renderReleaseNotes, releaseNotesPath, unfoldedAbove } from './changelog.mjs';
-import { productionPackages } from './packages.mjs';
+import { productionPackages, isClaudeCodePackage } from './packages.mjs';
 import { writeNotices, NOTICES_FILE } from './notices.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -167,8 +167,10 @@ async function sha256(path) {
 
 async function exists(path) { try { await access(path); return true; } catch { return false; } }
 
-function parseArgs(argv) {
-  const options = { version: process.env.VERSION || '', gates: false, smoke: true, publishable: false, source: false, launchd: process.env.LAZYBOX_V2_RELEASE_LAUNCHD === '1' };
+export function parseArgs(argv, env = process.env) {
+  // claudeCode: ship the SDK's copy of Claude Code. --without-claude-code (or
+  // LAZYBOX_RELEASE_CLAUDE_CODE=omit) leaves it out (CLAUDE_COMPLIANCE.md).
+  const options = { version: env.VERSION || '', gates: false, smoke: true, publishable: false, source: false, launchd: env.LAZYBOX_V2_RELEASE_LAUNCHD === '1', claudeCode: env.LAZYBOX_RELEASE_CLAUDE_CODE !== 'omit' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--version') options.version = argv[++i] || '';
@@ -177,6 +179,8 @@ function parseArgs(argv) {
     else if (a === '--publishable') options.publishable = true;
     else if (a === '--launchd') options.launchd = true;
     else if (a === '--from-source') options.source = true;
+    else if (a === '--without-claude-code') options.claudeCode = false;
+    else if (a === '--with-claude-code') options.claudeCode = true;
     else throw new Error(`Unknown option ${a}`);
   }
   if (options.source && options.publishable) throw new Error('--from-source builds are never published');
@@ -238,15 +242,20 @@ async function fetchNode(runtime) {
 
 const WORKER = 'workers/claude-sdk';
 
+/** The worker's packages that ship: all of them, or all but Claude Code's. */
+export function workerPackages(packages, { claudeCode = true } = {}) {
+  return claudeCode ? packages : packages.filter(p => !isClaudeCodePackage(p.name));
+}
+
 /** The compiled worker and exactly the production packages the lockfile resolved for it. */
-async function bundleWorker(runtime) {
+async function bundleWorker(runtime, { claudeCode = true } = {}) {
   await run('npm', ['run', 'build:worker']);
   const worker = join(runtime, 'worker');
   await cp(join(root, 'workers/claude-sdk/dist'), join(worker, 'dist'), { recursive: true, filter: source => !source.endsWith('.test.js') && !source.endsWith('.d.ts') });
   await cp(join(root, 'workers/claude-sdk/package.json'), join(worker, 'package.json'));
   // Resolved from package.json and node_modules (packages.mjs), not from
   // `npm ls` text, which hides UUID-looking path segments as ***.
-  const packages = productionPackages(root, WORKER);
+  const packages = workerPackages(productionPackages(root, WORKER), { claudeCode });
   const placed = new Map();
   for (const p of packages) {
     if (placed.has(p.path)) throw new Error(`${p.name}@${p.version} and ${placed.get(p.path)} both belong at worker/node_modules/${p.path}`);
@@ -255,7 +264,7 @@ async function bundleWorker(runtime) {
     // worker needs are in the list, at their own paths.
     await cp(p.dir, join(worker, 'node_modules', p.path), { recursive: true, filter: source => basename(source) !== '.bin' && !relative(p.dir, source).split('/').includes('node_modules') });
   }
-  if (!packages.some(p => p.name === `@anthropic-ai/claude-agent-sdk-${ARCH.node}`)) throw new Error(`The Claude Agent SDK for ${ARCH.node} is not installed; run npm ci on this platform`);
+  if (claudeCode && !packages.some(p => p.name === `@anthropic-ai/claude-agent-sdk-${ARCH.node}`)) throw new Error(`The Claude Agent SDK for ${ARCH.node} is not installed; run npm ci on this platform`);
   return packages.length;
 }
 
@@ -370,7 +379,7 @@ async function main() {
   await run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund']);
   await buildGo(runtime, version);
   const nodeVersion = await fetchNode(runtime);
-  const packages = await bundleWorker(runtime);
+  const packages = await bundleWorker(runtime, { claudeCode: options.claudeCode });
   await run('npm', ['run', 'build:web']);
   await cp(join(root, 'apps/web/dist'), join(runtime, 'web'), { recursive: true });
   // The documentation Ask Lazybox reads (the app bundles its own copy for
@@ -384,12 +393,12 @@ async function main() {
     await writeFile(join(runtime, 'SOURCE.json'), JSON.stringify(sourceManifest({ commit, dirty, checkout: root }), null, 2) + '\n');
   }
   for (const exe of ['bin/lazybox', 'bin/lazybox-runner', 'node/bin/node']) await chmod(join(runtime, exe), 0o755);
-  console.log(`  Node ${nodeVersion}, ${packages} worker packages`);
+  console.log(`  Node ${nodeVersion}, ${packages} worker packages${options.claudeCode ? ', Claude Code included' : ', without Claude Code (the person installs it)'}`);
   const signatures = await signRuntime(runtime, plan);
 
   step('Third-party notices');
   const notices = join(stage, NOTICES_FILE);
-  const noticeReport = writeNotices({ out: notices, version, nodeLicense: join(runtime, 'node', 'LICENSE'), nodeVersion });
+  const noticeReport = writeNotices({ out: notices, version, nodeLicense: join(runtime, 'node', 'LICENSE'), nodeVersion, omit: options.claudeCode ? undefined : isClaudeCodePackage });
   console.log(`  ${noticeReport.components} components in ${NOTICES_FILE}`);
   // Shipped, and listed at the top of the notices; whether their terms allow
   // redistributing them is the publisher's call (RELEASING.md).

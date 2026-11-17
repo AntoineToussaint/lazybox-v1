@@ -72,3 +72,17 @@ test('sub-agent text is forwarded; progress summaries only for coding agents', (
     assert.equal(assistant.agentProgressSummaries, undefined, purpose);
   }
 });
+
+// CLAUDE_COMPLIANCE.md: with an Anthropic API key saved, the Runner gives the
+// worker ANTHROPIC_API_KEY and no other Claude credential. The worker hands
+// that environment to Claude Code as it is, whatever the purpose, permission
+// or connector setting: it neither drops the key nor brings a sign-in back.
+test('an API key from the Runner reaches Claude Code untouched', () => {
+  const key = 'sk-ant-api03-fixture-not-a-real-key';
+  const env = Object.freeze({ PATH: '/usr/bin', ANTHROPIC_API_KEY: key });
+  for (const o of [{ cwd: '/fixture' }, { cwd: '/fixture', claudeAiConnectors: true }, { cwd: '/fixture', purpose: 'help' }, { cwd: '/fixture', permission: 'yolo', browser: true }]) {
+    const passed = nativeOptions(o, env).env!;
+    assert.equal(passed.ANTHROPIC_API_KEY, key, JSON.stringify(o));
+    for (const name of ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK']) assert.equal(name in passed, false, `${name} appeared`);
+  }
+});

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { artifactNames, latestJson, renderCask, signingPlan, tagOf, tauriReleaseConfig, downloadURL, bundleVersion } from './build.mjs';
-import { productionPackages } from './packages.mjs';
+import { artifactNames, latestJson, renderCask, signingPlan, tagOf, tauriReleaseConfig, downloadURL, bundleVersion, parseArgs, workerPackages } from './build.mjs';
+import { productionPackages, isClaudeCodePackage } from './packages.mjs';
 import { renderNotices, needsAttention, NOTICES_FILE } from './notices.mjs';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,6 +14,19 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+// CLAUDE_COMPLIANCE.md: a release can leave Anthropic's Claude Code program
+// out; the SDK itself and everything else still ship.
+test('a release built --without-claude-code ships no Claude Code program', () => {
+  const resolved = ['@anthropic-ai/claude-agent-sdk', '@anthropic-ai/claude-agent-sdk-darwin-arm64', '@anthropic-ai/claude-agent-sdk-linux-x64-musl', 'zod'].map(name => ({ name, version: '1' }));
+  assert.deepEqual(workerPackages(resolved).map(p => p.name), resolved.map(p => p.name));
+  assert.deepEqual(workerPackages(resolved, { claudeCode: false }).map(p => p.name), ['@anthropic-ai/claude-agent-sdk', 'zod']);
+  assert.equal(isClaudeCodePackage('@anthropic-ai/claude-agent-sdk'), false);
+  assert.equal(parseArgs(['--version', '1.0.0'], {}).claudeCode, true);
+  assert.equal(parseArgs(['--version', '1.0.0', '--without-claude-code'], {}).claudeCode, false);
+  assert.equal(parseArgs(['--version', '1.0.0'], { LAZYBOX_RELEASE_CLAUDE_CODE: 'omit' }).claudeCode, false);
+  assert.equal(parseArgs(['--version', '1.0.0', '--with-claude-code'], { LAZYBOX_RELEASE_CLAUDE_CODE: 'omit' }).claudeCode, true);
+});
 
 test('a V2 tag never looks like a V1 tag', () => {
   assert.equal(tagOf('0.1.0'), 'v2-v0.1.0');

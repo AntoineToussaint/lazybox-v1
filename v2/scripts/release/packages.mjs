@@ -34,6 +34,13 @@ export function resolvePackage(name, from, root) {
  * and `path`: where it sits relative to the node_modules it was found in, so
  * a copy under another node_modules resolves the same way.
  */
+/**
+ * The SDK's per-platform packages hold Anthropic's Claude Code program
+ * (`claude`). A release built --without-claude-code leaves them out
+ * (CLAUDE_COMPLIANCE.md): the Runner then runs the claude the person installed.
+ */
+export const isClaudeCodePackage = name => /^@anthropic-ai\/claude-agent-sdk-[a-z0-9]+-[a-z0-9]+(-[a-z0-9]+)?$/.test(name);
+
 export function productionPackages(root, workspace) {
   root = realpathSync(root);
   const start = realpathSync(join(root, workspace));

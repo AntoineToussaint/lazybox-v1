@@ -79,7 +79,7 @@ Inside the app, `Contents/Resources/runtime/`:
 | `VERSION` | The release version; the CLI and Runner are built with the same one |
 | `bin/lazybox`, `bin/lazybox-runner` | Go, `GOARCH=arm64`, `-trimpath`, version stamped (`internal/version`) |
 | `node/bin/node` | Node pinned in [`scripts/release/node.json`](scripts/release/node.json), checksum-verified |
-| `worker/` | The compiled Claude worker and exactly the production packages the lockfile resolved for it, including the Claude Code the SDK ships |
+| `worker/` | The compiled Claude worker and exactly the production packages the lockfile resolved for it, including the Claude Code the SDK ships unless the build says `--without-claude-code` (below) |
 | `web/` | The phone app the device gateway serves |
 
 `Contents/Resources/THIRD_PARTY_NOTICES.txt` (and the same file on the disk
@@ -138,6 +138,24 @@ signature) lives in its own directory, never on an agent's PATH: agents keep
 the person's `node`. The same reasoning ships the Claude Code binary the
 pinned SDK resolves (Anthropic's signature kept), so the worker and the CLI
 it drives are the versions the gates ran.
+
+### Building without Claude Code
+
+Anthropic's terms say that preinstalling Claude Code in a product needs their
+Commercial Terms, and its licence grants no redistribution
+([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md), R4). Whether a public release
+ships it is the publisher's decision; the build can leave it out either way:
+
+```sh
+make -C v2 release VERSION=0.2.0 RELEASE_FLAGS=--without-claude-code
+# or: LAZYBOX_RELEASE_CLAUDE_CODE=omit make -C v2 release VERSION=0.2.0
+```
+
+That build skips the SDK's per-platform packages (`@anthropic-ai/claude-agent-sdk-<platform>`)
+in `worker/node_modules` and in the notices. The Runner then runs the `claude`
+on its PATH (`claudeProgram`), Settings → Agents & workspaces → Claude says
+where it found one, and **Install Claude Code** runs Anthropic's installer in
+the shell panel when there is none.
 
 Apple Silicon only for now. A universal build needs the x64 Node and SDK
 packages next to the arm64 ones (`lipo` cannot merge them), doubling the
