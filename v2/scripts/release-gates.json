@@ -73,6 +73,7 @@
     { "id": "voice", "scope": "ui", "script": "test:voice" },
     { "id": "console-log", "scope": "ui", "script": "test:console-log" },
     { "id": "sidebar-width", "scope": "ui", "script": "test:sidebar-width" },
+    { "id": "resizable", "scope": "ui", "script": "test:resizable" },
     { "id": "editor-wrap", "scope": "ui", "script": "test:editor-wrap" },
     { "id": "turn-checkpoints", "scope": "ui", "script": "test:turn-checkpoints" },
     { "id": "workspace-runtime", "scope": "ui", "script": "test:workspace-runtime" },

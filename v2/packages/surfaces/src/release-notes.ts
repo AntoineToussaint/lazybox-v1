@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.21',
+    date: '2026-11-17',
+    title: 'Resize the sides inside panels',
+    items: [
+      { title: 'Drag the divider inside a panel', body: 'In Changes, drag the edge between the file list and the diff, and between the diff and the review tray; when Changes is narrow, the Files / Review column. The same divider sizes the Artifacts list and its version history, the Settings sections, the Documentation\'s page list, the snippet list and the agent browser\'s steps. It lights up under the pointer; double-click it for the default size.' },
+      { title: 'From the keyboard', body: 'Tab to a divider: the arrow keys move it 16 px (⇧ for 64), Home and End take it to its narrowest and widest.' },
+      { title: 'Fold a list away', body: 'Drag the Changes file list, the Artifacts list or the Documentation\'s pages all the way in (or press Enter on the divider) and it folds to a thin rail; click the rail, press Enter or drag it out to bring it back.' },
+      { title: 'Remembered', body: 'Each divider keeps its size in this window, in every workspace and after a restart; a new window starts from the size you last chose. The content beside it never gets too narrow to read, and a phone keeps its stacked layouts.' },
+    ],
+  },
+  {
     id: '2026-11-17.20',
     date: '2026-11-17',
     title: 'Pull requests your agents pushed themselves, tracked',

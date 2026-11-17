@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.21] - 2026-11-17 · Resize the sides inside panels
+
+- **Drag the divider inside a panel** In Changes, drag the edge between the file list and the diff, and between the diff and the review tray; when Changes is narrow, the Files / Review column. The same divider sizes the Artifacts list and its version history, the Settings sections, the Documentation's page list, the snippet list and the agent browser's steps. It lights up under the pointer; double-click it for the default size.
+- **From the keyboard** Tab to a divider: the arrow keys move it 16 px (⇧ for 64), Home and End take it to its narrowest and widest.
+- **Fold a list away** Drag the Changes file list, the Artifacts list or the Documentation's pages all the way in (or press Enter on the divider) and it folds to a thin rail; click the rail, press Enter or drag it out to bring it back.
+- **Remembered** Each divider keeps its size in this window, in every workspace and after a restart; a new window starts from the size you last chose. The content beside it never gets too narrow to read, and a phone keeps its stacked layouts.
+
 ## [2026-11-17.20] - 2026-11-17 · Pull requests your agents pushed themselves, tracked
 
 - **The pull request from an agent's own push** A branch an agent pushed itself (git push -u, then gh pr create) now finds its pull request within a minute or so; before, Lazybox only asked about branches it had pushed. One an agent opened before this update, or while the Runner restarted, is picked up from the conversation when Lazybox starts.
