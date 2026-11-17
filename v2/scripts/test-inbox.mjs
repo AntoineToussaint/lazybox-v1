@@ -116,7 +116,12 @@ try {
   await expect(page.getByRole('combobox', {name: 'Workspace', exact: true})).toHaveValue('beta');
   await expect(page.getByRole('combobox', {name: 'Session', exact: true})).toHaveValue('failing-session');
   await expect(inboxButton).toHaveAccessibleName('Inbox, 2 conversations need attention', {timeout: 10_000});
-  // Beta's page has its own Agents panel: the Inbox brings it forward; it marks the open conversation.
+  // Closed is closed for the window, not for a page: Beta's page has no Agents either.
+  await expect(agentsList).toHaveCount(0);
+  // Brought back from Panels, the Inbox brings it forward on Beta's page; it marks the open conversation.
+  await page.locator('summary[aria-label="Panels"]').click();
+  await page.getByRole('button', {name: 'Show Agents'}).click();
+  await expect(agentsList).toBeVisible();
   await page.locator('.inbox-action').click();
   await expect(inbox).toHaveCount(0);
   await expect(agentsList.locator('li[data-state="failed"]')).not.toHaveAttribute('data-unread', /.+/);

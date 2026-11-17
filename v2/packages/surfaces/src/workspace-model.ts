@@ -195,6 +195,55 @@ export function stackSidebar(node: LayoutNode | null): LayoutNode | null {
   const next = visit(node);
   return JSON.stringify(next) === JSON.stringify(node) ? node : normalize(next);
 }
+/**
+ * The Agents list under Workspaces is one thing for the whole window, not a
+ * panel of each page: closed, it is off every page of every workspace; folded,
+ * it is folded on all of them; until the person brings it back. Undefined is a
+ * window that never chose (saved pages are left as they are).
+ */
+export type SidebarAgents = 'shown' | 'folded' | 'closed';
+export const isSidebarAgents = (value: unknown): value is SidebarAgents => value === 'shown' || value === 'folded' || value === 'closed';
+/** The sidebar's Agents group, when it is stacked under Workspaces (so it can fold). */
+export function sidebarAgentsGroup(node: LayoutNode | null): Group | undefined {
+  const at = sidebarAt(node);
+  if (!at || node?.type !== 'split') return undefined;
+  const side = node.children[at === 'first' ? 0 : node.children.length - 1];
+  if (side.type !== 'split') return undefined;
+  return groups(side).find(group => group.panels.every(panel => panel.kind === 'agents'));
+}
+/**
+ * The page as the window's choice has it. Closed: every Agents panel leaves
+ * the page, and Workspaces takes the sidebar's height (its width is the
+ * window's, kept outside the page). Shown or folded: a page whose sidebar has
+ * Workspaces gets Agents under them if it has none, folded or not. Unchanged
+ * (the same object) when the page already agrees.
+ */
+export function fitSidebarAgents(page: WorkspacePage, choice: SidebarAgents | undefined): WorkspacePage {
+  if (!choice) return page;
+  if (choice === 'closed') return allPanels(page).filter(panel => panel.kind === 'agents').reduce((result, panel) => removeFromPage(result, panel.id), page);
+  let layout = page.layout;
+  const at = sidebarAt(layout);
+  if (at && layout?.type === 'split' && !allPanels(page).some(panel => panel.kind === 'agents')) {
+    const index = at === 'first' ? 0 : layout.children.length - 1, side = layout.children[index];
+    const list = groups(side).flatMap(group => group.panels).find(panel => panel.kind === 'collections');
+    if (list) {
+      const taken = new Set(allPanels(page).map(panel => panel.id));
+      let panelID = `${list.id}-agents`.slice(0, 128);
+      for (let n = 2; taken.has(panelID); n++) panelID = `${list.id}-agents`.slice(0, 120) + `-${n}`;
+      const below = leaf(followPanel(panelID, 'agents'));
+      const stacked = edge(side, { ...below, id: groupID(panelID, pageGroups(page).map(group => group.id)) }, 'bottom', AGENTS_SHARE);
+      layout = normalize({ ...layout, children: layout.children.map((child, at) => at === index ? stacked : child) });
+    }
+  }
+  const agents = sidebarAgentsGroup(layout), folded = choice === 'folded';
+  if (agents && !!agents.minimized !== folded) layout = mapGroups(layout, group => group.id !== agents.id ? group : folded ? { ...group, minimized: true } : (({ minimized: _, ...rest }) => rest)(group));
+  return layout === page.layout ? page : { ...page, layout };
+}
+/** Every page of a workspace as the window's Agents choice has it (see fitSidebarAgents); the same object when none changes. */
+export function fitAgentsEverywhere(layout: WorkspaceLayout, choice: SidebarAgents | undefined): WorkspaceLayout {
+  const pages = layout.pages.map(page => fitSidebarAgents(page, choice));
+  return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
+}
 /** Where the sidebar is in a page's root row: 'first', 'last', or not there. */
 export function sidebarAt(node: LayoutNode | null): 'first' | 'last' | undefined {
   if (!node || node.type !== 'split' || node.direction !== 'row') return undefined;
@@ -514,14 +563,14 @@ export function detachedFor(page: WorkspacePage, selection: ViewTarget): Panel |
 const leaf = (panel: Panel, minimized = false): Group => ({ type: 'group', id: groupID(panel.id), panels: [panel], active: panel.id, ...(minimized ? { minimized } : {}) });
 const followPanel = (panelID: string, kind: string): Panel => ({ id: panelID, kind, binding: { mode: 'follow' }, detached: false });
 export const emptyPage = (pageID: string, name: string, selection: ViewTarget, layout: LayoutNode | null): WorkspacePage => ({ id: pageID, name, selection: { ...selection }, layout, floating: [], popouts: [], detached: [] });
-/** The Work page: the workspace list above the agents list, the conversation, and command output below it, minimized until a run starts. */
-export function defaultLayout(selection = emptyTarget()): WorkspaceLayout {
+/** The Work page: the workspace list above the agents list (unless the window's choice closed or folded it), the conversation, and command output below it, minimized until a run starts. */
+export function defaultLayout(selection = emptyTarget(), agents?: SidebarAgents): WorkspaceLayout {
   const panel = (panelID: string, kind: string) => followPanel(selection.collectionId ? `${selection.collectionId}-${panelID}` : panelID, kind);
   const layout: LayoutNode = { type: 'split', direction: 'row', sizes: [0.2, 0.8], children: [
     { type: 'split', direction: 'column', sizes: [1 - AGENTS_SHARE, AGENTS_SHARE], children: [leaf(panel('work-collections', 'collections')), leaf(panel('work-agents', 'agents'))] },
     { type: 'split', direction: 'column', sizes: [0.62, 0.38], children: [leaf(panel('work-chat', 'chat')), leaf(panel('work-console', 'console'), true)] },
   ] };
-  return { version: 2, selectedPage: 'work', pages: [emptyPage('work', 'Work', selection, layout)] };
+  return { version: 2, selectedPage: 'work', pages: [fitSidebarAgents(emptyPage('work', 'Work', selection, layout), agents)] };
 }
 export function clonePage(page: WorkspacePage, newID: () => string): WorkspacePage {
   const ids = new Map<string, string>();
@@ -546,11 +595,11 @@ export function redockPopouts(page: WorkspacePage): WorkspacePage {
   for (const group of page.popouts) layout = dockAt(layout, group, 'right', 0.3, group.panels[0]?.kind);
   return { ...page, layout, popouts: [] };
 }
-/** What loading a saved page fixes: windows that are gone, duplicate chats, Agents hidden behind Workspaces. */
-export function repairLayout(layout: WorkspaceLayout): WorkspaceLayout {
+/** What loading a saved page fixes: windows that are gone, duplicate chats, Agents hidden behind Workspaces, and Agents as the window has it (`agents`, see fitSidebarAgents). */
+export function repairLayout(layout: WorkspaceLayout, agents?: SidebarAgents): WorkspaceLayout {
   const pages = layout.pages.map(page => {
     const docked = redockPopouts(page), stacked = stackSidebar(docked.layout);
-    const next = dedupeChats(stacked === docked.layout ? docked : { ...docked, layout: stacked }, page.selection);
+    const next = fitSidebarAgents(dedupeChats(stacked === docked.layout ? docked : { ...docked, layout: stacked }, page.selection), agents);
     return next.layout === page.layout && next.floating === page.floating && next.popouts === page.popouts && next.detached === page.detached ? page : next;
   });
   return pages.every((page, index) => page === layout.pages[index]) ? layout : { ...layout, pages };
@@ -626,11 +675,11 @@ function parsePage(page: unknown, pageIDs: Set<string>): WorkspacePage {
   return { id: page.id, name: page.name, selection: page.selection, layout: normalize(layout), floating, popouts, detached };
 }
 
-/** Reads saved pages in any version, migrating older ones; throws rather than guessing. */
-export function parseLayout(text: string): WorkspaceLayout {
+/** Reads saved pages in any version, migrating older ones (with the window's Agents choice); throws rather than guessing. */
+export function parseLayout(text: string, agents?: SidebarAgents): WorkspaceLayout {
   if (text.length > SIZE_LIMIT) throw new Error('Page layout exceeds 192 KiB');
   const value: unknown = JSON.parse(text);
-  if (object(value) && value.version === 1) return migrateV1(value);
+  if (object(value) && value.version === 1) return migrateV1(value, agents);
   if (!object(value) || !keys(value, ['version', 'selectedPage', 'pages']) || value.version !== 2 || !id(value.selectedPage) || !Array.isArray(value.pages) || value.pages.length < 1 || value.pages.length > PAGE_LIMIT) throw new Error('Unsupported page layout');
   const pageIDs = new Set<string>();
   const pages = value.pages.map(page => parsePage(page, pageIDs));
@@ -665,8 +714,8 @@ function validV1(value: Record<string, unknown>) {
   }
   if (!pageIDs.has(value.selectedPage as string)) throw new Error('Selected page does not exist');
 }
-/** Converts a version 1 layout: every panel becomes a group of its own, in the same place and size. */
-export function migrateV1(value: Record<string, unknown>): WorkspaceLayout {
+/** Converts a version 1 layout: every panel becomes a group of its own, in the same place and size. Agents joins the sidebar unless the window closed it. */
+export function migrateV1(value: Record<string, unknown>, agents?: SidebarAgents): WorkspaceLayout {
   validV1(value);
   const old = value as { selectedPage: string; pages: { id: string; name: string; selection: ViewTarget; layout: V1Node }[] };
   return { version: 2, selectedPage: old.selectedPage, pages: old.pages.map(page => {
@@ -690,7 +739,7 @@ export function migrateV1(value: Record<string, unknown>): WorkspaceLayout {
     // The workspace list gains the agents list under it, as new pages have it.
     const list = groups(layout).find(group => group.panels.length === 1 && group.panels[0].kind === 'collections');
     const agentsID = list ? `${list.panels[0].id}-agents`.slice(0, 128) : '';
-    if (list && !all.some(panel => panel.id === agentsID || panel.kind === 'agents')) layout = stackSidebar(mapGroups(layout, group => group === list ? { ...group, panels: [...group.panels, followPanel(agentsID, 'agents')] } : group));
-    return { ...emptyPage(page.id, page.name, page.selection, layout), detached: away.map(({ collapsed: _, ...panel }) => panel) };
+    if (list && agents !== 'closed' && !all.some(panel => panel.id === agentsID || panel.kind === 'agents')) layout = stackSidebar(mapGroups(layout, group => group === list ? { ...group, panels: [...group.panels, followPanel(agentsID, 'agents')] } : group));
+    return fitSidebarAgents({ ...emptyPage(page.id, page.name, page.selection, layout), detached: away.map(({ collapsed: _, ...panel }) => panel) }, agents);
   }) };
 }

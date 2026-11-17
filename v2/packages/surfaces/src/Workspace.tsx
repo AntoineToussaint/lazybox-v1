@@ -17,7 +17,7 @@ import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { useCommandRuns } from './command-runs';
 import { requestTerminal } from './TerminalPanel';
-import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, PANEL_LIMIT, type DockSide, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
+import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, routeChat, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import './workspace.css';
 import './workspace-shell.css';
 import { SettingsPage, type SettingsTab } from './SettingsPage';
@@ -144,13 +144,16 @@ const groupById = (page: WorkspacePage, id: string) => pageGroups(page).find(gro
  * never loses a person's layout. A layout that cannot be read throws: the
  * caller keeps it untouched and says so.
  */
-function loadPages(viewState: ViewStateStore | undefined, key: string, fallback: ViewTarget): WorkspaceLayout {
+function loadPages(viewState: ViewStateStore | undefined, key: string, fallback: ViewTarget, agents?: SidebarAgents): WorkspaceLayout {
   const saved = viewState?.getItem(key);
-  if (!saved) return defaultLayout(fallback);
-  const layout = repairLayout(retireMonitor(parseLayout(saved)));
+  if (!saved) return defaultLayout(fallback, agents);
+  const layout = repairLayout(retireMonitor(parseLayout(saved, agents)), agents);
   if (/^\s*\{\s*"version"\s*:\s*1\b/.test(saved)) { try { if (!viewState?.getItem(`${key}:v1`)) viewState?.setItem(`${key}:v1`, saved); } catch { /* the backup is a precaution */ } }
   return layout;
 }
+/** The Agents list under Workspaces: shown, folded or closed for the whole window (fitSidebarAgents), an app-wide preference. */
+const AGENTS_PREFERENCE = 'workspace.sidebar-agents';
+const readAgentsChoice = (viewState?: ViewStateStore): SidebarAgents | undefined => { try { const value = readPreference(viewState, AGENTS_PREFERENCE); return isSidebarAgents(value) ? value : undefined; } catch { return undefined; } };
 
 function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = emptyTarget(), host, onOpenViewer, onTargetChange, reveal, ownWindows = true }: ViewProps) {
   const keyboardHint = useKeyboardNavigation(viewState);
@@ -165,9 +168,13 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const [workspaceID, setWorkspaceID] = useState(() => fixedWorkspaceId || initialTarget.collectionId || viewState?.getItem(`${viewState.key}:active-workspace`) || '');
   const workspaceKey = (id: string) => `${viewState?.scope || viewState?.key}:workspace:${id || 'home'}:pages`;
   const key = workspaceKey(workspaceID);
+  // Closing or folding Agents holds on every page of every workspace, until the person brings it back: every commit and load applies it.
+  const [savedAgents] = useState(() => readAgentsChoice(viewState));
+  const agentsChoice = useRef(savedAgents);
+  const chooseAgents = (choice: SidebarAgents | undefined) => { agentsChoice.current = choice; try { writePreference(viewState, AGENTS_PREFERENCE, choice || ''); } catch { /* holds in this window */ } };
   const [restored] = useState(() => {
-    try { return { layout: loadPages(viewState, key, { ...initialTarget, collectionId: workspaceID }), error: '' }; }
-    catch (error) { return { layout: defaultLayout({ ...initialTarget, collectionId: workspaceID }), error: `Saved pages could not be restored: ${String(error)}. Their data has been retained.` }; }
+    try { return { layout: loadPages(viewState, key, { ...initialTarget, collectionId: workspaceID }, agentsChoice.current), error: '' }; }
+    catch (error) { return { layout: defaultLayout({ ...initialTarget, collectionId: workspaceID }, agentsChoice.current), error: `Saved pages could not be restored: ${String(error)}. Their data has been retained.` }; }
   });
   const [layout, setLayout] = useState(restored.layout), [locked, setLocked] = useState(!!restored.error);
   const [error, setError] = useState(restored.error), [editing, setEditing] = useState(false), [configuring, setConfiguring] = useState(false), [json, setJSON] = useState('');
@@ -213,7 +220,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const commit = (next: WorkspaceLayout, reset = false) => {
     try {
       if (locked && !reset) throw new Error('Restore, import, or explicitly reset the retained layout before editing.');
-      const checked = parseLayout(JSON.stringify(next));
+      const checked = parseLayout(JSON.stringify(fitAgentsEverywhere(next, agentsChoice.current)));
       viewState?.setItem(key, JSON.stringify(checked)); current.current = checked; setLayout(checked); setError(''); if (reset) setLocked(false);
       return true;
     } catch (error) { setError(String(error)); return false; }
@@ -228,13 +235,13 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       if (fixedWorkspaceId) { if (target.collectionId) void host?.openWorkspace?.(target.collectionId); return; }
       try {
         if (!locked) viewState?.setItem(workspaceKey(workspaceID), JSON.stringify(current.current));
-        let next = loadPages(viewState, workspaceKey(target.collectionId), target);
+        let next = loadPages(viewState, workspaceKey(target.collectionId), target, agentsChoice.current);
         if (target.sessionId) next = { ...next, pages: next.pages.map(page => page.id === next.selectedPage ? { ...page, selection: target } : page) };
         // Switching workspace never moves the dividers: the target keeps its own
         // pages and panels, but takes the current split sizes wherever its
         // arrangement matches (the sidebar has one fixed width everywhere).
         if (workspaceID) next = adoptGeometry(next, current.current);
-        next = repairLayout(next);
+        next = repairLayout(next, agentsChoice.current);
         viewState?.setItem(`${viewState.key}:active-workspace`, target.collectionId);
         setWorkspaceID(target.collectionId); current.current = next; setLayout(next); setLocked(false); setEditing(false); setConfiguring(false); setError('');
       } catch (error) { setError(`Could not open workspace layout: ${String(error)}`); }
@@ -337,6 +344,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const live = livePage(), placement = beside;
     setBeside(undefined);
     if (kind === 'console') putConsoleAway(false);
+    // Agents the person closed stays closed: only they bring it back (bringBackAgents).
+    if (kind === 'agents' && agentsChoice.current === 'closed') return '';
     if (kind === 'web' && !placement) return openWeb({ url: '', newPanel: true }) ? 'web' : '';
     const existing = shownPanels(live).find(panel => panel.kind === kind && !panel.detached);
     if (!existing && allPanels(live).length >= PANEL_LIMIT) { setError(`This page already has ${PANEL_LIMIT} panels; close one to add ${sentence(registry[kind]?.title || kind)}.`); return ''; }
@@ -352,6 +361,12 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (!changePage(shown.page)) return '';
     setSettings(false); setMobilePanelId(shown.id);
     return shown.id;
+  };
+  /** Agents asked for by the person (Panels, the palette): back under Workspaces, unfolded, on every page of every workspace. */
+  const bringBackAgents = () => {
+    if (locked) return '';
+    chooseAgents('shown');
+    return commit(current.current) ? showModule('agents') : '';
   };
   /** Bring the Files or Editor panel forward: the nearest one shown, or one docked with its partner. */
   const showCode = (kind: 'files' | 'editor') => {
@@ -419,6 +434,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   const closePanel = (panel: Panel) => {
     if (panel.detached) return;
+    // Agents closes for the whole window (commit takes it off every page), not just this page.
+    if (panel.kind === 'agents' && !locked) chooseAgents('closed');
     const live = livePage(), next = removeFromPage(live, panel.id);
     if (!shownPanels(next).length && !next.detached.length) {
       // The last panel of a page takes the page with it (a Changes page opened from the header closes like any panel);
@@ -433,6 +450,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   };
   const setMinimized = (groupID: string, minimized: boolean) => {
     const live = livePage();
+    // Agents folds (and unfolds) for the whole window, like closing it.
+    if (!locked && sidebarAgentsGroup(live.layout)?.id === groupID) chooseAgents(minimized ? 'folded' : 'shown');
     if (!changePage(mapPageGroups(live, value => value.id === groupID ? { ...value, minimized } : value))) return;
     // Minimizing the command output puts it away; restoring it brings it back (see useCommandRuns below).
     if (shownPanels(live).some(panel => panel.kind === 'console' && groupOf(live, panel.id)?.id === groupID)) putConsoleAway(minimized);
@@ -520,7 +539,8 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     } : undefined,
     showAgents: () => {
       const live = livePage(), agents = shownPanels(live).find(panel => panel.kind === 'agents');
-      if (!agents || !changePage(activatePanel(live, agents.id))) return false;
+      // Closed or folded is the person's choice: the Inbox lists over the page instead of reopening it.
+      if (!agents || groupOf(live, agents.id)?.minimized || !changePage(activatePanel(live, agents.id))) return false;
       setSettings(false); setMobilePanelId(agents.id);
       return true;
     },
@@ -555,7 +575,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     if (fixedWorkspaceId || !collectionId || collectionId === workspaceID || !viewState) return;
     try {
       const saved = viewState.getItem(workspaceKey(collectionId));
-      const other = saved ? returnDetached(repairLayout(retireMonitor(parseLayout(saved))), panelId) : undefined;
+      const other = saved ? returnDetached(repairLayout(retireMonitor(parseLayout(saved, agentsChoice.current)), agentsChoice.current), panelId) : undefined;
       if (!other) return;
       viewState.setItem(workspaceKey(collectionId), JSON.stringify({ ...other.layout, selectedPage: shown ? other.page : other.layout.selectedPage }));
       if (shown) { setSettings(false); select({ collectionId, sessionId: '', commandId: '' }); focusAfter.current = { panel: panelId }; }
@@ -634,7 +654,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     root: viewState?.root || '', main: !fixedWorkspaceId && ownWindows, collections, selection: page.selection, workspaceId: workspaceID, workbench, registry,
     windows: otherWindows, canStartConversation: !!info && !pending && canShowNewSession, terminalReady, canOpenWorkspaceWindow: !!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId,
     showSession, selectWorkspace: select, closeSettings: () => setSettings(false),
-    showPanel: kind => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : void showModule(kind),
+    showPanel: kind => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : kind === 'agents' ? void bringBackAgents() : void showModule(kind),
     openSettings: tab => { setSettingsTab(tab as SettingsTab); setSettings(true); },
     newConversation: () => beginConversation(), openWorkspaceWindow: () => void host?.openWorkspace?.(workspaceID),
     toggleEditing: () => { if (!settings) setEditing(value => !value); }, toggleConfiguring: () => { if (!settings) { setJSON(JSON.stringify(current.current, null, 2)); setConfiguring(value => !value); } },
@@ -719,7 +739,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       command('layout.reset', 'Reset layout to default', 'Layouts', () => applyLayout(builtinPresets.find(value => value.id === DEFAULT_PRESET)!), () => !locked),
       command('layout.reset-all', 'Reset the layout and shortcuts', 'Layouts', () => resetEverything(), () => true, keymap['layout.reset-all']),
       ...[...builtinPresets, ...savedLayouts].map(preset => command(`layout.preset:${preset.id}`, `Layout: ${preset.name}`, 'Layouts', () => applyLayout(preset), () => !locked)),
-      ...Object.entries(registry).map(([kind, module]) => command(`panel.show:${kind}`, `Show ${module.title}`, 'Panels', () => kind === 'terminal' ? showTerminal() : kind === 'chat' ? showSession(livePage().selection) : void showModule(kind), () => !locked && !settings && (kind !== 'terminal' || terminalReady))),
+      ...Object.entries(registry).map(([kind, module]) => command(`panel.show:${kind}`, `Show ${module.title}`, 'Panels', () => kind === 'terminal' ? showTerminal() : kind === 'chat' ? showSession(livePage().selection) : kind === 'agents' ? void bringBackAgents() : void showModule(kind), () => !locked && !settings && (kind !== 'terminal' || terminalReady))),
     ];
   };
   useEffect(() => provideLayoutCommands(() => commandsRef.current()), []);
@@ -781,10 +801,12 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
    */
   const resetEverything = () => {
     // A retained layout that could not be read is kept as saved, so Undo can put it back untouched.
-    const before = { layout: current.current, workspace: workspaceID, sidebar: sidebarWidth, locked, error, saved: locked ? viewState?.getItem(key) : undefined };
+    const before = { layout: current.current, workspace: workspaceID, sidebar: sidebarWidth, agents: agentsChoice.current, locked, error, saved: locked ? viewState?.getItem(key) : undefined };
     dock.current?.restore();
     const restoreKeys = resetKeymap(viewState);
     saveSidebarWidth(SIDEBAR_DEFAULT);
+    // The default has Agents under Workspaces, on every page.
+    chooseAgents('shown');
     setSettings(false); setEditing(false); setConfiguring(false);
     if (locked) commit(defaultLayout({ ...page.selection, collectionId: workspaceID }), true);
     else {
@@ -796,6 +818,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       button: { label: 'Undo', run: () => {
         restoreKeys();
         saveSidebarWidth(before.sidebar);
+        chooseAgents(before.agents);
         // Another workspace shown since: its layout is not the one that was reset.
         if (shownWorkspace.current !== before.workspace) return;
         if (!before.locked) { commit(before.layout); return; }
@@ -831,7 +854,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
       editing={editing} changesShown={layout.pages.some(value => shownPanels(value).some(panel => panel.kind === 'changes'))} canOpenWorkspaceWindow={!!workspaceID && !!host?.openWorkspace && !fixedWorkspaceId}
       layoutMenu={!settings && !narrow && <>
         <PanelsMenu menu={panelsMenu} registry={registry} shown={kindsShown} beside={beside?.title} disabled={kind => locked || (kind === 'terminal' && !terminalReady)}
-          onShow={kind => { if (kind === 'terminal') showTerminal(); else if (kind === 'chat' && !beside) showSession(page.selection); else { const id = showModule(kind); if (id) focusAfter.current = { panel: id }; } }}
+          onShow={kind => { if (kind === 'terminal') showTerminal(); else if (kind === 'chat' && !beside) showSession(page.selection); else { const id = kind === 'agents' ? bringBackAgents() : showModule(kind); if (id) focusAfter.current = { panel: id }; } }}
           onClose={() => setBeside(undefined)}/>
         <LayoutMenu menu={layoutMenu} current={templateOf(page)} saved={savedLayouts} broken={layoutFiles.broken} folder={layoutFiles.folder} cycleKey={keymap['layout.cycle'] ? displayBinding(bindings(keymap['layout.cycle'])[0]).join('') : undefined}
           icons={kindIcons} disabled={locked || !!pending} onApply={applyLayout} onSave={saveLayout}

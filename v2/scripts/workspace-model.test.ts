@@ -3,7 +3,7 @@ import { SessionSchema } from '@lazybox/protocol';
 import { mergeConversations } from '../packages/surfaces/src/conversation-model.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activatePanel, adoptGeometry, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedChats, detachedFor, largestGroup, returnDetached, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapGroups, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, sidebarGroupIDs, minimumWidth, fitWidth, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
+import { activatePanel, adoptGeometry, allPanels, clonePage, dedupeChats, defaultDock, defaultLayout, detachChat, detachedChats, detachedFor, largestGroup, returnDetached, dockPanel, dockedSide, emptyPage, emptyTarget, groups, insertDocked, mapGroups, mapPagePanels, mapPanels, normalize, panels, parseLayout, redockPopouts, removeFromPage, removePanel, repairLayout, resolveTarget, fitSidebarAgents, fitAgentsEverywhere, sidebarAgentsGroup, retireMonitor, returnChat, routeChat, shownPanels, showCodePanel, showPanel, sidebarAt, sidebarGroupIDs, minimumWidth, fitWidth, splitBeside, type Group, type LayoutNode, type Panel, type WorkspacePage } from '../packages/surfaces/src/workspace-model.ts';
 import { applyTemplate, builtinPresets, parseSavedLayouts } from '../packages/surfaces/src/layout-presets.ts';
 
 const sidebar = ['column', ['collections', 'agents']];
@@ -288,6 +288,50 @@ test('a saved page with Agents tabbed behind Workspaces gains the stack; nothing
   // The stack is the sidebar: one fixed width, never merged into tabs when the window narrows.
   assert.equal(minimumWidth(page.layout, 280), 280 + 360);
   assert.ok(groups(fitWidth(insertDocked(page.layout, follow('e', 'editor'), 'right'), 700, 280)).some(group => group.panels[0].kind === 'agents' && group.panels.length === 1));
+});
+
+test('Agents is the window\'s: closed or folded, it stays so on every page, new workspace and old layout until brought back', () => {
+  const page = work({ collectionId: 'alpha', sessionId: 's', commandId: '' });
+  const changes: WorkspacePage = { ...emptyPage('changes', 'Changes', page.selection, { type: 'group', id: 'g-c', panels: [follow('c', 'changes')], active: 'c' }) };
+  const all = { version: 2 as const, selectedPage: page.id, pages: [page, changes] };
+  // Closed: off every page; Workspaces takes the sidebar, whose share of the row (its fixed width) does not move.
+  const closed = fitAgentsEverywhere(all, 'closed');
+  assert.deepEqual(kinds(closed.pages[0].layout), ['row', ['collections', ['column', ['chat', 'console']]]]);
+  assert.deepEqual((closed.pages[0].layout as Extract<LayoutNode, { type: 'split' }>).sizes, [0.2, 0.8]);
+  assert.equal(sidebarAt(closed.pages[0].layout), 'first');
+  assert.equal(closed.pages[1], changes, 'a page without Agents is left alone');
+  assert.equal(fitAgentsEverywhere(closed, 'closed'), closed, 'already closed: the same object');
+  assert.doesNotThrow(() => parseLayout(JSON.stringify(closed)));
+  // A new workspace, a saved page loaded again, an old version 1 layout: none brings it back.
+  assert.equal(allPanels(defaultLayout(page.selection, 'closed').pages[0]).some(panel => panel.kind === 'agents'), false);
+  assert.equal(allPanels(repairLayout(all, 'closed').pages[0]).some(panel => panel.kind === 'agents'), false);
+  assert.equal(parseLayout(v1, 'closed').pages.some(value => allPanels(value).some(panel => panel.kind === 'agents')), false);
+  assert.equal(parseLayout(v1).pages.some(value => allPanels(value).some(panel => panel.kind === 'agents')), true, 'without a choice, migration adds it as before');
+  // Tabbed behind Workspaces in an old save: stacked, then closed.
+  const tabbed: WorkspacePage = { ...page, layout: { type: 'split', direction: 'row', sizes: [0.25, 0.75], children: [{ type: 'group', id: 'g-list', panels: [follow('list', 'collections'), follow('ag', 'agents')], active: 'ag' }, { type: 'group', id: 'g-chat', panels: [follow('chat', 'chat')], active: 'chat' }] } };
+  assert.deepEqual(kinds(repairLayout({ version: 2, selectedPage: page.id, pages: [tabbed] }, 'closed').pages[0].layout), ['row', ['collections', 'chat']]);
+  // Brought back: under Workspaces on every page whose sidebar has them, with its share; a page without a sidebar stays as it is.
+  const shown = fitAgentsEverywhere(closed, 'shown');
+  assert.deepEqual(kinds(shown.pages[0].layout), ['row', [sidebar, ['column', ['chat', 'console']]]]);
+  assert.deepEqual(sizes(shown.pages[0].layout), [[0.2, 0.8], [[[0.55, 0.45], [null, null]], [[0.62, 0.38], [null, null]]]]);
+  assert.equal(shown.pages[1], changes);
+  assert.doesNotThrow(() => parseLayout(JSON.stringify(shown)));
+  // Without a choice, saved pages are as they were.
+  assert.equal(fitSidebarAgents(closed.pages[0], undefined), closed.pages[0]);
+  assert.equal(fitSidebarAgents(page, 'shown'), page);
+  // Folded: folded on every page (and in a new workspace), unfolded when shown again.
+  const folded = fitAgentsEverywhere(all, 'folded');
+  assert.equal(sidebarAgentsGroup(folded.pages[0].layout)?.minimized, true);
+  assert.equal(sidebarAgentsGroup(defaultLayout(page.selection, 'folded').pages[0].layout)?.minimized, true);
+  assert.equal(sidebarAgentsGroup(fitAgentsEverywhere(folded, 'shown').pages[0].layout)?.minimized, undefined);
+  assert.equal(sidebarAgentsGroup(fitSidebarAgents(closed.pages[0], 'folded').layout)?.minimized, true, 'brought back folded');
+  // The sidebar's Agents group is found only where it can fold: stacked under Workspaces.
+  assert.equal(sidebarAgentsGroup(page.layout)?.panels[0].kind, 'agents');
+  assert.equal(sidebarAgentsGroup(closed.pages[0].layout), undefined);
+  // An id already taken on the page is not reused.
+  const clash: WorkspacePage = { ...closed.pages[0], detached: [pinnedChat(`${panels(closed.pages[0].layout)[0].id}-agents`, 's', true)] };
+  const back = fitSidebarAgents(clash, 'shown');
+  assert.equal(new Set(allPanels(back).map(panel => panel.id)).size, allPanels(back).length);
 });
 
 test('every built-in layout stacks Workspaces above Agents; a saved one gains the stack', () => {

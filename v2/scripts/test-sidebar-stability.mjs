@@ -6,7 +6,11 @@
 // window whose window is gone; another arrangement with the sidebar on the
 // right and a saved share for it; a group maximized. The width is checked to
 // the pixel on every visit, after window resizes, and after a drag sets a new
-// one. WebKit (the desktop app's engine), the browser build, fake Runner.
+// one. Then Agents: closed under Workspaces, it stays closed in every
+// workspace, on every page and after a reload, the sidebar keeping its width
+// and Workspaces the full height; Panels → Agents brings it back everywhere;
+// folded, it stays folded the same way. WebKit (the desktop app's engine), the
+// browser build, fake Runner.
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
@@ -18,7 +22,7 @@ import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 
 const fixture=await startRunnerFixture();
 // Five more workspaces, each with a conversation of its own.
-const names={gamma:'Gamma empty',delta:'Delta floating',epsilon:'Epsilon window',zeta:'Zeta popped',eta:'Eta arranged'};
+const names={gamma:'Gamma empty',delta:'Delta floating',epsilon:'Epsilon window',zeta:'Zeta popped',eta:'Eta arranged',theta:'Theta two pages'};
 for(const [id,name] of Object.entries(names)){
  fixture.collections.push({...structuredClone(fixture.collections[1]),id,name,workId:id,root:`/fixture/collections/${id}`,ownerExecutionId:`${id}-session`});
  fixture.sessions.push({...structuredClone(fixture.sessions.find(s=>s.collectionId==='beta')||fixture.sessions[0]),id:`${id}-session`,collectionId:id,title:`${name} conversation`});
@@ -27,12 +31,14 @@ const panel=(id,kind,extra={})=>({id,kind,binding:{mode:'follow'},detached:false
 const group=(id,panels)=>({type:'group',id,panels,active:panels[0].id});
 const sidebar=w=>group(`g-${w}-side`,[panel(`${w}-col`,'collections'),panel(`${w}-agents`,'agents')]);
 const chat=w=>group(`g-${w}-chat`,[panel(`${w}-chat`,'chat')]);
+const work=(w,fields)=>({id:'work',name:'Work',selection:{collectionId:w,sessionId:`${w}-session`,commandId:''},layout:null,floating:[],popouts:[],detached:[],...fields});
 const page=(w,fields)=>({version:2,selectedPage:'work',pages:[{id:'work',name:'Work',selection:{collectionId:w,sessionId:`${w}-session`,commandId:''},layout:null,floating:[],popouts:[],detached:[],...fields}]});
 const saved={
  gamma:page('gamma',{layout:sidebar('gamma')}),
  delta:page('delta',{layout:sidebar('delta'),floating:[{group:chat('delta'),box:{left:620,top:40,width:520,height:420}}]}),
  epsilon:page('epsilon',{layout:sidebar('epsilon'),detached:[panel('epsilon-chat','chat',{detached:true,binding:{mode:'pinned',target:{collectionId:'epsilon',sessionId:'epsilon-session',commandId:''}}})]}),
  zeta:page('zeta',{layout:sidebar('zeta'),popouts:[group('g-zeta-editor',[panel('zeta-editor','editor')])]}),
+ theta:{version:2,selectedPage:'work',pages:[work('theta',{layout:{type:'split',direction:'row',sizes:[0.2,0.8],children:[sidebar('theta'),chat('theta')]}}),work('theta',{id:'more',name:'More',layout:{type:'split',direction:'row',sizes:[0.2,0.8],children:[sidebar('theta-more'),group('g-theta-files',[panel('theta-files','files')])]}})]},
  eta:page('eta',{layout:{type:'split',direction:'row',sizes:[0.55,0.45],children:[{type:'split',direction:'column',sizes:[0.5,0.5],children:[chat('eta'),group('g-eta-files',[panel('eta-files','files')])]},sidebar('eta')]}}),
 };
 
@@ -52,7 +58,10 @@ try{
   });
  },{saved,token:fixture.token});
  const p=await context.newPage();p.setDefaultTimeout(15000);
- const errors=[];p.on('pageerror',e=>errors.push(String(e)));
+ // A reload cuts in-flight polls, which WebKit reports as page errors ("access control checks") on the page being left: not failures.
+ let navigating=false;
+ const errors=[];p.on('pageerror',e=>{if(!navigating)errors.push(String(e));});
+ const reload=async()=>{navigating=true;await p.reload();await expect(sidebarGroup).toBeVisible();navigating=false;};
  await p.goto(url);
  const sidebarGroup=p.locator('.dv-groupview:has(.dv-tab [data-kind="collections"])');
  await expect(sidebarGroup).toBeVisible();
@@ -98,6 +107,39 @@ try{
  await p.waitForTimeout(600);
  expected=await width();
  for(const id of ['gamma','delta','epsilon','zeta','eta','alpha','beta']){await select(id);await check(`after a drag, ${id}`);}
+ // Agents is the window's, not a page's: closed, it stays closed in every workspace, on every page and after a reload.
+ const agentsPanel=p.locator('.page-layout .panel-agents'),agentsTab=()=>p.locator('.dv-tab').filter({has:p.locator('[data-kind="agents"]')});
+ const pages=p.getByRole('navigation',{name:'Pages'});
+ const showPage=async name=>{await pages.getByRole('button',{name,exact:true}).click();await expect(pages.getByRole('button',{name,exact:true})).toHaveClass(/selected/);};
+ await select('alpha');await expect(agentsPanel).toBeVisible();
+ await agentsTab().locator('.dock-tab-close').click();
+ const closed=async where=>{await expect(agentsPanel,where).toHaveCount(0);await check(where);};
+ await closed('Agents closed');
+ for(const id of ['beta','eta','theta','gamma','delta','alpha'])await select(id).then(()=>closed(`Agents closed, then ${id}`));
+ await select('theta');await showPage('More');await closed('Agents closed, another page');
+ await showPage('Work');await closed('Agents closed, back to the first page');
+ await reload();await closed('Agents closed, after a reload');
+ await select('beta');await closed('Agents closed, after a reload, another workspace');
+ await p.screenshot({path:'.cache/sidebar-agents-closed.png'});
+ // Panels → Agents brings it back under Workspaces, everywhere; the sidebar keeps its width.
+ const shown=async where=>{
+  await expect(agentsPanel,where).toBeVisible();await check(where);
+  const [list,agents]=await Promise.all(['collections','agents'].map(kind=>p.locator(`.dv-groupview:has(.dv-tab [data-kind="${kind}"])`).boundingBox()));
+  assert.ok(Math.abs(list.x-agents.x)<=1&&Math.abs(list.width-agents.width)<=1&&agents.y>=list.y+list.height-1,`${where}: Agents sits under Workspaces, as wide`);
+ };
+ await p.locator('summary[aria-label="Panels"]').click();await p.getByRole('button',{name:'Show Agents'}).click();
+ await shown('Agents brought back');
+ for(const id of ['alpha','eta','theta'])await select(id).then(()=>shown(`Agents brought back, then ${id}`));
+ await showPage('More');await shown('Agents brought back, another page');await showPage('Work');
+ // Folded, it stays folded the same way; unfolded from its tab, it is unfolded everywhere.
+ const folded=p.locator('.dock-group-minimized:has(.dv-tab [data-kind="agents"])');
+ await agentsTab().click({button:'right'});await p.getByRole('menuitem',{name:'Minimize',exact:true}).click();
+ await expect(folded).toHaveCount(1);await check('Agents folded');
+ for(const id of ['beta','eta','theta'])await select(id).then(async()=>{await expect(folded,`folded, then ${id}`).toHaveCount(1);await check(`Agents folded, then ${id}`);});
+ await showPage('More');await expect(folded).toHaveCount(1);await showPage('Work');
+ await reload();await expect(folded).toHaveCount(1);await check('Agents folded, after a reload');
+ await agentsTab().click();await expect(folded).toHaveCount(0);
+ await select('alpha');await shown('Agents unfolded, then alpha');await expect(folded).toHaveCount(0);
  assert.deepEqual(errors,[]);
- console.log(`PASS sidebar stability: ${visits.length+16} workspace switches across seven pages (default, empty, floating only, popped out, chat window gone, sidebar on the right, maximized), four window sizes and a drag; the sidebar kept the person's width to the pixel on every frame. WebKit, fake Runner.`);
+ console.log(`PASS sidebar stability: ${visits.length+16} workspace switches across seven pages (default, empty, floating only, popped out, chat window gone, sidebar on the right, maximized), four window sizes and a drag; the sidebar kept the person's width to the pixel on every frame. Agents closed stayed closed through 8 workspace switches, two page switches and a reload; Panels → Agents brought it back everywhere; folded stayed folded the same way. WebKit, fake Runner.`);
 }finally{await browser?.close();await server.close();await fixture.close();}

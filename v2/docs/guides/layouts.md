@@ -18,6 +18,11 @@ From the panel's own header — no edit mode needed:
 | Resize it | Drag the divider between panels. |
 | Close it | **×**. Bring it back from the **Panels** menu in the header. |
 
+**Agents**, under Workspaces, belongs to the window rather than to a page:
+closed or folded, it stays that way in every workspace, on every page and
+after a restart, with the sidebar keeping its width, until you bring it back
+from **Panels → Agents** (or the palette, or `⌃⌥⇧Esc`).
+
 The **+** right after a group's tabs (or `⌘T` for the active group) starts a
 conversation in that group, or opens any panel there as its front tab; a panel
 already shown elsewhere on the page moves there.
