@@ -57,8 +57,31 @@ func fixtureAppServer() {
 		case "turn/start":
 			send(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]string{"id": "turn-1"}}})
 			send(map[string]any{"method": "turn/started", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1"}}})
+			if os.Getenv("FIXTURE_EXIT_IN_TURN") != "" {
+				// The app-server dies mid-turn.
+				os.Exit(3)
+			}
+			if os.Getenv("FIXTURE_ODD_NOTIFICATIONS") != "" {
+				// Notifications the adapter does not use, whose error is a string.
+				send(map[string]any{"method": "account/login/completed", "params": map[string]any{"loginId": nil, "success": false, "error": "login cancelled"}})
+				send(map[string]any{"method": "mcpServer/startupStatus/updated", "params": map[string]any{"threadId": "thread-1", "name": "docs", "status": "failed", "error": "spawn failed"}})
+				// One it uses, with a field of another type than it promises.
+				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": map[string]string{"text": "odd"}}})
+				send(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"threadId": "thread-1", "delta": "still here"}})
+				send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
+				continue
+			}
 			if os.Getenv("FIXTURE_NATIVE_APPROVAL") != "" {
 				send(map[string]any{"id": 42, "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1", "command": "rm -rf build", "proposedExecpolicyAmendment": []string{"rm", "-rf"}}})
+				switch os.Getenv("FIXTURE_APPROVAL_ENDS") {
+				case "resolved":
+					// The app-server resolves the request itself, with no reply.
+					send(map[string]any{"method": "serverRequest/resolved", "params": map[string]any{"threadId": "thread-1", "requestId": 42}})
+					send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "interrupted"}}})
+				case "turn":
+					// The turn ends while the request is unanswered.
+					send(map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": "thread-1", "turn": map[string]string{"id": "turn-1", "status": "interrupted"}}})
+				}
 				continue
 			}
 			tool := "lazybox_command"
@@ -395,5 +418,144 @@ func TestRedeliveredAnsweredApprovalIsAnsweredAgain(t *testing.T) {
 			}
 			return
 		}
+	}
+}
+
+// untilTurnEnds records every event as the engine does (committing each) and
+// returns them, up to and including the turn's end.
+func untilTurnEnds(t *testing.T, s agent.Session) []agent.Event {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	var events []agent.Event
+	for {
+		ev, err := s.Receive(ctx)
+		if err != nil {
+			t.Fatalf("before the turn ended (%d events): %v", len(events), err)
+		}
+		if c, ok := s.(agent.Committer); ok {
+			c.Commit(ev)
+		}
+		events = append(events, ev)
+		if ev.Type == "turn_ended" {
+			return events
+		}
+	}
+}
+
+// When the app-server dies, Receive ends: the engine learns the provider is
+// gone instead of waiting for events nothing will send.
+func TestAppServerDeathEndsReceive(t *testing.T) {
+	t.Setenv("FIXTURE_EXIT_IN_TURN", "1")
+	self, _ := os.Executable()
+	s, err := Adapter{Binary: self}.Open(context.Background(), agent.Open{Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err = s.Apply(context.Background(), agent.Operation{ID: "go", Kind: agent.Message, Text: "die"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	exited := false
+	for {
+		ev, err := s.Receive(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				t.Fatal("Receive never ended after the app-server died")
+			}
+			break
+		}
+		if ev.Type == "failure" && ev.Status == "provider_process_exit" {
+			exited = true
+		}
+	}
+	if !exited {
+		t.Fatal("the app-server's exit was not reported before Receive ended")
+	}
+}
+
+// One notification whose params are not what this adapter expects (a string
+// error, a field of another type) is skipped; it never ends supervision, which
+// would kill the app-server. The first unreadable one of a method it uses is
+// recorded once; those it does not use are not even read.
+func TestNotificationWithUnexpectedFieldsIsSkipped(t *testing.T) {
+	t.Setenv("FIXTURE_ODD_NOTIFICATIONS", "1")
+	self, _ := os.Executable()
+	s, err := Adapter{Binary: self}.Open(context.Background(), agent.Open{Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err = s.Apply(context.Background(), agent.Operation{ID: "go", Kind: agent.Message, Text: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+	unreadable, text := 0, ""
+	for _, ev := range untilTurnEnds(t, s) {
+		switch ev.Type {
+		case agent.UnreadableEvent:
+			unreadable++
+			if !strings.Contains(ev.Text, "item/agentMessage/delta") {
+				t.Errorf("skipped line not named: %q", ev.Text)
+			}
+		case "message_delta":
+			text += ev.Text
+		case "failure":
+			t.Errorf("an odd notification failed the turn: %+v", ev)
+		}
+	}
+	if unreadable != 1 || text != "still here" {
+		t.Fatalf("unreadable records %d, text %q", unreadable, text)
+	}
+}
+
+// A request the app-server stopped waiting on without a reply (it resolved it
+// itself, or the turn ended) is forgotten by the host: a re-attaching Runner
+// is not shown a phantom approval.
+func TestResolvedRequestIsNotReplayedAfterReattach(t *testing.T) {
+	t.Setenv("FIXTURE_NATIVE_APPROVAL", "1")
+	for _, ends := range []string{"resolved", "turn"} {
+		t.Run(ends, func(t *testing.T) {
+			t.Setenv("FIXTURE_APPROVAL_ENDS", ends)
+			root := fixtureRoot(t)
+			self, _ := os.Executable()
+			first, err := Adapter{Binary: self}.Open(context.Background(), agent.Open{Cwd: t.TempDir(), Host: &agent.Hosting{Root: root}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = first.Apply(context.Background(), agent.Operation{ID: "go", Kind: agent.Message, Text: "clean"}); err != nil {
+				t.Fatal(err)
+			}
+			events := untilTurnEnds(t, first)
+			asked := false
+			for _, ev := range events {
+				asked = asked || (ev.Type == "approval" && ev.RequestID == "n:42")
+			}
+			if !asked {
+				t.Fatal("the approval was never asked")
+			}
+			state := first.(agent.Durable).DurableState()
+			if err = first.(agent.Detacher).Detach(); err != nil {
+				t.Fatal(err)
+			}
+
+			again, err := Adapter{Binary: self}.Open(context.Background(), agent.Open{Cwd: t.TempDir(), Host: &agent.Hosting{Root: root, Attach: &agent.Attachment{State: state, Reference: "thread-1", Cursor: events[len(events)-1].Cursor}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer again.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			for {
+				ev, err := again.Receive(ctx)
+				if err != nil {
+					return // Nothing was redelivered.
+				}
+				if ev.Type == "approval" {
+					t.Fatalf("a request nobody waits on was redelivered: %+v", ev)
+				}
+			}
+		})
 	}
 }

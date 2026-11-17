@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,10 +30,15 @@ type session struct {
 	overrides       map[string]json.RawMessage
 	requests        map[string]pending
 	events          chan agent.Event
-	ctx             context.Context
-	cancel          context.CancelFunc
-	tools           func(context.Context, string, json.RawMessage) (string, error)
-	purpose         string
+	// ended is closed when read returns (the app-server exited, the Runner
+	// detached or closed): Receive then ends with why instead of waiting
+	// for events nothing will send.
+	ended   chan struct{}
+	why     error
+	ctx     context.Context
+	cancel  context.CancelFunc
+	tools   func(context.Context, string, json.RawMessage) (string, error)
+	purpose string
 	// responded: the user's responses to requests answered before a Runner restart.
 	responded map[string]agent.Operation
 	// titler names the conversation (title.go).
@@ -170,7 +176,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	if err = json.Unmarshal(result, &response); err != nil || response.Thread.ID == "" {
 		return fail(errors.New("Codex omitted native thread id"))
 	}
-	s := &session{p: p, ref: response.Thread.ID, model: response.Model, workflow: o.Workflow, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, purpose: o.Purpose}
+	s := &session{p: p, ref: response.Thread.ID, model: response.Model, workflow: o.Workflow, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), ended: make(chan struct{}), tools: o.Tools, purpose: o.Purpose}
 	s.titler = newTitler(binary, o, s.currentModel)
 	settings := map[string]json.RawMessage{}
 	for key, value := range map[string]json.RawMessage{"approvalPolicy": response.Approval, "approvalsReviewer": response.Reviewer, "sandboxPolicy": response.Sandbox} {
@@ -263,7 +269,7 @@ func attach(ctx context.Context, o agent.Open, binary string) (agent.Session, er
 			return nil, err
 		}
 	}
-	s := &session{p: p, ref: o.Host.Attach.Reference, turn: state.Turn, model: state.Model, workflow: o.Workflow, settings: state.Settings, overrides: state.Overrides, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, purpose: o.Purpose, responded: o.Host.Attach.Responded}
+	s := &session{p: p, ref: o.Host.Attach.Reference, turn: state.Turn, model: state.Model, workflow: o.Workflow, settings: state.Settings, overrides: state.Overrides, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), ended: make(chan struct{}), tools: o.Tools, purpose: o.Purpose, responded: o.Host.Attach.Responded}
 	s.titler = newTitler(binary, o, s.currentModel)
 	go s.read()
 	return s, nil
@@ -567,6 +573,8 @@ func (s *session) read() {
 		phases[ev.AgentID] = key
 		emit(ev)
 	}
+	// noted: methods whose unreadable params were already recorded once.
+	noted := map[string]bool{}
 	for {
 		m, err := s.p.Receive(s.ctx)
 		cursor = m.Seq
@@ -575,29 +583,37 @@ func (s *session) read() {
 				emit(agent.Event{Type: "failure", Status: "provider_process_exit", Text: err.Error()})
 				flush()
 			}
+			s.end(err)
 			return
 		}
-		ok := func() bool {
-			var p struct {
-				WillRetry bool `json:"willRetry"`
-				Error     struct {
-					Code json.RawMessage `json:"codexErrorInfo"`
-				} `json:"error"`
-				ThreadID  string          `json:"threadId"`
-				TurnID    string          `json:"turnId"`
-				RequestID json.RawMessage `json:"requestId"`
-				Delta     string          `json:"delta"`
-				Turn      struct {
-					ID     string          `json:"id"`
-					Status string          `json:"status"`
-					Error  json.RawMessage `json:"error"`
-				} `json:"turn"`
-				Tool      string          `json:"tool"`
-				Arguments json.RawMessage `json:"arguments"`
+		// fields reads what one method promises into v. The app-server has
+		// many notifications this adapter ignores, and some reuse a field
+		// name with another type (account/login/completed's error is a
+		// string): params are read per method, and a line whose fields are
+		// not what its method promises is skipped, never the end of
+		// supervision. Its first occurrence per method is recorded.
+		fields := func(v any) bool {
+			err := json.Unmarshal(m.Params, v)
+			if err == nil {
+				return true
 			}
-			if err = json.Unmarshal(m.Params, &p); err != nil {
-				emit(agent.Event{Type: "failure", Status: "protocol_error", Text: err.Error()})
-				return false
+			if !noted[m.Method] {
+				noted[m.Method] = true
+				emit(agent.Event{Type: agent.UnreadableEvent, Text: "Skipped a Codex " + m.Method + " message Lazybox could not read: " + err.Error()})
+			}
+			return false
+		}
+		func() {
+			var p struct {
+				ThreadID string `json:"threadId"`
+				TurnID   string `json:"turnId"`
+			}
+			if !fields(&p) {
+				if len(m.ID) > 0 {
+					// The app-server waits for an answer to a request.
+					_ = s.p.Reject(m.ID, "unreadable request params")
+				}
+				return
 			}
 			root := s.Reference()
 			ev := agent.Event{SessionID: p.ThreadID, TurnID: p.TurnID, AgentID: actorID(p.ThreadID, root)}
@@ -613,6 +629,11 @@ func (s *session) read() {
 				// the app-server.
 				response, answered := s.responded[id]
 				answered = answered && m.Redelivered
+				// call is a dynamic tool call's own fields; empty for other requests.
+				var call struct {
+					Tool      string          `json:"tool"`
+					Arguments json.RawMessage `json:"arguments"`
+				}
 				switch m.Method {
 				case "item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval":
 					ev.Type = "approval"
@@ -621,73 +642,96 @@ func (s *session) read() {
 				case "item/tool/requestUserInput", "tool/requestUserInput":
 					ev.Type = "question"
 				case "item/tool/call":
-					if !toolOffered(s.purpose, p.Tool) {
-						_ = s.p.Reject(m.ID, "unknown dynamic tool")
-						return true
+					if !fields(&call) {
+						_ = s.p.Reject(m.ID, "unreadable dynamic tool call")
+						return
 					}
-					title := toolApproval(p.Tool)
+					if !toolOffered(s.purpose, call.Tool) {
+						_ = s.p.Reject(m.ID, "unknown dynamic tool")
+						return
+					}
+					title := toolApproval(call.Tool)
 					switch {
 					case title == "":
 						// Only reads: there is nothing to approve.
-						go s.runTool(m.ID, "", p.Tool, p.Arguments)
-						return true
+						go s.runTool(m.ID, "", call.Tool, call.Arguments)
+						return
 					case !answered:
 					case response.Decision != "" && response.Decision != "accept":
 						// Declined: nothing ran, so the decline is simply repeated.
-						go s.replyTool(m.ID, id, toolDeclined(p.Tool), false)
-						return true
-					case agent.ToolReplaySafe(p.Tool, p.Arguments):
+						go s.replyTool(m.ID, id, toolDeclined(call.Tool), false)
+						return
+					case agent.ToolReplaySafe(call.Tool, call.Arguments):
 						// Running it again cannot repeat an effect: run it again.
-						go s.runTool(m.ID, id, p.Tool, p.Arguments)
-						return true
+						go s.runTool(m.ID, id, call.Tool, call.Arguments)
+						return
 					default:
 						// Approved (or recorded without its decision): the command
 						// may already have run.
 						_ = s.p.Reply(m.ID, map[string]any{"success": false, "contentItems": []any{map[string]string{"type": "inputText", "text": toolOutcomeUnknown}}})
 						emit(agent.Event{Type: "request_resolved", RequestID: id, Status: "outcome_unknown_after_restart"})
-						return true
+						return
 					}
 					ev.Type = "approval"
 					ev.Text = title
 				default:
 					_ = s.p.Reject(m.ID, "unsupported server request")
 					emit(agent.Event{Type: "unsupported_request", Text: m.Method, Data: m.Params})
-					return true
+					return
 				}
-				if answered && p.Tool == "" && (response.Kind == agent.Answer || response.Decision != "") {
+				if answered && call.Tool == "" && (response.Kind == agent.Answer || response.Decision != "") {
 					// The app-server acts only once it has the reply, so the
 					// user's recorded response is given again rather than asked anew.
 					if reply, err := nativeResponse(m.Method, m.Params, response); err == nil && s.p.Reply(m.ID, reply) == nil {
-						return true
+						return
 					}
 				}
 				s.mu.Lock()
-				s.requests[id] = pending{message: m, tool: p.Tool, args: p.Arguments}
+				s.requests[id] = pending{message: m, tool: call.Tool, args: call.Arguments}
 				s.mu.Unlock()
 				emit(ev)
-				return true
+				return
 			}
 			switch m.Method {
 			case "turn/started":
+				var turn struct {
+					Turn struct {
+						ID string `json:"id"`
+					} `json:"turn"`
+				}
+				if !fields(&turn) {
+					return
+				}
 				ev.Type = "turn_started"
-				ev.TurnID = p.Turn.ID
+				ev.TurnID = turn.Turn.ID
 				s.mu.Lock()
 				if ev.AgentID == "root" {
-					s.turn = p.Turn.ID
+					s.turn = turn.Turn.ID
 				}
 				s.mu.Unlock()
 			case "turn/completed":
+				var turn struct {
+					Turn struct {
+						ID     string          `json:"id"`
+						Status string          `json:"status"`
+						Error  json.RawMessage `json:"error"`
+					} `json:"turn"`
+				}
+				if !fields(&turn) {
+					return
+				}
 				ev.Type = "turn_ended"
-				ev.TurnID = p.Turn.ID
-				ev.Status = p.Turn.Status
-				ev.Data = p.Turn.Error
-				if p.Turn.Status == "failed" && len(p.Turn.Error) > 0 && string(p.Turn.Error) != "null" {
+				ev.TurnID = turn.Turn.ID
+				ev.Status = turn.Turn.Status
+				ev.Data = turn.Turn.Error
+				if turn.Turn.Status == "failed" && len(turn.Turn.Error) > 0 && string(turn.Turn.Error) != "null" {
 					failure := ev
 					failure.Type = "failure"
-					failure.Account = errorObservation(p.Turn.Error)
+					failure.Account = errorObservation(turn.Turn.Error)
 					failure.Status = failure.Account.State
 					emit(failure)
 				}
+				var over []json.RawMessage
 				s.mu.Lock()
 				if ev.AgentID == "root" {
 					s.turn = ""
@@ -697,21 +741,48 @@ func (s *session) read() {
 					_ = json.Unmarshal(request.message.Params, &scope)
 					if scope.ThreadID == p.ThreadID {
 						delete(s.requests, id)
+						over = append(over, request.message.ID)
 					}
 				}
 				s.mu.Unlock()
+				// The turn ended without these being answered: the app-server
+				// no longer waits on them, so the host must not redeliver them
+				// to a later Runner as if it did.
+				for _, id := range over {
+					_ = s.p.Resolve(id)
+				}
 			case "item/reasoning/summaryTextDelta", "item/reasoning/textDelta":
 				ev.Type, ev.Status = "activity", "thinking"
 				ev.Data = nil // Activity only; never expose private reasoning text.
 			case "item/agentMessage/delta":
+				var delta struct {
+					Delta string `json:"delta"`
+				}
+				if !fields(&delta) {
+					return
+				}
 				ev.Type = "message_delta"
-				ev.Text = p.Delta
+				ev.Text = delta.Delta
 			case "serverRequest/resolved":
+				var resolved struct {
+					RequestID json.RawMessage `json:"requestId"`
+				}
+				if !fields(&resolved) {
+					return
+				}
 				ev.Type = "request_resolved"
-				ev.RequestID = requestID(p.RequestID)
+				ev.RequestID = requestID(resolved.RequestID)
 				s.mu.Lock()
+				native := resolved.RequestID
+				if request, ok := s.requests[ev.RequestID]; ok {
+					native = request.message.ID
+				}
 				delete(s.requests, ev.RequestID)
 				s.mu.Unlock()
+				// The app-server resolved it itself (another client answered,
+				// or it was cancelled): the host forgets it, so a later Runner
+				// is not shown an approval nobody waits on.
+				_ = s.p.Resolve(native)
 			case "account/rateLimits/updated":
 				ev.Type = "capacity_observation"
 				ev.Account = rateLimits(m.Params)
@@ -720,25 +791,34 @@ func (s *session) read() {
 				ev.Type = "usage"
 				ev.Data = m.Params
 			case "error":
+				var failure struct {
+					WillRetry bool `json:"willRetry"`
+					Error     struct {
+						Code json.RawMessage `json:"codexErrorInfo"`
+					} `json:"error"`
+				}
+				if !fields(&failure) {
+					return
+				}
 				ev.Type = "failure"
 				ev.Status = "unknown"
-				detail, _ := json.Marshal(p.Error)
+				detail, _ := json.Marshal(failure.Error)
 				ev.Account = errorObservation(detail)
 				ev.Status = ev.Account.State
-				if p.WillRetry {
+				if failure.WillRetry {
 					ev.Type = "provider_retry"
 				}
 				ev.Data = m.Params
 			case "thread/status/changed":
 				ev.Type, ev.Status = "agent_status", threadStatus(m.Params)
 			case "thread/started":
-				return true
+				return
 			case "turn/plan/updated":
 				// The agent's plan, as a tool call of its turn: each update
 				// replaces the one checklist the conversation shows.
 				ev.Type = "tool_activity"
 				if ev.Data = planToolCall(m.Params); len(ev.Data) == 0 {
-					return true
+					return
 				}
 			case "item/started", "item/completed":
 				for _, activity := range collaborationEvents(m.Params, root) {
@@ -773,14 +853,14 @@ func (s *session) read() {
 					activity(agent.Event{Type: "activity", AgentID: ev.AgentID, Status: phase, Name: name})
 				}
 				if len(ev.Data) == 0 {
-					return true
+					return
 				}
 			default:
-				return true
+				return
 			}
 			if ev.Type == "activity" {
 				activity(ev)
-				return true
+				return
 			}
 			if ev.Type == "message_delta" {
 				phases[ev.AgentID] = "responding/"
@@ -789,22 +869,40 @@ func (s *session) read() {
 				delete(phases, ev.AgentID)
 			}
 			emit(ev)
-			return true
+			return
 		}()
-		if !flush() || !ok {
+		if !flush() {
+			s.end(s.ctx.Err())
 			return
 		}
 	}
 }
+
+// end records why read stopped and ends Receive once the events read sent
+// before it are taken. The events channel is never closed: tool replies
+// still running may send to it, and give up on the cancelled context.
+func (s *session) end(why error) {
+	if why == nil {
+		why = errors.New("Codex connection closed")
+	}
+	s.why = why
+	close(s.ended)
+}
+
 func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	select {
-	case e, ok := <-s.events:
-		if !ok {
-			return e, errors.New("Codex connection closed")
-		}
+	case e := <-s.events:
 		return e, nil
 	case <-ctx.Done():
 		return agent.Event{}, ctx.Err()
+	case <-s.ended:
+		// What read sent before it stopped (its failure, say) comes first.
+		select {
+		case e := <-s.events:
+			return e, nil
+		default:
+		}
+		return agent.Event{}, fmt.Errorf("Codex app-server stream ended: %w", s.why)
 	}
 }
 func (s *session) Close() error { err := s.p.Close(); s.cancel(); return err }

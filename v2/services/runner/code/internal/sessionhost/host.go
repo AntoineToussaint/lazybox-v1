@@ -377,6 +377,10 @@ func (h *host) handle(raw net.Conn) {
 			}
 		case "send":
 			h.write(f.Line)
+		case "resolve":
+			h.mu.Lock()
+			h.resolveLocked(string(f.Line))
+			h.mu.Unlock()
 		case "input":
 			h.writeInput(f.Data)
 		case "resize":
@@ -541,6 +545,24 @@ func (h *host) recordOutput(line, data []byte) {
 	h.log = append(h.log, e)
 	h.size += int64(len(e.line))
 	h.cond.Broadcast()
+}
+
+// resolveLocked forgets a request the agent no longer waits on although
+// nothing answered it: the agent resolved it itself, or the turn it belonged
+// to ended. Like an answer, it is never redelivered; unlike one, nothing is
+// written to the agent. An id the host does not hold is ignored.
+func (h *host) resolveLocked(id string) {
+	if _, ok := h.open[id]; ok {
+		delete(h.open, id)
+		return
+	}
+	for _, e := range h.log {
+		if e.request && e.id == id {
+			// Not acknowledged yet: skipped by replay, dropped at its ack.
+			h.answered[id] = true
+			return
+		}
+	}
 }
 
 func (h *host) write(line json.RawMessage) {

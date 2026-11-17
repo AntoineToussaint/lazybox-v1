@@ -58,7 +58,14 @@ speak the version in its record without displacing the attached Runner.
   already recorded are recognised by content and recorded once.
 - Unacknowledged output is replayed on re-attachment. Agent requests that were
   acknowledged but never answered are replayed too: the agent is still waiting.
-  A request the Runner answered is never replayed.
+  A request the Runner answered is never replayed, and neither is one the agent
+  stopped waiting on without a reply: when the Codex app-server resolves a
+  request itself (`serverRequest/resolved`) or ends the turn it belonged to,
+  the adapter sends the host a `resolve` frame and the host forgets it, as it
+  would an answer. Otherwise every re-attach showed a phantom "waiting for
+  approval", and enough of them (64) faulted adoption. `resolve` is additive: a
+  host older than it ignores the frame (and keeps redelivering, as before), so
+  the wire version did not change.
 - Any replayed line a previous Runner already received is marked
   **redelivered**. Adapters never act twice on a redelivered request whose first
   handling may have had effects:
@@ -485,7 +492,8 @@ directory, in `hosts/` and `command-hosts/`.
   `TestRedeliveredAnsweredApprovalIsAnsweredAgain`,
   `TestAdoptionPassesTheRecordedDecision`,
   `TestAdoptedConversationPlacesMessagesWhereTheyWereDelivered`,
-  `TestReplayedReplyTextIsHandedOverOnce`, and in `internal/redact`
+  `TestReplayedReplyTextIsHandedOverOnce`,
+  `TestResolvedRequestIsNotReplayedAfterReattach` (Codex), and in `internal/redact`
   `TestSecretCutByTheWindowDoesNotLeak`.
 - Redelivery, backpressure, proxy re-pointing, token authentication, the
   version window, stream mode, orphan limit, terminate-kills-descendants, and

@@ -345,6 +345,14 @@ func (c *Client) Scrollback() ([]byte, uint64) { return c.welcome.Scrollback, c.
 // Ack records that every line up to seq is durably handled by this client.
 func (c *Client) Ack(seq uint64) error { return c.write(frame{Op: "ack", Seq: seq}) }
 
+// Resolve tells the host the agent no longer waits on its request id (the raw
+// JSON-RPC id of the request line) although no reply was written: the agent
+// resolved it itself, or the turn it belonged to ended. The host then never
+// redelivers it. A host older than this op ignores it.
+func (c *Client) Resolve(id json.RawMessage) error {
+	return c.write(frame{Op: "resolve", Line: id})
+}
+
 // SetUpstream points the host's provider proxy at this Runner's gateway.
 func (c *Client) SetUpstream(url string) error { return c.write(frame{Op: "upstream", URL: url}) }
 

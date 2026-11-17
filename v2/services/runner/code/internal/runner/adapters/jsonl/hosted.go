@@ -242,6 +242,16 @@ func (p *Process) Commit(seq uint64) {
 	}
 }
 
+// Resolve tells the host the peer no longer waits on its request id although
+// no reply was written (the peer resolved it itself, or its turn ended), so a
+// later Runner is not handed it again. A local pipe redelivers nothing.
+func (p *Process) Resolve(id json.RawMessage) error {
+	if p.host == nil || len(id) == 0 {
+		return nil
+	}
+	return p.host.Resolve(id)
+}
+
 // release lets the host of an exited agent go away and ends this connection.
 func (p *Process) release() {
 	p.releaseOnce.Do(func() {

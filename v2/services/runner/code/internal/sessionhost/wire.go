@@ -24,6 +24,12 @@ import (
 // terminal host is ever sent those, and only a binary that knows terminals
 // launches one. Agent and command frames are unchanged, so a Runner rolled
 // back to a release without terminals still adopts this binary's agents.
+//
+// The resolve operation (a request the agent no longer waits on) is additive
+// too: a host that predates it ignores an unknown operation, which leaves it
+// exactly as it was (redelivering that request), and a Runner that predates it
+// never sends it. Neither side can misread the other, so it did not bump the
+// version either; a bump would have cost a rollback its live agents.
 const Protocol = 1
 
 // supported is the inclusive range of host versions this client speaks. It is a
@@ -162,7 +168,7 @@ type frame struct {
 	Size *Size  `json:"size,omitempty"`
 	// spawn
 	Spec *Spec `json:"spec,omitempty"`
-	// send / msg
+	// send / msg; resolve carries the request's raw JSON-RPC id as Line
 	Seq         uint64          `json:"seq,omitempty"`
 	Line        json.RawMessage `json:"line,omitempty"`
 	Redelivered bool            `json:"redelivered,omitempty"`
