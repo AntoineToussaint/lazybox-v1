@@ -76,6 +76,8 @@ type CommandRun struct {
 type Query struct {
 	Workspace, Execution, Conversation string
 	Prices                             Pricer
+	// Series also reports usage hour by hour (Report.Series).
+	Series bool
 }
 type Group struct {
 	Scope      Scope  `json:"scope"`
@@ -102,6 +104,22 @@ type Report struct {
 	Groups   []Group           `json:"groups"`
 	Contexts []ContextSnapshot `json:"contexts"`
 	Recent   []Record          `json:"recent"`
+	// Series is usage hour by hour, oldest first; only when Query.Series.
+	Series []Bucket `json:"series,omitempty"`
+}
+
+// Bucket is usage in one hour (UTC) by conversation, provider and model,
+// counted as Group counts it: the records it holds are the report's, once
+// each, priced the same way.
+type Bucket struct {
+	HourUnixMillis int64  `json:"hourUnixMillis"`
+	Conversation   string `json:"conversation"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+	Tokens         Tokens `json:"tokens"`
+	Nanos          *int64 `json:"nanos,omitempty"`
+	Records        int64  `json:"records"`
+	Unpriced       int64  `json:"unpriced"`
 }
 
 // Store must acknowledge observations durably. Repeated IDs replace snapshots;

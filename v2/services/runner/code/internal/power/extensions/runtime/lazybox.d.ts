@@ -60,7 +60,14 @@ declare namespace Lazybox {
     /** Dollars; null when unpriced. */
     usd: number | null; records: number;
   }
-  interface Usage { totalUsd: number; unpriced: number; groups: UsageGroup[] }
+  /** Usage in one hour: `at` is the hour's start (UTC), Unix milliseconds. */
+  interface UsageHour extends UsageGroup { at: number; unpriced: number }
+  /** `inputTokens` is uncached input; the cache's reads and writes are counted apart. */
+  interface Usage {
+    totalUsd: number; unpriced: number; groups: UsageGroup[];
+    /** Hour by hour, oldest first; only when read with `series: true`. */
+    series?: UsageHour[];
+  }
 
   interface Api {
     readonly protocol: 1;
@@ -82,8 +89,8 @@ declare namespace Lazybox {
     commands: { list(sessionId: string): Promise<{ commands: Command[] }> };
     /** read:missions */
     missions: { list(): Promise<{ missions: Mission[] }> };
-    /** read:usage — tokens and cost by workspace, conversation and model. */
-    usage: { read(options?: { workspaceId?: string }): Promise<Usage> };
+    /** read:usage — tokens and cost by workspace, conversation and model; with series, hour by hour too. */
+    usage: { read(options?: { workspaceId?: string; series?: boolean }): Promise<Usage> };
     /** show:conversations — shows a conversation in the window. */
     conversations: { show(sessionId: string): Promise<{ shown: true }> };
     /** send:messages — sends a message to a conversation, as the person. */

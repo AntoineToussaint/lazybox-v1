@@ -518,7 +518,11 @@ message CreateThemeResponse {
   string path = 3;
 }
 message RenameCollectionRequest { string collection_id = 1; string name = 2; }
-message TelemetryRequest { string workspace = 1; string execution = 2; string conversation = 3; }
+message TelemetryRequest {
+  string workspace = 1; string execution = 2; string conversation = 3;
+  // Also report usage hour by hour (TelemetryReport.series), for spend over time.
+  bool series = 4;
+}
 message TelemetryScope { string workspace = 1; string conversation = 2; string execution = 3; string profile = 4; string provider = 5; string attempt = 6; }
 message TokenCounts { optional int64 input = 1; optional int64 output = 2; optional int64 cache_read = 3; optional int64 cache_write5m = 4; optional int64 cache_write1h = 5; }
 message ContextDetail { string name = 1; optional int64 tokens = 2; }
@@ -546,7 +550,17 @@ message UsageGroup {
  // The tokens of the unpriced records: what nanos leaves out.
  TokenCounts unpriced_tokens = 12;
 }
-message TelemetryReport { repeated UsageGroup groups = 1; repeated ContextSnapshot contexts = 2; repeated UsageRecord recent = 3; }
+// Usage in one hour (UTC) by conversation, provider and model: tokens and
+// cost, counted as the report's groups count them.
+message UsageBucket {
+ int64 hour_unix_millis = 1; string conversation = 2; string provider = 3; string model = 4;
+ TokenCounts tokens = 5; optional int64 nanos = 6; int64 records = 7; int64 unpriced = 8;
+}
+message TelemetryReport {
+ repeated UsageGroup groups = 1; repeated ContextSnapshot contexts = 2; repeated UsageRecord recent = 3;
+ // Hour by hour, oldest first; only when the request asked for series.
+ repeated UsageBucket series = 4;
+}
 message AddSubscriptionRequest {
   string request_key = 1;
   string provider = 2;

@@ -59,23 +59,40 @@ export function projectMissions(missions: readonly Mission[]) {
   return { missions: missions.map(m => ({ id: m.id, title: m.title, canceled: m.canceled, awaitingReview: m.awaitingReview, tasks: m.tasks.map(t => ({ id: t.id, title: t.title, status: t.status, reason: t.reason })) })) };
 }
 
-/** Usage across workspaces, one group per workspace, conversation and model. */
-export function projectUsage(reports: readonly { workspaceId: string; report: TelemetryReport }[], collections: readonly Collection[]) {
-  const groups = [];
+const tokenCounts = (t: TelemetryReport['groups'][number]['tokens']) => ({
+  inputTokens: Number(t?.input || 0n), outputTokens: Number(t?.output || 0n),
+  cacheReadTokens: Number(t?.cacheRead || 0n), cacheWriteTokens: Number(t?.cacheWrite5m || 0n) + Number(t?.cacheWrite1h || 0n),
+});
+
+/**
+ * Usage across workspaces, one group per workspace, conversation and model;
+ * with `series`, also hour by hour (`at`: the hour's start), oldest first.
+ */
+export function projectUsage(reports: readonly { workspaceId: string; report: TelemetryReport }[], collections: readonly Collection[], options: { series?: boolean } = {}) {
+  const groups = [], series = [];
   let totalUsd = 0, unpriced = 0;
   for (const { workspaceId, report } of reports) {
+    const name = workspaceName(collections, workspaceId);
     for (const g of report.groups) {
       const usd = g.nanos === undefined ? null : Number(g.nanos) / 1e9;
       if (usd !== null) totalUsd += usd;
       unpriced += Number(g.unpriced || 0n);
       groups.push({
-        workspaceId, workspaceName: workspaceName(collections, workspaceId), conversationId: g.scope?.conversation || '',
+        workspaceId, workspaceName: name, conversationId: g.scope?.conversation || '',
         model: g.model, provider: g.scope?.provider || '',
-        inputTokens: Number(g.tokens?.input || 0n), outputTokens: Number(g.tokens?.output || 0n),
-        cacheReadTokens: Number(g.tokens?.cacheRead || 0n), cacheWriteTokens: Number(g.tokens?.cacheWrite5m || 0n) + Number(g.tokens?.cacheWrite1h || 0n),
+        ...tokenCounts(g.tokens),
         usd, records: Number(g.records || 0n),
       });
     }
+    if (options.series) for (const b of report.series) {
+      series.push({
+        at: Number(b.hourUnixMillis), workspaceId, workspaceName: name, conversationId: b.conversation,
+        model: b.model, provider: b.provider,
+        ...tokenCounts(b.tokens),
+        usd: b.nanos === undefined ? null : Number(b.nanos) / 1e9, records: Number(b.records || 0n), unpriced: Number(b.unpriced || 0n),
+      });
+    }
   }
-  return { totalUsd: Math.round(totalUsd * 1e6) / 1e6, unpriced, groups };
+  const usage = { totalUsd: Math.round(totalUsd * 1e6) / 1e6, unpriced, groups };
+  return options.series ? { ...usage, series: series.sort((a, b) => a.at - b.at) } : usage;
 }

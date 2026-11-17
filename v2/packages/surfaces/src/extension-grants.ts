@@ -15,7 +15,7 @@ const fixed: Record<string, Omit<GrantText, 'grant'>> = {
   'read:attention': { icon: 'inbox', title: 'See what needs you', detail: 'The Inbox: which conversations wait for you, with the question or the agent’s last line', tone: 'read' },
   'read:commands': { icon: 'output', title: 'See a conversation’s commands', detail: 'What ran and how it ended — not the output', tone: 'read' },
   'read:missions': { icon: 'target', title: 'See your missions', detail: 'Missions, their tasks and status', tone: 'read' },
-  'read:usage': { icon: 'chart', title: 'See token use and cost', detail: 'Tokens and dollars by workspace, conversation and model', tone: 'read' },
+  'read:usage': { icon: 'chart', title: 'See token use and cost', detail: 'Tokens and dollars by workspace, conversation and model, hour by hour', tone: 'read' },
   'show:conversations': { icon: 'eye', title: 'Show a conversation', detail: 'Bring a conversation or a workspace forward in the window', tone: 'act' },
   'send:messages': { icon: 'send', title: 'Send messages as you', detail: 'Write to any of your conversations; the agent acts on them as if you had', tone: 'send' },
 };

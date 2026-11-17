@@ -46,7 +46,7 @@ second (twenty at once).
 | `lazybox.attention.list()` | `read:attention` | `{items: [{sessionId, conversationId, title, workspaceId, workspaceName, state, reason, line, at, unread}], counts}` — `state` is `needs-input`, `failed`, `review`, `working` or `idle` |
 | `lazybox.commands.list(sessionId)` | `read:commands` | `{commands: [{id, title, state, exitCode?, startedAt}]}` — `running`, `succeeded`, `failed`, `stopped` |
 | `lazybox.missions.list()` | `read:missions` | `{missions: [{id, title, canceled, awaitingReview, tasks: [{id, title, status, reason}]}]}` |
-| `lazybox.usage.read({workspaceId?})` | `read:usage` | `{totalUsd, unpriced, groups: [{workspaceId, workspaceName, conversationId, model, provider, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, usd, records}]}` |
+| `lazybox.usage.read({workspaceId?, series?})` | `read:usage` | `{totalUsd, unpriced, groups: [{workspaceId, workspaceName, conversationId, model, provider, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, usd, records}], series?}` — `inputTokens` is uncached input, the cache's reads and writes apart; `usd` is `null` when unpriced. With `series: true`, also `series: [{at, …the same fields, unpriced}]`: usage hour by hour (`at`, the hour's start in UTC), oldest first, counted as the groups are, so a period's spend is the sum of its hours. |
 | `lazybox.conversations.show(sessionId)` | `show:conversations` | `{shown: true}` once the window shows it |
 | `lazybox.messages.send(sessionId, text)` | `send:messages` | `{sent: true}` (text up to 32 000 characters) |
 | `lazybox.run(action, argument?)` | `do:<action>` | `{done: true, detail}` once the window ran it |

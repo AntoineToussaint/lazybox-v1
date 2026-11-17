@@ -99,6 +99,19 @@ test('usage sums priced groups in dollars and counts the unpriced', () => {
   assert.equal(usage.unpriced, 1);
   assert.deepEqual(usage.groups[0], { workspaceId: 'alpha', workspaceName: 'Alpha', conversationId: 'a-c', model: 'opus', provider: 'claude', inputTokens: 10, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 1, usd: 1.5, records: 2 });
   assert.equal(usage.groups[1].usd, null);
+  assert.equal('series' in usage, false, 'no series unless asked');
+});
+
+test('usage hour by hour, oldest first, when asked', () => {
+  const hour = 1_763_283_600_000;
+  const report = create(TelemetryReportSchema, { series: [
+    { hourUnixMillis: BigInt(hour + 3_600_000), conversation: 'a-c', provider: 'claude', model: 'opus', nanos: 250_000_000n, records: 1n, tokens: { input: 4n, cacheRead: 6n, cacheWrite1h: 2n } },
+    { hourUnixMillis: BigInt(hour), conversation: 'a-c', provider: 'claude', model: 'mystery', records: 1n, unpriced: 1n, tokens: { output: 3n } },
+  ] });
+  const { series } = projectUsage([{ workspaceId: 'alpha', report }], alpha, { series: true });
+  assert.deepEqual(series?.map(b => b.at), [hour, hour + 3_600_000]);
+  assert.deepEqual(series?.[1], { at: hour + 3_600_000, workspaceId: 'alpha', workspaceName: 'Alpha', conversationId: 'a-c', model: 'opus', provider: 'claude', inputTokens: 4, outputTokens: 0, cacheReadTokens: 6, cacheWriteTokens: 2, usd: 0.25, records: 1, unpriced: 0 });
+  assert.equal(series?.[0].usd, null);
 });
 
 test('the bridge client, its types and the Runner agree on every method and grant', () => {

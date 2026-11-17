@@ -257,6 +257,48 @@ func costsOf(r Record, prices Pricer) *Costs {
 	}
 	return again.Costs
 }
+// addBucket counts a record in its hour's bucket.
+func addBucket(buckets map[string]*Bucket, r Record) {
+	hour := r.ObservedAt.UTC().Truncate(time.Hour).UnixMilli()
+	key := fmt.Sprintf("%d/%s/%s/%s", hour, r.Scope.Conversation, r.Scope.Provider, r.Model)
+	b := buckets[key]
+	if b == nil {
+		b = &Bucket{HourUnixMillis: hour, Conversation: r.Scope.Conversation, Provider: r.Scope.Provider, Model: r.Model}
+		buckets[key] = b
+	}
+	b.Records++
+	if r.Nanos == nil {
+		b.Unpriced++
+	}
+	sum(&b.Nanos, r.Nanos)
+	addTokens(&b.Tokens, r.Tokens)
+}
+
+// seriesOf is the buckets oldest first, in a stable order within an hour.
+func seriesOf(buckets map[string]*Bucket) []Bucket {
+	out := make([]Bucket, 0, len(buckets))
+	for _, b := range buckets {
+		out = append(out, *b)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.HourUnixMillis != b.HourUnixMillis {
+			return a.HourUnixMillis < b.HourUnixMillis
+		}
+		if a.Conversation != b.Conversation {
+			return a.Conversation < b.Conversation
+		}
+		if a.Provider != b.Provider {
+			return a.Provider < b.Provider
+		}
+		return a.Model < b.Model
+	})
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 	out := Report{}
 	where := "execution=?"
@@ -277,6 +319,7 @@ func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 		return out, err
 	}
 	groups := map[string]*Group{}
+	buckets := map[string]*Bucket{}
 	partsUnknown := map[string]bool{}
 	seen := map[string]bool{}
 	for rows.Next() {
@@ -334,6 +377,9 @@ func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 		sum(&g.Tokens.CacheRead, r.Tokens.CacheRead)
 		sum(&g.Tokens.CacheWrite5m, r.Tokens.CacheWrite5m)
 		sum(&g.Tokens.CacheWrite1h, r.Tokens.CacheWrite1h)
+		if q.Series {
+			addBucket(buckets, r)
+		}
 		out.Recent = append(out.Recent, r)
 		sort.Slice(out.Recent, func(i, j int) bool { return out.Recent[i].ObservedAt.After(out.Recent[j].ObservedAt) })
 		if len(out.Recent) > 100 {
@@ -359,6 +405,7 @@ func (s *SQLite) Report(ctx context.Context, q Query) (Report, error) {
 		}
 		out.Groups = append(out.Groups, g)
 	}
+	out.Series = seriesOf(buckets)
 	rows, err = s.db.QueryContext(ctx, "SELECT body FROM contexts WHERE "+where, value)
 	if err != nil {
 		return out, err

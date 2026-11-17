@@ -179,8 +179,9 @@ function RunningExtension({ extension, panelId, collections, onClose, onSwitch }
       'missions.list': async () => projectMissions((await client.listMissions({})).missions),
       'usage.read': async params => {
         const ids = typeof params.workspaceId === 'string' ? [params.workspaceId] : collectionsRef.current.filter(c => c.state !== 'deleted').slice(0, 20).map(c => c.id);
-        const reports = await Promise.all(ids.map(async workspaceId => ({ workspaceId, report: await client.getTelemetry({ workspace: workspaceId }) })));
-        return projectUsage(reports, collectionsRef.current);
+        const series = params.series === true;
+        const reports = await Promise.all(ids.map(async workspaceId => ({ workspaceId, report: await client.getTelemetry({ workspace: workspaceId, series }) })));
+        return projectUsage(reports, collectionsRef.current, { series });
       },
       'conversations.show': async params => {
         const sessionId = stringParam(params, 'sessionId');
