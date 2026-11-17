@@ -9,6 +9,17 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.26',
+    date: '2026-11-17',
+    title: 'The agent and its context under your message',
+    items: [
+      { title: 'Who answers, and how full their context is', body: 'The left of the message box\'s controls shows the agent and model (Claude · Opus 5.5) and the context used, as a small meter and a percentage that turns amber from 60% and red from 85%. Click the agent to switch model; click the meter for the context and token cost. It says what the chat header says, from the same reading. A narrow box keeps the meter; a phone keeps the percentage. A conversation that has not started shows none of it.' },
+      { title: 'Your messages without "You"', body: 'Your own messages no longer carry a "You" label: they are yours. One you steered into a running turn shows a small steered tag. Messages from agents and Lazybox keep their label.' },
+      { title: 'Clearer confirmations', body: 'Deleting a conversation or a workspace, archiving, stopping processes, removing an extension and clearing browser data share one dialog: the name under the question, what happens and what is kept, and a warning with its checkbox on one line. The confirm button is a full red, and plainly grey until a required box is ticked.' },
+      { title: 'A tidier Artifacts list', body: 'The count and the search field share one row, the search icon inside the field; This workspace / All workspaces sits under it at one height. A slim list stacks them cleanly.' },
+    ],
+  },
+  {
     id: '2026-11-17.25',
     date: '2026-11-17',
     title: 'A workspace\'s conversations are there as tabs',

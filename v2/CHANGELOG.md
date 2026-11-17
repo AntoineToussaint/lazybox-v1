@@ -14,6 +14,13 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.26] - 2026-11-17 · The agent and its context under your message
+
+- **Who answers, and how full their context is** The left of the message box's controls shows the agent and model (Claude · Opus 5.5) and the context used, as a small meter and a percentage that turns amber from 60% and red from 85%. Click the agent to switch model; click the meter for the context and token cost. It says what the chat header says, from the same reading. A narrow box keeps the meter; a phone keeps the percentage. A conversation that has not started shows none of it.
+- **Your messages without "You"** Your own messages no longer carry a "You" label: they are yours. One you steered into a running turn shows a small steered tag. Messages from agents and Lazybox keep their label.
+- **Clearer confirmations** Deleting a conversation or a workspace, archiving, stopping processes, removing an extension and clearing browser data share one dialog: the name under the question, what happens and what is kept, and a warning with its checkbox on one line. The confirm button is a full red, and plainly grey until a required box is ticked.
+- **A tidier Artifacts list** The count and the search field share one row, the search icon inside the field; This workspace / All workspaces sits under it at one height. A slim list stacks them cleanly.
+
 ## [2026-11-17.25] - 2026-11-17 · A workspace's conversations are there as tabs
 
 - **Every conversation as a tab** Opening a workspace shows its open conversations as tabs, most recent first (six at most; the rest are a click away in the sidebar). A conversation that had no tab after the last update is back in one.
