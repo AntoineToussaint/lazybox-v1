@@ -45,9 +45,11 @@ const (
 	StepCommand    = "command"
 	StepPermission = "permission"
 	StepWait       = "wait"
+	// StepDo runs an action of the app's registry (`lazybox do --list`).
+	StepDo = "do"
 )
 
-var stepKinds = []string{StepSend, StepOpen, StepRun, StepCommand, StepPermission, StepWait}
+var stepKinds = []string{StepSend, StepOpen, StepRun, StepCommand, StepPermission, StepWait, StepDo}
 
 // Panels an open step may show: the app's panel kinds, plus settings and the inbox.
 var Panels = []string{"chat", "console", "terminal", "assistant", "changes", "usage", "sessions", "missions", "processes", "actions", "preview", "files", "editor", "artifacts", "settings", "inbox"}
@@ -83,7 +85,9 @@ type Step struct {
 	// run, command, permission, wait
 	Action, Command, Permission, Until string
 	Timeout                            time.Duration
-	Line                               int
+	// do: a registry action and its argument
+	Do, DoArgument string
+	Line           int
 }
 
 // Hook runs a program, a shell line or a webhook on events.
@@ -550,6 +554,31 @@ func (p *parser) stepBody(s *Step, n *yaml.Node, path string) {
 			p.fail(n, path, "wait takes idle or needs-input")
 		}
 		p.oneOf(n, path, s.Until, []string{"idle", "needs-input"})
+	case StepDo:
+		if n.Kind == yaml.ScalarNode {
+			s.Do = p.str(n, path, 80)
+		} else if n.Kind == yaml.MappingNode {
+			for key, value := range pairs(n) {
+				at := path + "." + key.Value
+				switch key.Value {
+				case "action":
+					s.Do = p.str(value, at, 80)
+				case "argument":
+					s.DoArgument = p.str(value, at, 2048)
+				default:
+					p.fail(key, at, "unknown field %q (expected action, argument)", key.Value)
+				}
+			}
+		} else {
+			p.fail(n, path, "do takes an action of the app, such as layout.maximize, or {action, argument}")
+		}
+		if s.Do == "" {
+			p.fail(n, path, "do needs an action of the app (lazybox do --list)")
+		} else if a, ok := registry.Action(s.Do); !ok {
+			p.fail(n, path, "the app has no action %q%s (lazybox do --list lists every action)", s.Do, didYouMean(s.Do, registry.ActionIDs()))
+		} else if s.DoArgument != "" && a.Argument == "" {
+			p.fail(n, path, "%s takes no argument", a.ID)
+		}
 	}
 }
 

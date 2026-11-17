@@ -50,6 +50,8 @@ workspace. An ambiguous name lists the candidates and exits 2.
 | `lazybox open <workspace\|conversation\|file[:line]> [--panel KIND]` | Show it in the Lazybox window in front. A file opens in its workspace (`--workspace W` when there are several). |
 | `lazybox shot [window\|PANEL] [--out FILE]` | A PNG of the window or one panel, taken by the desktop app itself (no screen-recording permission). A browser tab cannot. |
 | `lazybox new <name> --repo R [--repo R…] [--branch B]` | Create a workspace from repositories Lazybox knows (`owner/name`, a name or a path). |
+| `lazybox do <action> [argument] [--workspace W] [--conversation C]` | Run any action of the app in the window, as its key or ⌘K would: `lazybox do layout.maximize`, `lazybox do settings.open keyboard`. Your own actions' ids work too. |
+| `lazybox do --list [WORDS…]` | Every action of the app by group, with its default keys, its argument, and **safe** when a hook may run it. |
 
 Panels for `--panel` and `shot`: `chat`, `console`, `terminal`, `assistant`,
 `changes`, `usage`, `sessions`, `missions`, `processes`, `actions`, `preview`,
@@ -63,6 +65,12 @@ Panels for `--panel` and `shot`: `chat`, `console`, `terminal`, `assistant`,
 | `lazybox artifact put FILE\|- --title T --kind plan` · `get ID [--version N]` · `list` | Publish and read a workspace's [artifacts](../guides/artifacts.md). Used by agents, from inside their workspace. |
 | `lazybox actions [ls\|validate [FILE]\|schema\|path\|init\|run ID]` | Your [actions file](configuration.md#actionsyaml-your-actions-and-hooks): list what loaded and its problems, check a file, print the schema, create it, or have the window run an action. |
 | `lazybox hooks [ls\|runs\|test ID\|log RUN]` | Your hooks, their recent runs, a test run, a run's output. |
+| `lazybox config path [FILE]` | The folder of your [config files](configuration.md#your-config-files-keys-settings-layouts), or one file's path. FILE is `keys`, `settings`, `actions` or `layout NAME`. |
+| `lazybox config edit FILE` | Open it in `$VISUAL`/`$EDITOR` (created from a commented starter), then check it. |
+| `lazybox config validate [FILE…]` | Check every config file (or these, by name or path): problems as `file:line`, exit 2 on an error. |
+| `lazybox config get FILE [KEY]` | The file, or one value: `config get keys palette.open` prints its keys and where they come from (the file and line, or the preset). |
+| `lazybox config set FILE KEY VALUE` · `--remove` | Change one value, keeping comments: `config set keys palette.open Mod+y`, `config set settings notifications.review true`. A change with a problem (a key already taken) is refused and nothing is written. |
+| `lazybox config export [--out F] [--actions]` · `import F\|- [--dry-run]` | Every config file in one YAML bundle (actions.yaml only with `--actions`: its webhook headers may be secrets), and back: each file is checked first, a replaced one is kept as `.bak`. |
 | `lazybox process validate\|show\|explain EVENT\|events\|schema` | Check [`.lazybox/process.yaml`](configuration.md#lazyboxprocessyaml-how-missions-run) from files, no Runner needed. |
 
 ## Command output
@@ -89,7 +97,7 @@ For the installed app ([Install](../install.md)):
 | `lazybox service [status\|install\|start\|stop\|restart\|logs [-f]\|plan\|uninstall]` | The Runner's launchd service. `install` also repairs it and refreshes the PATH agents get; a restart or update keeps agents running. |
 | `lazybox link [--dir DIR]` | Puts this `lazybox` on your PATH with completions, no password. |
 | `lazybox uninstall [--dry-run] [--remove-data]` | Removes the service, link and completions; `--remove-data` also your conversations and workspaces, after asking. |
-| `lazybox schema [actions\|process\|workspace\|theme] [--write DIR]` | The JSON Schemas of the files you write, for your editor; they ship with the CLI, nothing is fetched. |
+| `lazybox schema [actions\|process\|workspace\|keys\|settings\|layout\|theme] [--write DIR]` | The JSON Schemas of the files you write, for your editor; they ship with the CLI, nothing is fetched. |
 
 ## Exit codes
 
@@ -101,7 +109,7 @@ For the installed app ([Install](../install.md)):
 | 3 | Not found: conversation, workspace, request, action, hook |
 | 4 | Not allowed: a scoped credential (agent, terminal, hook) or a refused token |
 | 5 | Timed out: `wait`, or a window that did not answer |
-| 6 | Unavailable: no Runner answers, none is registered, or no Lazybox window is open for `open` / `shot` / `actions run` |
+| 6 | Unavailable: no Runner answers, none is registered, or no Lazybox window is open for `open` / `shot` / `actions run` / `do` |
 
 ## Shell completion
 

@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"time"
@@ -13,7 +14,9 @@ import (
 )
 
 // Power-user extensibility (POWER.md). Every RPC here is the owner's: none is
-// on the agent, terminal, device or hook allowlists.
+// on the agent, terminal or device allowlists, and a hook reaches only
+// PostUiRequest for `do` of a safe action and WaitUiRequest for its own
+// requests (hook_auth.go).
 
 func (s *Service) GetUserActions(context.Context, *pb.GetUserActionsRequest) (*pb.UserActions, error) {
 	snap, _ := s.Bench.Actions().Reload()
@@ -38,7 +41,7 @@ func wireUserActions(m *power.Manager, snap power.Snapshot) *pb.UserActions {
 		for _, st := range a.Steps {
 			w.Steps = append(w.Steps, &pb.UserActionStep{Kind: st.Kind, Name: st.Name, When: st.When, Text: st.Text, Snippet: st.Snippet, To: st.To, Wait: st.Wait,
 				Panel: st.Panel, Url: st.URL, File: st.File, Line: uint32(st.FileLine), Action: st.Action, Command: st.Command, Permission: st.Permission,
-				Until: st.Until, TimeoutSeconds: uint32(st.Timeout / time.Second)})
+				Until: st.Until, TimeoutSeconds: uint32(st.Timeout / time.Second), DoAction: st.Do, DoArgument: st.DoArgument})
 		}
 		out.Actions = append(out.Actions, w)
 	}
@@ -95,9 +98,27 @@ func wireHookRun(r power.HookRun) *pb.HookRun {
 	return w
 }
 
-func (s *Service) PostUiRequest(_ context.Context, r *pb.UiRequest) (*pb.UiRequest, error) {
-	if r.Kind == power.UIAction && r.ActionId == "" {
+func (s *Service) PostUiRequest(ctx context.Context, r *pb.UiRequest) (*pb.UiRequest, error) {
+	if (r.Kind == power.UIAction || r.Kind == power.UIDo) && r.ActionId == "" {
 		return nil, grpcError(codes.InvalidArgument, errors.New("name the action to run"))
+	}
+	who, _ := ctx.Value(principalKey{}).(principal)
+	if r.Kind == power.UIDo {
+		a, ok := power.Registry().Action(r.ActionId)
+		if !ok {
+			hint := ""
+			if near := power.Suggest(r.ActionId, power.Registry().ActionIDs()); near != "" {
+				hint = " (did you mean " + near + "?)"
+			}
+			return nil, grpcError(codes.NotFound, errors.New("the app has no action "+r.ActionId+hint+"; lazybox do --list lists them"))
+		}
+		if r.Argument != "" && a.Argument == "" {
+			return nil, grpcError(codes.InvalidArgument, errors.New(a.ID+" takes no argument"))
+		}
+		// A hook may only show, focus or arrange (hook_auth.go lets it this far).
+		if who.hook != "" && !a.Safe {
+			return nil, grpcError(codes.PermissionDenied, errors.New(a.ID+" is not one a hook may run: hooks run only actions that show, focus or arrange (lazybox do --list marks them safe)"))
+		}
 	}
 	// Reread first: an action saved a moment ago is there.
 	snap, _ := s.Bench.Actions().Reload()
@@ -107,7 +128,7 @@ func (s *Service) PostUiRequest(_ context.Context, r *pb.UiRequest) (*pb.UiReque
 	if r.Kind == power.UIOpen && r.CollectionId == "" && r.SessionId == "" && r.Panel == "" {
 		return nil, grpcError(codes.InvalidArgument, errors.New("open a workspace, a conversation, a file or a panel"))
 	}
-	posted, err := s.Bench.UI().Post(power.UIRequest{Kind: r.Kind, CollectionID: r.CollectionId, SessionID: r.SessionId, File: r.File, Line: int(r.Line), Panel: r.Panel, ActionID: r.ActionId})
+	posted, err := s.Bench.UI().Post(power.UIRequest{Kind: r.Kind, CollectionID: r.CollectionId, SessionID: r.SessionId, File: r.File, Line: int(r.Line), Panel: r.Panel, ActionID: r.ActionId, Argument: r.Argument, Poster: who.hook})
 	if errors.Is(err, power.ErrNoWindow) {
 		return nil, grpcError(codes.Unavailable, err)
 	}
@@ -123,7 +144,8 @@ func (s *Service) WaitUiRequest(ctx context.Context, r *pb.WaitUiRequestRequest)
 		timeout = 30 * time.Second
 	}
 	timeout = min(timeout, 2*time.Minute)
-	got, err := s.Bench.UI().Wait(ctx, r.Id, timeout)
+	who, _ := ctx.Value(principalKey{}).(principal)
+	got, err := s.Bench.UI().Wait(ctx, r.Id, who.hook, timeout)
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -163,5 +185,56 @@ func (s *Service) CompleteUiRequest(_ context.Context, r *pb.CompleteUiRequestRe
 
 func wireUIRequest(r power.UIRequest) *pb.UiRequest {
 	return &pb.UiRequest{Id: r.ID, Kind: r.Kind, CollectionId: r.CollectionID, SessionId: r.SessionID, File: r.File, Line: uint32(r.Line), Panel: r.Panel, ActionId: r.ActionID,
-		State: r.State, Error: r.Error, Png: r.PNG, Detail: r.Detail, CreatedAtUnixMillis: r.Created.UnixMilli()}
+		State: r.State, Error: r.Error, Png: r.PNG, Detail: r.Detail, CreatedAtUnixMillis: r.Created.UnixMilli(), Argument: r.Argument}
+}
+
+// GetConfigFiles is the person's config files as last loaded (POWER.md,
+// "Config files"); a new revision means one of them changed.
+func (s *Service) GetConfigFiles(context.Context, *pb.GetConfigFilesRequest) (*pb.ConfigFiles, error) {
+	snap, _ := s.Bench.ConfigFiles().Reload()
+	return wireConfigFiles(snap)
+}
+
+// UpdateConfigFile changes one config file; a change that would not load is
+// refused with each problem, and nothing is written.
+func (s *Service) UpdateConfigFile(_ context.Context, r *pb.UpdateConfigFileRequest) (*pb.ConfigFiles, error) {
+	var edits []power.Edit
+	for _, e := range r.Edits {
+		edits = append(edits, power.Edit{Path: e.Path, JSON: e.Json})
+	}
+	var content []byte
+	if r.Content != "" {
+		content = []byte(r.Content)
+	}
+	if len(edits) == 0 && content == nil && !r.Remove {
+		return nil, grpcError(codes.InvalidArgument, errors.New("nothing to change: give edits, content or remove"))
+	}
+	snap, err := s.Bench.ConfigFiles().Update(r.Name, edits, content, r.Remove)
+	var refused *power.RefusedError
+	if errors.As(err, &refused) {
+		return nil, grpcError(codes.FailedPrecondition, err)
+	}
+	if err != nil {
+		return nil, grpcError(codes.InvalidArgument, err)
+	}
+	return wireConfigFiles(snap)
+}
+
+func wireConfigFiles(snap power.ConfigSnapshot) (*pb.ConfigFiles, error) {
+	out := &pb.ConfigFiles{Directory: snap.Dir, Revision: snap.Revision}
+	for _, d := range snap.Docs {
+		w := &pb.ConfigFile{Name: d.Name, Kind: d.Kind, Path: d.Path, Exists: d.Exists, Error: d.Err, Stale: d.Stale, Revision: d.Revision, LoadedAtUnixMillis: d.LoadedAt.UnixMilli(), SchemaPath: d.SchemaPath}
+		for _, i := range d.Issues {
+			w.Issues = append(w.Issues, &pb.UserActionIssue{Path: i.Path, Line: uint32(i.Line), Message: i.Message, Severity: i.Severity})
+		}
+		if d.Value != nil {
+			data, err := json.Marshal(d.Value)
+			if err != nil {
+				return nil, rpcError(err)
+			}
+			w.Json = string(data)
+		}
+		out.Files = append(out.Files, w)
+	}
+	return out, nil
 }

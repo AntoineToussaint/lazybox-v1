@@ -15,6 +15,7 @@ import { AttentionIcon } from './Inbox';
 import { highlight } from './QuickOpen';
 import { settingsTabs } from './SettingsPage';
 import { userPaletteItems, useUserCommands } from './user-commands';
+import { looksLikeLayoutYaml } from './config-files';
 import type { Keymap } from './keyboard';
 import { useArtifacts } from './useArtifacts';
 import { useInbox } from './useAttention';
@@ -270,7 +271,14 @@ export function CommandPalette({ keymap, navigator, viewState, initialQuery = ''
     <div className="command-palette-field">
       <Icon name="search" size={16}/>
       {scope && <span className="command-palette-scope">{scope.label}</span>}
-      <input ref={input} value={query} className={listening && spoken?.live ? 'is-dictating' : undefined} onChange={event => { if (listening) takeOverDictation(); setSpoken(null); setVoiceNote(null); setQuery(event.target.value); }} onKeyDown={keydown} placeholder={placeholder} aria-label="Search commands" role="combobox" aria-expanded="true" aria-controls="command-palette-results" aria-autocomplete="list" aria-activedescendant={flat[selected] ? `command-palette-${selected}` : undefined} spellCheck={false} autoComplete="off"/>
+      <input ref={input} value={query} className={listening && spoken?.live ? 'is-dictating' : undefined} onChange={event => { if (listening) takeOverDictation(); setSpoken(null); setVoiceNote(null); setQuery(event.target.value); }} onKeyDown={keydown}
+        onPaste={event => {
+          // A layout's YAML pasted here imports it (POWER.md, "Config files"): the import dialog opens with it.
+          const text = event.clipboardData.getData('text/plain');
+          if (!looksLikeLayoutYaml(text) || !actionEnabled('layout.import')) return;
+          event.preventDefault(); close();
+          requestAnimationFrame(() => runAction('layout.import', text, 'palette'));
+        }} placeholder={placeholder} aria-label="Search commands" role="combobox" aria-expanded="true" aria-controls="command-palette-results" aria-autocomplete="list" aria-activedescendant={flat[selected] ? `command-palette-${selected}` : undefined} spellCheck={false} autoComplete="off"/>
       {files.searching && <span className="quick-open-busy" aria-hidden="true"/>}
       {recognizers().length > 0 && <button type="button" className="command-palette-mic" aria-label={listening ? 'Stop listening' : 'Say a command'} aria-pressed={listening} title={listening ? 'Stop listening' : `Say a command${firstKeys(keymap['voice.command' as keyof Keymap])[0] ? ` · hold ${firstKeys(keymap['voice.command' as keyof Keymap])[0]}` : ''}`} onClick={() => toggleDictation({ kind: 'palette' })}><Icon name="mic" size={15}/></button>}
     </div>

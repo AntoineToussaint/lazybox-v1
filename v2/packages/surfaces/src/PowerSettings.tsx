@@ -9,6 +9,9 @@ import { actionSummary } from './user-actions';
 import { userCommands } from './user-commands';
 import { useUserActionsFile } from './useUserActions';
 import { PICKER_KEY } from './PowerLayer';
+import { ConfigIssues, CopyPath } from './ConfigFileStatus';
+import { errorCount, fileLabel } from './config-files';
+import { useConfigFiles } from './useConfigFiles';
 import './power.css';
 
 const CHEATS: [string, string][] = [
@@ -18,6 +21,9 @@ const CHEATS: [string, string][] = [
   ['lazybox open "fix the tests"', 'Show a conversation in this window'],
   ['lazybox shot --out bug.png', 'A PNG of this window, for bug reports'],
   ['lazybox actions run continue', 'Run one of your actions here'],
+  ['lazybox do layout.maximize', 'Run any action of the app here (lazybox do --list)'],
+  ['lazybox config edit keys', 'Edit your shortcuts in $EDITOR; checked as you save'],
+  ['lazybox config validate', 'Every config file checked, problems by file:line'],
   ['source <(lazybox completion zsh)', 'Shell completion (also bash, fish)'],
 ];
 
@@ -51,7 +57,7 @@ export function PowerSettings({ viewState }: { viewState?: ViewStateStore }) {
       </SettingsGroup>
       {file.error && <div className={`power-banner${file.stale ? '' : ' is-bad'}`} role="alert"><Icon name="alert" size={15}/><span><strong>The file does not load:</strong> {file.error}{file.stale ? ' Using the last version that loaded until you fix it.' : ''}</span></div>}
       {file.issues.length > 0 && <SettingsGroup title="Problems" description="An entry with an error is left out; the others work.">
-        <ul className="power-issues" aria-label="Problems in the actions file">{file.issues.map((issue, i) => <li key={i}><span className={`sev ${issue.severity}`}>{issue.severity === 'error' ? 'Error' : 'Warning'}</span><span className="where">{issue.line ? `line ${issue.line}` : ''}</span><span><span className="where">{issue.path}</span> {issue.message}</span></li>)}</ul>
+        <ul className="power-issues" aria-label="Problems in the actions file">{file.issues.map((issue, i) => <li key={i}><span className={`sev is-${issue.severity}`}>{issue.severity === 'error' ? 'Error' : 'Warning'}</span><span className="where">{issue.line ? `line ${issue.line}` : ''}</span><span><span className="where">{issue.path}</span> {issue.message}</span></li>)}</ul>
       </SettingsGroup>}
       <SettingsGroup title="Actions" description={file.actions.length ? <>]] {PICKER_KEY} opens the action picker{conflicts.get('run-action') ? ` — taken by ${conflicts.get('run-action')}` : ''}.</> : undefined}>
         {file.actions.length ? <ul className="power-list" aria-label="Your actions">{file.actions.map(action => <li key={action.id}>
@@ -65,10 +71,36 @@ export function PowerSettings({ viewState }: { viewState?: ViewStateStore }) {
       </SettingsGroup>
       <HooksGroup hooks={file.hooks} onError={setError}/>
     </>}
+    <ConfigFilesGroup/>
     <SettingsGroup title="From a terminal" description="The lazybox CLI does everything this app does, for scripts and agents you trust with your Runner.">
       <div className="power-cheats">{CHEATS.map(([command, what]) => <div key={command}><code>{command}</code><small>{what}</small><button onClick={() => copy(command)} aria-label={`Copy ${command}`}>{copied === command ? 'Copied' : 'Copy'}</button></div>)}</div>
     </SettingsGroup>
   </div>;
+}
+
+/** keys.yaml, settings.yaml and layouts/ beside the actions file: each one's state and problems by line. */
+function ConfigFilesGroup() {
+  const files = useConfigFiles();
+  if (!files.loaded) return null;
+  const layouts = files.docs.filter(d => d.kind === 'layout');
+  const describe = (name: string) => name === 'keys' ? 'Shortcuts, the ]] menu, Vim editing (Settings → Shortcuts writes it)' : name === 'settings' ? 'Notifications (Settings → Notifications writes it)' : 'A layout in the Layout menu and ⌘⇧L';
+  return <SettingsGroup title="Config files" description={<>Plain YAML beside the actions file, with a JSON Schema each for your editor. Lazybox reloads a file as you save it; a mistake is shown here by line and the last version that loaded stays in force. Never secrets: credentials, subscriptions and devices stay in the app.</>}>
+    <ul className="power-list config-files-list" aria-label="Config files">
+      {[...files.docs.filter(d => d.kind !== 'layout'), ...layouts].map(doc => {
+        const errors = errorCount(doc) + (files.appProblems[doc.name] ? 1 : 0);
+        return <li key={doc.name}>
+          <Icon name={doc.kind === 'layout' ? 'layout' : doc.kind === 'keys' ? 'keyboard' : 'sliders'} size={16}/>
+          <div className="power-item">
+            <strong>{fileLabel(doc.name)}{!doc.exists && <span className="power-chip is-off">not created</span>}{doc.stale && <span className="power-chip is-conflict">last good version in force</span>}{errors > 0 && <span className="power-chip is-conflict">{errors === 1 ? '1 problem' : `${errors} problems`}</span>}</strong>
+            <small>{doc.error || describe(doc.kind === 'layout' ? 'layout' : doc.name)}</small>
+            {(doc.issues.length > 0 || files.appProblems[doc.name]) && <ConfigIssues doc={doc} appProblem={files.appProblems[doc.name]}/>}
+          </div>
+          <CopyPath path={doc.path} label={fileLabel(doc.name)}/>
+        </li>;
+      })}
+    </ul>
+    {!layouts.length && <p className="settings-empty">No layout files yet: Layout menu → Save current layout as… writes one to <code>{files.directory}/layouts</code>.</p>}
+  </SettingsGroup>;
 }
 
 function hookTarget(h: UserHook) { return h.webhook ? `POST ${h.webhook}` : h.shell || h.run.join(' '); }

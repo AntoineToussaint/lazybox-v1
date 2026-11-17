@@ -5,6 +5,8 @@ import type { MenuItem } from './context-menu-model';
 import type { DockHandle, GroupView } from './DockLayout';
 import { Icon } from './Icons';
 import { builtinPresets, sameTemplate, templateKinds, type LayoutPreset, type TemplateNode } from './layout-presets';
+import { firstProblem, type ConfigDoc } from './config-files';
+import './config-files.css';
 import type { PanelModule } from './PanelRegistry';
 import { dockSides, type DockSide, type Panel } from './workspace-model';
 
@@ -38,11 +40,20 @@ export function LayoutThumbnail({ layout, icons, width = 84, height = 54 }: { la
   return <svg className="layout-thumbnail" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">{boxes}</svg>;
 }
 
-/** The workspace header's Layout menu: presets as pictures, your saved layouts, save and reset. */
-export function LayoutMenu({ menu, current, saved, icons, disabled, onApply, onSave, onRename, onDelete, onReset }: {
+/**
+ * The workspace header's Layout menu: presets as pictures, your layouts (files
+ * in layouts/, POWER.md "Config files"), save, copy and import, reset.
+ */
+export function LayoutMenu({ menu, current, saved, broken = [], folder = '', cycleKey, icons, disabled, onApply, onSave, onRename, onDelete, onReset, onCopy, onImport }: {
   menu: React.RefObject<HTMLDetailsElement | null>;
   current: TemplateNode | null;
   saved: LayoutPreset[];
+  /** Layout files with a mistake: listed with their first problem, not offered. */
+  broken?: ConfigDoc[];
+  /** The layouts folder, shown so a person can find the files. */
+  folder?: string;
+  /** The key that steps through the layouts (⌘⇧L), as it reads. */
+  cycleKey?: string;
   icons: Record<string, string | undefined>;
   disabled?: boolean;
   onApply(preset: LayoutPreset): void;
@@ -50,6 +61,9 @@ export function LayoutMenu({ menu, current, saved, icons, disabled, onApply, onS
   onRename(id: string, name: string): void;
   onDelete(id: string): void;
   onReset(): void;
+  /** Copies a layout's YAML: one of the list, or the arrangement shown. */
+  onCopy?(preset?: LayoutPreset): void;
+  onImport?(): void;
 }) {
   const [naming, setNaming] = useState<{ id: string; name: string } | null>(null);
   const finish = (event: { preventDefault(): void }) => {
@@ -64,21 +78,28 @@ export function LayoutMenu({ menu, current, saved, icons, disabled, onApply, onS
       <span>{preset.name}</span>
     </button>
     {own && <span className="layout-tile-actions">
+      {onCopy && <button className="icon-button" aria-label={`Copy layout ${preset.name} as YAML`} title="Copy as YAML" onClick={() => onCopy(preset)}><Icon name="copy" size={12}/></button>}
       <button className="icon-button" data-keep-open aria-label={`Rename layout ${preset.name}`} title="Rename" onClick={() => setNaming({ id: preset.id, name: preset.name })}><Icon name="pencil" size={12}/></button>
       <button className="icon-button" data-keep-open aria-label={`Delete layout ${preset.name}`} title="Delete" onClick={() => onDelete(preset.id)}><Icon name="close" size={12}/></button>
     </span>}
   </div>;
   return <ActionMenu ref={menu} className="layout-menu" label="Layout" icon="layout" title="Layout: presets and saved arrangements" onToggle={open => { if (!open) setNaming(null); }}>
-    <small className="action-menu-heading">Layouts</small>
+    <small className="action-menu-heading">Layouts{cycleKey && <kbd className="layout-cycle-key" title="Next layout">{cycleKey}</kbd>}</small>
     <div className="layout-grid">{builtinPresets.map(preset => tile(preset, false))}</div>
-    {saved.length > 0 && <><small className="action-menu-heading">Saved</small><div className="layout-grid">{saved.map(preset => tile(preset, true))}</div></>}
+    {(saved.length > 0 || broken.length > 0) && <><small className="action-menu-heading">Yours</small><div className="layout-grid">{saved.map(preset => tile(preset, true))}</div></>}
+    {broken.length > 0 && <ul className="layout-broken" aria-label="Layout files with problems">{broken.map(doc => <li key={doc.name} title={`${doc.path}\n${firstProblem(doc)}`}>
+      <Icon name="alert" size={12}/><span><code>{doc.name.slice('layouts/'.length)}.yaml</code> {firstProblem(doc)}</span>
+    </li>)}</ul>}
     {naming
       ? <form className="layout-name" onSubmit={finish}>
         <input autoFocus aria-label={naming.id ? 'New layout name' : 'Layout name'} maxLength={48} placeholder="Name this layout" value={naming.name} onChange={event => setNaming({ ...naming, name: event.target.value })} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault(); setNaming(null); } }}/>
         <button className="primary" data-keep-open type="submit" disabled={!naming.name.trim()}>{naming.id ? 'Rename' : 'Save'}</button>
       </form>
       : <button className="layout-action" data-keep-open disabled={disabled || !current} onClick={() => setNaming({ id: '', name: '' })}><Icon name="save"/><span>Save current layout as…</span></button>}
+    {onCopy && <button className="layout-action" disabled={!current} onClick={() => onCopy()}><Icon name="copy"/><span>Copy current layout as YAML</span></button>}
+    {onImport && <button className="layout-action" onClick={onImport}><Icon name="download"/><span>Import a layout…</span></button>}
     <button className="layout-action" disabled={disabled} onClick={onReset}><Icon name="refresh"/><span>Reset to default</span></button>
+    {folder && <small className="layout-folder" title={folder}>Your layouts are files in <code>{folder.replace(/^.*?(\/\.config\/)/, '~$1')}</code></small>}
   </ActionMenu>;
 }
 

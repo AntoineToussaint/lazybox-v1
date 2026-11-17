@@ -20,7 +20,7 @@ export function LeaderMenuSettings({ store }: { store?: ViewStateStore }) {
  const change = (index: number, patch: Partial<MenuEntry>) => { setEntries(entries.map((entry, i) => i === index ? { ...entry, ...patch } : entry)); setStatus(''); };
  return <section className="leader-menu-settings">
   <SettingsGroup title={`${leader} menu`} description="Your own entries next to the built-in ones. Each key sends a snippet, or inserts it when you already have a draft.">
-  <form onSubmit={event => { event.preventDefault(); try { saveMenu(entries, store); setStatus('Menu saved.'); } catch (error) { setStatus(String(error).replace(/^Error:\s*/, '')); } }}>
+  <form onSubmit={event => { event.preventDefault(); try { void saveMenu(entries, store).then(result => setStatus(result.saved || !result.message ? `Menu saved.${result.message ? ` ${result.message.replace(/^Saved to (.*)\.$/, '$1 updated.')}` : ''}` : result.message)); } catch (error) { setStatus(String(error).replace(/^Error:\s*/, '')); } }}>
    {entries.length === 0 && <p className="leader-menu-empty">No entries of your own yet.</p>}
    {entries.length > 0 && <div className="leader-menu-rows">{entries.map((entry, index) => <div className="leader-menu-row" key={index}>
     <label>Key<input aria-label={`Key for entry ${index + 1}`} maxLength={7} value={entry.key} onChange={event => change(index, { key: event.target.value.trim() })}/></label>

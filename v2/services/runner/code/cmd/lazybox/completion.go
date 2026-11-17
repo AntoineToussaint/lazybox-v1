@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AntoineToussaint/lazybox/v2/internal/power"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 )
 
@@ -197,6 +198,14 @@ func (c *cli) complete(args []string) error {
 		return nil
 	case "shells":
 		c.out("zsh\nbash\nfish\n")
+		return nil
+	case "registry":
+		for _, a := range power.Registry().Actions {
+			c.out("%s\t%s\n", a.ID, oneLine(a.Title, 60))
+		}
+		return nil
+	case "configfiles":
+		c.out("keys\nsettings\nactions\nlayouts/\n")
 		return nil
 	}
 	cl, err := c.dial()

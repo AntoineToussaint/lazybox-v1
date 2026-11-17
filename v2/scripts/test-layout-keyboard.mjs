@@ -328,7 +328,9 @@ async function scenario(browser,scheme){
  await expect.poll(keymap).toBe('] ] i');
  await expect(composer).toBeEnabled();
 
- assert.equal(fixture.mutations.filter(m=>!['OpenTerminal','ResizeTerminal','WriteTerminal','OpenSession'].includes(m.method)).length,0,'arranging panels never starts or stops an agent (the one started from a + aside)');
+ // Saved keys are keys.yaml (POWER.md, "Config files"): saving them, the reset chord and its Undo write that file, nothing else.
+ assert.ok(fixture.mutations.filter(m=>m.method==='UpdateConfigFile').every(m=>m.body.name==='keys'),'only keys.yaml is written');
+ assert.equal(fixture.mutations.filter(m=>!['OpenTerminal','ResizeTerminal','WriteTerminal','OpenSession','UpdateConfigFile'].includes(m.method)).length,0,'arranging panels never starts or stops an agent (the one started from a + aside)');
  assert.deepEqual(errors,[]);
  await context.close();
 }

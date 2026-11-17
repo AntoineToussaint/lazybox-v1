@@ -7,6 +7,8 @@ export type UiRequestHandlers = {
   open(request: UiRequest): Promise<string>;
   shot(request: UiRequest): Promise<{ png: Uint8Array; detail: string }>;
   action(request: UiRequest): Promise<string>;
+  /** `lazybox do`: an action of the app's registry. */
+  do(request: UiRequest): Promise<string>;
 };
 
 /** How long a browser tab waits before it follows the CLI's requests (see below). */
@@ -16,7 +18,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 
 /**
  * Follows the requests the `lazybox` CLI addresses to this window — `lazybox
- * open`, `lazybox shot`, `lazybox actions run` — and answers each one. Only
+ * open`, `lazybox shot`, `lazybox actions run`, `lazybox do` — and answers each one. Only
  * the main workspace window follows them; the Runner prefers a desktop window
  * over a browser tab. The stream reconnects with backoff, so a restarted
  * Runner finds the window again. Returns whether the window is registered.
@@ -34,6 +36,7 @@ export function useUiRequests(enabled: boolean, surface: 'desktop' | 'web', hand
         if (request.kind === 'open') detail = await current.current.open(request);
         else if (request.kind === 'shot') ({ png, detail } = await current.current.shot(request));
         else if (request.kind === 'action') detail = await current.current.action(request);
+        else if (request.kind === 'do') detail = await current.current.do(request);
         else error = `This window does not know “${request.kind}” requests; update Lazybox`;
       } catch (e) { error = message(e); }
       try { await api.completeUiRequest({ id: request.id, error, detail, png }, { signal: control.signal, timeoutMs: 30_000 }); }

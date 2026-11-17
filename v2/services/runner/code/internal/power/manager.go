@@ -1,19 +1,28 @@
 package power
 
 import (
-	"crypto/sha256"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 //go:embed actions.schema.json
-var Schema string
+var schemaSource string
+
+// Schema is the actions file's JSON Schema, naming every action of the app a
+// do: step may run.
+var Schema = func() string {
+	ids, _ := json.Marshal(registry.ActionIDs())
+	const marker = `"appAction": { "type": "string", `
+	return strings.Replace(schemaSource, marker, marker+`"enum": `+string(ids)+`, `, 1)
+}()
 
 //go:embed starter.yaml
 var starter string
@@ -37,21 +46,19 @@ type Snapshot struct {
 
 // Manager keeps the actions file loaded and reloads it when it changes. A
 // version that does not load leaves the last good one in force, so a typo
-// mid-edit does not take a person's actions away.
+// mid-edit does not take a person's actions away. It is the config files'
+// loader (config.go) with change notification.
 type Manager struct {
-	path string
-	mu   sync.Mutex
-	snap Snapshot
-	// digest is the content last read; good the last file that loaded.
-	digest  [32]byte
-	read    bool
-	good    *File
+	path    string
+	mu      sync.Mutex
+	file    *loader[File]
+	snap    Snapshot
 	changed chan struct{}
 }
 
 // NewManager loads path (which need not exist).
 func NewManager(path string) *Manager {
-	m := &Manager{path: path, changed: make(chan struct{})}
+	m := &Manager{path: path, file: newLoader(path, Parse), changed: make(chan struct{})}
 	m.Reload()
 	return m
 }
@@ -78,36 +85,15 @@ func (m *Manager) Changed() <-chan struct{} {
 
 // Reload reads the file again and reports whether anything changed.
 func (m *Manager) Reload() (Snapshot, bool) {
-	data, err := readBounded(m.path)
-	// What was read: the content, or why nothing was.
-	digest := sha256.Sum256(data)
-	if err != nil {
-		digest = sha256.Sum256([]byte("\x00error\x00" + err.Error()))
-	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.read && digest == m.digest {
+	if !m.file.reload() {
 		return m.snap, false
 	}
-	m.read, m.digest = true, digest
-	exists := err == nil || !errors.Is(err, fs.ErrNotExist)
-	next := Snapshot{Path: m.path, Exists: exists, Revision: m.snap.Revision + 1, LoadedAt: time.Now()}
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		m.good = nil
-	case err != nil:
-		next.Err = "the file cannot be read: " + err.Error()
-	default:
-		file, issues, parseErr := Parse(data)
-		if parseErr != nil {
-			next.Err = parseErr.Error()
-		} else {
-			next.File, next.Issues = file, issues
-			m.good = &file
-		}
-	}
-	if next.Err != "" && m.good != nil {
-		next.File, next.Stale = *m.good, true
+	l := m.file.state
+	next := Snapshot{Path: m.path, Exists: l.Exists, Err: l.Err, Stale: l.Stale, File: l.Value, Revision: l.Revision, LoadedAt: l.LoadedAt}
+	if l.Err == "" {
+		next.Issues = l.Issues
 	}
 	m.snap = next
 	close(m.changed)

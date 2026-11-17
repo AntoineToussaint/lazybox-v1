@@ -16,6 +16,13 @@ const column = (sizes: number[], ...children: TemplateNode[]): TemplateNode => (
 /** Every preset's left column: Workspaces above Agents, both always in view. */
 const sidebar = column([1 - AGENTS_SHARE, AGENTS_SHARE], g('collections'), g('agents'));
 
+/**
+ * Every panel kind a layout may place, as PanelRegistry's `builtinPanels`
+ * declares them (scripts/action-manifest.test.ts keeps the two in step). The
+ * Runner checks layout files against it (actions.manifest.json).
+ */
+export const layoutPanelKinds = ['collections', 'agents', 'chat', 'console', 'terminal', 'assistant', 'changes', 'usage', 'sessions', 'missions', 'processes', 'actions', 'preview', 'web', 'browser', 'files', 'editor', 'artifacts'] as const;
+
 export const DEFAULT_PRESET = 'chat-focus';
 export const builtinPresets: readonly LayoutPreset[] = [
   { id: 'chat-focus', name: 'Chat focus', description: 'The conversation, with command output below when a command runs', layout: row([0.2, 0.8], sidebar, column([0.62, 0.38], g('chat'), { type: 'group', kinds: ['console'], minimized: true })) },
@@ -66,6 +73,11 @@ export function sameTemplate(a: TemplateNode | null, b: TemplateNode | null): bo
   return JSON.stringify(key(a)) === JSON.stringify(key(b));
 }
 
+/**
+ * Where layouts were saved before they were files (POWER.md, "Config files");
+ * the main window moves them into layouts/*.yaml once.
+ */
+export const SAVED_LAYOUTS_KEY = 'layout.saved:v1';
 // Saved layouts are a personal preference, shared by every workspace.
 const kindPattern = /^[a-z][a-z0-9-]{0,63}$/;
 function validTemplate(value: unknown, depth = 0): value is TemplateNode {

@@ -34,8 +34,10 @@ type powerState struct {
 	Actions *power.Manager
 	// Hooks runs the file's hooks on events.
 	Hooks *power.Dispatcher
-	// UI routes `lazybox open|shot|actions run` to an open window.
+	// UI routes `lazybox open|shot|actions run|do` to an open window.
 	UI *power.Broker
+	// Config is keys.yaml, settings.yaml and layouts/*.yaml beside the actions file.
+	Config *power.Config
 
 	credMu sync.Mutex
 	// hookCreds: the grants of each running hook that holds a credential.
@@ -57,6 +59,7 @@ func (b *Bench) openPower() {
 		path = filepath.Join(b.Config.State, "actions.yaml")
 	}
 	b.power.Actions = power.NewManager(path)
+	b.power.Config = power.NewConfig(filepath.Dir(path))
 	b.power.UI = power.NewBroker()
 	b.power.Hooks = power.NewDispatcher(b.power.Actions, b.launchHook)
 	b.power.hookCreds = map[string][]string{}
@@ -77,6 +80,7 @@ func (b *Bench) openPower() {
 				return
 			case <-ticker.C:
 				b.power.Actions.Reload()
+				b.power.Config.Reload()
 				b.ObserveHookEvents()
 			}
 		}
@@ -91,6 +95,9 @@ func (b *Bench) Hooks() *power.Dispatcher { return b.power.Hooks }
 
 // UI routes the CLI's requests to an open window.
 func (b *Bench) UI() *power.Broker { return b.power.UI }
+
+// ConfigFiles are the person's config files beside the actions file.
+func (b *Bench) ConfigFiles() *power.Config { return b.power.Config }
 
 // hookObserver turns state changes into events. Its first pass only records
 // what is already there: a Runner restart replays nothing.

@@ -3,14 +3,18 @@
 Lazybox is for power users: more integration, still customizable, without
 handing anyone's code the keys. herdr gets its power from unsandboxed
 JavaScript mods ([audit](audits/2026-11-16/herdr-gui.md#what-not-to-copy));
-Lazybox gets it from three declarative, scoped pieces:
+Lazybox gets it from declarative, scoped pieces:
 
 1. **The `lazybox` CLI can do what a person does in the app**, with the
-   owner's credential from their own terminal ([CLI reference](services/runner/code/cmd/lazybox/README.md)).
+   owner's credential from their own terminal ([CLI reference](services/runner/code/cmd/lazybox/README.md)),
+   and **`lazybox do` runs any action of the app** in the open window.
 2. **Actions**: named sequences of steps in one YAML file, offered in the app's
    menus and run with the owner's own rules.
 3. **Hooks**: programs, shell lines or webhooks the Runner starts on events,
    as managed commands, with no Runner credential unless granted one.
+4. **Everything else a person sets is a file too**: keys, layouts and
+   settings, hot-reloaded, written back by Settings with the comments kept
+   ([Config files](#config-files)).
 
 ## The file
 
@@ -80,6 +84,7 @@ and the result then reads "Done · a failure was handled":
 | `command` | `command: npm test` | the managed command exits 0 (refused in read-only conversations, as always) |
 | `permission` | `permission: ask \| read-only \| yolo` | the conversation accepts the change |
 | `wait` | `wait: idle \| needs-input` · `wait: {until, timeout}` | the state is reached in time |
+| `do` | `do: layout.maximize` · `do: {action: settings.open, argument: keyboard}`: any action of the app's registry (`lazybox do --list`), checked against it by line | the window can run it now |
 
 Actions run in the app, with the owner's authority and the same rules a click
 has: nothing in the file can do what the person could not. The built-in
@@ -145,18 +150,95 @@ own `LAZYBOX_V2_ENDPOINT` with a credential that:
 - reaches exactly what a [paired phone](REMOTE.md#what-a-device-may-call)
   with the same grants reaches, less `Info` — `read`: list and read
   conversations, workspaces, changes, commands; `respond`: send, steer,
-  answer, approve or decline, interrupt (never a permission change); `start`:
+  answer, approve or decline, interrupt (never a permission change), and
+  `lazybox do` of the actions marked safe; `start`:
   open or resume a conversation in an existing workspace;
 - is bound to that run and its grants (HMAC under the Runner's credential key),
   works only while the run is live, and is revoked with its endpoint file when
   the run ends;
 - never reaches settings, files, terminals, processes, devices, the actions
-  file, hook runs or the window requests (`TestHookCredentialReachesOnlyItsGrantsWhileItRuns`
+  and config files, hook runs or the window requests (but `do` of a safe
+  action, with `respond`) (`TestHookCredentialReachesOnlyItsGrantsWhileItRuns`
   walks every RPC).
+
+## One command plane: `lazybox do`
+
+The app's action registry (`packages/surfaces/src/actions.ts`: every command,
+its keys, where it can fire) is also a generated manifest the Runner and the
+CLI read, `internal/power/actions.manifest.json` (`npm run generate:manifest`;
+`npm run test:client` fails when it is stale). From it:
+
+- `lazybox do <action> [argument]` runs that action in the open window, as its
+  key or the palette would (`lazybox do layout.maximize`, `lazybox do
+  settings.open keyboard`, `--workspace`/`--conversation` show one first).
+  The window answers with what it did, or why it could not ("“Split the
+  active panel” is not available in the window right now"). `lazybox do
+  --list` prints the registry with default keys and arguments.
+- An action in `actions.yaml` may have a `do:` step (above), so one of your
+  actions can be "maximize Changes, then run the tests".
+- `keys.yaml`, `do:` steps and layout files are checked against it, by line,
+  with the closest id when one is mistyped.
+- **Hooks may run only actions marked `safe`** in the registry: those that
+  only show, focus or arrange (open the inbox, show changes, maximize, focus a
+  group, cycle layouts, activity detail…). Nothing that changes a setting,
+  starts, stops or deletes work, runs code or needs an approval. A hook needs
+  the `respond` grant; its credential reaches `PostUiRequest` for `do` alone
+  (no `open`, `shot` or user action) and `WaitUiRequest` for its own requests
+  (`internal/transport/hook_auth.go`, `TestHookMayDoOnlySafeActions`).
+
+## Config files
+
+Beside `actions.yaml`, in the same folder (`lazybox config path`):
+
+| File | Holds | Written by |
+|---|---|---|
+| `keys.yaml` | the preset, every changed binding (by section: `global`, `navigation`, `agent`), the `]]` menu, Vim editing | Settings → Shortcuts, the reset chord, Voice settings |
+| `settings.yaml` | notifications and sounds | Settings → Notifications |
+| `layouts/<name>.yaml` | one whole-window layout each | the Layout menu (save, rename, delete with Undo, import) |
+
+Field by field: [configuration reference](docs/reference/configuration.md#your-config-files-keys-settings-layouts).
+
+- **One loader** (`internal/power/config.go`), the actions file's
+  generalized: reread every second, a version that does not load keeps the
+  last good one in force (stale), every problem with its line. Keys are checked
+  as the app checks them (names, sequences, held keys, conflicts between
+  actions that fire from the same place, the reset chord no one may take); a
+  binding with a problem is left out and its action keeps its preset key.
+- **Schemas.** Each file names its JSON Schema in a `# yaml-language-server:`
+  header; `keys.schema.json`, `settings.schema.json` and `layout.schema.json`
+  are written beside them, built from the registry so an editor completes
+  every action id and panel.
+- **The app reads** them through `GetConfigFiles` (the parsed value as JSON,
+  issues, stale) every two seconds and when the window regains focus
+  (`useConfigFiles.ts`); the main window applies keys and notifications (the
+  view-state store stays the fast local copy every window starts from).
+- **The app writes** them through `UpdateConfigFile`: edits at paths, applied
+  to the YAML tree so comments stay, or a whole layout file. Nothing is written
+  when the result would not load or would add an error the file did not have;
+  the refusal names each problem. A file that does not load now is never
+  overwritten from the app.
+- **What a file leaves out is the default**, and a removed file puts the
+  defaults back. Shortcuts, notifications and saved layouts set before files
+  existed become their files once (the main window, `config-files:seen:v1`).
+- **Mistakes are reported where a person looks**: a toast with the first
+  problem and its line (once per change), a banner in the Settings section the
+  file belongs to, every file in Settings → Actions & hooks → *Config files*,
+  and broken layout files in the Layout menu.
+- **Never secrets.** Only preferences that hold no secret and need no approval
+  live in these files; credentials, subscriptions, devices and the Runner's own
+  settings stay owner-only in the app. `lazybox config export` leaves
+  `actions.yaml` out unless asked (`--actions`): its webhook headers may be
+  secrets.
+- **Layouts** are offered after the presets in the Layout menu (*Yours*), in
+  the palette, and by **⌘⇧L** (`layout.cycle`), which steps through the presets
+  and then the files. *Copy current layout as YAML* (and each tile's copy
+  button) puts the file's text on the clipboard; pasting layout YAML into ⌘K,
+  or *Import a layout…*, opens the import dialog: the Runner checks it, a
+  mistake is listed by line, and an imported layout is applied at once.
 
 ## The CLI and the open window
 
-`lazybox open`, `lazybox shot` and `lazybox actions run` ask the person's open
+`lazybox open`, `lazybox shot`, `lazybox actions run` and `lazybox do` ask the person's open
 window to act (`PostUiRequest` → `WatchUiRequests` → `CompleteUiRequest`,
 `internal/power/broker.go`). Only the main workspace window follows them; a
 desktop window is preferred over a browser tab, then the most recently opened.
@@ -208,7 +290,12 @@ step shipped here (`lazybox runners`, `lazybox ls --all`).
 
 - Go: `internal/power` (every step and hook form, faulty entries left out with
   their line, last good version kept on a broken save, Init never replacing,
-  hot reload, schema in step with the parser, dispatch filters, once per event,
+  hot reload, schema in step with the parser; config files: keys parsed and
+  checked by line with conflicts, presets and the reset chord, layouts and
+  settings, the last good version kept, layout files appearing and going,
+  edits keeping comments, a breaking edit refused with nothing written, the
+  layout the app writes read back; `do:` steps against the registry;
+  dispatch filters, once per event,
   rate and concurrency limits, the environment dropping Runner wiring and
   carrying titles uninterpreted, broker routing, timeouts and closed windows);
   `internal/transport` (hooks on needs-input and turn end as managed commands
@@ -216,15 +303,29 @@ step shipped here (`lazybox runners`, `lazybox ls --all`).
   each, webhook body/headers/log and failure, the hook credential walked over
   every RPC and revoked at the end, the actions RPCs, the window round trip;
   the agent, terminal and device allowlist tests cover every new RPC);
-  `cmd/lazybox` (every verb against a test Runner; see the CLI README).
-- UI: `scripts/user-actions.test.ts` (the executor) and `test:power-actions`
-  (Playwright against the fake Runner).
+  `cmd/lazybox` (every verb against a test Runner, `config` and `do`
+  included; see the CLI README); `internal/transport` also covers the config
+  RPCs, `do` requests and a hook running only safe actions.
+- UI: `scripts/user-actions.test.ts` (the executor, `do:` steps),
+  `scripts/config-files.test.ts` (keys and layouts to and from their files,
+  both platforms), `scripts/action-manifest.test.ts` (the manifest current,
+  what is safe, the panel kinds), `test:power-actions` and `test:config-files`
+  (Playwright against the fake Runner: a key changed in keys.yaml works within
+  two seconds, problems by line, Settings writing the files, `lazybox do`
+  driving the window, ⌘⇧L, a layout file appearing, copy and import).
 - Desktop: `capture.rs` region scaling and clipping (`cargo test`).
 
 **Known gaps:** `WatchEvents` does not put an accepted operation's kind on the
 wire, so `lazybox watch`/`debug` infer it (text → message, a request id → a
 response, otherwise "control"). `lazybox open FILE:LINE` needs a workspace
 (`--workspace`, the terminal's own, or the only one).
+
+**Config files, not verified end to end:** the browser test runs against an
+explicitly fake config store (`scripts/fixtures/config-fake.mjs`) that applies
+the app's edits the way the Runner would; the Runner's own parser and
+comment-keeping writer are covered by the Go tests, not driven from a browser.
+A comment on the line above a key the app removes (a binding set back to its
+default) goes with that key: yaml.v3 attaches it there.
 
 **Not verified:** a real WKWebView snapshot and window focus (no desktop app
 was run; `capture_window` is compiled and its geometry unit-tested only), a

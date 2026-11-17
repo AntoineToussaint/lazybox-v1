@@ -185,6 +185,8 @@ const (
 	RunnerService_WaitUiRequest_FullMethodName                = "/lazybox.bench.v1.RunnerService/WaitUiRequest"
 	RunnerService_WatchUiRequests_FullMethodName              = "/lazybox.bench.v1.RunnerService/WatchUiRequests"
 	RunnerService_CompleteUiRequest_FullMethodName            = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
+	RunnerService_GetConfigFiles_FullMethodName               = "/lazybox.bench.v1.RunnerService/GetConfigFiles"
+	RunnerService_UpdateConfigFile_FullMethodName             = "/lazybox.bench.v1.RunnerService/UpdateConfigFile"
 	RunnerService_ListWorkspaceRepositories_FullMethodName    = "/lazybox.bench.v1.RunnerService/ListWorkspaceRepositories"
 	RunnerService_RequestRepository_FullMethodName            = "/lazybox.bench.v1.RunnerService/RequestRepository"
 	RunnerService_WaitRepositoryRequest_FullMethodName        = "/lazybox.bench.v1.RunnerService/WaitRepositoryRequest"
@@ -536,6 +538,15 @@ type RunnerServiceClient interface {
 	WatchUiRequests(ctx context.Context, in *WatchUiRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[UiRequest], error)
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(ctx context.Context, in *CompleteUiRequestRequest, opts ...grpc.CallOption) (*UiRequest, error)
+	// Owner only. The person's config files beside the actions file (POWER.md,
+	// "Config files"): keys.yaml, settings.yaml and layouts/*.yaml as the
+	// Runner last loaded them, each with its problems by line. A file that does
+	// not load keeps its last good version in force, marked stale.
+	GetConfigFiles(ctx context.Context, in *GetConfigFilesRequest, opts ...grpc.CallOption) (*ConfigFiles, error)
+	// Owner only. Changes one config file: values at paths (comments kept), a
+	// whole new content (import), or removal (a layout). Nothing is written
+	// when the result would not load; the refusal names each problem by line.
+	UpdateConfigFile(ctx context.Context, in *UpdateConfigFileRequest, opts ...grpc.CallOption) (*ConfigFiles, error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -2277,6 +2288,26 @@ func (c *runnerServiceClient) CompleteUiRequest(ctx context.Context, in *Complet
 	return out, nil
 }
 
+func (c *runnerServiceClient) GetConfigFiles(ctx context.Context, in *GetConfigFilesRequest, opts ...grpc.CallOption) (*ConfigFiles, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfigFiles)
+	err := c.cc.Invoke(ctx, RunnerService_GetConfigFiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) UpdateConfigFile(ctx context.Context, in *UpdateConfigFileRequest, opts ...grpc.CallOption) (*ConfigFiles, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfigFiles)
+	err := c.cc.Invoke(ctx, RunnerService_UpdateConfigFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) ListWorkspaceRepositories(ctx context.Context, in *ListWorkspaceRepositoriesRequest, opts ...grpc.CallOption) (*WorkspaceRepositories, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkspaceRepositories)
@@ -2734,6 +2765,15 @@ type RunnerServiceServer interface {
 	WatchUiRequests(*WatchUiRequestsRequest, grpc.ServerStreamingServer[UiRequest]) error
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(context.Context, *CompleteUiRequestRequest) (*UiRequest, error)
+	// Owner only. The person's config files beside the actions file (POWER.md,
+	// "Config files"): keys.yaml, settings.yaml and layouts/*.yaml as the
+	// Runner last loaded them, each with its problems by line. A file that does
+	// not load keeps its last good version in force, marked stale.
+	GetConfigFiles(context.Context, *GetConfigFilesRequest) (*ConfigFiles, error)
+	// Owner only. Changes one config file: values at paths (comments kept), a
+	// whole new content (import), or removal (a layout). Nothing is written
+	// when the result would not load; the refusal names each problem by line.
+	UpdateConfigFile(context.Context, *UpdateConfigFileRequest) (*ConfigFiles, error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -3274,6 +3314,12 @@ func (UnimplementedRunnerServiceServer) WatchUiRequests(*WatchUiRequestsRequest,
 }
 func (UnimplementedRunnerServiceServer) CompleteUiRequest(context.Context, *CompleteUiRequestRequest) (*UiRequest, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteUiRequest not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetConfigFiles(context.Context, *GetConfigFilesRequest) (*ConfigFiles, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetConfigFiles not implemented")
+}
+func (UnimplementedRunnerServiceServer) UpdateConfigFile(context.Context, *UpdateConfigFileRequest) (*ConfigFiles, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateConfigFile not implemented")
 }
 func (UnimplementedRunnerServiceServer) ListWorkspaceRepositories(context.Context, *ListWorkspaceRepositoriesRequest) (*WorkspaceRepositories, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceRepositories not implemented")
@@ -6264,6 +6310,42 @@ func _RunnerService_CompleteUiRequest_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_GetConfigFiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetConfigFilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetConfigFiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetConfigFiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetConfigFiles(ctx, req.(*GetConfigFilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_UpdateConfigFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateConfigFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).UpdateConfigFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_UpdateConfigFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).UpdateConfigFile(ctx, req.(*UpdateConfigFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_ListWorkspaceRepositories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListWorkspaceRepositoriesRequest)
 	if err := dec(in); err != nil {
@@ -7101,6 +7183,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompleteUiRequest",
 			Handler:    _RunnerService_CompleteUiRequest_Handler,
+		},
+		{
+			MethodName: "GetConfigFiles",
+			Handler:    _RunnerService_GetConfigFiles_Handler,
+		},
+		{
+			MethodName: "UpdateConfigFile",
+			Handler:    _RunnerService_UpdateConfigFile_Handler,
 		},
 		{
 			MethodName: "ListWorkspaceRepositories",

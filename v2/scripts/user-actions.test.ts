@@ -22,6 +22,7 @@ function fake(outcomes: Record<string, StepOutcome | Error> = {}) {
     async runWorkspaceAction(collectionId, a) { calls.push(`run:${collectionId}:${a}`); return out(`run:${a}`); },
     async runCommand(sessionId, c) { calls.push(`command:${sessionId}:${c}`); return out(`command:${c}`); },
     async setPermission(sessionId, mode) { calls.push(`permission:${sessionId}:${mode}`); },
+    runAppAction(id, argument, t) { calls.push(`do:${id}:${argument}:${t.sessionId}`); return out(`do:${id}`); },
   };
   return { runtime, calls };
 }
@@ -34,6 +35,18 @@ test('steps run in order on the conversation in view', async () => {
   assert.equal(result.ok, true);
   assert.deepEqual(calls, ['send:current:hi:s1', 'panel:changes', 'permission:s1:yolo']);
   assert.deepEqual(result.states, ['succeeded', 'succeeded', 'succeeded']);
+});
+
+test('a do: step runs an action of the app, then the next step (R5: [do: changes.show, run: test])', async () => {
+  const { runtime, calls } = fake({ 'do:layout.cycle': { ok: false, detail: '“Next layout” is not available in the window right now' } });
+  const result = await run(action([{ kind: 'do', doAction: 'changes.show' }, { kind: 'run', action: 'test' }, { kind: 'do', doAction: 'settings.open', doArgument: 'keyboard' }]), runtime);
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ['do:changes.show::s1', 'run:alpha:test', 'do:settings.open:keyboard:s1']);
+  assert.equal(stepLabel(step({ kind: 'do', doAction: 'changes.show' })), 'Review changes');
+  assert.equal(stepLabel(step({ kind: 'do', doAction: 'settings.open', doArgument: 'keyboard' })), 'Open settings (keyboard)');
+  const refused = await run(action([{ kind: 'do', doAction: 'layout.cycle' }]), runtime);
+  assert.equal(refused.ok, false);
+  assert.match(refused.detail, /not available/);
 });
 
 test('a failure runs the when: failed branch and skips the succeeded one', async () => {

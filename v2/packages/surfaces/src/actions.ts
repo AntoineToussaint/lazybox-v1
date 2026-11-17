@@ -56,6 +56,15 @@ export type ActionDefinition = {
   fixed?: boolean;
   /** Held down, the key runs it again and again (resizing); other chords run once per press. */
   repeat?: boolean;
+  /**
+   * A hook may run it (`lazybox do` with a hook's `respond` credential,
+   * POWER.md): it only shows, focuses or arranges what is on screen. Nothing
+   * that changes a setting, starts or stops work, deletes, or needs an
+   * approval is safe.
+   */
+  safe?: boolean;
+  /** What the action's one argument is, when it takes one (`lazybox do ID ARG`, a `do:` step). */
+  argument?: string;
 };
 
 const workspaceSlots = Array.from({ length: 9 }, (_, i) => i + 1);
@@ -64,36 +73,36 @@ export type LayoutDirection = 'left' | 'right' | 'up' | 'down';
 export const layoutDirections: readonly LayoutDirection[] = ['left', 'right', 'up', 'down'];
 
 const head = [
-  { id: 'palette.open', title: 'Command palette', group: 'General', icon: 'search', keys: 'Mod+k or Mod+Shift+p or ] ] p', scope: 'global', palette: false, overDialogs: true, keywords: 'commands actions search run', menu: { section: 'Go', title: 'Command Palette…' } },
-  { id: 'shortcuts.open', title: 'Keyboard shortcuts', group: 'General', icon: 'keyboard', keys: '? or Mod+/ or ] ] ?', scope: 'global', overDialogs: true, keywords: 'keys keymap help cheatsheet bindings', menu: { section: 'Help', title: 'Keyboard Shortcuts' } },
-  { id: 'settings.open', title: 'Open settings', group: 'General', icon: 'sliders', keys: 'Mod+,', scope: 'global', keywords: 'preferences options configure' },
+  { id: 'palette.open', title: 'Command palette', group: 'General', icon: 'search', keys: 'Mod+k or Mod+Shift+p or ] ] p', scope: 'global', argument: 'text to search for', palette: false, overDialogs: true, keywords: 'commands actions search run', menu: { section: 'Go', title: 'Command Palette…' } },
+  { id: 'shortcuts.open', title: 'Keyboard shortcuts', group: 'General', icon: 'keyboard', keys: '? or Mod+/ or ] ] ?', scope: 'global', safe: true, overDialogs: true, keywords: 'keys keymap help cheatsheet bindings', menu: { section: 'Help', title: 'Keyboard Shortcuts' } },
+  { id: 'settings.open', title: 'Open settings', group: 'General', icon: 'sliders', keys: 'Mod+,', scope: 'global', argument: 'a section: appearance, chat, notifications, keyboard, power, …', keywords: 'preferences options configure' },
   { id: 'appearance.toggle', title: 'Switch between light and dark', group: 'General', icon: 'contrast', keys: '', scope: 'global', keywords: 'theme dark light mode appearance colour color' },
-  { id: 'inbox.open', title: 'Open the inbox', group: 'General', icon: 'inbox', keys: '] ] i', scope: 'global', keywords: 'attention notifications waiting', menu: { section: 'Go', title: 'Inbox' } },
-  { id: 'attention.next', title: 'Next conversation that needs you', group: 'Go to', icon: 'bell', keys: 'Mod+j or ] ] n', scope: 'global', keywords: 'agent waiting approval question failed review jump', menu: { section: 'Go', title: 'Next Conversation That Needs You', separatorBefore: true } },
-  { id: 'attention.previous', title: 'Previous conversation that needs you', group: 'Go to', icon: 'bell', keys: 'Mod+Shift+j', scope: 'global', keywords: 'agent waiting approval question failed review jump back', menu: { section: 'Go', title: 'Previous Conversation That Needs You' } },
-  { id: 'conversation.next', title: 'Next conversation in this workspace', group: 'Go to', icon: 'chevronRight', keys: 'Mod+]', scope: 'global', keywords: 'agent down', menu: { section: 'Go', title: 'Next Conversation' } },
-  { id: 'conversation.previous', title: 'Previous conversation in this workspace', group: 'Go to', icon: 'back', keys: 'Mod+[', scope: 'global', keywords: 'agent up', menu: { section: 'Go', title: 'Previous Conversation' } },
+  { id: 'inbox.open', title: 'Open the inbox', group: 'General', icon: 'inbox', keys: '] ] i', scope: 'global', safe: true, keywords: 'attention notifications waiting', menu: { section: 'Go', title: 'Inbox' } },
+  { id: 'attention.next', title: 'Next conversation that needs you', group: 'Go to', icon: 'bell', keys: 'Mod+j or ] ] n', scope: 'global', safe: true, keywords: 'agent waiting approval question failed review jump', menu: { section: 'Go', title: 'Next Conversation That Needs You', separatorBefore: true } },
+  { id: 'attention.previous', title: 'Previous conversation that needs you', group: 'Go to', icon: 'bell', keys: 'Mod+Shift+j', scope: 'global', safe: true, keywords: 'agent waiting approval question failed review jump back', menu: { section: 'Go', title: 'Previous Conversation That Needs You' } },
+  { id: 'conversation.next', title: 'Next conversation in this workspace', group: 'Go to', icon: 'chevronRight', keys: 'Mod+]', scope: 'global', safe: true, keywords: 'agent down', menu: { section: 'Go', title: 'Next Conversation' } },
+  { id: 'conversation.previous', title: 'Previous conversation in this workspace', group: 'Go to', icon: 'back', keys: 'Mod+[', scope: 'global', safe: true, keywords: 'agent up', menu: { section: 'Go', title: 'Previous Conversation' } },
 ] as const satisfies readonly ActionDefinition[];
 type Slot = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 const slotDefinitions = workspaceSlots.map((n): ActionDefinition & { id: `workspace.select.${Slot}` } => ({ id: `workspace.select.${n as Slot}`, title: `Go to workspace ${n}`, group: 'Go to', icon: 'collections', keys: `Mod+${n}`, scope: 'global', palette: false, series: 'workspace.select' }));
 const tail = [
-  { id: 'files.find', title: 'Go to file', group: 'Go to', icon: 'search', keys: '] ] f or Mod+p', scope: 'global', keywords: 'open file quick', menu: { section: 'Go', title: 'Go to File…', separatorBefore: true } },
+  { id: 'files.find', title: 'Go to file', group: 'Go to', icon: 'search', keys: '] ] f or Mod+p', scope: 'global', safe: true, keywords: 'open file quick', menu: { section: 'Go', title: 'Go to File…', separatorBefore: true } },
   { id: 'navigation.exit', title: 'Focus the sidebar', group: 'Go to', icon: 'sidebar', keys: '] ]', scope: 'global', required: true, keywords: 'leave agent navigation leader' },
   // One sheet: repositories, branch, agent, mode and the first message; Enter starts it all (NewTaskSheet.tsx).
   { id: 'task.new', title: 'New task', group: 'Workspace', icon: 'agent', keys: 'Mod+n', scope: 'global', overDialogs: true, keywords: 'new workspace conversation agent prompt start repository branch create begin work', menu: { section: 'File', title: 'New Task…' } },
   { id: 'workspace.new', title: 'New workspace', group: 'Workspace', icon: 'plus', keys: '] ] w', scope: 'global', keywords: 'create add repositories', menu: { section: 'File', title: 'New Workspace…' } },
   { id: 'conversation.new', title: 'New conversation', group: 'Workspace', icon: 'chat', keys: 'Mod+Shift+n or ] ] c', scope: 'global', keywords: 'start agent session chat in this workspace', menu: { section: 'File', title: 'New Conversation…' } },
-  { id: 'changes.show', title: 'Review changes', group: 'Workspace', icon: 'branch', keys: '] ] d', scope: 'global', keywords: 'diff git commit pull request' },
+  { id: 'changes.show', title: 'Review changes', group: 'Workspace', icon: 'branch', keys: '] ] d', scope: 'global', safe: true, keywords: 'diff git commit pull request' },
   // Another agent reviews the workspace's changes, read-only (ReviewActions.tsx).
   { id: 'review.codex', title: 'Review changes with Codex', group: 'Workspace', icon: 'review', keys: '', scope: 'global', keywords: 'agent cross review findings second opinion codex' },
   { id: 'review.claude', title: 'Review changes with Claude', group: 'Workspace', icon: 'review', keys: '', scope: 'global', keywords: 'agent cross review findings second opinion claude' },
-  { id: 'files.explorer', title: 'Browse files', group: 'Workspace', icon: 'folder', keys: '] ] e', scope: 'global', keywords: 'explorer tree' },
+  { id: 'files.explorer', title: 'Browse files', group: 'Workspace', icon: 'folder', keys: '] ] e', scope: 'global', safe: true, keywords: 'explorer tree' },
   { id: 'terminal.open', title: 'Open a terminal', group: 'Workspace', icon: 'terminal', keys: '', scope: 'global', keywords: 'shell console' },
   // The person's own terminal app at the workspace's folder (handoff.tsx); a browser copies the cd.
   { id: 'terminal.external', title: 'Open in Terminal', group: 'Workspace', icon: 'terminal', keys: '', scope: 'global', keywords: 'your own terminal app iterm ghostty wezterm warp cd folder worktree external shell lazybox run' },
-  { id: 'artifacts.open', title: 'Show artifacts', group: 'Workspace', icon: 'artifact', keys: '] ] a', scope: 'global', keywords: 'documents reports' },
+  { id: 'artifacts.open', title: 'Show artifacts', group: 'Workspace', icon: 'artifact', keys: '] ] a', scope: 'global', safe: true, keywords: 'documents reports' },
   { id: 'web.open', title: 'Open a web page', group: 'Workspace', icon: 'globe', keys: '] ] b', scope: 'global', keywords: 'browser web viewer url link site preview', menu: { section: 'File', title: 'New Web Panel' } },
-  { id: 'console.toggle', title: 'Show or hide command output', group: 'Workspace', icon: 'output', keys: '] ] o', scope: 'global', keywords: 'console close open log run tests' },
+  { id: 'console.toggle', title: 'Show or hide command output', group: 'Workspace', icon: 'output', keys: '] ] o', scope: 'global', safe: true, keywords: 'console close open log run tests' },
   { id: 'workspace.window', title: 'Open this workspace in a new window', group: 'Workspace', icon: 'external', keys: '', scope: 'global', keywords: 'detach' },
   { id: 'page.customize', title: 'Customize this page', group: 'Workspace', icon: 'pencil', keys: '', scope: 'global', keywords: 'layout panels edit arrange' },
   { id: 'layout.configure', title: 'Layout configuration', group: 'Workspace', icon: 'sliders', keys: '', scope: 'global', keywords: 'json import export' },
@@ -101,24 +110,28 @@ const tail = [
   { id: 'layout.split', title: 'Split the active panel', group: 'Layout', icon: 'split-right', keys: 'Mod+\\', scope: 'global', keywords: 'dock pane beside side by side' },
   { id: 'layout.split-down', title: 'Split the active panel down', group: 'Layout', icon: 'split-down', keys: '', scope: 'global', keywords: 'dock pane below stacked' },
   { id: 'layout.close', title: 'Close the active panel', group: 'Layout', icon: 'close', keys: 'Mod+w', scope: 'global', keywords: 'dock pane hide' },
-  { id: 'layout.maximize', title: 'Maximize or restore the active panel', group: 'Layout', icon: 'maximize', keys: 'Mod+Shift+m or ] ] m', scope: 'global', keywords: 'zoom dock pane full screen' },
-  { id: 'layout.next-group', title: 'Next panel group', group: 'Layout', icon: 'chevronRight', keys: 'Ctrl+Tab', scope: 'global', keywords: 'dock pane focus cycle' },
-  { id: 'layout.previous-group', title: 'Previous panel group', group: 'Layout', icon: 'back', keys: 'Ctrl+Shift+Tab', scope: 'global', keywords: 'dock pane focus cycle' },
+  { id: 'layout.maximize', title: 'Maximize or restore the active panel', group: 'Layout', icon: 'maximize', keys: 'Mod+Shift+m or ] ] m', scope: 'global', safe: true, keywords: 'zoom dock pane full screen' },
+  { id: 'layout.next-group', title: 'Next panel group', group: 'Layout', icon: 'chevronRight', keys: 'Ctrl+Tab', scope: 'global', safe: true, keywords: 'dock pane focus cycle' },
+  { id: 'layout.previous-group', title: 'Previous panel group', group: 'Layout', icon: 'back', keys: 'Ctrl+Shift+Tab', scope: 'global', safe: true, keywords: 'dock pane focus cycle' },
   { id: 'layout.float', title: 'Float the active panel over the page', group: 'Layout', icon: 'float', keys: '', scope: 'global', keywords: 'dock pane window overlay' },
   { id: 'layout.window', title: 'Open the active panel in a new window', group: 'Layout', icon: 'external', keys: '', scope: 'global', keywords: 'dock pane pop out detach second screen' },
   // Panels in windows of their own (a chat's window, a popped-out group): back where they came from.
   { id: 'window.put-back', title: 'Put back in main window', group: 'Layout', icon: 'put-back', keys: 'Mod+Shift+d', scope: 'global', keywords: 'dock attach reattach return window detached popout pop in bring back', menu: { section: 'Window', title: 'Put Back in Main Window' } },
   { id: 'window.put-all-back', title: 'Put all windows back', group: 'Layout', icon: 'put-back', keys: '', scope: 'global', keywords: 'dock attach reattach return windows detached popouts bring back every' },
-  { id: 'layout.minimize', title: 'Minimize or restore the active panel group', group: 'Layout', icon: 'minimize', keys: '', scope: 'global', keywords: 'dock pane collapse' },
-  { id: 'layout.panels', title: 'Show a panel…', group: 'Layout', icon: 'panels', keys: '', scope: 'global', keywords: 'dock add open reopen panel' },
-  { id: 'layout.presets', title: 'Change the layout…', group: 'Layout', icon: 'layout', keys: '', scope: 'global', keywords: 'dock preset arrangement save' },
+  { id: 'layout.minimize', title: 'Minimize or restore the active panel group', group: 'Layout', icon: 'minimize', keys: '', scope: 'global', safe: true, keywords: 'dock pane collapse' },
+  { id: 'layout.panels', title: 'Show a panel…', group: 'Layout', icon: 'panels', keys: '', scope: 'global', safe: true, keywords: 'dock add open reopen panel' },
+  { id: 'layout.presets', title: 'Change the layout…', group: 'Layout', icon: 'layout', keys: '', scope: 'global', safe: true, keywords: 'dock preset arrangement save' },
+  // Layouts as files (POWER.md, "Config files"): the presets, then the person's layouts/*.yaml.
+  { id: 'layout.cycle', title: 'Next layout', group: 'Layout', icon: 'layout', keys: 'Mod+Shift+l', scope: 'global', safe: true, keywords: 'dock preset arrangement cycle switch rotate' },
+  { id: 'layout.copy', title: 'Copy the layout as YAML', group: 'Layout', icon: 'copy', keys: '', scope: 'global', keywords: 'dock preset arrangement share export clipboard file yaml' },
+  { id: 'layout.import', title: 'Import a layout…', group: 'Layout', icon: 'download', keys: '', scope: 'global', keywords: 'dock preset arrangement share paste clipboard file yaml' },
   { id: 'layout.reset', title: 'Reset the layout to default', group: 'Layout', icon: 'refresh', keys: '', scope: 'global', keywords: 'dock preset chat focus' },
   // Panel groups from the keyboard (DockLayout, dock-keyboard.ts). A Mac's ⌘ and ⌃ are both Ctrl
   // elsewhere, so Windows and Linux get keys of their own (`otherKeys`); every one is rebindable.
-  { id: 'layout.focus-left', title: 'Focus the panel group to the left', group: 'Layout', icon: 'back', keys: 'Meta+Alt+ArrowLeft', otherKeys: 'Ctrl+Alt+ArrowLeft', scope: 'global', keywords: 'dock pane go navigate neighbour west' },
-  { id: 'layout.focus-right', title: 'Focus the panel group to the right', group: 'Layout', icon: 'chevronRight', keys: 'Meta+Alt+ArrowRight', otherKeys: 'Ctrl+Alt+ArrowRight', scope: 'global', keywords: 'dock pane go navigate neighbour east' },
-  { id: 'layout.focus-up', title: 'Focus the panel group above', group: 'Layout', icon: 'up', keys: 'Meta+Alt+ArrowUp', otherKeys: 'Ctrl+Alt+ArrowUp', scope: 'global', keywords: 'dock pane go navigate neighbour north' },
-  { id: 'layout.focus-down', title: 'Focus the panel group below', group: 'Layout', icon: 'chevron', keys: 'Meta+Alt+ArrowDown', otherKeys: 'Ctrl+Alt+ArrowDown', scope: 'global', keywords: 'dock pane go navigate neighbour south' },
+  { id: 'layout.focus-left', title: 'Focus the panel group to the left', group: 'Layout', icon: 'back', keys: 'Meta+Alt+ArrowLeft', otherKeys: 'Ctrl+Alt+ArrowLeft', scope: 'global', safe: true, keywords: 'dock pane go navigate neighbour west' },
+  { id: 'layout.focus-right', title: 'Focus the panel group to the right', group: 'Layout', icon: 'chevronRight', keys: 'Meta+Alt+ArrowRight', otherKeys: 'Ctrl+Alt+ArrowRight', scope: 'global', safe: true, keywords: 'dock pane go navigate neighbour east' },
+  { id: 'layout.focus-up', title: 'Focus the panel group above', group: 'Layout', icon: 'up', keys: 'Meta+Alt+ArrowUp', otherKeys: 'Ctrl+Alt+ArrowUp', scope: 'global', safe: true, keywords: 'dock pane go navigate neighbour north' },
+  { id: 'layout.focus-down', title: 'Focus the panel group below', group: 'Layout', icon: 'chevron', keys: 'Meta+Alt+ArrowDown', otherKeys: 'Ctrl+Alt+ArrowDown', scope: 'global', safe: true, keywords: 'dock pane go navigate neighbour south' },
   { id: 'layout.move-left', title: 'Move the active panel left', group: 'Layout', icon: 'dock-left', keys: 'Meta+Alt+Shift+ArrowLeft', otherKeys: 'Ctrl+Alt+Shift+ArrowLeft', scope: 'global', keywords: 'dock pane swap neighbour group tab' },
   { id: 'layout.move-right', title: 'Move the active panel right', group: 'Layout', icon: 'dock-right', keys: 'Meta+Alt+Shift+ArrowRight', otherKeys: 'Ctrl+Alt+Shift+ArrowRight', scope: 'global', keywords: 'dock pane swap neighbour group tab' },
   { id: 'layout.move-up', title: 'Move the active panel up', group: 'Layout', icon: 'dock-top', keys: 'Meta+Alt+Shift+ArrowUp', otherKeys: 'Ctrl+Alt+Shift+ArrowUp', scope: 'global', keywords: 'dock pane swap neighbour group tab' },
@@ -131,13 +144,13 @@ const tail = [
   // The escape hatch: one chord, which cannot be rebound, restores the default layout and keys (with Undo).
   { id: 'layout.reset-all', title: 'Reset the layout and shortcuts', group: 'Layout', icon: 'refresh', keys: 'Ctrl+Alt+Shift+Escape', scope: 'global', fixed: true, overDialogs: true, keywords: 'escape hatch panic restore default keymap keys bindings layout undo stuck' },
   { id: 'snippets.open', title: 'Open snippets', group: 'Conversation', icon: 'snippets', keys: '] ] s', scope: 'global', keywords: 'prompt template' },
-  { id: 'composer.focus', title: 'Focus the message box', group: 'Conversation', icon: 'chat', keys: '', scope: 'global', keywords: 'type write composer prompt' },
+  { id: 'composer.focus', title: 'Focus the message box', group: 'Conversation', icon: 'chat', keys: '', scope: 'global', safe: true, keywords: 'type write composer prompt' },
   // Activity detail of the conversation in front (activity-detail.ts).
-  { id: 'activity.cycle', title: 'Cycle activity detail', group: 'Conversation', icon: 'activity', keys: '] ] v', scope: 'global', keywords: 'quiet smart verbose tool calls commands steps noise collapse expand detail' },
-  { id: 'activity.quiet', title: 'Activity detail: Quiet', group: 'Conversation', icon: 'collapse', keys: '', scope: 'global', keywords: 'tool calls commands steps hide less noise minimal' },
-  { id: 'activity.smart', title: 'Activity detail: Smart', group: 'Conversation', icon: 'sparkle', keys: '', scope: 'global', keywords: 'tool calls commands steps summary group collapse' },
-  { id: 'activity.verbose', title: 'Activity detail: Verbose', group: 'Conversation', icon: 'expand', keys: '', scope: 'global', keywords: 'tool calls commands steps every line all full show' },
-  { id: 'activity.default', title: 'Activity detail: Use the default', group: 'Conversation', icon: 'refresh', keys: '', scope: 'global', keywords: 'tool calls commands reset settings' },
+  { id: 'activity.cycle', title: 'Cycle activity detail', group: 'Conversation', icon: 'activity', keys: '] ] v', scope: 'global', safe: true, keywords: 'quiet smart verbose tool calls commands steps noise collapse expand detail' },
+  { id: 'activity.quiet', title: 'Activity detail: Quiet', group: 'Conversation', icon: 'collapse', keys: '', scope: 'global', safe: true, keywords: 'tool calls commands steps hide less noise minimal' },
+  { id: 'activity.smart', title: 'Activity detail: Smart', group: 'Conversation', icon: 'sparkle', keys: '', scope: 'global', safe: true, keywords: 'tool calls commands steps summary group collapse' },
+  { id: 'activity.verbose', title: 'Activity detail: Verbose', group: 'Conversation', icon: 'expand', keys: '', scope: 'global', safe: true, keywords: 'tool calls commands steps every line all full show' },
+  { id: 'activity.default', title: 'Activity detail: Use the default', group: 'Conversation', icon: 'refresh', keys: '', scope: 'global', safe: true, keywords: 'tool calls commands reset settings' },
   // The agent's latest shell code block (code-runs.tsx).
   { id: 'code.run-last', title: 'Run the last command block', group: 'Conversation', icon: 'play', keys: '] ] r', scope: 'global', keywords: 'shell bash script execute code block agent ask' },
   { id: 'code.run-last-myself', title: 'Run the last command block myself…', group: 'Conversation', icon: 'terminal', keys: '', scope: 'global', keywords: 'shell bash script execute code block console yourself' },
@@ -149,13 +162,13 @@ const tail = [
   { id: 'chat.orchestrate', title: 'Let this conversation run agents…', group: 'Conversation', icon: 'subagent', keys: '', scope: 'global', keywords: '/orchestrate orchestrator spawn agents mission grant team' },
   { id: 'chat.compact', title: 'Compact the context', group: 'Conversation', icon: 'collapse', keys: '', scope: 'global', keywords: '/compact summarize tokens shrink' },
   { id: 'chat.clear', title: 'Start over in a new conversation', group: 'Conversation', icon: 'plus', keys: '', scope: 'global', keywords: '/clear reset fresh new keep' },
-  { id: 'chat.usage', title: 'Show context and token cost', group: 'Conversation', icon: 'activity', keys: '', scope: 'global', keywords: '/cost /context usage tokens window price' },
-  { id: 'chat.review', title: 'Open the review tray', group: 'Conversation', icon: 'eye', keys: '', scope: 'global', keywords: '/review comments diff changes' },
+  { id: 'chat.usage', title: 'Show context and token cost', group: 'Conversation', icon: 'activity', keys: '', scope: 'global', safe: true, keywords: '/cost /context usage tokens window price' },
+  { id: 'chat.review', title: 'Open the review tray', group: 'Conversation', icon: 'eye', keys: '', scope: 'global', safe: true, keywords: '/review comments diff changes' },
   { id: 'chat.artifact', title: 'Track the last reply as an artifact…', group: 'Conversation', icon: 'artifact', keys: '', scope: 'global', keywords: '/artifact document report save message' },
   { id: 'chat.stop', title: 'Interrupt the agent', group: 'Conversation', icon: 'stop', keys: '', scope: 'global', keywords: '/stop cancel abort halt' },
   { id: 'chat.rename', title: 'Rename the conversation…', group: 'Conversation', icon: 'pencil', keys: '', scope: 'global', keywords: '/rename title name' },
-  { id: 'missions.open', title: 'Show missions', group: 'Workspace', icon: 'target', keys: '', scope: 'global', palette: false, keywords: '/mission tasks goals orchestrate' },
-  { id: 'missions.page', title: 'Open the missions board', group: 'Workspace', icon: 'target', keys: '', scope: 'global', keywords: 'mission board timeline messages leases orchestrator agents plan' },
+  { id: 'missions.open', title: 'Show missions', group: 'Workspace', icon: 'target', keys: '', scope: 'global', safe: true, palette: false, keywords: '/mission tasks goals orchestrate' },
+  { id: 'missions.page', title: 'Open the missions board', group: 'Workspace', icon: 'target', keys: '', scope: 'global', safe: true, keywords: 'mission board timeline messages leases orchestrator agents plan' },
   // Voice (VOICE.md): dictation and spoken commands, held or toggled.
   { id: 'voice.dictate', title: 'Dictate', group: 'Voice', icon: 'mic', keys: 'Alt+Space', scope: 'global', hold: true, keywords: 'voice speech speak talk microphone dictation push to talk dictée micro parler' },
   { id: 'voice.command', title: 'Say a command', group: 'Voice', icon: 'mic', keys: 'Alt+Shift+Space', scope: 'global', hold: true, overDialogs: true, keywords: 'voice speech command palette speak talk microphone commande vocale' },
@@ -169,7 +182,7 @@ const tail = [
   { id: 'help.ask', title: 'Ask Lazybox', group: 'General', icon: 'chat', keys: '] ] h', scope: 'global', keywords: 'help assistant question how docs agent claude codex support', menu: { section: 'Help', title: 'Ask Lazybox…', separatorBefore: true } },
   { id: 'help.welcome', title: 'Welcome and getting started', group: 'General', icon: 'sparkle', keys: '', scope: 'global', overDialogs: true, keywords: 'onboarding first run start tour help', menu: { section: 'Help', title: 'Welcome to Lazybox' } },
   { id: 'help.whats-new', title: "What's new", group: 'General', icon: 'notes', keys: '', scope: 'global', overDialogs: true, keywords: 'release notes changelog update version help', menu: { section: 'Help', title: "What's New" } },
-  { id: 'help.docs', title: 'Documentation', group: 'General', icon: 'notes', keys: '', scope: 'global', keywords: 'docs manual guide help', menu: { section: 'Help', title: 'Lazybox Documentation' } },
+  { id: 'help.docs', title: 'Documentation', group: 'General', icon: 'notes', keys: '', scope: 'global', safe: true, keywords: 'docs manual guide help', menu: { section: 'Help', title: 'Lazybox Documentation' } },
   // Help → Send feedback (FeedbackDialog.tsx): a report the person reads, saves or posts; nothing is uploaded.
   { id: 'help.feedback', title: 'Send feedback', group: 'General', icon: 'chat', keys: '', scope: 'global', keywords: 'feedback bug report issue problem github support diagnostics', menu: { section: 'Help', title: 'Send Feedback…', separatorBefore: true } },
   // Settings → Updates: check now, What's new, install when it suits.

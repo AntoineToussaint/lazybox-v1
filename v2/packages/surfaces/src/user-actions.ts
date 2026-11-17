@@ -1,4 +1,5 @@
 import type { UserAction, UserActionStep } from '@lazybox/protocol';
+import { actionDefinition } from './actions';
 
 /**
  * The person's own actions (POWER.md): named steps from their actions file,
@@ -31,6 +32,8 @@ export type ActionRuntime = {
   runWorkspaceAction(collectionId: string, action: string, timeoutMs: number, signal: AbortSignal): Promise<StepOutcome>;
   runCommand(sessionId: string, command: string, timeoutMs: number, signal: AbortSignal): Promise<StepOutcome>;
   setPermission(sessionId: string, mode: string, signal: AbortSignal): Promise<void>;
+  /** Runs an action of the app's registry (a `do:` step, `lazybox do`), as its key or the palette would. */
+  runAppAction(id: string, argument: string, target: ActionTarget): StepOutcome | Promise<StepOutcome>;
 };
 
 export type StepState = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
@@ -50,6 +53,7 @@ export function stepLabel(step: UserActionStep): string {
     case 'command': return `Run \`${clip(step.command, 40)}\``;
     case 'permission': return `Set permission to ${step.permission}`;
     case 'wait': return step.until === 'needs-input' ? 'Wait until the agent needs input' : 'Wait until the agent is idle';
+    case 'do': return `${actionDefinition(step.doAction)?.title || step.doAction}${step.doArgument ? ` (${clip(step.doArgument, 30)})` : ''}`;
   }
   return step.kind;
 }
@@ -146,6 +150,8 @@ async function runStep(step: UserActionStep, runtime: ActionRuntime, target: Act
     case 'wait':
       if (!target.sessionId) return { ok: false, detail: 'Open a conversation first' };
       return runtime.wait(target.sessionId, step.until === 'needs-input' ? 'needs-input' : 'idle', timeoutOf(step), signal);
+    case 'do':
+      return runtime.runAppAction(step.doAction, step.doArgument, target);
   }
   return { ok: false, detail: `This Lazybox does not know the step “${step.kind}”` };
 }

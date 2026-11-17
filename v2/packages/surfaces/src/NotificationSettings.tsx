@@ -6,6 +6,8 @@ import './inbox.css';
 import { Icon } from './Icons';
 import { SettingsGroup, SettingsHeader } from './settings-parts';
 import { playAlert, storeSoundFile, SYSTEM_SOUNDS, systemSoundsAvailable, useSoundSettings, type AlertSound, type SoundSettings, type SoundSource } from './sounds';
+import { ConfigFileStatus } from './ConfigFileStatus';
+import { writeConfig } from './config-writer';
 
 export const notificationOptions: { key: keyof NotificationPreferences; label: string; detail: string }[] = [
   { key: 'needsInput', label: 'Needs input', detail: 'An agent asks a question or waits for an approval.' },
@@ -21,7 +23,9 @@ const sounds: { key: 'soundNeedsYou' | 'soundDone'; sound: AlertSound; label: st
 /** Settings → Notifications. Preferences are shared by every window of this Runner. */
 export function NotificationSettings() {
   const host = useAttentionHost();
-  const [preferences, save] = useNotificationPreferences();
+  const [preferences, keep] = useNotificationPreferences();
+  // Every change is also written to settings.yaml (POWER.md, "Config files").
+  const save = (next: NotificationPreferences) => { keep(next); void writeConfig({ file: 'settings', notifications: next }); };
   const [permission, setPermission] = useState<NotificationPermission>();
   const [status, setStatus] = useState('');
   useEffect(() => { void host?.notificationPermission?.().then(setPermission).catch(() => setPermission('unsupported')); }, [host]);
@@ -34,6 +38,7 @@ export function NotificationSettings() {
   };
   return <section className="notification-settings" aria-labelledby="notification-settings-title">
     <SettingsHeader id="notification-settings-title" title="Notifications" description="Lazybox tells you when a conversation you are not looking at needs you: a small toast while Lazybox is in front, a system notification when it is not. Every conversation, notified or not, is in the Inbox."/>
+    <ConfigFileStatus name="settings" what="These settings"/>
     {!supported && <p className="settings-error tone-note" role="note">This window does not send notifications; the main Lazybox window does.</p>}
     {permission === 'denied' && <p className="settings-error" role="alert">Notifications are blocked for this site. Allow them in your browser’s site settings, then come back.</p>}
     {permission === 'default' && host?.requestNotificationPermission && <p className="settings-error tone-note">Your browser asks before showing notifications. <button onClick={() => void host.requestNotificationPermission!().then(setPermission)}>Allow notifications</button></p>}

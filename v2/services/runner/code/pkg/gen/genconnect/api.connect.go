@@ -523,6 +523,12 @@ const (
 	// RunnerServiceCompleteUiRequestProcedure is the fully-qualified name of the RunnerService's
 	// CompleteUiRequest RPC.
 	RunnerServiceCompleteUiRequestProcedure = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
+	// RunnerServiceGetConfigFilesProcedure is the fully-qualified name of the RunnerService's
+	// GetConfigFiles RPC.
+	RunnerServiceGetConfigFilesProcedure = "/lazybox.bench.v1.RunnerService/GetConfigFiles"
+	// RunnerServiceUpdateConfigFileProcedure is the fully-qualified name of the RunnerService's
+	// UpdateConfigFile RPC.
+	RunnerServiceUpdateConfigFileProcedure = "/lazybox.bench.v1.RunnerService/UpdateConfigFile"
 	// RunnerServiceListWorkspaceRepositoriesProcedure is the fully-qualified name of the
 	// RunnerService's ListWorkspaceRepositories RPC.
 	RunnerServiceListWorkspaceRepositoriesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceRepositories"
@@ -894,6 +900,15 @@ type RunnerServiceClient interface {
 	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest]) (*connect.ServerStreamForClient[gen.UiRequest], error)
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. The person's config files beside the actions file (POWER.md,
+	// "Config files"): keys.yaml, settings.yaml and layouts/*.yaml as the
+	// Runner last loaded them, each with its problems by line. A file that does
+	// not load keeps its last good version in force, marked stale.
+	GetConfigFiles(context.Context, *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Changes one config file: values at paths (comments kept), a
+	// whole new content (import), or removal (a layout). Nothing is written
+	// when the result would not load; the refusal names each problem by line.
+	UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -1933,6 +1948,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
 			connect.WithClientOptions(opts...),
 		),
+		getConfigFiles: connect.NewClient[gen.GetConfigFilesRequest, gen.ConfigFiles](
+			httpClient,
+			baseURL+RunnerServiceGetConfigFilesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetConfigFiles")),
+			connect.WithClientOptions(opts...),
+		),
+		updateConfigFile: connect.NewClient[gen.UpdateConfigFileRequest, gen.ConfigFiles](
+			httpClient,
+			baseURL+RunnerServiceUpdateConfigFileProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateConfigFile")),
+			connect.WithClientOptions(opts...),
+		),
 		listWorkspaceRepositories: connect.NewClient[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories](
 			httpClient,
 			baseURL+RunnerServiceListWorkspaceRepositoriesProcedure,
@@ -2169,6 +2196,8 @@ type runnerServiceClient struct {
 	waitUiRequest                *connect.Client[gen.WaitUiRequestRequest, gen.UiRequest]
 	watchUiRequests              *connect.Client[gen.WatchUiRequestsRequest, gen.UiRequest]
 	completeUiRequest            *connect.Client[gen.CompleteUiRequestRequest, gen.UiRequest]
+	getConfigFiles               *connect.Client[gen.GetConfigFilesRequest, gen.ConfigFiles]
+	updateConfigFile             *connect.Client[gen.UpdateConfigFileRequest, gen.ConfigFiles]
 	listWorkspaceRepositories    *connect.Client[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories]
 	requestRepository            *connect.Client[gen.RequestRepositoryRequest, gen.RepositoryRequest]
 	waitRepositoryRequest        *connect.Client[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest]
@@ -3007,6 +3036,16 @@ func (c *runnerServiceClient) CompleteUiRequest(ctx context.Context, req *connec
 	return c.completeUiRequest.CallUnary(ctx, req)
 }
 
+// GetConfigFiles calls lazybox.bench.v1.RunnerService.GetConfigFiles.
+func (c *runnerServiceClient) GetConfigFiles(ctx context.Context, req *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return c.getConfigFiles.CallUnary(ctx, req)
+}
+
+// UpdateConfigFile calls lazybox.bench.v1.RunnerService.UpdateConfigFile.
+func (c *runnerServiceClient) UpdateConfigFile(ctx context.Context, req *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return c.updateConfigFile.CallUnary(ctx, req)
+}
+
 // ListWorkspaceRepositories calls lazybox.bench.v1.RunnerService.ListWorkspaceRepositories.
 func (c *runnerServiceClient) ListWorkspaceRepositories(ctx context.Context, req *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {
 	return c.listWorkspaceRepositories.CallUnary(ctx, req)
@@ -3398,6 +3437,15 @@ type RunnerServiceHandler interface {
 	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest], *connect.ServerStream[gen.UiRequest]) error
 	// …and answers each one, with a screenshot's PNG when one was asked for.
 	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. The person's config files beside the actions file (POWER.md,
+	// "Config files"): keys.yaml, settings.yaml and layouts/*.yaml as the
+	// Runner last loaded them, each with its problems by line. A file that does
+	// not load keeps its last good version in force, marked stale.
+	GetConfigFiles(context.Context, *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Changes one config file: values at paths (comments kept), a
+	// whole new content (import), or removal (a layout). Nothing is written
+	// when the result would not load; the refusal names each problem by line.
+	UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error)
 	// Agents ask for a repository instead of reaching outside their workspace
 	// (WORKSPACES.md, "When an agent needs another repository"). An agent
 	// credential may list its own execution's workspace repositories, ask to
@@ -4433,6 +4481,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceGetConfigFilesHandler := connect.NewUnaryHandler(
+		RunnerServiceGetConfigFilesProcedure,
+		svc.GetConfigFiles,
+		connect.WithSchema(runnerServiceMethods.ByName("GetConfigFiles")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateConfigFileHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateConfigFileProcedure,
+		svc.UpdateConfigFile,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateConfigFile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListWorkspaceRepositoriesHandler := connect.NewUnaryHandler(
 		RunnerServiceListWorkspaceRepositoriesProcedure,
 		svc.ListWorkspaceRepositories,
@@ -4831,6 +4891,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceWatchUiRequestsHandler.ServeHTTP(w, r)
 		case RunnerServiceCompleteUiRequestProcedure:
 			runnerServiceCompleteUiRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceGetConfigFilesProcedure:
+			runnerServiceGetConfigFilesHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateConfigFileProcedure:
+			runnerServiceUpdateConfigFileHandler.ServeHTTP(w, r)
 		case RunnerServiceListWorkspaceRepositoriesProcedure:
 			runnerServiceListWorkspaceRepositoriesHandler.ServeHTTP(w, r)
 		case RunnerServiceRequestRepositoryProcedure:
@@ -5520,6 +5584,14 @@ func (UnimplementedRunnerServiceHandler) WatchUiRequests(context.Context, *conne
 
 func (UnimplementedRunnerServiceHandler) CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CompleteUiRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetConfigFiles(context.Context, *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetConfigFiles is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateConfigFile is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {

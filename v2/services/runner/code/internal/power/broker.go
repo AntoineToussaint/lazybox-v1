@@ -15,6 +15,8 @@ const (
 	UIOpen   = "open"
 	UIShot   = "shot"
 	UIAction = "action"
+	// UIDo runs an action of the app's registry (`lazybox do`).
+	UIDo = "do"
 )
 
 // UI request states.
@@ -30,11 +32,15 @@ type UIRequest struct {
 	CollectionID, SessionID, File string
 	Line                          int
 	Panel, ActionID               string
-	State, Error, Detail          string
-	PNG                           []byte
-	Created                       time.Time
-	watcher                       int
-	done                          chan struct{}
+	// Argument is a do request's argument.
+	Argument string
+	// Poster is the hook run that posted it ("" for the owner): only it may wait on it.
+	Poster               string
+	State, Error, Detail string
+	PNG                  []byte
+	Created              time.Time
+	watcher              int
+	done                 chan struct{}
 }
 
 // ErrNoWindow refuses a request no window can take.
@@ -95,8 +101,8 @@ func (b *Broker) Windows() int {
 
 // Post sends a request to the window in front.
 func (b *Broker) Post(r UIRequest) (UIRequest, error) {
-	if !slices.Contains([]string{UIOpen, UIShot, UIAction}, r.Kind) {
-		return UIRequest{}, errors.New("unknown request: open, shot or action")
+	if !slices.Contains([]string{UIOpen, UIShot, UIAction, UIDo}, r.Kind) {
+		return UIRequest{}, errors.New("unknown request: open, shot, action or do")
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -160,11 +166,12 @@ func (b *Broker) finishLocked(r *UIRequest, failure, detail string, png []byte) 
 }
 
 // Wait returns the request's outcome, or its pending state at the timeout.
-func (b *Broker) Wait(ctx context.Context, id string, timeout time.Duration) (UIRequest, error) {
+// poster is the hook run asking ("" for the owner): a hook waits only on what it posted.
+func (b *Broker) Wait(ctx context.Context, id, poster string, timeout time.Duration) (UIRequest, error) {
 	b.mu.Lock()
 	r, ok := b.requests[id]
 	b.mu.Unlock()
-	if !ok {
+	if !ok || (poster != "" && r.Poster != poster) {
 		return UIRequest{}, errors.New("no such request")
 	}
 	timer := time.NewTimer(timeout)

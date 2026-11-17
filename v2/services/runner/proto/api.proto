@@ -338,6 +338,15 @@ service RunnerService {
   rpc WatchUiRequests(WatchUiRequestsRequest) returns (stream UiRequest);
   // …and answers each one, with a screenshot's PNG when one was asked for.
   rpc CompleteUiRequest(CompleteUiRequestRequest) returns (UiRequest);
+  // Owner only. The person's config files beside the actions file (POWER.md,
+  // "Config files"): keys.yaml, settings.yaml and layouts/*.yaml as the
+  // Runner last loaded them, each with its problems by line. A file that does
+  // not load keeps its last good version in force, marked stale.
+  rpc GetConfigFiles(GetConfigFilesRequest) returns (ConfigFiles);
+  // Owner only. Changes one config file: values at paths (comments kept), a
+  // whole new content (import), or removal (a layout). Nothing is written
+  // when the result would not load; the refusal names each problem by line.
+  rpc UpdateConfigFile(UpdateConfigFileRequest) returns (ConfigFiles);
   // Agents ask for a repository instead of reaching outside their workspace
   // (WORKSPACES.md, "When an agent needs another repository"). An agent
   // credential may list its own execution's workspace repositories, ask to
@@ -2852,6 +2861,48 @@ message UserActions {
   // because the current one does not load.
   bool stale = 12;
 }
+message GetConfigFilesRequest {}
+message ConfigFiles {
+  // The folder holding them (the actions file's).
+  string directory = 1;
+  repeated ConfigFile files = 2;
+  // Increases whenever any of them changes.
+  uint64 revision = 3;
+}
+message ConfigFile {
+  // keys, settings, or layouts/<id>.
+  string name = 1;
+  // keys, settings or layout.
+  string kind = 2;
+  string path = 3;
+  bool exists = 4;
+  // The file as a whole does not load; json is then its last good version
+  // (stale), if any.
+  string error = 5;
+  bool stale = 6;
+  repeated UserActionIssue issues = 7;
+  // What the file declares, as JSON (POWER.md documents each shape).
+  string json = 8;
+  uint64 revision = 9;
+  int64 loaded_at_unix_millis = 10;
+  // The JSON Schema the file's yaml-language-server header names.
+  string schema_path = 11;
+}
+message ConfigEdit {
+  // The keys from the top of the file: ["notifications", "needs-input"].
+  repeated string path = 1;
+  // The new value as JSON; empty removes the key.
+  string json = 2;
+}
+message UpdateConfigFileRequest {
+  // keys, settings, or layouts/<id>.
+  string name = 1;
+  repeated ConfigEdit edits = 2;
+  // The whole file instead of edits (an import); validated first.
+  string content = 3;
+  // Removes the file (layouts only).
+  bool remove = 4;
+}
 message UserActionIssue {
   // Where in the file: "actions[2].steps[0]", say.
   string path = 1;
@@ -2901,6 +2952,9 @@ message UserActionStep {
   // wait: idle or needs-input.
   string until = 15;
   uint32 timeout_seconds = 16;
+  // do: an action of the app's registry (`lazybox do --list`), and its argument.
+  string do_action = 17;
+  string do_argument = 18;
 }
 message UserHook {
   string id = 1;
@@ -2948,7 +3002,8 @@ message HookRun {
 message TestHookRequest { string hook_id = 1; }
 message UiRequest {
   string id = 1;
-  // open, shot or action.
+  // open, shot, action (a user action) or do (an action of the app's
+  // registry, `lazybox do`; a hook may ask only for one marked safe).
   string kind = 2;
   // open and action: a workspace, a conversation, or a workspace file and line.
   string collection_id = 3;
@@ -2957,7 +3012,7 @@ message UiRequest {
   uint32 line = 6;
   // shot: empty for the window, or a panel kind; open: a panel to show.
   string panel = 7;
-  // action: the user action's id.
+  // action: the user action's id; do: the registry action's id.
   string action_id = 8;
   // pending, done or failed.
   string state = 9;
@@ -2967,6 +3022,9 @@ message UiRequest {
   // What the window did, in one line ("Showed Alpha feature · fix the tests").
   string detail = 12;
   int64 created_at_unix_millis = 13;
+  // do: the action's argument, when it takes one (a settings section, a
+  // palette query).
+  string argument = 14;
 }
 message WaitUiRequestRequest {
   string id = 1;

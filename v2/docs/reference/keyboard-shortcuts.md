@@ -11,6 +11,10 @@ below are its **defaults**; the in-app overlay (`?`) always shows *your* keys.
   `h j k l`, the default), **Ctrl+b** (a tmux-style prefix with arrows) or
   **Arrows** — then edit any binding. The Ctrl+b preset replaces every `]]`
   below with `Ctrl+b`.
+- **Or edit the file.** Your keys are
+  [`keys.yaml`](configuration.md#keysyaml-your-shortcuts) beside your actions
+  file: Settings writes it (keeping your comments), and a save in your editor
+  applies within two seconds. `lazybox do --list` prints every action id.
 - **Forgot a key?** `⌘K` opens the command palette: every action is there by
   name, with its key beside it. An action with no key (—) runs from the palette.
 - **`]]` is the leader.** From the message box, `]]` leaves typing and shows a
@@ -100,6 +104,9 @@ Act on the active panel group: the one you last clicked or focused, ringed while
 | Minimize or restore the active panel group | — | — |
 | Show a panel… | — | — |
 | Change the layout… | — | — |
+| Next layout | `⇧⌘L` | `Ctrl+Shift+L` |
+| Copy the layout as YAML | — | — |
+| Import a layout… | — | — |
 | Reset the layout to default | — | — |
 | Focus the panel group to the left | `⌥⌘←` | `Ctrl+Alt+←` |
 | Focus the panel group to the right | `⌥⌘→` | `Ctrl+Alt+→` |

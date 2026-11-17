@@ -9,6 +9,8 @@ export type ActionNavigation = {
   openPanel(kind: string, target: ActionTarget): void;
   openFile(target: ActionTarget, path: string, line: number): void;
   showSession(target: ActionTarget): void;
+  /** Runs an action of the app's registry in this window (PowerLayer). */
+  runAppAction(id: string, argument: string, target: ActionTarget): StepOutcome | Promise<StepOutcome>;
 };
 
 const sleep = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
@@ -103,6 +105,7 @@ export function actionRuntime(api: RunnerClient, navigation: ActionNavigation, s
       }
     },
     openPanel: (kind, target) => navigation.openPanel(kind, target),
+    runAppAction: (id, argument, target) => navigation.runAppAction(id, argument, target),
     openUrl: url => { window.open(url, '_blank', 'noopener'); },
     openFile: (target, path, line) => navigation.openFile(target, path, line),
     async runWorkspaceAction(collectionId, reference, timeoutMs, signal) {

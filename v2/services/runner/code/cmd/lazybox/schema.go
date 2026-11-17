@@ -24,6 +24,9 @@ var schemas = []schemaFile{
 	{"actions", power.SchemaName, "~/.config/lazybox/actions.yaml: your actions and hooks", "written beside actions.yaml by `lazybox actions init`", func() []byte { return []byte(power.Schema) }},
 	{"process", process.SchemaFile, ".lazybox/process.yaml: how a mission runs", "process files name it as `# yaml-language-server: $schema=process.schema.json`; write it beside them", process.Schema},
 	{"workspace", "workspace.schema.json", ".lazybox/workspace.yaml: a workspace's scripts and services", "`# yaml-language-server: $schema=workspace.schema.json` beside the file", func() []byte { return workspaceruntime.Schema }},
+	{"keys", power.SchemaFile(power.KindKeys), "~/.config/lazybox/keys.yaml: your shortcuts, ]] menu and Vim editing", "written beside keys.yaml by the app and `lazybox config`", func() []byte { return []byte(power.SchemaFor(power.KindKeys)) }},
+	{"settings", power.SchemaFile(power.KindSettings), "~/.config/lazybox/settings.yaml: notifications and sounds", "written beside settings.yaml by the app and `lazybox config`", func() []byte { return []byte(power.SchemaFor(power.KindSettings)) }},
+	{"layout", power.SchemaFile(power.KindLayout), "~/.config/lazybox/layouts/*.yaml: one whole-window layout each", "written beside layouts/ by the app and `lazybox config`", func() []byte { return []byte(power.SchemaFor(power.KindLayout)) }},
 	{"theme", "theme.schema.json", "a theme in the Runner's themes folder (Settings → Appearance)", "`\"$schema\": \"./theme.schema.json\"` in JSON, `#:schema ./theme.schema.json` in TOML", func() []byte { return themes.Schema }},
 }
 

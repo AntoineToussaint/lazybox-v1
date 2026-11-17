@@ -11,6 +11,8 @@ import { userCommands, userMenuItems, useUserCommands, type UserCommand } from '
 import { useContextMenuContribution, type MenuItem } from './ContextMenu';
 import { useUserActionsFile } from './useUserActions';
 import { panelRect, useUiRequests } from './useUiRequests';
+import { useConfigFilesBridge } from './useConfigFiles';
+import { actionDefinition, actionEnabled, runAction } from './actions';
 import './power.css';
 
 /** The ]] key that opens the "Run an action…" picker. */
@@ -50,6 +52,28 @@ export function PowerLayer(props: PowerLayerProps) {
   const [picker, setPicker] = useState(false);
   const live = useRef(props); live.current = props;
   const pending = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // keys.yaml, settings.yaml and layouts/: read here, applied by the main window.
+  useConfigFilesBridge(props.primary, props.viewState);
+
+  /**
+   * Runs an action of the app's registry, as its key or the palette would:
+   * in the workspace and conversation given (shown first), with its argument.
+   */
+  const runAppAction = async (id: string, argument: string, target?: ActionTarget): Promise<string> => {
+    const definition = actionDefinition(id);
+    if (!definition) throw new Error(`The app has no action ${id}; lazybox do --list lists them`);
+    const p = live.current, here = p.selection;
+    if (target && ((target.collectionId && target.collectionId !== here.collectionId) || (target.sessionId && target.sessionId !== here.sessionId))) {
+      if (target.sessionId) p.onShowSession(target); else p.onSelect(target);
+      // Let the new workspace mount, so its handlers are the ones that run.
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    if (!actionEnabled(id) && !id.startsWith('navigation.')) throw new Error(`“${definition.title}” is not available in the window right now`);
+    runAction(id, argument || undefined, 'other');
+    await p.host?.focusWindow?.().catch(() => undefined);
+    return `Ran “${definition.title}”${argument ? ` (${argument})` : ''}`;
+  };
+  const runAppActionRef = useRef(runAppAction); runAppActionRef.current = runAppAction;
 
   const navigation: ActionNavigation = useMemo(() => ({
     showSession: target => live.current.onShowSession(target),
@@ -59,6 +83,10 @@ export function PowerLayer(props: PowerLayerProps) {
       else if (kind === 'inbox') invokeAction('inbox.open');
       else if (kind === 'chat') { if (target.sessionId) p.onShowSession(target); }
       else p.onShowPanel(kind, target);
+    },
+    runAppAction: async (id, argument, target) => {
+      try { return { ok: true, detail: await runAppActionRef.current(id, argument, target) }; }
+      catch (error) { return { ok: false, detail: error instanceof Error ? error.message : String(error) }; }
     },
     openFile: (target, path, line) => {
       const p = live.current;
@@ -112,7 +140,7 @@ export function PowerLayer(props: PowerLayerProps) {
     return () => window.removeEventListener('lazybox-run-action', open);
   }, []);
 
-  // The CLI's requests: `lazybox open`, `lazybox shot`, `lazybox actions run`.
+  // The CLI's requests: `lazybox open`, `lazybox shot`, `lazybox actions run`, `lazybox do`.
   const surface = props.host?.captureWindow ? 'desktop' : 'web';
   useUiRequests(props.primary, surface, {
     open: async (request: UiRequest) => {
@@ -146,6 +174,7 @@ export function PowerLayer(props: PowerLayerProps) {
       if (!result.ok) throw new Error(result.cancelled ? 'Cancelled in the window' : `Failed at step ${(result.failedStep ?? 0) + 1}: ${result.detail}`);
       return `Ran “${action.title}”`;
     },
+    do: async (request: UiRequest) => runAppAction(request.actionId, request.argument, request.collectionId || request.sessionId ? { collectionId: request.collectionId, sessionId: request.sessionId } : undefined),
   });
 
   return <>

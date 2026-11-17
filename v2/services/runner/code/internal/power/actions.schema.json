@@ -87,13 +87,25 @@
               "properties": { "until": { "enum": ["idle", "needs-input"] }, "timeout": { "$ref": "#/$defs/duration" } }
             }
           ]
+        },
+        "do": {
+          "oneOf": [
+            { "$ref": "#/$defs/appAction" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action"],
+              "properties": { "action": { "$ref": "#/$defs/appAction" }, "argument": { "type": "string", "description": "What the action takes (settings.open: a section)." } }
+            }
+          ]
         }
       },
       "oneOf": [
         { "required": ["send"] }, { "required": ["open"] }, { "required": ["run"] },
-        { "required": ["command"] }, { "required": ["permission"] }, { "required": ["wait"] }
+        { "required": ["command"] }, { "required": ["permission"] }, { "required": ["wait"] }, { "required": ["do"] }
       ]
     },
+    "appAction": { "type": "string", "description": "An action of the app, as lazybox do --list lists them." },
     "hook": {
       "type": "object",
       "additionalProperties": false,

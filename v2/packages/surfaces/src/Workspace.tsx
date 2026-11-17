@@ -55,7 +55,8 @@ import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBindin
 import { movePanel } from './dock-keyboard';
 import { showToast } from './toasts';
 import { provideLayoutCommands, type LayoutCommand } from './layout-commands';
-import { applyTemplate, builtinPresets, DEFAULT_PRESET, parseSavedLayouts, templateOf, type LayoutPreset } from './layout-presets';
+import { applyTemplate, builtinPresets, DEFAULT_PRESET, sameTemplate, templateOf, type LayoutPreset } from './layout-presets';
+import { LayoutImportDialog, useLayoutFiles } from './layout-files';
 import { requestAsk } from './help-requests';
 import { useProvideConversationOpeners } from './conversation-requests';
 import { ReviewActions } from './ReviewActions';
@@ -88,7 +89,6 @@ const NARROW = '(max-width: 760px)';
 const useNarrow = () => useSyncExternalStore(listener => { const query = matchMedia(NARROW); query.addEventListener('change', listener); return () => query.removeEventListener('change', listener); }, () => matchMedia(NARROW).matches);
 /** Where popped-out panels are drawn: a blank page of this origin (apps/*\/public/popout.html). */
 const POPOUT_URL = '/popout.html';
-const SAVED_LAYOUTS = 'layout.saved:v1';
 /** A group of the page by its own id (`groupOf` finds the group holding a panel). */
 const groupById = (page: WorkspacePage, id: string) => pageGroups(page).find(group => group.id === id);
 
@@ -516,15 +516,28 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   const [sidebarWidth, setSidebarWidth] = useState(() => { const saved = Number(readPreference(viewState, 'workspace.sidebar-width')); return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : SIDEBAR_DEFAULT; });
   const saveSidebarWidth = (width: number) => { const next = clampSidebar(width); setSidebarWidth(next); try { writePreference(viewState, 'workspace.sidebar-width', String(next)); } catch { /* a convenience */ } };
 
-  // Layout presets, and the layouts a person saved (theirs, in every workspace).
-  const [savedLayouts, setSavedLayouts] = useState(() => parseSavedLayouts(readPreference(viewState, SAVED_LAYOUTS)));
-  const writeSaved = (next: LayoutPreset[]) => { setSavedLayouts(next); try { writePreference(viewState, SAVED_LAYOUTS, JSON.stringify(next)); } catch (error) { setError(`Could not save layouts: ${String(error)}`); } };
+  // Layout presets, and the person's layouts: files in layouts/ (POWER.md, "Config files"), in every workspace.
+  const layoutFiles = useLayoutFiles();
+  const savedLayouts = layoutFiles.layouts;
+  const [importing, setImporting] = useState<string | null>(null);
   const applyLayout = (preset: LayoutPreset) => {
     const live = livePage(), next = dedupeChats(applyTemplate(live, preset.layout, () => crypto.randomUUID()), live.selection);
     if (allPanels(next).length > PANEL_LIMIT) { setError(`That layout needs more than ${PANEL_LIMIT} panels.`); return; }
     changePage(next);
   };
-  const saveLayout = (name: string) => { const layout = templateOf(livePage()); if (layout) writeSaved([...savedLayouts.filter(value => value.name !== name), { id: crypto.randomUUID().slice(0, 12), name, description: '', layout }].slice(-24)); };
+  const saveLayout = (name: string) => { const layout = templateOf(livePage()); if (layout) void layoutFiles.save(name, layout).catch(() => undefined); };
+  /** ⌘⇧L: the next layout (presets, then yours), with where it is in the cycle. */
+  const cycleLayout = () => {
+    const { layout, index, count } = layoutFiles.next(templateOf(livePage()));
+    applyLayout(layout);
+    showToast({ id: 'layout-cycle', tone: 'info', title: `Layout: ${layout.name}`, body: `${index + 1} of ${count}${keymap['layout.cycle'] ? ` · ${displayBinding(bindings(keymap['layout.cycle'])[0]).join('')} for the next` : ''}`, timeout: 1800 });
+  };
+  /** The arrangement shown, or a listed layout, as YAML on the clipboard. */
+  const copyLayout = (preset?: LayoutPreset) => {
+    const layout = preset?.layout || templateOf(livePage());
+    const named = preset || [...builtinPresets, ...savedLayouts].find(value => layout && sameTemplate(layout, value.layout));
+    if (layout) layoutFiles.copy({ name: named?.name || 'My layout', description: named?.description, layout });
+  };
 
   const shown = shownPanels(page);
   const panelHosts = usePanelHosts(shown);
@@ -666,6 +679,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
   useKeyboardAction('layout.panels', () => requestAnimationFrame(() => { if (panelsMenu.current) panelsMenu.current.open = true; }), () => !narrow && !settings);
   useKeyboardAction('layout.presets', () => requestAnimationFrame(() => { if (layoutMenu.current) layoutMenu.current.open = true; }), () => !narrow && !settings);
   useKeyboardAction('layout.reset', () => applyLayout(builtinPresets.find(value => value.id === DEFAULT_PRESET)!), () => !locked);
+  useKeyboardAction('layout.cycle', cycleLayout, () => !narrow && !settings && !locked);
+  useKeyboardAction('layout.copy', () => copyLayout(), () => !narrow && !settings && !!page.layout);
+  useKeyboardAction('layout.import', (argument?: unknown) => setImporting(typeof argument === 'string' ? argument : ''), () => !narrow && !settings && !locked);
 
   // Panel groups from the keyboard (dock-keyboard.ts): focus, move or swap, resize, tabs, +.
   const moveActive = (direction: LayoutDirection) => {
@@ -758,9 +774,9 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
         <PanelsMenu menu={panelsMenu} registry={registry} shown={kindsShown} beside={beside?.title} disabled={kind => locked || (kind === 'terminal' && !terminalReady)}
           onShow={kind => { if (kind === 'terminal') showTerminal(); else if (kind === 'chat' && !beside) showSession(page.selection); else { const id = showModule(kind); if (id) focusAfter.current = { panel: id }; } }}
           onClose={() => setBeside(undefined)}/>
-        <LayoutMenu menu={layoutMenu} current={templateOf(page)} saved={savedLayouts} icons={kindIcons} disabled={locked || !!pending} onApply={applyLayout} onSave={saveLayout}
-          onRename={(id, name) => writeSaved(savedLayouts.map(value => value.id === id ? { ...value, name } : value))}
-          onDelete={id => writeSaved(savedLayouts.filter(value => value.id !== id))}
+        <LayoutMenu menu={layoutMenu} current={templateOf(page)} saved={savedLayouts} broken={layoutFiles.broken} folder={layoutFiles.folder} cycleKey={keymap['layout.cycle'] ? displayBinding(bindings(keymap['layout.cycle'])[0]).join('') : undefined}
+          icons={kindIcons} disabled={locked || !!pending} onApply={applyLayout} onSave={saveLayout}
+          onRename={layoutFiles.rename} onDelete={layoutFiles.remove} onCopy={copyLayout} onImport={() => setImporting('')}
           onReset={() => applyLayout(builtinPresets.find(value => value.id === DEFAULT_PRESET)!)}/>
       </>}
       onOpenNavigator={() => setNavigatorOpen(true)}
@@ -831,6 +847,7 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     {quickOpen && workbench && <QuickOpen key={workbench.workspaceId} workbench={workbench} onClose={() => setQuickOpen(false)}/>}
     {quickLook && workspaceID && <FilePreview key={`${workspaceID}:${quickLook.path}`} workspaceId={workspaceID} reference={quickLook} viewState={viewState} onClose={() => setQuickLook(undefined)}/>}
     {workspaceID && <ReviewActions workspaceId={workspaceID} sessionId={page.selection.collectionId === workspaceID ? page.selection.sessionId : ''}/>}
+    {importing !== null && <LayoutImportDialog initial={importing} onClose={() => setImporting(null)} onImported={layout => { applyLayout(layout); showToast({ id: 'layout-file', tone: 'info', title: `Imported “${layout.name}”`, body: `${layout.file}.yaml in your layouts folder`, timeout: 3600 }); }}/>}
     <PowerLayer workspaceId={workspaceID} selection={{ collectionId: page.selection.collectionId || workspaceID, sessionId: page.selection.sessionId }} primary={!fixedWorkspaceId} host={host} viewState={viewState}
       onSelect={target => select({ ...target, commandId: '' })} onShowSession={target => showSession({ ...target, commandId: '' })}
       onShowPanel={(kind, target) => kind === 'terminal' ? showTerminal() : kind === 'changes' ? showChanges() : showPanelFor(kind, { ...target, commandId: '' })}

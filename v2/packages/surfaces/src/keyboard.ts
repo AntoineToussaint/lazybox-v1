@@ -2,6 +2,7 @@ import { readPreference, writePreference } from "./view-state";
 import { useEffect, useRef, useState } from "react";
 import type { ViewStateStore } from "@lazybox/platform";
 import { actionDefinition, actionDefinitions, bindings, canonicalBinding, canonicalKey, defaultKeys, isChord, isMac, joinBindings, resolveMod, runAction, useAction, type ActionId } from "./actions";
+import { writeConfig, type ConfigWriteResult } from "./config-writer";
 /** Every keyboard action, from the action registry (actions.ts). */
 export const keyboardActions = actionDefinitions.map((definition) => ({ id: definition.id as Action, label: definition.title as string, scope: definition.scope as string, keys: definition.keys as string, group: definition.group as string }));
 export type Action = ActionId;
@@ -69,9 +70,10 @@ const storageKey = "keyboard:v2";
  * version 3 predates `] ] r` (run the last command block); version 4 predates the
  * voice keys (⌥Space, ⌥⇧Space); version 5 predates the panel-group keys (⌘⌥ arrows,
  * ⌘⌥⇧ arrows, ⌃⌘ arrows, ⌃1–9, ⌘T) and the reset chord; version 6 predates ⌘N
- * (a new task) and ⌘⇧N (a new conversation in this workspace).
+ * (a new task) and ⌘⇧N (a new conversation in this workspace); version 7 predates ⌘⇧L
+ * (next layout).
  */
-const keymapVersion = 7;
+const keymapVersion = 8;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
@@ -113,25 +115,49 @@ export function readKeymap(store?: ViewStateStore): Keymap {
 function normalizeKeymap(map: Keymap): Keymap {
   return withFixedKeys(Object.fromEntries(keyboardActions.map((a) => [a.id, joinBindings(bindings(map[a.id]).map(canonicalBinding))])) as Keymap);
 }
-export function saveKeymap(map: Keymap, store?: ViewStateStore) {
+/**
+ * Saves the keymap and writes it to keys.yaml (POWER.md, "Config files");
+ * the promise says whether the file now holds it. `preset` is the preset the
+ * person started from, which the file records.
+ */
+export function saveKeymap(map: Keymap, store?: ViewStateStore, options: { preset?: string; quiet?: boolean } = {}): Promise<ConfigWriteResult> {
   const error = validateKeymap(withFixedKeys(map));
   if (error) throw Error(error);
   map = normalizeKeymap(map);
   writePreference(store, storageKey, JSON.stringify({ ...map, __version: keymapVersion }));
   window.dispatchEvent(new Event("lazybox-keymap"));
+  return writeConfig({ file: "keys", preset: options.preset }, { quiet: options.quiet });
 }
 /**
- * Every shortcut back to its default (the reset chord). Returns the undo,
- * which puts back exactly what was saved.
+ * Every shortcut back to its default (the reset chord), in keys.yaml too.
+ * Returns the undo, which puts back exactly what was saved.
  */
 export function resetKeymap(store?: ViewStateStore): () => void {
   const saved = readPreference(store, storageKey);
   writePreference(store, storageKey, JSON.stringify({ ...keyboardPreset(), __version: keymapVersion }));
   window.dispatchEvent(new Event("lazybox-keymap"));
+  void writeConfig({ file: "keys", preset: "vim" });
   return () => {
     writePreference(store, storageKey, saved ?? JSON.stringify({ ...keyboardPreset(), __version: keymapVersion }));
     window.dispatchEvent(new Event("lazybox-keymap"));
+    void writeConfig({ file: "keys" });
   };
+}
+/**
+ * What keys.yaml declares, applied without writing it back (the file is
+ * where it came from). True when anything changed.
+ */
+export function applyKeysFromFile(store: ViewStateStore | undefined, next: { map: Keymap; menu: MenuEntry[]; vim: VimPreferences }): boolean {
+  const map = normalizeKeymap(next.map);
+  const sameMap = JSON.stringify(normalizeKeymap(readKeymap(store))) === JSON.stringify(map);
+  const sameMenu = JSON.stringify(readMenu(store)) === JSON.stringify(next.menu);
+  const vim = readVimPreferences(store), sameVim = vim.composer === next.vim.composer && vim.editor === next.vim.editor;
+  if (!sameMap) writePreference(store, storageKey, JSON.stringify({ ...map, __version: keymapVersion }));
+  if (!sameMenu) writePreference(store, menuKey, JSON.stringify(next.menu));
+  if (!sameVim) writePreference(store, vimKey, JSON.stringify({ composer: !!next.vim.composer, editor: !!next.vim.editor }));
+  if (sameMap && sameMenu && sameVim) return false;
+  window.dispatchEvent(new Event("lazybox-keymap"));
+  return true;
 }
 /**
  * Whether the element with focus owns this chord, so the keymap leaves it
@@ -174,9 +200,10 @@ export function readVimPreferences(store?: ViewStateStore): VimPreferences {
     return { composer: false, editor: false };
   }
 }
-export function saveVimPreferences(preferences: VimPreferences, store?: ViewStateStore) {
+export function saveVimPreferences(preferences: VimPreferences, store?: ViewStateStore): Promise<ConfigWriteResult> {
   writePreference(store, vimKey, JSON.stringify({ composer: !!preferences.composer, editor: !!preferences.editor }));
   window.dispatchEvent(new Event("lazybox-keymap"));
+  return writeConfig({ file: "keys" }, { quiet: true });
 }
 export function useVimPreferences(store?: ViewStateStore): VimPreferences {
   const [preferences, setPreferences] = useState(() => readVimPreferences(store));
@@ -223,11 +250,12 @@ export function validateMenu(entries: MenuEntry[], map: Keymap): string {
   }
   return entries.length > 36 ? "The menu holds up to 36 entries." : "";
 }
-export function saveMenu(entries: MenuEntry[], store?: ViewStateStore) {
+export function saveMenu(entries: MenuEntry[], store?: ViewStateStore): Promise<ConfigWriteResult> {
   const error = validateMenu(entries, readKeymap(store));
   if (error) throw Error(error);
   writePreference(store, menuKey, JSON.stringify(entries));
   window.dispatchEvent(new Event("lazybox-keymap"));
+  return writeConfig({ file: "keys" }, { quiet: true });
 }
 /**
  * Extra entries under the leader that run code of their own: the user's

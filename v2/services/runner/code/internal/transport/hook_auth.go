@@ -37,13 +37,32 @@ func authenticateHook(agents AgentCredentials, token string) (principal, bool) {
 // sign-in details a phone receives only redacted.
 var hookExcluded = map[string]bool{pb.RunnerService_Info_FullMethodName: true}
 
+// hookWindowRPCs: with respond, a hook may ask the open window to run an
+// action of the app (`lazybox do`) and wait for its own requests' answers.
+// PostUiRequest refuses a hook any request but do, and any action not marked
+// safe (power.go); WaitUiRequest answers only its own requests.
+var hookWindowRPCs = map[string]func(req any) bool{
+	pb.RunnerService_PostUiRequest_FullMethodName: func(req any) bool {
+		r, ok := req.(*pb.UiRequest)
+		return ok && r.Kind == "do"
+	},
+	pb.RunnerService_WaitUiRequest_FullMethodName: func(any) bool { return true },
+}
+
 // authorizeHook admits a hook credential to exactly what a paired phone with
-// the same grants may call (deviceRPCs, deviceStreams), less Info. Nothing
-// else — settings, commands, files, terminals, processes, devices, the
-// actions file and the window requests — and no RPC added later.
+// the same grants may call (deviceRPCs, deviceStreams), less Info, plus the
+// window's safe actions (hookWindowRPCs). Nothing else — settings, commands,
+// files, terminals, processes, devices, the actions and config files, and the
+// other window requests — and no RPC added later.
 func authorizeHook(who principal, method string, req any) (principal, error) {
 	denied := status.Error(codes.PermissionDenied, "this hook's credential does not allow that; grant it in the actions file (read, respond, start)")
 	if hookExcluded[method] {
+		return principal{}, denied
+	}
+	if allow, ok := hookWindowRPCs[method]; ok {
+		if req != nil && slices.Contains(who.grants, "respond") && allow(req) {
+			return who, nil
+		}
 		return principal{}, denied
 	}
 	if req == nil {

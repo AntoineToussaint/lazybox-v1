@@ -91,7 +91,8 @@ type Config struct {
 	ProcessFile string `json:"processFile,omitempty"`
 	// ActionsFile is the user's actions and hooks file (POWER.md). Empty
 	// selects <State>/actions.yaml; the Dev and Working launchers pass the
-	// person's own (~/.config/lazybox/actions.yaml), shared by both.
+	// person's own (~/.config/lazybox/actions.yaml), shared by both. The
+	// config files (keys.yaml, settings.yaml, layouts/) live in its folder.
 	ActionsFile string `json:"actionsFile,omitempty"`
 	// ThemeDirectory is the user's themes folder for Settings → Appearance:
 	// .json and .toml files parsed on every ListThemes (internal/themes).

@@ -1,5 +1,6 @@
 import { LeaderMenuSettings } from "./LeaderMenuSettings";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ConfigFileStatus } from "./ConfigFileStatus";
 import type { ViewStateStore } from "@lazybox/platform";
 import {
   keyboardActions,
@@ -18,22 +19,37 @@ import { SettingsGroup, SettingsHeader, SettingsRow } from "./settings-parts";
 export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
   const [map, setMap] = useState(() => readKeymap(store)),
     [status, setStatus] = useState(""),
-    [dirty, setDirty] = useState(false);
+    [tone, setTone] = useState<"saved" | "error" | "">(""),
+    [dirty, setDirty] = useState(false),
+    // The preset picked here, which keys.yaml records with the save.
+    [preset, setPreset] = useState<string>();
+  // keys.yaml saved in an editor shows here at once, unless you are mid-edit.
+  const dirtyRef = useRef(dirty); dirtyRef.current = dirty;
+  useEffect(() => {
+    const reload = () => { if (!dirtyRef.current) setMap(readKeymap(store)); };
+    window.addEventListener("lazybox-keymap", reload);
+    return () => window.removeEventListener("lazybox-keymap", reload);
+  }, [store]);
   return (
     <section className="keyboard-settings">
       <SettingsHeader
         title="Keyboard"
         description={<>Sequences and single keys work outside text fields; chords such as <code>{isMac ? "Meta+k" : "Ctrl+k"}</code> work everywhere. Separate a sequence with spaces (<code>] ] s</code>), and alternatives with <code>or</code> (<code>{isMac ? "Meta+k" : "Ctrl+k"} or ] ] p</code>). Leave a field empty for no shortcut. Press <kbd>?</kbd> anywhere to see them all.</>}
       />
+      <ConfigFileStatus name="keys" what="Your shortcuts, ]] menu and Vim choice" />
       <form
         onSubmit={(e) => {
           e.preventDefault();
           try {
-            saveKeymap(map, store);
-            setStatus("Shortcuts saved.");
+            void saveKeymap(map, store, { preset, quiet: true }).then((result) => {
+              setStatus(result.saved || !result.message ? `Shortcuts saved.${result.message ? ` ${result.message.replace(/^Saved to (.*)\.$/, "$1 updated.")}` : ""}` : result.message);
+              setTone(result.saved || !result.message ? "saved" : "error");
+            });
             setDirty(false);
+            setPreset(undefined);
           } catch (error) {
             setStatus(String(error).replace(/^Error:\s*/, ""));
+            setTone("error");
           }
         }}
       >
@@ -44,6 +60,7 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
               defaultValue="custom"
               onChange={(e) => {
                 setMap(keyboardPreset(e.target.value));
+                setPreset(e.target.value);
                 setDirty(true);
                 setStatus("");
               }}
@@ -79,8 +96,8 @@ export function KeyboardSettings({ store }: { store?: ViewStateStore }) {
           </SettingsGroup>
         ))}
         <div className="settings-savebar">
-          <p role="status" className={status === "Shortcuts saved." ? "settings-saved" : status ? "settings-inline-error" : "settings-dirty"}>
-            {status === "Shortcuts saved." && <Icon name="check" size={14} />}
+          <p role="status" className={tone === "saved" && status ? "settings-saved" : status ? "settings-inline-error" : "settings-dirty"}>
+            {tone === "saved" && status && <Icon name="check" size={14} />}
             {status || (dirty ? "Unsaved changes" : "")}
           </p>
           <button className="primary">Save shortcuts</button>

@@ -1,6 +1,6 @@
 # Configuration files
 
-Lazybox reads three YAML files and your theme files. Two are committed to your
+Lazybox reads YAML files and your theme files. Two are committed to your
 repositories and reviewed like code; the rest are yours.
 
 | File | Lives in | Who edits it | What it does |
@@ -8,9 +8,12 @@ repositories and reviewed like code; the rest are yours.
 | [`.lazybox/workspace.yaml`](#lazyboxworkspaceyaml-setup-and-actions) | each repository | the team, by PR | setup, dev servers and archive scripts for every new workspace |
 | [`.lazybox/process.yaml`](#lazyboxprocessyaml-how-missions-run) | each repository | the team, by PR | how missions run: roles, gates, budgets (**Preview**) |
 | [`actions.yaml`](#actionsyaml-your-actions-and-hooks) | `~/.config/lazybox/` | you | your own actions and hooks |
+| [`keys.yaml`](#keysyaml-your-shortcuts) | `~/.config/lazybox/` | you, or Settings → Shortcuts | your keyboard shortcuts, `]]` menu and Vim editing |
+| [`settings.yaml`](#settingsyaml-settings-you-may-keep-in-a-file) | `~/.config/lazybox/` | you, or Settings → Notifications | notifications and sounds |
+| [`layouts/*.yaml`](#layoutsyaml-your-layouts) | `~/.config/lazybox/layouts/` | you, or the Layout menu | your whole-window layouts |
 | [Theme files](#themes) (`*.toml`, `*.json`) | `<Runner state>/themes/` | you | your own colour themes |
 
-Most other settings live in the app (Settings), not in files.
+Other settings (appearance, accounts, the Runner's own) live in the app (Settings).
 
 **Editor completion.** Each YAML file has a JSON Schema. Point your editor at it with
 a first line such as `# yaml-language-server: $schema=<path or URL>` (the YAML
@@ -177,6 +180,7 @@ hooks:
 | `command` | `command: npm test` | the command exits 0 (refused in read-only conversations) |
 | `permission` | `permission: ask \| read-only \| yolo` | the conversation accepts the change |
 | `wait` | `wait: idle \| needs-input` · `wait: {until, timeout}` | the state is reached in time |
+| `do` | `do: layout.maximize` · `do: {action: settings.open, argument: keyboard}` — any action of the app (`lazybox do --list`) | the window can run it now |
 
 Every step may also have `name:`, `timeout:` and `when: always | succeeded |
 failed`. A `when:` step reacts to the last step before it that has no `when:`.
@@ -189,7 +193,7 @@ failed`. A `when:` step reacts to the last step before it that has no `when:`.
 | `on` | One or more of `agent.needs-input`, `turn.done`, `turn.failed`, `pr.checks-failed`, `mission.accepted`. |
 | `filter` | `workspace`, `conversation` (name or title), `repository` (`owner/name`); `*` and `?` wildcards, case-insensitive; all set filters must match. |
 | `run` / `shell` / `webhook` | Exactly one: a program and its arguments (no shell); a line for `/bin/sh -c`; or a URL / `{url, headers}` that receives the event as a JSON `POST`. |
-| `grants` | `read`, `respond`, `start` — a Lazybox credential for the hook's own `lazybox` calls, live only while it runs. None by default. |
+| `grants` | `read`, `respond`, `start` — a Lazybox credential for the hook's own `lazybox` calls, live only while it runs. None by default. With `respond`, a hook may also `lazybox do` the actions marked *safe* (they only show, focus or arrange). |
 | `timeout` | Default `1m`, at most `10m`. |
 | `enabled` | Default `true`. |
 
@@ -237,3 +241,118 @@ Colours are `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()` or `hsl()` — nothing else,
 so a theme cannot inject CSS. There is no JSON Schema for theme files yet:
 Settings checks a saved file and lists each problem, with a suggestion for a
 misspelt token, and keeps the last good version on screen.
+
+## Your config files: keys, settings, layouts
+
+Beside `actions.yaml`, in the same folder (`lazybox config path`), Lazybox
+keeps the rest of what you set as plain YAML files. They are yours: edit them
+in any editor, keep them in a dotfiles repository, hand them to an agent.
+
+- **Hot reload.** Lazybox rereads them every second; the open window applies a
+  change within two seconds, with no reload.
+- **Both ways.** Settings writes the same files, changing only the values that
+  changed and **keeping your comments**. A change the file would refuse (a key
+  already taken) is not written; Settings says why.
+- **Mistakes are local and located.** A problem is shown with its line — a
+  toast, then a banner in Settings (and in Settings → Actions & hooks → *Config
+  files*). A binding or entry with an error is left out, the rest applies; a
+  save that is not YAML at all keeps the last version that loaded.
+- **Schemas.** Each file starts with a `# yaml-language-server: $schema=`
+  line, and Lazybox writes `keys.schema.json`, `settings.schema.json` and
+  `layout.schema.json` beside them (built from the app's own action registry,
+  so your editor completes every action id and panel).
+- **What the file leaves out is the default.** Remove a line to go back to the
+  default; remove the file to reset everything it held.
+- **Never secrets.** Credentials, subscriptions, devices and the Runner's own
+  settings stay in the app; none of these files holds one.
+- **From a terminal:** `lazybox config path | edit FILE | validate | get FILE
+  [KEY] | set FILE KEY VALUE | export | import` ([CLI](cli.md)). `edit` opens
+  `$VISUAL`/`$EDITOR` and checks the file when you close it; `validate` prints
+  `file:line` problems and exits 2 on an error.
+
+Shortcuts and notification settings you set before these files existed are
+moved into them the first time Lazybox runs with this version, once; so are
+the layouts you saved.
+
+### `keys.yaml`: your shortcuts
+
+```yaml
+# yaml-language-server: $schema=./keys.schema.json
+version: 1
+preset: vim                  # vim (]] and h j k l), tmux (Ctrl+b) or arrows
+keys:
+  global:                    # global (anywhere), navigation (the sidebar), agent (the message box)
+    palette.open: Mod+k      # Mod is ⌘ on a Mac, Ctrl elsewhere
+    layout.cycle: [Mod+Shift+l, "] ] L"]
+    files.find: []           # no shortcut
+leader-menu:                 # your own entries under the ]] leader
+  - {key: f, label: Fix the tests, snippet: fixtests, mode: send}
+vim: {message-box: true, file-editor: false}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `preset` | The keys of every action the file leaves out: `vim` (default), `tmux`, `arrows`. |
+| `keys.<section>.<action>` | An action's keys: one binding, `"a or b"`, or a list; `[]` for none. Action ids and their default keys: `lazybox do --list`. An action under the wrong section still applies, with a warning. |
+| `leader-menu` | Up to 36 `{key, label, snippet, mode: send \| insert}`; a key the built-in `]]` menu uses is refused. |
+| `vim` | `message-box`, `file-editor`: Vim editing where you type. |
+
+A key is a character or a name (`Enter`, `Escape`, `Tab`, `Space`,
+`ArrowDown`, `F5`…) with `Mod+`, `Ctrl+`, `Meta+`, `Alt+`, `Shift+`; a
+sequence is up to four keys separated by spaces (`"] ] i"`). Lazybox checks a
+binding as the app does: an unknown action or key name, a held key that is not
+a chord, and a key another action can fire from the same place are reported by
+line and left out (that action keeps its preset key). The reset chord
+(`⌃⌥⇧Esc`) cannot be rebound. Settings → Shortcuts writes the file; ⌘⇧L is
+`layout.cycle`.
+
+### `settings.yaml`: settings you may keep in a file
+
+```yaml
+# yaml-language-server: $schema=./settings.schema.json
+version: 1
+notifications:
+  needs-input: true          # an agent asks a question or waits for an approval
+  failed: true
+  review: false              # an agent finished its turn
+  dock-badge: true
+  sound-needs-you: true
+  sound-done: false
+```
+
+Settings → Notifications writes it.
+
+### `layouts/*.yaml`: your layouts
+
+One whole-window layout per file. The Layout menu lists them after the presets
+(*Yours*), the palette has *Layout: …* for each, and **⌘⇧L** cycles through the
+presets and then yours. A file dropped into the folder appears within two
+seconds; one with a mistake is listed in the Layout menu with its first problem
+and is not offered.
+
+```yaml
+# yaml-language-server: $schema=../layout.schema.json
+name: Review wide
+description: Changes and the file side by side
+layout:
+  split: row                 # row: side by side; column: stacked
+  sizes: [20, 40, 40]        # shares, normalized; equal when left out
+  children:
+    - split: column
+      children:
+        - panels: [collections]
+        - panels: [agents]
+    - panels: [changes]
+    - panels: [editor, chat] # one group, two tabs
+      minimized: false
+```
+
+Panels: `collections` (Workspaces), `agents`, `chat`, `console` (command
+output), `terminal`, `assistant` (Ask Lazybox), `changes`, `usage`, `sessions`,
+`missions`, `processes`, `actions`, `preview`, `web`, `browser`, `files`,
+`editor`, `artifacts`. **Save current layout as…** writes a file;
+rename and delete (with Undo) change it. **Copy current layout as YAML** puts
+the file's text on the clipboard; paste it into ⌘K (or **Import a layout…**)
+on another machine to import it: it is checked first (problems by line, nothing
+written) and applied.
+

@@ -69,6 +69,9 @@ you are reaching it under another name or address.
 | `shot [window\|PANEL] [--out FILE]` | PNG of the window or one panel, taken by the desktop app (a browser tab cannot). Default `./lazybox-shot-<time>.png`; `--out -` writes to stdout. |
 | `actions [ls\|validate [FILE]\|schema\|path\|init\|run ID [--conversation C]]` | Your actions and hooks file (`v2/POWER.md`): list what loaded and its problems by line, check a file locally (exit 2 on errors), print the JSON Schema, create the file, or have the window run an action. |
 | `hooks [ls\|runs\|test ID\|log RUN]` | Your hooks, their recent runs, a test run with its output, a run's output. |
+| `do <action> [argument] [--workspace W] [--conversation C]` | Run any action of the app's registry in the open window, as its key or the palette would (`do layout.maximize`, `do settings.open keyboard`); the id of one of your own actions runs it. Exit 3 for an unknown id (with the closest one), 6 with no window, 1 when the window cannot run it now. A hook with the `respond` grant may run only the actions marked safe. |
+| `do --list [WORDS…]` | The registry by group: id, title, default keys, argument, and `safe` for the actions a hook may run. It is `internal/power/actions.manifest.json`, generated from `actions.ts` (`npm run generate:manifest`). |
+| `config [path [FILE]\|edit FILE\|validate [FILE…]\|get FILE [KEY]\|set FILE KEY VALUE [--remove]\|export [--out F] [--actions]\|import F\|- [--dry-run]]` | Your config files (`v2/POWER.md`, "Config files"): `keys`, `settings`, `actions`, `layout NAME` (or a path). Works on the files with the Runner's own parser, so it needs no Runner (one that answers names the folder). `set` keeps comments and writes nothing when the change would add a problem; `validate` prints `file:line` and exits 2 on an error; `edit` opens `$VISUAL`/`$EDITOR`; `export`/`import` move every file as one bundle, checked first, a replaced file kept as `.bak`. |
 | `completion zsh\|bash\|fish` | Shell completion, generated from the same table as the verbs, with conversation, workspace, action and hook names asked of the Runner. |
 
 The flag forms the test client always had keep working: `send --session S
@@ -87,7 +90,7 @@ lists them).
 | 3 | not found (conversation, workspace, request, action, hook) |
 | 4 | not allowed: a scoped credential (agent, terminal, hook) or a refused token |
 | 5 | timed out (`wait`, a window that did not answer) |
-| 6 | unavailable: no Runner answers, none is registered, or no Lazybox window is open for `open`/`shot`/`actions run` |
+| 6 | unavailable: no Runner answers, none is registered, or no Lazybox window is open for `open`/`shot`/`actions run`/`do` |
 
 ### An installed release
 
@@ -107,7 +110,7 @@ Working build says so and exits 6.
 | `link [--dir DIR] [--shell S]` | Link this CLI into `/usr/local/bin` (when writable without sudo) or `~/.local/bin`, with completions; never replaces another program without `--force` |
 | `uninstall [--dry-run] [--remove-data [--yes]]` | Remove the service, links and completions it created; with `--remove-data`, also state, workspaces, logs and the app's window state, after typing `delete` |
 
-`lazybox schema [actions|process|workspace|theme] [--write DIR]` prints (or
+`lazybox schema [actions|process|workspace|keys|settings|layout|theme] [--write DIR]` prints (or
 writes, for an editor) the JSON Schemas of the files a person writes. They
 ship with the CLI and are identified by `urn:lazybox:schema:…` ids, never a
 web address; a process file names `process.schema.json` beside it.

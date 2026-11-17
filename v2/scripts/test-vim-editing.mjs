@@ -21,6 +21,8 @@ try {
   for (const engine of [webkit, chromium]) {
     const browser = await engine.launch({ headless: true }); browsers.push(browser);
     fixture.workspaceFiles.delete('alpha/api/README.md');
+    // Vim editing is kept in keys.yaml (POWER.md, "Config files"): each engine starts from none.
+    fixture.config.remove('keys');
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.setDefaultTimeout(15000);
     const errors = []; page.on('pageerror', error => errors.push(String(error)));

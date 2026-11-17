@@ -178,7 +178,7 @@ func TestBrokerRoutesToTheWindowInFrontAndReturnsItsAnswer(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	done, err := b.Wait(context.Background(), posted.ID, 5*time.Second)
+	done, err := b.Wait(context.Background(), posted.ID, "", 5*time.Second)
 	if err != nil || done.State != UIDone || string(done.PNG) != "png" || done.Detail != "Captured the window" {
 		t.Fatalf("wait: %+v %v", done, err)
 	}
@@ -188,7 +188,7 @@ func TestBrokerRoutesToTheWindowInFrontAndReturnsItsAnswer(t *testing.T) {
 	// A window that closes fails what it had not answered.
 	pending, _ := b.Post(UIRequest{Kind: UIOpen, CollectionID: "w"})
 	stopDesktop()
-	failed, _ := b.Wait(context.Background(), pending.ID, time.Second)
+	failed, _ := b.Wait(context.Background(), pending.ID, "", time.Second)
 	if failed.State != UIFailed || !strings.Contains(failed.Error, "closed") {
 		t.Fatalf("closed window: %+v", failed)
 	}
@@ -200,7 +200,7 @@ func TestBrokerRoutesToTheWindowInFrontAndReturnsItsAnswer(t *testing.T) {
 	if got := <-web; got.ID != next.ID {
 		t.Fatal("not routed to the remaining window")
 	}
-	still, _ := b.Wait(context.Background(), next.ID, 10*time.Millisecond)
+	still, _ := b.Wait(context.Background(), next.ID, "", 10*time.Millisecond)
 	if still.State != UIPending {
 		t.Fatalf("timeout: %+v", still)
 	}
