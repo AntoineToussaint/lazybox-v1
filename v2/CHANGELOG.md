@@ -14,6 +14,14 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.28] - 2026-11-17 · A cost dashboard you can read at a glance
+
+- **Spend for a period** The Cost dashboard example opens on the last 7 days; Today, 30 days and All switch it, by click or the arrow keys. The total leads, with how it compares to the period before (▲ 12% vs $15.73 the 7 days before), the average a day and how many turns had no price.
+- **Tokens and the cache** Tiles show tokens in (uncached and from the cache), tokens out, the cache hit rate, and the conversation that cost most.
+- **Spend over time** A chart per day (per hour for Today, per week for a long history), stacked by model, each model in the same colour everywhere. Hover a column, or focus the chart and use the arrows, for what each model cost that day.
+- **Where it went** By model, by workspace and by conversation, ranked, with the cost and the share. A workspace or a model narrows the whole dashboard to it; a conversation shows it in the window. It fits a narrow side panel and spreads out when wide, in every theme.
+- **For extensions** `lazybox.usage.read({series: true})` also gives usage hour by hour, under the same `read:usage` grant.
+
 ## [2026-11-17.27] - 2026-11-17 · Attachments are boxes
 
 - **A big paste becomes a box** Paste more than 800 characters or 12 lines and it sits above the message as a box, Pasted text · 142 lines, its first line as the title (Pasted Python when it is clearly code), instead of filling the message box. Hover it to scroll through it; click it to read or edit it. ⌘Z right after the paste, or ⋯ → Insert inline, puts the text in the message instead. It is kept with your draft if the window reloads.

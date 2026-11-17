@@ -51,7 +51,7 @@ person read.
 | `read:attention` | what needs the person, as the Inbox shows it (the question or the last line) | `ListHistory` |
 | `read:commands` | a conversation's command runs: title, state, exit — not output | `ListCommands` for one conversation |
 | `read:missions` | missions and their tasks | `ListMissions` |
-| `read:usage` | tokens and cost by workspace, conversation and model | `GetTelemetry` |
+| `read:usage` | tokens and cost by workspace, conversation and model, and hour by hour | `GetTelemetry` (with `series` for the hours) |
 | `show:conversations` | bring a conversation or workspace forward in the window | `PostUiRequest` `open` with a conversation or workspace only (no file, panel or screenshot) |
 | `do:<action>` | run that one action of the app's registry; only actions marked safe (show, focus, arrange) can be named | `PostUiRequest` `do` of exactly that action |
 | `send:messages` | send a message to a conversation, as the person | `Apply` with a message only (never interrupt, permission, model, approval) |
@@ -83,7 +83,8 @@ approves anything or sees a credential** — there is no grant to ask for.
   approval.
 - **Off, and removal.** The switch in Settings turns one off (its panels show
   *Off*); *Remove* deletes its folder and its approval after a confirmation.
-- **Examples.** *Cost dashboard* (`read:usage`, `read:sessions`) and *Agent
+- **Examples.** *Cost dashboard* (`read:usage`, `read:sessions`,
+  `show:conversations`) and *Agent
   board* (`read:attention`, `show:conversations`, `do:attention.next`,
   `do:inbox.open`) are bundled; *Add* copies one into the folder, then the sheet
   asks. `lazybox extension new my-panel [--example agent-board]` writes a
@@ -252,6 +253,18 @@ app window (Lazybox origin)
   navigating its frame, and forging messages — with a leak server that must
   receive nothing — while its approved host works; Settings turning it off.
   Screenshots `.cache/extensions-*.png`.
+- The Cost dashboard: `npm run test:cost-dashboard` (WebKit, the fake Runner
+  answering six weeks of hourly usage): added and allowed through the sheet;
+  the total, the delta against the period before, the tiles, the chart and the
+  ranked lists match the usage for each period, switched by click and by
+  keyboard; the chart's tooltip by pointer and by keyboard; a workspace's row
+  narrowing the dashboard; a conversation's row showing it; docked, 1360, 680
+  and 320 pixels wide without horizontal scroll; the empty state; no policy
+  violation or error. Screenshots `.cache/cost-dashboard-*.png`. The Runner's
+  hourly series: `internal/runner/telemetry` (`TestSeriesCountsRecordsByHourAsTheGroupsDo`).
+  A bucket is an hour in UTC; the dashboard puts each in the person's local
+  day, so in a zone offset by a half hour an hour's spend lands in the day its
+  start falls in.
 
 **Not verified:** a desktop build (WKWebView framing `http://127.0.0.1` from
 `tauri://localhost`, and Tauri's IPC refusing the frame — reasoned from

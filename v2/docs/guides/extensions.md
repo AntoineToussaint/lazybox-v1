@@ -17,8 +17,11 @@ credential, or reach any site you did not allow.
 The *Agent board* shows every conversation as a card in a column of what it
 needs from you (needs you, failed, ready for review, working, done). Click a
 card to show its conversation; **Next** and **Inbox** run those actions of the
-app. The *Cost dashboard* shows what your agents spent, by model, workspace and
-conversation.
+app. The *Cost dashboard* shows what your agents spent today, in the last 7 or
+30 days or so far: the total against the period before, tokens and the cache
+hit rate, spend per day stacked by model, and where it went by model,
+workspace and conversation. Click a model or a workspace to narrow the
+dashboard to it, a conversation to show it.
 
 The panel's bar switches between your extensions (*All extensions…* lists
 them, and what waits for your approval), shows what the one in front may do

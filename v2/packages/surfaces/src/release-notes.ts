@@ -9,6 +9,18 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.28',
+    date: '2026-11-17',
+    title: 'A cost dashboard you can read at a glance',
+    items: [
+      { title: 'Spend for a period', body: 'The Cost dashboard example opens on the last 7 days; Today, 30 days and All switch it, by click or the arrow keys. The total leads, with how it compares to the period before (▲ 12% vs $15.73 the 7 days before), the average a day and how many turns had no price.' },
+      { title: 'Tokens and the cache', body: 'Tiles show tokens in (uncached and from the cache), tokens out, the cache hit rate, and the conversation that cost most.' },
+      { title: 'Spend over time', body: 'A chart per day (per hour for Today, per week for a long history), stacked by model, each model in the same colour everywhere. Hover a column, or focus the chart and use the arrows, for what each model cost that day.' },
+      { title: 'Where it went', body: 'By model, by workspace and by conversation, ranked, with the cost and the share. A workspace or a model narrows the whole dashboard to it; a conversation shows it in the window. It fits a narrow side panel and spreads out when wide, in every theme.' },
+      { title: 'For extensions', body: '`lazybox.usage.read({series: true})` also gives usage hour by hour, under the same `read:usage` grant.' },
+    ],
+  },
+  {
     id: '2026-11-17.27',
     date: '2026-11-17',
     title: 'Attachments are boxes',
