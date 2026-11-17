@@ -32,8 +32,8 @@ func TestAgentsVerbRunsALineage(t *testing.T) {
 	orch, orchNative := r.open("Orchestrator")
 	env := agentEnv(t, orchNative, orch.Id)
 
-	// No grant: spawn is refused as a scoped credential's overreach, ls explains.
-	if out := r.cli(env, "", "agents", "spawn", "--title", "Index"); out.code != exitDenied || !strings.Contains(out.err.Error(), "lazybox conversation new") || strings.Contains(out.err.Error(), "\n") {
+	// No grant: spawn asks the person to start it instead (conversation_test.go), ls explains.
+	if out := r.cli(env, "", "agents", "spawn", "--title", "Index", "--brief", "An index.", "--no-wait"); out.code != 0 || !strings.Contains(out.stdout, "Asked the person to start “Index”") {
 		t.Fatalf("spawn without a grant: %+v", out)
 	}
 	if out := r.cli(env, "", "agents", "ls"); out.code != 0 || !strings.Contains(out.stdout, "You run no agents") {
@@ -83,10 +83,11 @@ func TestAgentsVerbRunsALineage(t *testing.T) {
 	if out = r.cli(kid, "", "agents", "ls"); !strings.Contains(out.stdout, "Started by “Orchestrator”") {
 		t.Fatalf("child's ls: %+v", out)
 	}
-	// Past the lineage: refused.
-	if out = r.cli(kid, "", "agents", "spawn", "--title", "grandchild"); out.code != exitDenied {
+	// A child has no grant: spawning asks the person, never its orchestrator.
+	if out = r.cli(kid, "", "agents", "spawn", "--title", "grandchild", "--brief", "b", "--no-wait"); out.code != 0 || !strings.Contains(out.stdout, "Asked the person") {
 		t.Fatalf("child spawning: %+v", out)
 	}
+	// Past the lineage: refused.
 	if out = r.cli(kid, "", "agents", "stop", "parent", "--end"); out.code != exitDenied {
 		t.Fatalf("child stopping its parent: %+v", out)
 	}

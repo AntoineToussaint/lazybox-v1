@@ -567,7 +567,7 @@ func (c *cli) decide(args []string, accept bool) error {
 			return err
 		}
 		for _, p := range v.Head.Pending {
-			if p.Type == "approval" {
+			if p.Type == "approval" || p.Type == "conversation_request" {
 				found = append(found, pendingRequest{v, p})
 			}
 		}
@@ -598,6 +598,23 @@ func (c *cli) decide(args []string, accept bool) error {
 			return c.printJSON(map[string]any{"conversation": p.conversation.Key(), "session": p.conversation.Head.Id, "request": p.request.RequestId, "decision": "declined"})
 		}
 		c.out("Declined in “%s”: %s\n", p.conversation.Title(), requestLine(p.request))
+		return nil
+	}
+	if p.request.Type == "conversation_request" {
+		// An agent asks to start a conversation: approve starts it as asked.
+		decision := map[bool]string{true: "start", false: "decline"}[accept]
+		r, err := got(cl.AnswerConversationStart(c.ctx, connect.NewRequest(&pb.AnswerConversationStartRequest{RequestId: p.request.RequestId, Decision: decision})))
+		if err != nil {
+			return err
+		}
+		if c.json {
+			return c.printProtoJSON(r)
+		}
+		if accept {
+			c.out("Started “%s” (conversation %s), as “%s” asked.\n", r.StartedTitle, r.StartedConversationId, p.conversation.Title())
+		} else {
+			c.out("Declined in “%s”: %s\n", p.conversation.Title(), requestLine(p.request))
+		}
 		return nil
 	}
 	decision := pb.Decision_DECISION_DECLINE

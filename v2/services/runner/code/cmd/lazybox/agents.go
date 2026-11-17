@@ -19,7 +19,11 @@ import (
 // (and, from a child, its parent). Nothing here approves, answers for the
 // person, passes a gate or accepts a task.
 
-const agentsUsage = `Usage:
+const agentsUsage = `To start another conversation (the person asked you to), use
+  lazybox conversation new --title "…" --brief "…"     (the person approves it in one click)
+
+With an Orchestrator grant (the person lets this conversation run a mission's agents):
+Usage:
   lazybox agents spawn --title "task" [--brief "objective, done-when, boundaries, output" | --brief -]
                        [--task ID] [--workspace same|new] [--permission read-only|ask|yolo]
                        [--profile ID] [--model M] [--role worker]
@@ -28,7 +32,9 @@ const agentsUsage = `Usage:
   lazybox agents wait [agent…|parent] [--until settled|idle|needs-input|reported|closed] [--any] [--timeout 10m]
   lazybox agents watch [--timeout 30m]
   lazybox agents stop <agent> [--end] [--reason WHY]
-  lazybox agents report "what you did and how you checked it"   (as a child)`
+  lazybox agents report "what you did and how you checked it"   (as a child)
+
+Without a grant, spawn asks the person to start the conversation, as conversation new does.`
 
 func (c *cli) agents(args []string) error {
 	if c.subcommandHelp(args, agentsUsage) {
@@ -62,7 +68,7 @@ func (c *cli) agentsCaller(flagged string) (string, error) {
 	if session := c.getenv("LAZYBOX_V2_SESSION_ID"); session != "" {
 		return session, nil
 	}
-	return "", fail(exitUsage, "lazybox agents runs inside an agent's conversation (or pass --session SESSION from your own terminal); the Missions panel shows every agent tree")
+	return "", fail(exitUsage, "this runs inside an agent's conversation (or pass --session SESSION from your own terminal); the Missions panel shows every agent tree")
 }
 
 // text reads a message argument, or stdin for "-", bounded like the Runner.
@@ -90,6 +96,8 @@ func (c *cli) agentsSpawn(args []string) error {
 	model := f.String("model", "", "model (default: yours)")
 	role := f.String("role", "worker", "a label shown on the board: worker, reviewer, researcher…")
 	key := f.String("key", "", "idempotency key: a retried spawn with the same key starts no second agent")
+	wait := f.Duration("timeout", defaultRequestWait, "without a grant: how long to wait for the person to start it")
+	noWait := f.Bool("no-wait", false, "without a grant: ask and return at once; the answer comes later as a note")
 	if _, err := c.parse(f, args); err != nil {
 		return err
 	}
@@ -108,6 +116,16 @@ func (c *cli) agentsSpawn(args []string) error {
 	cl, err := c.dial()
 	if err != nil {
 		return err
+	}
+	// Without a grant in force, starting an agent is the person's to allow:
+	// ask them, as `lazybox conversation new` does, instead of failing.
+	if *task == "" {
+		if lineage, err := got(cl.ListAgentLineage(c.ctx, connect.NewRequest(&pb.AgentLineageRequest{SessionId: me}))); err == nil && (lineage.Grant == nil || !lineage.Grant.Live) {
+			if !c.json {
+				c.note("No Orchestrator grant here: asking the person to start it as a conversation (lazybox conversation new).\n")
+			}
+			return c.askToStart(cl, &pb.RequestConversationStartRequest{SessionId: me, Title: *title, Brief: *brief, Workspace: *workspace, ProfileId: *profile, Model: *model}, *wait, *noWait)
+		}
 	}
 	operation := *key
 	if operation == "" {

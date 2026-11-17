@@ -14,7 +14,7 @@ func TestBareVerbsPrintHelpAndSucceed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	home := t.TempDir()
-	for _, verb := range []string{"agents", "workspace", "review", "mission", "lease", "extension", "completion"} {
+	for _, verb := range []string{"agents", "conversation", "workspace", "review", "mission", "lease", "extension", "completion"} {
 		for _, args := range [][]string{{verb}, {verb, "help"}, {verb, "--help"}, {verb, "-h"}} {
 			out := runPower(ctx, t, home, map[string]string{}, "", args...)
 			// A verb that parses flags first answers -h and --help as the flag package does (on stderr).
@@ -26,6 +26,10 @@ func TestBareVerbsPrintHelpAndSucceed(t *testing.T) {
 				t.Errorf("%v: %+v", args, out)
 			}
 		}
+	}
+	// What the agent in the field ran: its usage names how to start a conversation.
+	if out := runPower(ctx, t, home, map[string]string{}, "", "agents"); !strings.Contains(out.stdout, "lazybox conversation new") {
+		t.Errorf("agents help does not say how to start a conversation: %s", out.stdout)
 	}
 	// An unknown subcommand is still a usage error.
 	if out := runPower(ctx, t, home, map[string]string{}, "", "agents", "frobnicate"); out.code != exitUsage {
