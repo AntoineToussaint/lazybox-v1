@@ -235,8 +235,9 @@ test('voice keys: held chords owned by the voice layer, migrated into saved keym
   assert.equal(map['voice.dictate'], 'AltRight or Alt+Space');
   assert.deepEqual(displayBinding('AltRight', true), ['Right\u00a0⌥'], 'one key: its name never splits');
   assert.deepEqual(displayBinding('MetaRight', false), ['Right\u00a0Win']);
-  // ⌘↵ sends from the message box, also while dictating.
-  assert.equal(map['chat.send'], 'Enter or Meta+Enter');
+  // ⌘↵ is Send now (a plain send while the agent is idle), also while dictating.
+  assert.equal(map['chat.send'], 'Enter');
+  assert.equal(map['chat.send-now'], 'Meta+Enter');
   assert.equal(map['voice.command'], 'Alt+Shift+Space');
   assert.ok(actionDefinition('voice.dictate')?.hold);
   // The chord dispatcher never runs a held key.
@@ -247,11 +248,12 @@ test('voice keys: held chords owned by the voice layer, migrated into saved keym
   const migrated = migrateKeymap({ ...before, __version: 4 }, [], true);
   assert.equal(migrated['voice.dictate'], 'AltRight or Alt+Space');
   assert.equal(validateKeymap(migrated), '');
-  // A keymap saved with ⌥Space gains Right ⌥, first; one with its own key keeps it, after Right ⌥. Send gains ⌘↵.
+  // A keymap saved with ⌥Space gains Right ⌥, first; one with its own key keeps it, after Right ⌥. ⌘↵ goes to Send now.
   assert.equal(migrateKeymap({ ...map, 'voice.dictate': 'Alt+Space', 'chat.send': 'Enter', __version: 8 }, [], true)['voice.dictate'], 'AltRight or Alt+Space');
   assert.equal(migrateKeymap({ ...map, 'voice.dictate': 'Ctrl+Alt+m', __version: 8 }, [], true)['voice.dictate'], 'AltRight or Ctrl+Alt+m');
-  assert.equal(migrateKeymap({ ...map, 'chat.send': 'Enter', __version: 8 }, [], true)['chat.send'], 'Enter or Meta+Enter');
-  assert.equal(migrateKeymap({ ...map, 'voice.dictate': 'Alt+Space', __version: 9 }, [], true)['voice.dictate'], 'Alt+Space', 'a current save is kept as it is');
+  assert.equal(migrateKeymap({ ...map, 'chat.send': 'Enter', __version: 8 }, [], true)['chat.send'], 'Enter');
+  assert.equal(migrateKeymap({ ...map, 'chat.send': 'Enter', __version: 8 }, [], true)['chat.send-now'], 'Meta+Enter');
+  assert.equal(migrateKeymap({ ...map, 'voice.dictate': 'Alt+Space', __version: 10 }, [], true)['voice.dictate'], 'Alt+Space', 'a current save is kept as it is');
   // Right ⌥ or Right ⌘ alone can be held to talk; a left one cannot, nor can any other action be a modifier alone.
   assert.equal(validateKeymap({ ...map, 'voice.dictate': 'MetaRight' }), '');
   assert.equal(validateKeymap({ ...map, 'voice.command': 'AltRight or Alt+Shift+Space', 'voice.dictate': 'MetaRight' }), '');

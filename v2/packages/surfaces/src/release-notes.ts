@@ -9,6 +9,15 @@ import type { Release } from './onboarding-model';
  */
 export const releaseNotes: readonly Release[] = [
   {
+    id: '2026-11-17.18',
+    date: '2026-11-17',
+    title: 'Send now from the keyboard',
+    items: [
+      { title: '⌘↵ sends now', body: 'While the agent works, ↵ still queues your message, and ⌘↵ sends it now: the agent\'s current step stops and your message is the next turn. Pressed ↵ and saw it queued? ⌘↵ with an empty message box sends the oldest queued message now. While the agent is idle, ⌘↵ sends like ↵, also while you dictate.' },
+      { title: 'The key where you need it', body: 'While the agent works the message box says ↵ queues · ⌘↵ sends now, and the queued strip\'s Send now names the key. Change it in Settings → Shortcuts (Send now).' },
+    ],
+  },
+  {
     id: '2026-11-17.17',
     date: '2026-11-17',
     title: 'Command output stays on what you read',

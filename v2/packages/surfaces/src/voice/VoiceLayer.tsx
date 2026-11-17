@@ -255,8 +255,8 @@ export function VoicePill({ state, keymap, onOpenSettings, inline }: { state: Re
   const what = state.phase === 'starting' ? 'Starting the microphone…' : state.phase === 'stopping' ? 'Finishing…' : state.kind === 'palette' ? 'Say a command' : 'Listening';
   const hint = state.mode === 'hold' ? 'Release to finish' : keyText ? `${key && isLoneModifier(key) ? 'Tap ' : ''}${keyText} to finish` : 'Stop to finish';
   const level = state.level ?? (state.hearing ? 0.6 : 0.12);
-  // Sending while listening waits for the last words (Composer, finishAndSend).
-  const sendChord = state.kind === 'composer' ? bindings(keymap?.['chat.send']).find(isChord) : undefined;
+  // Sending while listening waits for the last words (Composer, finishAndSend); ⌘↵ is Send now, a plain send while the agent is idle.
+  const sendChord = state.kind === 'composer' ? bindings(keymap?.['chat.send-now']).find(isChord) : undefined;
   const tip = !inline && state.kind === 'composer' && keyUnproven && keyText;
   return <div className={'voice-pill' + (inline ? ' is-inline' : '')} data-phase={state.phase} data-kind={state.kind} role="status" aria-label={`${what}. ${state.onDevice ? 'On-device.' : ''}`} style={style} onPointerDown={down} onPointerMove={move} onPointerUp={up}>
     <span className="voice-pill-dot" aria-hidden="true"/>

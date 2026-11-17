@@ -3,7 +3,7 @@
 // test says (window.__speech.say), and a speechSynthesis that records what it
 // reads. Covers the live transcript in the message box, editing it, the send
 // and cancel commands, Esc, hold and tap of ⌥Space and of Right ⌥ alone, a pause
-// that ends the recognition, ⌘↵ while listening, Vim mode, voice commands
+// that ends the recognition, ⌘↵ while listening (sent now while the agent works), Vim mode, voice commands
 // in the palette (with a confirmation), read-aloud, Settings → Voice, and a
 // browser without speech recognition. No microphone and no model are used.
 import { testViteCache } from './fixtures/vite-cache.mjs';
@@ -210,6 +210,24 @@ try {
   await expect.poll(() => applied('Ship the fix')).toBe(true);
   await expect(pill).toHaveCount(0);
   await expect(message).toHaveValue('');
+
+  // ⌘↵ is Send now: while the agent works, what was said is sent now (the turn stops for it), not queued.
+  const busySession = f.sessions[0];
+  Object.assign(busySession, { busy: true, status: 'running', queued: 0, queuedMessages: [] });
+  const hint = page.locator('.composer .keyboard-hint').first();
+  await expect(hint).toHaveText('↵ queues · ⌘↵ sends now', { timeout: 5000 });
+  await message.click();
+  await page.keyboard.press('Alt+Space');
+  await listening();
+  await say('stop and ship it');
+  await page.keyboard.press('Meta+Enter');
+  await expect.poll(() => applied('Stop and ship it')).toBe(true);
+  const nowOp = f.mutations.findLast(m => m.method === 'Apply' && m.body.message?.text === 'Stop and ship it').body.operationId;
+  await expect.poll(() => f.mutations.filter(m => m.method === 'Apply' && m.body.deliverQueued).map(m => m.body.deliverQueued)).toEqual([{ operationId: nowOp, how: 'now' }]);
+  await expect(pill).toHaveCount(0);
+  await expect(message).toHaveValue('');
+  Object.assign(busySession, { busy: false, status: 'done' }); delete busySession.queuedMessages;
+  await expect(hint).not.toHaveText(/queues/, { timeout: 5000 });
 
   // Right ⌥ alone: held, it talks; released, the words settle.
   await message.click();

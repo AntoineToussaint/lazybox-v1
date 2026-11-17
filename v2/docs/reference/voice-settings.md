@@ -71,6 +71,7 @@ command palette, and never happens while you dictate.
 | Action | Keys | Palette |
 | --- | --- | --- |
 | Dictate | `Right ⌥` or `⌥Space` (held) | *Dictate* starts or stops listening (toggle) |
-| Send message | `↵` or `⌘↵`, also while listening (the last words settle first) | — |
+| Send message | `↵`, also while listening (the last words settle first); while the agent works it queues | — |
+| Send now | `⌘↵`, also while listening: while the agent works it stops and sends now, otherwise it sends | *Send now* |
 | Say a command | `⌥⇧Space` (held) | *Say a command* |
 | Stop reading aloud | — | *Stop reading aloud*, while something is read |

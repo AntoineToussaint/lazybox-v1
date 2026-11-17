@@ -16,7 +16,8 @@ none of it is ever saved.
    level and the time; your words appear in the message box, underlined while
    they are still being recognized.
 3. **Release it.** The words settle into ordinary text. Edit them, then press
-   `↵` (or `⌘↵`) to send.
+   `↵` (or `⌘↵`) to send. While the agent works, `↵` queues the message
+   and `⌘↵` sends it now.
 
 `⌥Space` works too, held or tapped, as before. Pausing to think is fine: what
 you said before the pause stays, and the words after it follow.
@@ -31,7 +32,7 @@ the next word gets a capital.
 | To… | Do this |
 | --- | --- |
 | Keep listening without holding the key | **Tap `Right ⌥` twice** (or tap `⌥Space` once); tap `Right ⌥` once more (or click ■ in the pill) to finish |
-| Send what you said | `⌘↵` (or `↵`) while listening or after: the last words settle, then the message goes |
+| Send what you said | `⌘↵` (or `↵`) while listening or after: the last words settle, then the message goes (while the agent works, `⌘↵` sends it now and `↵` queues it) |
 | Use the mouse | The **microphone button** next to Snippets in the message box |
 | Throw away what you just said | `Esc`, the **×** in the pill, or say "cancel" / "annule" |
 | Take over with the keyboard | Just type: the words stay and listening stops |

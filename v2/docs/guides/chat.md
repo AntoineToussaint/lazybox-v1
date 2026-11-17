@@ -25,6 +25,13 @@ it did.
   and your message goes as soon as the step stops, the other queued messages
   in order after it. A message never waits while the agent is idle, even
   after Lazybox restarted.
+- **Send now from the keyboard:** `⌘↵` (`Ctrl+Enter` on Windows and Linux).
+  While the agent works, `↵` queues your message and `⌘↵` sends it now,
+  stopping the current step. Pressed `↵` and saw it queued? `⌘↵` with an
+  empty box sends the oldest queued message now. While the agent is idle,
+  `⌘↵` is an ordinary send (also while you dictate). It always stops and
+  sends, also for Codex: Steer stays a button. Change the key in Settings →
+  Shortcuts.
 - **Dictate** instead of typing: hold `Right ⌥` (or `⌥Space`) and speak, or click the
   microphone in the message box — see [Voice](voice.md).
 - **Attach** files with the paperclip, by dropping them on the chat, or by

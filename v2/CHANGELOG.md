@@ -14,6 +14,11 @@ and a counter (`2026-11-16.3`). An id never changes once shipped. Each item is
 one line `- **What** body`, saying what a person can now do; a long item may
 continue on lines indented by two spaces.
 
+## [2026-11-17.18] - 2026-11-17 · Send now from the keyboard
+
+- **⌘↵ sends now** While the agent works, ↵ still queues your message, and ⌘↵ sends it now: the agent's current step stops and your message is the next turn. Pressed ↵ and saw it queued? ⌘↵ with an empty message box sends the oldest queued message now. While the agent is idle, ⌘↵ sends like ↵, also while you dictate.
+- **The key where you need it** While the agent works the message box says ↵ queues · ⌘↵ sends now, and the queued strip's Send now names the key. Change it in Settings → Shortcuts (Send now).
+
 ## [2026-11-17.17] - 2026-11-17 · Command output stays on what you read
 
 - **Command output stays put** While an agent runs many quick commands, the Command output panel keeps showing the run you are reading. A new run takes it over only when the one shown has finished, you have not picked, searched, scrolled, selected or resized its text in the last 30 seconds, and the new run is still going after about a second and a half. Quick runs are listed in the picker, newest first, and counted.

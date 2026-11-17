@@ -74,9 +74,10 @@ const storageKey = "keyboard:v2";
  * voice keys (⌥Space, ⌥⇧Space); version 5 predates the panel-group keys (⌘⌥ arrows,
  * ⌘⌥⇧ arrows, ⌃⌘ arrows, ⌃1–9, ⌘T) and the reset chord; version 6 predates ⌘N
  * (a new task) and ⌘⇧N (a new conversation in this workspace); version 7 predates ⌘⇧L
- * (next layout); version 8 predates Right ⌥ alone for dictation and ⌘↵ to send.
+ * (next layout); version 8 predates Right ⌥ alone for dictation and ⌘↵ to send;
+ * version 9 predates Send now, which took ⌘↵ from Send message (idle, it still sends).
  */
-const keymapVersion = 9;
+const keymapVersion = 10;
 /**
  * A saved keymap, brought up to date. Saved keys always win. An action the
  * save predates takes its default keys, in the saved leader (`Ctrl+b p` for a
@@ -96,9 +97,12 @@ export function migrateKeymap(raw: unknown, menu: readonly MenuEntry[] = [], mac
       kept.add(a.id);
     }
   if (!kept.size || version >= keymapVersion) return withFixedKeys(map, mac);
+  // ⌘↵ is Send now's since version 10: a saved Send message gives it up, unless it is that action's only key.
+  const modEnter = resolveMod("Mod+Enter", mac), sendKeys = bindings(map["chat.send"]);
+  if (kept.has("chat.send") && sendKeys.includes(modEnter) && sendKeys.length > 1) map["chat.send"] = joinBindings(sendKeys.filter((binding) => binding !== modEnter));
   const leader = map["navigation.exit"];
   const menuKeys = new Set(menu.map((entry) => canonicalBinding(`${leader} ${entry.key}`)));
-  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : a.id === "conversation.new" && version < 7 ? [resolveMod("Mod+Shift+n", mac)] : a.id === "voice.dictate" && version < 9 ? ["AltRight"] : a.id === "chat.send" && version < 9 ? [resolveMod("Mod+Enter", mac)] : []) : bindings(withLeader(defaults[a.id], leader)) }));
+  const added = keyboardActions.map((a) => ({ action: a, candidates: kept.has(a.id) ? (a.id === "files.find" && version < 2 ? [resolveMod("Mod+p", mac)] : a.id === "conversation.new" && version < 7 ? [resolveMod("Mod+Shift+n", mac)] : a.id === "voice.dictate" && version < 9 ? ["AltRight"] : []) : bindings(withLeader(defaults[a.id], leader)) }));
   for (const { action } of added) if (!kept.has(action.id)) map[action.id] = "";
   for (const { action, candidates } of added)
     for (const binding of candidates) {

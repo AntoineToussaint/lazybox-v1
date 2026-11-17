@@ -42,9 +42,9 @@ test('keymap → keys.yaml edits: only what differs from the preset, ⌘ written
     { path: ['keys', 'global', 'palette.open'], json: '' }, { path: ['keys', 'global', 'inbox.open'], json: '' },
   ]);
   // A binding filed under the wrong section is moved where it belongs.
-  const misplaced = file([{ action: 'chat.send', keys: ['Mod+Enter'], section: 'navigation', line: 4 }]);
-  assert.deepEqual(keysEdits({ map: { ...keyboardPreset('vim', true), 'chat.send': 'Meta+Enter' }, menu: [], vim: { composer: false, editor: false } }, misplaced, true), [
-    { path: ['keys', 'navigation', 'chat.send'], json: '' }, { path: ['keys', 'agent', 'chat.send'], json: JSON.stringify('Mod+Enter') },
+  const misplaced = file([{ action: 'chat.send', keys: ['Ctrl+Enter'], section: 'navigation', line: 4 }]);
+  assert.deepEqual(keysEdits({ map: { ...keyboardPreset('vim', true), 'chat.send': 'Ctrl+Enter' }, menu: [], vim: { composer: false, editor: false } }, misplaced, true), [
+    { path: ['keys', 'navigation', 'chat.send'], json: '' }, { path: ['keys', 'agent', 'chat.send'], json: JSON.stringify('Ctrl+Enter') },
   ]);
   // A preset picked in Settings is recorded; the menu is written whole.
   const menu = [{ key: 'f', label: 'Fix', snippet: 'fix', mode: 'send' as const }];

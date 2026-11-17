@@ -60,7 +60,7 @@ keys:
     voice.dictate: "] ] v"
   navigation:
     navigation.next: ArrowDown
-    chat.send: Mod+Enter
+    chat.send: Mod+Shift+Enter
   sidebar:
     x: y
 leader-menu:
@@ -100,7 +100,7 @@ extra: 1
 	for _, b := range keys.Bindings {
 		bound[b.Action] = b.Keys
 	}
-	if strings.Join(bound["palette.open"], ",") != "Mod+k,Ctrl+b p" || bound["files.find"] == nil || len(bound["files.find"]) != 0 || bound["navigation.next"][0] != "ArrowDown" || bound["chat.send"][0] != "Mod+Enter" {
+	if strings.Join(bound["palette.open"], ",") != "Mod+k,Ctrl+b p" || bound["files.find"] == nil || len(bound["files.find"]) != 0 || bound["navigation.next"][0] != "ArrowDown" || bound["chat.send"][0] != "Mod+Shift+Enter" {
 		t.Fatalf("bindings: %+v", bound)
 	}
 	if _, ok := bound["inbox.open"]; ok {

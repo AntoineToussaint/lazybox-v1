@@ -181,7 +181,10 @@ const tail = [
   { id: 'navigation.previous', title: 'Previous entry', group: 'Sidebar', icon: 'up', keys: 'k', scope: 'navigation', palette: false },
   { id: 'navigation.parent', title: 'Workspace / left pane', group: 'Sidebar', icon: 'back', keys: 'h', scope: 'navigation', palette: false },
   { id: 'navigation.open', title: 'Open entry / agent', group: 'Sidebar', icon: 'chevronRight', keys: 'l', scope: 'navigation', palette: false },
-  { id: 'chat.send', title: 'Send message', group: 'Message box', icon: 'send', keys: 'Enter or Mod+Enter', scope: 'agent', palette: false, required: true },
+  { id: 'chat.send', title: 'Send message', group: 'Message box', icon: 'send', keys: 'Enter', scope: 'agent', palette: false, required: true },
+  // While the agent works: the typed message, or else the oldest queued one, goes now; the turn stops for it (QueuedMessages.tsx).
+  // While it is idle, a send. Also while dictating: the last words settle first.
+  { id: 'chat.send-now', title: 'Send now', group: 'Message box', icon: 'send', keys: 'Mod+Enter', scope: 'agent', keywords: 'interrupt stop queue queued immediately urgent skip the queue' },
   // The help assistant (HelpAssistant.tsx): opens the Ask Lazybox panel and its message box.
   { id: 'help.ask', title: 'Ask Lazybox', group: 'General', icon: 'chat', keys: '] ] h', scope: 'global', keywords: 'help assistant question how docs agent claude codex support', menu: { section: 'Help', title: 'Ask Lazybox…', separatorBefore: true } },
   { id: 'help.welcome', title: 'Welcome and getting started', group: 'General', icon: 'sparkle', keys: '', scope: 'global', overDialogs: true, keywords: 'onboarding first run start tour help', menu: { section: 'Help', title: 'Welcome to Lazybox' } },

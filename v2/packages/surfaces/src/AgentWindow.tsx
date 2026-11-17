@@ -44,7 +44,7 @@ import { contextMenu } from './ContextMenu';
 import { ResumeBar, TranscriptNotice } from './SessionNotices';
 import { useSubagentHost } from './SubagentHost';
 import { LiveBar } from './LiveBar';
-import { QueuedMessages } from './QueuedMessages';
+import { QueuedMessages, useQueuedDelivery } from './QueuedMessages';
 import { SubagentContext } from './subagent-view';
 import { BackgroundWorkButton, SubagentAttention } from './SubagentTray';
 import { SubagentPanel } from './SubagentPanel';
@@ -54,7 +54,7 @@ import { Composer } from './Composer';
 import { ConsoleWindow, EventLog, SessionCommands } from './SessionCommands';
 import { faultSentence, sessionLimit, subscriptionName, turnFault } from './subscription-model';
 import { useConversationActivity } from './activity-detail';
-import { useActions } from './actions';
+import { bindings, displayBinding, useActions } from './actions';
 import { CodeRunContext, CodeRuns, type RunActions } from './code-runs';
 import { shellBlocksIn } from './code-run';
 import { showMenuNotice } from './ContextMenu';
@@ -216,6 +216,9 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
 
   const send = async (event?: FormEvent, snippetText?: string) => {
     event?.preventDefault();
+    // ⌘↵ (chat.send-now) submits this same form, after dictation's last words
+    // settle when it was listening: the message it sends goes now.
+    const now = !snippetText && Date.now() - sendNowAt.current < 15_000; sendNowAt.current = 0;
     // `/command`: Lazybox's runs here, an unknown one asks first; the agent's goes on as the prompt.
     if (!snippetText && !files.length && !missingFiles.length && !sendingRef.current && !sending && slash.intercept(message)) return false;
     const text = snippetText ?? message;
@@ -257,6 +260,8 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
       try { await api.apply({ sessionId: destination, operationId: attempt.id, operation: { case: 'message', value: { text, attachments } } }, { signal: AbortSignal.any([signal, deadline]) }); }
       catch (e) { if (deadline.aborted && !signal.aborted) throw new Error('The Runner did not confirm this message within 30 seconds. Press Enter to send it again: it will not be delivered twice.'); throw e; }
       savePrompt(viewState, text, session?.conversationId || sessionID); recall.reset();
+      // Behind a busy turn the message was queued: it goes next, the turn stopped for it.
+      if (now && destination === sessionID && session?.busy && !session.closed) void queuedDelivery.deliver(attempt.id, 'now', true);
       if (!signal.aborted) { setMessage(''); setFiles([]); setUncertainSend(''); sendAttempt.current = null; persistDraft('', [], []); if (destination !== sessionID) { writeDraft(viewState, destination, { text: '', files: [], operationId: '' }); setSessionID(destination); onSessionChange?.(destination); refresh(); } }
       return !signal.aborted;
     } catch (e) { if (!signal.aborted) { setError(String(e)); if (snippetText) setMessage(text); } return false; }
@@ -309,6 +314,31 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     catch (e) { setError(String(e)); }
   };
   const live = useLiveStatus(session, events);
+  // Send now from the keyboard (⌘↵): the typed message, or with an empty box
+  // the oldest queued one, interrupting the turn in progress. Idle, it is a send.
+  const queuedDelivery = useQueuedDelivery(api, sessionID, session?.queuedMessages);
+  const sendNowAt = useRef(0);
+  const sendNowBinding = bindings(keymap['chat.send-now'])[0];
+  const sendNowKey = sendNowBinding ? displayBinding(sendNowBinding).join(' ') : '';
+  const draftToSend = () => !!message.trim() || files.length > 0 || missingFiles.length > 0;
+  const workingTurn = () => !!session?.busy && !session.closed;
+  const sendNow = () => {
+    if (draftToSend()) {
+      if (workingTurn()) sendNowAt.current = Date.now();
+      composer.current?.form?.requestSubmit();
+      return;
+    }
+    const oldest = workingTurn() ? session?.queuedMessages?.[0] : undefined;
+    if (oldest) { jumpToLatest(); void queuedDelivery.deliver(oldest.operationId, 'now'); }
+    else showMenuNotice(workingTurn() ? 'Nothing queued to send now' : 'Nothing to send');
+  };
+  useActions({
+    'chat.send-now': mode === 'agent' && !!sessionID && {
+      run: sendNow,
+      // From the message box always (an empty one says so); from the palette, in the chat in front, when there is something to send now.
+      enabled: () => document.activeElement === composer.current || (activity.current() && canCompose && workingTurn() && (draftToSend() || !!session?.queuedMessages?.length)),
+    },
+  });
   const disconnected = stream.startsWith('Disconnected') || stream === 'Reconnecting';
   const activeProfile = info?.profiles.find(p => p.id === session?.profileId);
   const agentName = agentTitle(activeProfile?.provider || session?.provider || launcher.provider, info?.profiles);
@@ -497,7 +527,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
             subscription={session && <SubscriptionControls session={session} profiles={profileList || []} viewState={viewState} dialogOpen={switchingSubscription} onCloseDialog={() => setSwitchingSubscription(false)} onSession={next => { transcript.reader.session = next; setSession(next); }} onError={setError}/>}/></CodeRunContext.Provider>
           {!transcript.error && <LiveBar api={api} session={session} sessionID={sessionID} live={live} disconnected={disconnected} activity={transcript.activity} viewState={viewState} onInterrupt={() => void interrupt()}
             onOpenCommand={openCommand} onOpenFile={session?.collectionId ? openFile : undefined}/>}
-          {!transcript.error && !disconnected && <QueuedMessages api={api} session={session} sessionID={sessionID} live={live} agentName={agentName} activity={transcript.activity}/>}
+          {!transcript.error && !disconnected && <QueuedMessages session={session} live={live} agentName={agentName} activity={transcript.activity} delivery={queuedDelivery} sendNowKey={sendNowKey}/>}
           <Composer textarea={composer} fileInput={fileInput} agentName={agentName} embedded={embedded} session={session} sessionID={sessionID} viewState={viewState} keymap={keymap}
             limited={limited} message={message} files={files} missingFiles={missingFiles} uncertainSend={uncertainSend} handedOver={handedOver}
             sending={sending} canCompose={canCompose} canAttach={canAttach} canSend={canSend}

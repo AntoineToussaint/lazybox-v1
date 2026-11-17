@@ -41,7 +41,7 @@ const groupIntro: Record<string, string> = {
   'Conversation': 'Act on the conversation you last clicked or focused.',
   'Voice': 'Hold the key and speak; release to finish (a quick tap keeps listening until you press it again). `Right ⌥` is the Option key on the right, alone: hold it to talk, tap it twice to keep listening, tap it once to stop; with any other key it stays an ordinary ⌥. While dictating, `⌘↵` sends once the last words are in. See [Voice](../guides/voice.md).',
   'Sidebar': 'After `]]` puts the keyboard in the sidebar. The *Arrows* preset uses the arrow keys instead.',
-  'Message box': 'While you type a message. `⌘↵` sends too, also while you dictate.',
+  'Message box': 'While you type a message. While the agent works, `↵` queues your message and `⌘↵` stops the agent\'s current step and sends it now; with an empty box, `⌘↵` sends the oldest queued message now. While the agent is idle, `⌘↵` sends like `↵`, also while you dictate.',
 };
 
 export function renderShortcuts(): string {

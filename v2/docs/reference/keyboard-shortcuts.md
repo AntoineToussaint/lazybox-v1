@@ -177,11 +177,12 @@ After `]]` puts the keyboard in the sidebar. The *Arrows* preset uses the arrow 
 
 ## Message box
 
-While you type a message. `⌘↵` sends too, also while you dictate.
+While you type a message. While the agent works, `↵` queues your message and `⌘↵` stops the agent's current step and sends it now; with an empty box, `⌘↵` sends the oldest queued message now. While the agent is idle, `⌘↵` sends like `↵`, also while you dictate.
 
 | Action | macOS | Windows / Linux |
 | --- | --- | --- |
-| Send message | `↵` or `⌘↵` | `↵` or `Ctrl+↵` |
+| Send message | `↵` | `↵` |
+| Send now | `⌘↵` | `Ctrl+↵` |
 
 ## Keys inside a panel
 

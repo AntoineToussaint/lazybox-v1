@@ -5,7 +5,8 @@
  * turn (its tooltip names the step it stops) and sends the message as the next turn, and
  * **Steer**, where the agent can take a message mid-turn (Codex), gives it to
  * the running turn without stopping it. Claude cannot: the strip says so and
- * offers Send now.
+ * offers Send now. ⌘↵ (chat.send-now) is Send now from the keyboard: the
+ * typed message, or with an empty box the oldest queued one.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { RunnerClient } from '@lazybox/client-core';
@@ -31,37 +32,64 @@ export function stepName(activity: readonly JournalEvent[]): { code?: string; wo
 
 const clip = (text: string, length = 140) => { const line = text.replace(/\s+/g, ' ').trim(); return line.length > length ? line.slice(0, length - 1) + '…' : line; };
 
-export function QueuedMessages({ api, session, sessionID, live, agentName, activity }: {
-  api: RunnerClient;
-  session?: Session;
-  sessionID: string;
-  live: LiveStatus;
-  agentName: string;
-  /** The conversation's activity, to name the step Send now stops. */
-  activity: readonly JournalEvent[];
-}) {
-  const queued = session?.queuedMessages || [];
-  const busy = !!session?.busy && !session.closed;
-  const [collapsed, setCollapsed] = useState(false);
+/**
+ * Delivering queued messages ahead of their turn, and what the strip shows
+ * meanwhile: one state for the strip's buttons and for ⌘↵ in the message box.
+ */
+export type QueuedDelivery = {
+  working?: { id: string; how: 'now' | 'steer' };
+  error?: { id: string; text: string };
+  /**
+   * Delivers the queued message with this operation id. `justSent`: the
+   * message was sent a moment ago, so one the Runner already took (the turn
+   * ended meanwhile) went out as it should, and is no error.
+   */
+  deliver(operationId: string, how: 'now' | 'steer', justSent?: boolean): Promise<void>;
+};
+export function useQueuedDelivery(api: RunnerClient, sessionID: string, queued: readonly QueuedMessage[] | undefined): QueuedDelivery {
   const [working, setWorking] = useState<{ id: string; how: 'now' | 'steer' }>();
   const [error, setError] = useState<{ id: string; text: string }>();
-  const step = useMemo(() => busy ? stepName(activity) : {}, [busy, activity]);
-  const now = useNow(busy && queued.length > 0);
   // A message that left the queue takes its confirmation, progress and error with it.
-  const ids = queued.map(message => message.operationId).join('\0');
+  const ids = (queued || []).map(message => message.operationId).join('\0');
   useEffect(() => {
     const present = new Set(ids.split('\0'));
     if (working && !present.has(working.id)) setWorking(undefined);
     if (error && !present.has(error.id)) setError(undefined);
   }, [ids]);
+  useEffect(() => { setWorking(undefined); setError(undefined); }, [sessionID]);
+  const deliver = async (operationId: string, how: 'now' | 'steer', justSent = false) => {
+    setError(undefined); setWorking({ id: operationId, how });
+    try { await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'deliverQueued', value: { operationId, how } } }); }
+    catch (e) {
+      setWorking(undefined);
+      const why = String(e instanceof Error ? e.message : e).replace(/^\[\w+\]\s*/, '');
+      if (justSent && /no longer queued/.test(why)) return;
+      setError({ id: operationId, text: `${how === 'steer' ? 'Could not steer' : 'Could not send it now'}: ${why}` });
+    }
+  };
+  return { working, error, deliver };
+}
+
+export function QueuedMessages({ session, live, agentName, activity, delivery, sendNowKey }: {
+  session?: Session;
+  live: LiveStatus;
+  agentName: string;
+  /** The conversation's activity, to name the step Send now stops. */
+  activity: readonly JournalEvent[];
+  delivery: QueuedDelivery;
+  /** Send now's key as it reads (⌘↵), when it has one: it sends the oldest queued message. */
+  sendNowKey?: string;
+}) {
+  const queued = session?.queuedMessages || [];
+  const busy = !!session?.busy && !session.closed;
+  const [collapsed, setCollapsed] = useState(false);
+  const { working, error } = delivery;
+  const step = useMemo(() => busy ? stepName(activity) : {}, [busy, activity]);
+  const now = useNow(busy && queued.length > 0);
   if (!busy || !queued.length) return null;
 
   const steer = !!session?.capabilities?.steer;
-  const deliver = async (message: QueuedMessage, how: 'now' | 'steer') => {
-    setError(undefined); setWorking({ id: message.operationId, how });
-    try { await api.apply({ sessionId: sessionID, operationId: crypto.randomUUID(), operation: { case: 'deliverQueued', value: { operationId: message.operationId, how } } }); }
-    catch (e) { setWorking(undefined); setError({ id: message.operationId, text: `${how === 'steer' ? 'Could not steer' : 'Could not send it now'}: ${String(e instanceof Error ? e.message : e).replace(/^\[\w+\]\s*/, '')}` }); }
-  };
+  const deliver = (message: QueuedMessage, how: 'now' | 'steer') => delivery.deliver(message.operationId, how);
   const many = queued.length > 1;
   const shown = collapsed ? [] : many && queued.length > 2 ? queued.slice(0, 2) : queued;
   // What the agent is busy with, as the live bar says it: the step and its time, else the status line.
@@ -79,7 +107,7 @@ export function QueuedMessages({ api, session, sessionID, live, agentName, activ
       </button>
     </header>
     {shown.length > 0 && <ul className="queued-list">
-      {shown.map(message => {
+      {shown.map((message, index) => {
         const mine = working?.id === message.operationId;
         // A message Lazybox wrote says what it is, not the words it carries.
         const origin = messageOrigin(message.origin), event = origin && systemEventView(origin, agentName);
@@ -92,7 +120,7 @@ export function QueuedMessages({ api, session, sessionID, live, agentName, activ
                 {steer && <button type="button" onClick={() => void deliver(message, 'steer')}
                   title={`Give ${agentName} this message now, inside the running turn, without stopping it`}><Icon name="send" size={11}/>Steer</button>}
                 <button type="button" onClick={() => void deliver(message, 'now')}
-                  title={`${stops} and send this as the next turn`}><Icon name="stop" size={11}/>Send now</button>
+                  title={`${stops} and send this as the next turn${index === 0 && sendNowKey ? ` (${sendNowKey})` : ''}`}><Icon name="stop" size={11}/>Send now</button>
               </>}
             </span>
           </div>
@@ -101,6 +129,6 @@ export function QueuedMessages({ api, session, sessionID, live, agentName, activ
       })}
     </ul>}
     {!collapsed && queued.length > shown.length && <p className="queued-more">and {queued.length - shown.length} more, sent in order after these</p>}
-    {!collapsed && !steer && <p className="queued-note">{agentName} can’t take a message in the middle of a turn: <strong>Send now</strong> stops its current step first, then sends yours.</p>}
+    {!collapsed && !steer && <p className="queued-note">{agentName} can’t take a message in the middle of a turn: <strong>Send now</strong>{sendNowKey ? ` (${sendNowKey})` : ''} stops its current step first, then sends yours.</p>}
   </section>;
 }

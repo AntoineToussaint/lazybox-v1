@@ -4,7 +4,9 @@
 // warns which step it stops, then interrupts the turn and sends the message
 // next (Escape keeps waiting); Steer gives it to a Codex turn without stopping
 // it; for Claude the strip says it cannot take a message mid-turn. Several
-// queued messages collapse; a phone keeps it on screen.
+// queued messages collapse; a phone keeps it on screen. ⌘↵ (Send now's key)
+// sends the typed message now while the agent works, the oldest queued one
+// from an empty box, and is an ordinary send while the agent is idle.
 import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {chromium,expect} from '@playwright/test';import {fileURLToPath} from 'node:url';import assert from 'node:assert/strict';import {mkdir} from 'node:fs/promises';import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 
@@ -22,6 +24,7 @@ for(const session of [claude,codex]){
  ch.push({type:'tool_activity',providerDataJson:b64({type:'tool_call',id:'toolu_dev',name:'Bash',status:'running',input:{command:'npm run dev'}})},at(-300000));
 }
 const deliveries=()=>f.mutations.filter(m=>m.method==='Apply'&&m.body.deliverQueued).map(m=>m.body.deliverQueued);
+const sentAs=text=>f.mutations.findLast(m=>m.method==='Apply'&&m.body.message?.text===text)?.body.operationId;
 
 const server=await createServer({...testViteCache(import.meta.url),configFile:false,logLevel:'error',root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:f.url}}}});let browser;
 try{
@@ -31,10 +34,15 @@ try{
  await open(claude);
  const chat=page.locator('.embedded-chat').first(),composer=chat.getByRole('textbox',{name:'Message',exact:true});
  const strip=chat.getByRole('region',{name:'Queued messages'});
+ // Send now's key, as the app shows it and as it is pressed.
+ const mac=await page.evaluate(()=>/Mac|iPhone|iPad/.test(navigator.platform)),nowKey=mac?'⌘↵':'Ctrl+↵',sendNowKey='ControlOrMeta+Enter';
+ const hint=chat.locator('.composer .keyboard-hint');
 
  // ── Sent during a busy turn, the message waits, and the strip says why.
  await expect(chat.getByRole('region',{name:'What the agent is doing'})).toBeVisible();
  await expect(strip).toHaveCount(0);
+ // While the agent works, the message box says what ↵ and Send now's key do.
+ await expect(hint).toHaveText(`↵ queues · ${nowKey} sends now`);
  await composer.fill('Use port 4000 instead, 3000 is taken.');await composer.press('Enter');
  await expect(strip).toBeVisible({timeout:5000});
  await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^Queued — Claude is busy \(Running a command · 5m \d\ds\)$/);
@@ -42,12 +50,12 @@ try{
  await expect(item.locator('q')).toHaveText('Use port 4000 instead, 3000 is taken.');
  // Claude cannot take a message mid-turn: no Steer, and the strip says so.
  await expect(item.getByRole('button',{name:'Steer'})).toHaveCount(0);
- await expect(strip.locator('.queued-note')).toHaveText('Claude can’t take a message in the middle of a turn: Send now stops its current step first, then sends yours.');
+ await expect(strip.locator('.queued-note')).toHaveText(`Claude can’t take a message in the middle of a turn: Send now (${nowKey}) stops its current step first, then sends yours.`);
  await page.screenshot({path:'.cache/queued-claude.png'});
 
- // ── Send now is one click; its tooltip names the step it stops.
+ // ── Send now is one click; its tooltip names the step it stops, and the key that sends the oldest queued message.
  const sendNow=item.getByRole('button',{name:'Send now'});
- await expect(sendNow).toHaveAttribute('title','Stop npm run dev and send this as the next turn');
+ await expect(sendNow).toHaveAttribute('title',`Stop npm run dev and send this as the next turn (${nowKey})`);
  await page.screenshot({path:'.cache/queued-send-now.png'});
  await sendNow.click();
  await expect.poll(deliveries).toEqual([{operationId:f.mutations.find(m=>m.method==='Apply'&&m.body.message)?.body.operationId,how:'now'}]);
@@ -66,6 +74,20 @@ try{
  const queuedAt=order.findIndex(t=>t.includes('Use port 4000 instead, 3000 is taken.')),stoppedAt=order.indexOf('Stopped to send your message'),repliedAt=order.findIndex(t=>t.includes('Switching to port 4000.'));
  assert.ok(queuedAt>=0&&queuedAt<stoppedAt&&stoppedAt<repliedAt,`the message, the stop, then its turn: ${JSON.stringify(order)}`);
  await page.screenshot({path:'.cache/queued-sent-now.png'});
+
+ // ── Typed, then ⌘↵ while the agent works: the message goes now, never left waiting in the queue.
+ claude.sentNowReply='Restarting on port 5000.';
+ await composer.fill('Actually use port 5000.');await composer.press(sendNowKey);
+ await expect.poll(()=>deliveries().at(-1)).toEqual({operationId:sentAs('Actually use port 5000.'),how:'now'});
+ assert.equal(deliveries().length,2);assert.equal(claude.interrupted,2,'the Runner interrupts the turn for it');
+ await expect(composer).toHaveValue('');
+ await expect(chat.locator('.stopped-line')).toHaveCount(2);
+ await expect(chat.getByText('Restarting on port 5000.')).toBeVisible();
+ await expect(strip).toHaveCount(0);
+ await expect(chat.getByRole('alert')).toHaveCount(0);
+ {const order=await chat.locator('[data-message-id]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim()));
+  const typedAt=order.findIndex(t=>t.includes('Actually use port 5000.')),stoppedAt=order.lastIndexOf('Stopped to send your message'),repliedAt=order.findIndex(t=>t.includes('Restarting on port 5000.'));
+  assert.ok(typedAt>=0&&typedAt<stoppedAt&&stoppedAt<repliedAt,`the typed message, the stop, then its turn: ${JSON.stringify(order)}`);}
 
  // ── Several queued messages: two shown, the rest counted, and the strip can be put away.
  for(const text of ['First follow-up','Second follow-up','Third follow-up']){await composer.fill(text);await composer.press('Enter');await expect.poll(()=>claude.queuedMessages.length).toBeGreaterThan(0);}
@@ -86,6 +108,17 @@ try{
  await page.screenshot({path:'.cache/queued-phone.png'});
  await page.setViewportSize({width:1400,height:900});
 
+ // ── ↵ queued them; ⌘↵ with an empty message box sends the oldest now, the others keep their order.
+ // (Back at desktop width the chat is laid out again: it shows the queue before the key is pressed.)
+ await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^3 messages queued/);
+ await composer.focus();await expect(composer).toHaveValue('');
+ await composer.press(sendNowKey);
+ await expect.poll(()=>deliveries().at(-1)).toEqual({operationId:sentAs('First follow-up'),how:'now'});
+ assert.equal(claude.interrupted,3);
+ assert.deepEqual(claude.queuedMessages.map(m=>m.text),['Second follow-up','Third follow-up']);
+ await expect(strip.locator('.queued-head [role=status]')).toHaveText(/^2 messages queued — Claude is busy/,{timeout:5000});
+ await expect(strip.getByRole('listitem').first().locator('q')).toHaveText('Second follow-up');
+
  // ── Codex takes a message mid-turn: Steer delivers it without stopping the turn.
  await open(codex);
  await expect(chat.getByRole('region',{name:'What the agent is doing'})).toBeVisible();
@@ -98,6 +131,20 @@ try{
  await expect.poll(()=>deliveries().at(-1)).toEqual({operationId:f.mutations.findLast(m=>m.method==='Apply'&&m.body.message)?.body.operationId,how:'steer'});
  assert.equal(codex.interrupted,undefined,'steering does not interrupt the turn');
  await expect(strip).toHaveCount(0,{timeout:5000});
+ // Steer stays a button: ⌘↵ with nothing typed and nothing queued sends nothing, and says so quietly.
+ const before=f.mutations.filter(m=>m.method==='Apply').length;
+ await composer.focus();await composer.press(sendNowKey);
+ await expect(page.locator('.context-menu-notice')).toHaveText('Nothing queued to send now');
+ assert.equal(f.mutations.filter(m=>m.method==='Apply').length,before,'nothing sent');
+
+ // ── The agent idle: ⌘↵ is an ordinary send, nothing interrupted.
+ Object.assign(codex,{busy:false,status:'ready',agents:[]});
+ await expect(hint).toHaveText('Enter to send · Shift+Enter for a new line',{timeout:5000});
+ const delivered=deliveries().length;
+ await composer.fill('Thanks, that is all.');await composer.press(sendNowKey);
+ await expect.poll(()=>sentAs('Thanks, that is all.')).toBeTruthy();
+ await expect(composer).toHaveValue('');
+ assert.equal(deliveries().length,delivered,'no Send now');assert.equal(codex.interrupted,undefined,'nothing interrupted');
  assert.deepEqual(errors,[]);
- console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with; Send now delivers it in one click (interrupt, then next) and its tooltip names the step it stops; Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width. Fixture only.');
+ console.log('PASS queued messages: a message sent during a busy turn shows as queued with what the agent is busy with; Send now delivers it in one click (interrupt, then next) and its tooltip names the step it stops; Steer for Codex delivers into the running turn; Claude says it cannot be steered; several collapse and hide; phone width; ⌘↵ sends the typed message now while busy, the oldest queued one from an empty box, says so when there is nothing, and is a plain send while idle. Fixture only.');
 }finally{await browser?.close();await server.close();await f.close();}

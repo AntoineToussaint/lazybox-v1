@@ -59,8 +59,9 @@ On-device and private by default. User guide:
   input. Previews are not saved; the draft is saved when the dictation ends.
   A dictation that ends having shown no words leaves the caret alone (putting
   it back later would undo the key that ended it, such as ⌥→ in a slow ⌥ chord).
-  Typing takes over; sending (`↵`, `⌘↵`, the Send button) while listening
-  stops, lets the recognizer settle, then submits the same form.
+  Typing takes over; sending (`↵`, `⌘↵` — Send now, a plain send while the
+  agent is idle — or the Send button) while listening stops, lets the
+  recognizer settle, then submits the same form.
 - **`CommandPalette.tsx`** — a spoken query ranks by words (`spokenScore`), not
   letters in order. `spokenDecision` runs a clear winner (≥ 70 and 12 ahead of
   the next), asks about one that needs a yes (`voiceConfirms`: the person's own
@@ -234,7 +235,7 @@ from a terminal is attributed to the terminal by TCC):
    nothing. With the ChatGPT app's launcher on `⌥Space`, start from the mic:
    the pill says another app may use the key.
 4d. **⌘↵.** While listening, say "ship it" and press `⌘↵`: "Ship it" is sent
-   once, with its last word.
+   once, with its last word (while the agent works, sent now: ⌘↵ is Send now).
 5. **Send.** Turn on *Send when I say "send"*; dictate "ship it send": the
    message "Ship it" is sent once. Turn it off; "send" only stops, with the
    *Press ↵ to send* note.
