@@ -204,7 +204,8 @@ async function install({ prefix, linkDir, open, smoke }) {
   console.log(`  Built in ${Math.round((Date.now() - started) / 60000)} min.`);
 
   console.log(`\nInstalling ${app}`);
-  if (existsSync(app)) console.log(`  Replacing ${describeInstalled(app)}.`);
+  const replacing = existsSync(app);
+  if (replacing) console.log(`  Replacing ${describeInstalled(app)}.`);
   const wasOpen = await quit(app);
   mkdirSync(folder, { recursive: true });
   const incoming = join(folder, '.Lazybox.app.installing'), previous = join(folder, '.Lazybox.app.previous');
@@ -230,8 +231,9 @@ async function install({ prefix, linkDir, open, smoke }) {
   }
   console.log(`
 Next:
-  1. ${open ? 'Lazybox is opening' : `Open ${app}`}${wasOpen ? ' again' : ''}. The welcome screen helps you connect
-     Claude Code or Codex (sign in as you usually do) and add a repository.
+  1. ${open ? 'Lazybox is opening' : `Open ${app}`}${wasOpen ? ' again' : ''}. ${replacing
+    ? 'Your workspaces and conversations are where you left them;\n     Help → What\'s new lists what changed.'
+    : 'The welcome screen helps you connect\n     Claude Code or Codex (sign in as you usually do) and add a repository.'}
   2. In a new terminal, check everything: lazybox doctor
   3. What to try first, and how to report a problem: docs/testers.md
   Later: make update (pull, rebuild, reinstall; your data stays), make uninstall.
@@ -246,10 +248,28 @@ async function uninstall({ prefix, purge }) {
     return;
   }
   if (plistValue(app, 'CFBundleIdentifier') !== APP_ID) throw new Error(`${app} is not Lazybox; nothing was removed`);
+  // The CLI lists what goes; the app goes too, so its own "drag the app to
+  // the Trash" advice is not shown (--json), and PURGE asks here.
+  const plan = cliJSON(cli, ['uninstall', '--dry-run', ...(purge ? ['--remove-data'] : [])]);
+  if (!plan) throw new Error(`\`${cli} uninstall --dry-run\` could not say what it would remove; nothing was removed`);
+  console.log('Removing:');
+  for (const r of [...(plan.remove || []), { what: 'the app', path: app }]) console.log(`  - ${r.what} ${r.path.replace(homedir(), '~')}`);
+  if (purge) {
+    if (!process.stdin.isTTY) throw new Error('PURGE=1 deletes your conversations and workspaces; run it from a terminal to confirm');
+    const answer = await new Promise(done => {
+      process.stdout.write('This deletes your conversations, subscriptions and workspaces for good, including uncommitted work in them. Type delete to continue: ');
+      process.stdin.once('data', data => { process.stdin.pause(); done(String(data).trim()); });
+      process.stdin.once('end', () => done(''));
+    });
+    if (answer !== 'delete') { console.log('Nothing was removed.'); return; }
+  }
   await quit(app);
-  if (run(cli, ['uninstall', ...(purge ? ['--remove-data'] : [])]) !== 0) throw new Error('lazybox uninstall did not finish (above); the app was left in place');
+  const result = spawnSync(cli, ['uninstall', '--json', ...(purge ? ['--remove-data', '--yes'] : [])], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+  if (result.status !== 0) throw new Error('lazybox uninstall did not finish (above); the app was left in place');
   rmSync(app, { recursive: true, force: true });
-  console.log(`✓ Removed ${app}.${purge ? '' : ' Your conversations, subscriptions and settings are kept; make install brings them back, PURGE=1 deletes them.'}`);
+  let kept = '';
+  try { const report = JSON.parse(result.stdout); const live = report.keptRunning || {}; const total = Object.values(live).reduce((sum, n) => sum + (typeof n === 'number' ? n : 0), 0); if (total) kept = `\n  Still running: ${live.agents || 0} agents, ${live.commands || 0} commands, ${live.terminals || 0} terminals. They stop by themselves within a day, or are picked up again if you install before then.`; } catch { /* the summary is enough */ }
+  console.log(`✓ Lazybox is uninstalled: the app, its Runner service and the lazybox command.${purge ? ' Your data is deleted.' : ' Your conversations, subscriptions and settings are kept; make install brings them back, make uninstall PURGE=1 deletes them.'}${kept}`);
 }
 
 async function main() {
