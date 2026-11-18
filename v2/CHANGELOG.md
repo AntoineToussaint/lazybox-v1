@@ -105,6 +105,7 @@ leave out.
 - **The other agent reviews** Codex reviews Claude's work and Claude reviews Codex's, or choose a reviewer in Settings → Agents & workspaces.
 - **Clean means clean** A review with majors still open says so, and Send findings puts them in the author's message box for you to send.
 - **One review at a time** Review in the header and /review start through one launcher, so a double start never runs two reviews of the same work.
+- **Cancel a review** Cancel review on its card (or Esc on it, the reviewer's ⋯ menu, ⌘K, lazybox review cancel) stops the reviewer now and starts no further round; its conversation and findings stay, and Review again starts it over. Ending the reviewer's conversation yourself stops the review too, so a card never stays reviewing.
 
 ### Pull requests and issues
 

@@ -224,7 +224,11 @@ export async function startRunnerFixture() {
   const providerOf=session=>session?.provider||profiles.find(p=>p.id===session?.profileId)?.provider||'claude';
   const providerName=provider=>provider==='codex'?'Codex':'Claude';
   const reviewEvent=(type,collectionId,run)=>{const counts=runCounts(collectionId,run);const lower=run.scopeLabel.startsWith('PR ')?run.scopeLabel:run.scopeLabel[0].toLowerCase()+run.scopeLabel.slice(1);const summary=counts.blockers+counts.majors+counts.minors+counts.nits?[counts.blockers&&`${counts.blockers} blocker${counts.blockers>1?'s':''}`,counts.majors&&`${counts.majors} major`,counts.minors&&`${counts.minors} minor`,counts.nits&&`${counts.nits} nit${counts.nits>1?'s':''}`].filter(Boolean).join(', '):'no open findings';
-    eventStreams.get(run.sourceSessionId)?.push({type,requestId:run.id,status:run.state,text:type==='review_started'?`${run.reviewerLabel} is reviewing ${lower}`:`${run.reviewerLabel} reviewed ${lower} · ${summary}`,providerDataJson:Buffer.from(JSON.stringify({review:run.id,workspace:collectionId,reviewerSession:run.reviewerSessionId,reviewerLabel:run.reviewerLabel,sourceSession:run.sourceSessionId,sourceLabel:run.sourceLabel,scope:run.scope,scopeLabel:run.scopeLabel,turn:run.turn,...counts})).toString('base64')});};
+    // Ended by hand (cancelled, or its reviewer stopped): said so, with who and when, as the Runner records it.
+    const total=counts.blockers+counts.majors+counts.minors+counts.nits,kept=`${total} finding${total===1?'':'s'} kept`;
+    const finished=run.state==='cancelled'?`Review cancelled · ${kept}`:run.state==='stopped'?`Review stopped · ${kept}`:`${run.reviewerLabel} reviewed ${lower} · ${summary}`;
+    const byHand=run.state==='cancelled'||run.state==='stopped'?{state:run.state,stoppedBy:run.stoppedBy,stoppedAt:Number(run.stoppedAtUnix)}:{};
+    eventStreams.get(run.sourceSessionId)?.push({type,requestId:run.id,status:run.state,text:type==='review_started'?`${run.reviewerLabel} is reviewing ${lower}`:finished,providerDataJson:Buffer.from(JSON.stringify({review:run.id,workspace:collectionId,reviewerSession:run.reviewerSessionId,reviewerLabel:run.reviewerLabel,sourceSession:run.sourceSessionId,sourceLabel:run.sourceLabel,scope:run.scope,scopeLabel:run.scopeLabel,turn:run.turn,...counts,...byHand})).toString('base64')});};
   const runOf=id=>{for(const [collectionId,r] of reviews){const run=r.runs.find(x=>x.id===id);if(run)return {collectionId,run};}throw new Error(`fixture review ${id} not found`);};
   /** `lazybox review add` from the reviewer: a proposed finding, idempotent by key. */
   // The loop (GITHUB.md, "The review loop"), as the Runner runs it: rounds,
@@ -237,6 +241,16 @@ export async function startRunnerFixture() {
   const escalate=(collectionId,run,text)=>eventStreams.get(run.sourceSessionId)?.push({type:'review_escalated',requestId:run.id,status:run.stopReason,text,providerDataJson:Buffer.from(JSON.stringify({review:run.id,workspace:collectionId,reviewerSession:run.reviewerSessionId,reviewerLabel:run.reviewerLabel,sourceLabel:run.sourceLabel})).toString('base64')});
   const stopLoop=(collectionId,run,reason,text,escalates)=>{Object.assign(run,{stopReason:reason,phase:'done',detail:text});loopNote(run,escalates?'escalated':'stopped','Lazybox',text);if(escalates)escalate(collectionId,run,text);};
   const active=run=>!!run.phase&&run.phase!=='done'&&!run.stopReason;
+  // Ending a review by hand (GITHUB.md, "Cancelling a review"), as the Runner does: the loop stops,
+  // the round closes, and the author's conversation is told, with who and when.
+  const inProgress=run=>run.state==='running'||active(run);
+  const endByHand=(collectionId,run,state,reason,text)=>{const now=unix(),round=run.rounds?.at(-1);if(round&&!round.endedAtUnix)round.endedAtUnix=now;
+    Object.assign(run,{state,stopReason:reason,phase:'done',paused:false,stoppedBy:'You',stoppedAtUnix:now,updatedAtUnix:now,detail:text});loopNote(run,reason,'You',text);reviewEvent('review_finished',collectionId,run);};
+  const closeReviewer=run=>{const s=sessions.find(x=>x.id===run.reviewerSessionId);if(s&&!s.closed)Object.assign(s,{closed:true,busy:false,status:'stopped'});};
+  /** The person stopped (`interrupted`, while it reviews), ended (`ended`) or deleted (`deleted`) a reviewer: its review under way stops. */
+  const reviewerEnded=(sessionId,how)=>{for(const [collectionId,r] of reviews)for(const run of r.runs){
+    if(run.reviewerSessionId!==sessionId||!inProgress(run)||(how==='interrupted'&&!(run.state==='running'&&run.phase==='reviewing')))continue;
+    endByHand(collectionId,run,'stopped','ended',`You ${{interrupted:`stopped ${run.reviewerLabel}'s turn`,ended:`ended ${run.reviewerLabel}'s conversation`,deleted:`deleted ${run.reviewerLabel}'s conversation`}[how]}; the review stopped.`);}};
   const exchangeLine=(run,text)=>{for(const id of [run.reviewerSessionId,run.sourceSessionId])eventStreams.get(id)?.push({type:'review_exchange',requestId:run.id,text,providerDataJson:Buffer.from(JSON.stringify({review:run.id,reviewerSession:run.reviewerSessionId,sourceSession:run.sourceSessionId})).toString('base64')});};
   /** `lazybox ask`: one agent asks, the other answers; both conversations show it. */
   const exchange=(id,{from='reviewer',question,answer})=>{const {run}=runOf(id);const [asker,answerer]=from==='reviewer'?[run.reviewerLabel,run.sourceLabel]:[run.sourceLabel,run.reviewerLabel];
@@ -267,7 +281,7 @@ export async function startRunnerFixture() {
       author:'agent',authorLabel:run.reviewerLabel,authorSessionId:run.reviewerSessionId,severity,title,reviewId:run.id,findingKey:key,round:run.round||1};
     r.comments.push(c);loopNote(run,'filed',run.reviewerLabel,`${severity[0].toUpperCase()+severity.slice(1)}: ${title} (${member}/${path}:${startLine})`,c.id);return c;};
   /** The reviewer's turn ends: the review is done, and the author's conversation is told. */
-  const finishReview=id=>{const {collectionId,run}=runOf(id);run.state='done';run.updatedAtUnix=unix();
+  const finishReview=id=>{const {collectionId,run}=runOf(id);if(run.state==='cancelled'||run.state==='stopped')return run;run.state='done';run.updatedAtUnix=unix();
     if(run.phase==='reviewing'){const r=reviewOf(collectionId),round=run.rounds.at(-1);let filed=0,stillOpen=0,blockers=0;
       for(const c of r.comments.filter(c=>c.reviewId===run.id)){if(c.round===run.round)filed++;else if(c.round<run.round&&liveFinding(c)&&c.delivered){c.stillOpenRounds=(c.stillOpenRounds||0)+1;stillOpen++;}if(liveFinding(c)&&c.severity==='blocker')blockers++;}
       const resolved=run.timeline.filter(e=>e.round===run.round&&e.kind==='resolved').length;Object.assign(round,{endedAtUnix:unix(),filed,resolved,stillOpen,blockers});
@@ -575,6 +589,23 @@ actions:
         }
         return json(reviewReply(body.collectionId));
       }
+      case 'CancelReview': {
+        mutations.push({method,body});
+        const found=[...reviews].map(([collectionId,r])=>({collectionId,run:r.runs.find(x=>x.id===body.reviewId)})).find(x=>x.run&&(!body.collectionId||x.collectionId===body.collectionId));
+        if(!found)return error('not_found',`review "${body.reviewId}" not found`);
+        const {collectionId,run}=found;
+        if(run.state!=='cancelled'){
+          if(!inProgress(run))return error('failed_precondition','this review has already ended');
+          const counts=runCounts(collectionId,run),kept=counts.blockers+counts.majors+counts.minors+counts.nits;
+          endByHand(collectionId,run,'cancelled','cancelled',`You cancelled the review${run.round>0?` in round ${run.round}`:''}; ${plural(kept,'finding','findings')} kept.`);
+        }
+        closeReviewer(run);
+        return json(reviewReply(collectionId));
+      }
+      case 'StopSessionResources': {
+        mutations.push({method,body});const session=sessions.find(s=>s.id===body.sessionId);if(!session)return error('not_found','Session not found');
+        Object.assign(session,{closed:true,busy:false,status:'stopped'});reviewerEnded(session.id,'ended');return json({session});
+      }
       case 'StartReview': {
         mutations.push({method,body});
         const collection=collections.find(c=>c.id===body.collectionId);if(!collection)return error('not_found','Workspace missing');
@@ -779,7 +810,7 @@ actions:
       case 'SearchWorkspaceFiles': {const files=treeFiles(body.collectionId);const found=body.query?files.map(p=>fuzzy(p,body.query)).filter(Boolean).sort((a,b)=>b.score-a.score||a.path.localeCompare(b.path)).slice(0,body.limit||50):[];return json({matches:found.map(({path,positions})=>({path,positions})),indexed:files.length});}
       case 'ReadWorkspaceFile': {const key=body.collectionId+'/'+body.path; if(treeFolders(body.collectionId).has(body.path))return json({path:body.path,directory:true,entries:listFolder(body.collectionId,body.path)}); if(!workspaceFiles.has(key))workspaceFiles.set(key,{path:body.path,text:'# File preview\nA retained file.\n',version:'v1',binary:false,truncated:false});return json(workspaceFiles.get(key));}
       case 'SaveWorkspaceFile': {const key=body.collectionId+'/'+body.path,file=workspaceFiles.get(key);if(file.version!==body.expectedVersion)return error('aborted','File changed on the Runner');Object.assign(file,{text:body.text,version:crypto.randomUUID()});mutations.push({method,body});return json(file);}
-      case 'DeleteConversation': {const session=sessions.find(s=>s.id===body.sessionId);if(session&&!session.closed&&!body.stopSessions)return error('failed_precondition','Agent running');if(session)sessions.splice(sessions.indexOf(session),1);mutations.push({method,body});return json({});}
+      case 'DeleteConversation': {const session=sessions.find(s=>s.id===body.sessionId);if(session&&!session.closed&&!body.stopSessions)return error('failed_precondition','Agent running');if(session){reviewerEnded(session.id,'deleted');sessions.splice(sessions.indexOf(session),1);}mutations.push({method,body});return json({});}
       case 'ResumeSession': {
         const previous=sessions.find(s=>s.id===body.sessionId);if(!previous)return error('not_found','Missing conversation');
         // Like the Runner (Bench.reconnect): a live conversation that only lost its stream re-attaches its agent in place.
@@ -1077,6 +1108,8 @@ actions:
         if(session?.applyDelayMs&&body.message)await new Promise(resolve=>setTimeout(resolve,session.applyDelayMs));
         // `turnOver`: the turn ended in the Runner before the client's view of it, as the engine says it.
         if(session?.turnOver&&body.interrupt)return error('failed_precondition','no active turn');
+        // Like the Runner: Stop on a reviewer mid-review stops its review.
+        if(session?.busy&&!session.closed&&body.interrupt)reviewerEnded(session.id,'interrupted');
         // Like the Runner: a stop names a sub-agent it knows running, by the provider's id; else nothing is running.
         // `notRunning`: the Runner's own state moved on after the snapshot the client shows.
         if(session&&body.stopAgent){const agent=(session.agents||[]).find(a=>a.id===body.stopAgent.agentId);if(!agent||!agent.nativeId||agent.notRunning||!['running','starting','waiting_input','waiting_approval'].includes(agent.status))return error('failed_precondition','sub-agent is not running');}

@@ -34,12 +34,15 @@ export type LineageNote = { kind: string; conversation: string; session: string;
 /** An agent review of this conversation's work (the Runner's review_started /
  * review_finished events): its card follows the review live; the counts here
  * are what the last event said, for when the review record is gone. */
-export type ReviewNote = { review: string; workspace: string; reviewerSession: string; reviewerLabel: string; scopeLabel: string; blockers: number; majors: number; minors: number; nits: number; finished: boolean };
+export type ReviewNote = { review: string; workspace: string; reviewerSession: string; reviewerLabel: string; scopeLabel: string; blockers: number; majors: number; minors: number; nits: number; finished: boolean;
+  /** "cancelled" or "stopped" when the person ended it by hand (the event says so). */
+  state?: string };
 function reviewNote(data: Record<string, unknown>, finished: boolean): ReviewNote | undefined {
   const text = (key: string) => typeof data[key] === 'string' ? data[key] as string : '';
   const count = (key: string) => typeof data[key] === 'number' ? data[key] as number : 0;
   if (!text('review') || !text('reviewerSession')) return;
-  return { review: text('review'), workspace: text('workspace'), reviewerSession: text('reviewerSession'), reviewerLabel: text('reviewerLabel') || 'Reviewer', scopeLabel: text('scopeLabel'), blockers: count('blockers'), majors: count('majors'), minors: count('minors'), nits: count('nits'), finished };
+  const state = text('state') === 'cancelled' || text('state') === 'stopped' ? text('state') : '';
+  return { review: text('review'), workspace: text('workspace'), reviewerSession: text('reviewerSession'), reviewerLabel: text('reviewerLabel') || 'Reviewer', scopeLabel: text('scopeLabel'), blockers: count('blockers'), majors: count('majors'), minors: count('minors'), nits: count('nits'), finished, ...(state ? { state } : {}) };
 }
 /** `requests`: what each question or approval asked, to say how it was answered. */
 export type Transcript = { messages: TranscriptMessage[]; recent: JournalEvent[]; activity: JournalEvent[]; activityTruncated: boolean; cursor: bigint; appendToLast: boolean; reportedModel:string; subagents: Subagents; requests: Record<string, RequestNote>; /** The agent's slash commands and models (`command_catalog`). */ catalog: CommandCatalog;
