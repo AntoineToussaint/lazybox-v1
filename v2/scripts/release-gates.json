@@ -123,7 +123,8 @@
     { "id": "scenarios", "scope": "ui", "script": "test:scenarios", "timeoutMs": 600000 }
   ],
   "external": [
-    { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." }
+    { "script": "test:browser", "reason": "Requires an explicitly selected live Runner and provider authorization; not a deterministic fixture." },
+    { "script": "test:mobile-simulator", "reason": "Builds the iPhone app and drives the iOS Simulator with Maestro; needs Xcode, an iOS runtime and CocoaPods on a Mac, so it runs by hand (apps/mobile/README.md), not in CI." }
   ],
   "aliases": [
     { "script": "test:unified-repositories", "target": "test:repository-picker" }
