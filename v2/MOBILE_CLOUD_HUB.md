@@ -544,7 +544,7 @@ Connect-ES and the shared `RunnerLink`; no Swift networking.**
   its streams and polls, as iOS would suspend the sockets anyway.
 - **Reconnect:** back in the foreground the stream reopens from its cursor
   (it had read up to 19 and continues after 20, the word it saw before
-  leaving), 10 s after it closed, 8 s of which the test spent in the
+  leaving), 10 to 12 s after it closed across runs, 8 s of which the test spent in the
   background. It shows what was written while the app was away, nothing twice.
 - **The real gateway:** pairing, sign-in, the 15-minute credential, the device
   allowlist and Connect transcoding are the Runner's own code
