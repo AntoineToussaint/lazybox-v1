@@ -64,6 +64,7 @@
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },
     { "id": "transcript-polish", "scope": "ui", "script": "test:transcript-polish" },
     { "id": "chat-header", "scope": "ui", "script": "test:chat-header" },
+    { "id": "title-bar", "scope": "ui", "script": "test:title-bar" },
     { "id": "composer-info", "scope": "ui", "script": "test:composer-info" },
     { "id": "new-task", "scope": "ui", "script": "test:new-task" },
     { "id": "start-from-issue", "scope": "ui", "script": "test:start-from-issue" },

@@ -245,6 +245,37 @@ export type ViewStateStore = {
   /** Tells this host's other windows that an app-wide preference changed (they reread it). */
   share?(key: string, value: string): void;
 };
+/**
+ * The room a window's header leaves the native window controls drawn over
+ * its leading edge, and the height they are centred in. Screen points: the
+ * page divides them by its zoom.
+ */
+export type TitleBarInset = { inset: number; height: number };
+/**
+ * A window with no separate title bar (the desktop app on macOS): its own
+ * header is the title bar, with the system's close, minimize and zoom
+ * buttons over the header's leading edge. The page leaves them room, moves
+ * the window when an empty part of a header is dragged, and does what the
+ * system says for a double-click there. In full screen the buttons are
+ * hidden, and so is their room. A browser and the phone have none of this.
+ */
+export type TitleBarHost = {
+  /** This window's header. */
+  window: TitleBarInset;
+  /** The tab bar of a panel group this window pops out into a window of its own. */
+  popout: TitleBarInset;
+  fullScreen: boolean;
+  /** This window entered or left full screen; returns the unsubscribe. */
+  onFullScreen(listener: (fullScreen: boolean) => void): () => void;
+  /** The popped-out panel window in front entered or left full screen. */
+  onPopoutFullScreen?(listener: (fullScreen: boolean) => void): () => void;
+  /** A press on an empty part of a header: the window follows the pointer. `popout`: the popped-out window in front. */
+  startDragging(popout: boolean): Promise<void>;
+  /** A double-click on an empty part of a header: zoom, minimize or nothing, as the system setting says. */
+  doubleClick(popout: boolean): Promise<void>;
+  /** The UI zoom, which scales CSS pixels and not the buttons. */
+  zoom?: ZoomHost;
+};
 export type SurfaceHost = {
   saveTarget(target: SurfaceTarget): Promise<void>;
   /** A chat's own window: put it back in the window it came from, and close this one. */

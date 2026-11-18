@@ -91,6 +91,7 @@
     "test:chat-polish": "node scripts/test-chat-polish.mjs",
     "test:transcript-polish": "node scripts/test-transcript-polish.mjs",
     "test:chat-header": "node scripts/test-chat-header.mjs",
+    "test:title-bar": "node scripts/test-title-bar.mjs",
     "test:composer-info": "node scripts/test-composer-info.mjs",
     "test:new-task": "node scripts/test-new-task.mjs",
     "test:start-from-issue": "node scripts/test-start-from-issue.mjs",

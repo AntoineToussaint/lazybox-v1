@@ -13,6 +13,7 @@ import { fitWidth, groups, isSidebar, minWidthOf, sidebarAt, sidebarKinds, type 
 import type { LayoutDirection } from './actions';
 import { groupRects, neighbourIn, resizeEdge, resizeStep, shareOf, tabAt } from './dock-keyboard';
 import './dock-keyboard.css';
+import { attachPopoutTitleBar } from './title-bar';
 
 type Arranged = Pick<WorkspacePage, 'layout' | 'floating' | 'popouts'>;
 /** What a group's header actions and menus need to know about it. */

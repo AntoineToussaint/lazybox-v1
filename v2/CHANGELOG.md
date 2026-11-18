@@ -48,6 +48,7 @@ leave out.
 
 ### Workspaces and tabs
 
+- **No separate title bar** On a Mac every window's own header is its title bar, as in VS Code or Slack: the close, minimize and zoom buttons sit at its left, its empty parts move the window, and a double-click there does what System Settings says. Full screen gives the room back.
 - **Runners on your other computers (preview)** Settings → Runners → Add a computer lists your ~/.ssh/config hosts, installs and starts Lazybox's Runner there over your own ssh, and adds this Mac as its owner with a key of its own. Its workspaces then open here as the whole page, the sidebar groups Runners by computer with the round trip and Reconnecting…, and its agents keep working while your laptop sleeps. From a terminal: lazybox remote add, ls and rm.
 - **Conversations are tabs** A workspace opens with its conversations as tabs, most recent first. A click brings one forward, ⌘-click opens one behind, and a tab you close stays closed. Prefer one preview tab? Settings → Chat.
 - **Split, move, put back** Drag a tab to split, or right-click for Open beside, below or in a new window. Put back in main window (⇧⌘D) returns a panel exactly where it was.

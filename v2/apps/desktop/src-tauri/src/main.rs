@@ -14,6 +14,7 @@ mod release;
 mod runners;
 mod sounds;
 mod terminal;
+mod title_bar;
 mod updates;
 mod viewer;
 mod viewstate;
@@ -182,6 +183,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             terminal::terminal_apps,
             terminal::open_terminal,
             sounds::play_system_sound,
+            title_bar::title_bar,
+            title_bar::title_bar_drag,
+            title_bar::title_bar_double_click,
             capture::capture_window,
             capture::focus_window,
             appearance::ui_zoom,
@@ -213,6 +217,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             voice::speech_speaking
         ])
         .setup(|app| {
+            // Measured here, on the main thread, before any window is built.
+            title_bar::buttons();
             attention::setup(app.handle())?;
             host::setup(app)
         })
