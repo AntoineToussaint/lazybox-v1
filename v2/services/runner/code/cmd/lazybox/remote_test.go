@@ -27,6 +27,10 @@ import (
 // stdout passed through. Everything Lazybox does over SSH (probe, upload,
 // install, link up, owners add, link serve --stdio) runs exactly as it would
 // over a real ssh; only the transport and sshd's authentication are not real.
+//
+// Like sshd, it keeps the command's stdin and stdout open itself until the
+// command exits (no exec), so a command that closes its stdout is not seen as
+// gone until it really ends: a host side that lingers in a read shows here.
 const fakeSSH = `#!/bin/sh
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -38,7 +42,8 @@ done
 host=$1; shift
 echo "$host $*" >> "$FAKE_SSH_LOG"
 if [ -n "$FAKE_SSH_REFUSE" ]; then echo "ssh: connect to host $host port 22: Connection refused" >&2; exit 255; fi
-exec env -i HOME="$FAKE_SSH_HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin USER="$USER" TMPDIR="$TMPDIR" SSH_CONNECTION="127.0.0.1 50022 127.0.0.1 22" /bin/sh -c "$*"
+env -i HOME="$FAKE_SSH_HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin USER="$USER" TMPDIR="$TMPDIR" SSH_CONNECTION="127.0.0.1 50022 127.0.0.1 22" /bin/sh -c "$*; exit \$?"
+exit $?
 `
 
 type remoteWorld struct {
@@ -200,9 +205,9 @@ func (w *remoteWorld) waitState(name, state string, within time.Duration) link.L
 	}
 }
 
-// linkServePID is the host-side `lazybox link serve` of the live link: the
-// connect process's ssh child (the fake ssh execs into it).
-func (w *remoteWorld) linkServePID() int {
+// sshPID is the live link's ssh: the connect process's child, the leader of
+// its own process group (the fake ssh and the host's `link serve` under it).
+func (w *remoteWorld) sshPID() int {
 	w.t.Helper()
 	out, err := exec.Command("/usr/bin/pgrep", "-P", strconv.Itoa(w.connect.Process.Pid)).Output()
 	if err != nil {
@@ -350,7 +355,7 @@ func TestRemoteRunnerOverSSHEndToEnd(t *testing.T) {
 
 	// ssh dies (sleep, a network change): back within 5 seconds.
 	killed := time.Now()
-	if err = syscall.Kill(w.linkServePID(), syscall.SIGKILL); err != nil {
+	if err = syscall.Kill(-w.sshPID(), syscall.SIGKILL); err != nil {
 		t.Fatal(err)
 	}
 	w.waitState("build-box", "reconnecting", 5*time.Second)

@@ -605,4 +605,9 @@ func TestShellWordsAndHosts(t *testing.T) {
 	if !strings.Contains(joined, "BatchMode=yes") || !strings.Contains(joined, "ControlPath=/tmp/c/%C") || !strings.HasSuffix(joined, "build-box /opt/lazybox link serve --stdio") {
 		t.Errorf("ssh args: %s", joined)
 	}
+	// A directory too deep for a socket path: no multiplexing, rather than ssh failing.
+	deep, _ := SSHRoute{Host: "build-box", ControlDir: "/" + strings.Repeat("d", 80)}.Args()
+	if strings.Contains(strings.Join(deep, " "), "ControlMaster") {
+		t.Errorf("multiplexing with a %d-byte socket path", 82+40)
+	}
 }

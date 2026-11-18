@@ -93,7 +93,27 @@ type stdio struct {
 	io.Writer
 }
 
-func (stdio) Close() error { return errors.Join(os.Stdin.Close(), os.Stdout.Close()) }
+func (s stdio) Close() error {
+	var errs []error
+	for _, v := range []any{s.Reader, s.Writer} {
+		if c, ok := v.(io.Closer); ok {
+			errs = append(errs, c.Close())
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// processStdio is this process's stdin and stdout made pollable, so closing
+// the stream ends a read in progress at once. With the blocking descriptors
+// sshd hands over, a revoked key's session would sit in a read until the
+// client next wrote, and sshd keeps the channel open until this process exits.
+func processStdio() stdio {
+	if syscall.SetNonblock(0, true) != nil || syscall.SetNonblock(1, true) != nil {
+		return stdio{Reader: os.Stdin, Writer: os.Stdout}
+	}
+	// os.NewFile registers a non-blocking descriptor with the runtime's poller.
+	return stdio{Reader: os.NewFile(0, "stdin"), Writer: os.NewFile(1, "stdout")}
+}
 
 func (c *cli) linkServe(args []string) error {
 	f := c.flags("link serve")
@@ -121,6 +141,9 @@ func (c *cli) linkServe(args []string) error {
 		peer = fields[0] + ":" + fields[1]
 	}
 	stream := stdio{Reader: c.stdin, Writer: c.stdout}
+	if c.stdin == os.Stdin && c.stdout == os.Stdout {
+		stream = processStdio()
+	}
 	err = link.Serve(c.ctx, stream, link.ServeOptions{State: state, Endpoint: endpoint, Route: *route, Peer: peer, Machine: machineName(), Release: version.String(), Log: c.stderr})
 	var refusal *link.Refusal
 	if errors.As(err, &refusal) {
@@ -529,6 +552,10 @@ func (c *cli) remoteAdd(args []string) error {
 		return failed("enrol", "Add "+me+" as owner", err)
 	}
 	p.emit("enrol", "Add "+me+" as owner", "done", "pinned "+enrolment.Fingerprint)
+	// A link agent already running for it (refused while the key was revoked) tries again now.
+	if st, alive := remotes.Status(r.Name); alive && st.PID > 0 {
+		_ = syscall.Kill(st.PID, syscall.SIGUSR1)
+	}
 
 	if !*noConnect {
 		p.emit("connected", "Connect over the link", "running", "")

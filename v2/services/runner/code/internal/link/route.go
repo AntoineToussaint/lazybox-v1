@@ -87,7 +87,9 @@ func (r SSHRoute) Args(remote ...string) ([]string, error) {
 	if !r.Interactive {
 		args = append(args, "-o", "BatchMode=yes")
 	}
-	if r.ControlDir != "" {
+	// A unix socket path has about 104 bytes on macOS; %C is 40 more. A
+	// configuration directory too deep for that connects without multiplexing.
+	if r.ControlDir != "" && len(strings.TrimRight(r.ControlDir, "/"))+1+40 < 100 {
 		args = append(args, "-o", "ControlMaster=auto", "-o", "ControlPath="+strings.TrimRight(r.ControlDir, "/")+"/%C", "-o", "ControlPersist=10m")
 	}
 	args = append(args, r.Host)
