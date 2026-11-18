@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Collection, Repository, Session } from "@lazybox/protocol";
 import { useRunner } from "./RunnerContext";
 import { RunnerHealthDot, useMergedInbox, useRunnerDirectory, type RunnerView } from "./RunnerDirectory";
-import { healthLabel, runnerCounts, type RunnerRow } from "./runner-directory";
+import { groupByMachine, linkStateText, routeLabel, rttText, runnerCounts, runnerStateText, SLOW_RTT_MS, thisMachineLabel, type Machine, type RunnerRow } from "./runner-directory";
 import { AttentionIcon } from "./Inbox";
 import type { AttentionState } from "./attention";
 import { runAction } from "./actions";
@@ -66,6 +66,9 @@ function RunnerGroups(props: ListProps) {
     setFolded(next);
     try { writePreference(props.viewState, "runners.folded", JSON.stringify(next)); } catch { /* a convenience */ }
   };
+  // Runners on other computers: grouped under the computer they run on, this one first.
+  const machines = groupByMachine(directory.shown, thisMachineLabel());
+  const byMachine = machines.some((machine) => machine.remote);
   return (
     <section className="collection-panel runner-grouped">
       <div className="explorer-heading">
@@ -80,19 +83,24 @@ function RunnerGroups(props: ListProps) {
         </div>
       </div>
       <nav className="runner-groups" aria-label="Runners">
-        {directory.shown.map((row) => {
-          const active = row.id === directory.active, shut = folded.includes(row.id);
-          return (
-            <section key={row.id} className="runner-group" data-runner={row.id} data-health={row.health} data-active={active || undefined} aria-label={`${row.label} workspaces`}>
-              <RunnerGroupHeader row={row} active={active} folded={shut} counts={inbox.byRunner[row.id]} onToggle={() => toggle(row.id)} onShow={() => directory.activate(row.id)} />
-              {!shut && (active
-                ? <WorkspaceList {...props} embedded />
-                : row.state && (row.health === "online" || row.health === "offline")
-                  ? <RunnerWorkspaces row={row} rows={inbox.rows.filter((value) => value.runner === row.id)} onOpen={(collectionId) => props.onTarget({ collectionId, sessionId: "", commandId: "", runner: row.id } as ViewTarget)} />
-                  : <RunnerAbsent row={row} />)}
-            </section>
-          );
-        })}
+        {machines.map((machine) => (
+          <section key={machine.id} className="machine-group" data-machine={machine.id} data-remote={machine.remote || undefined} data-link={machine.remote ? (machine.state ? "down" : "up") : undefined} aria-label={byMachine ? machine.label : undefined}>
+            {byMachine && <MachineHeader machine={machine} />}
+            {machine.rows.map((row) => {
+              const active = row.id === directory.active, shut = folded.includes(row.id);
+              return (
+                <section key={row.id} className="runner-group" data-runner={row.id} data-health={row.health} data-active={active || undefined} aria-label={`${row.label} workspaces`}>
+                  <RunnerGroupHeader row={row} active={active} folded={shut} counts={inbox.byRunner[row.id]} onToggle={() => toggle(row.id)} onShow={() => directory.activate(row.id)} />
+                  {!shut && (active
+                    ? <WorkspaceList {...props} embedded />
+                    : row.state && (row.health === "online" || row.health === "offline")
+                      ? <RunnerWorkspaces row={row} rows={inbox.rows.filter((value) => value.runner === row.id)} onOpen={(collectionId) => props.onTarget({ collectionId, sessionId: "", commandId: "", runner: row.id } as ViewTarget)} />
+                      : <RunnerAbsent row={row} />)}
+                </section>
+              );
+            })}
+          </section>
+        ))}
       </nav>
     </section>
   );
@@ -125,16 +133,41 @@ function RunnerWorkspaces({ row, rows, onOpen }: { row: RunnerView; rows: Runner
 /** What a Runner that does not answer shows under its header: why, and what to do. Never an error. */
 function RunnerAbsent({ row }: { row: RunnerView }) {
   // The header says the state; this says what to do about it.
-  const text = row.health === "stopped" ? row.listing?.problem || "Start it, and its workspaces show here."
+  const text = row.listing?.remote?.state === "refused" ? row.listing.remote.problem || "That computer refused this one."
+    : row.health === "stopped" ? row.listing?.problem || "Start it, and its workspaces show here."
     : row.health === "invalid" ? row.listing?.problem || "Its locator cannot be read."
-    : "Connecting…";
+    : linkStateText(row.listing) || "Connecting…";
   return <p className="runner-absent" role="status">{text}</p>;
+}
+
+/**
+ * A computer's header, when the window shows Runners of more than one: what
+ * kind of computer, its name, the route (SSH) and the round trip when it is
+ * slow (always in the tooltip), and how its link is, in words.
+ */
+function MachineHeader({ machine }: { machine: Machine<RunnerView> }) {
+  const rtt = rttText(machine.rttMs);
+  const slow = !!machine.rttMs && machine.rttMs > SLOW_RTT_MS;
+  const route = machine.remote ? routeLabel(machine.route) : "";
+  const title = machine.remote
+    ? [`${machine.label}${machine.host && machine.host !== machine.label ? ` (${machine.host})` : ""}`, route && `over ${route}`, rtt && `round trip ${rtt}`, machine.state, machine.problem, "Agents there keep running when this computer sleeps."].filter(Boolean).join("\n")
+    : machine.label;
+  return (
+    <div className="machine-header" title={title}>
+      <Icon name={machine.remote ? "cloud" : "home"} size={12} />
+      <span className="machine-name">{machine.label}</span>
+      {route && <span className="machine-route">{route}</span>}
+      {rtt && <span className="machine-rtt" data-slow={slow || undefined}>{rtt}</span>}
+      {machine.state && <span className="machine-state" role="status">{machine.state}</span>}
+    </div>
+  );
 }
 
 /** A Runner's section header: fold, name, channel, version, health, and what waits there. */
 export function RunnerGroupHeader({ row, active, folded, counts, onToggle, onShow }: { row: RunnerView; active: boolean; folded: boolean; counts?: Record<AttentionState, number>; onToggle(): void; onShow(): void }) {
   const { waiting, review } = runnerCounts(row.health === "online" || active ? counts : undefined);
-  const detail = [row.channel && row.channel !== row.label ? row.channel : "", row.version ? `v${row.version.replace(/^v/, "")}` : "", healthLabel[row.health]].filter(Boolean).join(" · ");
+  const detail = [row.channel && row.channel !== row.label ? row.channel : "", row.version ? `v${row.version.replace(/^v/, "")}` : "", runnerStateText(row)].filter(Boolean).join(" · ");
+  const state = row.health !== "online" ? runnerStateText(row) : "";
   return (
     <div className="runner-group-header">
       <button type="button" className="runner-group-toggle" aria-expanded={!folded} title={`${folded ? "Show" : "Fold"} ${row.label}\n${detail}${row.listing?.locator ? `\n${row.listing.locator}` : ""}`} onClick={onToggle}>
@@ -143,7 +176,7 @@ export function RunnerGroupHeader({ row, active, folded, counts, onToggle, onSho
         <span className="runner-group-name">{row.label}</span>
         {row.channel && row.channel !== row.label && <span className="runner-group-channel">{row.channel}</span>}
         {row.version && <span className="runner-group-version">{row.version.replace(/^v/, "")}</span>}
-        {row.health !== "online" && <span className="runner-group-state">{healthLabel[row.health]}</span>}
+        {state && <span className="runner-group-state">{state}</span>}
       </button>
       {waiting > 0 && <b className="runner-group-count urgent" title={`${waiting} waiting for you on ${row.label}`}>{waiting}</b>}
       {!waiting && review > 0 && <b className="runner-group-count" title={`${review} to review on ${row.label}`}>{review}</b>}

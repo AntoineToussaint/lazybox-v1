@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import { AgentWindow, ArtifactWindow, PREFERENCE_EVENT, WebWindow, WindowControls, WindowErrorBoundary, Workspace, configureContextMenus, configureExternalTerminal, configureSystemSounds, configureVoice, installLinkRouting, openInViewer, runMenuAction, useNativeActionMenu, useRunnerLocator, type NativeMenuItem } from '@lazybox/surfaces';
-import type { RunnerDirectoryHost, RunnerListing } from '@lazybox/platform';
+import type { AddComputerStep, RunnerDirectoryHost, RunnerListing, SshHost } from '@lazybox/platform';
 import type { AppHost, AppInfo, ChatReturn, AttentionDestination, AttentionHost, AvailableUpdate, FeedbackDiagnostics, NativeWebViews, RecognitionEvent, RecognizerLanguage, RecognizerStatus, SpeechVoice, SurfaceHost, SurfaceTarget, ViewStateStore, UpdateError, UpdateErrorKind, UpdateProgress, VoiceHost, WebViewEvent, WorkspaceHost, ZoomHost } from '@lazybox/platform';
 import { FirstRun } from './FirstRun';
 
@@ -162,6 +162,16 @@ const desktopRunners: RunnerDirectoryHost = {
   list: () => invoke<RunnerListing[]>('runner_list'),
   add: path => invoke<RunnerListing>('runner_add', { path }),
   forget: id => invoke<void>('runner_forget', { id }),
+  // Runners on other computers (src-tauri/src/links.rs): the bundled CLI's
+  // `lazybox remote …`; the app keeps one link agent per computer added.
+  sshHosts: () => invoke<SshHost[]>('remote_hosts'),
+  async addComputer(host, onStep, options) {
+    const id = Math.random().toString(36).slice(2);
+    const unlisten = await listen<{ id: string; event: AddComputerStep }>('remote-add-progress', event => { if (event.payload.id === id) onStep(event.payload.event); });
+    try { await invoke('remote_add', { id, host, name: options?.name || null }); }
+    finally { unlisten(); }
+  },
+  removeComputer: async name => { await invoke('remote_remove', { name }); },
 };
 
 type Renew = () => Promise<{ baseUrl: string; token: string } | undefined>;

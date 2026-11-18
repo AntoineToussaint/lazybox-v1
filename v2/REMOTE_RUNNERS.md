@@ -1,7 +1,8 @@
 # Runners on other computers
 
-**Status: proposal, 2026-11-17.** Nothing here is built or decided. It
-designs one generic way for Lazybox to work with a Runner on another computer:
+**Status: proposal, 2026-11-17; P0's owner link over SSH built (P0b,
+[below](#p0b-the-owner-link-over-ssh-built)), the Linux Runner in progress
+separately.** It designs one generic way for Lazybox to work with a Runner on another computer:
 a second Mac, a Linux VM, a cloud dev box (EC2, GCE, Hetzner, Fly), a
 devcontainer, or a home server. The goal is the **full Lazybox experience on that
 machine**: workspaces, chat, files, diffs and review, terminals, command
@@ -27,6 +28,51 @@ gateway allowlist), [Agents outlive the Runner](SESSION_HOSTS.md),
 | Where does the Hub fit? | **It is one more implementation of the same contract**, not a separate system. It provides a relay route, a machine directory and a provisioner for managed VMs. It never holds a private key, never mints a credential and never sees plaintext. [§3.3](#33-who-implements-what) |
 | What blocks it today? | The Runner does not compile for Linux. Measured today with `GOOS=linux go vet ./...`, there are **two compile errors**: `syscall.Getsid` in `processguard` and `unix.MNT_RDONLY` in `installation`. With both patched locally, vet passes for linux/amd64 and linux/arm64. The real work is at run time: a systemd service manager, keeping session hosts outside the Runner's cgroup, Linux packaging and Linux CI. [§5.2](#52-the-linux-runner) |
 | What first? | **P0: the Linux Runner plus an owner link over SSH to an existing host.** An agent can build and verify it against an OrbStack Linux machine on this Mac. Effort M: about 2–3 weeks, 7 PRs. [§10](#10-phased-plan) |
+
+## P0b: the owner link over SSH (built)
+
+Built 2026-11-17 on `feat/v2-runner-link`: items 4–6 of the [P0 plan](#10-phased-plan),
+the owner link without the Linux Runner (items 1–3, another branch). The
+person's guide is [docs/guides/remote-computers.md](docs/guides/remote-computers.md).
+
+| Piece | Where | As designed, or how it differs |
+| --- | --- | --- |
+| Noise IK channel | `internal/link/noise.go`, `handshake.go` | `Noise_IK_25519_ChaChaPoly_BLAKE2s`, `[u16 BE len][msg]` framing as V1's `e2e-channel`, prologue `lazybox-link-v1`. The client signs `SHA-256("lazybox-link-v1\0" ‖ Runner static key ‖ h)` with its P-256 identity key (the pinned key stands for `runnerId`). |
+| `link.Serve` | `internal/link/serve.go` | One entry point for every route. Admits only a channel key in `<state>/owners.json` whose identity signature verifies; rechecks the record every 250 ms, so a revoke ends live sessions within a second; 12 h session ceiling; `<state>/audit.jsonl` for sessions, refusals and owner changes. **Differs:** HTTP/2 inside the channel instead of yamux plus HTTP/1.1 per stream (`golang.org/x/net/http2`, already a dependency: multiplexing, per-stream flow control and pings for the RTT, no new library). The host-local list is `OpenRepositoryHome`; a request carrying its own `Authorization`, or a path outside the Runner's RPC service, is refused. |
+| The endpoint on the host | `lazybox link serve --stdio` (`cmd/lazybox/remote.go`) | **Differs:** the endpoint is a `lazybox` subcommand that sshd runs as the person's login and that proxies to the loopback Runner with the owner bearer it reads from `endpoint.json` on the host, rather than a `link.sock` the Runner owns. Same properties (no port, the bearer never leaves the host, Noise with pinned keys in front of everything) with no change to the Runner process; a `link.sock` (for the tailnet and relay routes, where no login runs a command) is P1. Refused from an agent's, terminal's or hook's environment. |
+| Owners | `internal/link/owners.go`; `lazybox link owners ls\|add\|revoke` on the host | `<state>/owners.json` (0600, flock-guarded, atomic). **Differs:** the verbs are `lazybox link owners …`, not `lazybox-runner owner …`. Pairing-link enrolment is P1. |
+| Client keys | `internal/link/keys.go`, `FileKeys` | `~/.config/lazybox/keys/link-client.json` (0600 in a 0700 directory), behind a `KeyProvider`. **Not yet:** Keychain and Secure Enclave (decision 10). |
+| SSH route | `internal/link/route.go` | System OpenSSH with the person's config, `BatchMode`, `ControlMaster` per host under `~/.config/lazybox/ssh/`, `ServerAliveInterval=15`. Host names are validated so one cannot be read as an option; remote words are quoted for sh, bash, zsh and fish alike. `SSH_ASKPASS` prompts are P1: a host that needs a prompt fails with *check that `ssh <host>` works in a terminal*. |
+| Bootstrap | `internal/link/bootstrap.go`, `scripts/probe.sh`, `scripts/install.sh`; `lazybox remote add` | Probe (POSIX `sh -s`, one JSON line, changes nothing); upload of a runtime `.tar.gz` (this Mac's runtime when the host is the same OS and CPU, else `--bundle FILE`); the host checks the SHA-256 before unpacking into `versions/<v>`, switches `current`, keeps the previous version; `lazybox link up` starts the Runner (registered one, the launchd service for a full release on a Mac, else detached for the login); `owners add` over the same SSH login answers the Runner key, which is pinned. |
+| Link agent | `internal/link/agent.go`; `lazybox link connect <name>` | Serves the remote Runner on `127.0.0.1:<port>` with a per-start token in `~/.config/lazybox/remotes/<name>/endpoint.json`, named by a locator in `runners/<name>.json` with a `remote` field, so `RunnerLink`, `RunnerScope` and `--runner NAME` work unchanged. Redials with backoff (250 ms doubling to 15 s), notices a wake by the wall clock and on `SIGUSR1`, measures the RTT by HTTP/2 ping, and writes `status.json` (connecting, connected, reconnecting, refused with *unknown-key* or *wrong-runner*). |
+| Desktop | `apps/desktop/src-tauri/src/links.rs`, `runners.rs` | One `lazybox link connect` per added computer, started from the Runner listing and stopped when the app quits (agents on the computer keep running). `remote_hosts`, `remote_add` (steps as events), `remote_remove`. A listing carries `remote: {host, route, machine, state, rttMs, …}`. |
+| UI | `AddComputerSheet.tsx`, `RunnersSettings.tsx`, `CollectionPanel.tsx`, `runner-directory.ts` | Settings → Runners → **Add a computer…** (filtered `~/.ssh/config` hosts or `user@host`, arrow keys and Return, one line per step with the exact error, closing does not cancel); the sidebar grouped by computer with the route, the RTT (on hover, or always above 300 ms) and *Reconnecting…* / *Access revoked*; a remote Runner is the full page; Reveal in Finder and the home checkout's Finder and editor actions are not offered on it; **Remove** forgets it and revokes the key there. |
+
+**Verified** (`go test ./internal/link ./cmd/lazybox`, `cargo test` in
+`apps/desktop/src-tauri`, `npm run test:remote-computers`):
+
+- the handshake: a wrong pinned key, a key never enrolled, a revoked key and a
+  copied channel key without its identity key are each refused before any
+  request reaches the Runner; a revoke ends a live session within a second;
+- the owner bearer never crosses the link (checked on the wire), is refused
+  if a client sends it, and no file on the client holds it;
+- streaming RPCs flow through both proxies as they are written;
+- the agent's token, loopback Host check and reconnection;
+- end to end through a **fake `ssh`** that runs each remote command with
+  `/bin/sh` in a second home on this Mac (Remote Login was off, and the Linux
+  Runner does not exist yet): `remote add` probes, uploads, verifies,
+  installs, starts a real Runner, enrols and pins; `link connect` serves it;
+  `lazybox --runner build-box ls` works through it; killing the host side of
+  ssh reconnects in about 0.1 s; `owners revoke` on the host refuses within
+  about 0.3 s; another Runner key behind the same name is refused as *wrong
+  runner*; `remote rm` revokes the key on the host;
+- the UI against fixture Runners (WebKit, dark and light).
+
+**Not verified:** a real `sshd` (system OpenSSH's own behaviour, ControlMaster
+reuse, host key prompts), a real Linux host (needs the Linux Runner), a real
+sleep and Wi-Fi change, the desktop app driving `lazybox link connect` (the
+Rust side is unit-tested; the Playwright suite drives the web client), and
+`launchctl` over SSH on a Mac host.
 
 ## 1. Where we are
 

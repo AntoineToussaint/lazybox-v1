@@ -6,7 +6,7 @@ import { RepositoryHostContext } from './RepositoryBrowser';
 import { ArtifactHostContext } from './ArtifactPage';
 import { useOpenArtifactRequests } from './artifact-events';
 import { WorkspaceRepositories } from './WorkspaceRepositories';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import type { Collection } from '@lazybox/protocol';
 import type { ChatReturn, ViewStateStore, WorkspaceHost } from '@lazybox/platform';
@@ -55,7 +55,7 @@ import { lastWebPanel, requestWebPage, WebWindowContext } from './WebPanel';
 import { PowerLayer } from './PowerLayer';
 import { DockLayout, type DockHandle } from './DockLayout';
 import { GroupActions, GroupAdd, groupMenuItems, LayoutMenu, PanelsMenu, type AddCommands, type GroupCommands } from './DockMenus';
-import { useContextMenuContribution } from './ContextMenu';
+import { setPageFilesHere, useContextMenuContribution } from './ContextMenu';
 import { bindings, canonicalBinding, canonicalKey, chordFromEvent, displayBinding, layoutDirections, useActions, type LayoutDirection } from './actions';
 import { movePanel } from './dock-keyboard';
 import { showToast } from './toasts';
@@ -110,6 +110,11 @@ function foreignHost(host: WorkspaceHost): WorkspaceHost {
   const { openWorkspace: _w, openArtifact: _a, focusWindow: _f, captureWindow: _c, expectRunnerRestart: _e, reconnect: _r, ...rest } = host;
   return rest;
 }
+/** Another computer's Runner: a folder picked on this computer means nothing there. */
+function remoteHost(host: WorkspaceHost): WorkspaceHost {
+  const { chooseRepositoryFolder: _p, ...rest } = foreignHost(host);
+  return rest;
+}
 
 /**
  * The page shows one Runner at a time: the window's own, or another chosen in
@@ -119,8 +124,12 @@ function foreignHost(host: WorkspaceHost): WorkspaceHost {
 function ActiveRunner(props: Props) {
   const directory = useRunnerDirectory()!;
   const id = directory.active, own = id === OWN_RUNNER;
+  // A Runner on another computer is the whole page, as a local one is; only
+  // what acts on this computer's own files or folders is not offered.
+  const remote = !own && !!directory.runners.find(row => row.id === id)?.listing?.remote;
   const viewState = useMemo(() => own || !props.viewState ? props.viewState : runnerViewState(props.viewState, id), [own, props.viewState, id]);
-  const host = useMemo(() => own || !props.host ? props.host : foreignHost(props.host), [own, props.host]);
+  const host = useMemo(() => own || !props.host ? props.host : remote ? remoteHost(props.host) : foreignHost(props.host), [own, remote, props.host]);
+  useLayoutEffect(() => { setPageFilesHere(!remote); return () => setPageFilesHere(true); }, [remote]);
   if (directory.launching) return <main className="workspace-shell workspace-launching" aria-busy="true"><p className="module-empty" role="status">Connecting to your Runners…</p></main>;
   return <RunnerScope runner={id} fallback={<main className="workspace-shell"><p className="module-empty" role="status">Connecting…</p></main>}>
     <RepositoryHostContext.Provider value={host || {}}>

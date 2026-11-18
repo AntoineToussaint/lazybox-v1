@@ -8,6 +8,7 @@ mod capture;
 mod feedback;
 mod host;
 mod layout;
+mod links;
 mod placement;
 mod release;
 mod runners;
@@ -138,6 +139,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .plugin(tauri_plugin_notification::init())
         .manage(attention::Attention::default())
         .manage(runners::Runners::default())
+        .manage(links::Links::default())
         .manage(viewer::Viewers::default())
         .manage(updates::Pending::default())
         .invoke_handler(tauri::generate_handler![
@@ -145,6 +147,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             runners::runner_list,
             runners::runner_add,
             runners::runner_forget,
+            links::remote_hosts,
+            links::remote_add,
+            links::remote_remove,
             host::save_view_state,
             host::open_sign_in,
             host::open_link,
@@ -221,7 +226,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         tauri::RunEvent::ExitRequested { code: Some(_), .. } => {
             host::finish(app);
         }
-        tauri::RunEvent::Exit => host::finish(app),
+        tauri::RunEvent::Exit => {
+            host::finish(app);
+            links::stop_all(app);
+        }
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen {
             has_visible_windows: false,

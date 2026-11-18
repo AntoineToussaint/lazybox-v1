@@ -71,6 +71,7 @@
     "test:runner-follow": "node scripts/test-runner-follow.mjs",
     "test:inbox": "node scripts/test-inbox.mjs",
     "test:multi-runner": "node scripts/test-multi-runner.mjs",
+    "test:remote-computers": "node scripts/test-remote-computers.mjs",
     "test:command-palette": "node scripts/test-command-palette.mjs",
     "test:pull-request": "node scripts/test-pull-request.mjs",
     "test:pull-requests": "node scripts/test-pull-requests.mjs",
