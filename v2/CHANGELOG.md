@@ -51,6 +51,7 @@ leave out.
 
 - **No separate title bar** On a Mac every window's own header is its title bar, as in VS Code or Slack: the close, minimize and zoom buttons sit at its left, its empty parts move the window, and a double-click there does what System Settings says. Full screen gives the room back.
 - **Runners on your other computers (preview)** Settings → Runners → Add a computer lists your ~/.ssh/config hosts, installs and starts Lazybox's Runner there over your own ssh, and adds this Mac as its owner with a key of its own. Its workspaces then open here as the whole page, the sidebar groups Runners by computer with the round trip and Reconnecting…, and its agents keep working while your laptop sleeps. From a terminal: lazybox remote add, ls and rm.
+- **Each window shows its own Runner** Dev's window no longer lists Working's workspaces and agents by default, or the reverse, so the two never look as if they shared state. The brand says Dev or Working, a hint says once when another Lazybox runs on this Mac, and Settings → Runners → Show in this window brings it in. A computer you added still shows.
 - **Conversations are tabs** A workspace opens with its conversations as tabs, most recent first. A click brings one forward, ⌘-click opens one behind, and a tab you close stays closed. Prefer one preview tab? Settings → Chat.
 - **Split, move, put back** Drag a tab to split, or right-click for Open beside, below or in a new window. Put back in main window (⇧⌘D) returns a panel exactly where it was.
 - **Panels from the keyboard** ⌥⌘ and an arrow moves between panels, ⌃1 to ⌃9 pick a tab, ⌘T opens a conversation in the group you are in, and ⌃⌥⇧Esc puts back the default layout and shortcuts.
@@ -80,6 +81,7 @@ leave out.
 
 - **Send now** While the agent works, ↵ queues your message and ⌘↵ sends it now: the current step stops and your message is the next turn. A queued message shows once, above the message box.
 - **Who answers, and how full the context is** Under your message: the agent and model, and a context meter that turns amber at 60% and red at 85%. /model lists the models you can switch to.
+- **The ⋯ menu shows what is current** A conversation's permission mode and model are shown selected, like Activity detail: YOLO no longer looks unavailable when it is the mode in use, and only a mode the agent cannot take (YOLO in plan mode) is greyed, with why. A conversation on its agent's default model shows Default as current, a Codex conversation names its model from the start, and a long list of models shows the first few, then More.
 - **Attachments are boxes** Files, images, PDFs and big pastes sit above the message as boxes you preview, reorder and remove. Claude, Codex and ACP agents all receive them.
 - **A quieter conversation** What Lazybox tells an agent is one event line, a restart is a small mark, background work is counted, and the usage popover breaks down what tokens cost.
 - **Long conversations open at once** The latest turns show first; earlier ones load behind them.
