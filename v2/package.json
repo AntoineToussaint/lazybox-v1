@@ -106,6 +106,7 @@
     "screenshots:polish": "node scripts/polish-screenshots.mjs",
     "test:sidebar-width": "node scripts/test-sidebar-width.mjs",
     "test:resizable": "node --import tsx scripts/test-resizable.mjs",
+    "test:resize-selection": "node scripts/test-resize-selection.mjs",
     "test:editor-wrap": "node scripts/test-editor-wrap.mjs",
     "test:turn-checkpoints": "node scripts/test-turn-checkpoints.mjs",
     "test:workspace-runtime": "node scripts/test-workspace-runtime.mjs",
