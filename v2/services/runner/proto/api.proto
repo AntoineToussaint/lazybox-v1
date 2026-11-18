@@ -88,7 +88,12 @@ service RunnerService {
   rpc CreateCollection(CreateCollectionRequest) returns (CollectionResponse);
   rpc AddCollectionRepositories(AddCollectionRepositoriesRequest) returns (CollectionResponse);
   rpc GetCollection(CollectionRequest) returns (CollectionResponse);
+  // The workspaces in the person's order (ArrangeWorkspaces).
   rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse);
+  // Puts the workspaces in the person's order: the one ListCollections
+  // answers in, so every window and a paired phone list them alike, across
+  // restarts. The owner's only. Answers the list in its new order.
+  rpc ArrangeWorkspaces(ArrangeWorkspacesRequest) returns (ListCollectionsResponse);
   rpc ArchiveCollection(CollectionRequest) returns (CollectionResponse);
   rpc ReconcileCollection(ReconcileCollectionRequest) returns (CollectionResponse);
   rpc OpenSession(OpenSessionRequest) returns (SessionResponse);
@@ -1520,7 +1525,15 @@ message AddCollectionRepositoriesRequest {
 message CollectionRequest { string collection_id = 1; }
 message CollectionResponse { Collection collection = 1; }
 message ListCollectionsRequest {}
+// The person's order (ArrangeWorkspaces): a workspace they never placed
+// (created since) comes first, newest first; with no order kept, by ID.
 message ListCollectionsResponse { repeated Collection collections = 1; }
+message ArrangeWorkspacesRequest {
+  // Every workspace's ID, in the order the person put them. One left out
+  // goes first, as a new one does; an unknown ID is ignored; none clears
+  // the order.
+  repeated string collection_ids = 1;
+}
 message ReconcileCollectionRequest {
   string collection_id = 1;
   string expected_owner_execution_id = 2;
