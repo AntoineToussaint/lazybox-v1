@@ -21,6 +21,8 @@ import { readLaunchChoices, readPreference, writePreference } from './view-state
 import { modeOf, parseTaskChoices, rankRepositories, rememberTask, TASK_MODES, taskBranch, taskName, taskProblem, type TaskChoices, type TaskMode, type TaskProblem } from './new-task-model';
 import { itemBranch, itemMessage, itemReference, itemSafeMode, itemTaskName, type ItemLike } from './item-context';
 import { ItemPicker, ItemSource, StartedNotice, useItemDetail, useStartedFrom } from './WorkItems';
+import { forgetStarts, StartFromChip, StartFromPicker, useRepositoryStarts } from './StartFrom';
+import { effectiveStart, startsFor } from './start-from-model';
 import type { ViewTarget } from './workspace-model';
 import './new-task.css';
 
@@ -36,9 +38,9 @@ import './new-task.css';
 
 /** The work item a task starts from (an issue), and whether its comments go to the agent. */
 type ItemChoice = { provider: string; key: string };
-type Draft = { prompt: string; identities: string[]; empty: boolean; name?: string; branch?: string; provider: string; profile: string; mode: TaskMode; item?: ItemChoice; withoutComments?: boolean };
+type Draft = { prompt: string; identities: string[]; empty: boolean; name?: string; branch?: string; /** The branch each repository starts from, chosen in this sheet. */ starts?: Record<string, string>; provider: string; profile: string; mode: TaskMode; item?: ItemChoice; withoutComments?: boolean };
 /** `message` is what is sent: the prompt, then the item's quoted context when there is one. */
-type Plan = { prompt: string; message: string; name: string; branch: string; identities: string[]; empty: boolean; provider: string; profileId: string; mode: TaskMode; agent: string; item?: ItemChoice };
+type Plan = { prompt: string; message: string; name: string; branch: string; identities: string[]; starts: Record<string, string>; empty: boolean; provider: string; profileId: string; mode: TaskMode; agent: string; item?: ItemChoice };
 type Progress = (message: string) => void;
 /** Where a start got to, so trying again picks up there instead of making a second workspace. */
 type Attempt = { spec: string; requestKey: string; operationId: string; collectionId?: string; sessionId?: string; sent?: boolean; message?: string };
@@ -53,12 +55,14 @@ async function startTask(api: RunnerClient, plan: Plan, attempt: Attempt, progre
   if (!attempt.collectionId) {
     progress(plan.identities.length ? 'Preparing the workspace…' : 'Creating the workspace…');
     let collection: { id: string } | undefined;
-    for await (const update of api.prepareWorkspace({ requestKey: attempt.requestKey, collectionId: '', name: plan.name, repositoryIdentities: [...plan.identities].sort(), branch: plan.empty ? '' : plan.branch, item: plan.item }, { timeoutMs: 600_000 })) {
+    for await (const update of api.prepareWorkspace({ requestKey: attempt.requestKey, collectionId: '', name: plan.name, repositoryIdentities: [...plan.identities].sort(), branch: plan.empty ? '' : plan.branch, startFrom: plan.starts, item: plan.item }, { timeoutMs: 600_000 })) {
       if (update.message) progress(update.message);
       if (update.collection) collection = update.collection;
     }
     if (!collection) throw new Error('The Runner stopped before the workspace was ready. Start again: it picks up the same workspace.');
     attempt.collectionId = collection.id;
+    // The Runner now remembers each choice (and may have just cloned a repository): the next sheet asks it again.
+    forgetStarts(api, plan.identities);
   }
   if (!attempt.sessionId) {
     progress(`Starting ${plan.agent}…`);
@@ -137,6 +141,12 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
     if (known.length !== draft.identities.length) change({ identities: known });
     else if (!known.length && !draft.empty && !unsent && entries.length === 1) change({ identities: [entries[0].identity] });
   }, [catalog]);
+  // Where each repository's new branch starts ("from main ▾"; ⌥B).
+  const [starts, setStartInfo] = useRepositoryStarts(api, draft.empty ? [] : draft.identities);
+  const [startPicker, setStartPicker] = useState<string>();
+  const startOf = (identity: string) => effectiveStart(draft.starts?.[identity], starts[identity]);
+  const openStart = (identity: string) => { setListOpen(false); setStartPicker(identity); };
+  const closeStart = (identity: string) => { setStartPicker(undefined); requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>(`[data-start-from="${CSS.escape(identity)}"]`)?.focus()); };
   const label = (identity: string) => { const entry = entries.find(e => e.identity === identity); return entry ? repositoryLabel({ gitIdentity: entry.identity, name: entry.name }) : identity.replace(/^github:/, ''); };
   const chosen = useMemo(() => new Set(draft.identities), [draft.identities]);
   const options = useMemo(() => rankRepositories(entries, { query, recent: remembered.recent, chosen }), [entries, query, chosen]);
@@ -200,7 +210,7 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
       if (found.field === 'name' || found.field === 'branch') setEditingName(true);
       return undefined;
     }
-    return { prompt: draft.prompt, message, name, branch, identities: draft.empty ? [] : draft.identities, empty: draft.empty, provider: draft.provider, profileId, mode: safe.mode as TaskMode, agent, item: itemRef ? { provider: itemRef.provider, key: itemRef.key } : undefined };
+    return { prompt: draft.prompt, message, name, branch, identities: draft.empty ? [] : draft.identities, starts: draft.empty ? {} : startsFor(draft.identities, draft.starts || {}), empty: draft.empty, provider: draft.provider, profileId, mode: safe.mode as TaskMode, agent, item: itemRef ? { provider: itemRef.provider, key: itemRef.key } : undefined };
   };
 
   const start = async (inBackground: boolean) => {
@@ -270,6 +280,12 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
   // ⌘Enter anywhere in the sheet starts in the background, before a field (the agent picker) takes it.
   const sheetKeys = (event: KeyboardEvent<HTMLDialogElement>) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); void start(true); }
+    // ⌥B: where the branch starts — the focused repository's, else the first's.
+    if (event.altKey && !event.metaKey && !event.ctrlKey && event.code === 'KeyB' && !busy && !draft.empty && draft.identities.length) {
+      event.preventDefault(); event.stopPropagation();
+      const focused = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[data-start-from]')?.dataset.startFrom;
+      openStart(focused && draft.identities.includes(focused) ? focused : draft.identities[0]);
+    }
   };
   useEffect(() => { if (active >= rows) setActive(0); }, [rows]);
   useEffect(() => { if (listOpen) ref.current?.querySelector(`#${CSS.escape(`${id}-repo-${active}`)}`)?.scrollIntoView({ block: 'nearest' }); }, [active, listOpen]);
@@ -322,7 +338,9 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
         <label className="new-task-label" htmlFor={`${id}-search`}><Icon name="repository" size={13}/>Repositories</label>
         <div className="new-task-repos" onClick={event => { if (event.target === event.currentTarget) search.current?.focus(); }}>
           {draft.identities.map(identity => <span key={identity} className="new-task-chip" title={identity}>
-            <span>{label(identity)}</span>
+            <span className="new-task-chip-name">{label(identity)}</span>
+            <StartFromChip identity={identity} repository={label(identity)} branch={startOf(identity)} info={starts[identity]} disabled={busy} expanded={startPicker === identity}
+              onOpen={() => startPicker === identity ? closeStart(identity) : openStart(identity)}/>
             <button type="button" aria-label={`Remove ${label(identity)}`} disabled={busy} onClick={() => remove(identity)}><Icon name="close" size={12}/></button>
           </span>)}
           {draft.empty && <span className="new-task-chip is-empty"><span>No repository</span><button type="button" aria-label="Choose repositories instead" disabled={busy} onClick={() => { change({ empty: false }); search.current?.focus(); }}><Icon name="close" size={11}/></button></span>}
@@ -342,6 +360,9 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
           </li>
           <li className="new-task-repo-more" aria-hidden="true"><button type="button" tabIndex={-1} onClick={() => { onClose(); runAction('settings.open', 'repositories'); }}><Icon name="plus" size={12}/>Add repositories…</button></li>
         </ul>}
+        {startPicker && draft.identities.includes(startPicker) && !busy && <StartFromPicker api={api} identity={startPicker} repository={label(startPicker)} info={starts[startPicker]} current={startOf(startPicker)}
+          onInfo={info => setStartInfo(startPicker, info)} onClose={() => closeStart(startPicker)}
+          onPick={picked => { change({ starts: { ...draft.starts, [startPicker]: picked } }); closeStart(startPicker); }}/>}
         {repositoryMissing && <p className="new-task-missing" role="status">
           <span><strong>{itemRepositoryIdentity.replace(/^github:/, '')}</strong>, the issue’s repository, is not on this Runner.</span>
           <button type="button" className="link-button" disabled={busy || catalogRefreshing} onClick={() => void reloadCatalog(true)}>{catalogRefreshing ? 'Looking on GitHub…' : 'Find it on GitHub'}</button>
@@ -383,7 +404,7 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
       {(problem || error) && <p className="new-task-problem" role="alert">{problem?.message || error}</p>}
       {busy && <div className="new-task-progress" role="status"><span>{progress || 'Starting…'}</span><progress aria-label="Starting the task"/><small>Esc keeps it going in the background.</small></div>}
       <footer>
-        <span className="new-task-keys" aria-hidden="true"><kbd>↵</kbd> start · <kbd>{mod}↵</kbd> in the background · <kbd>⇧↵</kbd> new line</span>
+        <span className="new-task-keys" aria-hidden="true"><kbd>↵</kbd> start · <kbd>{mod}↵</kbd> in the background · {draft.identities.length && !draft.empty ? <><kbd>⌥B</kbd> start from</> : <><kbd>⇧↵</kbd> new line</>}</span>
         <button type="button" className="new-task-background" disabled={busy} title={`Start it and keep working here (${mod}↵)`} onClick={() => void start(true)}>Start in background</button>
         <button type="submit" className="primary" disabled={busy}>{busy ? 'Starting…' : itemRef && startedFrom.length && !another ? 'Start another' : message.trim() ? 'Start' : 'Create'}<kbd>↵</kbd></button>
       </footer>
