@@ -230,3 +230,21 @@ func TestSwitchReachesASubscriptionAddedAfterTheConversationStarted(t *testing.T
 		t.Fatal("the switch kept the old agent")
 	}
 }
+
+// Automatic switching can move to a subscription signed in after the
+// conversation started, once the pool names it.
+func TestAutomaticSwitchingReachesASubscriptionAddedLater(t *testing.T) {
+	s, a, _ := fixture(t, nil)
+	first := <-a.opened
+	snapshot := append([]accounts.Profile(nil), s.(*session).adapter.Profiles...)
+	late := snapshot[0]
+	late.ID = "late"
+	s.(*session).adapter.Current = func() []accounts.Profile { return append(append([]accounts.Profile(nil), snapshot...), late) }
+	if err := switcher(t, s).SetRotation([]string{"late"}); err != nil {
+		t.Fatal(err)
+	}
+	first.Events <- agent.Event{Type: "failure", Status: "throttled", Account: &agent.AccountObservation{State: "throttled"}}
+	if changed := receive(t, s, "profile_changed"); changed.Text != "late" {
+		t.Fatalf("%+v", changed)
+	}
+}
