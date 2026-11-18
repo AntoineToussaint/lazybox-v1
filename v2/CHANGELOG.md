@@ -43,6 +43,7 @@ leave out.
 - **Switching accounts is an extension** At a limit, the card offers Switch to another of your accounts, or waiting for the reset. Switching by itself is the Subscription rotation extension in Settings → Extensions; for Claude it says plainly that Anthropic's terms may not allow it. If you had automatic switching on, Lazybox turned the extension on for you, with your settings. An account you sign in to while a conversation runs can be chosen there too.
 - **Claude sign-in follows Anthropic's terms** On a new install, Lazybox offers no Claude sign-in until you turn Claude sign-in in Lazybox on, at your own risk. Claude accounts you already saved keep working, and Lazybox says so once. It no longer imports Claude subscription tokens; one imported earlier is marked not recommended, with Remove.
 - **Install Claude Code** When Claude Code is missing from your Mac, Settings → Agents & workspaces → Claude runs Anthropic's installer in a shell panel you watch.
+- **Subscriptions grouped by provider** Settings → Subscriptions, the switch dialog, the limit card and the account pickers list your subscriptions under Claude, Codex and each ACP agent, the current one first, then the available ones, then by name; a limited one says when it is back. The limit card offers only the conversation's own provider, and the subscription in a conversation's header opens Switch subscription.
 
 ### Workspaces and tabs
 
