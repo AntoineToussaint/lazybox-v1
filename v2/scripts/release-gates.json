@@ -63,6 +63,7 @@
     { "id": "composer-fast-typing", "scope": "ui", "script": "test:composer-fast-typing" },
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },
     { "id": "transcript-polish", "scope": "ui", "script": "test:transcript-polish" },
+    { "id": "briefing-updates", "scope": "ui", "script": "test:briefing-updates" },
     { "id": "chat-header", "scope": "ui", "script": "test:chat-header" },
     { "id": "title-bar", "scope": "ui", "script": "test:title-bar" },
     { "id": "composer-info", "scope": "ui", "script": "test:composer-info" },

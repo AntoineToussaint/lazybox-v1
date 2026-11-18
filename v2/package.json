@@ -90,6 +90,7 @@
     "test:send-recovery": "node scripts/test-send-recovery.mjs",
     "test:chat-polish": "node scripts/test-chat-polish.mjs",
     "test:transcript-polish": "node scripts/test-transcript-polish.mjs",
+    "test:briefing-updates": "node scripts/test-briefing-updates.mjs",
     "test:chat-header": "node scripts/test-chat-header.mjs",
     "test:title-bar": "node scripts/test-title-bar.mjs",
     "test:composer-info": "node scripts/test-composer-info.mjs",

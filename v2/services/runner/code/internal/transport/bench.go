@@ -357,7 +357,8 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 		}
 		return nil
 	}
-	update, reverted, orchestration := "", "", ""
+	var briefing runner.BriefingUpdate
+	reverted, orchestration := "", ""
 	// A message or steer the agent accepts goes in the prompt log.
 	var prompt *pb.Message
 	switch o := p.Operation.(type) {
@@ -367,12 +368,13 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 			return nil, rpcError(err)
 		}
 		prompt = o.Message
-		// Changed shared instructions travel with the next message, and so
-		// does a revert of the workspace's files since the last one.
-		update = s.Bench.InstructionsUpdate(e)
+		// What changed in the agent's briefing travels with the next message
+		// that starts a turn, and so does a revert of the workspace's files
+		// since the last one.
+		briefing = s.Bench.BriefingForMessage(e)
 		reverted = s.Bench.CodeRevertNote(e)
 		orchestration = s.Bench.OrchestrationNote(e)
-		op.Context = strings.TrimSpace(update + "\n\n" + reverted + "\n\n" + orchestration)
+		op.Context = strings.TrimSpace(briefing.Text + "\n\n" + reverted + "\n\n" + orchestration)
 	case *pb.ApplyRequest_Permission:
 		receipt, err := s.Bench.SetPermission(ctx, e, p.OperationId, o.Permission.GetMode())
 		if err != nil {
@@ -442,10 +444,10 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 	if prompt != nil && receipt.Error == "" {
 		s.Bench.RecordPrompt(e, p.OperationId, prompt.Text, promptSource(prompt.Source))
 	}
-	if update != "" {
+	if briefing.Text != "" && receipt.Error == "" {
 		// The message, and the update with it, is accepted. If recording that
 		// fails, the update is sent again with the next message: harmless.
-		_ = s.Bench.InstructionsDelivered(ctx, e, update)
+		_ = s.Bench.BriefingDelivered(ctx, e, briefing, p.OperationId)
 	}
 	if reverted != "" {
 		_ = s.Bench.CodeRevertNoteDelivered(e, reverted)
@@ -1023,7 +1025,7 @@ func (s *Service) sessionView(ctx context.Context, e *runner.Execution) (*pb.Ses
 		return nil, rpcError(err)
 	}
 	view := wireSession(e)
-	view.InstructionsPending = !view.Closed && s.Bench.InstructionsUpdate(e) != ""
+	view.InstructionsPending = !view.Closed && s.Bench.BriefingUpdate(e).Text != ""
 	view.Provider = e.Profile.Provider
 	view.Model = e.Options.Model
 	if s.Bench.Telemetry != nil {

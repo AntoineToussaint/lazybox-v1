@@ -36,10 +36,14 @@ import (
 // starts an agent under the grant, exactly as `lazybox agents spawn` does.
 // Nothing an agent sends ever answers a request; there is no auto-approval.
 
-// conversationBriefing is every coding agent's one line on starting another
-// conversation, apart from commandBriefing so the two change independently.
+// conversationBriefing is every coding agent's section on starting another
+// conversation, a versioned section of its own (briefing.go). It names
+// providers: an agent asked to hand work to Codex must know it can, and that
+// neither its own sub-agent tool nor a subscription switch does that.
 const conversationBriefing = `## Starting another conversation
-To start another conversation (e.g. the person asks you to), run ` + "`lazybox conversation new --title \"…\" --brief \"…\"`" + ` (` + "`--brief -`" + ` reads it from stdin, ` + "`--brief-artifact ID`" + ` hands over an artifact, ` + "`--workspace new`" + ` gives it its own branches); the person approves it in one click.`
+To start another conversation (e.g. the person asks you to), run ` + "`lazybox conversation new --title \"…\" --brief \"…\"`" + ` (` + "`--brief -`" + ` reads it from stdin, ` + "`--brief-artifact ID`" + ` hands over an artifact, ` + "`--workspace new`" + ` gives it its own branches); the person approves it in one click.
+- To hand work to another agent, including one of a different provider (e.g. Codex), use ` + "`lazybox conversation new --provider codex …`" + ` (` + "`--provider`" + ` takes claude, codex or an ACP agent; ` + "`--model`" + ` and ` + "`--profile`" + ` choose its model and subscription). Your own sub-agent tool only starts copies of yourself.
+- Switching this conversation's subscription never changes its provider: it continues with the same agent on another account of that provider. To continue with another provider, start a conversation with ` + "`--provider`" + ` and hand over the context with ` + "`--brief-artifact ID`" + `.`
 
 // Conversation start request states.
 const (

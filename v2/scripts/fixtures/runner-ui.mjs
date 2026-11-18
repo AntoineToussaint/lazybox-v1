@@ -1137,6 +1137,15 @@ actions:
             return {name:file.name,mediaType:file.mediaType||'application/octet-stream',path,size:data.length,delivery:image?'image':data.length<=256<<10&&isText(data)?'text':'file'};});
           eventStreams.get(session.id)?.push({type:'operation_accepted',text:body.message.text||'',providerDataJson:Buffer.from(JSON.stringify({files})).toString('base64')});
         }
+        // Like the Runner: a conversation behind on its briefing gets what changed with its
+        // next message that starts a turn, journaled after the message it went with
+        // (runner/briefing.go). Opt-in: session.briefingUpdate is the update's text.
+        else if(session&&body.message&&session.briefingUpdate&&!session.busy){
+          const ch=eventStreams.get(session.id);
+          ch?.push({type:'operation_accepted',operationId:body.operationId,text:body.message.text||''});
+          ch?.push({type:'briefing_updated',operationId:body.operationId,text:session.briefingUpdate,status:'features',providerDataJson:Buffer.from(JSON.stringify({sections:['conversations'],versions:{conversations:'2'}})).toString('base64')});
+          session.briefingUpdate='';session.instructionsPending=false;
+        }
         // Like the Runner, which journals every message it accepts; opt-in (runner.journalMessages) so tests that count events keep theirs.
         else if(session&&body.message&&runner.journalMessages)eventStreams.get(session.id)?.push({type:'operation_accepted',operationId:body.operationId,text:body.message.text||''});
         return json({ operationId: body.operationId, delivery: 'accepted' });
