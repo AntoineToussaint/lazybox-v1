@@ -46,6 +46,7 @@ leave out.
 
 ### Workspaces and tabs
 
+- **Runners on your other computers (preview)** Settings → Runners → Add a computer lists your ~/.ssh/config hosts, installs and starts Lazybox's Runner there over your own ssh, and adds this Mac as its owner with a key of its own. Its workspaces then open here as the whole page, the sidebar groups Runners by computer with the round trip and Reconnecting…, and its agents keep working while your laptop sleeps. From a terminal: lazybox remote add, ls and rm.
 - **Conversations are tabs** A workspace opens with its conversations as tabs, most recent first. A click brings one forward, ⌘-click opens one behind, and a tab you close stays closed. Prefer one preview tab? Settings → Chat.
 - **Split, move, put back** Drag a tab to split, or right-click for Open beside, below or in a new window. Put back in main window (⇧⌘D) returns a panel exactly where it was.
 - **Panels from the keyboard** ⌥⌘ and an arrow moves between panels, ⌃1 to ⌃9 pick a tab, ⌘T opens a conversation in the group you are in, and ⌃⌥⇧Esc puts back the default layout and shortcuts.
