@@ -302,6 +302,12 @@ and its hosts leave the Runner's cgroup as well.
   one: an agent never fails to start for want of a scope.
 - **Second line:** the installed unit has `KillMode=process`, so a stop
   signals the Runner alone even for a host that got no scope.
+- **Logging out.** The scopes belong to the user manager, which runs while
+  the person has a session or lingering is on. Without lingering, the end of
+  the last session stops the user manager and everything under it: the
+  Runner and its hosts, as a reboot would. `lazybox doctor` says whether
+  lingering is on (verified on Ubuntu 24.04: lingering turned off with no
+  session stopped the agent; the next Runner ended its conversation).
 - `lazybox doctor` says which applies (**Agents outlive**).
 - In a container, give it an init that reaps orphans (`docker run --init`,
   a devcontainer's `"init": true`): hosts outlive the Runner that started

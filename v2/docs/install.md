@@ -341,6 +341,9 @@ Debian 11, RHEL 8 and later), the libraries the bundled Node needs
 libatomic` on Fedora and RHEL), and `git`. systemd is what starts the Runner
 at boot; without it (a container) the Runner runs, but you start it.
 
+**Add a computer** (Settings → Runners, or `lazybox remote add <ssh-host>`)
+does all of this over SSH ([guide](guides/remote-computers.md)). By hand:
+
 **Install.** Download the tarball for your architecture (`x64` or `arm64`)
 and its checksum from the
 [releases](https://github.com/AntoineToussaint/lazybox/releases), check it,
@@ -351,7 +354,7 @@ v=0.1.0-pre.1 arch=x64
 sha256sum -c lazybox-runner-$v-linux-$arch.tar.gz.sha256
 root=${XDG_DATA_HOME:-$HOME/.local/share}/lazybox/runner
 mkdir -p "$root/versions/$v"
-tar -xzf lazybox-runner-$v-linux-$arch.tar.gz -C "$root/versions/$v" --strip-components=1
+tar -xzf lazybox-runner-$v-linux-$arch.tar.gz -C "$root/versions/$v"
 (cd "$root/versions/$v" && sha256sum --quiet -c SHA256SUMS)
 ln -sfn "versions/$v" "$root/current"
 "$root/current/bin/lazybox" link     # lazybox in ~/.local/bin, with completions
@@ -367,7 +370,9 @@ are logged in, unless lingering is on. Turn it on once (some systems need
 loginctl enable-linger "$USER"
 ```
 
-`lazybox doctor` says whether it is on (**Lingering**).
+`lazybox doctor` says whether it is on (**Lingering**). Without it, the
+Runner and its agents stop when your last session on that machine ends: their
+scopes belong to your user manager, which stops then.
 
 **What runs where.**
 

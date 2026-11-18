@@ -165,6 +165,17 @@ func TestAnUnreachableUserManagerSaysWhatToDo(t *testing.T) {
 	}
 }
 
+// logind knows a user only while they have a session or linger, so a
+// Runner's account with neither is "not lingering", not an error.
+func TestAUserLogindDoesNotKnowIsNotLingering(t *testing.T) {
+	s := Systemd{User: "me", Run: func(context.Context, string, ...string) ([]byte, error) {
+		return []byte("Failed to get user: User ID 501 is not logged in or lingering\n"), &exec.ExitError{}
+	}}
+	if linger, err := s.Linger(context.Background()); err != nil || linger {
+		t.Fatalf("%v %v", linger, err)
+	}
+}
+
 func TestTheManagerFollowsThePlatform(t *testing.T) {
 	booted := func(path string) bool { return path == "/run/systemd/system" }
 	none := func(string) bool { return false }

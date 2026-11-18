@@ -35,7 +35,11 @@ Lazybox then does, one step after the other:
    one). The computer checks the SHA-256 this Mac computed before it unpacks
    anything, and keeps the previous version for rollback, in
    `~/.local/share/lazybox/runner/`.
-4. **Start the Runner** there.
+4. **Start the Runner** there, as a service: a systemd user service on Linux
+   (Lazybox's own supervisor where there is no systemd, as in a container), the
+   launchd service on a Mac. Agents there keep running when it restarts or
+   updates. The step says whether it also starts at boot: on Linux that needs
+   lingering, and the step names the command when it is off.
 5. **Add this Mac as owner**: this Mac's own key is added to that Runner's
    owners, and this Mac remembers (pins) that Runner's key.
 6. **Connect over the link**, to check it all works.
@@ -99,9 +103,12 @@ Lazybox never copies a sign-in, token or key from this Mac to it.
 
 ## Not yet
 
-- The Runner on a Linux computer starts for your login, not at boot, until the
-  Linux service lands; after a reboot, **Add a computer** again (or `lazybox
-  link up` there) starts it, and its agents resume.
+- On a Linux computer without lingering (`loginctl enable-linger $USER`
+  there), the Runner and its agents stop when you are no longer logged in to
+  it, a few minutes after Lazybox's own SSH connection ends; with lingering
+  they keep running and start at boot. In a container, nothing starts the
+  Runner when the container starts: **Add a computer** again, or
+  `lazybox service start` there.
 - Previewing an app that runs on that computer (port forwarding), *Open in
   editor* with a remote editor URI, and windows of their own for that computer's
   chats come next.

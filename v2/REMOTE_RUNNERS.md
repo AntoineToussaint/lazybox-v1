@@ -28,7 +28,7 @@ gateway allowlist), [Agents outlive the Runner](SESSION_HOSTS.md),
 | How does owner access work without copying the owner bearer? | Each client (a desktop app, a CLI install, a phone) gets its **own key pair**, enrolled on the Runner once over a channel that already proves you control that machine, for example an SSH login. Every connection then runs a **Noise IK** handshake that pins the Runner's key, and the client signs the handshake. The bearer never leaves its machine. [§2.4](#24-keys-and-the-owner-handshake) |
 | How does it connect? | Through one contract, `RunnerLink`, with interchangeable **routes**: SSH (bootstrap and tunnel, like VS Code Remote-SSH and Zed), the tailnet, the end-to-end-encrypted relay (self-hosted or the Hub's), and a local socket for containers. Every route ends in the same Runner handler with the same keys and allowlists. [§3](#3-runnerlink-one-contract-many-routes), [§4](#4-routes) |
 | Where does the Hub fit? | **It is one more implementation of the same contract**, not a separate system. It provides a relay route, a machine directory and a provisioner for managed VMs. It never holds a private key, never mints a credential and never sees plaintext. [§3.3](#33-who-implements-what) |
-| What blocks it today? | The owner link ([§3](#3-runnerlink-one-contract-many-routes)). The Linux Runner is built: it compiles and its Go suite passes on Linux (CI too), it runs as a systemd user service, its session hosts leave its cgroup in scopes of their own so agents outlive `systemctl --user restart`, and the release ships it as checksummed tarballs. [§5.2](#52-the-linux-runner) |
+| What blocks it today? | Nothing for P0: the owner link over SSH ([P0b](#p0b-the-owner-link-over-ssh-built)) and the Linux Runner are built. The Linux Runner: it compiles and its Go suite passes on Linux (CI too), it runs as a systemd user service, its session hosts leave its cgroup in scopes of their own so agents outlive `systemctl --user restart`, and the release ships it as checksummed tarballs. [§5.2](#52-the-linux-runner) |
 | What first? | **P0: the Linux Runner plus an owner link over SSH to an existing host.** An agent can build and verify it against an OrbStack Linux machine on this Mac. Effort M: about 2–3 weeks, 7 PRs. [§10](#10-phased-plan) |
 
 ## P0b: the owner link over SSH (built)
@@ -86,9 +86,26 @@ person's guide is [docs/guides/remote-computers.md](docs/guides/remote-computers
 **Not verified:** a real sleep and Wi-Fi change; host key and passphrase
 prompts (BatchMode refuses them: there is no askpass yet); the desktop app
 driving `lazybox link connect` (the Rust side is unit-tested; the Playwright
-suite drives the web client); `launchctl` over SSH on a Mac host; a Linux
-host starting the Runner as its systemd user service (`link up` starts it
-detached on Linux until it uses `feat/v2-linux-runner`'s service manager).
+suite drives the web client); `launchctl` over SSH on a Mac host.
+
+**With the Linux Runner** (`feat/v2-linux-runner`, 2026-11-18): `link up`
+installs the release's service on any platform (`lazybox service install`): a
+systemd user unit on Linux, the supervisor without systemd, launchd on a Mac;
+it starts the Runner detached only when that fails, and says why. The
+`start` step reports the manager and whether it starts at boot (lingering).
+The release's Linux tarballs are bundles `remote add --bundle` takes as they
+are. Verified by hand over the real system OpenSSH to an OrbStack Ubuntu
+24.04 arm64 machine (`lazybox-test-linux@orb`), from a clean host: `remote add
+--bundle lazybox-runner-0.1.0-pre.1-linux-arm64.tar.gz --sha256 …` installed,
+started the Runner *as a systemd user service; starts at boot (lingering is
+on)*, enrolled and connected in under 5 s; `lazybox --runner orbbox ls`
+through `link connect`; a fake ACP agent opened through the link and left
+mid-turn; `systemctl --user restart lazybox-runner` on the host (Runner PID
+99077 → 99194): the agent (PID 99167, in `lazybox-host-….scope`) kept running,
+was re-attached, its turn still busy, and `ls` through the same link showed it
+*working*. Turning lingering off with no session open stopped the user
+manager, and with it the Runner and the agent, as logging out does: the guide
+and `lazybox doctor` say so.
 
 ## 1. Where we are
 

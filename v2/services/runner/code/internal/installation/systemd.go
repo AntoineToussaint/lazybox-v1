@@ -316,6 +316,11 @@ func (s Systemd) Status(ctx context.Context, p Paths) (Job, error) {
 // Runner, running without a login session and starts it at boot.
 func (s Systemd) Linger(ctx context.Context) (bool, error) {
 	out, err := s.Run(ctx, "loginctl", "show-user", s.User, "--property=Linger")
+	if err != nil && strings.Contains(string(out), "not logged in or lingering") {
+		// logind knows a user only while it has a session or lingers: no
+		// session here, so it does not linger.
+		return false, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf("loginctl show-user: %v: %s", err, strings.TrimSpace(string(out)))
 	}

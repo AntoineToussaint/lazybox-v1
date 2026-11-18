@@ -388,10 +388,15 @@ async function filesUnder(dir) {
   return found.sort();
 }
 
-/** A gzipped tarball of dir's one top-level folder, without macOS metadata (AppleDouble files, extended attributes). */
-async function tarball(file, parent, folder) {
+/**
+ * A gzipped tarball of dir's contents at its top level (VERSION, bin/, …):
+ * the bundle layout `lazybox remote add --bundle` uploads and its install
+ * script unpacks into versions/<version> (internal/link). No macOS metadata
+ * (AppleDouble files, extended attributes).
+ */
+async function tarball(file, dir) {
   const flags = process.platform === 'darwin' ? ['--no-mac-metadata', '--no-xattrs', '--no-acls'] : ['--owner=0', '--group=0', '--numeric-owner'];
-  await run('tar', [...flags, '-czf', file, '-C', parent, folder], { env: { ...buildEnv, COPYFILE_DISABLE: '1' } });
+  await run('tar', [...flags, '-czf', file, '-C', dir, '.'], { env: { ...buildEnv, COPYFILE_DISABLE: '1' } });
 }
 
 /**
@@ -420,7 +425,7 @@ async function buildLinuxBundles({ version, out, stage, notices }) {
     const inside = [];
     for (const rel of await filesUnder(runtime)) inside.push([rel, await sha256(join(runtime, rel))]);
     await writeFile(join(runtime, 'SHA256SUMS'), sumsText(inside));
-    await tarball(join(out, names.runner), parent, names.runnerDir);
+    await tarball(join(out, names.runner), runtime);
     // The CLI alone: the one binary, with the notices.
     const cliParent = join(parent, 'cli');
     const cli = join(cliParent, names.cliDir);
@@ -428,7 +433,7 @@ async function buildLinuxBundles({ version, out, stage, notices }) {
     await cp(join(runtime, 'bin', 'lazybox'), join(cli, 'lazybox'));
     await cp(notices, join(cli, NOTICES_FILE));
     await writeFile(join(cli, 'SHA256SUMS'), sumsText([['lazybox', await sha256(join(cli, 'lazybox'))]]));
-    await tarball(join(out, names.cli), cliParent, names.cliDir);
+    await tarball(join(out, names.cli), cli);
     for (const file of [names.runner, names.cli]) {
       const sum = await sha256(join(out, file));
       await writeFile(join(out, file + '.sha256'), sumsText([[file, sum]]));

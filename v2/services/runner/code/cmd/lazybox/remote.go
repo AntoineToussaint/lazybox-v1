@@ -253,9 +253,9 @@ func firstWord(s string) string {
 
 // linkUp makes sure this computer's Runner runs, for `remote add` over SSH:
 // the registered one if it answers; otherwise the installed release's
-// service (launchd), or, where there is no service manager Lazybox can use
-// yet, the Runner started detached from this session (it survives the SSH
-// login but not a reboot, and says so).
+// service (launchd, a systemd user unit, or Lazybox's supervisor), or, when
+// that cannot be installed, the Runner started detached from this session
+// (it survives the SSH login but not a reboot, and says so).
 func (c *cli) linkUp(args []string) error {
 	f := c.flags("link up")
 	service := f.String("service", "auto", "auto: the platform's service when Lazybox can install one, else none; none: start the Runner detached")
@@ -297,19 +297,24 @@ func (c *cli) linkUp(args []string) error {
 		return answer(err)
 	}
 	report.Runner, report.Endpoint = paths.RunnerName(), paths.Endpoint()
-	// A full release on a Mac gets its launchd service (`lazybox service
-	// install`). launchd over SSH needs a GUI login on that Mac, so when it
-	// cannot start one the Runner starts detached instead. Linux's systemd
-	// user service comes with the Linux Runner (REMOTE_RUNNERS §5.2); until
-	// then a Linux host runs it detached too.
-	if *service == "auto" && runtime.GOOS == "darwin" {
+	// A full release gets its platform's service (`lazybox service install`):
+	// launchd on a Mac, a systemd user unit on Linux, Lazybox's own
+	// supervisor on a Linux host without systemd (a container). Agents
+	// outlive a restart under each (SESSION_HOSTS.md). When the service
+	// cannot be installed (launchd over SSH needs a GUI login on that Mac; a
+	// Linux login without a user manager) the Runner starts detached instead.
+	if *service == "auto" {
 		if layout, err := installation.Current(); err == nil && layout.Check() == nil {
-			exe, _ := os.Executable()
-			if exec.CommandContext(c.ctx, exe, "service", "install", "--json").Run() == nil {
+			if installed, err := c.installServiceForLink(); err == nil {
 				if v, err := c.probeRunner(paths.Endpoint(), 60*time.Second); err == nil {
-					report.State, report.Service, report.Version = "running", "launchd", v
+					// Under systemd without lingering this says the Runner stops
+					// when the person logs out of that computer, and the command
+					// that keeps it running; remote add shows it.
+					report.State, report.Service, report.Version, report.StartsWhen = "running", installed.Manager, v, installed.StartsWhen
 					return answer(nil)
 				}
+			} else {
+				report.Note = "the service could not be installed (" + err.Error() + "); the Runner was started detached"
 			}
 		}
 	}
@@ -324,6 +329,42 @@ func (c *cli) linkUp(args []string) error {
 	}
 	report.State, report.Service, report.Version = "running", "none", v
 	return answer(nil)
+}
+
+// serviceInstalled is what `lazybox service install --json` reports that a
+// link needs: which manager runs the Runner and when it starts by itself.
+type serviceInstalled struct {
+	Manager    string `json:"manager"`
+	StartsWhen string `json:"startsWhen"`
+}
+
+// installServiceForLink installs (or updates) this release's Runner service
+// in a process of its own, as a person would type it, and says how it runs.
+func (c *cli) installServiceForLink() (serviceInstalled, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return serviceInstalled{}, err
+	}
+	var stdout, stderr strings.Builder
+	cmd := exec.CommandContext(c.ctx, exe, "service", "install", "--json")
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err = cmd.Run(); err != nil {
+		why := strings.TrimSpace(stderr.String())
+		if why == "" {
+			why = err.Error()
+		}
+		return serviceInstalled{}, errors.New(lastLineOf(why))
+	}
+	var installed serviceInstalled
+	if err = json.Unmarshal([]byte(stdout.String()), &installed); err != nil {
+		return serviceInstalled{}, fmt.Errorf("lazybox service install said %q", strings.TrimSpace(stdout.String()))
+	}
+	return installed, nil
+}
+
+func lastLineOf(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	return lines[len(lines)-1]
 }
 
 // probeRunner waits until the endpoint file names a Runner that answers.
@@ -530,7 +571,14 @@ func (c *cli) remoteAdd(args []string) error {
 	if err != nil {
 		return failed("start", "Start the Runner", err)
 	}
-	how := map[string]string{"existing": "already running", "launchd": "as a launchd service", "none": "started for this login (not at boot yet)"}[up.Service]
+	how := map[string]string{"existing": "already running", installation.ManagerLaunchd: "as a launchd service", installation.ManagerSystemd: "as a systemd user service",
+		installation.ManagerSupervisor: "under Lazybox's supervisor", "none": "started for this login (not at boot)"}[up.Service]
+	if up.StartsWhen != "" {
+		how += "; " + up.StartsWhen
+	}
+	if up.Note != "" {
+		how += "; " + up.Note
+	}
 	p.emit("start", "Start the Runner", "done", strings.TrimSpace(up.Version+" "+how))
 	route.Runner = up.Runner
 

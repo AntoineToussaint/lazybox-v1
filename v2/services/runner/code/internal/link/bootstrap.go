@@ -300,6 +300,11 @@ type Up struct {
 	Problem  string `json:"problem,omitempty"`
 	// PID is a Runner started detached (service none); also <state>/runner.pid.
 	PID int `json:"pid,omitempty"`
+	// StartsWhen says when a service starts the Runner by itself (at login,
+	// at boot with lingering, or not), from `lazybox service install`.
+	StartsWhen string `json:"startsWhen,omitempty"`
+	// Note is why the Runner runs detached when a service was wanted.
+	Note string `json:"note,omitempty"`
 }
 
 // StartRunner makes sure the host's Runner runs (`lazybox link up`).
