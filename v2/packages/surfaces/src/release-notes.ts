@@ -82,6 +82,7 @@ export const releaseNotes: readonly Release[] = [
       { group: 'Phone', title: 'Your conversations on your phone', body: 'Pair a phone by QR code over Tailscale to follow and answer your conversations, and follow a command\'s output live.' },
       { group: 'Phone', title: 'Notifications', body: 'Your phone tells you when an agent asks a question, waits for approval or fails, even with Lazybox closed. Choose the kinds and quiet hours.' },
       { group: 'Phone', title: 'Answer from the Inbox', body: 'Allow, deny or answer a question from its row, with a few seconds to undo; swipe for more.' },
+      { group: 'Phone', title: 'An iPhone app, in progress', body: 'A native app pairs like the phone page and shows the same Inbox, live conversations, Allow, Deny and answers, and Send now. It is not on the App Store yet: you can build it onto your own iPhone from source (v2/apps/mobile).' },
       { group: 'Phone', title: 'Pairing offers what the phone can do', body: 'Pairing no longer offers Start conversations, which the phone has no screen for yet; a phone already paired with it keeps it.' },
       { group: 'Extensions', title: 'Panels you add', body: 'An extension is a panel you write in HTML, JavaScript and CSS. It runs in a sandbox and does only what you allow, which Lazybox shows you in words first; the Agent board and the Cost dashboard are examples.' },
       { group: 'Extensions', title: 'Hooks for pull requests', body: 'pr.opened, pr.checks-passed, pr.approved and pr.merged join the events your hooks can react to.' },
