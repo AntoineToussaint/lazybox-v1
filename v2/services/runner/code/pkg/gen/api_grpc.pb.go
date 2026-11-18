@@ -23,6 +23,7 @@ const (
 	RunnerService_ListSnippets_FullMethodName                 = "/lazybox.bench.v1.RunnerService/ListSnippets"
 	RunnerService_GetRepositoryCatalog_FullMethodName         = "/lazybox.bench.v1.RunnerService/GetRepositoryCatalog"
 	RunnerService_PrepareWorkspace_FullMethodName             = "/lazybox.bench.v1.RunnerService/PrepareWorkspace"
+	RunnerService_ListRepositoryBranches_FullMethodName       = "/lazybox.bench.v1.RunnerService/ListRepositoryBranches"
 	RunnerService_Version_FullMethodName                      = "/lazybox.bench.v1.RunnerService/Version"
 	RunnerService_GetRunnerSettings_FullMethodName            = "/lazybox.bench.v1.RunnerService/GetRunnerSettings"
 	RunnerService_SaveRunnerSettings_FullMethodName           = "/lazybox.bench.v1.RunnerService/SaveRunnerSettings"
@@ -237,6 +238,9 @@ type RunnerServiceClient interface {
 	ListSnippets(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*SnippetCatalog, error)
 	GetRepositoryCatalog(ctx context.Context, in *GetRepositoryCatalogRequest, opts ...grpc.CallOption) (*RepositoryCatalog, error)
 	PrepareWorkspace(ctx context.Context, in *PrepareWorkspaceRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WorkspacePreparation], error)
+	// A repository's branches for New task's "Start from" choice, its default
+	// branch and the branch it last started from (WORKSPACES.md, "Start from").
+	ListRepositoryBranches(ctx context.Context, in *ListRepositoryBranchesRequest, opts ...grpc.CallOption) (*RepositoryBranches, error)
 	Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error)
 	GetRunnerSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*RunnerSettings, error)
 	SaveRunnerSettings(ctx context.Context, in *RunnerSettings, opts ...grpc.CallOption) (*RunnerSettings, error)
@@ -769,6 +773,16 @@ func (c *runnerServiceClient) PrepareWorkspace(ctx context.Context, in *PrepareW
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnerService_PrepareWorkspaceClient = grpc.ServerStreamingClient[WorkspacePreparation]
+
+func (c *runnerServiceClient) ListRepositoryBranches(ctx context.Context, in *ListRepositoryBranchesRequest, opts ...grpc.CallOption) (*RepositoryBranches, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryBranches)
+	err := c.cc.Invoke(ctx, RunnerService_ListRepositoryBranches_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 func (c *runnerServiceClient) Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -2872,6 +2886,9 @@ type RunnerServiceServer interface {
 	ListSnippets(context.Context, *InfoRequest) (*SnippetCatalog, error)
 	GetRepositoryCatalog(context.Context, *GetRepositoryCatalogRequest) (*RepositoryCatalog, error)
 	PrepareWorkspace(*PrepareWorkspaceRequest, grpc.ServerStreamingServer[WorkspacePreparation]) error
+	// A repository's branches for New task's "Start from" choice, its default
+	// branch and the branch it last started from (WORKSPACES.md, "Start from").
+	ListRepositoryBranches(context.Context, *ListRepositoryBranchesRequest) (*RepositoryBranches, error)
 	Version(context.Context, *VersionRequest) (*VersionResponse, error)
 	GetRunnerSettings(context.Context, *InfoRequest) (*RunnerSettings, error)
 	SaveRunnerSettings(context.Context, *RunnerSettings) (*RunnerSettings, error)
@@ -3374,6 +3391,9 @@ func (UnimplementedRunnerServiceServer) GetRepositoryCatalog(context.Context, *G
 }
 func (UnimplementedRunnerServiceServer) PrepareWorkspace(*PrepareWorkspaceRequest, grpc.ServerStreamingServer[WorkspacePreparation]) error {
 	return status.Error(codes.Unimplemented, "method PrepareWorkspace not implemented")
+}
+func (UnimplementedRunnerServiceServer) ListRepositoryBranches(context.Context, *ListRepositoryBranchesRequest) (*RepositoryBranches, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRepositoryBranches not implemented")
 }
 func (UnimplementedRunnerServiceServer) Version(context.Context, *VersionRequest) (*VersionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Version not implemented")
@@ -4057,6 +4077,24 @@ func _RunnerService_PrepareWorkspace_Handler(srv interface{}, stream grpc.Server
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type RunnerService_PrepareWorkspaceServer = grpc.ServerStreamingServer[WorkspacePreparation]
+
+func _RunnerService_ListRepositoryBranches_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRepositoryBranchesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ListRepositoryBranches(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ListRepositoryBranches_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ListRepositoryBranches(ctx, req.(*ListRepositoryBranchesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 
 func _RunnerService_Version_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(VersionRequest)
@@ -7727,6 +7765,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRepositoryCatalog",
 			Handler:    _RunnerService_GetRepositoryCatalog_Handler,
+		},
+		{
+			MethodName: "ListRepositoryBranches",
+			Handler:    _RunnerService_ListRepositoryBranches_Handler,
 		},
 		{
 			MethodName: "Version",

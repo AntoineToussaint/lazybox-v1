@@ -43,6 +43,9 @@ const (
 	// RunnerServicePrepareWorkspaceProcedure is the fully-qualified name of the RunnerService's
 	// PrepareWorkspace RPC.
 	RunnerServicePrepareWorkspaceProcedure = "/lazybox.bench.v1.RunnerService/PrepareWorkspace"
+	// RunnerServiceListRepositoryBranchesProcedure is the fully-qualified name of the RunnerService's
+	// ListRepositoryBranches RPC.
+	RunnerServiceListRepositoryBranchesProcedure = "/lazybox.bench.v1.RunnerService/ListRepositoryBranches"
 	// RunnerServiceVersionProcedure is the fully-qualified name of the RunnerService's Version RPC.
 	RunnerServiceVersionProcedure = "/lazybox.bench.v1.RunnerService/Version"
 	// RunnerServiceGetRunnerSettingsProcedure is the fully-qualified name of the RunnerService's
@@ -656,6 +659,9 @@ type RunnerServiceClient interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
 	GetRepositoryCatalog(context.Context, *connect.Request[gen.GetRepositoryCatalogRequest]) (*connect.Response[gen.RepositoryCatalog], error)
 	PrepareWorkspace(context.Context, *connect.Request[gen.PrepareWorkspaceRequest]) (*connect.ServerStreamForClient[gen.WorkspacePreparation], error)
+	// A repository's branches for New task's "Start from" choice, its default
+	// branch and the branch it last started from (WORKSPACES.md, "Start from").
+	ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error)
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
@@ -1169,6 +1175,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServicePrepareWorkspaceProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("PrepareWorkspace")),
+			connect.WithClientOptions(opts...),
+		),
+		listRepositoryBranches: connect.NewClient[gen.ListRepositoryBranchesRequest, gen.RepositoryBranches](
+			httpClient,
+			baseURL+RunnerServiceListRepositoryBranchesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryBranches")),
 			connect.WithClientOptions(opts...),
 		),
 		version: connect.NewClient[gen.VersionRequest, gen.VersionResponse](
@@ -2409,6 +2421,7 @@ type runnerServiceClient struct {
 	listSnippets                 *connect.Client[gen.InfoRequest, gen.SnippetCatalog]
 	getRepositoryCatalog         *connect.Client[gen.GetRepositoryCatalogRequest, gen.RepositoryCatalog]
 	prepareWorkspace             *connect.Client[gen.PrepareWorkspaceRequest, gen.WorkspacePreparation]
+	listRepositoryBranches       *connect.Client[gen.ListRepositoryBranchesRequest, gen.RepositoryBranches]
 	version                      *connect.Client[gen.VersionRequest, gen.VersionResponse]
 	getRunnerSettings            *connect.Client[gen.InfoRequest, gen.RunnerSettings]
 	saveRunnerSettings           *connect.Client[gen.RunnerSettings, gen.RunnerSettings]
@@ -2629,6 +2642,11 @@ func (c *runnerServiceClient) GetRepositoryCatalog(ctx context.Context, req *con
 // PrepareWorkspace calls lazybox.bench.v1.RunnerService.PrepareWorkspace.
 func (c *runnerServiceClient) PrepareWorkspace(ctx context.Context, req *connect.Request[gen.PrepareWorkspaceRequest]) (*connect.ServerStreamForClient[gen.WorkspacePreparation], error) {
 	return c.prepareWorkspace.CallServerStream(ctx, req)
+}
+
+// ListRepositoryBranches calls lazybox.bench.v1.RunnerService.ListRepositoryBranches.
+func (c *runnerServiceClient) ListRepositoryBranches(ctx context.Context, req *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error) {
+	return c.listRepositoryBranches.CallUnary(ctx, req)
 }
 
 // Version calls lazybox.bench.v1.RunnerService.Version.
@@ -3661,6 +3679,9 @@ type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
 	GetRepositoryCatalog(context.Context, *connect.Request[gen.GetRepositoryCatalogRequest]) (*connect.Response[gen.RepositoryCatalog], error)
 	PrepareWorkspace(context.Context, *connect.Request[gen.PrepareWorkspaceRequest], *connect.ServerStream[gen.WorkspacePreparation]) error
+	// A repository's branches for New task's "Start from" choice, its default
+	// branch and the branch it last started from (WORKSPACES.md, "Start from").
+	ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error)
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
@@ -4170,6 +4191,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServicePrepareWorkspaceProcedure,
 		svc.PrepareWorkspace,
 		connect.WithSchema(runnerServiceMethods.ByName("PrepareWorkspace")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListRepositoryBranchesHandler := connect.NewUnaryHandler(
+		RunnerServiceListRepositoryBranchesProcedure,
+		svc.ListRepositoryBranches,
+		connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryBranches")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceVersionHandler := connect.NewUnaryHandler(
@@ -5410,6 +5437,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetRepositoryCatalogHandler.ServeHTTP(w, r)
 		case RunnerServicePrepareWorkspaceProcedure:
 			runnerServicePrepareWorkspaceHandler.ServeHTTP(w, r)
+		case RunnerServiceListRepositoryBranchesProcedure:
+			runnerServiceListRepositoryBranchesHandler.ServeHTTP(w, r)
 		case RunnerServiceVersionProcedure:
 			runnerServiceVersionHandler.ServeHTTP(w, r)
 		case RunnerServiceGetRunnerSettingsProcedure:
@@ -5839,6 +5868,10 @@ func (UnimplementedRunnerServiceHandler) GetRepositoryCatalog(context.Context, *
 
 func (UnimplementedRunnerServiceHandler) PrepareWorkspace(context.Context, *connect.Request[gen.PrepareWorkspaceRequest], *connect.ServerStream[gen.WorkspacePreparation]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PrepareWorkspace is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListRepositoryBranches is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {

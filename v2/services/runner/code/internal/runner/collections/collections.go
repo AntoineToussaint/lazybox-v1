@@ -104,6 +104,8 @@ type Manager struct {
 	files indexCache
 	// order is the person's order of their workspaces (arrangement.go).
 	order []string
+	// starts is the branch each repository starts from, by identity (start_from.go).
+	starts map[string]Start
 }
 
 func New(root string, repositories []Repository) (*Manager, error) {
@@ -246,6 +248,7 @@ func New(root string, repositories []Repository) (*Manager, error) {
 		keys[c.RequestKey], work[c.WorkID], m.items[c.ID] = true, true, c
 	}
 	m.loadArrangement()
+	m.loadStarts()
 	return m, nil
 }
 
