@@ -342,7 +342,8 @@ func TestRemoteRunnerOverSSHEndToEnd(t *testing.T) {
 	// The link agent: the host's Runner on a loopback origin, through which the CLI works.
 	w.startConnect("build-box")
 	st := w.waitState("build-box", "connected", 15*time.Second)
-	if st.RTTMillis <= 0 || st.Machine == "" {
+	// On localhost a round trip can measure 0 ms; a negative one means none was taken.
+	if st.RTTMillis < 0 || st.Machine == "" {
 		t.Fatalf("status %+v", st)
 	}
 	if out, err = w.lazybox("--runner", "build-box", "ls"); err != nil || !strings.Contains(out, "No workspaces") {
