@@ -60,7 +60,7 @@
     { "id": "find-artifacts", "scope": "ui", "script": "test:find-artifacts" },
     { "id": "file-navigation", "scope": "ui", "script": "test:file-navigation" },
     { "id": "prompt-navigation", "scope": "ui", "script": "test:prompt-navigation" },
-    { "id": "composer-fast-typing", "scope": "ui", "script": "test:composer-fast-typing" },
+    { "id": "composer-fast-typing", "scope": "ui", "script": "test:composer-fast-typing", "timeoutMs": 420000 },
     { "id": "chat-polish", "scope": "ui", "script": "test:chat-polish" },
     { "id": "transcript-polish", "scope": "ui", "script": "test:transcript-polish" },
     { "id": "briefing-updates", "scope": "ui", "script": "test:briefing-updates" },

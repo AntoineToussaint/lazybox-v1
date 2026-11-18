@@ -242,7 +242,8 @@ test('the release notes of the current version are the whole of its section', as
 test('the release notes link to the install guide where the repository has it', async () => {
   // From the repository root: v2/docs/install.md in the monorepo; the export
   // drops the v2/ prefix along with the folder.
-  const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' }).trim();
+  // Not git: a staged copy sits inside the monorepo's ignored .cache, where git would answer the monorepo.
+  const top = resolve(root, installGuidePath.startsWith('v2/') ? '..' : '.');
   assert.ok(existsSync(resolve(top, installGuidePath)), `${installGuidePath} is not in this repository`);
   assert.equal(resolve(top, installGuidePath), resolve(root, 'docs/install.md'));
   assert.match(await readFile(resolve(root, 'docs/install.md'), 'utf8'), /^### Unsigned builds$/m, 'the #unsigned-builds anchor the notes link to');
