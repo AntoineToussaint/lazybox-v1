@@ -99,6 +99,16 @@ service RunnerService {
   rpc ArrangeWorkspaces(ArrangeWorkspacesRequest) returns (ListCollectionsResponse);
   rpc ArchiveCollection(CollectionRequest) returns (CollectionResponse);
   rpc ReconcileCollection(ReconcileCollectionRequest) returns (CollectionResponse);
+  // The owner's only. What a previous Runner left unconfirmed in a workspace
+  // or a conversation (RESOURCE_OWNERSHIP.md, "Unconfirmed ownership"): each
+  // recorded agent and command, its PID and command line, and whether a
+  // process with that identity still runs, checked by the Runner. What it
+  // proves gone it settles there and then.
+  rpc GetOwnership(OwnershipRequest) returns (Ownership);
+  // The owner's only. Settles it: stop exactly the recorded processes that
+  // still run (checked by identity, never a PID given to another program
+  // since), or record the person's word that they stopped.
+  rpc ResolveOwnership(ResolveOwnershipRequest) returns (Ownership);
   rpc OpenSession(OpenSessionRequest) returns (SessionResponse);
   rpc OpenAssistant(OpenAssistantRequest) returns (SessionResponse);
   rpc RenameConversation(RenameConversationRequest) returns (SessionResponse);
@@ -1547,6 +1557,45 @@ message ReconcileCollectionRequest {
   string collection_id = 1;
   string expected_owner_execution_id = 2;
   bool processes_stopped = 3;
+  string reason = 4;
+}
+// One of: a workspace, or a conversation (any of its attempts).
+message OwnershipRequest {
+  string collection_id = 1;
+  string session_id = 2;
+}
+// One process a previous Runner recorded, as the Runner checked it.
+message OwnedProcess {
+  // "agent" or "command".
+  string kind = 1;
+  string session_id = 2;
+  string command_id = 3;
+  // The conversation's title, or the command's.
+  string label = 4;
+  // What it runs, where recorded or seen; empty when unknown.
+  string command_line = 5;
+  // 0 when no process ID is recorded.
+  int32 pid = 6;
+  // "running": a process with the recorded identity runs; "gone": proved
+  // gone; "unknown": nothing recorded lets the Runner tell.
+  string state = 7;
+  // Why, in plain words.
+  string detail = 8;
+}
+message Ownership {
+  repeated OwnedProcess processes = 1;
+  // Nothing is unconfirmed (any more).
+  bool settled = 2;
+  // What the Runner settled by itself, if anything.
+  string note = 3;
+}
+message ResolveOwnershipRequest {
+  string collection_id = 1;
+  string session_id = 2;
+  // Stop the recorded processes that still run. Without it, the person says
+  // they have stopped (refused for a process the Runner sees running).
+  bool stop = 3;
+  // Optional, with the person's word: why they know.
   string reason = 4;
 }
 message SessionResponse {

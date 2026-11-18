@@ -74,6 +74,8 @@ const (
 	RunnerService_ArrangeWorkspaces_FullMethodName            = "/lazybox.bench.v1.RunnerService/ArrangeWorkspaces"
 	RunnerService_ArchiveCollection_FullMethodName            = "/lazybox.bench.v1.RunnerService/ArchiveCollection"
 	RunnerService_ReconcileCollection_FullMethodName          = "/lazybox.bench.v1.RunnerService/ReconcileCollection"
+	RunnerService_GetOwnership_FullMethodName                 = "/lazybox.bench.v1.RunnerService/GetOwnership"
+	RunnerService_ResolveOwnership_FullMethodName             = "/lazybox.bench.v1.RunnerService/ResolveOwnership"
 	RunnerService_OpenSession_FullMethodName                  = "/lazybox.bench.v1.RunnerService/OpenSession"
 	RunnerService_OpenAssistant_FullMethodName                = "/lazybox.bench.v1.RunnerService/OpenAssistant"
 	RunnerService_RenameConversation_FullMethodName           = "/lazybox.bench.v1.RunnerService/RenameConversation"
@@ -331,6 +333,16 @@ type RunnerServiceClient interface {
 	ArrangeWorkspaces(ctx context.Context, in *ArrangeWorkspacesRequest, opts ...grpc.CallOption) (*ListCollectionsResponse, error)
 	ArchiveCollection(ctx context.Context, in *CollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
 	ReconcileCollection(ctx context.Context, in *ReconcileCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
+	// The owner's only. What a previous Runner left unconfirmed in a workspace
+	// or a conversation (RESOURCE_OWNERSHIP.md, "Unconfirmed ownership"): each
+	// recorded agent and command, its PID and command line, and whether a
+	// process with that identity still runs, checked by the Runner. What it
+	// proves gone it settles there and then.
+	GetOwnership(ctx context.Context, in *OwnershipRequest, opts ...grpc.CallOption) (*Ownership, error)
+	// The owner's only. Settles it: stop exactly the recorded processes that
+	// still run (checked by identity, never a PID given to another program
+	// since), or record the person's word that they stopped.
+	ResolveOwnership(ctx context.Context, in *ResolveOwnershipRequest, opts ...grpc.CallOption) (*Ownership, error)
 	OpenSession(ctx context.Context, in *OpenSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	OpenAssistant(ctx context.Context, in *OpenAssistantRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	RenameConversation(ctx context.Context, in *RenameConversationRequest, opts ...grpc.CallOption) (*SessionResponse, error)
@@ -1285,6 +1297,26 @@ func (c *runnerServiceClient) ReconcileCollection(ctx context.Context, in *Recon
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CollectionResponse)
 	err := c.cc.Invoke(ctx, RunnerService_ReconcileCollection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) GetOwnership(ctx context.Context, in *OwnershipRequest, opts ...grpc.CallOption) (*Ownership, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Ownership)
+	err := c.cc.Invoke(ctx, RunnerService_GetOwnership_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) ResolveOwnership(ctx context.Context, in *ResolveOwnershipRequest, opts ...grpc.CallOption) (*Ownership, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Ownership)
+	err := c.cc.Invoke(ctx, RunnerService_ResolveOwnership_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2995,6 +3027,16 @@ type RunnerServiceServer interface {
 	ArrangeWorkspaces(context.Context, *ArrangeWorkspacesRequest) (*ListCollectionsResponse, error)
 	ArchiveCollection(context.Context, *CollectionRequest) (*CollectionResponse, error)
 	ReconcileCollection(context.Context, *ReconcileCollectionRequest) (*CollectionResponse, error)
+	// The owner's only. What a previous Runner left unconfirmed in a workspace
+	// or a conversation (RESOURCE_OWNERSHIP.md, "Unconfirmed ownership"): each
+	// recorded agent and command, its PID and command line, and whether a
+	// process with that identity still runs, checked by the Runner. What it
+	// proves gone it settles there and then.
+	GetOwnership(context.Context, *OwnershipRequest) (*Ownership, error)
+	// The owner's only. Settles it: stop exactly the recorded processes that
+	// still run (checked by identity, never a PID given to another program
+	// since), or record the person's word that they stopped.
+	ResolveOwnership(context.Context, *ResolveOwnershipRequest) (*Ownership, error)
 	OpenSession(context.Context, *OpenSessionRequest) (*SessionResponse, error)
 	OpenAssistant(context.Context, *OpenAssistantRequest) (*SessionResponse, error)
 	RenameConversation(context.Context, *RenameConversationRequest) (*SessionResponse, error)
@@ -3567,6 +3609,12 @@ func (UnimplementedRunnerServiceServer) ArchiveCollection(context.Context, *Coll
 }
 func (UnimplementedRunnerServiceServer) ReconcileCollection(context.Context, *ReconcileCollectionRequest) (*CollectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReconcileCollection not implemented")
+}
+func (UnimplementedRunnerServiceServer) GetOwnership(context.Context, *OwnershipRequest) (*Ownership, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOwnership not implemented")
+}
+func (UnimplementedRunnerServiceServer) ResolveOwnership(context.Context, *ResolveOwnershipRequest) (*Ownership, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveOwnership not implemented")
 }
 func (UnimplementedRunnerServiceServer) OpenSession(context.Context, *OpenSessionRequest) (*SessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OpenSession not implemented")
@@ -5018,6 +5066,42 @@ func _RunnerService_ReconcileCollection_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).ReconcileCollection(ctx, req.(*ReconcileCollectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_GetOwnership_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OwnershipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).GetOwnership(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_GetOwnership_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).GetOwnership(ctx, req.(*OwnershipRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_ResolveOwnership_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveOwnershipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).ResolveOwnership(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_ResolveOwnership_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).ResolveOwnership(ctx, req.(*ResolveOwnershipRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -8013,6 +8097,14 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReconcileCollection",
 			Handler:    _RunnerService_ReconcileCollection_Handler,
+		},
+		{
+			MethodName: "GetOwnership",
+			Handler:    _RunnerService_GetOwnership_Handler,
+		},
+		{
+			MethodName: "ResolveOwnership",
+			Handler:    _RunnerService_ResolveOwnership_Handler,
 		},
 		{
 			MethodName: "OpenSession",

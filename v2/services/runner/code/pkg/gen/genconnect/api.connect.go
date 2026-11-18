@@ -193,6 +193,12 @@ const (
 	// RunnerServiceReconcileCollectionProcedure is the fully-qualified name of the RunnerService's
 	// ReconcileCollection RPC.
 	RunnerServiceReconcileCollectionProcedure = "/lazybox.bench.v1.RunnerService/ReconcileCollection"
+	// RunnerServiceGetOwnershipProcedure is the fully-qualified name of the RunnerService's
+	// GetOwnership RPC.
+	RunnerServiceGetOwnershipProcedure = "/lazybox.bench.v1.RunnerService/GetOwnership"
+	// RunnerServiceResolveOwnershipProcedure is the fully-qualified name of the RunnerService's
+	// ResolveOwnership RPC.
+	RunnerServiceResolveOwnershipProcedure = "/lazybox.bench.v1.RunnerService/ResolveOwnership"
 	// RunnerServiceOpenSessionProcedure is the fully-qualified name of the RunnerService's OpenSession
 	// RPC.
 	RunnerServiceOpenSessionProcedure = "/lazybox.bench.v1.RunnerService/OpenSession"
@@ -754,6 +760,16 @@ type RunnerServiceClient interface {
 	ArrangeWorkspaces(context.Context, *connect.Request[gen.ArrangeWorkspacesRequest]) (*connect.Response[gen.ListCollectionsResponse], error)
 	ArchiveCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ReconcileCollection(context.Context, *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
+	// The owner's only. What a previous Runner left unconfirmed in a workspace
+	// or a conversation (RESOURCE_OWNERSHIP.md, "Unconfirmed ownership"): each
+	// recorded agent and command, its PID and command line, and whether a
+	// process with that identity still runs, checked by the Runner. What it
+	// proves gone it settles there and then.
+	GetOwnership(context.Context, *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error)
+	// The owner's only. Settles it: stop exactly the recorded processes that
+	// still run (checked by identity, never a PID given to another program
+	// since), or record the person's word that they stopped.
+	ResolveOwnership(context.Context, *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error)
 	OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	OpenAssistant(context.Context, *connect.Request[gen.OpenAssistantRequest]) (*connect.Response[gen.SessionResponse], error)
 	RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -1490,6 +1506,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceReconcileCollectionProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("ReconcileCollection")),
+			connect.WithClientOptions(opts...),
+		),
+		getOwnership: connect.NewClient[gen.OwnershipRequest, gen.Ownership](
+			httpClient,
+			baseURL+RunnerServiceGetOwnershipProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetOwnership")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveOwnership: connect.NewClient[gen.ResolveOwnershipRequest, gen.Ownership](
+			httpClient,
+			baseURL+RunnerServiceResolveOwnershipProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ResolveOwnership")),
 			connect.WithClientOptions(opts...),
 		),
 		openSession: connect.NewClient[gen.OpenSessionRequest, gen.SessionResponse](
@@ -2487,6 +2515,8 @@ type runnerServiceClient struct {
 	arrangeWorkspaces            *connect.Client[gen.ArrangeWorkspacesRequest, gen.ListCollectionsResponse]
 	archiveCollection            *connect.Client[gen.CollectionRequest, gen.CollectionResponse]
 	reconcileCollection          *connect.Client[gen.ReconcileCollectionRequest, gen.CollectionResponse]
+	getOwnership                 *connect.Client[gen.OwnershipRequest, gen.Ownership]
+	resolveOwnership             *connect.Client[gen.ResolveOwnershipRequest, gen.Ownership]
 	openSession                  *connect.Client[gen.OpenSessionRequest, gen.SessionResponse]
 	openAssistant                *connect.Client[gen.OpenAssistantRequest, gen.SessionResponse]
 	renameConversation           *connect.Client[gen.RenameConversationRequest, gen.SessionResponse]
@@ -2913,6 +2943,16 @@ func (c *runnerServiceClient) ArchiveCollection(ctx context.Context, req *connec
 // ReconcileCollection calls lazybox.bench.v1.RunnerService.ReconcileCollection.
 func (c *runnerServiceClient) ReconcileCollection(ctx context.Context, req *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {
 	return c.reconcileCollection.CallUnary(ctx, req)
+}
+
+// GetOwnership calls lazybox.bench.v1.RunnerService.GetOwnership.
+func (c *runnerServiceClient) GetOwnership(ctx context.Context, req *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return c.getOwnership.CallUnary(ctx, req)
+}
+
+// ResolveOwnership calls lazybox.bench.v1.RunnerService.ResolveOwnership.
+func (c *runnerServiceClient) ResolveOwnership(ctx context.Context, req *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return c.resolveOwnership.CallUnary(ctx, req)
 }
 
 // OpenSession calls lazybox.bench.v1.RunnerService.OpenSession.
@@ -3792,6 +3832,16 @@ type RunnerServiceHandler interface {
 	ArrangeWorkspaces(context.Context, *connect.Request[gen.ArrangeWorkspacesRequest]) (*connect.Response[gen.ListCollectionsResponse], error)
 	ArchiveCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ReconcileCollection(context.Context, *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
+	// The owner's only. What a previous Runner left unconfirmed in a workspace
+	// or a conversation (RESOURCE_OWNERSHIP.md, "Unconfirmed ownership"): each
+	// recorded agent and command, its PID and command line, and whether a
+	// process with that identity still runs, checked by the Runner. What it
+	// proves gone it settles there and then.
+	GetOwnership(context.Context, *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error)
+	// The owner's only. Settles it: stop exactly the recorded processes that
+	// still run (checked by identity, never a PID given to another program
+	// since), or record the person's word that they stopped.
+	ResolveOwnership(context.Context, *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error)
 	OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	OpenAssistant(context.Context, *connect.Request[gen.OpenAssistantRequest]) (*connect.Response[gen.SessionResponse], error)
 	RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error)
@@ -4524,6 +4574,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceReconcileCollectionProcedure,
 		svc.ReconcileCollection,
 		connect.WithSchema(runnerServiceMethods.ByName("ReconcileCollection")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetOwnershipHandler := connect.NewUnaryHandler(
+		RunnerServiceGetOwnershipProcedure,
+		svc.GetOwnership,
+		connect.WithSchema(runnerServiceMethods.ByName("GetOwnership")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceResolveOwnershipHandler := connect.NewUnaryHandler(
+		RunnerServiceResolveOwnershipProcedure,
+		svc.ResolveOwnership,
+		connect.WithSchema(runnerServiceMethods.ByName("ResolveOwnership")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceOpenSessionHandler := connect.NewUnaryHandler(
@@ -5572,6 +5634,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceArchiveCollectionHandler.ServeHTTP(w, r)
 		case RunnerServiceReconcileCollectionProcedure:
 			runnerServiceReconcileCollectionHandler.ServeHTTP(w, r)
+		case RunnerServiceGetOwnershipProcedure:
+			runnerServiceGetOwnershipHandler.ServeHTTP(w, r)
+		case RunnerServiceResolveOwnershipProcedure:
+			runnerServiceResolveOwnershipHandler.ServeHTTP(w, r)
 		case RunnerServiceOpenSessionProcedure:
 			runnerServiceOpenSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceOpenAssistantProcedure:
@@ -6107,6 +6173,14 @@ func (UnimplementedRunnerServiceHandler) ArchiveCollection(context.Context, *con
 
 func (UnimplementedRunnerServiceHandler) ReconcileCollection(context.Context, *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReconcileCollection is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetOwnership(context.Context, *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetOwnership is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ResolveOwnership(context.Context, *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResolveOwnership is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error) {
