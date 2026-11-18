@@ -66,13 +66,27 @@ person's guide is [docs/guides/remote-computers.md](docs/guides/remote-computers
   ssh reconnects in about 0.1 s; `owners revoke` on the host refuses within
   about 0.3 s; another Runner key behind the same name is refused as *wrong
   runner*; `remote rm` revokes the key on the host;
-- the UI against fixture Runners (WebKit, dark and light).
+- the UI against fixture Runners (WebKit, dark and light);
+- **by hand, over the real system OpenSSH to a Linux Runner** (2026-11-18): a
+  throwaway OrbStack Ubuntu 24.04 arm64 machine, reached as
+  `lazybox-test-link@orb` through `~/.ssh/config`, with this branch merged
+  with `feat/v2-linux-runner` and cross-built for linux/arm64: `remote add`
+  probed, uploaded and verified, started the Runner, enrolled and pinned in
+  13 s; `lazybox --runner orbbox ls` worked through `link connect` (RTT 2 ms
+  over a reused ControlMaster); killing ssh reconnected in under a second;
+  `owners revoke` on the host refused within 0.3 s; a replaced Runner key
+  was refused as *wrong runner*; `remote rm` revoked the key on the host.
+  This run found that sshd's blocking stdio kept a revoked session alive
+  until the client's next ping (~10 s); `link serve` now makes its stdio
+  pollable, and the fake `ssh` of the Go test holds the command's stdio as
+  sshd does, so the test fails without the fix.
 
-**Not verified:** a real `sshd` (system OpenSSH's own behaviour, ControlMaster
-reuse, host key prompts), a real Linux host (needs the Linux Runner), a real
-sleep and Wi-Fi change, the desktop app driving `lazybox link connect` (the
-Rust side is unit-tested; the Playwright suite drives the web client), and
-`launchctl` over SSH on a Mac host.
+**Not verified:** a real sleep and Wi-Fi change; host key and passphrase
+prompts (BatchMode refuses them: there is no askpass yet); the desktop app
+driving `lazybox link connect` (the Rust side is unit-tested; the Playwright
+suite drives the web client); `launchctl` over SSH on a Mac host; a Linux
+host starting the Runner as its systemd user service (`link up` starts it
+detached on Linux until it uses `feat/v2-linux-runner`'s service manager).
 
 ## 1. Where we are
 
