@@ -99,6 +99,7 @@
     { "id": "chat-decisions", "scope": "ui", "script": "test:chat-decisions" },
     { "id": "slash-commands", "scope": "ui", "script": "test:slash-commands" },
     { "id": "repository-requests", "scope": "ui", "script": "test:repository-requests" },
+    { "id": "unconfirmed-ownership", "scope": "ui", "script": "test:unconfirmed-ownership" },
     { "id": "agent-starts-conversation", "scope": "ui", "script": "test:agent-starts-conversation" },
     { "id": "agent-browser", "scope": "ui", "script": "test:agent-browser" },
     { "id": "workspace-rows", "scope": "ui", "script": "test:workspace-rows" },

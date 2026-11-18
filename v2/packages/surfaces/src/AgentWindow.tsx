@@ -255,7 +255,7 @@ export function ChatPanel({ purpose = 'coding', assistantContext = '', agent, wo
     if (!snippetText && (message.trim() || files.length) && !canSend) {
       const why = sendingRef.current || sending ? 'Still sending your previous message…'
         : !session ? 'Still connecting to this conversation…'
-        : !canCompose ? (session.recoveryRequired ? 'This conversation needs recovery first: use Resume above.' : session.resumeBlocked ? 'This conversation cannot be continued from here.' : 'This conversation has ended.')
+        : !canCompose ? (session.recoveryRequired ? 'A previous Lazybox left this conversation’s processes unconfirmed: settle that above first.' : session.resumeBlocked ? 'This conversation cannot be continued from here.' : 'This conversation has ended.')
         : session.fault ? `${faultSentence(session.fault)} Resume it or start a new conversation to continue.`
         : '';
       if (why) setError(why);

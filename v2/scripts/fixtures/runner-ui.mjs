@@ -122,6 +122,8 @@ export async function startRunnerFixture() {
   // how often origin was asked (the picker asks only when it opens).
   const originBranches=[['main',5],['feat/v2-command-output',1],['release/1.4',30],['fix/login-redirect',2],['chore/deps',12],['docs/guide',8],['spike/cache',90],['feat/payments',3],['wip/old-idea',400]].map(([name,daysAgo])=>({name,commit:createHash('sha1').update(name).digest('hex'),committedAtUnixMillis:String(Date.UTC(2026,10,17)-daysAgo*86400000)}));
   const startFrom=new Map();const branchListings=[];
+  // What a previous Runner left unconfirmed, by workspace or conversation id (GetOwnership).
+  const ownership=new Map();
   // How agents' requests for a repository were answered, by request id.
   const repositoryRequests=new Map();
   const catalogEntries=()=>{const rows=new Map();for(const r of catalogRemote)rows.set('github:'+r.fullName.toLowerCase(),{identity:'github:'+r.fullName.toLowerCase(),name:r.fullName});for(const r of discovery.roots.flatMap(root=>root.repositories||[]))rows.set(r.gitIdentity||r.path,{identity:r.gitIdentity||r.path,name:r.gitIdentity?.startsWith('github:')?r.gitIdentity.slice(7):r.name,path:r.path});for(const r of library){const identity=r.gitIdentity||'local:'+r.id;rows.set(identity,{...rows.get(identity),identity,name:r.gitIdentity?.startsWith('github:')?r.gitIdentity.slice(7):r.name||r.id,repositoryId:r.id});}return [...rows.values()];};
@@ -823,8 +825,27 @@ actions:
       case 'GetSession': { const session = sessions.find(value => value.id === body.sessionId); if (session && frozenSessions.has(session.id)) return json({ session: frozenSessions.get(session.id) }); return session ? json({ session }) : error('not_found', 'Fixture session not found'); }
       case 'ListCommands': { const workspace = sessions.find(value => value.id === body.sessionId)?.collectionId; return json({ commands: commands.filter(value => value.sessionId === body.sessionId || (!value.sessionId && value.collectionId && value.collectionId === workspace)).map(listedCommand) }); }
       case 'ClaimCommandShare': { const command = commands.find(value => value.id === body.commandId); if (!command) return error('not_found', 'Command missing'); const claimed = !!command.shareWith && command.done && !claimedShares.has(command.id); if (claimed) claimedShares.add(command.id); return json({ claimed, status: wireCommand(command) }); }
-      case 'PreviewWorkspaceDeletion': return json({activeSessionIds:sessions.filter(s=>s.collectionId===body.collectionId&&!s.closed).map(s=>s.id),dirtyRepositories:['api'],filesOutsideRepositories:false});
-      case 'DeleteWorkspace': {const index=collections.findIndex(c=>c.id===body.collectionId);if(index<0||body.confirmName!==collections[index].name)return error('failed_precondition','Confirm name');if(!body.stopSessions||!body.discardChanges)return error('failed_precondition','Explicit cleanup consent required');mutations.push({method,body});const collection=collections.splice(index,1)[0];for(const s of sessions.filter(s=>s.collectionId===collection.id)){s.closed=true;s.status='stopped';}return json({collection:{...collection,state:'deleted'}});}
+      case 'PreviewWorkspaceDeletion': if(collections.find(c=>c.id===body.collectionId)?.ownershipUncertain)return json({activeSessionIds:[],dirtyRepositories:[],filesOutsideRepositories:false,blocked:'Previous process ownership is unconfirmed; reconcile the workspace before deleting it.'});return json({activeSessionIds:sessions.filter(s=>s.collectionId===body.collectionId&&!s.closed).map(s=>s.id),dirtyRepositories:['api'],filesOutsideRepositories:false});
+      // Unconfirmed ownership (RESOURCE_OWNERSHIP.md): what a test recorded with
+      // `ownership.set(id, {processes, provable})`, checked and settled as the Runner does.
+      case 'GetOwnership': case 'ResolveOwnership': {
+       const id=body.collectionId||body.sessionId,collection=body.collectionId&&collections.find(c=>c.id===id),session=body.sessionId&&sessions.find(s=>s.id===id);
+       if(!collection&&!session)return error('not_found','No such workspace or conversation');
+       const unconfirmed=collection?collection.ownershipUncertain:session.recoveryRequired;const record=ownership.get(id)||{processes:[]};
+       const settle=note=>{if(collection){collection.ownershipUncertain=false;collection.ownerExecutionId='';collection.ownerExecutionIds=[];collection.lastOwnershipResolution=note;}else{session.recoveryRequired=false;session.closed=true;}ownership.delete(id);};
+       if(method==='GetOwnership'){
+        if(!unconfirmed)return json({settled:true});
+        if(record.provable){settle('Lazybox checked that none of its processes are running');return json({settled:true,note:'Lazybox checked that none of the recorded processes are running and cleared the mark.'});}
+        return json({processes:record.processes});
+       }
+       mutations.push({method,body});
+       if(!unconfirmed)return json({settled:true});
+       const running=record.processes.filter(p=>p.state==='running');
+       if(body.stop){if(record.stopFails)return error('failed_precondition',record.stopFails);for(const p of running)Object.assign(p,{state:'gone',detail:'Lazybox stopped it.'});if(record.processes.some(p=>p.state==='unknown'))return error('failed_precondition',`Lazybox cannot check the command "${record.processes.find(p=>p.state==='unknown').label}". If you know it stopped, choose They're already stopped`);settle('Lazybox stopped its processes');return json({settled:true});}
+       if(running.length)return error('failed_precondition',`the ${running[0].kind} of "${running[0].label}" is still running (PID ${running[0].pid}): stop it first, or choose Stop them and continue`);
+       settle('You confirmed its processes had stopped'+(body.reason?': '+body.reason:''));return json({settled:true});
+      }
+      case 'DeleteWorkspace': {const index=collections.findIndex(c=>c.id===body.collectionId);if(index<0||body.confirmName!==collections[index].name)return error('failed_precondition','Confirm name');if(collections[index].ownershipUncertain)return error('failed_precondition','Previous process ownership is unconfirmed; reconcile the workspace before deleting it.');if(!body.stopSessions||!body.discardChanges)return error('failed_precondition','Explicit cleanup consent required');mutations.push({method,body});const collection=collections.splice(index,1)[0];for(const s of sessions.filter(s=>s.collectionId===collection.id)){s.closed=true;s.status='stopped';}return json({collection:{...collection,state:'deleted'}});}
       case 'WatchEvents': {
         const channel=eventStreams.get(body.sessionId);if(channel){res.writeHead(200,{'Content-Type':'application/connect+json'});res.flushHeaders();
           // Like the Runner, each replayed record says where the retained history ends.
@@ -1283,7 +1304,7 @@ actions:
   const endpoint = join(directory, 'endpoint.json');
   const publish = () => writeFile(endpoint, JSON.stringify({ url, token, runnerId: 'fixturerunneridentity' }), { mode: 0o600 });
   await publish();
-  return { claudeAuth, arrangement, get runnerSettings() { return runnerSettings; }, freezeSession: id => frozenSessions.set(id, structuredClone(sessions.find(value => value.id === id))), thawSession: id => frozenSessions.delete(id), items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set telemetry(fn) { telemetry = fn; }, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set terminalStartDelayMs(value) { terminalStartDelayMs = value; }, terminalOutput, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, startFrom, branchListings, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
+  return { claudeAuth, arrangement, get runnerSettings() { return runnerSettings; }, freezeSession: id => frozenSessions.set(id, structuredClone(sessions.find(value => value.id === id))), thawSession: id => frozenSessions.delete(id), items, versionInfo, reviewBriefs, fileFinding, finishReview, authorFixed, resolveFinding, reopenFinding, exchange, power, config, extensions, browser, artifacts: artifactStore, themeFolder, remote, checkpoints, setCheckpoints, attachments, set telemetry(fn) { telemetry = fn; }, set attachmentReadDelayMs(value) { attachmentReadDelayMs = value; }, set terminalStartDelayMs(value) { terminalStartDelayMs = value; }, terminalOutput, set tailReadDelayMs(value) { tailReadDelayMs = value; }, runner, missions, processes, processHosting, terminals, commands, runtimeCommands, runtimes, runtimeFor, finishSetup, runtimeTiming, previewPort, startRun, startTerminalRun, streamCommand, claimedShares, githubRepositories, preparationFailures, prepared, startFrom, branchListings, ownership, repositoryRequests, workspaceFiles, openEvents, reviews, reviewOf, diffs, workingFiles,
     availability, acp, tracked,
     /** A conversation's open journal, without replacing it (openEvents starts a new one). */
     eventsOf: id => eventStreams.get(id),

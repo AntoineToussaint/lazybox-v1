@@ -1073,8 +1073,11 @@ history remain. The destructive operation is not performed when opening the dial
 
 A durable deleting state supports retry after partial removal; deletion never
 silently becomes success when a process, source identity, root path, or Git
-registration cannot be verified. Unknown ownership after a Runner crash requires
-reconciliation. External pipe producers are not Runner-owned processes and cannot
+registration cannot be verified. Unknown ownership after a Runner crash ("Owner
+uncertain") must be settled first, and the dialog says which agents and commands
+and offers Stop them and continue, or They're already stopped, continue
+([unconfirmed ownership](RESOURCE_OWNERSHIP.md#unconfirmed-ownership)); the
+Runner clears by itself what it proves stopped. External pipe producers are not Runner-owned processes and cannot
 be declared stopped by cancelling a log reader. Tombstones prevent retried create
 requests from resurrecting deleted workspaces. Deleted workspaces are hidden from
 the workspace list, and their conversation history cannot resume into missing files.
