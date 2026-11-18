@@ -86,6 +86,7 @@ try{
  await expect(dialog).toContainText('Lazybox switches only when you ask. Switching by itself at a limit is an extension: Settings → Extensions.');
  await dialog.getByRole('radio',{name:/Work subscription 3/}).check();
  await page.screenshot({path:'.cache/subscription-switch-dialog.png'});
+ await page.emulateMedia({colorScheme:'dark'});await page.waitForTimeout(400);await page.screenshot({path:'.cache/subscription-switch-dialog-dark.png'});await page.emulateMedia({colorScheme:'light'});
  await dialog.getByRole('button',{name:'Switch to Work subscription 3'}).click();
  await expect(dialog).toHaveCount(0);
  assert.deepEqual(f.mutations.findLast(m=>m.method==='SwitchSubscription').body,{sessionId:'alpha-session',profileId:'work-3'});

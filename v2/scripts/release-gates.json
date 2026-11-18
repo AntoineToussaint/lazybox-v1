@@ -35,6 +35,7 @@
     { "id": "chat-scroll", "scope": "ui", "script": "test:chat-scroll" },
     { "id": "sidebar-polish", "scope": "ui", "script": "test:sidebar-polish" },
     { "id": "workspace-hover", "scope": "ui", "script": "test:workspace-hover" },
+    { "id": "workspace-reorder", "scope": "ui", "script": "test:workspace-reorder" },
     { "id": "resume-continuity", "scope": "ui", "script": "test:resume-continuity" },
     { "id": "navigation-snippets", "scope": "ui", "script": "test:navigation-snippets" },
     { "id": "vim-editing", "scope": "ui", "script": "test:vim-editing" },

@@ -141,6 +141,7 @@ try {
  await expect(groups.nth(1).locator('.subscription-card h3')).toHaveText(['Saved Codex','Work']);
  await expect(groups.nth(0)).toHaveAttribute('aria-label','Claude');
  await page.screenshot({path:'.cache/settings-subscriptions-grouped.png',fullPage:true});
+ await page.emulateMedia({colorScheme:'dark'});await page.waitForTimeout(400);await page.screenshot({path:'.cache/settings-subscriptions-grouped-dark.png',fullPage:true});await page.emulateMedia({colorScheme:'light'});
  // Hold each refresh independently: refreshing one card must not disable its sibling.
  const held = new Map();
  const beforeRefreshes = fixture.calls.filter(call=>call.method==='RefreshSubscription').length;

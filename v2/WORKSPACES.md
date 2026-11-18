@@ -318,6 +318,24 @@ processes and usage are read when the card opens, kept 30 seconds, and shown as
 placeholders until they answer. `WorkspaceHover.tsx` renders it;
 `workspace-hover-model.ts` is the pure half.
 
+**Your order.** Drag a workspace card up or down to put the list in your
+order: a press that moves a few pixels picks the row up (a click stays a
+click, ⌥-click still peeks, a right-click still opens its menu), a line shows
+where it lands, the list scrolls while the row is held near its edge, and Esc
+puts it back. The drag selects no text and opens no hover card, and the click
+it ends with selects nothing. `⌥⇧↑` / `⌥⇧↓` on a focused card move it one
+place and keep its focus, and a screen reader hears where it went (`⌥↓` alone
+is the hover card's; off a Mac, where `⌥⇧↑` / `⌥⇧↓` resize panels, a focused
+card keeps them, `ownedByFocus`). The order is the Runner's
+(`ArrangeWorkspaces`, kept in `.lazybox-collections/arrangement.json` beside
+the records): `ListCollections` answers in it, so it survives a reload and a
+restart and every window and a paired phone list alike. A workspace the order
+does not name yet (a new one) comes first, newest first; with no order kept
+the list is by ID, as before. With several Runners, each section reorders
+within its own Runner. The move shows at once and goes back if the Runner
+refuses it. `useListReorder.ts` is the gesture, `workspace-order.ts` the pure
+half, `collections/arrangement.go` the Runner's.
+
 **Peek.** Alt-click a peekable row, press Space on it (like Quick Look), or
 choose **Peek** in its context menu to see the item live over the current page
 without navigating: a conversation (its latest messages, status, a message box

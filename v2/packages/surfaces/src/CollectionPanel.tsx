@@ -20,6 +20,8 @@ import type { AttentionState } from "./attention";
 import { runAction } from "./actions";
 import type { ViewTarget } from "./workspace-model";
 import { Icon } from "./Icons";
+import { useListReorder } from "./useListReorder";
+import { showToast } from "./toasts";
 import { useGitSummaries } from "./useGitSummaries";
 import { featuredConversation, rowGit } from "./workspace-row-model";
 import { useTrackedItems } from "./useTrackedPulls";
@@ -108,16 +110,24 @@ function RunnerGroups(props: ListProps) {
 
 /** Another Runner's workspaces, one line each: its name and what waits there. Choosing one shows that Runner's page on it. */
 function RunnerWorkspaces({ row, rows, onOpen }: { row: RunnerView; rows: RunnerRow[]; onOpen(collectionId: string): void }) {
+  // Each Runner keeps its own order: a row moves within its Runner's section only.
+  const api = row.health === "online" ? row.state?.api : undefined;
+  const reorder = useListReorder({
+    items: row.collections, grip: ".runner-workspace-row", name: (collection) => collection.name || collection.id,
+    arrange: api && (async (collectionIds) => { await api.arrangeWorkspaces({ collectionIds }, { timeoutMs: 10000 }); }),
+    onError: (body) => showToast({ tone: "failed", title: `Workspaces on ${row.label} not reordered`, body }),
+  });
   if (!row.collectionsLoaded) return <p className="runner-absent" role="status">Loading workspaces…</p>;
   if (!row.collections.length) return <p className="module-empty runner-empty">No workspaces on {row.label} yet.</p>;
   return (
-    <ul className="runner-workspaces" aria-label={`${row.label} workspaces`}>
-      {row.collections.map((collection) => {
+    <ul className="runner-workspaces" aria-label={`${row.label} workspaces`} {...reorder.listProps}>
+      <li className="sr-only" role="status" aria-live="polite">{reorder.announcement}</li>
+      {reorder.items.map((collection) => {
         const here = rows.filter((value) => value.session.collectionId === collection.id && !isArchivedAway(value.session));
         const top = here[0], waiting = here.filter((value) => value.state === "needs-input").length;
         const summary = waiting ? `${waiting} waiting for you` : top?.state === "failed" ? "Failed" : top?.state === "review" ? "Ready for review" : top?.state === "working" ? `${here.filter((value) => value.state === "working").length} working` : here.length ? `${here.length} ${here.length === 1 ? "conversation" : "conversations"}` : "No conversations";
         return (
-          <li key={collection.id}>
+          <li key={collection.id} {...reorder.itemProps(collection.id)}>
             <button type="button" className="runner-workspace-row" data-state={top?.state} disabled={row.health !== "online"} title={`${collection.name || collection.id} on ${row.label}\nShow it here`} onClick={() => onOpen(collection.id)}>
               <Icon name="folder" size={13} />
               <span className="runner-workspace-name">{collection.name || collection.id}</span>
@@ -262,6 +272,12 @@ function WorkspaceList({
   const selected = collections.find(
     (value) => value.id === target.collectionId,
   );
+  // The person's order, kept by the Runner (ArrangeWorkspaces): drag a row, or ⌥⇧↑ / ⌥⇧↓ on it.
+  const reorder = useListReorder({
+    items: collections, grip: ".workspace-link", name: (collection) => collection.name || collection.id,
+    arrange: async (collectionIds) => { await api.arrangeWorkspaces({ collectionIds }, { timeoutMs: 10000 }); refresh(); },
+    onError: (body) => showToast({ tone: "failed", title: "Workspaces not reordered", body }),
+  });
   const choose = (collection: Collection) => {
     const rows = index.sessions.filter((s) => s.collectionId === collection.id && isWorkConversation(s) && !isArchivedAway(s));
     const sessionId =
@@ -345,15 +361,16 @@ function WorkspaceList({
           }}
         />
       )}
-      <nav className="collection-list" aria-label="Workspaces">
-        {collections.map((collection) => {
+      <nav className="collection-list" aria-label="Workspaces" aria-keyshortcuts="Alt+Shift+ArrowUp Alt+Shift+ArrowDown" {...reorder.listProps}>
+        <span className="sr-only" role="status" aria-live="polite">{reorder.announcement}</span>
+        {reorder.items.map((collection) => {
           const rows = index.sessions.filter(
             (s) => s.collectionId === collection.id && isWorkConversation(s) && !isArchivedAway(s),
           );
           const single =
             index.complete && rows.length === 1 ? rows[0] : undefined;
           return (
-            <div key={collection.id} className="collection-group">
+            <div key={collection.id} className="collection-group" {...reorder.itemProps(collection.id)}>
               <WorkspaceRow
                 conversation={single}
                 featured={single || (index.complete ? featuredConversation(rows) : undefined)}
