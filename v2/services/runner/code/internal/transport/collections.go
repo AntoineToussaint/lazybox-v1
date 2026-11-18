@@ -84,6 +84,7 @@ func (s *Service) ListCollections(ctx context.Context, r *pb.ListCollectionsRequ
 	}
 	return w, nil
 }
+
 // ArrangeWorkspaces keeps the person's order of their workspaces: the one
 // ListCollections answers in, in every window and on a paired phone.
 func (s *Service) ArrangeWorkspaces(ctx context.Context, r *pb.ArrangeWorkspacesRequest) (*pb.ListCollectionsResponse, error) {
