@@ -251,6 +251,12 @@ service RunnerService {
   // Owner only. Controls a review's loop: pause, resume, stop, take over,
   // and how findings reach the author between rounds.
   rpc UpdateReviewRun(UpdateReviewRunRequest) returns (WorkspaceReview);
+  // Owner only. Cancels a review under way (GITHUB.md, "Cancelling a
+  // review"): no further round of its loop starts, the reviewer's running
+  // turn is interrupted and its session ended. Its conversation and the
+  // findings it filed are kept; the review reads "cancelled", with who
+  // cancelled it and when. The reply is the review's workspace review.
+  rpc CancelReview(CancelReviewRequest) returns (WorkspaceReview);
   // One agent asks the other a question (`lazybox ask author|reviewer`): an
   // agent credential may ask only for its own execution, and only between the
   // author and the reviewer of one review in the same workspace. The question
@@ -2390,7 +2396,8 @@ message ReviewRun {
   string compare = 14;
   string pull_request_url = 15;
   // "running" while the reviewer works, "done" once it ended its turn,
-  // "failed" when it could not.
+  // "failed" when it could not, "cancelled" when the person cancelled the
+  // review, "stopped" when they ended its reviewer by hand while it reviewed.
   string state = 16;
   // A sentence about the state, for the person.
   string detail = 17;
@@ -2416,8 +2423,9 @@ message ReviewRun {
   // (findings sent; the author's turn), done.
   string phase = 30;
   bool paused = 31;
-  // Why the loop ended: clean, max_rounds, stuck, error, stopped, taken_over;
-  // "" while it runs.
+  // Why the loop ended: clean, max_rounds, stuck, error, stopped, taken_over,
+  // cancelled (CancelReview), ended (the person ended the reviewer by hand:
+  // Stop, End session, Delete); "" while it runs.
   string stop_reason = 32;
   repeated ReviewRound rounds = 33;
   repeated ReviewTimelineEntry timeline = 34;
@@ -2426,6 +2434,14 @@ message ReviewRun {
   string fallback = 35;
   // The focus the person gave (`/review <focus>`), if any.
   string focus = 36;
+  // Who ended the review by hand ("You"), with state "cancelled" (it was
+  // cancelled) or "stopped" (its reviewer was stopped, ended or deleted while
+  // it reviewed), and when; empty and 0 otherwise.
+  string stopped_by = 37;
+  int64 stopped_at_unix = 38;
+  // pr: the workspace repository whose pull request is reviewed, so the
+  // same review can be started again.
+  string member = 39;
 }
 message WorkspaceReview {
   repeated ReviewComment comments = 1;
@@ -2499,6 +2515,11 @@ message UpdateReviewRunRequest {
   string action = 3;
   string loop = 4;
   uint32 max_rounds = 5;
+}
+message CancelReviewRequest {
+  // The review's workspace; "" finds the workspace that keeps review_id.
+  string collection_id = 1;
+  string review_id = 2;
 }
 message AskAgentRequest {
   // The asking execution.

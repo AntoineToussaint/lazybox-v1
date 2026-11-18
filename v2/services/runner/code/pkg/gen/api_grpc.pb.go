@@ -144,6 +144,7 @@ const (
 	RunnerService_ListReviewFindings_FullMethodName           = "/lazybox.bench.v1.RunnerService/ListReviewFindings"
 	RunnerService_SetReviewFindingState_FullMethodName        = "/lazybox.bench.v1.RunnerService/SetReviewFindingState"
 	RunnerService_UpdateReviewRun_FullMethodName              = "/lazybox.bench.v1.RunnerService/UpdateReviewRun"
+	RunnerService_CancelReview_FullMethodName                 = "/lazybox.bench.v1.RunnerService/CancelReview"
 	RunnerService_AskAgent_FullMethodName                     = "/lazybox.bench.v1.RunnerService/AskAgent"
 	RunnerService_WaitAgentAsk_FullMethodName                 = "/lazybox.bench.v1.RunnerService/WaitAgentAsk"
 	RunnerService_ListProcesses_FullMethodName                = "/lazybox.bench.v1.RunnerService/ListProcesses"
@@ -482,6 +483,12 @@ type RunnerServiceClient interface {
 	// Owner only. Controls a review's loop: pause, resume, stop, take over,
 	// and how findings reach the author between rounds.
 	UpdateReviewRun(ctx context.Context, in *UpdateReviewRunRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
+	// Owner only. Cancels a review under way (GITHUB.md, "Cancelling a
+	// review"): no further round of its loop starts, the reviewer's running
+	// turn is interrupted and its session ended. Its conversation and the
+	// findings it filed are kept; the review reads "cancelled", with who
+	// cancelled it and when. The reply is the review's workspace review.
+	CancelReview(ctx context.Context, in *CancelReviewRequest, opts ...grpc.CallOption) (*WorkspaceReview, error)
 	// One agent asks the other a question (`lazybox ask author|reviewer`): an
 	// agent credential may ask only for its own execution, and only between the
 	// author and the reviewer of one review in the same workspace. The question
@@ -2011,6 +2018,16 @@ func (c *runnerServiceClient) UpdateReviewRun(ctx context.Context, in *UpdateRev
 	return out, nil
 }
 
+func (c *runnerServiceClient) CancelReview(ctx context.Context, in *CancelReviewRequest, opts ...grpc.CallOption) (*WorkspaceReview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceReview)
+	err := c.cc.Invoke(ctx, RunnerService_CancelReview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *runnerServiceClient) AskAgent(ctx context.Context, in *AskAgentRequest, opts ...grpc.CallOption) (*AgentAsk, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AgentAsk)
@@ -3130,6 +3147,12 @@ type RunnerServiceServer interface {
 	// Owner only. Controls a review's loop: pause, resume, stop, take over,
 	// and how findings reach the author between rounds.
 	UpdateReviewRun(context.Context, *UpdateReviewRunRequest) (*WorkspaceReview, error)
+	// Owner only. Cancels a review under way (GITHUB.md, "Cancelling a
+	// review"): no further round of its loop starts, the reviewer's running
+	// turn is interrupted and its session ended. Its conversation and the
+	// findings it filed are kept; the review reads "cancelled", with who
+	// cancelled it and when. The reply is the review's workspace review.
+	CancelReview(context.Context, *CancelReviewRequest) (*WorkspaceReview, error)
 	// One agent asks the other a question (`lazybox ask author|reviewer`): an
 	// agent credential may ask only for its own execution, and only between the
 	// author and the reviewer of one review in the same workspace. The question
@@ -3754,6 +3777,9 @@ func (UnimplementedRunnerServiceServer) SetReviewFindingState(context.Context, *
 }
 func (UnimplementedRunnerServiceServer) UpdateReviewRun(context.Context, *UpdateReviewRunRequest) (*WorkspaceReview, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateReviewRun not implemented")
+}
+func (UnimplementedRunnerServiceServer) CancelReview(context.Context, *CancelReviewRequest) (*WorkspaceReview, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelReview not implemented")
 }
 func (UnimplementedRunnerServiceServer) AskAgent(context.Context, *AskAgentRequest) (*AgentAsk, error) {
 	return nil, status.Error(codes.Unimplemented, "method AskAgent not implemented")
@@ -6235,6 +6261,24 @@ func _RunnerService_UpdateReviewRun_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerService_CancelReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).CancelReview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_CancelReview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).CancelReview(ctx, req.(*CancelReviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RunnerService_AskAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AskAgentRequest)
 	if err := dec(in); err != nil {
@@ -8237,6 +8281,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateReviewRun",
 			Handler:    _RunnerService_UpdateReviewRun_Handler,
+		},
+		{
+			MethodName: "CancelReview",
+			Handler:    _RunnerService_CancelReview_Handler,
 		},
 		{
 			MethodName: "AskAgent",

@@ -399,6 +399,9 @@ const (
 	// RunnerServiceUpdateReviewRunProcedure is the fully-qualified name of the RunnerService's
 	// UpdateReviewRun RPC.
 	RunnerServiceUpdateReviewRunProcedure = "/lazybox.bench.v1.RunnerService/UpdateReviewRun"
+	// RunnerServiceCancelReviewProcedure is the fully-qualified name of the RunnerService's
+	// CancelReview RPC.
+	RunnerServiceCancelReviewProcedure = "/lazybox.bench.v1.RunnerService/CancelReview"
 	// RunnerServiceAskAgentProcedure is the fully-qualified name of the RunnerService's AskAgent RPC.
 	RunnerServiceAskAgentProcedure = "/lazybox.bench.v1.RunnerService/AskAgent"
 	// RunnerServiceWaitAgentAskProcedure is the fully-qualified name of the RunnerService's
@@ -903,6 +906,12 @@ type RunnerServiceClient interface {
 	// Owner only. Controls a review's loop: pause, resume, stop, take over,
 	// and how findings reach the author between rounds.
 	UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. Cancels a review under way (GITHUB.md, "Cancelling a
+	// review"): no further round of its loop starts, the reviewer's running
+	// turn is interrupted and its session ended. Its conversation and the
+	// findings it filed are kept; the review reads "cancelled", with who
+	// cancelled it and when. The reply is the review's workspace review.
+	CancelReview(context.Context, *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	// One agent asks the other a question (`lazybox ask author|reviewer`): an
 	// agent credential may ask only for its own execution, and only between the
 	// author and the reviewer of one review in the same workspace. The question
@@ -1903,6 +1912,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("UpdateReviewRun")),
 			connect.WithClientOptions(opts...),
 		),
+		cancelReview: connect.NewClient[gen.CancelReviewRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceCancelReviewProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CancelReview")),
+			connect.WithClientOptions(opts...),
+		),
 		askAgent: connect.NewClient[gen.AskAgentRequest, gen.AgentAsk](
 			httpClient,
 			baseURL+RunnerServiceAskAgentProcedure,
@@ -2542,6 +2557,7 @@ type runnerServiceClient struct {
 	listReviewFindings           *connect.Client[gen.ListReviewFindingsRequest, gen.ReviewFindings]
 	setReviewFindingState        *connect.Client[gen.SetReviewFindingStateRequest, gen.ReviewFinding]
 	updateReviewRun              *connect.Client[gen.UpdateReviewRunRequest, gen.WorkspaceReview]
+	cancelReview                 *connect.Client[gen.CancelReviewRequest, gen.WorkspaceReview]
 	askAgent                     *connect.Client[gen.AskAgentRequest, gen.AgentAsk]
 	waitAgentAsk                 *connect.Client[gen.WaitAgentAskRequest, gen.AgentAsk]
 	listProcesses                *connect.Client[gen.ListProcessesRequest, gen.ProcessInventory]
@@ -3249,6 +3265,11 @@ func (c *runnerServiceClient) UpdateReviewRun(ctx context.Context, req *connect.
 	return c.updateReviewRun.CallUnary(ctx, req)
 }
 
+// CancelReview calls lazybox.bench.v1.RunnerService.CancelReview.
+func (c *runnerServiceClient) CancelReview(ctx context.Context, req *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.cancelReview.CallUnary(ctx, req)
+}
+
 // AskAgent calls lazybox.bench.v1.RunnerService.AskAgent.
 func (c *runnerServiceClient) AskAgent(ctx context.Context, req *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error) {
 	return c.askAgent.CallUnary(ctx, req)
@@ -3923,6 +3944,12 @@ type RunnerServiceHandler interface {
 	// Owner only. Controls a review's loop: pause, resume, stop, take over,
 	// and how findings reach the author between rounds.
 	UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. Cancels a review under way (GITHUB.md, "Cancelling a
+	// review"): no further round of its loop starts, the reviewer's running
+	// turn is interrupted and its session ended. Its conversation and the
+	// findings it filed are kept; the review reads "cancelled", with who
+	// cancelled it and when. The reply is the review's workspace review.
+	CancelReview(context.Context, *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error)
 	// One agent asks the other a question (`lazybox ask author|reviewer`): an
 	// agent credential may ask only for its own execution, and only between the
 	// author and the reviewer of one review in the same workspace. The question
@@ -4919,6 +4946,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("UpdateReviewRun")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceCancelReviewHandler := connect.NewUnaryHandler(
+		RunnerServiceCancelReviewProcedure,
+		svc.CancelReview,
+		connect.WithSchema(runnerServiceMethods.ByName("CancelReview")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceAskAgentHandler := connect.NewUnaryHandler(
 		RunnerServiceAskAgentProcedure,
 		svc.AskAgent,
@@ -5679,6 +5712,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSetReviewFindingStateHandler.ServeHTTP(w, r)
 		case RunnerServiceUpdateReviewRunProcedure:
 			runnerServiceUpdateReviewRunHandler.ServeHTTP(w, r)
+		case RunnerServiceCancelReviewProcedure:
+			runnerServiceCancelReviewHandler.ServeHTTP(w, r)
 		case RunnerServiceAskAgentProcedure:
 			runnerServiceAskAgentHandler.ServeHTTP(w, r)
 		case RunnerServiceWaitAgentAskProcedure:
@@ -6352,6 +6387,10 @@ func (UnimplementedRunnerServiceHandler) SetReviewFindingState(context.Context, 
 
 func (UnimplementedRunnerServiceHandler) UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateReviewRun is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CancelReview(context.Context, *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CancelReview is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) AskAgent(context.Context, *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error) {

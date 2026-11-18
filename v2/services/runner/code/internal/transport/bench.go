@@ -24,6 +24,7 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
 	"github.com/AntoineToussaint/lazybox/v2/internal/version"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
@@ -289,6 +290,7 @@ func (s *Service) CloseSession(ctx context.Context, r *pb.SessionRequest) (*pb.S
 	if err = e.Engine.Close(); err != nil {
 		return nil, rpcError(err)
 	}
+	s.Bench.ReviewerEndedByHand(s.Bench.ReviewerRuns(r.SessionId), reviews.EndedSession)
 	return s.sessionResponse(ctx, e)
 }
 
@@ -395,6 +397,11 @@ func (s *Service) apply(ctx context.Context, r *pb.ApplyRequest, origin *agent.O
 		prompt = o.Steer
 	case *pb.ApplyRequest_Interrupt:
 		op.Kind = agent.Interrupt
+		// Stop on a reviewer mid-review stops its review, recorded before the
+		// turn ends so the turn it cuts short is not taken for a round's end.
+		if snap := e.Engine.Snapshot(); snap.Busy && !snap.Closed {
+			s.Bench.ReviewerEndedByHand(s.Bench.ReviewerRuns(e.ID), reviews.EndedInterrupted)
+		}
 	case *pb.ApplyRequest_DeliverQueued:
 		// A message already accepted (and in the prompt log): only its turn changes.
 		queue, ok := e.Engine.(queueRuntime)
