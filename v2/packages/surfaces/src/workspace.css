@@ -12,6 +12,8 @@
 .icon-button{display:inline-flex!important;align-items:center;justify-content:center;width:28px;height:28px;padding:4px!important;flex-shrink:0}
 .workspace-header{overflow-x:auto;overflow-y:hidden;height:50px;min-height:50px;display:flex;align-items:center;gap:28px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surface-sunken)}
 .workspace-brand{flex-shrink:0;display:flex;align-items:center;gap:10px;min-width:132px;font-size:calc(15px * var(--text-scale));letter-spacing:-.4px;color:var(--text)}
+/* "Dev" or "Working" by the brand: which Lazybox this window is. Small and quiet, never the release app. */
+.brand-channel{margin-left:-4px;padding:1px 6px;border:1px solid var(--accent-solid);border-radius:4px;font-size:calc(10px * var(--text-scale));font-weight:600;letter-spacing:.2px;line-height:1.4;color:var(--accent);background:var(--accent-bg-strong)}
 .brand-mark{color:var(--accent);font-size:calc(25px * var(--text-scale));font-weight:700;letter-spacing:-6px;width:23px;line-height:1}
 .brand-mark span{font-size:calc(17px * var(--text-scale))}
 .workspace-header nav{flex-shrink:0;display:flex;align-items:center;gap:4px;height:100%}
