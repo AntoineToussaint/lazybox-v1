@@ -53,6 +53,13 @@ const booted = JSON.parse(run('xcrun', ['simctl', 'list', 'devices', 'booted', '
 const device = process.env.LAZYBOX_SIMULATOR || Object.values(booted).flat().find(d => /iPhone/.test(d.name))?.udid;
 assert.ok(device, 'Boot an iPhone simulator first (xcrun simctl boot <udid>), or set LAZYBOX_SIMULATOR.');
 assert.equal(run('xcrun', ['simctl', 'get_app_container', device, 'ai.lazybox.mobile']).status, 0, 'Install the Release app first (apps/mobile/README.md).');
+// One flow at a time: a Maestro driver left from the previous flow holds the
+// driver's port, and a new one then fails to bind and never starts. Stop it first.
+const maestroFlow = async (out, link, flow, timeout) => {
+  run('xcrun', ['simctl', 'terminate', device, 'dev.mobile.maestro-driver-iosUITests.xctrunner']);
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  return runAsync(maestro, ['--device', device, 'test', '--headless', '--test-output-dir', out, '-e', `LINK=${encodeURIComponent(link)}`, flow], timeout);
+};
 
 for (const appearance of which === 'all' || which === 'main' ? appearances : []) {
   run('xcrun', ['simctl', 'ui', device, 'appearance', appearance]);
@@ -60,7 +67,7 @@ for (const appearance of which === 'all' || which === 'main' ? appearances : [])
   const out = join(root, '.cache/mobile', appearance);
   await rm(out, { recursive: true, force: true }); await mkdir(out, { recursive: true });
   try {
-    const result = await runAsync(maestro, ['--device', device, 'test', '--test-output-dir', out, '-e', `LINK=${encodeURIComponent(phone.link)}`, flows.main], 600_000);
+    const result = await maestroFlow(out, phone.link, flows.main, 600_000);
     process.stdout.write(result.stdout.split('\n').filter(line => /COMPLETED|FAILED|SKIPPED|Assert|Error/.test(line)).join('\n') + '\n');
     assert.equal(result.status, 0, `the Maestro flow failed (${appearance}); see ${out}`);
 
@@ -93,7 +100,7 @@ if (which === 'lifecycle' || which === 'all') {
   const out = join(root, '.cache/mobile/lifecycle');
   await rm(out, { recursive: true, force: true }); await mkdir(out, { recursive: true });
   try {
-    const flow = runAsync(maestro, ['--device', device, 'test', '--test-output-dir', out, '-e', `LINK=${encodeURIComponent(phone.link)}`, flows.lifecycle], IDLE_MS + 600_000);
+    const flow = maestroFlow(out, phone.link, flows.lifecycle, IDLE_MS + 600_000);
     const index = () => phone.streams.filter(s => s.session === 'index');
     const opens = () => index().filter(s => s.kind === 'open');
     const count = () => index().filter(s => s.kind === 'count').at(-1)?.count ?? 0;
@@ -137,7 +144,7 @@ if (which === 'gateway' || which === 'all') {
     assert.ok(Date.now() < end, 'timed out waiting for the Go test to serve the gateway');
     link = await readFile(state, 'utf8').then(text => JSON.parse(text).link, () => '');
   }
-  const result = await runAsync(maestro, ['--device', device, 'test', '--test-output-dir', out, '-e', `LINK=${encodeURIComponent(link)}`, flows.gateway], 400_000);
+  const result = await maestroFlow(out, link, flows.gateway, 400_000);
   process.stdout.write(result.stdout.split('\n').filter(line => /COMPLETED|FAILED|SKIPPED|Assert|Error/.test(line)).join('\n') + '\n');
   const verdict = await go;
   process.stdout.write(verdict.text.split('\n').filter(line => /simulator_test|PASS|FAIL|ok /.test(line)).join('\n') + '\n');

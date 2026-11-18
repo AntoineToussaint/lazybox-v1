@@ -27,11 +27,15 @@ type phoneRunner struct {
 	waiting bool
 	applied []*pb.ApplyRequest
 	changed chan struct{}
-	done    chan struct{}
+	// final is the cursor that ends the turn the phone's Allow resumed; read
+	// closes once a stream has sent the phone that far.
+	final    uint64
+	read     chan struct{}
+	readOnce sync.Once
 }
 
 func newPhoneRunner() *phoneRunner {
-	r := &phoneRunner{waiting: true, changed: make(chan struct{}), done: make(chan struct{})}
+	r := &phoneRunner{waiting: true, changed: make(chan struct{}), read: make(chan struct{})}
 	r.add(&pb.AgentEvent{Type: "operation_accepted", Text: "Update the dependencies and run the tests.", OperationId: "op-1"})
 	r.add(&pb.AgentEvent{Type: "turn_started"})
 	r.add(&pb.AgentEvent{Type: "message_delta", Text: "Fourteen packages are behind. I'll update them and run the suite."})
@@ -90,6 +94,11 @@ func (r *phoneRunner) WatchEvents(req *pb.WatchEventsRequest, stream grpc.Server
 			}
 			sent = event.Cursor
 		}
+		r.mu.Lock()
+		if r.final > 0 && sent >= r.final {
+			r.readOnce.Do(func() { close(r.read) })
+		}
+		r.mu.Unlock()
 		if req.GetHeartbeats() {
 			if err := stream.Send(&pb.JournalEvent{Cursor: sent, Retained: sent, Heartbeat: true}); err != nil {
 				return err
@@ -115,7 +124,11 @@ func (r *phoneRunner) Apply(_ context.Context, req *pb.ApplyRequest) (*pb.Receip
 		r.add(&pb.AgentEvent{Type: "operation_accepted", RequestId: approval.RequestId, ProviderDataJson: []byte(`{"response":{"kind":"approve","decision":"accept"}}`)})
 		r.add(&pb.AgentEvent{Type: "message_delta", Text: "Updated 14 packages. All 212 tests pass."})
 		r.add(&pb.AgentEvent{Type: "turn_ended"})
-		close(r.done)
+		r.mu.Lock()
+		r.final = uint64(len(r.events))
+		r.mu.Unlock()
+		// Wake the streams again: one may have sent the last event before final was set.
+		r.add(&pb.AgentEvent{Type: "usage"})
 	}
 	return &pb.Receipt{OperationId: req.OperationId, Delivery: "accepted"}, nil
 }
@@ -165,10 +178,14 @@ func TestSimulatorGateway(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("pairing link: %s", link)
+	// Done once the phone has allowed the request and its stream has carried
+	// the rest of the turn back to it; then a moment for the bytes in flight
+	// to reach the app before the connections close.
 	select {
-	case <-r.done:
+	case <-r.read:
+		time.Sleep(3 * time.Second)
 	case <-time.After(wait):
-		t.Fatalf("the phone did not allow the request within %s", wait)
+		t.Fatalf("the phone did not allow the request and read the turn's end within %s", wait)
 	}
 	listed := m.List()
 	if len(listed) != 1 {
