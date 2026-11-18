@@ -122,6 +122,7 @@ leave out.
 - **Your conversations on your phone** Pair a phone by QR code over Tailscale to follow and answer your conversations, and follow a command's output live.
 - **Notifications** Your phone tells you when an agent asks a question, waits for approval or fails, even with Lazybox closed. Choose the kinds and quiet hours.
 - **Answer from the Inbox** Allow, deny or answer a question from its row, with a few seconds to undo; swipe for more.
+- **An iPhone app, in progress** A native app pairs like the phone page and shows the same Inbox, live conversations, Allow, Deny and answers, and Send now. It is not on the App Store yet: you can build it onto your own iPhone from source (v2/apps/mobile).
 - **Pairing offers what the phone can do** Pairing no longer offers Start conversations, which the phone has no screen for yet; a phone already paired with it keeps it.
 
 ### Extensions
