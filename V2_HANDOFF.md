@@ -1,8 +1,22 @@
-# Lazybox V2 — handoff (2026-11-18)
+# Lazybox V2 — handoff (2026-11-18, updated)
 
 State at the end of the 2026-11-17 coordinator session. Every agent stopped at
 the weekly usage limit (resets **2026-11-21 07:00 Europe/Paris**). Nothing is lost:
 unfinished work is committed as `wip(v2): …` on its branch.
+
+## Since the first handoff (2026-11-18, morning)
+
+**Fixed: "can't switch subscription"** (`6cae8b317`, merged and pushed).
+
+- **Symptom:** a Claude conversation reached its limit, and the limit card offered **Switch to Apple**. Clicking it failed with `ConnectError: [failed_precondition] subscription not found`. It happened in the person's "Revenge" workspace (`feature/revenge`).
+- **Cause:** each conversation's rotation layer (`internal/runner/rotation`) kept the list of subscriptions taken when the conversation started (`rotation.Adapter.Profiles`). The person signed in to **Apple** and **Obin** after that conversation started. `Bench.SwitchSubscription` checked the current list and passed, but the session's own `SwitchProfile` looked in its stale snapshot and refused.
+- **Fix:**
+  - `rotation.Adapter.Current` is a function returning the subscriptions signed in now. `sessionAdapter` in `internal/runner/adopt.go` sets it to `b.Profiles`.
+  - `SwitchProfile` uses it, falling back to the snapshot if it isn't set.
+  - Regression test: `TestSwitchReachesASubscriptionAddedAfterTheConversationStarted`.
+  - A changelog line is folded into `[0.1.0-pre.1]`.
+- **Status:** Dev's Runner restarted with the fix at 10:07 (2026-11-18). Running conversations are re-attached through the same `sessionAdapter`, so they get the fix with no new conversation. **Not yet confirmed by the person.** Ask them to click **Switch to Apple** again in Revenge, and check that the conversation continues on Apple.
+- **Not fixed, and worth a follow-up:** automatic rotation picks its candidates from the start snapshot too (`a.Profiles` in `rotation.go`, `Eligible`). With the Subscription rotation extension on, a subscription added later is never chosen automatically. Use `Current` there as well, keeping the `Eligible` filter. Also check the limit card's subscription list in the UI: it already lists the new accounts, which is how the person saw Apple.
 
 ## Where things are
 
