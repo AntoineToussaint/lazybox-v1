@@ -1,104 +1,210 @@
-# Lazybox V2 — handoff (2026-11-18, updated)
+# Lazybox V2 — handoff and next work (2026-11-18)
 
-State at the end of the 2026-11-17 coordinator session. Every agent stopped at
-the weekly usage limit (resets **2026-11-21 07:00 Europe/Paris**). Nothing is lost:
-unfinished work is committed as `wip(v2): …` on its branch.
+Read this first when resuming V2 work. It covers: where everything is, how to
+work safely, what is done, what is open, and the ranked backlog of all next
+work with enough context to start each item.
 
-## Since the first handoff (2026-11-18, morning)
+The person's priorities, in their words: **remote and iPhone first, then the
+Hub** ("with hub would make us money"). UX first on every change.
 
-**Fixed: "can't switch subscription"** (`6cae8b317`, merged and pushed).
+---
 
-- **Symptom:** a Claude conversation reached its limit, and the limit card offered **Switch to Apple**. Clicking it failed with `ConnectError: [failed_precondition] subscription not found`. It happened in the person's "Revenge" workspace (`feature/revenge`).
-- **Cause:** each conversation's rotation layer (`internal/runner/rotation`) kept the list of subscriptions taken when the conversation started (`rotation.Adapter.Profiles`). The person signed in to **Apple** and **Obin** after that conversation started. `Bench.SwitchSubscription` checked the current list and passed, but the session's own `SwitchProfile` looked in its stale snapshot and refused.
-- **Fix:**
-  - `rotation.Adapter.Current` is a function returning the subscriptions signed in now. `sessionAdapter` in `internal/runner/adopt.go` sets it to `b.Profiles`.
-  - `SwitchProfile` uses it, falling back to the snapshot if it isn't set.
-  - Regression test: `TestSwitchReachesASubscriptionAddedAfterTheConversationStarted`.
-  - A changelog line is folded into `[0.1.0-pre.1]`.
-- **Status:** Dev's Runner restarted with the fix at 10:07 (2026-11-18). Running conversations are re-attached through the same `sessionAdapter`, so they get the fix with no new conversation. **Not yet confirmed by the person.** Ask them to click **Switch to Apple** again in Revenge, and check that the conversation continues on Apple.
-- **Not fixed, and worth a follow-up:** automatic rotation picks its candidates from the start snapshot too (`a.Profiles` in `rotation.go`, `Eligible`). With the Subscription rotation extension on, a subscription added later is never chosen automatically. Use `Current` there as well, keeping the `Eligible` filter. Also check the limit card's subscription list in the UI: it already lists the new accounts, which is how the person saw Apple.
-
-## Where things are
+## 1. Where things are
 
 | Thing | Where |
 | --- | --- |
-| Main development branch (Dev runs it) | `feat/v2-command-output` in this monorepo (`v2/`), pushed to `AntoineToussaint/lazybox-v1` |
-| **Public preview repo** | https://github.com/AntoineToussaint/lazybox: two commits, made with `make -C v2 export-repo`. **CI is green** (UI gates on Linux; Go and desktop on macOS) |
-| The Hub | `~/development/lazybox-hub`: a local repo with **no remote**; branch `feat/hub-mvp` |
-| Designs | `v2/MOBILE_CLOUD_HUB.md` (iPhone, cloud, Hub), `v2/REMOTE_RUNNERS.md` (other computers; the Hub link in §12), `v2/audits/2026-11-17-competitive/README.md` (where we stand), `v2/CLAUDE_COMPLIANCE.md` |
-| Real-agent evidence | `v2/RUNTIME_EVIDENCE.md`, "Real Claude and Codex before the first preview" (all passed, 2026-11-17) |
+| Main V2 branch (Dev runs it) | `feat/v2-command-output` in this monorepo (`v2/`). Pushed to `AntoineToussaint/lazybox-v1` (public). |
+| **Public preview repo** | https://github.com/AntoineToussaint/lazybox: built from `v2/` by `make -C v2 export-repo`. CI: UI gates on Linux; Go on macOS and Linux; desktop on macOS. |
+| The Hub | `~/development/lazybox-hub`: a local repo with **no remote**, branch `feat/hub-mvp`. A Codefly workspace composing `codefly-dev/module-saas-starter`. |
+| Design docs | `v2/MOBILE_CLOUD_HUB.md` (iPhone, cloud, Hub), `v2/REMOTE_RUNNERS.md` (other computers; Hub link in §12; P0 status), `v2/CLAUDE_COMPLIANCE.md`, `v2/audits/2026-11-17-competitive/README.md` (scorecard and kill list), `v2/PROJECTS_AND_INTEGRATIONS.md`. |
+| Real-agent evidence | `v2/RUNTIME_EVIDENCE.md`, "Real Claude and Codex before the first preview" (2026-11-17: Claude Code 2.1.326 and Codex 0.169.0 passed everything, including surviving a Runner restart). |
+| iPhone app | `v2/apps/mobile` (Expo); how to run it is in `v2/apps/mobile/README.md`. Simulator end-to-end: `npm run test:mobile-simulator` (by hand on a Mac; not CI). |
+| Memory notes | `~/.claude/projects/-Users-antoine-development-lazybox/memory/` (the index is `MEMORY.md`). |
 
-## How to publish an update to the public repo
+## 2. How to work here (rules that bit us)
 
-The public repo has normal history now, so never force-push it.
+- **Dev watches the main checkout.** Rebase, resolve and verify in a git worktree, and only fast-forward the main checkout. Batch Go merges, since each one restarts Dev's Runner (agents survive it).
+- **Dependencies:** after a dependency change in the main checkout, `make deps`, then restart Dev. To restart: SIGINT the `scripts/environments.mjs dev` pid, then `make dev`. Vite caches failed imports.
+- **Usual rebase conflicts:**
+  - `CHANGELOG.md` and the generated `packages/surfaces/src/release-notes.ts`: regenerate with `node scripts/release/changelog.mjs --write`.
+  - Generated proto code: `make generate`, then `make check-generated`.
+  - `package.json` test lists and `scripts/fixtures/runner-ui.mjs`: union both sides.
+  - Every npm `test:*` script must be in `scripts/release-gates.json`, as a gate or under `external`, or `release-gates.test.mjs` fails.
+- **Changelog:** fold entries into the top `[0.1.0-pre.1]` section; never add a new dated section. `make release` refuses unfolded dated sections.
+- **Check before merging:** `make fmt-check` (gofmt), `go vet ./...` and also `GOOS=linux go vet ./...`, `npm run typecheck`, `npm run test:client`, the touched UI suites (`npm run test:<suite>`), and `node --test scripts/release-gates.test.mjs`.
+- **Never:**
+  - broad `pkill`;
+  - expose a Runner beyond loopback or tailnet;
+  - commit secrets;
+  - name the employer anywhere (the exporter fails on it);
+  - stage the person's uncommitted V1 changes (`crates/…`, `docs/features/terminals-and-agents.md`, `docs/snippets.md`, `crates/config/src/bin/`);
+  - let agents open windows on the person's screen (Simulator.app, RN DevTools, browsers).
+- **Commits:** always on a branch, with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- **Pushing to GitHub:** with the personal account's token, without switching gh's global account:
+  `GH_TOKEN=$(gh auth token --user AntoineToussaint) git -c credential.helper= -c "credential.helper=!f() { echo username=x-access-token; echo password=\$GH_TOKEN; }; f" push …`
+- **Publishing to the public repo** (it has history now, so never force-push it):
+  ```sh
+  D=/private/tmp/claude-501/lazybox-public   # or a fresh clone of AntoineToussaint/lazybox
+  make -C v2 export-repo DEST=$D REF=feat/v2-command-output
+  cd $D && rm -rf node_modules && git add -A && git commit -m "…" && git push origin main
+  ```
+  Then watch CI (`gh run list -R AntoineToussaint/lazybox`).
 
-```sh
-D=/private/tmp/claude-501/lazybox-public   # or a fresh clone of AntoineToussaint/lazybox
-make -C v2 export-repo DEST=$D REF=feat/v2-command-output
-cd $D && rm -rf node_modules && git add -A && git commit -m "…" && git push origin main
-```
+## 3. Done in this stretch (all merged on `feat/v2-command-output`)
 
-The export fails if it finds the employer's name, and `scripts/export-check.mjs`
-checks every command and link in the README and contributor docs. Push with the
-personal account's token: `GH_TOKEN=$(gh auth token --user AntoineToussaint)`.
+- **Public preview:**
+  - `make install` / `update` / `uninstall` from a clone;
+  - README, CONTRIBUTING and `docs/testers.md`;
+  - preview terms;
+  - CI simplified (UI on Linux).
+- **Remote:**
+  - **P0a, Linux Runner:** systemd user service, a systemd scope per agent, so agents survive a Runner restart; verified on Ubuntu (OrbStack). Linux tarballs; Linux CI job.
+  - **P0b, owner link over SSH:** Noise IK; per-client keys; `lazybox remote add/ls/rm`; `lazybox link …`; desktop "Add a computer…"; sidebar grouped by machine; verified over real ssh to Linux.
+- **iPhone:** an Expo app with pairing, the Inbox, a live conversation, Allow/Deny/answer, and Send/Queue/Send now/Stop. Verified on the simulator against the fixture and the real device gateway. Spike results are in MOBILE_CLOUD_HUB.md.
+- **The Hub:** paused at a tested core (Runner directory, enrolment, heartbeats, introductions; public keys only).
+- **Claude compliance:**
+  - API-key mode;
+  - Lazybox-offered Claude sign-in gated off for new installs;
+  - token import refused;
+  - automatic switching moved to an opt-in "Subscription rotation" extension;
+  - existing setups carried over with a notice.
+- **Subscriptions:**
+  - switching reaches accounts signed in after a conversation started, by hand and automatically;
+  - grouped by provider everywhere;
+  - the header chip opens the switcher.
+- **Workspaces:**
+  - home checkouts;
+  - Run opens a real terminal, waits for the prompt, runs once, reuses an idle shell;
+  - terminal links are clickable, wrapped URLs included;
+  - new workspaces start from fresh `origin/<default>`;
+  - drag to reorder (⌥⇧↑/↓);
+  - a rich hover card.
+- **Agents:**
+  - agents ask (one click) to start conversations (`lazybox conversation new`);
+  - Claude steering mid-turn;
+  - "Always allow" persists;
+  - Codex permission accept and version notice;
+  - ACP labelled Preview;
+  - "Give Claude the browser" and Preview :port;
+  - artifact retire/merge (`--supersedes`).
+- **Polish:**
+  - no text selection when resizing, through one shared drag gesture;
+  - artifact viewer density;
+  - the Cost dashboard;
+  - keyboard-only `/model` and `/permissions`;
+  - the scroll-fighting fix;
+  - many red gates and races fixed.
 
-## In flight: resume these first (each branch has an agent worktree under `.claude/worktrees/`)
+## 4. Just merged; check in the real app
 
-1. **iPhone app:** `feat/v2-iphone-app` (worktree `agent-a23eb66e081c18a92`).
-   - **Done:**
-     - shared phone view-models in client-core;
-     - an Expo app in `v2/apps/mobile` (pair, inbox, live conversation, allow/deny/answer, Send and Send now);
-     - the iOS simulator runtime downloaded.
-   - **WIP, unverified:** the simulator end-to-end (`scripts/test-mobile-simulator.mjs`), the fixture `scripts/mobile-fixture.mjs`, a Go `simulator_test.go`, the README and the docs.
-   - **Next:**
-     - finish and verify the simulator run **headless**: never open Simulator.app or React Native DevTools on the person's screen; that happened once and they disliked it;
-     - record the spike results in MOBILE_CLOUD_HUB.md;
-     - rebase and merge.
-   - Push, Live Activities and TestFlight need the paid Apple Developer account.
-2. **Remote P0a, Linux Runner:** `feat/v2-linux-runner` (worktree `agent-a9d2c2d2eb1d532ba`).
-   - **Done, 4 commits:** builds and tests on Linux; a systemd scope per session host; a systemd user service; Linux release tarballs.
-   - **WIP:** the Linux CI job, the export rewrite and the docs.
-   - **Next:**
-     - verify on an OrbStack Ubuntu VM (`lazybox-test-*`) that the outlive-restart test passes **on Linux**;
-     - check that the CI job runs;
-     - merge.
-3. **Remote P0b, owner link over SSH:** `feat/v2-runner-link` (worktree `agent-aa6e42924c6aef8c5`).
-   - **Done:** Noise IK owner link, stdio serve, `lazybox remote add/ls/rm`.
-   - **WIP:** the desktop "Add a computer…" UI, the grouped sidebar, the CLI reference and `docs/guides/remote-computers.md`.
-   - **Next:**
-     - finish the UI;
-     - end-to-end over SSH: localhost, or OrbStack once P0a is in;
-     - merge after P0a.
+- **No separate title bar** (`e614d6f8e`, `776a0d42f`). Overlay title bar: the traffic lights sit inside each window's header, with our own drag and double-click handling, full-screen handling, and every window kind (main, workspace, chat/console/artifact, web, popped-out panels, setup).
+  - It passed in fixtures and `cargo test`, but **was never run in the real window**.
+  - Check:
+    - centring on several macOS versions;
+    - full screen in and out;
+    - double-click with each System Settings choice;
+    - dragging a background window;
+    - popped-out panels;
+    - zoom other than 100%;
+    - the setup window.
+  - Details are in RUNNING.md and `apps/desktop/src-tauri/src/title_bar.rs`.
+- **Run in terminal** (`fix/v2-run-in-terminal`): it waits for zsh's prompt (OSC 133;B) or for output to settle. Check it with the person's powerline or p10k theme. If their theme replaces the prompt hook, the 1.5 s fallback applies.
+- **Public repo:** last pushed at `e1196d2` (the remote, Linux, iPhone and fixes export plus a spelling fix). CI was running when this was written; check it's green.
 
-To resume, open the worktree and continue from its last commit and REMOTE_RUNNERS.md P0. Always rebase onto `feat/v2-command-output` before merging, and expect conflicts in `CHANGELOG.md` and the generated `release-notes.ts` (regenerate with `node scripts/release/changelog.mjs --write`) and in the generated proto code (run `make generate`).
+## 5. Waiting on the person (decisions and accounts)
 
-## Paused: the Hub (`~/development/lazybox-hub`, `feat/hub-mvp`)
-- **What it is:** a Codefly workspace composing `codefly-dev/module-saas-starter` (pinned 0.0.118, not forked) plus a `hub` module, a Go service with its own Postgres.
-- **Built and tested (17 cases, in-memory and Postgres):** the Runner directory, enrolment tokens, signed heartbeats, device introductions. The Hub stores public keys only and can't admit a device on its own.
-- **Not done:**
-  - running under Codefly;
-  - audit wired to the starter;
-  - push, the relay and managed VMs;
-  - the Lazybox side (`lazybox hub enrol`; design in REMOTE_RUNNERS.md §12).
-- **Upstream gaps in the starter:** listed in its HUB.md.
-- **Priority:** the person said **remote and iPhone first, the Hub after**.
+1. **Apple Developer Program** ($99/year): needed for iPhone push (APNs), TestFlight, Live Activities and a lasting bundle id (`ai.lazybox.mobile` is a placeholder), and for a notarized Mac build.
+2. **Hub:** hosting (the starter targets Kubernetes; relay and push suit Fly.io), the domain (e.g. `hub.lazybox.ai`; it becomes the passkey domain, so choose once), the APNs key, preview pricing, and amending decision **C17** (Hub outside this repo).
+3. **Remote design §11:** 14 choices with recommendations (REMOTE_RUNNERS.md). The key ones: Secure Enclave keys when Developer ID signed; Touch ID only for enrolling another owner.
+4. **`AntoineToussaint/lazybox-v1` is public and contains internal and employer names.** Making it private erases 6 stars and detaches 5 forks. Needs an explicit go.
+5. **Claude:**
+   - bundle Claude Code in signed releases? (recommendation: no until Anthropic confirms);
+   - send the five questions in CLAUDE_COMPLIANCE.md to Anthropic?
+6. **Licence:** LICENSE is proprietary; the README's preview terms permit build and evaluate. A real licence is the person's choice.
+7. **Release channel:** prereleases skip the cask and the update feed (`v2-release.yml`). Options are in RELEASING.md. Recommendation: publish the cask and feed for prereleases until 0.1.0.
+8. **Updater signing key and repo secrets**, for signed DMG releases: `TAURI_SIGNING_PRIVATE_KEY`(+password) and `HOMEBREW_TAP_TOKEN`; see RELEASING.md.
+9. **Retire V1's Homebrew formula in the tap:** deprecate, then disable, then remove and rename the cask; steps in the one-lazybox-command branch report and RELEASING.md.
 
-## The person's open decisions
-- **The Hub:** hosting (Kubernetes for the starter, Fly.io for relay and push), the domain (`hub.lazybox.ai`, which becomes the passkey domain), an Apple push key (Developer account, $99/year), preview pricing, and amending decision C17.
-- **Remote design §11** (14 items): the recommendations are written there, notably per-device keys, the system OpenSSH, and never bundling Claude Code on hosts.
-- **`AntoineToussaint/lazybox-v1` is public and still contains internal/employer names.** Making it private erases its 6 stars and detaches its 5 forks. Not done; it needs the person's explicit go.
-- **Claude:** whether to bundle Claude Code in signed releases (recommendation: no, until Anthropic confirms), and whether to send the five questions in CLAUDE_COMPLIANCE.md to Anthropic.
-- **Licence:** LICENSE is proprietary. The README's "Preview terms" let people build, install and evaluate. Choosing a real licence is the person's.
+## 6. Next work, ranked
 
-## Housekeeping
-- **Backup:** a private backup of Dev's settings and the shared account store, **including credentials**, was taken before the Claude-compliance migration: `/private/tmp/claude-501/-Users-antoine-development-lazybox-v2/7d99cd35-4404-47a3-9781-b400f27c5aa3/scratchpad/dev-state-backup-1648` (306 MB). Delete it once the person confirms their Claude accounts and switching still work in Dev.
-- **About 23 agent worktrees** remain under `.claude/worktrees/`. Most are for branches already merged, left with rebase residue. Remove a worktree only after checking `git -C <wt> log feat/v2-command-output..HEAD` is empty and its status is clean.
-- **Dev:** SIGINT the `scripts/environments.mjs dev` pid, then `make dev`. After any dependency install in the main checkout, restart Dev (Vite caches).
+Each item has its source; read it before starting. Effort: S, M or L.
 
-## Rules that bit us (keep following them)
-- Rebase and verify in a worktree. Only fast-forward the main checkout, which Dev watches. Batch Go merges, since each restarts Dev's Runner.
-- Never run `make deps` or `npm ci` in the main checkout without restarting Dev afterwards.
-- Never run broad `pkill`. Never expose a Runner beyond loopback or tailnet. Never commit secrets. Never name the employer anywhere (the exporter fails on it).
-- Agents must not open windows on the person's screen (DevTools, Simulator.app, browsers).
-- UX first: every change closable, movable, resizable, keyboard-reachable, quiet.
-- The person's uncommitted V1 changes in the monorepo (`crates/…`, `docs/features/terminals-and-agents.md`, `docs/snippets.md`, `crates/config/src/bin/`) are theirs; never stage them.
+### A. Remote (P1–P3), the top priority
+1. **P1 polish and robustness (M).**
+   - An askpass for SSH host-key and passphrase prompts (they currently fail with a plain message).
+   - Reconnection verified across real sleep and Wi-Fi changes.
+   - The desktop app driving the link agents, verified in the real app.
+   - `launchctl` over SSH for Mac hosts.
+   - Client keys in the Keychain or Secure Enclave (0600 files today).
+   - Migrating Runners that `link up` started detached into the service.
+   - Source: REMOTE_RUNNERS.md "P0b"/"P1" and the not-verified lists.
+2. **"Run this task on build-box" (M):**
+   - New task and New conversation offer a target machine;
+   - the sidebar's "Laptop closed: work continues on <VM>" state;
+   - moving a workspace between machines (design first).
+3. **P2: devcontainers and cloud VMs (L).**
+   - The `docker exec` socket route.
+   - A provider for one cloud: the person's own provider, or Hetzner.
+   - Provisioning, bootstrap, teardown and cost display.
+   - Needs a real cloud account from the person.
+4. **P3: the relay (L):** the end-to-end encrypted relay (V1's `crates/relay` and `crates/e2e-channel` design) as a `RunnerLink` route, self-hostable. Its hosted version is part of the Hub.
+5. **Known Linux gaps:**
+   - run-time verification on x64;
+   - distributions other than Ubuntu;
+   - `libatomic1` for the bundled Node (doctor names it);
+   - containers need `--init`;
+   - the flaky Codex test `TestResolvedRequestIsNotReplayedAfterReattach` under `-race` on Linux (about 45%; fails on base too). Fix it, or the Linux CI job will flake.
+
+### B. iPhone (next steps, with Apple account items marked)
+1. **A real iPhone over the tailnet (S, person):** pair, the Inbox, Allow, Send now; camera QR; multi-hour streams; cellular.
+2. **Push and notification actions (M, needs Apple):** APNs through the Runner or the Hub; end-to-end encrypted payloads; Allow/Deny from the notification. Design in MOBILE_CLOUD_HUB §2–3.
+3. **The rest of the MVP screens (M):**
+   - diff review (read-only, then comments);
+   - starting a conversation (the "start" grant exists, the screen doesn't);
+   - the PR list and merge;
+   - plan approval.
+   
+   These are also the phone gaps the e2e audit called out.
+4. **Device key in the Secure Enclave (S2), Live Activities for running turns (S3), Shortcuts/App Intents (M).**
+5. **TestFlight (S, needs Apple):** the bundle id, icons, privacy strings, the App Store guideline 4.2.7 review notes.
+6. **ESLint for `apps/mobile`, and an offline cache (S).**
+
+### C. The Hub (after remote and iPhone)
+- **Source:** `~/development/lazybox-hub` HUB.md "Status and next steps", plus the six upstream gaps it lists in the SaaS starter.
+1. **Run it under Codefly locally (S–M):** the pinned starter; the person face through the starter's gateway; audit wired to the starter's `EmitAuditEvent`.
+2. **The Lazybox side (M):**
+   - a Runner Hub identity key;
+   - `lazybox hub enrol <token>`;
+   - a heartbeat loop;
+   - a `hub` Directory in `RunnerLink`;
+   - handling introductions.
+   
+   Design: REMOTE_RUNNERS.md §12.
+3. **Push routing (M), the relay (L) and managed VMs (L).** These are the paid features.
+4. **Accounts and billing UX (M)**, once hosting and pricing are decided.
+
+### D. Product gaps from the audits (e2e audit 2026-11-17; competitive kill list)
+1. **Orchestration merge train (M):** landing parallel agents' PRs in `merge_after` order; a Verifying/Landing column. ORCHESTRATION.md "slice 3".
+2. **An other-provider verifier as a mission rule (M):** "trusted done", the strongest differentiator per the audit.
+3. **PR autopilot (M):** opt-in auto-fix of CI failures and review comments, merge when green; publish review comments as a GitHub PR review.
+4. **Projects, Phase 1 (M):** saved repository sets, project defaults, sidebar grouping. PROJECTS_AND_INTEGRATIONS.md.
+5. **Intake integrations (M):** Linear and Slack, plus "assign to Lazybox" triggers and scheduled runs (phases 3–4 of the same doc).
+6. **The Changes panel (S–M):** discard or stage by hunk and file, with undo.
+7. **Best-of-N attempts (M):** "Try with N agents" on New task, with a side-by-side diff comparison.
+8. **ACP agents (M):** run `TestRealACPAgent` with Gemini, Goose and OpenCode; map questions; `mcpServers`; fix the cost double count after resume. Then drop "Preview".
+9. **Codex:** steer and compaction verified with a real app-server; the permissions request seen for real.
+10. **Two-subscription rotation and keychain isolation, verified with real accounts; cost reconciled per provider (S, person).**
+11. **OpenTelemetry export (S, low priority).**
+12. **Windows and Linux desktop builds (L):** the Runner is on Linux now; the desktop app isn't.
+
+### E. Release engineering
+1. **A signed and notarized DMG**, plus the cask and update feed: needs items 1, 7 and 8 in §5.
+2. **The codefly modules' licences:** `codefly-dev/core` and `sdk-go` are "all rights reserved" (the person's own). Relicense before a broadly distributed binary.
+3. **Before each export:** the full UI gate set on a Mac (`make stage` / `node scripts/release-gates.mjs run ui`). CI covers Linux only.
+4. **Docs screenshots refresh:** e.g. `docs/images/welcome.webp` still shows the old welcome.
+
+## 7. Housekeeping
+
+- **Backup to delete:** `/private/tmp/claude-501/-Users-antoine-development-lazybox-v2/7d99cd35-4404-47a3-9781-b400f27c5aa3/scratchpad/dev-state-backup-1648` (306 MB) is a private backup of Dev's settings and shared account store **including credentials**, taken before the Claude-compliance migration. Delete it once the person confirms their Claude accounts and switching work in Dev. Switching was fixed on 2026-11-18; not yet confirmed by them.
+- **Agent worktrees:** about 28 remain under `.claude/worktrees/`. Remove one only if `git -C <wt> log feat/v2-command-output..HEAD` is empty and `git -C <wt> status` is clean.
+- **Tools installed for the iPhone work:** `cocoapods` and `openjdk@17` (Homebrew), and Maestro in a session scratchpad. The person's Command Line Tools are out of date (updating them needs sudo).
