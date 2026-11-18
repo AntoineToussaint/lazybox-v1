@@ -63,7 +63,8 @@ export function Composer({ session, busy, grants, api, onSent, onError }: { sess
   };
   const ready = !!text.trim() && !sending;
   return <View style={[styles.bar, pad, { borderTopColor: theme.lineSubtle, backgroundColor: theme.bg }]}>
-    {view.mode === 'busy' && <View style={styles.busy}>
+    {/* While a request waits for the person, the card above says so; the agent is not "working". */}
+    {view.mode === 'busy' && !session?.pending.length && <View style={styles.busy}>
       <Text style={{ flex: 1, color: theme.muted, fontSize: 13 }}>{text.trim() ? 'Queue it for after this turn, or send it now.' : 'The agent is working. What you send waits for this turn.'}</Text>
       {view.interrupt && <Button label="Stop" icon="stop.fill" tone="danger" compact busy={sending === 'stop'} disabled={!!sending} onPress={() => void interrupt()} testID="interrupt"/>}
     </View>}
