@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AntoineToussaint/lazybox/v2/internal/installation"
 	"github.com/AntoineToussaint/lazybox/v2/internal/link"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"github.com/AntoineToussaint/lazybox/v2/pkg/gen/genconnect"
@@ -168,10 +169,25 @@ func (w *remoteWorld) stopConnect() {
 	w.connect = nil
 }
 
+// hostState is the host Runner's state directory: this platform's layout
+// (installation.UserPaths) under the host's home.
+func (w *remoteWorld) hostState() string {
+	paths, err := installation.UserPaths(func(k string) string {
+		if k == "HOME" {
+			return w.host
+		}
+		return ""
+	})
+	if err != nil {
+		panic(err)
+	}
+	return paths.State
+}
+
 // stop ends the link agent and the host's Runner, whichever `link up` started.
 func (w *remoteWorld) stop() {
 	w.stopConnect()
-	if data, err := os.ReadFile(filepath.Join(w.host, "Library/Application Support/Lazybox/state/runner.pid")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(w.hostState(), "runner.pid")); err == nil {
 		w.hostRunner, _ = strconv.Atoi(strings.TrimSpace(string(data)))
 	}
 	if w.hostRunner > 0 {
@@ -200,6 +216,24 @@ func (w *remoteWorld) waitState(name, state string, within time.Duration) link.L
 		if time.Now().After(deadline) {
 			log, _ := os.ReadFile(filepath.Join(w.client, "connect.log"))
 			w.t.Fatalf("%s never became %q (last %+v)\n%s", name, state, st, log)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// waitReconnected waits until the link is connected by a connection made
+// after since: its state changed (to reconnecting and back) since then.
+func (w *remoteWorld) waitReconnected(name string, since time.Time, within time.Duration) link.LinkStatus {
+	w.t.Helper()
+	deadline := time.Now().Add(within)
+	for {
+		st := w.status(name)
+		if st.State == "connected" && st.Since.After(since) {
+			return st
+		}
+		if time.Now().After(deadline) {
+			log, _ := os.ReadFile(filepath.Join(w.client, "connect.log"))
+			w.t.Fatalf("%s did not reconnect after %s (last %+v)\n%s", name, since.Format(time.RFC3339Nano), st, log)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -269,7 +303,7 @@ func TestRemoteRunnerOverSSHEndToEnd(t *testing.T) {
 		t.Fatalf("final: %+v\n%s", final, out)
 	}
 	var up struct{ PID int }
-	if data, err := os.ReadFile(filepath.Join(w.host, "Library/Application Support/Lazybox/state/runner.pid")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(w.hostState(), "runner.pid")); err == nil {
 		up.PID, _ = strconv.Atoi(strings.TrimSpace(string(data)))
 	}
 	if up.PID == 0 {
@@ -335,7 +369,7 @@ func TestRemoteRunnerOverSSHEndToEnd(t *testing.T) {
 	}
 
 	// The owner bearer never reached this Mac: no file here holds it.
-	hostEndpoint, err := link.ReadEndpoint(filepath.Join(w.host, "Library/Application Support/Lazybox/state/endpoint.json"))
+	hostEndpoint, err := link.ReadEndpoint(filepath.Join(w.hostState(), "endpoint.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,8 +392,10 @@ func TestRemoteRunnerOverSSHEndToEnd(t *testing.T) {
 	if err = syscall.Kill(-w.sshPID(), syscall.SIGKILL); err != nil {
 		t.Fatal(err)
 	}
-	w.waitState("build-box", "reconnecting", 5*time.Second)
-	w.waitState("build-box", "connected", 5*time.Second)
+	// Connected again: a connection made after the kill. The reconnecting
+	// state in between can be shorter than a poll of status.json (on Linux it
+	// lasts a few milliseconds), so its Since is the evidence, not seeing it.
+	w.waitReconnected("build-box", killed, 5*time.Second)
 	if err = rpc(); err != nil {
 		t.Fatalf("after reconnecting: %v", err)
 	}
@@ -388,7 +424,7 @@ func TestRemoteRunnerOverSSHEndToEnd(t *testing.T) {
 
 	// Another Runner behind the same name (the alias now points elsewhere, or
 	// the host was replaced): refused before any request.
-	keyFile := filepath.Join(w.host, "Library/Application Support/Lazybox/state", link.RunnerKeyFile)
+	keyFile := filepath.Join(w.hostState(), link.RunnerKeyFile)
 	if err = os.Rename(keyFile, keyFile+".real"); err != nil {
 		t.Fatal(err)
 	}
