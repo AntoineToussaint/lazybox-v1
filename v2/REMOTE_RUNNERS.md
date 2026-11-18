@@ -1,8 +1,10 @@
 # Runners on other computers
 
-**Status: proposal, 2026-11-17; P0's owner link over SSH built (P0b,
-[below](#p0b-the-owner-link-over-ssh-built)), the Linux Runner in progress
-separately.** It designs one generic way for Lazybox to work with a Runner on another computer:
+**Status: proposal, 2026-11-17; P0 built.** The owner link over SSH (P0b,
+[below](#p0b-the-owner-link-over-ssh-built)) and the Linux Runner (P0 steps
+1–3, [§5.2](#52-the-linux-runner)) are built and verified on Ubuntu 24.04 and
+in a container; the rest is a proposal, not built or decided.
+It designs one generic way for Lazybox to work with a Runner on another computer:
 a second Mac, a Linux VM, a cloud dev box (EC2, GCE, Hetzner, Fly), a
 devcontainer, or a home server. The goal is the **full Lazybox experience on that
 machine**: workspaces, chat, files, diffs and review, terminals, command
@@ -26,7 +28,7 @@ gateway allowlist), [Agents outlive the Runner](SESSION_HOSTS.md),
 | How does owner access work without copying the owner bearer? | Each client (a desktop app, a CLI install, a phone) gets its **own key pair**, enrolled on the Runner once over a channel that already proves you control that machine, for example an SSH login. Every connection then runs a **Noise IK** handshake that pins the Runner's key, and the client signs the handshake. The bearer never leaves its machine. [§2.4](#24-keys-and-the-owner-handshake) |
 | How does it connect? | Through one contract, `RunnerLink`, with interchangeable **routes**: SSH (bootstrap and tunnel, like VS Code Remote-SSH and Zed), the tailnet, the end-to-end-encrypted relay (self-hosted or the Hub's), and a local socket for containers. Every route ends in the same Runner handler with the same keys and allowlists. [§3](#3-runnerlink-one-contract-many-routes), [§4](#4-routes) |
 | Where does the Hub fit? | **It is one more implementation of the same contract**, not a separate system. It provides a relay route, a machine directory and a provisioner for managed VMs. It never holds a private key, never mints a credential and never sees plaintext. [§3.3](#33-who-implements-what) |
-| What blocks it today? | The Runner does not compile for Linux. Measured today with `GOOS=linux go vet ./...`, there are **two compile errors**: `syscall.Getsid` in `processguard` and `unix.MNT_RDONLY` in `installation`. With both patched locally, vet passes for linux/amd64 and linux/arm64. The real work is at run time: a systemd service manager, keeping session hosts outside the Runner's cgroup, Linux packaging and Linux CI. [§5.2](#52-the-linux-runner) |
+| What blocks it today? | The owner link ([§3](#3-runnerlink-one-contract-many-routes)). The Linux Runner is built: it compiles and its Go suite passes on Linux (CI too), it runs as a systemd user service, its session hosts leave its cgroup in scopes of their own so agents outlive `systemctl --user restart`, and the release ships it as checksummed tarballs. [§5.2](#52-the-linux-runner) |
 | What first? | **P0: the Linux Runner plus an owner link over SSH to an existing host.** An agent can build and verify it against an OrbStack Linux machine on this Mac. Effort M: about 2–3 weeks, 7 PRs. [§10](#10-phased-plan) |
 
 ## P0b: the owner link over SSH (built)
@@ -97,9 +99,9 @@ detached on Linux until it uses `feat/v2-linux-runner`'s service manager).
 | Device identity | Built: non-extractable P-256 key, one-time pairing offer, 15-minute credentials, grants, revoke, a pinned allowlist. | [REMOTE.md](REMOTE.md), `internal/devices`, `internal/transport/device_auth.go` |
 | Listener rule | Built: `requireLoopbackListeners` (`services/runner/code/listen.go`) refuses any Runner listener that is not loopback. The device gateway is loopback too, and only `tailscale serve` publishes it. | `listen.go`, `internal/remote` |
 | Owner authority | `endpoint.json` (0600) holds a random bearer that is regenerated at every Runner start. It is accepted only on the loopback owner listener (`transport.LocalAuthority`), and refused by the gateway. | `work.go`, `internal/transport/auth.go` |
-| Agents outlive the Runner | Built on macOS: session hosts `setsid` out of the Runner's session. launchd is the supervisor. | [SESSION_HOSTS.md](SESSION_HOSTS.md) |
+| Agents outlive the Runner | Built on macOS and Linux: session hosts `setsid` out of the Runner's session, and on Linux each starts in a systemd scope of its own. launchd, a systemd user unit, or Lazybox's own supervisor (no systemd) keeps the Runner running. | [SESSION_HOSTS.md](SESSION_HOSTS.md#on-linux) |
 | The E2E relay | Designed (LBR/1: WSS, Noise IK, yamux, Connect over HTTP/1.1). V1 has a working Rust relay and Noise channel (`crates/relay`, `crates/e2e-channel`). | [MOBILE_CLOUD_HUB.md §3.4](MOBILE_CLOUD_HUB.md#34-recommended-architecture) |
-| Linux | Does not compile (two errors, above). Packaging, the service installer (`internal/installation`, launchd only) and the launchers (`scripts/environments.mjs`, `scripts/runner-service.mjs`) are macOS only. | [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) P02 |
+| Linux | Built (P0 steps 1–3): the Runner and CLI for x64 and arm64, `lazybox service install` as a systemd user unit (or the supervisor), `lazybox doctor`, the release tarballs, a Linux CI job. The Dev and Working launchers (`scripts/environments.mjs`, `scripts/runner-service.mjs`) stay macOS only. | [§5.2](#52-the-linux-runner), [install](docs/install.md#runner-on-a-linux-machine) |
 | UI connection | The TypeScript `RunnerLink` (`packages/client-core/src/index.ts`) holds `{baseUrl, token}`, renews from a locator, and retries a refused bearer once. The desktop's HTTP goes through `tauri-plugin-http` with a capability per origin. | `client-core`, `apps/desktop/src-tauri/src/runners.rs` |
 
 The [competitive audit](audits/2026-11-17-competitive/README.md) puts
@@ -606,6 +608,30 @@ that create machines come later (P2) and end in the same SSH or socket route.
 
 ### 5.2 The Linux Runner
 
+**Built, 2026-11-17** (`feat/v2-linux-runner`), as designed below, with these
+differences and findings:
+
+- **Service managers:** `Manager` in `internal/installation` with launchd,
+  systemd (`lazybox-runner.service`, `Restart=always`, `KillMode=process`,
+  the journal) and a third, **supervisor**: `lazybox-runner supervise`,
+  detached in its own session, for hosts without systemd. It names processes
+  by PID and start time (`/proc`), so a reused PID is never signalled.
+- **Scopes** as designed (`systemd-run --user --scope`), with a trial scope
+  and a fallback to today's `setsid` hosts ([SESSION_HOSTS.md](SESSION_HOSTS.md#on-linux)).
+- **Paths:** `${XDG_DATA_HOME:-~/.local/share}/lazybox` (state,
+  configuration, worktrees); the documented install puts releases in
+  `…/lazybox/runner/versions/<version>` with a `current` link.
+- **Node's Linux builds need `libatomic1`** besides glibc 2.28 and libstdc++;
+  a minimal Ubuntu image lacks it. `lazybox doctor` names the package.
+- **Verified** on Ubuntu 24.04 arm64 (OrbStack, systemd 255) and in an
+  Ubuntu 24.04 container without systemd: the Go suite; the installed
+  tarball; `lazybox doctor`; service install, restart, stop, start, logs
+  and uninstall; an agent mid-turn (the fake ACP agent), a managed command
+  and a terminal kept across a service update and a restart. Not verified:
+  x64 at run time (vet and build only), other distributions, a Runner
+  started from a real SSH session's scope (OrbStack's sessions are not
+  logind sessions), and GitHub's Linux runner starting scopes.
+
 **Compile.** `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go vet ./...` in
 `services/runner/code` fails on exactly two lines, checked 2026-11-17:
 
@@ -994,9 +1020,9 @@ yours to toggle. The OrbStack path avoids it.
 **P0, recommended and sized.** About 2–3 weeks of agent work in 7 PRs, each
 with its tests:
 
-1. The Linux compile fixes, a Linux CI job, and `ServiceManager` with systemd.
-2. Transient scopes for session hosts, with the systemd restart test.
-3. The Linux bundle in `scripts/release`.
+1. The Linux compile fixes, a Linux CI job, and `ServiceManager` with systemd. **Built.**
+2. Transient scopes for session hosts, with the systemd restart test. **Built.**
+3. The Linux bundle in `scripts/release`. **Built.**
 4. `link.Serve`, `owners.json`, the allowlist, the CLI verbs.
 5. `lazybox link serve` with the SSH route and `KeyProvider`.
 6. Desktop *Add a computer* and progress.
