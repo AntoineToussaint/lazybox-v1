@@ -208,3 +208,25 @@ func (s *session) stateJSON() json.RawMessage {
 	data, _ := json.Marshal(s.state)
 	return data
 }
+
+// A subscription signed in after the conversation started can still be chosen:
+// the switch looks up the subscriptions signed in now, not the start's snapshot.
+func TestSwitchReachesASubscriptionAddedAfterTheConversationStarted(t *testing.T) {
+	s, a, _ := fixture(t, nil)
+	first := <-a.opened
+	snapshot := append([]accounts.Profile(nil), s.(*session).adapter.Profiles...)
+	late := snapshot[0]
+	late.ID = "late"
+	s.(*session).adapter.Current = func() []accounts.Profile { return append(append([]accounts.Profile(nil), snapshot...), late) }
+	if err := switcher(t, s).SwitchProfile("late", true); err != nil {
+		t.Fatal(err)
+	}
+	receive(t, s, "profile_switching")
+	if changed := receive(t, s, "profile_changed"); changed.Text != "late" {
+		t.Fatalf("%+v", changed)
+	}
+	<-a.opened
+	if !first.closed.Load() {
+		t.Fatal("the switch kept the old agent")
+	}
+}

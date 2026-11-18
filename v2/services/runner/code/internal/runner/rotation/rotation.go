@@ -20,6 +20,9 @@ import (
 type Adapter struct {
 	Native   agent.Adapter
 	Profiles []accounts.Profile
+	// Current lists the subscriptions signed in now, so a person can switch a
+	// running conversation to one added after it started; nil uses Profiles.
+	Current  func() []accounts.Profile
 	Eligible []string
 	State    *accounts.State
 	Resolve  func(accounts.Profile, agent.Open) (agent.Open, error)
@@ -429,7 +432,11 @@ func (s *session) SwitchProfile(id string, continueTurn bool) error {
 		}
 		return s.retryLocked()
 	}
-	for _, p := range s.adapter.Profiles {
+	profiles := s.adapter.Profiles
+	if s.adapter.Current != nil {
+		profiles = s.adapter.Current()
+	}
+	for _, p := range profiles {
 		if p.ID == id {
 			if p.Provider != s.profile.Provider {
 				return errors.New("a conversation can only switch to a subscription of its own provider")
