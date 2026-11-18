@@ -10,6 +10,12 @@ service RunnerService {
   // A repository's branches for New task's "Start from" choice, its default
   // branch and the branch it last started from (WORKSPACES.md, "Start from").
   rpc ListRepositoryBranches(ListRepositoryBranchesRequest) returns (RepositoryBranches);
+  // The owner's only. Replaces Lazybox's copy of a GitHub repository whose
+  // history changed on GitHub since Lazybox copied it (a force-push with a
+  // new root, or a new repository that took its name) with a fresh copy of
+  // what GitHub has now. Without confirm it only says what that changes.
+  // Workspaces made from the old copy keep their worktrees on it.
+  rpc RefreshRepositoryIdentity(RefreshRepositoryIdentityRequest) returns (RepositoryIdentityRefresh);
   rpc Version(VersionRequest) returns (VersionResponse);
   rpc GetRunnerSettings(InfoRequest) returns (RunnerSettings);
   rpc SaveRunnerSettings(RunnerSettings) returns (RunnerSettings);
@@ -2135,7 +2141,6 @@ message PrepareWorkspaceRequest {
   // A repository named here is remembered for the next workspace.
   map<string, string> start_from = 8;
 }
-message WorkspacePreparation { string identity = 1; string message = 2; Collection collection = 3; }
 message ListRepositoryBranchesRequest {
   string repository_identity = 1;
   // Ask origin for its branches now (one ls-remote, nothing fetched); false
@@ -2168,6 +2173,38 @@ message RepositoryBranches {
   // The repository is not on this Runner yet: no branches until it is
   // prepared; a typed branch name is still checked then.
   bool unregistered = 8;
+}
+message WorkspacePreparation {
+  string identity = 1; string message = 2; Collection collection = 3;
+  // Sent just before the stream fails because this repository's history
+  // changed on GitHub (RefreshRepositoryIdentity is the way forward).
+  RepositoryReplacement replaced = 4;
+}
+message RepositoryReplacement {
+  string identity = 1;
+  string name = 2;
+  // Lazybox has a copy of the old history (else only its listing is old).
+  bool has_copy = 3;
+}
+message RefreshRepositoryIdentityRequest {
+  // github:owner/name, as the repository catalog has it.
+  string identity = 1;
+  // Replace the copy; without it, only say what that changes.
+  bool confirm = 2;
+}
+message RepositoryIdentityRefresh {
+  string identity = 1;
+  // owner/name as GitHub has it now.
+  string name = 2;
+  // "replaced": the name now belongs to another GitHub repository than
+  // Lazybox's copy or listing. Empty: the same repository.
+  string reason = 3;
+  bool has_copy = 4;
+  // Workspaces made from the copy being replaced: they keep their worktrees.
+  repeated string workspaces = 5;
+  // Done (confirm), and the new copy's registration.
+  bool replaced = 6;
+  string repository_id = 7;
 }
 
 message Snippet { string key = 1; string category = 2; string description = 3; string body = 4; string origin = 5; repeated string next = 6; }

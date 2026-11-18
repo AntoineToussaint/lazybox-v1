@@ -24,6 +24,7 @@ const (
 	RunnerService_GetRepositoryCatalog_FullMethodName         = "/lazybox.bench.v1.RunnerService/GetRepositoryCatalog"
 	RunnerService_PrepareWorkspace_FullMethodName             = "/lazybox.bench.v1.RunnerService/PrepareWorkspace"
 	RunnerService_ListRepositoryBranches_FullMethodName       = "/lazybox.bench.v1.RunnerService/ListRepositoryBranches"
+	RunnerService_RefreshRepositoryIdentity_FullMethodName    = "/lazybox.bench.v1.RunnerService/RefreshRepositoryIdentity"
 	RunnerService_Version_FullMethodName                      = "/lazybox.bench.v1.RunnerService/Version"
 	RunnerService_GetRunnerSettings_FullMethodName            = "/lazybox.bench.v1.RunnerService/GetRunnerSettings"
 	RunnerService_SaveRunnerSettings_FullMethodName           = "/lazybox.bench.v1.RunnerService/SaveRunnerSettings"
@@ -244,6 +245,12 @@ type RunnerServiceClient interface {
 	// A repository's branches for New task's "Start from" choice, its default
 	// branch and the branch it last started from (WORKSPACES.md, "Start from").
 	ListRepositoryBranches(ctx context.Context, in *ListRepositoryBranchesRequest, opts ...grpc.CallOption) (*RepositoryBranches, error)
+	// The owner's only. Replaces Lazybox's copy of a GitHub repository whose
+	// history changed on GitHub since Lazybox copied it (a force-push with a
+	// new root, or a new repository that took its name) with a fresh copy of
+	// what GitHub has now. Without confirm it only says what that changes.
+	// Workspaces made from the old copy keep their worktrees on it.
+	RefreshRepositoryIdentity(ctx context.Context, in *RefreshRepositoryIdentityRequest, opts ...grpc.CallOption) (*RepositoryIdentityRefresh, error)
 	Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error)
 	GetRunnerSettings(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*RunnerSettings, error)
 	SaveRunnerSettings(ctx context.Context, in *RunnerSettings, opts ...grpc.CallOption) (*RunnerSettings, error)
@@ -797,6 +804,16 @@ func (c *runnerServiceClient) ListRepositoryBranches(ctx context.Context, in *Li
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RepositoryBranches)
 	err := c.cc.Invoke(ctx, RunnerService_ListRepositoryBranches_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerServiceClient) RefreshRepositoryIdentity(ctx context.Context, in *RefreshRepositoryIdentityRequest, opts ...grpc.CallOption) (*RepositoryIdentityRefresh, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepositoryIdentityRefresh)
+	err := c.cc.Invoke(ctx, RunnerService_RefreshRepositoryIdentity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2938,6 +2955,12 @@ type RunnerServiceServer interface {
 	// A repository's branches for New task's "Start from" choice, its default
 	// branch and the branch it last started from (WORKSPACES.md, "Start from").
 	ListRepositoryBranches(context.Context, *ListRepositoryBranchesRequest) (*RepositoryBranches, error)
+	// The owner's only. Replaces Lazybox's copy of a GitHub repository whose
+	// history changed on GitHub since Lazybox copied it (a force-push with a
+	// new root, or a new repository that took its name) with a fresh copy of
+	// what GitHub has now. Without confirm it only says what that changes.
+	// Workspaces made from the old copy keep their worktrees on it.
+	RefreshRepositoryIdentity(context.Context, *RefreshRepositoryIdentityRequest) (*RepositoryIdentityRefresh, error)
 	Version(context.Context, *VersionRequest) (*VersionResponse, error)
 	GetRunnerSettings(context.Context, *InfoRequest) (*RunnerSettings, error)
 	SaveRunnerSettings(context.Context, *RunnerSettings) (*RunnerSettings, error)
@@ -3459,6 +3482,9 @@ func (UnimplementedRunnerServiceServer) PrepareWorkspace(*PrepareWorkspaceReques
 }
 func (UnimplementedRunnerServiceServer) ListRepositoryBranches(context.Context, *ListRepositoryBranchesRequest) (*RepositoryBranches, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRepositoryBranches not implemented")
+}
+func (UnimplementedRunnerServiceServer) RefreshRepositoryIdentity(context.Context, *RefreshRepositoryIdentityRequest) (*RepositoryIdentityRefresh, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefreshRepositoryIdentity not implemented")
 }
 func (UnimplementedRunnerServiceServer) Version(context.Context, *VersionRequest) (*VersionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Version not implemented")
@@ -4166,6 +4192,24 @@ func _RunnerService_ListRepositoryBranches_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RunnerServiceServer).ListRepositoryBranches(ctx, req.(*ListRepositoryBranchesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerService_RefreshRepositoryIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshRepositoryIdentityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerServiceServer).RefreshRepositoryIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerService_RefreshRepositoryIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerServiceServer).RefreshRepositoryIdentity(ctx, req.(*RefreshRepositoryIdentityRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7897,6 +7941,10 @@ var RunnerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRepositoryBranches",
 			Handler:    _RunnerService_ListRepositoryBranches_Handler,
+		},
+		{
+			MethodName: "RefreshRepositoryIdentity",
+			Handler:    _RunnerService_RefreshRepositoryIdentity_Handler,
 		},
 		{
 			MethodName: "Version",

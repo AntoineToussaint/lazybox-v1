@@ -293,6 +293,36 @@ refresh. The normalization reads origin configuration without a network request;
 unknown SSH aliases and GitHub Enterprise hosts are not guessed. Renames across
 old and new remote names cannot be reconciled offline by this identity model.
 
+### When a repository's history changes
+
+A GitHub repository is listed by its name (`github:owner/name`) and, once listed
+or copied, by GitHub's ID for it. The name can come to mean another history:
+the repository is renamed away and a new one (a new ID, a new root commit) is
+made under its name, or its history is force-pushed with a new root. Making a
+workspace from Lazybox's copy, or from a listing whose GitHub ID GitHub now
+gives another name, would silently mix two histories, so New task refuses it
+(`RepositoryReplaced`; it used to say only "repository identity changed;
+refresh and retry", which refreshing did not fix). The Runner checks a copy's
+GitHub ID against the name only when GitHub answers: offline it is not refused.
+
+The error card says plainly what happened ("The repository's history changed
+on GitHub since Lazybox copied it", or that the name now belongs to another
+repository) and offers **Replace Lazybox's copy**. It asks first and shows what
+changes (`RefreshRepositoryIdentity` without `confirm`): the repository GitHub
+has now, and the workspaces made from the old copy. Confirming clones a fresh
+copy into a directory of its own, registers it in place of the old one, and
+retries the start. **Settings → Repositories** offers the same for any GitHub
+repository (Replace copy…), for example after a force-push, which Lazybox
+does not detect by itself.
+
+Workspaces made from the old copy keep working: their worktrees are registered
+in the old copy, which stays on disk, hidden from the library (as Remove does),
+never deleted. Their branches and commits are untouched; pushing from them
+still goes to `github.com/owner/name`, which now has the new history, so a push
+of the old branch there needs care. New workspaces, and repositories added
+later, use the fresh copy. Only a copy Lazybox made is replaced; a checkout you
+registered yourself is yours to update with Git.
+
 It skips descendant symlinks, hidden folders, dependencies and build output, and
 stops descending when it finds a Git checkout or bare source. Each scan is bounded
 by one minute, 10,000 directories, six subdirectory levels and 512 candidates;

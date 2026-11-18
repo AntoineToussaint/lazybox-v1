@@ -46,6 +46,9 @@ const (
 	// RunnerServiceListRepositoryBranchesProcedure is the fully-qualified name of the RunnerService's
 	// ListRepositoryBranches RPC.
 	RunnerServiceListRepositoryBranchesProcedure = "/lazybox.bench.v1.RunnerService/ListRepositoryBranches"
+	// RunnerServiceRefreshRepositoryIdentityProcedure is the fully-qualified name of the
+	// RunnerService's RefreshRepositoryIdentity RPC.
+	RunnerServiceRefreshRepositoryIdentityProcedure = "/lazybox.bench.v1.RunnerService/RefreshRepositoryIdentity"
 	// RunnerServiceVersionProcedure is the fully-qualified name of the RunnerService's Version RPC.
 	RunnerServiceVersionProcedure = "/lazybox.bench.v1.RunnerService/Version"
 	// RunnerServiceGetRunnerSettingsProcedure is the fully-qualified name of the RunnerService's
@@ -671,6 +674,12 @@ type RunnerServiceClient interface {
 	// A repository's branches for New task's "Start from" choice, its default
 	// branch and the branch it last started from (WORKSPACES.md, "Start from").
 	ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error)
+	// The owner's only. Replaces Lazybox's copy of a GitHub repository whose
+	// history changed on GitHub since Lazybox copied it (a force-push with a
+	// new root, or a new repository that took its name) with a fresh copy of
+	// what GitHub has now. Without confirm it only says what that changes.
+	// Workspaces made from the old copy keep their worktrees on it.
+	RefreshRepositoryIdentity(context.Context, *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error)
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
@@ -1206,6 +1215,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceListRepositoryBranchesProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryBranches")),
+			connect.WithClientOptions(opts...),
+		),
+		refreshRepositoryIdentity: connect.NewClient[gen.RefreshRepositoryIdentityRequest, gen.RepositoryIdentityRefresh](
+			httpClient,
+			baseURL+RunnerServiceRefreshRepositoryIdentityProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RefreshRepositoryIdentity")),
 			connect.WithClientOptions(opts...),
 		),
 		version: connect.NewClient[gen.VersionRequest, gen.VersionResponse](
@@ -2465,6 +2480,7 @@ type runnerServiceClient struct {
 	getRepositoryCatalog         *connect.Client[gen.GetRepositoryCatalogRequest, gen.RepositoryCatalog]
 	prepareWorkspace             *connect.Client[gen.PrepareWorkspaceRequest, gen.WorkspacePreparation]
 	listRepositoryBranches       *connect.Client[gen.ListRepositoryBranchesRequest, gen.RepositoryBranches]
+	refreshRepositoryIdentity    *connect.Client[gen.RefreshRepositoryIdentityRequest, gen.RepositoryIdentityRefresh]
 	version                      *connect.Client[gen.VersionRequest, gen.VersionResponse]
 	getRunnerSettings            *connect.Client[gen.InfoRequest, gen.RunnerSettings]
 	saveRunnerSettings           *connect.Client[gen.RunnerSettings, gen.RunnerSettings]
@@ -2693,6 +2709,11 @@ func (c *runnerServiceClient) PrepareWorkspace(ctx context.Context, req *connect
 // ListRepositoryBranches calls lazybox.bench.v1.RunnerService.ListRepositoryBranches.
 func (c *runnerServiceClient) ListRepositoryBranches(ctx context.Context, req *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error) {
 	return c.listRepositoryBranches.CallUnary(ctx, req)
+}
+
+// RefreshRepositoryIdentity calls lazybox.bench.v1.RunnerService.RefreshRepositoryIdentity.
+func (c *runnerServiceClient) RefreshRepositoryIdentity(ctx context.Context, req *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error) {
+	return c.refreshRepositoryIdentity.CallUnary(ctx, req)
 }
 
 // Version calls lazybox.bench.v1.RunnerService.Version.
@@ -3743,6 +3764,12 @@ type RunnerServiceHandler interface {
 	// A repository's branches for New task's "Start from" choice, its default
 	// branch and the branch it last started from (WORKSPACES.md, "Start from").
 	ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error)
+	// The owner's only. Replaces Lazybox's copy of a GitHub repository whose
+	// history changed on GitHub since Lazybox copied it (a force-push with a
+	// new root, or a new repository that took its name) with a fresh copy of
+	// what GitHub has now. Without confirm it only says what that changes.
+	// Workspaces made from the old copy keep their worktrees on it.
+	RefreshRepositoryIdentity(context.Context, *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error)
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
@@ -4274,6 +4301,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceListRepositoryBranchesProcedure,
 		svc.ListRepositoryBranches,
 		connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryBranches")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRefreshRepositoryIdentityHandler := connect.NewUnaryHandler(
+		RunnerServiceRefreshRepositoryIdentityProcedure,
+		svc.RefreshRepositoryIdentity,
+		connect.WithSchema(runnerServiceMethods.ByName("RefreshRepositoryIdentity")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceVersionHandler := connect.NewUnaryHandler(
@@ -5534,6 +5567,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServicePrepareWorkspaceHandler.ServeHTTP(w, r)
 		case RunnerServiceListRepositoryBranchesProcedure:
 			runnerServiceListRepositoryBranchesHandler.ServeHTTP(w, r)
+		case RunnerServiceRefreshRepositoryIdentityProcedure:
+			runnerServiceRefreshRepositoryIdentityHandler.ServeHTTP(w, r)
 		case RunnerServiceVersionProcedure:
 			runnerServiceVersionHandler.ServeHTTP(w, r)
 		case RunnerServiceGetRunnerSettingsProcedure:
@@ -5973,6 +6008,10 @@ func (UnimplementedRunnerServiceHandler) PrepareWorkspace(context.Context, *conn
 
 func (UnimplementedRunnerServiceHandler) ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListRepositoryBranches is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RefreshRepositoryIdentity(context.Context, *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RefreshRepositoryIdentity is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {

@@ -208,7 +208,9 @@ func (b *Bench) prepareWorkspace(ctx context.Context, key, workspaceID, name, br
 						return e
 					}
 					if "github:"+strings.ToLower(remote.FullName) != id {
-						return errors.New("repository identity changed; refresh and retry")
+						// The ID Lazybox listed under this name is another
+						// name's now: the name means another repository.
+						return &RepositoryReplaced{Identity: id, Name: row.Name}
 					}
 					repo, e = b.RepositoryImporter.ImportWithProgress(ctx, remote, token, func(message string) error { return progress(id, row.Name+" · "+message) })
 					return e
@@ -220,6 +222,8 @@ func (b *Bench) prepareWorkspace(ctx context.Context, key, workspaceID, name, br
 				return collections.Collection{}, fmt.Errorf("could not prepare %s: %w", row.Name, err)
 			}
 			repoID = repo.ID
+		} else if err = b.replacedCopy(ctx, id, row.Name, repoID); err != nil {
+			return collections.Collection{}, fmt.Errorf("could not prepare %s: %w", row.Name, err)
 		}
 		// The new branch starts from origin's default branch as it is now, or
 		// from the branch chosen (or last chosen) to start from, fetched first.
