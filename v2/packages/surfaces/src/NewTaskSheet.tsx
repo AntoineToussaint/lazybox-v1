@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { SubscriptionOptions } from './SubscriptionGroups';
 import type { RunnerClient } from '@lazybox/client-core';
-import type { InfoResponse } from '@lazybox/protocol';
+import type { InfoResponse, RepositoryReplacement } from '@lazybox/protocol';
+import { ReplaceRepositoryCopy } from './RepositoryReplacement';
 import type { ViewStateStore } from '@lazybox/platform';
 import { actionEnabled, bindings, displayBinding, runAction, useAction, useActionRevision } from './actions';
 import { useKeymap } from './keyboard';
@@ -43,7 +44,9 @@ type Draft = { prompt: string; identities: string[]; empty: boolean; name?: stri
 type Plan = { prompt: string; message: string; name: string; branch: string; identities: string[]; starts: Record<string, string>; empty: boolean; provider: string; profileId: string; mode: TaskMode; agent: string; item?: ItemChoice };
 type Progress = (message: string) => void;
 /** Where a start got to, so trying again picks up there instead of making a second workspace. */
-type Attempt = { spec: string; requestKey: string; operationId: string; collectionId?: string; sessionId?: string; sent?: boolean; message?: string };
+type Attempt = { spec: string; requestKey: string; operationId: string; collectionId?: string; sessionId?: string; sent?: boolean; message?: string;
+  /** The repository the Runner refused because its history changed on GitHub (the error card's way forward). */
+  replaced?: RepositoryReplacement };
 
 const CHOICES = 'new-task';
 /** The unsent sheet of this window: an Escape never loses a long message. */
@@ -55,9 +58,11 @@ async function startTask(api: RunnerClient, plan: Plan, attempt: Attempt, progre
   if (!attempt.collectionId) {
     progress(plan.identities.length ? 'Preparing the workspace…' : 'Creating the workspace…');
     let collection: { id: string } | undefined;
+    attempt.replaced = undefined;
     for await (const update of api.prepareWorkspace({ requestKey: attempt.requestKey, collectionId: '', name: plan.name, repositoryIdentities: [...plan.identities].sort(), branch: plan.empty ? '' : plan.branch, startFrom: plan.starts, item: plan.item }, { timeoutMs: 600_000 })) {
       if (update.message) progress(update.message);
       if (update.collection) collection = update.collection;
+      if (update.replaced) attempt.replaced = update.replaced;
     }
     if (!collection) throw new Error('The Runner stopped before the workspace was ready. Start again: it picks up the same workspace.');
     attempt.collectionId = collection.id;
@@ -120,6 +125,7 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
   const [query, setQuery] = useState(''), [listOpen, setListOpen] = useState(false), [active, setActive] = useState(0);
   const [editingName, setEditingName] = useState(draft.name !== undefined || draft.branch !== undefined);
   const [problem, setProblem] = useState<TaskProblem>(), [error, setError] = useState(failure);
+  const [replaced, setReplaced] = useState<RepositoryReplacement>();
   const [busy, setBusy] = useState(false), [progress, setProgress] = useState('');
   const attempt = useRef<Attempt>({ spec: '', requestKey: '', operationId: '' });
   const background = useRef(false);
@@ -222,7 +228,7 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
     else if (value.message !== attempt.current.message) attempt.current.operationId = crypto.randomUUID();
     try { writePreference(viewState, CHOICES, JSON.stringify(rememberTask(remembered, { identities: value.identities, provider: value.provider, profile: value.profileId, mode: draft.mode }))); } catch { /* the next sheet starts from the defaults */ }
     attempt.current.message = value.message;
-    setBusy(true); setError(''); setProgress('');
+    setBusy(true); setError(''); setReplaced(undefined); setProgress('');
     background.current = inBackground;
     // In the background the sheet gets out of the way at once; the start goes on and reports in a toast.
     if (inBackground) { announceBackground(value); onClose(); }
@@ -237,7 +243,7 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
       // The conversation exists but did not take the message: it waits in its message box.
       if (run.sessionId && !run.sent && value.prompt.trim()) composeInConversation({ sessionId: run.sessionId, text: value.prompt });
       if (background.current) showToast({ id: `task:${run.requestKey}`, tone: 'failed', title: `Could not start “${value.name}”`, body: message, action: { label: 'Show', run: () => onFailed(message) }, button: { label: 'Show', run: () => onFailed(message) } });
-      else { setError(message); setBusy(false); setProgress(''); }
+      else { setError(message); setReplaced(run.replaced); setBusy(false); setProgress(''); }
     }
   };
   const announceBackground = (value: Plan) => showToast({ id: `task:${attempt.current.requestKey}`, tone: 'info', title: `Starting “${value.name}”…`, body: value.identities.length ? `${value.identities.length === 1 ? label(value.identities[0]) : `${value.identities.length} repositories`} · ${value.agent}` : value.agent, timeout: 4000 });
@@ -401,7 +407,10 @@ function NewTaskSheet({ ref, viewState, failure, pickIssue = 0, onClose, onStart
         {safe.guarded && <p className="new-task-hint" data-testid="new-task-item-mode">From an issue the agent asks first, not YOLO: its text is not yours. Choose YOLO to change that.</p>}
       </div>
 
-      {(problem || error) && <p className="new-task-problem" role="alert">{problem?.message || error}</p>}
+      {replaced && !problem && !busy
+        // The error card's way forward: replace Lazybox's copy, then start again.
+        ? <ReplaceRepositoryCopy key={replaced.identity} replacement={replaced} autoFocus onReplaced={() => { setReplaced(undefined); setError(''); void reloadCatalog(); void start(false); }}/>
+        : (problem || error) && <p className="new-task-problem" role="alert">{problem?.message || error}</p>}
       {busy && <div className="new-task-progress" role="status"><span>{progress || 'Starting…'}</span><progress aria-label="Starting the task"/><small>Esc keeps it going in the background.</small></div>}
       <footer>
         <span className="new-task-keys" aria-hidden="true"><kbd>↵</kbd> start · <kbd>{mod}↵</kbd> in the background · {draft.identities.length && !draft.empty ? <><kbd>⌥B</kbd> start from</> : <><kbd>⇧↵</kbd> new line</>}</span>

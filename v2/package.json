@@ -129,6 +129,7 @@
     "test:slash-commands": "node scripts/test-slash-commands.mjs",
     "test:repository-requests": "node scripts/test-repository-requests.mjs",
     "test:unconfirmed-ownership": "node scripts/test-unconfirmed-ownership.mjs",
+    "test:repository-replaced": "node scripts/test-repository-replaced.mjs",
     "test:agent-starts-conversation": "node scripts/test-agent-starts-conversation.mjs",
     "test:workspace-rows": "node scripts/test-workspace-rows.mjs",
     "test:peek": "node scripts/test-peek.mjs",
